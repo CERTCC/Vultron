@@ -2,9 +2,13 @@
 # Start (or attach to) a slot-based Claude Code devcontainer from the Mac terminal.
 # Usage: ./start-dev.sh <slot> [--rebuild] [--reset]
 #   slot       Name for this dev slot (e.g. inky, pinky, main). You pick the name.
-#              "main" is special: attaches to the main checkout with no worktree.
+#              "main" is special: attaches to the host checkout directly.
+#              Every other slot gets its own independent `git clone`, made
+#              entirely inside that container — no shared git state between
+#              slots, no host directory per slot.
 #   --rebuild  Remove and rebuild the Docker image from scratch.
-#   --reset    Delete the slot's worktree and recreate it from main (also removes container).
+#   --reset    Wipe the slot's container (its clone goes with it). A fresh
+#              clone from origin/main is made on next start.
 set -euo pipefail
 
 SLOT=""
@@ -29,16 +33,22 @@ if [ -z "$SLOT" ]; then
     echo "Usage: ./start-dev.sh <slot> [--rebuild] [--reset]"
     echo ""
     echo "  slot       Name for this dev slot (e.g. inky, pinky, main)."
-    echo "             'main' attaches to the main checkout; all others create a worktree."
+    echo "             'main' attaches to the host checkout; every other slot"
+    echo "             gets its own independent clone, isolated in that container."
     echo "  --rebuild  Remove and rebuild the Docker image from scratch."
-    echo "  --reset    Delete the slot's worktree and recreate it from main."
+    echo "  --reset    Wipe the slot's container and its clone; recreated fresh"
+    echo "             from origin/main on next start."
     exit 1
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MAIN_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-PARENT_DIR="$(dirname "$MAIN_DIR")"
 MAIN_NAME="$(basename "$MAIN_DIR")"
+# Strip any embedded credentials (https://user:token@host/...) before this
+# ever reaches a container env var or a log line — auth should flow through
+# the mounted .gitconfig's credential helper (gh, using GH_TOKEN from
+# --env-file below), never through the remote URL itself.
+ORIGIN_URL="$(git -C "$MAIN_DIR" remote get-url origin | sed -E 's#://[^@/]+@#://#')"
 IMAGE_NAME="${MAIN_NAME}-image"
 DATA_VOLUME="${MAIN_NAME}-data"
 ENV_FILE="$SCRIPT_DIR/.devcontainer/devcontainer.env"
@@ -51,11 +61,9 @@ fi
 if [ "$SLOT" = "main" ]; then
     CONTAINER_NAME="${MAIN_NAME}_main"
     WORKSPACE="/workspaces/${MAIN_NAME}"
-    WORKTREE_PATH="$MAIN_DIR"
 else
     CONTAINER_NAME="${MAIN_NAME}_${SLOT}"
     WORKSPACE="/workspaces/${MAIN_NAME}_${SLOT}"
-    WORKTREE_PATH="${PARENT_DIR}/${MAIN_NAME}_${SLOT}"
 fi
 
 # Ensure wip_notes/ and wip_outputs/ exist on the host (both gitignored)
@@ -73,7 +81,9 @@ if [ "$_created_wip" = true ]; then
 fi
 mkdir -p "$MAIN_DIR/wip_outputs/$SLOT"
 
-# --rebuild or --reset: remove existing container first
+# --rebuild or --reset: remove existing container first. A slot's clone lives
+# entirely inside its own container's writable layer, so removing the
+# container is the whole reset — there's nothing else on the host to clean up.
 if [ "$REBUILD" = true ] || [ "$RESET" = true ]; then
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         echo "Removing container '$CONTAINER_NAME'..."
@@ -85,18 +95,6 @@ fi
 if [ "$REBUILD" = true ]; then
     echo "Removing image '$IMAGE_NAME'..."
     docker rmi -f "$IMAGE_NAME" >/dev/null 2>&1 || true
-fi
-
-# Worktree management (non-main slots only)
-if [ "$SLOT" != "main" ]; then
-    if [ "$RESET" = true ] && [ -d "$WORKTREE_PATH" ]; then
-        echo "Resetting worktree at '$WORKTREE_PATH'..."
-        git -C "$MAIN_DIR" worktree remove --force "$WORKTREE_PATH"
-    fi
-    if [ ! -d "$WORKTREE_PATH" ]; then
-        echo "Creating worktree at '$WORKTREE_PATH'..."
-        git -C "$MAIN_DIR" worktree add --detach "$WORKTREE_PATH"
-    fi
 fi
 
 _exec_shell() {
@@ -116,7 +114,9 @@ if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     exit 0
 fi
 
-# Container exists but stopped — restart it
+# Container exists but stopped — restart it. Its clone lives on the
+# container's own writable layer and survives stop/start; only `docker rm`
+# (via --reset or --rebuild) discards it.
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "Starting stopped container '$CONTAINER_NAME'..."
     trap _cleanup EXIT
@@ -127,15 +127,12 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     exit 0
 fi
 
-# First create: build image (cached layers reused if unchanged), create container, run setup
-# Use the worktree's Dockerfile for non-main slots so in-progress Dockerfile changes are picked up.
-if [ "$SLOT" = "main" ]; then
-    DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
-else
-    DOCKERFILE="$WORKTREE_PATH/docker/Dockerfile"
-fi
+# First create: build image (cached layers reused if unchanged), create
+# container, run setup. All slots build from the main checkout's Dockerfile —
+# there's no per-slot host directory anymore to source an in-progress
+# Dockerfile from; test Dockerfile changes via the main checkout + --rebuild.
 echo "Building image '$IMAGE_NAME'..."
-docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" --target dev "$SCRIPT_DIR"
+docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/docker/Dockerfile" --target dev "$SCRIPT_DIR"
 
 echo ""
 echo "Creating container '$CONTAINER_NAME'..."
@@ -152,11 +149,25 @@ DOCKER_ARGS=(
     -w "$WORKSPACE"
 )
 
-# Mount slot worktree and parent .git for worktree ref resolution (non-main slots only)
+# Non-main slots get their own independent `git clone`, made entirely inside
+# that container's own writable filesystem layer (see .devcontainer/postcreate.sh)
+# — never a host bind mount, never sharing a .git with any other slot or the
+# host. Nothing any container does to its own repo (commit, branch, checkout
+# someone else's PR for review, `git gc`, even `rm -rf .git`) can reach any
+# other slot's repo: that's Docker's ordinary per-container filesystem
+# isolation, not something enforced by careful mounting or locking.
+#
+# The clone is seeded from the host's main checkout via a one-time, read-only
+# `--reference --dissociate`: objects are borrowed from it for speed, then
+# immediately copied into the clone's own object store, so the clone has zero
+# ongoing dependency on this mount or on this machine's paths once created —
+# portable to any dev's machine, and safe even if the host checkout is later
+# gc'd or moved.
 if [ "$SLOT" != "main" ]; then
-    DOCKER_ARGS+=(-v "$WORKTREE_PATH:$WORKSPACE")
-    # Mount parent .git at its absolute host path so worktree gitdir references resolve inside container
-    DOCKER_ARGS+=(-v "$MAIN_DIR/.git:$MAIN_DIR/.git")
+    DOCKER_ARGS+=(
+        -v "$MAIN_DIR/.git:/mnt/main-repo.git:ro"
+        -e VULTRON_ORIGIN_URL="$ORIGIN_URL"
+    )
 fi
 
 # Mount user-level skills read-only if present on the host
@@ -187,6 +198,15 @@ DOCKER_ARGS+=(
 
 docker run -d "${DOCKER_ARGS[@]}" "$IMAGE_NAME" sleep infinity
 trap _cleanup EXIT
+
+# Docker auto-creates -w's target directory as root if it doesn't already
+# exist, regardless of the image's configured USER — so a non-main slot's
+# fresh $WORKSPACE (never bind-mounted, unlike main's) starts out root-owned
+# and the vscode user can't clone into it. Fix ownership before postcreate.sh
+# (which runs as vscode) tries to.
+if [ "$SLOT" != "main" ]; then
+    docker exec -u root "$CONTAINER_NAME" chown vscode:vscode "$WORKSPACE"
+fi
 
 echo ""
 echo "Running post-create setup (first time only)..."
