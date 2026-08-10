@@ -50,6 +50,61 @@ why. Do not use it to paper over slow tests.
 
 ---
 
+### `monkeypatch.undo()` MUST Precede `reload_config()` in Fixture Teardown
+
+`vultron/config/app.py` keeps a process-global `_config_cache`.
+`reload_config()` clears it and re-reads the environment. Pytest undoes
+`monkeypatch` env changes **after** the requesting fixture's teardown body
+runs, so this order pins the patched value into the cache for the rest of the
+session:
+
+```python
+# WRONG — re-caches the still-patched env
+yield
+reload_config()
+
+# RIGHT — undo first, then reload from the clean env
+yield
+monkeypatch.undo()
+reload_config()
+```
+
+Any fixture that both patches a `VULTRON_*` env var and calls
+`reload_config()` in teardown is affected, not just `test/demo/`. Clearing the
+cache without reloading (`_cfg_module._config_cache = None`, as in
+`test/adapters/driven/test_get_datalayer.py`) is an equally valid fix.
+
+`test/demo/conftest.py` has an autouse guard that detects and repairs such
+leaks, and records them on `config_leak_ledger` so
+`test_config_leak_guard.py::TestNoFixtureLeakedConfig` fails rather than
+silently masking the regression. That guard is **function-scoped only** — a
+module-, class-, or session-scoped fixture pollutes the cache before the guard
+snapshots it, so higher-scoped fixtures must get the order right themselves.
+Nothing outside `test/demo/` is guarded at all.
+
+Source: #2086 / PR #2126.
+
+---
+
+### A Test That Needs `VULTRON_*` Config MUST Set It Itself
+
+The flip side of the rule above: fixing a leak removes config that downstream
+tests may have been silently borrowing. `test_create_tree.py` and
+`nodes/test_communication.py` both run `ResolveCaseActorUrlsNode` (via
+`CreateCaseActorNode` / `CreateCaseBT`), which returns FAILURE when
+`case_actor_service_url` is None (CP-08-002/003) — yet neither module set it.
+They passed only because another module leaked the value into the process-global
+cache first, and failed in isolation or in a subset run (#1897).
+
+Each module that depends on a `VULTRON_*` setting needs its own autouse fixture
+setting it, using the `monkeypatch.undo()`-then-`reload_config()` teardown order
+above. Verify with a targeted run, not just the full suite — a module that only
+passes in a full-suite run is order-dependent, not passing.
+
+Source: #1897 / PR #2126.
+
+---
+
 ### Pytest `filterwarnings = ["error"]` Does Not Catch All Warnings
 
 `filterwarnings = ["error"]` converts `warnings.warn()` to errors, but does NOT

@@ -45,9 +45,36 @@ from vultron.core.models.vultron_types import (
 )
 from test.core.behaviors.bt_harness import BTTestScenario
 
+# The URL used by tests as the CaseActor service base URL (CP-08-001).
+_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def configure_case_actor_url(monkeypatch):
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for this module.
+
+    ``CreateCaseActorNode`` runs ``ResolveCaseActorUrlsNode``, which returns
+    FAILURE when ``case_actor_service_url`` is None (CP-08-002/003).  This
+    module used to inherit the value leaked into the module-level config cache
+    by another test's fixture, so it failed whenever it ran in isolation or in
+    a subset (#1897).  Configuring it here makes the module self-sufficient.
+    """
+    from vultron.config.app import reload_config
+
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+    )
+    reload_config()
+    yield
+    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URL into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
+    reload_config()
 
 
 @pytest.fixture
