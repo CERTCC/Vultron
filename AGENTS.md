@@ -530,6 +530,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `specs/` for the bare name as well as the quoted/path form, and update every spec entry
   that references it — including `statement:`, `rationale:`, and cross-reference fields.
   *Source: ISSUE-2011*
+- **Multiple Related Fix PRs Targeting a Shared CI Suite Must Use an Integration
+  Branch, Not Race to `main`** — when 3+ related bug fix PRs are open
+  simultaneously and all affect the same CI suite (e.g. Demo Integration), open
+  a single `fix/<area>` integration branch off `main` and target all child PRs
+  there. Run the full CI suite against the integration branch after each child PR
+  merges into it. Merge the integration branch to `main` only when the full suite
+  is green. Racing parallel PRs to `main` means each PR can only confirm its own
+  scenario passes — none can confirm it hasn't perturbed other currently-passing
+  scenarios. *Source: CONCERN-2137*
 
 ---
 
