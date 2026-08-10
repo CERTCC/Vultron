@@ -416,3 +416,52 @@ fixture so `dl.read()` resolves correctly.
 **Assertion depth**: the Accept happy path emits both an Accept notification
 and an Invite (2 activities). Assert `len(outbox) >= 2`, not `>= 1`, to catch
 the case where only one of the two required activities was emitted.
+
+---
+
+## Dual-DataLayer Isolation Guard in Tests
+
+(ISSUE-1749, 2026-08-08)
+
+A single-DataLayer test cannot catch a BT node that accidentally calls
+`get_datalayer()` (the process-global singleton) instead of `self.datalayer`.
+Such a node writes records to the singleton while the injected DataLayer stays
+empty — all positive assertions on the injected DL still pass.
+
+**The dual-DL isolation pattern** uses two separate in-memory DataLayer
+instances and asserts the global singleton is empty after the BT runs:
+
+```python
+from vultron.adapters.driven.datalayer_sqlite import get_datalayer, reset_datalayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+@pytest.fixture(autouse=True)
+def _reset_singleton(self):
+    reset_datalayer()
+    yield
+    reset_datalayer()
+
+def test_records_on_injected_dl_not_singleton(self, make_payload):
+    case_actor_dl = SqliteDataLayer("sqlite:///:memory:")  # injected DL
+    _seed_and_run(make_payload, case_actor_dl)
+
+    assert list(case_actor_dl.list_objects("VulnerabilityCase")), \
+        "record must appear on the injected DataLayer"
+    assert not list(get_datalayer().list_objects("VulnerabilityCase")), \
+        "singleton must stay empty — a get_datalayer() call in the BT node would fail this"
+```
+
+Key points:
+
+- `reset_datalayer()` before **and** after each test ensures test order
+  independence — a previous test that did call `get_datalayer()` won't poison
+  the singleton check.
+- `get_datalayer()` called with no arguments returns the shared/admin singleton
+  (unscoped). It is never the same object as `SqliteDataLayer("sqlite:///:memory:")`
+  created directly — the two have independent backing stores.
+- Apply this pattern for any BT-backed use case that receives a DataLayer as a
+  constructor argument: `CreateCaseProposalReceivedUseCase`,
+  `SvcCreateCaseUseCase`, and any future CaseActor-initialisation BTs.
+
+Reference: `test/core/behaviors/case/test_case_proposal_received_tree.py`,
+class `TestCreateCaseProposalReceivedBTCaseActorRecords`.
