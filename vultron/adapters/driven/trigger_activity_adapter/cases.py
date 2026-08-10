@@ -184,8 +184,35 @@ class _CasesMixin:
 
         Per MV-10-003: the case owner sends this after an ``Accept(Invite)``
         is received and the invitee's embargo consent has been verified.
+
+        Per CBT-01-007: all nested domain objects are embedded as full inline
+        objects — bare URI string references MUST NOT be used.  Each report
+        listed in ``case.vulnerability_reports`` is read from the DataLayer
+        and embedded as a full ``as_VulnerabilityReport`` object so that
+        receiving handlers (``SeedAnnouncedCaseNode``) can store the objects
+        by iterating the embedded collection.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        embedded_reports: list[Any] = []
+        for report_ref in case.vulnerability_reports:
+            report_id = (
+                report_ref
+                if isinstance(report_ref, str)
+                else getattr(report_ref, "id_", str(report_ref))
+            )
+            report_obj = _to_wire(
+                self._dl.read(report_id), as_VulnerabilityReport
+            )
+            if report_obj is not None:
+                embedded_reports.append(report_obj)
+            else:
+                logger.warning(
+                    "announce_vulnerability_case: report '%s' not found in"
+                    " DataLayer — embedding bare ref (CBT-01-007 degraded)",
+                    report_id,
+                )
+                embedded_reports.append(report_ref)
+        case.vulnerability_reports = embedded_reports
         activity = announce_vulnerability_case_activity(
             case=case,
             actor=actor,

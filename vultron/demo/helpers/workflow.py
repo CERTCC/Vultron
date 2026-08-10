@@ -287,23 +287,25 @@ def run_invite_path_rm_triage(
 ) -> None:
     """Run the full RM triage cycle for an invite-path participant (CM-11-002).
 
-    Invited actors join via Accept(Invite) and lack a VultronOfferRecord, so
-    the standard RM RECEIVED→VALID→ACCEPTED cycle requires a seeded record
-    before the validate-report trigger can succeed.
+    Invited actors join via Accept(Invite) and receive the case via
+    Announce(VulnerabilityCase) with embedded reports + the canonical
+    Offer(VulnerabilityReport) ledger backfill.  The VultronOfferRecord is
+    created from the ledger entry by ApplyOfferReportFromLedgerNode — no
+    spoofing via seed-offer-record is needed or permitted.
 
     Steps:
-    1. Seed a VultronOfferRecord on the invited actor's DataLayer.
-    2. Trigger validate-report (RM → VALID).
-    3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
-    4. Trigger engage-case (RM → ACCEPTED).
-    5. Poll until CaseActor reflects RM.ACCEPTED.
+    1. Trigger validate-report (RM → VALID).
+    2. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
+    3. Trigger engage-case (RM → ACCEPTED).
+    4. Poll until CaseActor reflects RM.ACCEPTED.
 
     Args:
         invited_client: Client for the invited actor's container.
         invited_actor: The invited actor's local replica (e.g. vendor2_in_vendor2).
         offer: The original submit-report Offer activity.
         report: The VulnerabilityReport in the case.
-        finder: The actor that originally submitted the Offer.
+        finder: The actor that originally submitted the Offer (unused; kept for
+            call-site compatibility).
         auth_client: Client for an actor that can see the CaseActor state
             (e.g. the coordinating actor or vendor1_client).
         case: The VulnerabilityCase.
@@ -311,14 +313,6 @@ def run_invite_path_rm_triage(
         timeout_seconds: Polling timeout per wait call (default 20s).
     """
     offer_id = getattr(offer, "id_", str(offer))
-
-    seed_offer_record_for_actor(
-        client=invited_client,
-        actor=invited_actor,
-        offer_id=offer_id,
-        report_id=report.id_,
-        offer_actor_id=finder.id_,
-    )
 
     receiver_validates_report(
         receiver_client=invited_client,
