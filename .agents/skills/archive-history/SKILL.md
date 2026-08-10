@@ -38,30 +38,52 @@ The caller provides four pieces of information (see the calling skill for body f
 ### Step 1 — Pipe entry body to `append-history`
 
 ```bash
-cat <<'ENDOFENTRY' | uv run append-history <TYPE> \
+HISTORY_OUTPUT=$(cat <<'ENDOFENTRY' | uv run append-history <TYPE> \
     --title "<TITLE>" \
     --source "<SOURCE>"
 
 <Full entry body — include PR URL, impl issue links, and outcome summary>
 
 ENDOFENTRY
+)
 ```
 
-The tool writes `plan/history/YYMM/<type>/<source>.md` and regenerates
-`plan/history/YYMM/README.md` locally (the README is gitignored).
+Capture the output in `HISTORY_OUTPUT`. The tool either:
 
-### Step 2 — Lint the new history files
+- **File mode**: writes `plan/history/YYMM/<type>/<source>.md`, regenerates
+  the local `plan/history/YYMM/README.md` (gitignored), and prints the file
+  path to stdout.
+- **GitHub comment mode** (`implementation`/`idea` with `--source ISSUE-N`):
+  posts a comment on the issue and prints the comment URL to stdout
+  (starts with `https://`). No file is written.
+
+### Step 2 — Check output mode
+
+```bash
+if [[ "$HISTORY_OUTPUT" == https://* ]]; then
+    echo "Posted as GitHub comment: $HISTORY_OUTPUT"
+    # Skip Steps 3–5 (no file was written).
+    exit 0
+fi
+```
+
+If the output is a URL, the entry was posted as a GitHub comment — skip
+all `git` steps (HM-08-004). Record the URL for the caller's reference.
+
+### Step 3 — Lint the new history files
+
+Only reached when a file was written:
 
 ```bash
 markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \
   "plan/history/$(date +%y%m)/**/*.md"
 ```
 
-### Step 3 — Stage and commit
+### Step 4 — Stage and commit
 
 ```bash
 git add plan/history/
-uv run git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
+git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
 
 Co-authored-by: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
@@ -69,7 +91,7 @@ Co-authored-by: Claude Sonnet 4.6 <noreply@anthropic.com>"
 The `Co-authored-by` trailer is **required** on this commit just as on all
 others — the history commit is the most commonly missing it.
 
-### Step 4 — Push
+### Step 5 — Push
 
 ```bash
 git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" HEAD
@@ -81,6 +103,8 @@ git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git"
 
 - **Always call after PR creation** — include the PR URL in the entry body.
 - **One entry per invocation** — for multiple entries, call this skill in a loop.
-- **Do not call `git push` separately** — this skill always pushes as its final step.
+- **Skip git steps when output is a URL** — GitHub comment mode writes no file;
+  `git add`, commit, and push are not needed (HM-08-004, HM-08-006).
+- **Do not call `git push` separately** — this skill always pushes as its final step (file mode only).
 - **Do not amend** — open a new commit via a fresh invocation rather than amending.
 - History files are **immutable** once pushed.
