@@ -6,6 +6,7 @@ description: >
   trees; documents where each concern belongs.
 related_specs:
   - specs/code-style.yaml
+  - specs/bt-composability.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/domain-model-separation.md
@@ -38,7 +39,9 @@ BT node or subtree, it is **invisible to analysis, audit, and explainability
 tools**.
 
 This is not a style preference. It is the design invariant that makes
-Vultron's process inspectable without reading implementation code.
+Vultron's process inspectable without reading implementation code. The
+enforceable form of this invariant is `BTC-03-001` in
+`specs/bt-composability.yaml`.
 
 ### Procedural Glue vs. Domain Logic
 
