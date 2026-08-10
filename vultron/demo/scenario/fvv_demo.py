@@ -266,6 +266,16 @@ def _phase_report_submission(
         expected_count=4,
     )
 
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor2 RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
+
     # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
     run_invite_path_rm_triage(
         invited_client=vendor2_client,
