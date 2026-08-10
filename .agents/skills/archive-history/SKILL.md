@@ -38,7 +38,7 @@ The caller provides four pieces of information (see the calling skill for body f
 ### Step 1 — Pipe entry body to `append-history`
 
 ```bash
-HISTORY_OUTPUT=$(cat <<'ENDOFENTRY' | uv run append-history <TYPE> \
+HISTORY_OUTPUT=$(cat <<'ENDOFENTRY' | PYTHONPATH= uv run append-history <TYPE> \
     --title "<TITLE>" \
     --source "<SOURCE>"
 
