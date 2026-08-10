@@ -16,7 +16,7 @@ Fix: add `wait_for_case_on_container(finder_client, case.id_)` before
 `run_invite_path_rm_triage` in `_phase_invite_vendor()`, and thread `finder_client` as a
 new parameter. Matches the pattern from PR #2127 for `fcvcv_demo.py`.
 
-Added `TestFinderCaseReplicaWaitBeforeVendorTriage` regression class (3 tests) verifying
+Added `TestFinderCaseReplicaWaitBeforeVendorTriage` regression class (2 tests) verifying
 the ordering invariant (spec CLP-08-005).
 
 PR: <https://github.com/CERTCC/Vultron/pull/2166>
