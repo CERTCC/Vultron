@@ -265,8 +265,17 @@ def test_invariant_14_no_gaps_in_log_indices(
 def test_invariant_15_cs_state_transitions_observed(
     fcv_reject_replicas: dict[str, list[dict]],
 ) -> None:
-    """All three key CS transitions observed in the authoritative log."""
-    violations = check_cs_state_transitions_observed(fcv_reject_replicas)
+    """P-transition (public aware) observed; VFd check skipped for reject-flow.
+
+    In the fcv-reject scenario Vendor rejects the case invitation and is never
+    added as a participant, so no actor advances the VFD state machine.
+    ``vfd_state == 'VFd'`` (fix ready) is therefore unreachable and is excluded
+    from this scenario's Invariant 15.  The P-transition (pxa_state starts with
+    'P') is still required — Coordinator triggers CS.P during publication.
+    """
+    violations = check_cs_state_transitions_observed(
+        fcv_reject_replicas, check_fix_ready=False
+    )
     assert not violations, "Missing CS-transition observations:\n" + "\n".join(
         violations
     )
