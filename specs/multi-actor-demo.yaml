@@ -1788,23 +1788,23 @@ groups:
       `verify_fix_ready` in `vultron/demo/helpers/milestones.py` MUST accept only
       actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
       (fix-ready) transition is gated on VENDOR by `CheckVendorRoleNode`.
-      `verify_fix_deployed` MUST accept actor IDs holding `CVDRole.VENDOR` OR
-      `CVDRole.DEPLOYER`; the d→D (fix-deployed) transition is gated on DEPLOYER
-      by `CheckDeployerRoleNode`. Passing any other actor (e.g. COORDINATOR or
-      CASE_OWNER) to either helper is a caller error. Each helper MUST enforce its
-      precondition at runtime, raising `AssertionError` with the actor ID and its
-      actual roles if the assertion fails.
+      `verify_fix_deployed` MUST accept only actor IDs holding `CVDRole.DEPLOYER`
+      in the case's participant index; the d→D (fix-deployed) transition is gated
+      on DEPLOYER by `CheckDeployerRoleNode`. Passing any other actor (e.g.
+      COORDINATOR, CASE_OWNER, or a VENDOR-only actor without DEPLOYER) to either
+      helper is a caller error. Each helper MUST enforce its precondition at
+      runtime, raising `AssertionError` with the actor ID and its actual roles if
+      the assertion fails.
     rationale: >-
       The f→F (fix-ready) transition requires CVDRole.VENDOR; coordinators have no
       vendor fix path. The d→D (fix-deployed) transition requires CVDRole.DEPLOYER;
-      a vendor who is not a deployer stops at VFd. An actor may hold both roles
-      (e.g. [vendor, deployer]) and passes both checks. The original spec listed
-      VENDOR for both helpers, which was an overfit to single-vendor scenarios
-      where Vendor and Deployer were always the same actor. The FCVCV scenario
-      introduced a distinct Vendor-Deployer actor (V2) that makes the distinction
-      observable. This was the root cause of the M4/M5 CI failures in PR #1623
-      (issue #1593), where `fcv_demo.py` passed `coordinator.id_` instead of
-      `vendor.id_`.
+      a vendor who is not a deployer stops at VFd and cannot advance to VFD
+      (CSB-15-002). An actor may hold both VENDOR and DEPLOYER roles and passes
+      both checks. `verify_fix_deployed` previously accepted VENDOR-or-DEPLOYER,
+      which was misleading: a VENDOR-only actor can never reach VFD regardless of
+      the role guard, so accepting VENDOR in the guard gave a confusing error
+      (VFD state check failure) instead of a clear one (DEPLOYER role check
+      failure). Requiring DEPLOYER-only makes the failure mode unambiguous.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-06-002
@@ -2291,11 +2291,10 @@ groups:
     rationale: >-
       V1's vendor-only role set (stops at VFd) and V2's vendor-deployer role
       set (reaches VFD) are the key differentiators of this scenario. The
-      distinction verifies DEMOMA-15-001's corrected precondition guards:
+      distinction verifies DEMOMA-15-001's precondition guards:
       `verify_fix_ready` requires VENDOR; `verify_fix_deployed` requires
-      VENDOR or DEPLOYER. Using V1 in a `verify_fix_deployed` call would
-      exercise the wrong path and mask a future regression where the d→D BT
-      gate is weakened.
+      DEPLOYER. Using V1 in a `verify_fix_deployed` call would exercise the
+      wrong path and mask a future regression where the d→D BT gate is weakened.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-15-001
