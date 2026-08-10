@@ -29,12 +29,15 @@ tool and the migration from monolithic `plan/*HISTORY.md` files.
 | Question | Decision | Rationale |
 |---|---|---|
 | Which history files are in scope? | All `*HISTORY.md` files, including any future additions | Uniform treatment avoids per-file special cases |
-| Where do history files live? | `plan/history/` subdirectory | Separates archive from active planning; prevents agents from reading history during orientation |
-| Chunking granularity? | Monthly (YYMM suffix in directory name) | Recent history is most relevant; monthly chunks keep the current month manageable |
-| File structure per entry? | Individual write-once files: `plan/history/YYMM/<type>/<entry-id>.md` | Clean git diffs (new file added, not existing file edited); enables YAML frontmatter per entry |
+| Where do history files live? | `plan/history/` subdirectory for `learning`/`priority`; GitHub issue comments for `implementation`/`idea` when source resolves to an issue number | Co-locates completion narrative with the original problem statement; eliminates file bloat (~100–200 files/month) |
+| Chunking granularity? | Monthly (YYMM suffix in directory name) for file-mode entries | Recent history is most relevant; monthly chunks keep the current month manageable |
+| File structure per entry? | Individual write-once files: `plan/history/YYMM/<type>/<entry-id>.md` (file mode only) | Clean git diffs (new file added, not existing file edited); enables YAML frontmatter per entry |
+| GitHub comment mode? | `append-history implementation` / `append-history idea` with `--source ISSUE-N` posts a comment on issue N; falls back to file mode for non-ISSUE-N source values | Allows gradual migration; pre-issue-number legacy sources continue writing files |
 | Month-level navigation? | Auto-generated `plan/history/YYMM/README.md` rebuilt by the tool on every append; **gitignored** — use `uv run show-history [--month YYMM \| --all]` to view | Eliminates PR merge conflicts caused by parallel branches each regenerating the same file |
 | Top-level static README? | Yes — `plan/history/README.md` explains legacy files and the transition date | Documents the migration boundary for future readers |
 | Legacy file migration? | Move monolithic files to `plan/history/` top level as static archives | Cannot be split retroactively without manual effort; grandfathered content preserved |
+| Existing chunked files (pre-Aug 2026)? | Leave as-is — immutable historical records (HM-01-005) | Backfilling ~800 files would require significant API volume; pre-Aug 2026 files are infrequently accessed |
+| Aug 2026+ backfill? | Separate issue — post each 2608+ implementation/idea file as a comment, then remove the file | Scoped to recent history where co-location benefit is highest; tracked as a distinct task |
 | Tool interface? | `uv run append-history <type>` — `--title` and `--source` required; body via stdin or `--file <path>` | Frontmatter is built by the tool; agents provide only body content and named params |
 | Date determination? | Use current system clock (UTC) by default; allow a backfill-only override for migration tooling | Normal agents avoid month-selection decisions, while legacy backfill still needs historical placement |
 | Timestamp field? | `timestamp: datetime (UTC ISO 8601)` replaces legacy `date: date`; legacy entries are converted automatically by model validator | Enables sub-day ordering and reliable sorting in README tables |
@@ -43,7 +46,7 @@ tool and the migration from monolithic `plan/*HISTORY.md` files.
 | Type validation? | `HistoryEntryType` StrEnum in `vultron/metadata/history/types.py` | Adding a new type requires only one line change |
 | Module location? | `vultron/metadata/history/` — sibling of `vultron/metadata/specs/` | Both are project-management metadata tools; co-location signals intent |
 | Agent context boundary? | `plan/history/` is explicitly excluded from default "read plan context" | Prevents agents from spending context tokens on historical archive during orientation |
-| Skill updates? | `build`, `ingest-idea`, `learn` skills must use `append-history` for writes | Skills that directly append to history files must be updated to use the tool |
+| Skill updates? | `build`, `ingest-idea`, `learn` skills must use `append-history` for writes; `archive-history` must skip commit/push when output is a GitHub comment | Skills that directly append to history files must be updated to use the tool |
 
 ---
 
@@ -92,6 +95,50 @@ source: IDEA-26042702
 `specs/history-management.yaml` (HM-01 through HM-05) and
 `notes/history-management.md`.
 ```
+
+---
+
+## GitHub Comment Output Mode
+
+For `implementation` and `idea` entry types, when `--source` resolves to a GitHub
+issue number (`ISSUE-N` or bare integer N), `append-history` posts the entry body
+as a comment on that issue rather than writing a file. This co-locates the
+completion narrative with the original problem statement.
+
+### Source resolution rules
+
+| `--source` value | Output |
+|---|---|
+| `ISSUE-2153` | Comment on issue #2153 |
+| `2153` (bare integer) | Comment on issue #2153 |
+| `IDEA-26042702` | File at `plan/history/YYMM/idea/IDEA-26042702.md` |
+| `TASK-BTND5` | File at `plan/history/YYMM/implementation/TASK-BTND5.md` |
+
+`learning` and `priority` types always write files regardless of source format.
+
+### Skill behaviour change
+
+When `append-history` posts a GitHub comment it prints the comment URL to stdout
+(not a file path). The `archive-history` skill MUST detect this and skip the
+`git add plan/history/` and commit/push steps — there is no new file to stage.
+
+### Comment format
+
+```markdown
+**History: implementation — Fix demo config cache leak**
+
+<full entry body text>
+```
+
+The heading line uses the entry type and `--title` value. The body follows
+unchanged from what would have been the file-based Markdown body.
+
+### Backfill of existing files
+
+Files written before August 2026 are left as-is (HM-01-005 immutability rule).
+A separate backfill task covers the 2608 directory and forward: for each
+`implementation`/`idea` file whose filename is `ISSUE-N.md`, post the body as a
+comment on issue N and delete the file.
 
 ---
 
