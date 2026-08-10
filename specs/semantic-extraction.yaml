@@ -203,6 +203,13 @@ groups:
       Phrase templates MUST use named slots drawn from the set `{actor}`, `{object}`,
       `{target}`, `{context}`, `{origin}`, `{inner_object}`. Slot names MUST be
       human-facing role identifiers, not Python field names from `VultronEvent`.
+    rationale: >-
+      **Runtime population note (CONCERN-1898)**: The current render pipeline
+      (`CaseTimelineEvent.summary`, `event_phrase()`) only populates `{actor}`,
+      `{object}`, and `{target}`. The slots `{context}`, `{origin}`, and
+      `{inner_object}` are reserved for future pipeline extensions but are never
+      populated today. A phrase referencing an unpopulated slot will render with a
+      dangling `"—"` fallback. SE-07-005 pins this invariant with an allowlist test.
     relationships:
     - rel_type: refines
       spec_id: SE-07-001
@@ -226,6 +233,45 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: SE-07-001
+  - id: SE-07-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A unit test MUST assert that no phrase in `SEMANTIC_REGISTRY` references a
+      slot name outside the set currently populated by the runtime render pipeline
+      (`{actor}`, `{object}`, `{target}`). This test MUST fail if a phrase is added
+      that uses `{context}`, `{origin}`, `{inner_object}`, or any other slot name
+      not listed here, until the render pipeline is extended to populate that slot.
+    rationale: >-
+      The `defaultdict`-based SE-07-004 test fills every slot with a placeholder,
+      so it cannot detect phrases that reference slots the runtime never fills.
+      SE-07-005 adds a structural slot-name check, making unfillable-slot bugs a
+      CI failure rather than a silent render defect. Source: CONCERN-1898.
+    relationships:
+    - rel_type: verifies
+      spec_id: SE-07-002
+    - rel_type: refines
+      spec_id: SE-07-004
+  - id: SE-07-006
+    priority: MUST
+    kind: project
+    statement: >-
+      Companion behavioural tests MUST call `event_phrase()` and
+      `CaseTimelineEvent.summary` with representative `MessageSemantics` values
+      covering each distinct slot shape (actor-only, actor+object, actor+target)
+      and assert: (1) no trailing `"—"` appears in the rendered output; (2) no
+      un-substituted `{slot}` markers remain.
+    rationale: >-
+      The structural allowlist (SE-07-005) catches phrase definitions that use
+      forbidden slot names, but cannot detect a phrase that is structurally valid
+      yet still produces a dangling em-dash at render time (e.g. because
+      `target_label` did not resolve for a particular event type). The behavioural
+      tests close this gap. Source: CONCERN-1898.
+    relationships:
+    - rel_type: verifies
+      spec_id: SE-07-002
+    - rel_type: refines
+      spec_id: SE-07-005
 - id: SE-08
   title: Target-Field Discriminators
   specs:
