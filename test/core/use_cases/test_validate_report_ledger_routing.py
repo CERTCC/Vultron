@@ -160,6 +160,10 @@ def _configure_case_actor_url(monkeypatch):
 
     reload_config()
     yield
+    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URL into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
     reload_config()
 
 

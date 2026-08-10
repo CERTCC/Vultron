@@ -41,6 +41,8 @@ config:
 ignores:
   - "wip_notes/**"
   - "wip_outputs/**"
+  # Generated knowledge-graph output; git-ignored, but markdownlint globs it anyway
+  - "graphify-out/**"
   - "node_modules/**"
   - ".github/**"
   - ".venv/**"

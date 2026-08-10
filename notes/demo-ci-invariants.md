@@ -55,9 +55,10 @@ existing eight:
    assertions in the scenario file.
 
 **The scenario→harness registry is the CI matrix**, not a Python module. The
-`demo:` / `test_file:` pairs in `.github/workflows/demo-integration.yml` are the
-sole mapping from a scenario name to its harness file; the pairs appear in both
-the `demo` and `invariant-harness` jobs and must be kept in step.
+`demo:` / `test_file:` pairs in `.github/demo-scenarios.json` (read by the
+workflow via `fromJson`) are the sole mapping from a scenario name to its
+harness file; the pairs appear in both the `demo` and `invariant-harness` jobs
+and must be kept in step.
 
 > **Do not add a `conftest.py` scenario registry.** DEMOMA-19-008 originally
 > required registering the FCVCV harness in `test/ci/invariants/conftest.py`

@@ -13,14 +13,15 @@
 
 """Ratchet: VALID_SCENARIOS in the integration test script must match CI.
 
-When a new demo scenario is added to .github/workflows/demo-integration.yml
+When a new demo scenario is added to .github/demo-scenarios.json
 (per DEMOCI-02-003), the shell script's VALID_SCENARIOS list must be updated
 in the same PR.  This test catches the drift that triggered issue #1585.
 
-Source of truth: the ``demo:`` matrix entries in demo-integration.yml.
+Source of truth: the ``demo`` key in each entry of .github/demo-scenarios.json.
 Checked artifact: VALID_SCENARIOS in run_multi_actor_integration_test.sh.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -28,6 +29,7 @@ import yaml
 
 _REPO_ROOT = Path(__file__).parents[2]
 _CI_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "demo-integration.yml"
+_CI_SCENARIOS_JSON = _REPO_ROOT / ".github" / "demo-scenarios.json"
 _INTEGRATION_SCRIPT = (
     _REPO_ROOT
     / "integration_tests"
@@ -35,19 +37,18 @@ _INTEGRATION_SCRIPT = (
     / "run_multi_actor_integration_test.sh"
 )
 
-# Matches matrix include entries like:   - demo: fvcv-extension
-_CI_DEMO_RE = re.compile(
-    r"^\s+-\s+demo:\s+([a-z][a-z0-9-]+)\s*$", re.MULTILINE
-)
-
 # Matches the assignment line:  VALID_SCENARIOS="fv fvv fvcv-extension fvcv-handoff"
 _VALID_SCENARIOS_RE = re.compile(r'^VALID_SCENARIOS="([^"]+)"')
 
 
 def _ci_scenarios() -> set[str]:
-    """Return the set of scenario names run by demo-integration.yml."""
-    text = _CI_WORKFLOW.read_text()
-    return {m.group(1) for m in _CI_DEMO_RE.finditer(text)}
+    """Return the set of scenario names defined in .github/demo-scenarios.json."""
+    entries = json.loads(_CI_SCENARIOS_JSON.read_text())
+    if not isinstance(entries, list):
+        raise AssertionError(
+            f"Expected a JSON array in {_CI_SCENARIOS_JSON}, got {type(entries).__name__}"
+        )
+    return {entry["demo"] for entry in entries}
 
 
 def _script_scenarios() -> set[str]:
@@ -67,13 +68,26 @@ class TestIntegrationScriptScenarios:
     def test_ci_workflow_exists(self):
         assert _CI_WORKFLOW.exists(), f"CI workflow not found: {_CI_WORKFLOW}"
 
+    def test_ci_scenarios_json_exists(self):
+        assert (
+            _CI_SCENARIOS_JSON.exists()
+        ), f"Scenario matrix not found: {_CI_SCENARIOS_JSON}"
+
+    def test_ci_scenarios_json_is_valid(self):
+        """demo-scenarios.json must parse as a JSON array with demo keys."""
+        entries = json.loads(_CI_SCENARIOS_JSON.read_text())
+        assert isinstance(entries, list), "Expected a JSON array"
+        assert all(
+            "demo" in e for e in entries
+        ), "Every entry must have a 'demo' key"
+
     def test_integration_script_exists(self):
         assert (
             _INTEGRATION_SCRIPT.exists()
         ), f"Integration script not found: {_INTEGRATION_SCRIPT}"
 
     def test_valid_scenarios_matches_ci(self):
-        """VALID_SCENARIOS must equal the demo: matrix entries in demo-integration.yml.
+        """VALID_SCENARIOS must equal the demo entries in demo-scenarios.json.
 
         Failure here means a new scenario was added to CI without updating the
         script (or vice versa).  Fix both files in the same PR per DEMOCI-02-003.
@@ -82,7 +96,7 @@ class TestIntegrationScriptScenarios:
         script = _script_scenarios()
         assert script == ci, (
             f"VALID_SCENARIOS in run_multi_actor_integration_test.sh {sorted(script)!r} "
-            f"does not match DEMO= values in demo-integration.yml {sorted(ci)!r}.\n"
+            f"does not match demo entries in .github/demo-scenarios.json {sorted(ci)!r}.\n"
             f"In script but not CI: {sorted(script - ci)!r}\n"
             f"In CI but not script: {sorted(ci - script)!r}\n"
             "Update both files in the same PR (DEMOCI-02-003)."
@@ -99,4 +113,6 @@ class TestIntegrationScriptScenarios:
     def test_at_least_one_scenario_in_ci(self):
         """CI must define at least one scenario (guards against empty parse)."""
         ci = _ci_scenarios()
-        assert len(ci) >= 1, "No DEMO= lines found in demo-integration.yml"
+        assert (
+            len(ci) >= 1
+        ), "No demo entries found in .github/demo-scenarios.json"
