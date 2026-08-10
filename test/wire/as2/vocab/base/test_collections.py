@@ -72,3 +72,11 @@ def test_append_string_ref_always_added():
     col.append("urn:uuid:abc123")
     col.append("urn:uuid:abc123")
     assert col.totalItems == 2
+
+
+def test_append_none_always_added():
+    """None items pass through append without dedup — None has no id_ to track."""
+    col = as_Collection()
+    col.append(None)
+    col.append(None)
+    assert col.totalItems == 2
