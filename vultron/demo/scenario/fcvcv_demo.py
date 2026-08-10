@@ -255,6 +255,14 @@ def _phase_report_submission(
         expected_count=3,
     )
 
+    with demo_check(
+        "Finder's DataLayer received case replica (genesis hash available)"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
+
     # C1 invites V1 with CVDRole.VENDOR.
     with demo_step("C1 invites V1 with CVDRole.VENDOR"):
         invite_v1_result = post_to_trigger(
