@@ -53,6 +53,14 @@ event types it exercises. Event types are those recorded as `event_type` in
   `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because the Vendor
   rejects rather than accepts, `accept_invite_actor_to_case` does NOT appear in
   this scenario. No other current scenario exercises this ledger entry.
+  **Invariant 15 note**: because the Vendor never participates, no actor advances
+  the VFD state machine and `vfd_state == 'VFd'` is structurally unreachable.
+  `test_invariant_15` in `test_fcv_reject_invariants.py` therefore passes
+  `check_fix_ready=False` to `check_cs_state_transitions_observed` — skipping the
+  VFd assertion while still enforcing the P-transition check. When copy-pasting
+  Invariant 15 from another harness, audit whether the target scenario has a
+  participating Vendor; if not, set `check_fix_ready=False` (DEMOCI-06-001,
+  ISSUE-2121).
 - `add_case_participant` is emitted by `AcceptInviteNode`
   (`vultron/core/behaviors/case/nodes/accept_invite.py:181`) on the CaseActor
   received-side when processing Accept(Invite). This event records the internal
