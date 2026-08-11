@@ -99,9 +99,7 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             patch.object(
                 demo, "reporter_submits_report", return_value=(report, offer)
             ),
-            patch.object(demo, "receiver_validates_report"),
-            patch.object(demo, "find_case_for_offer", return_value=case),
-            patch.object(demo, "receiver_engages_case"),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "verify_case_active"),
             patch.object(
@@ -345,9 +343,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             patch.object(
                 demo, "reporter_submits_report", return_value=(report, offer)
             ),
-            patch.object(demo, "receiver_validates_report"),
-            patch.object(demo, "find_case_for_offer", return_value=case),
-            patch.object(demo, "receiver_engages_case"),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "verify_case_active"),
             patch.object(

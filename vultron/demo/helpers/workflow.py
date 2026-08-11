@@ -366,6 +366,96 @@ def run_invite_path_rm_triage(
     logger.info("✓ %s RM state reached ACCEPTED", invited_obj.id_)
 
 
+def run_direct_path_rm_triage(
+    receiver_client: DataLayerClient,
+    receiver: as_Actor,
+    offer: object,
+    timeout_seconds: float = 20.0,
+) -> as_VulnerabilityCase:
+    """Run the RM triage cycle for a direct (report-submission) receiver.
+
+    The submitted-to actor (a Coordinator or Vendor that received an
+    Offer(VulnerabilityReport) directly) validates the report and then engages
+    the case, holding CASE_OWNER on its own container.
+
+    Steps, each gated on the receiver's *own* participant RM state so the demo
+    follows causal arrows rather than mere sequence:
+
+    1. Trigger validate-report (RM → VALID).
+    2. Resolve the as_VulnerabilityCase created for the offer.
+    3. Poll until the receiver's own participant status reaches RM.VALID —
+       validate-report is dispatched asynchronously (HTTP 202), so the
+       ParticipantStatus commit lands *after* the trigger returns.  engage-case
+       transitions RM.VALID → RM.ACCEPTED and is rejected (HTTP 422,
+       TransitionParticipantRMtoAccepted) if it fires before that commit.
+    4. Trigger engage-case (RM → ACCEPTED).
+    5. Poll until the receiver's own participant status reaches RM.ACCEPTED.
+
+    The invite-path counterpart is :func:`run_invite_path_rm_triage`; both gate
+    engagement on a committed RM.VALID rather than the mere presence of the
+    case object (which appears synchronously during validate and is therefore
+    not a valid causal precondition for engagement).
+
+    Args:
+        receiver_client: Client connected to the receiver's container.
+        receiver: The receiver's local ``as_Actor`` replica.
+        offer: The submit-report ``as_Offer`` activity (or its id).
+        timeout_seconds: Polling timeout per wait call (default 20s).
+
+    Returns:
+        The ``as_VulnerabilityCase`` created for the offer.
+    """
+    offer_id = getattr(offer, "id_", str(offer))
+
+    receiver_validates_report(
+        receiver_client=receiver_client,
+        receiver=receiver,
+        offer_id=offer_id,
+    )
+
+    with demo_check("as_VulnerabilityCase exists after validate-report"):
+        case = find_case_for_offer(receiver_client, offer_id)
+        if case is None:
+            raise AssertionError(
+                "Expected as_VulnerabilityCase to be created after"
+                " validate-report"
+            )
+        logger.info("Case created: %s", case.id_)
+
+    # Gate engage-case on the receiver's OWN RM.VALID commit.  validate-report
+    # returns HTTP 202 before its ParticipantStatus write lands, so engaging on
+    # case-object-presence alone races the async commit (TransitionParticipant
+    # RMtoAccepted 422).  RM.ACCEPTED is accepted too in case the state has
+    # already advanced by the time we poll.
+    with demo_check(f"{receiver.id_} reached RM.VALID before engage-case"):
+        wait_for_participant_rm_state(
+            client=receiver_client,
+            case_id=case.id_,
+            actor_id=receiver.id_,
+            expected_states={RM.VALID, RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
+    logger.info("✓ %s RM state reached VALID", receiver.id_)
+
+    receiver_engages_case(
+        receiver_client=receiver_client,
+        receiver=receiver,
+        case_id=case.id_,
+    )
+
+    with demo_check(f"{receiver.id_} reached RM.ACCEPTED"):
+        wait_for_participant_rm_state(
+            client=receiver_client,
+            case_id=case.id_,
+            actor_id=receiver.id_,
+            expected_states={RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
+    logger.info("✓ %s RM state reached ACCEPTED", receiver.id_)
+
+    return case
+
+
 def _report_id_from_offer_data(
     offer_data: dict[str, object],
     offer_id: str,
