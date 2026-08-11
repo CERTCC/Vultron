@@ -74,13 +74,13 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
     find_case_invite_for_actor,
+    find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
-    wait_for_object_stored,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -376,17 +376,23 @@ def _phase_ownership_handoff(
         ownership_offer.id_,
     )
 
+    # Wait for the FORWARDED offer (CM-21-005).
+    # OfferCaseOwnershipTransferReceivedUseCase creates a NEW Offer (forwarded_id)
+    # when the CaseActor processes Vendor1's Offer.  The forwarded Offer lands in
+    # Coordinator's DataLayer under a different ID; the original Offer only exists
+    # in the CaseActor's DataLayer.  Polling for the original ID would never match.
     with demo_check(
-        "Ownership transfer offer delivered to Coordinator's DataLayer (TRIG-11-001)"
+        "Forwarded Offer(VulnerabilityCase) delivered to Coordinator's DataLayer (CM-21-005)"
     ):
-        wait_for_object_stored(
+        ownership_offer_id = find_ownership_transfer_offer_for_actor(
             client=coordinator_client,
-            obj_id=ownership_offer.id_,
+            case_id=case.id_,
+            transferee_id=coordinator.id_,
             timeout_seconds=90.0,
         )
-
-    ownership_offer_id = ownership_offer.id_
-    logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
+    logger.info(
+        "Forwarded ownership transfer offer ID: %s", ownership_offer_id
+    )
 
     # Coordinator accepts the ownership transfer (TRIG-11-002).
     with demo_step(

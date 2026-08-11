@@ -1104,3 +1104,182 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
             f"run_invite_path_rm_triage (index {triage_idx}). "
             f"Call order: {call_order} — Bug #2120 (CLP-08-005)"
         )
+
+
+# ---------------------------------------------------------------------------
+# Bug #2178: _phase_ownership_handoff must poll for the FORWARDED offer ID
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-21-005")
+class TestPhaseOwnershipHandoffForwardedOfferId:
+    """_phase_ownership_handoff must discover and use the FORWARDED offer ID (Bug #2178).
+
+    OfferCaseOwnershipTransferReceivedUseCase creates a new Offer (forwarded_id)
+    when the CaseActor processes Vendor1's Offer.  The forwarded Offer is stored
+    in Coordinator's DataLayer under a different ID.  Polling for the original
+    offer ID (wait_for_object_stored with ownership_offer.id_) never terminates
+    because the original Offer exists only in the CaseActor's DataLayer.
+
+    The fix: replace wait_for_object_stored with find_ownership_transfer_offer_for_actor,
+    which scans Coordinator's DataLayer for any Offer(VulnerabilityCase, target=coordinator),
+    and use the returned (forwarded) ID for the accept-case-ownership-transfer trigger.
+    """
+
+    @staticmethod
+    def _actor(id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    @staticmethod
+    def _case(id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    @staticmethod
+    def _client():
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def _invoke_phase(
+        self, forwarded_offer_id: str, *, capture_trigger_calls: bool = False
+    ):
+        """Run _phase_ownership_handoff with find_ownership_transfer_offer_for_actor mocked.
+
+        Returns (trigger_calls_list, mock_find, coordinator_client, coordinator, case).
+        """
+        import contextlib
+
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case("urn:test:case")
+
+        original_offer = MagicMock()
+        original_offer.id_ = "urn:test:original-offer"
+
+        trigger_seq = iter(
+            [
+                {"activity": {"id": "urn:test:invite", "type": "Invite"}},
+                {
+                    "activity": {
+                        "id": "urn:test:accept-invite",
+                        "type": "Accept",
+                    }
+                },
+                {"activity": {"id": original_offer.id_, "type": "Offer"}},
+                {
+                    "activity": {
+                        "id": "urn:test:accept-ownership",
+                        "type": "Accept",
+                    }
+                },
+            ]
+        )
+        trigger_calls: list[dict] = []
+
+        def _trigger(**kwargs):
+            trigger_calls.append(kwargs)
+            return next(trigger_seq)
+
+        ta_seq = iter(
+            [
+                MagicMock(id_="urn:test:invite"),
+                original_offer,
+                MagicMock(id_="urn:test:accept"),
+            ]
+        )
+
+        with (
+            patch.object(demo, "post_to_trigger", side_effect=_trigger),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(
+                demo,
+                "find_ownership_transfer_offer_for_actor",
+                return_value=forwarded_offer_id,
+            ) as mock_find,
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "_wait_for_case_attributed_to"),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.side_effect = lambda x: next(ta_seq)
+            mock_vc.model_validate.return_value = case
+            demo._phase_ownership_handoff(
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor=self._actor("urn:test:vendor"),
+                vendor_in_vendor=vendor_in_vendor,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+
+        return (
+            trigger_calls,
+            mock_find,
+            coordinator_client,
+            coordinator,
+            case,
+            original_offer,
+        )
+
+    def test_find_ownership_transfer_offer_for_actor_is_called(self):
+        """find_ownership_transfer_offer_for_actor must be called (not wait_for_object_stored)."""
+        _, mock_find, _, _, _, _ = self._invoke_phase(
+            "urn:test:forwarded-offer"
+        )
+        mock_find.assert_called_once()
+
+    def test_find_called_with_coordinator_client_and_correct_ids(self):
+        """find_ownership_transfer_offer_for_actor receives coordinator as transferee."""
+        forwarded = "urn:test:forwarded-offer"
+        _, mock_find, coordinator_client, coordinator, case, _ = (
+            self._invoke_phase(forwarded)
+        )
+
+        mock_find.assert_called_once_with(
+            client=coordinator_client,
+            case_id=case.id_,
+            transferee_id=coordinator.id_,
+            timeout_seconds=90.0,
+        )
+
+    def test_accept_trigger_uses_forwarded_offer_id_not_original(self):
+        """accept-case-ownership-transfer trigger must use the FORWARDED offer ID."""
+        original_offer_id = "urn:test:original-offer"
+        forwarded_offer_id = "urn:test:forwarded-offer"
+        assert original_offer_id != forwarded_offer_id
+
+        trigger_calls, _, _, _, _, _ = self._invoke_phase(forwarded_offer_id)
+
+        accept_calls = [
+            c
+            for c in trigger_calls
+            if c.get("behavior") == "accept-case-ownership-transfer"
+        ]
+        assert (
+            len(accept_calls) == 1
+        ), f"Expected exactly 1 accept-case-ownership-transfer trigger, got: {accept_calls}"
+        body = accept_calls[0].get("body", {})
+        assert body.get("offer_id") == forwarded_offer_id, (
+            f"accept trigger must use forwarded offer ID {forwarded_offer_id!r}, "
+            f"got {body.get('offer_id')!r} — Bug #2178: original offer ID "
+            f"{original_offer_id!r} is never stored in Coordinator's DataLayer"
+        )
