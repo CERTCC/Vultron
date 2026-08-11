@@ -135,3 +135,75 @@ groups:
       The node belongs in the tree that writes canonical state. Its presence
       in `add_participant_status_tree` predates the two-seam design and must
       be migrated as part of implementing RSH-01 and RSH-02.
+
+- id: RSH-04
+  title: CaseStatus Emission Authority and Outbound Emit Invariant
+  description: >
+    Specifies which actors may emit Add(CaseStatus) directly and mandates that
+    every CaseActor-side EM or PXA state mutation is followed by a canonical
+    CaseStatus ledger write. CaseStatus is the only protocol channel for
+    communicating EM and PXA state changes across actors; omitting the emit
+    leaves all participant replicas stale until the next round-trip.
+  specs:
+  - id: RSH-04-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      Only the CaseActor (acting as CASE_MANAGER) MUST emit `Add(CaseStatus)`
+      directly. All other participants MUST embed a suggested `CaseStatus`
+      inside `Add(ParticipantStatus)` rather than sending `Add(CaseStatus)`
+      independently.
+    rationale: >
+      CaseStatus encodes shared EM and PXA state for the entire case. Only the
+      CaseActor holds the CASE_MANAGER role and is the authoritative writer of
+      canonical case state (ADR-0046, CLP-09). Allowing participants to emit
+      Add(CaseStatus) directly would bypass the two-seam authorization model.
+  - id: RSH-04-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      Every BT node or tree that mutates EM state (Propose, Accept, Reject,
+      Terminate, and all cascade variants) MUST immediately follow the
+      state-mutation step with a write of the updated `CaseStatus` to the
+      canonical case ledger.
+    rationale: >
+      EM state changes are only observable to remote actors via `CaseStatus`
+      entries in `Announce(CaseLedgerEntry)` messages. A mutation without a
+      subsequent ledger write leaves participant replicas with a stale EM state
+      (observed in fv/fcv/fvv CI scenarios — see CONCERN-1667).
+  - id: RSH-04-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      Every BT node or tree that mutates PXA state (public awareness, exploit
+      public, attacks observed) MUST immediately follow the state-mutation step
+      with a write of the updated `CaseStatus` to the canonical case ledger.
+    rationale: >
+      PXA state is participant-agnostic and shared across the case. The
+      rationale mirrors RSH-04-002: omitting the ledger write leaves replicas
+      stale and breaks the Avoid Surprise principle.
+  - id: RSH-04-004
+    priority: MUST
+    kind: protocol
+    statement: >
+      The CaseStatus ledger write described in RSH-04-002 and RSH-04-003 MUST
+      be implemented as a shared BT node (`EmitCaseStatusUpdateNode`) that
+      writes the new `CaseStatus` directly to `case.case_statuses` and commits
+      a canonical `CaseLedgerEntry`, then emits `Announce(CaseLedgerEntry)` for
+      participant replica sync. It MUST NOT route through the inbox
+      authorization seam (`add_case_status_tree`) — the CaseActor is always the
+      authority for its own outbound state changes.
+    rationale: >
+      The inbox seam (Seam 1 → Seam 2) exists for evaluating external
+      participant suggestions. The CaseActor writing its own EM/PXA transition
+      is not a suggestion — it is an authoritative state change. Routing through
+      the inbox loopback (as `EmitAddCaseStatusToSelfNode` does) inverts
+      causality: the ledger write should precede the announce, not be triggered
+      by a self-addressed inbox message. DRY: one shared node, not N inline
+      patches per BT tree factory.
+    notes: >
+      Implementation tracked in ISSUE-1667's implementation child issue.
+      The `EmitAddCaseStatusToSelfNode` kludge (inbound path) is acknowledged
+      as a parallel refactor target: once `EmitCaseStatusUpdateNode` is in
+      place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
+      ledger writes as well. That refactor is blocked-by the impl issue.
