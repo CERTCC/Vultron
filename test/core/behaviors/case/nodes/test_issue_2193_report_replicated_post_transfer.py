@@ -21,6 +21,7 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
+from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
@@ -152,7 +153,7 @@ class TestReportReplicatedToPostTransferParticipant:
             activity=event,
         )
 
-        assert result.status is not None
+        assert result.status == Status.SUCCESS
 
         stored_report = dl.read(REPORT_ID)
         assert stored_report is not None, (
@@ -190,7 +191,7 @@ class TestReportReplicatedToPostTransferParticipant:
             activity=event,
         )
 
-        assert result.status is not None
+        assert result.status == Status.SUCCESS
 
         offer_record = dl.read(offer_record_id)
         assert offer_record is not None, (
@@ -221,7 +222,7 @@ class TestReportReplicatedToPostTransferParticipant:
                 actor_id=NEW_OWNER_ACTOR_ID,
                 activity=event,
             )
-            assert result.status is not None
+            assert result.status == Status.SUCCESS
 
         assert dl.read(REPORT_ID) is not None
         assert dl.read(VultronOfferRecord.build_id(OFFER_ID)) is not None
