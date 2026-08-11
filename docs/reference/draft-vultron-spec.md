@@ -800,6 +800,8 @@ be a stored field that can drift from the PEC state it projects.
 Consent changes MUST be applied as a PEC trigger through the validated
 transition path (ADR-0048, ADR-0056).
 
+- *Source: `specs/case-management.yaml` CM-18-008; ADR-0056*
+
 #### 6.4.7 Gating Full Case Delivery
 
 Before the Case Actor delivers full case content

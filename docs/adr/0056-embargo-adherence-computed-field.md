@@ -87,12 +87,15 @@ property, and what is the enforcement point?**
 
 ## Validation
 
-- Unit tests confirm `embargo_adherence` is `True` when `consent.state==SIGNATORY`
-  and `False` for all other PEC states and for `consent=None`.
+When implemented (tracked in #2189), the following MUST hold:
+
+- Unit tests MUST confirm `embargo_adherence` is `True` when
+  `consent.state==SIGNATORY` and `False` for all other PEC states and for
+  `consent=None`.
 - Existing tests that assert `embargo_adherence is True` for a SIGNATORY
-  participant continue to pass.
+  participant MUST continue to pass.
 - Wire round-trip: `as_ParticipantStatus.from_core(core_status).to_core()`
-  produces the correct `embargo_adherence` value.
+  MUST produce the correct `embargo_adherence` value.
 
 ## More Information
 
