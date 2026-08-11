@@ -530,6 +530,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `specs/` for the bare name as well as the quoted/path form, and update every spec entry
   that references it — including `statement:`, `rationale:`, and cross-reference fields.
   *Source: ISSUE-2011*
+- **Delegated-Emit Trigger Use Cases MUST Set `actor=case_actor_id`,
+  `attributed_to=requesting_actor_id`** — trigger use cases that emit an
+  Activity on behalf of the CaseActor (invite, ownership transfer, and any
+  future delegated flows) MUST set `self._actor_id = case_actor_id` and
+  `self._attributed_to = requesting_actor_id` in `_prepare()`, then queue
+  the Activity in the CaseActor's outbox (CM-24-001 through CM-24-004).
+  Setting `actor` to the requesting actor directly causes receivers to reject
+  the message (ISSUE-2142).  Use the shared `_prepare_delegated_context()`
+  helper (or equivalent) — never reconstruct the pattern inline (CM-24-005).
+  See [notes/case-communication-model.md](notes/case-communication-model.md)
+  § "Delegated-Message Pattern". *Source: CONCERN-2170*
 - **Multiple Related Fix PRs Targeting a Shared CI Suite Must Use an Integration
   Branch, Not Race to `main`** — when 3+ related bug fix PRs are open
   simultaneously and all affect the same CI suite (e.g. Demo Integration), open

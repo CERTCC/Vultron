@@ -50,18 +50,29 @@ Both activities MUST flow through the CaseActor.
 
 ```text
 Offering actor calls trigger: offer-case-ownership-transfer
+  → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
+      self._actor_id      = case_actor_id      ← CaseActor sends (CM-24-001)
+      self._attributed_to = offering_actor_id  ← attribution (CM-24-002)
   → EmitOfferCaseOwnershipTransferNode
       constructs: Offer(VulnerabilityCase, target=transferee_id)
-      addressed:  to=[case_actor_id]         ← MUST (CM-21-005)
-      queued in:  offering actor's outbox
+      actor:      case_actor_id                ← delegated-message contract
+      attributed_to: offering_actor_id
+      addressed:  to=[transferee_id]           ← delivered directly to transferee
+      queued in:  CaseActor's outbox           ← CM-24-004
 
-CaseActor inbox receives Offer
+CaseActor self-receives the Offer (via outbox → inbox round-trip)
   → OfferCaseOwnershipTransferReceivedUseCase:
       1. Records the Offer object (idempotent).
       2. Commits CaseLedgerEntry (offer-recorded).
       3. Announce(CaseLedgerEntry) → all participants.   ← CM-21-005 rationale
       4. Forwards Offer to transferee's inbox.
 ```
+
+> **Correction (CONCERN-2170)**: Earlier descriptions of this flow stated the
+> Offer was "queued in: offering actor's outbox" with `actor=offering_actor`.
+> That was wrong.  Bug ISSUE-2142 confirmed the Coordinator rejects Offers
+> whose `actor` names the Finder rather than the CaseActor.  The delegated
+> pattern (CM-24-001 through CM-24-004) is the correct model.
 
 ### Accept flow
 
@@ -84,10 +95,21 @@ CaseActor inbox receives Accept
 
 ## Implementation Checklist
 
+### SvcOfferCaseOwnershipTransferUseCase._prepare()
+
+- MUST call `_find_case_actor_id()` and set `self._actor_id = case_actor_id`
+  (CM-24-001).
+- MUST set `self._attributed_to = offering_actor_id` (CM-24-002).
+- When no CaseActor exists: `self._actor_id = offering_actor_id`,
+  `self._attributed_to = None` (CM-24-003).
+- Pass `attributed_to` through to the BT builder (CM-24-004).
+
 ### EmitOfferCaseOwnershipTransferNode
 
-- `_emit()` MUST resolve `case_actor_id` from the DataLayer and set
-  `to=[case_actor_id]`.  Do not use the `transferee_id` as the `to` field.
+- `_emit()` MUST use `actor=self.actor_id` (the CaseActor's ID) and pass
+  `attributed_to=self.attributed_to` to the factory call.
+- `to` MUST be `[transferee_id]` (addressed directly to the transferee;
+  the CaseActor self-receives via the outbox→inbox round-trip).
 - The `target` field of the Offer carries `transferee_id` (as before).
 
 ### EmitAcceptCaseOwnershipTransferNode
