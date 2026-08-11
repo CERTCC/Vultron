@@ -1414,6 +1414,23 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         )
         case_dict = obj_to_inline_dict(case_copy)
         case_dict.setdefault("type", "VulnerabilityCase")
+        # Inline full VulnerabilityReport dicts after model_dump so invited
+        # actors' _store_embedded_reports stores them (CBT-01-007, ISSUE-2134).
+        # Done post-dump because VulnerabilityCase.vulnerability_reports is
+        # typed list[str]; embedding objects directly triggers Pydantic warnings.
+        inlined_reports: list[Any] = []
+        for ref in raw_case.vulnerability_reports:
+            if isinstance(ref, str):
+                r_obj = self.datalayer.read(ref)
+                if isinstance(r_obj, VulnerabilityReport):
+                    r_dict = obj_to_inline_dict(r_obj)
+                    r_dict.setdefault("type", "VulnerabilityReport")
+                    inlined_reports.append(r_dict)
+                else:
+                    inlined_reports.append(ref)
+            else:
+                inlined_reports.append(ref)
+        case_dict["vulnerability_reports"] = inlined_reports
         return case_dict
 
     def _read_str_key(
