@@ -513,3 +513,132 @@ class TestFcvMilestoneAssertions:
                 case=case,
             )
         mock_m7.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for Bug #2135: CLP-08-005 unanchored chain bootstrap
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CLP-08-005")
+class TestFinderCaseReplicaWaitBeforeVendorTriage:
+    """_phase_invite_vendor must confirm the Finder has the case replica
+    before calling run_invite_path_rm_triage for Vendor (Bug #2135).
+
+    Vendor's RM triage broadcasts Announce(CaseLedgerEntry) to all
+    participants including the Finder.  If the Finder's DataLayer does not
+    yet hold the VulnerabilityCase (genesis hash unavailable), the chain
+    bootstrap fails with CLP-08-005.
+    """
+
+    @staticmethod
+    def _actor(id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    @staticmethod
+    def _case(id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    @staticmethod
+    def _client():
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_finder_client_in_signature(self):
+        """_phase_invite_vendor must accept finder_client as a parameter."""
+        import inspect
+
+        sig = inspect.signature(demo._phase_invite_vendor)
+        assert "finder_client" in sig.parameters, (
+            "_phase_invite_vendor must accept finder_client to gate Vendor RM "
+            "triage on the Finder having the case replica (Bug #2135)"
+        )
+
+    def test_finder_wait_before_vendor_triage(self):
+        """wait_for_case_on_container(finder_client) precedes run_invite_path_rm_triage."""
+        import contextlib
+
+        finder_client = self._client()
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case("urn:test:case")
+
+        call_order: list[str] = []
+
+        def _wait_for_case(client, case_id, **_kwargs):
+            if client is finder_client:
+                call_order.append("finder_wait")
+
+        def _triage(**_kwargs):
+            call_order.append("triage")
+
+        with (
+            patch.object(
+                demo, "wait_for_case_on_container", side_effect=_wait_for_case
+            ),
+            patch.object(
+                demo, "run_invite_path_rm_triage", side_effect=_triage
+            ),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={
+                    "activity": {"id": "urn:test:act", "type": "Offer"}
+                },
+            ),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(
+                demo, "get_actor_by_id", return_value=vendor_in_vendor
+            ),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = MagicMock(
+                id_="urn:test:invite"
+            )
+            demo._phase_invite_vendor(
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                finder_client=finder_client,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                vendor=vendor,
+                case=case,
+                offer=MagicMock(id_="urn:test:offer"),
+                report=MagicMock(),
+                finder=finder,
+            )
+
+        assert (
+            "finder_wait" in call_order
+        ), "wait_for_case_on_container(finder_client) was never called before Vendor triage"
+        assert (
+            "triage" in call_order
+        ), "run_invite_path_rm_triage was never called"
+        finder_idx = next(
+            i for i, v in enumerate(call_order) if v == "finder_wait"
+        )
+        triage_idx = next(i for i, v in enumerate(call_order) if v == "triage")
+        assert finder_idx < triage_idx, (
+            f"Finder case-replica wait (index {finder_idx}) must come BEFORE "
+            f"run_invite_path_rm_triage (index {triage_idx}). "
+            f"Call order: {call_order} — Bug #2135 (CLP-08-005)"
+        )

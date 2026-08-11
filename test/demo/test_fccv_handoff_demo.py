@@ -772,3 +772,114 @@ class TestFccvHandoffMilestoneAssertions:
         assert actors_closed.index(finder_in_finder.id_) < actors_closed.index(
             c2_in_c2.id_
         ), "Finder must close before C2"
+
+
+@pytest.mark.spec("CLP-08-005")
+class TestFinderCaseReplicaWaitBeforeVendorTriage:
+    """CLP-08-005: Finder replica wait must precede invite-path RM triage in fccv-handoff."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_finder_client_in_signature(self):
+        import inspect
+
+        sig = inspect.signature(demo._phase_c2_invites_vendor)
+        assert "finder_client" in sig.parameters
+
+    def test_finder_wait_before_vendor_triage(self):
+        import contextlib
+
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        c2 = self._actor("urn:test:c2")
+        c2_in_c2 = self._actor("urn:test:c2")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        case = self._case()
+        offer = MagicMock()
+        report = MagicMock()
+        finder = self._actor("urn:test:finder")
+        invite = MagicMock()
+        invite.id_ = "urn:test:invite"
+
+        call_order: list[str] = []
+
+        def _wait_for_case(client, case_id, **_kw):
+            if client is finder_client:
+                call_order.append("finder_wait")
+
+        def _triage(**_kw):
+            call_order.append("triage")
+
+        with (
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=_wait_for_case,
+            ),
+            patch.object(
+                demo, "run_invite_path_rm_triage", side_effect=_triage
+            ),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={"activity": {"id": invite.id_}},
+            ),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = invite
+            demo._phase_c2_invites_vendor(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                c2=c2,
+                c2_in_c2=c2_in_c2,
+                case_actor_id="urn:test:case-actor",
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+                offer=offer,
+                report=report,
+                finder=finder,
+            )
+
+        assert (
+            "finder_wait" in call_order
+        ), "wait_for_case_on_container(finder_client) never called"
+        assert "triage" in call_order, "run_invite_path_rm_triage never called"
+        finder_idx = next(
+            i for i, v in enumerate(call_order) if v == "finder_wait"
+        )
+        triage_idx = next(i for i, v in enumerate(call_order) if v == "triage")
+        assert finder_idx < triage_idx, (
+            "Finder replica wait must precede run_invite_path_rm_triage; "
+            f"got order: {call_order}"
+        )

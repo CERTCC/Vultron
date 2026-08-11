@@ -459,6 +459,7 @@ def _phase_ownership_handoff(
 
 
 def _phase_c2_invites_vendor(
+    finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
@@ -533,6 +534,17 @@ def _phase_c2_invites_vendor(
         timeout_seconds=90.0,
     )
     logger.info("✓ Vendor joined case (%d participants)", 5)
+
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=90.0,
+        )
 
     # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
     run_invite_path_rm_triage(
@@ -1069,6 +1081,7 @@ def run_fccv_handoff_demo(
     )
 
     _phase_c2_invites_vendor(
+        finder_client=finder_client,
         c1_client=c1_client,
         c2_client=c2_client,
         vendor_client=vendor_client,

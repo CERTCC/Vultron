@@ -319,6 +319,7 @@ def _phase_report_submission(
 
 
 def _phase_c2_suggests_vendor(
+    finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
@@ -423,6 +424,17 @@ def _phase_c2_suggests_vendor(
         timeout_seconds=20.0,
     )
     logger.info("✓ M3: Vendor joined case (%d participants)", 5)
+
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=20.0,
+        )
 
     run_invite_path_rm_triage(
         invited_client=vendor_client,
@@ -931,6 +943,7 @@ def run_fccv_extension_demo(
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
     _phase_c2_suggests_vendor(
+        finder_client=finder_client,
         c1_client=c1_client,
         c2_client=c2_client,
         vendor_client=vendor_client,

@@ -259,6 +259,7 @@ def _phase_report_submission(
 def _phase_invite_vendor(
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
     coordinator_in_coordinator: as_Actor,
     vendor: as_Actor,
     case: as_VulnerabilityCase,
@@ -325,6 +326,16 @@ def _phase_invite_vendor(
         timeout_seconds=20.0,
     )
     logger.info("✓ M2: Vendor joined case (4 participants)")
+
+    # Gate: Finder must have the case replica before Vendor's RM triage
+    # broadcasts Announce(CaseLedgerEntry) to all participants (CLP-08-005).
+    with demo_check("Finder's DataLayer received case replica"):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=20.0,
+        )
+    logger.info("Finder received case replica")
 
     # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
     run_invite_path_rm_triage(
@@ -790,6 +801,7 @@ def run_fcv_demo(
     vendor_in_vendor = _phase_invite_vendor(
         coordinator_client=coordinator_client,
         vendor_client=vendor_client,
+        finder_client=finder_client,
         coordinator_in_coordinator=coordinator_in_coordinator,
         vendor=vendor_obj,
         case=case,
