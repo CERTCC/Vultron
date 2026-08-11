@@ -634,9 +634,7 @@ function handleEntry(
     case 'close_case':
       return handleCloseCase(entry, participants, shadow, x, laneIndex)
     case 'invite_actor_to_case':
-      // The bare invite carries an empty payload in the sample (no attribution),
-      // so it's the ACCEPT that creates the lane + join node. Record only a log line.
-      return { nodes: [], logLines: ['  ↳ invite_actor_to_case (awaiting accept)'] }
+      return handleInvite(entry, participants, shadow, x, laneIndex)
     case 'accept_invite_actor_to_case':
       return handleAcceptInvite(entry, participants, shadow, x, laneIndex)
     case 'submit_report':
@@ -848,6 +846,67 @@ function handleOfferActorToCase(
     ],
     'Actor Recommended',
     () => [`${recommended} recommended to the case`],
+    false
+  )
+  return { nodes, logLines: [] }
+}
+
+// --- invite_actor_to_case → an existing member invites a new actor ---------
+
+/**
+ * An invitation to join the case.
+ *
+ * Two payload shapes appear in practice (CLAUDE.md §6 quirk #8, now updated):
+ *   - EMPTY (`actor` absent) — the older two-actor/fvv logs, and a leading
+ *     placeholder entry that precedes the populated one in the 2026-07 coordinator
+ *     scenarios. Carries no attribution, so it's log-only; the join is shown by the
+ *     later accept-invite.
+ *   - POPULATED — the coordinator scenarios' second invite entry. Carries the
+ *     invitee (`object.id`/`name`), the target case, and the real inviter in
+ *     `target.attributedTo` (the case owner/manager — NOT the `actor`, which is the
+ *     case-actor recorder sub-actor). We render an "Invite Sent" node in the
+ *     INVITER's lane so the pair reads "Owner invites X" → "X accepts".
+ *
+ * Rendering the invite is independent of the ADR-0026 "Actor Recommended" node:
+ * both are shown, since recommend (coordinator suggests) and invite (owner sends)
+ * are distinct protocol actions.
+ */
+function handleInvite(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  _shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  // Empty placeholder invite: no attribution to draw. Log-only (matches the older
+  // empty-invite behavior); the join still renders at accept-invite.
+  if (!entry.payloadSnapshot?.actor) {
+    return { nodes: [], logLines: ['  ↳ invite_actor_to_case (awaiting accept)'] }
+  }
+
+  // The real inviter is the case owner/manager in `target.attributedTo`, not the
+  // recorder `actor`. Fall back to the acting lane if attribution is absent.
+  const inviterLane = (() => {
+    const viaTarget = actorUrlToLaneId(entry.payloadSnapshot?.target?.attributedTo)
+    if (viaTarget !== 'unknown') return viaTarget
+    return actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  })()
+  ensureParticipant(participants, inviterLane, laneIndex)
+  if (inviterLane === 'unknown') {
+    return { nodes: [], logLines: ['  ↳ invite_actor_to_case (could not resolve inviter)'] }
+  }
+
+  const inviteeName = entry.payloadSnapshot?.object?.name ?? 'a new actor'
+  const inviterName = participants.get(inviterLane)?.name ?? inviterLane
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    inviterLane,
+    x,
+    'Invite Sent',
+    [`${inviterName} invites ${inviteeName} to the case`, 'Invite(Actor, Case) → invitee', 'Awaiting the invitee’s acceptance'],
+    'Invite Sent',
+    () => [`${inviteeName} invited to the case`],
     false
   )
   return { nodes, logLines: [] }

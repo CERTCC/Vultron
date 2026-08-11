@@ -346,11 +346,18 @@ build/lint (no node in-container).
   object's `attributedTo` flip. This is squarely a demo overlay (procedural rule,
   §9 boundary). Those scenarios will replay but not depict the transfer until built.
 
-**Upstream quirk to raise with Allen (not a UI bug):** in `fvcv-handoff` and
-`fccv-extension`, actor5's `ParticipantStatus.cvdRole` reads `["COORDINATOR"]` even
-though the scenario seeds it as `vendor2` and drives it through the vendor fix
-lifecycle. The UI is insulated (label derives from lane identity, defaulting to
-"Vendor 2", not from that field), but it looks like a scenario seed bug.
+**Upstream quirks to raise with Allen (not UI bugs):**
+1. In `fvcv-handoff` and `fccv-extension`, actor5's `ParticipantStatus.cvdRole` reads
+   `["COORDINATOR"]` even though the scenario seeds it as `vendor2` and drives it
+   through the vendor fix lifecycle. The UI is insulated (label derives from lane
+   identity, defaulting to "Vendor 2", not from that field), but it looks like a
+   scenario seed bug.
+2. Invite entries are inconsistently populated: a DIRECT `invite_actor_to_case` gets
+   a full payload (inviter/invitee/case), but the final invite of an ADR-0026
+   suggest-actor join is emitted EMPTY (`{}`). So in the -extension scenarios the
+   directly-invited coordinator shows an "Invite Sent" node while the recommended
+   vendor does not (only Actor Recommended → Accept). See §6 quirk #8. Populating both
+   would make the onboarding paths symmetric.
 
 ### ⚠️ Multi-Vendor demo — possible gaps surfaced by the coordinator JSONLs (2026-07, NOT yet acted on)
 
@@ -431,10 +438,24 @@ Quirks of the current sample the mapper handles explicitly (carry forward):
    runs. The receipt seeds in `handleOffer` are therefore guarded on
    `shadow.rm[id] === undefined` (NOT on `seededRm`), so an already-advanced state is
    never regressed. Don't reorder those seeds back to unconditional writes.
-8. **Invites: the `accept` creates the lane, not the `invite`.** `invite_actor_to_case`
-   has an **empty `payloadSnapshot`** in the sample (no attribution), so it only logs;
-   `accept_invite_actor_to_case` carries `actor`=joining vendor and creates the lane +
-   seeds its report-receipt state + emits an "Accept Invite" node (`handleAcceptInvite`).
+8. **Invites: two payload shapes (UPDATED 2026-08).** `invite_actor_to_case` appears
+   in two forms. (a) EMPTY `payloadSnapshot` (`{}`, no attribution) — the older
+   two-actor/fvv logs, a leading placeholder before each populated invite in the
+   coordinator scenarios, AND the final invite of an ADR-0026 recommend-path join
+   (see below). These are log-only; the join is shown by the accept. (b) POPULATED —
+   the coordinator scenarios' direct invites: `actor` = the case-actor recorder,
+   `object` = the invitee (id/name), `target` = the case with `target.attributedTo` =
+   the **real inviter** (case owner/manager). `handleInvite` renders an "Invite Sent"
+   node in the INVITER's lane (from `target.attributedTo`, NOT `actor`). Either way
+   `accept_invite_actor_to_case` carries `actor` = the joining actor and emits the
+   "Accept Invite" node that seeds its report-receipt state (`handleAcceptInvite`).
+   **Structural quirk (flag for Allen):** a directly-invited actor gets a populated
+   invite, but an actor onboarded via the suggest-actor handshake
+   (`offer_actor_to_case`) gets an EMPTY invite — so in the -extension scenarios the
+   recommended vendor's onboarding renders as Actor Recommended → Accept (no "Invite
+   Sent" node), while the directly-invited coordinator renders Invite Sent → Accept.
+   No info is lost (the recommend node names the invitee), but populating both invites
+   upstream would make the two paths symmetric.
 
 Still genuinely **absent** from the format (would further improve replay; raise with
 the log developer): an explicit `causedBy`/correlationId (the mapper infers
