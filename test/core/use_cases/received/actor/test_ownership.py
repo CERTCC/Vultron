@@ -103,13 +103,17 @@ class TestOwnershipTransferUseCases:
             == "https://example.org/users/coordinator"
         )
 
-    def test_offer_cascade_forwards_to_transferee_outbox(self, make_payload):
-        """OfferCaseOwnershipTransferReceivedUseCase forwards offer to transferee's outbox.
+    def test_offer_cascade_forwards_to_transferee_via_case_actor_outbox(
+        self, make_payload
+    ):
+        """CaseActor builds a new forwarded Offer and queues it in its own outbox.
 
-        When the receiving actor is the CaseActor (CASE_MANAGER), the offer is
-        recorded (idempotent_create) and then forwarded to the transferee via
-        add_activity_to_outbox (CM-21-005).  The BT guarded-commit succeeds
-        because the receiving actor holds CASE_MANAGER (ADR-0053).
+        When the receiving actor is the CaseActor (CASE_MANAGER), the use case
+        must NOT re-queue the original offer in the transferee's outbox slot.
+        Instead it builds a new Offer(VulnerabilityCase, actor=case_actor_id,
+        attributed_to=vendor_id, to=[transferee_id]) and enqueues it in the
+        CaseActor's outbox so the registered outbox monitor delivers it to
+        the transferee's inbox (CM-21-005, ADR-0053).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -121,6 +125,7 @@ class TestOwnershipTransferUseCases:
         case_actor_id = "https://example.org/actors/case-actor"
         vendor_id = "https://example.org/users/vendor"
         transferee_id = "https://example.org/users/coordinator"
+        forwarded_id = "https://example.org/activities/offer_ot4_fwd"
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
@@ -142,10 +147,6 @@ class TestOwnershipTransferUseCases:
         dl.create(case)
         dl.create(case_manager_participant)
 
-        # Pass target as an inline actor object so the semantic dispatcher
-        # correctly distinguishes this from OfferCaseManagerRole (which also
-        # matches Offer(VulnerabilityCase) but checks target_=CASE_PARTICIPANT).
-        # A bare string is permissive-matched, causing misidentification.
         transferee_actor = as_Service(id_=transferee_id, name="Coordinator")
         activity = offer_case_ownership_transfer_activity(
             case,
@@ -155,11 +156,94 @@ class TestOwnershipTransferUseCases:
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
-        OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+        # TriggerActivityPort mock: returns (forwarded_id, {}) when called.
+        trigger_activity = MagicMock()
+        trigger_activity.offer_case_ownership_transfer.return_value = (
+            forwarded_id,
+            {},
+        )
 
-        # Offer must be forwarded to the transferee's outbox (CM-21-005).
+        OfferCaseOwnershipTransferReceivedUseCase(
+            dl, event, trigger_activity=trigger_activity
+        ).execute()
+
+        # trigger_activity.offer_case_ownership_transfer must be called with
+        # actor=case_actor_id, to=[transferee_id], attributed_to=vendor_id.
+        trigger_activity.offer_case_ownership_transfer.assert_called_once_with(
+            case_id=case.id_,
+            transferee_id=transferee_id,
+            actor=case_actor_id,
+            to=[transferee_id],
+            attributed_to=vendor_id,
+        )
+
+        # Forwarded offer must land in CaseActor's outbox (not transferee's slot).
+        case_actor_outbox = dl.clone_for_actor(case_actor_id).outbox_list()
+        assert forwarded_id in case_actor_outbox
+
+        # Original offer must NOT be in the transferee's outbox slot.
         transferee_outbox = dl.clone_for_actor(transferee_id).outbox_list()
-        assert activity.id_ in transferee_outbox
+        assert activity.id_ not in transferee_outbox
+
+    def test_offer_cascade_warns_when_trigger_activity_absent(
+        self, make_payload, caplog
+    ):
+        """Warns when trigger_activity port is absent after BT commit.
+
+        Seeds a full case with a CASE_MANAGER participant so the guarded-commit
+        BT can succeed, then omits trigger_activity. The use case must emit a
+        WARNING and leave all outboxes empty (CM-21-005 forwarding skipped).
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.enums.roles import CVDRole
+
+        case_actor_id = "https://example.org/actors/case-actor-w"
+        vendor_id = "https://example.org/users/vendor-w"
+        transferee_id = "https://example.org/users/coordinator-w"
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot5",
+            name="OT Warning Case",
+            attributed_to=vendor_id,
+        )
+        case_manager_participant = as_CaseParticipant(
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        case.case_participants.append(case_manager_participant.id_)
+        dl.create(case)
+        dl.create(case_manager_participant)
+
+        transferee_actor = as_Service(id_=transferee_id, name="Coordinator-W")
+        activity = offer_case_ownership_transfer_activity(
+            case,
+            target=transferee_actor,
+            actor=vendor_id,
+            id_="https://example.org/activities/offer_ot5",
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+
+        with caplog.at_level("WARNING"):
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                # trigger_activity intentionally omitted
+            ).execute()
+
+        assert any("no trigger_activity" in r.message for r in caplog.records)
+        # No activity should have landed in any outbox.
+        case_actor_outbox = dl.clone_for_actor(case_actor_id).outbox_list()
+        assert len(case_actor_outbox) == 0
 
     def test_reject_case_ownership_transfer_logs_rejection(
         self, caplog, make_payload
