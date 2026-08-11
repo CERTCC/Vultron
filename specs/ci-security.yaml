@@ -64,3 +64,43 @@ groups:
     kind: process
     statement: When adding a new workflow step or action, the SHA pin and version annotation MUST be included before the step
       is merged to `main`
+- id: CISEC-05
+  title: CI Failure Notification
+  specs:
+  - id: CISEC-05-001
+    priority: MUST
+    kind: process
+    statement: >-
+      Every workflow triggered by push to `main` or by a `schedule` event MUST
+      include a final step that files or updates a GitHub Issue when the workflow
+      fails. The step MUST use the shared `.github/actions/notify-failure`
+      composite action and MUST run on failure using an appropriate job-level or
+      step-level condition.
+    rationale: >-
+      Without structured failure notification, a broken `main` or a failed
+      scheduled job goes undetected until a developer manually audits the Actions
+      tab. Structured alerting ensures failures are visible in the issue tracker
+      where the team already triages work. Derived from ADR-0055
+      (docs/adr/0055-ci-failure-alerting-via-github-issues.md).
+  - id: CISEC-05-002
+    priority: MUST
+    kind: process
+    statement: >-
+      The notify-failure step MUST always run (not only on failure) and MUST close
+      any open failure issue for that workflow when the current run succeeds,
+      providing recovery visibility.
+    rationale: >-
+      A failure issue that stays open after the workflow recovers is misleading.
+      Recovery closure ensures the issue tracker reflects the current health of
+      `main`.
+  - id: CISEC-05-003
+    priority: MUST
+    kind: process
+    statement: Each failure notification issue MUST be tagged with the `ci:main-failure` label and a workflow-specific
+      label (e.g., `ci:workflow-python-app`). The combination of both labels MUST uniquely identify the open failure issue
+      for a specific workflow, enabling the composite action to find and update rather than duplicate.
+  - id: CISEC-05-004
+    priority: SHOULD
+    kind: process
+    statement: A CI verification test SHOULD confirm that every qualifying workflow (push to `main` or `schedule` trigger)
+      includes the `.github/actions/notify-failure` composite action step.

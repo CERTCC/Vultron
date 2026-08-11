@@ -550,6 +550,13 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   is green. Racing parallel PRs to `main` means each PR can only confirm its own
   scenario passes — none can confirm it hasn't perturbed other currently-passing
   scenarios. *Source: CONCERN-2137*
+- **New Push-to-`main` or Scheduled Workflows MUST Wire the `notify-failure`
+  Composite Action** — any workflow that triggers on `push: branches: [main]` or
+  on `schedule:` MUST include `.github/actions/notify-failure` as a final step
+  (CISEC-05-001). Without it, failures on `main` or unattended scheduled runs go
+  undetected until someone manually audits the Actions tab. The step handles both
+  failure (file/update a `ci:main-failure` issue) and recovery (close that issue).
+  *Source: CONCERN-2132*
 
 ---
 
