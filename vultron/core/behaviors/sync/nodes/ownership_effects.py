@@ -29,20 +29,11 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_id_from_field(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value or None
-    if isinstance(value, dict):
-        return value.get("id") or value.get("id_") or None
-    return getattr(value, "id_", None) or getattr(value, "id", None) or None
 
 
 class ApplyOwnershipTransferFromLedgerNode(DataLayerAction):
