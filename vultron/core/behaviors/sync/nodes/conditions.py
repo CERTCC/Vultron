@@ -183,6 +183,7 @@ _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 _CLOSE_CASE_EVENT = "close_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
+_ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
 
 
 class IsRemoveEmbargoEventNode(DataLayerCondition):
@@ -379,6 +380,40 @@ class IsSubmitReportEventNode(DataLayerCondition):
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
         if entry.event_type == _ADD_REPORT_TO_CASE_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsOwnershipTransferEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS an ownership-transfer event.
+
+    Used as the precondition in the ``OwnershipTransferEffects`` Selector's
+    inner Sequence in ``AnnounceLogEntryReceivedBT``::
+
+        Selector(OwnershipTransferEffects)
+          Sequence
+            IsOwnershipTransferEventNode   ← SUCCESS iff event_type matches
+            ApplyOwnershipTransferFromLedgerNode
+          Inverter(IsOwnershipTransferEventNode)  ← SUCCESS iff wrong event type
+
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyOwnershipTransferFromLedgerNode fails, both branches of the Selector
+    fail and the FAILURE propagates to block PersistReceivedLogEntry
+    (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-002, SYNC-12-001.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type == _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 

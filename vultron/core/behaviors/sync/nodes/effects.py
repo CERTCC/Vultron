@@ -59,14 +59,16 @@ _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 def _extract_id_from_field(value: Any) -> str | None:
     """Return the string ID from an AS2 object field.
 
-    Handles both inline dict (``{"id": "urn:uuid:..."}`` form) and bare
-    string ID form.
+    Handles None, bare string, inline dict (``{"id": ...}`` or ``{"id_": ...}``
+    form), and object instances with ``id_`` or ``id`` attributes.
     """
+    if value is None:
+        return None
     if isinstance(value, str):
-        return value
+        return value or None
     if isinstance(value, dict):
-        return value.get("id")
-    return None
+        return value.get("id") or value.get("id_") or None
+    return getattr(value, "id_", None) or getattr(value, "id", None) or None
 
 
 class ApplyParticipantStatusFromLedgerNode(DataLayerAction):

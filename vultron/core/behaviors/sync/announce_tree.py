@@ -9,6 +9,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyOfferReportFromLedgerNode,
+    ApplyOwnershipTransferFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
     CheckHashOrRejectOnMismatchNode,
     CheckIsOwnCaseActorNode,
@@ -17,6 +18,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
     IsInviteAcceptEventNode,
+    IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
     IsSubmitReportEventNode,
@@ -183,6 +185,30 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                         name="SkipIfNotSubmitReportEvent",
                         child=IsSubmitReportEventNode(
                             name="CheckNotSubmitReportEvent"
+                        ),
+                    ),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="OwnershipTransferEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyOwnershipTransferEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsOwnershipTransferEventNode(
+                                name="IsOwnershipTransferEvent"
+                            ),
+                            ApplyOwnershipTransferFromLedgerNode(
+                                name="ApplyOwnershipTransferFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotOwnershipTransferEvent",
+                        child=IsOwnershipTransferEventNode(
+                            name="CheckNotOwnershipTransferEvent"
                         ),
                     ),
                 ],
