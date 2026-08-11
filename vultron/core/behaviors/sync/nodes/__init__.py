@@ -42,6 +42,7 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
     IsInviteAcceptEventNode,
+    IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
     IsSubmitReportEventNode,
@@ -66,6 +67,9 @@ from vultron.core.behaviors.sync.nodes.effects import (
 )
 from vultron.core.behaviors.sync.nodes.offer_report_effect import (
     ApplyOfferReportFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.ownership_effects import (
+    ApplyOwnershipTransferFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectNonClosedLogEntryRecipientsNode,
@@ -96,12 +100,14 @@ __all__ = [
     "IsInviteAcceptEventNode",
     "IsCloseCaseEventNode",
     "IsSubmitReportEventNode",
+    "IsOwnershipTransferEventNode",
     # effects
     "ApplyParticipantStatusFromLedgerNode",
     "ApplyNoteFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
     "ApplyCloseCaseFromLedgerNode",
     "ApplyOfferReportFromLedgerNode",
+    "ApplyOwnershipTransferFromLedgerNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",

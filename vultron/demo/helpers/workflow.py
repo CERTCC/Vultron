@@ -186,6 +186,7 @@ def receiver_validates_report(
         activity).
     """
     receiver_obj_id = parse_id(receiver.id_)["object_id"]
+    result: dict = {}
     with demo_step("Receiver validates the vulnerability report"):
         result = post_to_trigger(
             client=receiver_client,
@@ -218,6 +219,7 @@ def receiver_engages_case(
         activity).
     """
     receiver_obj_id = parse_id(receiver.id_)["object_id"]
+    result: dict = {}
     with demo_step("Receiver engages the vulnerability case"):
         result = post_to_trigger(
             client=receiver_client,
@@ -257,6 +259,7 @@ def seed_offer_record_for_actor(
         Response dict from the seed endpoint.
     """
     actor_obj_id = parse_id(actor.id_)["object_id"]
+    result: dict = {}
     with demo_step(
         "Seeding offer record for invited actor (CM-11-002 triage)"
     ):
