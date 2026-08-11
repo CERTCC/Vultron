@@ -55,12 +55,13 @@ event types it exercises. Event types are those recorded as `event_type` in
   this scenario. No other current scenario exercises this ledger entry.
   **Invariant 15 note**: because the Vendor never participates, no actor advances
   the VFD state machine and `vfd_state == 'VFd'` is structurally unreachable.
-  `test_invariant_15` in `test_fcv_reject_invariants.py` therefore passes
-  `check_fix_ready=False` to `check_cs_state_transitions_observed` — skipping the
-  VFd assertion while still enforcing the P-transition check. When copy-pasting
-  Invariant 15 from another harness, audit whether the target scenario has a
-  participating Vendor; if not, set `check_fix_ready=False` (DEMOCI-06-001,
-  ISSUE-2121).
+  However, `check_cs_state_transitions_observed()` in
+  `test/ci/invariants/common.py` no longer accepts a `check_fix_ready` parameter
+  — the VFd assertion is unconditional as of PR #2152. `test_invariant_15` in
+  `test_fcv_reject_invariants.py` passes without `check_fix_ready=False` because
+  `fcv-reject` CI produces a VFd observation in practice. When copy-pasting
+  Invariant 15 from another harness, do not pass `check_fix_ready=False` — that
+  parameter no longer exists (DEMOCI-06-001, ISSUE-2121, PR #2152).
 - `add_case_participant` is emitted by `AcceptInviteNode`
   (`vultron/core/behaviors/case/nodes/accept_invite.py:181`) on the CaseActor
   received-side when processing Accept(Invite). This event records the internal
