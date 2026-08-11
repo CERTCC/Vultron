@@ -26,7 +26,7 @@ from typing import Optional, Tuple
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
-    wait_for_event_type_in_ledger,
+    wait_for_object_stored,
     wait_for_participant_rm_state,
 )
 from vultron.demo.utils import (
@@ -319,15 +319,22 @@ def run_invite_path_rm_triage(
     """
     offer_id = getattr(offer, "id_", str(offer))
 
-    # Wait for the submit_report ledger entry to be backfilled and processed
-    # by ApplyOfferReportFromLedgerNode before triggering validate-report.
-    # Without this wait, validate-report fires before VultronOfferRecord exists
-    # and the trigger returns 404 (Offer not found).
-    with demo_check("submit_report ledger entry backfilled to invited actor"):
-        wait_for_event_type_in_ledger(
+    # Wait for VultronOfferRecord to exist in the actor's DataLayer before
+    # triggering validate-report.  For the initial report recipient the record
+    # is created immediately by the adapter on receipt; for invite-path joiners
+    # it is created by ApplyOfferReportFromLedgerNode after the submit_report
+    # ledger entry is backfilled via SYNC.  Polling the record directly covers
+    # both cases without timing out on the initial-recipient path (which has no
+    # submit_report ledger entry to wait for).
+    from vultron.core.models.offer_record import VultronOfferRecord
+
+    offer_record_id = VultronOfferRecord.build_id(offer_id)
+    with demo_check(
+        "VultronOfferRecord available to actor before validate-report"
+    ):
+        wait_for_object_stored(
             client=invited_client,
-            case_id=case.id_,
-            event_type="submit_report",
+            obj_id=offer_record_id,
             timeout_seconds=timeout_seconds,
         )
 
