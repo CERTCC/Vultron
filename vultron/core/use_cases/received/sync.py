@@ -63,6 +63,92 @@ def _find_local_actor_id(dl: CasePersistence) -> str | None:
     return None
 
 
+def _run_announce_bt(
+    dl: CaseOutboxPersistence,
+    request: AnnounceLogEntryReceivedEvent,
+    receiving_actor_id: str,
+    gap_buffer: LedgerGapBuffer | None,
+    sync_port: SyncActivityPort | None,
+) -> BTExecutionResult:
+    """Run the announce receive BT for *request* with the gap buffer wired."""
+    return BTBridge(datalayer=dl).execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=receiving_actor_id,
+        activity=request,
+        sync_port=sync_port,
+        gap_buffer=gap_buffer,
+    )
+
+
+def drain_gap_buffer(
+    dl: CaseOutboxPersistence,
+    case_id: str,
+    receiving_actor_id: str,
+    gap_buffer: LedgerGapBuffer,
+    sync_port: SyncActivityPort | None = None,
+) -> None:
+    """Apply buffered entries that now extend the local chain, in order.
+
+    After each committed entry, look up the buffered successor keyed by the new
+    tail hash and run the announce BT on it — reusing the exact
+    effects-before-persist path (SYNC-12-001).  Cascades until no buffered entry
+    extends the current tail.  A drained entry that fails to apply is re-buffered
+    so a later retry (or CaseActor replay) can pick it up.
+
+    This is the shared drain used both by the ``Announce(CaseLedgerEntry)``
+    receive path (draining forward gaps once a predecessor lands, SYNC-10-004)
+    and by the ``VulnerabilityCase`` seed path (draining *pre-genesis* entries
+    once the case — and therefore the deterministic per-case genesis hash — is
+    present, SYNC-15-005 / #2186).  In the pre-genesis case the first
+    reconstructed tail is ``(genesis_hash, -1)``, so a buffered genesis entry
+    (``prev_log_hash == genesis_hash``) drains first and the rest cascade.
+
+    A synthetic :class:`AnnounceLogEntryReceivedEvent` is constructed per drained
+    entry so this function has no dependency on an inbound request being in
+    flight; ``actor_id`` is resolved to the CaseActor when known, falling back to
+    ``case_id``.
+    """
+    from vultron.core.use_cases._helpers import _find_case_actor_id
+
+    actor_id = _find_case_actor_id(dl, case_id) or case_id
+    while True:
+        try:
+            tail_hash, _ = _reconstruct_tail_hash(case_id, dl)
+        except VultronValidationError:
+            # No genesis anchor yet — nothing can be drained.
+            return
+        successor = gap_buffer.take_next(case_id, tail_hash)
+        if successor is None:
+            return
+
+        logger.info(
+            "sync: draining buffered entry '%s' (log_index=%d) for case "
+            "'%s' now that its predecessor has arrived",
+            successor.id_,
+            successor.log_index,
+            case_id,
+        )
+        drain_event = AnnounceLogEntryReceivedEvent(
+            activity_id=f"urn:vultron:sync:drain:{successor.id_}",
+            actor_id=actor_id,
+            receiving_actor_id=receiving_actor_id,
+            object_=successor,
+        )
+        result = _run_announce_bt(
+            dl, drain_event, receiving_actor_id, gap_buffer, sync_port
+        )
+        if result.status == Status.FAILURE and dl.read(successor.id_) is None:
+            # Application failed and the entry was not persisted; hold it again
+            # so a future arrival or CaseActor replay can retry.
+            gap_buffer.buffer(successor)
+            logger.warning(
+                "sync: buffered entry '%s' failed to apply on drain — "
+                "re-buffered pending retry",
+                successor.id_,
+            )
+            return
+
+
 def _update_replication_state(
     case_id: str,
     peer_id: str,
@@ -169,15 +255,25 @@ class AnnounceLedgerEntryReceivedUseCase:
             request.actor_id,
             entry.log_index,
         )
-        result = self._run_announce_bt(request, receiving_actor_id, gap_buffer)
+        result = _run_announce_bt(
+            self._dl,
+            request,
+            receiving_actor_id,
+            gap_buffer,
+            self._sync_port,
+        )
 
         # Whenever an entry is committed, its successor may already be waiting
         # in the gap buffer; drain the contiguous run keyed on the new tail
         # (SYNC-10-004).  Draining also runs after a mismatch, in case an
         # earlier-arrived predecessor is somehow already present.
         if gap_buffer is not None:
-            self._drain_buffered_successors(
-                entry.case_id, receiving_actor_id, gap_buffer
+            drain_gap_buffer(
+                self._dl,
+                entry.case_id,
+                receiving_actor_id,
+                gap_buffer,
+                self._sync_port,
             )
 
         if result.status == Status.FAILURE:
@@ -199,72 +295,6 @@ class AnnounceLedgerEntryReceivedUseCase:
                 entry.event_type,
                 entry.log_object_id,
             )
-
-    def _run_announce_bt(
-        self,
-        request: AnnounceLogEntryReceivedEvent,
-        receiving_actor_id: str,
-        gap_buffer: LedgerGapBuffer | None,
-    ) -> BTExecutionResult:
-        """Run the announce receive BT for *request* with the gap buffer wired."""
-        return BTBridge(datalayer=self._dl).execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=receiving_actor_id,
-            activity=request,
-            sync_port=self._sync_port,
-            gap_buffer=gap_buffer,
-        )
-
-    def _drain_buffered_successors(
-        self,
-        case_id: str,
-        receiving_actor_id: str,
-        gap_buffer: LedgerGapBuffer,
-    ) -> None:
-        """Apply buffered entries that now extend the local chain, in order.
-
-        After each committed entry, look up the buffered successor keyed by the
-        new tail hash and re-run the announce BT on it — reusing the exact
-        effects-before-persist path (SYNC-12-001).  Cascades until no buffered
-        entry extends the current tail.  A drained entry that fails to apply is
-        re-buffered so a later retry (or CaseActor replay) can pick it up.
-        """
-        while True:
-            try:
-                tail_hash, _ = _reconstruct_tail_hash(case_id, self._dl)
-            except VultronValidationError:
-                # No genesis anchor yet — nothing can be drained.
-                return
-            successor = gap_buffer.take_next(case_id, tail_hash)
-            if successor is None:
-                return
-
-            logger.info(
-                "sync: draining buffered entry '%s' (log_index=%d) for case "
-                "'%s' now that its predecessor has arrived",
-                successor.id_,
-                successor.log_index,
-                case_id,
-            )
-            drain_event = self._request.model_copy(
-                update={"object_": successor}
-            )
-            result = self._run_announce_bt(
-                drain_event, receiving_actor_id, gap_buffer
-            )
-            if (
-                result.status == Status.FAILURE
-                and self._dl.read(successor.id_) is None
-            ):
-                # Application failed and the entry was not persisted; hold it
-                # again so a future arrival or CaseActor replay can retry.
-                gap_buffer.buffer(successor)
-                logger.warning(
-                    "sync: buffered entry '%s' failed to apply on drain — "
-                    "re-buffered pending retry",
-                    successor.id_,
-                )
-                return
 
 
 class RejectLedgerEntryReceivedUseCase:

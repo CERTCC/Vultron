@@ -10,6 +10,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyNoteFromLedgerNode,
     ApplyOfferReportFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
+    BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckIsOwnCaseActorNode,
     CheckIsNotOwnCaseActorNode,
@@ -191,17 +192,34 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
     )
     # When the VulnerabilityCase is not yet seeded on this replica, chain tail
     # reconstruction fails and no tail_hash is available for the mismatch check.
-    # Wrap reconstruct in a Selector so that on failure we still send a Reject
-    # (with last_accepted_hash="" meaning "replay from genesis") and exit the
-    # Sequence without persisting the entry (SYNC-15-001, CLP-08-005).
+    # Wrap reconstruct in a Selector so that on failure we (1) park the entry in
+    # the actor-local gap buffer so the case-seed path can drain it once the
+    # genesis anchor is known (SYNC-15-004, #2186), and (2) still send a Reject
+    # (with last_accepted_hash="" meaning "replay from genesis") as the loss
+    # backstop, exiting the Sequence without persisting the entry (SYNC-15-001,
+    # CLP-08-005).  FailureIsSuccess lets the reject fire whether or not the
+    # entry was buffered, mirroring CheckHashOrRejectOnMismatchNode's forward-gap
+    # buffer-and-reject structure.
     reconstruct_or_reject = py_trees.composites.Selector(
         name="ReconstructOrRejectOnMissingCase",
         memory=False,
         children=[
             ReconstructChainTailNode(name="ReconstructChainTail"),
-            # Fallback: send Reject carrying the sentinel tail_hash="" that
-            # ReconstructChainTailNode wrote before failing.
-            SendRejectLogEntryNode(name="RejectOnMissingCase"),
+            py_trees.composites.Sequence(
+                name="BufferAndRejectOnMissingCase",
+                memory=False,
+                children=[
+                    py_trees.decorators.FailureIsSuccess(
+                        name="BufferIfPreGenesis",
+                        child=BufferPreGenesisEntryNode(
+                            name="BufferPreGenesisEntry"
+                        ),
+                    ),
+                    # Fallback: send Reject carrying the sentinel tail_hash=""
+                    # that ReconstructChainTailNode wrote before failing.
+                    SendRejectLogEntryNode(name="RejectOnMissingCase"),
+                ],
+            ),
         ],
     )
     process_and_store = py_trees.composites.Sequence(

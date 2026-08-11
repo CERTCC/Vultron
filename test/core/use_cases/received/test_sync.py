@@ -28,6 +28,7 @@ from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
+    drain_gap_buffer,
     _reconstruct_tail_hash,
 )
 from typing import cast
@@ -507,4 +508,116 @@ class TestOutOfOrderAnnounceBuffering:
             ).execute()
 
         assert self._present_indices(dl) == {0, 1, 2, 3, 4}
+
+
+class TestPreGenesisAnnounceBuffering:
+    """A pre-genesis ``Announce(CaseLedgerEntry)`` — one that arrives before the
+    ``VulnerabilityCase`` is seeded, so the per-case genesis hash is unavailable
+    (CLP-08-005) — MUST be buffered rather than permanently dropped, and MUST
+    drain into the local ledger once the case is seeded (issue #2186, #2180,
+    SYNC-15-004, SYNC-15-005).
+
+    This closes the pre-genesis race without relying on the reject/replay
+    round-trip: the forward-gap buffer (SYNC-14) only covers entries for a case
+    whose genesis anchor is already known, so a distinct pre-genesis hold is
+    required.
+    """
+
+    @pytest.fixture
+    def gap_buffer(self) -> LedgerGapBuffer:
+        return LedgerGapBuffer()
+
+    def _make_event(
+        self, entry: VultronCaseLedgerEntry
+    ) -> AnnounceLogEntryReceivedEvent:
+        wire_entry = WireCaseLedgerEntry.model_validate(
+            entry.model_dump(mode="json")
+        )
+        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
+
+    def test_pre_genesis_entry_is_buffered_not_dropped(self, dl, gap_buffer):
+        """With no case seeded, the entry is held in the buffer (not dropped)
+        and a Reject is still sent as the loss backstop (SYNC-15-001)."""
+        case = _make_case()  # deliberately NOT saved — pre-genesis window
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+        sync_port = SyncActivityAdapter(dl)
+
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(entry),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+
+        # Not stored — cannot validate genesis (SYNC-15-002).
+        assert dl.read(entry.id_) is None
+        # Buffered, not dropped — the #2186 fix.
+        assert gap_buffer.depth(CASE_URI) == 1
+        # Reject still queued as the backstop (SYNC-15-001).
+        assert len(dl.outbox_list_for_actor(RECEIVER_URI)) == 1
+
+    def test_buffered_pre_genesis_entry_drains_when_case_seeded(
+        self, dl, gap_buffer
+    ):
+        """Once the case is seeded, the buffered genesis entry applies via the
+        same effects-before-persist path (SYNC-15-005, SYNC-14-004)."""
+        case = _make_case()
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+        sync_port = SyncActivityAdapter(dl)
+
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(entry),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+        assert dl.read(entry.id_) is None
+        assert gap_buffer.depth(CASE_URI) == 1
+
+        # Seed the case — genesis anchor is now derivable (deterministic from
+        # attributed_to), so the buffered entry can drain.
+        dl.save(case)
+        drain_gap_buffer(
+            dl,
+            CASE_URI,
+            RECEIVER_URI,
+            gap_buffer,
+            sync_port,
+        )
+
+        assert dl.read(entry.id_) is not None
+        assert gap_buffer.depth(CASE_URI) == 0
+
+    def test_pre_genesis_cascade_drains_full_chain_on_seed(
+        self, dl, gap_buffer
+    ):
+        """Several entries arriving pre-genesis all buffer, then cascade-drain
+        in hash-chain order the moment the case is seeded."""
+        case = _make_case()
+        prev = case.genesis_hash
+        entries: list[VultronCaseLedgerEntry] = []
+        for i in range(3):
+            e = _make_entry(CASE_URI, i, prev)
+            entries.append(e)
+            prev = e.entry_hash
+        sync_port = SyncActivityAdapter(dl)
+
+        # All three arrive before the case is seeded.
+        for e in entries:
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(e),
+                sync_port=sync_port,
+                gap_buffer=gap_buffer,
+            ).execute()
+        assert gap_buffer.depth(CASE_URI) == 3
+        assert dl.read(entries[0].id_) is None
+
+        dl.save(case)
+        drain_gap_buffer(dl, CASE_URI, RECEIVER_URI, gap_buffer, sync_port)
+
+        assert all(dl.read(e.id_) is not None for e in entries)
+        assert gap_buffer.depth(CASE_URI) == 0
         assert gap_buffer.depth(CASE_URI) == 0
