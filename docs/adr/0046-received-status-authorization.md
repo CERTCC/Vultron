@@ -112,7 +112,7 @@ which is removed from `add_participant_status_tree`.
 - Unit tests: CS states outside {P, X, A} do not trigger teardown
 - Regression: CS.P path unaffected after migration of PublicDisclosureBranchNode
 
-## Outbound Emit Invariant (added 2026-08-11, from CONCERN-1667)
+## Outbound Emit Invariant
 
 The two-seam model governs **inbound** participant suggestions. A parallel
 invariant applies to the CaseActor's **own** EM and PXA state mutations:
@@ -130,9 +130,10 @@ CaseActor mutates EM/PXA state
 ```
 
 A shared `EmitCaseStatusUpdateNode` (direct write, not inbox-routed) is wired
-after every EM lifecycle BT node. This is **not** a new seam decision — it is
-the logical consequence of the CaseActor's role as single-writer authority
-(ADR-0021). The existing `EmitAddCaseStatusToSelfNode` (inbox-loopback path)
+after every EM lifecycle BT node. This is **not** a new seam decision — it
+carves a limited exception to ADR-0021's inbox-routing rule: the CaseActor's
+own outbound EM/PXA state change emissions write directly to the ledger rather
+than routing through the inbox seam. The existing `EmitAddCaseStatusToSelfNode` (inbox-loopback path)
 is a kludge that will be refactored once `EmitCaseStatusUpdateNode` is in place.
 
 ### CaseStatus Emission Authority (RSH-04)

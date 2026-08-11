@@ -232,7 +232,8 @@ issue will refactor the inbound path to use direct ledger writes as well
 
 | Node / Tree | EM transition | Covered by `EmitCaseStatusUpdateNode`? |
 |---|---|---|
-| `ProposeEmbargoLifecycleNode` (trigger) | NO_EMBARGO → PROPOSED or ACTIVE → REVISE | Pending (ISSUE-1667 child) |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NO_EMBARGO → PROPOSED | Pending (ISSUE-2175) |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_revision_trigger_bt` (revision, with `ValidateEmbargoRevisionStateNode` guard) | ACTIVE → REVISE | Pending (ISSUE-2175) |
 | `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Pending |
 | `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NO_EMBARGO | Pending |
 | `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Pending |

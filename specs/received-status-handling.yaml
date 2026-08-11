@@ -202,7 +202,9 @@ groups:
       by a self-addressed inbox message. DRY: one shared node, not N inline
       patches per BT tree factory.
     notes: >
-      Implementation tracked in ISSUE-1667's implementation child issue.
+      Implementation tracked in ISSUE-2175 (implement EmitCaseStatusUpdateNode,
+      size:M). A follow-on refactor of `EmitAddCaseStatusToSelfNode` is tracked
+      in ISSUE-2176 (size:S, blocked-by ISSUE-2175).
       The `EmitAddCaseStatusToSelfNode` kludge (inbound path) is acknowledged
       as a parallel refactor target: once `EmitCaseStatusUpdateNode` is in
       place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
