@@ -1,14 +1,12 @@
 #!/bin/bash
-# Runs on every container start/restart.
+# Runs on every container start.
 set -euo pipefail
 
 CONTAINER_NAME="$(hostname)"
 
-# Keep this slot's independent clone's remote-tracking refs current. Never
-# touches the working tree or local branches — just a fetch.
-if [ -d "$PWD/.git" ]; then
-    git -C "$PWD" fetch origin --quiet 2>/dev/null || true
-fi
+# Refresh /app from origin. The container is ephemeral (destroyed on exit),
+# so there are never local uncommitted changes to protect here.
+git -C /app pull --ff-only --quiet 2>&1 || echo "[warn] git pull failed — running with baked image snapshot"
 
 echo ""
 echo "=== $CONTAINER_NAME ==="
