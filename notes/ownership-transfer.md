@@ -102,7 +102,21 @@ Extend to:
 
 1. Store the Offer object (existing behaviour — keep it).
 2. Commit a `CaseLedgerEntry` recording the offer.
-3. Forward the Offer to the transferee's inbox (new behaviour).
+3. Forward the Offer to the transferee's inbox.
+
+**Forwarded-Offer wire format** (CM-21-005, mirrors Invite-flow analogy):
+
+```
+Offer(VulnerabilityCase,
+    actor        = case_actor_id,       ← CaseActor is the sender
+    attributed_to = original_actor_id,  ← Vendor1's intent carried forward
+    target       = transferee_id,
+    to           = [transferee_id],     ← MUST be set (delivery requirement)
+)
+```
+
+`attributed_to` must be threaded through `TriggerActivityPort.offer_case_ownership_transfer`
+so the factory can stamp it on the wire object.
 
 Use the guarded-commit pattern: only runs when `receiving_actor_id == case_actor_id`.
 
