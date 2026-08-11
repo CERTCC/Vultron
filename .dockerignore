@@ -61,6 +61,8 @@ wip_notes
 .copilot
 .devcontainer
 !.devcontainer/certs
+!.devcontainer/postcreate.sh
+!.devcontainer/poststart.sh
 
 # Dockerfile itself is not needed inside app images; demo-entrypoint.sh is still required
 docker/Dockerfile
