@@ -29,6 +29,15 @@ if ! grep -q 'local/bin' "$HOME/.zshrc" 2>/dev/null; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
 fi
 
+# Auto-start tmux on login if not already inside a tmux session
+if ! grep -q 'TMUX' "$HOME/.zshrc" 2>/dev/null; then
+    cat >> "$HOME/.zshrc" <<'EOF'
+
+# Auto-start tmux on login
+if [ -z "$TMUX" ]; then exec tmux new-session -s main; fi
+EOF
+fi
+
 # --- tmux configuration ---
 cat > "$HOME/.tmux.conf" <<'EOF'
 set -g default-terminal "tmux-256color"
