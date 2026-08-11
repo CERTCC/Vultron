@@ -40,6 +40,50 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
     }
 )
 
+# AS2 Activity ``type_`` strings (transitive + intransitive) plus
+# ``CaseLedgerEntry``.  When a nested ``_AS_OBJECT_REF_FIELDS`` value has one
+# of these types it MUST be kept inline rather than collapsed to a bare ID
+# string: Activities may not have independent DataLayer records (e.g. a
+# reconstituted Offer in the validate-report path, a CaseLedgerEntry inside an
+# Announce envelope), so dehydrating them would make rehydration impossible on
+# read-back and cause MV-09-001 outbox-gate failures.
+_KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
+    {
+        # as_TransitiveActivityType values
+        "Accept",
+        "Add",
+        "Announce",
+        "Block",
+        "Create",
+        "Delete",
+        "Dislike",
+        "Flag",
+        "Follow",
+        "Ignore",
+        "Invite",
+        "Join",
+        "Leave",
+        "Like",
+        "Listen",
+        "Move",
+        "Offer",
+        "Read",
+        "Reject",
+        "Remove",
+        "TentativeAccept",
+        "TentativeReject",
+        "Undo",
+        "Update",
+        "View",
+        # as_IntransitiveActivityType values
+        "Arrive",
+        "Question",
+        "Travel",
+        # Vultron-specific type kept inline for the same reason
+        "CaseLedgerEntry",
+    }
+)
+
 # Fields that hold a *list* of object references (ID strings or inline
 # objects).  Used by ``DataLayer.hydrate()`` to expand bare ID strings to
 # full domain objects — the list analogue of ``_AS_OBJECT_REF_FIELDS``.
@@ -73,14 +117,13 @@ def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in data.items():
         if key in _AS_OBJECT_REF_FIELDS and isinstance(value, dict):
-            # SYNC-13-002/SYNC-02-004: a CaseLedgerEntry is never stored as an
-            # independent DataLayer record by ingress, so collapsing it to a
-            # bare ID here would lose it (the referent is not resolvable on
-            # read/replay).  SYNC-02-004 also requires the full inline entry to
-            # travel inside the Announce envelope.  Keep it inline so a
-            # replayed Announce(CaseLedgerEntry) still routes and applies its
-            # effects.
-            if value.get("type_") == "CaseLedgerEntry":
+            # Keep Activity-type and CaseLedgerEntry nested objects inline.
+            # These may not have independent DataLayer records (e.g. a
+            # reconstituted Offer in validate-report, or a CaseLedgerEntry
+            # inside an Announce envelope), so collapsing them to a bare ID
+            # would make rehydration impossible on outbox read-back, causing
+            # MV-09-001 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
+            if value.get("type_") in _KEEP_INLINE_NESTED_TYPES:
                 result[key] = value
                 continue
             nested_id = value.get("id_")

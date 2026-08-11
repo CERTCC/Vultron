@@ -110,11 +110,6 @@ def test_outbox_gate_rejects_bare_string_object():
         )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#2194 — outbound Accept object_ is bare-string, trips MV-09-001;"
-    " xfail removed once emitted fully inline",
-)
 def test_stored_validate_report_accept_carries_inline_typed_object(dl):
     """Outbound validate-report ``Accept.object_`` must be a fully-inline typed
     object (not a bare ``str`` / ``as_Link``) so it passes the MV-09-001 outbox
