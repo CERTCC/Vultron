@@ -2,7 +2,7 @@ id: EDF
 title: Event-Driven Control Flow
 description: 'Defines the event-driven processing model for Vultron actors: how primary events enter the system, how cascading
   consequences are produced automatically, and what constraints apply to demo scripts and integration tests.'
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -124,6 +124,12 @@ groups:
     kind: project
     statement: Demo scripts MUST verify correctness by observing externally visible system state (e.g., DataLayer contents,
       activities queued in the outbox) after the primary event and its cascades have settled.
+    rationale: '"Settled" is not a matter of elapsed time. EDF-06 defines normatively what counts as evidence that a cascade
+      has settled; read this requirement together with EDF-06-001.'
+    relationships:
+    - rel_type: refines
+      spec_id: EDF-06-001
+      note: EDF-06-001 supplies the operational definition of "settled" that this requirement assumes.
   - id: EDF-05-004
     priority: MUST_NOT
     kind: project
@@ -134,3 +140,108 @@ groups:
     kind: project
     statement: A demo that must manually trigger intermediate steps to reach its expected final state SHOULD be treated as
       evidence of a cascade automation gap that requires a BT fix, not as correct demo behavior.
+- id: EDF-06
+  title: Causal Gating in Demo Scenarios
+  specs:
+  - id: EDF-06-001
+    priority: MUST
+    kind: architecture
+    statement: A harness step that depends on an asynchronous effect MUST be gated on positive evidence that the effect has
+      been committed by the actor that produces it. Elapsed time, the step's position in the script, and the return of an
+      HTTP 202 acknowledgement MUST NOT be treated as such evidence.
+    rationale: Sequencing a scenario temporally ("A and then B") rather than causally ("A therefore B") makes every step a
+      race against asynchronous delivery. This was the shared root cause of a recurring family of demo failures under Epic
+      #2136 — see ADR-0058 and CONCERN-2181.
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-002
+    priority: MUST
+    kind: project
+    statement: The gate predicate MUST be evaluated against the state of the actor that owns the awaited effect, read from
+      that actor's own container. Observing the effect on the sending actor's container MUST NOT be accepted as evidence that
+      the receiving actor committed it.
+    rationale: Each actor holds an independent DataLayer replica. A sender-side observation proves only that the sender
+      emitted the activity, not that the recipient processed it.
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-003
+    priority: MUST_NOT
+    kind: project
+    statement: A gate MUST NOT be placed on an observable that becomes true synchronously during the triggering request when
+      the awaited effect is committed asynchronously after that request returns.
+    rationale: 'Bug #2134: `engage-case` was gated on "the case object exists" — which resolves synchronously during
+      `validate-report` — rather than on "this participant reached RM.VALID", which commits after the HTTP 202 returns. A
+      synchronously-available observable is a proxy for the cause having *started*, not for its having *completed*.'
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-004
+    priority: MUST
+    kind: project
+    statement: When a received-side use case creates a new activity in response to a received one (the forwarding pattern),
+      the harness MUST discover the derived object by scanning the recipient's state for its semantic properties (activity
+      type, target, and object), and MUST NOT poll for the identifier of the sender's original activity.
+    rationale: 'Bug #2178: the demo polled the Coordinator''s DataLayer for the original Vendor1 Offer ID, but
+      `OfferCaseOwnershipTransferReceivedUseCase` creates a *new* forwarded Offer with a different ID (CM-21-005). Polling
+      for the antecedent''s identity can never observe the consequent.'
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-005
+    priority: MUST
+    kind: project
+    statement: An unmet causal gate MUST prevent execution of the steps that depend on it. Recording the failure and
+      continuing to the dependent step is not sufficient.
+    rationale: A gate that records a failure but lets the dependent step run produces a cascade of secondary failures that
+      masks the first one, and makes the gate indistinguishable from a comment. This refines the accumulate-and-continue
+      rule of DEMOCI-01-003, which governs reporting rather than control flow.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-01-003
+      note: Accumulation of failures is preserved; only the control flow of dependent steps is constrained.
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-006
+    priority: MUST
+    kind: project
+    statement: A wait that is irreducibly temporal — service liveness probes, protocol deadlines such as embargo expiry, and
+      transport retry backoff — MUST be identified as temporal at its call site and MUST NOT be counted as a causal gate.
+    rationale: Not every wait is a defect. Naming the temporal waits explicitly keeps them from being "fixed" into
+      meaningless causal gates, and keeps the causal-gate inventory honest about what it does and does not cover.
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-007
+    priority: SHOULD
+    kind: project
+    statement: A step whose causal precondition cannot be expressed as an observable predicate SHOULD be treated as evidence
+      of a missing observable or an unautomated cascade, and SHOULD be recorded as such rather than replaced with a timed
+      wait.
+    rationale: 'Refines EDF-05-005 to the harness side: where EDF-05-005 detects missing cascade automation from a needed
+      manual trigger, this detects it from an ungateable precondition. Some preconditions are genuinely unobservable today
+      (an actor having *processed* a delivery leaves no completion record); those gaps belong in the record, not behind a
+      `sleep`.'
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: EDF-05-005
+      note: Same diagnostic principle applied to harness gating rather than to manual cascade triggering.
+    tags:
+    - demo
+    - testing

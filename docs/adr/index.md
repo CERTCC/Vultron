@@ -127,6 +127,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0055 CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows](0055-ci-failure-alerting-via-github-issues.md)
 - [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](0056-embargo-adherence-computed-field.md)
 - [ADR-0057 Rename `CVDRole.OTHER` to `CVDRole.OBSERVER` and Define Observer Participant Semantics](0057-observer-participant-role.md)
+- [ADR-0058 Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order](0058-causal-gating-in-demo-scenarios.md) *(provisional)*
 
 ## Proposed ADRs
 
