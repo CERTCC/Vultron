@@ -308,6 +308,7 @@ def _phase_ownership_handoff(
     logger.info("─" * 80)
 
     # Vendor1 invites Coordinator with COORDINATOR role.
+    invite_result = None
     with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
             client=vendor_client,
@@ -355,6 +356,7 @@ def _phase_ownership_handoff(
     logger.info("Coordinator has joined the case")
 
     # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).
+    ownership_offer_result = None
     with demo_step(
         "Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001)"
     ):
@@ -396,6 +398,7 @@ def _phase_ownership_handoff(
     )
 
     # Coordinator accepts the ownership transfer (TRIG-11-002).
+    accept_ownership = None
     with demo_step(
         "Coordinator accepts case ownership transfer (TRIG-11-002)"
     ):
@@ -405,13 +408,13 @@ def _phase_ownership_handoff(
             behavior="accept-case-ownership-transfer",
             body={"offer_id": ownership_offer_id},
         )
-    accept_ownership = as_TransitiveActivity.model_validate(
-        accept_result["activity"]
-    )
-    logger.info(
-        "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
-        accept_ownership.id_,
-    )
+        accept_ownership = as_TransitiveActivity.model_validate(
+            accept_result["activity"]
+        )
+        logger.info(
+            "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
+            accept_ownership.id_,
+        )
 
     # Verify Vendor1's case now shows Coordinator as attributed_to.
     with demo_check(
@@ -467,6 +470,7 @@ def _phase_coordinator_invites_vendor2(
     # Trigger on vendor_client (the CaseActor's host container) so the invite is
     # emitted as CaseActor.  Vendor2's Accept then routes to CaseActor, not to
     # Coordinator, enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
+    invite_result = None
     with demo_step("Coordinator invites Vendor2 to the case"):
         invite_result = post_to_trigger(
             client=vendor_client,
@@ -497,8 +501,10 @@ def _phase_coordinator_invites_vendor2(
             behavior="accept-case-invite",
             body={"invite_id": invite.id_},
         )
-    accept = as_TransitiveActivity.model_validate(accept_result["activity"])
-    logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
+        accept = as_TransitiveActivity.model_validate(
+            accept_result["activity"]
+        )
+        logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
 
     # HttpDeliveryAdapter delivers Vendor2's Accept to the CaseActor inbox
     # via the real HTTP path (PCR-08-008).  Poll for the case replica as proof

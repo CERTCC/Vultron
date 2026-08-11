@@ -116,6 +116,7 @@ def reporter_submits_report(
             "in the network stack component. An attacker can exploit this "
             "issue to execute arbitrary code with elevated privileges."
         )
+        result = None
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
@@ -129,7 +130,7 @@ def reporter_submits_report(
                     "recipient_id": receiver.id_,
                 },
             )
-        offer_dict = result.get("offer", {})
+        offer_dict = result.get("offer", {}) if result is not None else {}
         report, offer = parse_submit_report_offer(offer_dict)
         # Deliver the offer from the reporter to the receiver's inbox.
         # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
@@ -260,6 +261,7 @@ def seed_offer_record_for_actor(
     """
     actor_obj_id = parse_id(actor.id_)["object_id"]
     result: dict = {}
+
     with demo_step(
         "Seeding offer record for invited actor (CM-11-002 triage)"
     ):
