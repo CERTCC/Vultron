@@ -804,10 +804,10 @@ groups:
   - id: CM-16-012
     priority: MAY
     kind: protocol
-    statement: The default role list MAY be `[CVDRole.OTHER]` when the Evaluator can determine that the suggested actor does
-      not fit any known CVD role but still requires case membership (e.g., a security researcher with no vendor affiliation).
-      `CVDRole.OTHER` is the most conservative choice because it makes no assumption about the actor's function in the CVD
-      process.
+    statement: The default role list MAY be `[CVDRole.OBSERVER]` when the Evaluator can determine that the suggested actor
+      does not fit any known CVD role but still requires case membership (e.g., a security researcher with no vendor
+      affiliation). `CVDRole.OBSERVER` is the most conservative choice because it makes no assumption about the actor's
+      function in the CVD process beyond case observation (CM-25-001).
   - id: CM-16-013
     priority: MAY
     kind: protocol
@@ -1628,3 +1628,151 @@ groups:
       that deviated: SvcOfferCaseOwnershipTransferUseCase (wrong actor, no
       attributed_to) proved the pattern is re-broken every time a new callsite
       is added.  A shared helper eliminates the entire class of defect.
+
+- id: CM-25
+  title: Observer Participant Semantics
+  description: >-
+    Requirements for the CVDRole.OBSERVER role (formerly CVDRole.OTHER):
+    what an Observer IS, how it is admitted, what content it receives,
+    and how the RM lifecycle applies. Codified by ADR-0057
+    (docs/adr/0057-observer-participant-role.md). Source: CONCERN-2093.
+  specs:
+  - id: CM-25-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Observer (`CVDRole.OBSERVER`) is a Tier-1 case participant: it MUST
+      hold a `CaseParticipant` record, run the standard RM lifecycle, and satisfy
+      the same embargo-consent gate (MV-10-005) as any other participant.
+      CVDRole.OBSERVER is the base role — the lowest non-null privilege set in
+      the Vultron protocol. All other CVD roles are additive to it.
+    rationale: >-
+      Defining Observer as a full participant (not a passive consumer or an
+      external T0 actor) ensures it is subject to the same admission and
+      embargo-consent rules as Vendors and Coordinators. The "base role" framing
+      establishes OBSERVER as the correct fallback when no other role applies,
+      rather than leaving CVDRole.OTHER as an unspecified catch-all.
+      See ADR-0057.
+    adr:
+    - ADR-0057
+  - id: CM-25-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Observer MUST be admitted via the standard Invite/Accept flow (CM-17).
+      The `Invite` activity sent by the CaseActor MUST embed
+      `case_roles=[CVDRole.OBSERVER]`. An empty `case_roles` list MUST NOT be
+      used for Observer invitations; `[]` is indistinguishable from the
+      `caseRoles=[]` admission defect (issue #1288) and violates the CM-16-003
+      non-empty invariant.
+    rationale: >-
+      Requiring a non-empty `case_roles` value is load-bearing: the participant
+      record created on `Accept(Invite)` (CM-17-004 step 3) reads roles from
+      the persisted Invite wire object. A missing or empty list would create an
+      Observer participant with no role — indistinguishable from a defect.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-003
+    - rel_type: refines
+      spec_id: CM-16-003
+    adr:
+    - ADR-0057
+  - id: CM-25-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Observer MUST receive full case content. The existing MV-10-005 delivery
+      gate (participant admitted at RM.RECEIVED AND embargo signatory, or no
+      active embargo) is the sole gate on case content for an Observer. No
+      additional or reduced delivery tier applies.
+    rationale: >-
+      An Observer has accepted the embargo terms by admitting to the case
+      (MV-10-006). Presence-based consent is the substantive gate; the absence
+      of a remediation function does not change what the Observer is entitled
+      to receive once admitted and embargo-consenting. Introducing a separate
+      reduced delivery tier for Observers is deferred: `notes/stub-objects.md`
+      describes the potential future mechanism but it is not yet implemented.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-10-005
+    - rel_type: depends_on
+      spec_id: MV-10-006
+    adr:
+    - ADR-0057
+  - id: CM-25-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      After accepting a case invitation and receiving the full case replica, an
+      Observer SHOULD run the standard RM triage cycle (CM-11-002):
+      RM.VALID or RM.INVALID, then RM.ACCEPTED or RM.DEFERRED.
+      For an Observer, RM.ACCEPTED means "I am actively engaged with / monitoring
+      this case" — it does NOT imply commitment to develop or deploy a fix.
+    rationale: >-
+      The RM triage cycle represents an Observer's assessment of whether the
+      case is relevant to them and whether they intend to remain engaged. An
+      Observer that determines the case is outside their scope should transition
+      to RM.INVALID or RM.DEFERRED, not silently stay at RM.RECEIVED. This
+      preserves the RM machine's semantics as a participation-intent signal.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-11-002
+    adr:
+    - ADR-0057
+  - id: CM-25-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant whose `case_roles` list contains ONLY `CVDRole.OBSERVER`
+      MUST NOT emit VFD state-transition messages (CV, CF, or CD). An Observer
+      has no vendor-fix-deployment obligations and no authority to advance the
+      VFD dimension on behalf of a product or service.
+    note: >-
+      This restriction is scoped to sole-OBSERVER participants. When
+      CVDRole.OBSERVER is combined with any role that carries VFD obligations
+      (CVDRole.VENDOR, CVDRole.DEPLOYER), the union-of-permissions rule (CM-26-001)
+      applies: the VFD obligations of the co-role supersede this restriction.
+      Code checking this exclusion MUST test `case_roles == [CVDRole.OBSERVER]`
+      (or equivalent sole-role check), NOT merely `CVDRole.OBSERVER in case_roles`.
+    rationale: >-
+      An Observer joined the case to monitor it, not to own a fix path. Permitting
+      VFD emissions from a role with no fix obligations would corrupt the VFD state
+      machine for the case (e.g., a monitoring actor falsely claiming fix deployment).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-03-005
+    adr:
+    - ADR-0057
+
+- id: CM-26
+  title: Role Stacking — Union of Permissions
+  description: >-
+    Requirement governing how conflicting obligations are resolved when a
+    participant holds multiple CVD roles simultaneously. Codified by ADR-0057.
+    Source: CONCERN-2093.
+  specs:
+  - id: CM-26-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant's permitted and obligated actions are determined by the
+      **union** of what their role list permits. A MUST NOT restriction
+      attached to one role is superseded when any other role in the participant's
+      `case_roles` list carries a MAY, SHOULD, or MUST for the same action class.
+    note: >-
+      Example: CVDRole.OBSERVER MUST NOT emit VFD transitions (CM-25-005), but
+      CVDRole.DEPLOYER SHOULD emit the D transition when a fix is deployed.
+      A participant holding both roles SHOULD emit VFD/D transitions, because
+      DEPLOYER's SHOULD overrides OBSERVER's MUST NOT.
+    rationale: >-
+      CVD roles represent orthogonal functions a participant may perform. When a
+      participant holds more than one function (e.g., a security researcher who
+      is also a Deployer for an affected product), restricting them based on their
+      least-capable role would incorrectly limit their protocol participation.
+      The union model prevents role restrictions from blocking obligations that
+      exist under a co-role.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-25-005
+    adr:
+    - ADR-0057
