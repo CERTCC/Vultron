@@ -102,7 +102,7 @@ Extend to:
 
 1. Store the Offer object (existing behaviour — keep it).
 2. Commit a `CaseLedgerEntry` recording the offer.
-3. Forward the Offer to the transferee's inbox (new behaviour).
+3. Forward the Offer to the transferee's inbox.
 
 **Forwarded-Offer wire format** (CM-21-005, mirrors Invite-flow analogy):
 
