@@ -217,6 +217,7 @@ def _phase_report_submission(
     )
 
     # Vendor1 invites Coordinator with COORDINATOR role only (not CASE_MANAGER).
+    invite_result = None
     with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
             client=vendor_client,

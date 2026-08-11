@@ -111,36 +111,7 @@ class ApplyOfferReportFromLedgerNode(DataLayerAction):
             else None
         )
 
-        # The add_report_to_case snapshot embeds the full report inline
-        # (build_add_report_to_case_snapshot -> obj_to_inline_dict).  An invited
-        # replica never received the VulnerabilityReport object directly, so
-        # reconstruct and store it from the snapshot here — otherwise
-        # _reconstitute_offer (and SvcValidateReportUseCase) 404 on the report
-        # lookup even though the offer record exists (#2180, ADR-0035 DL-06-002).
-        if (
-            isinstance(object_data, dict)
-            and report_id
-            and self.datalayer.read(report_id) is None
-        ):
-            from vultron.core.models.report import VulnerabilityReport
-
-            try:
-                self.datalayer.save(
-                    VulnerabilityReport.model_validate(object_data)
-                )
-                self.logger.info(
-                    "%s: stored VulnerabilityReport '%s' from ledger snapshot"
-                    " for invited replica (#2180)",
-                    self.name,
-                    report_id,
-                )
-            except Exception as exc:
-                self.logger.warning(
-                    "%s: could not reconstruct VulnerabilityReport from"
-                    " add_report_to_case snapshot: %s",
-                    self.name,
-                    exc,
-                )
+        self._maybe_restore_report(object_data, report_id)
 
         offer_to = snapshot.get("to", [])
         if isinstance(offer_to, str):
@@ -153,6 +124,57 @@ class ApplyOfferReportFromLedgerNode(DataLayerAction):
                 self.name,
             )
             return Status.SUCCESS
+
+        return self._save_offer_record(
+            offer_id, offer_record_id, report_id, offer_actor_id, offer_to
+        )
+
+    def _maybe_restore_report(
+        self, object_data: Any, report_id: str | None
+    ) -> None:
+        # The add_report_to_case snapshot embeds the full report inline
+        # (build_add_report_to_case_snapshot -> obj_to_inline_dict).  An invited
+        # replica never received the VulnerabilityReport object directly, so
+        # reconstruct and store it from the snapshot here — otherwise
+        # _reconstitute_offer (and SvcValidateReportUseCase) 404 on the report
+        # lookup even though the offer record exists (#2180, ADR-0035 DL-06-002).
+        assert self.datalayer is not None
+        if not (
+            isinstance(object_data, dict)
+            and report_id
+            and self.datalayer.read(report_id) is None
+        ):
+            return
+        from vultron.core.models.report import VulnerabilityReport
+
+        try:
+            self.datalayer.save(
+                VulnerabilityReport.model_validate(object_data)
+            )
+            self.logger.info(
+                "%s: stored VulnerabilityReport '%s' from ledger snapshot"
+                " for invited replica (#2180)",
+                self.name,
+                report_id,
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "%s: could not reconstruct VulnerabilityReport from"
+                " add_report_to_case snapshot: %s",
+                self.name,
+                exc,
+            )
+
+    def _save_offer_record(
+        self,
+        offer_id: str,
+        offer_record_id: str,
+        report_id: str,
+        offer_actor_id: str,
+        offer_to: list,
+    ) -> Status:
+        assert self.datalayer is not None
+        from vultron.core.models.offer_record import VultronOfferRecord
 
         try:
             record = VultronOfferRecord(

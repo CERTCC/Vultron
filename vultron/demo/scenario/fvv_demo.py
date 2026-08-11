@@ -205,6 +205,7 @@ def _phase_report_submission(
         )
 
     # Vendor1 invites Vendor2 to the case.
+    invite_result = None
     with demo_step("Vendor1 invites Vendor2 to the case"):
         invite_result = post_to_trigger(
             client=vendor_client,

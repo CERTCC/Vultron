@@ -232,6 +232,7 @@ def _phase_report_submission(
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
+    invite_result = None
     with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
             client=c1_client,

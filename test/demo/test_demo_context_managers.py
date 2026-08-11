@@ -245,3 +245,92 @@ class TestDemoAccumulator:
         from vultron.errors import VultronError
 
         assert issubclass(DemoFailureError, VultronError)
+
+
+class TestUnboundLocalErrorRegression:
+    """Regression for issue #2191.
+
+    Variables assigned only inside a failing demo_step block were unbound
+    after the block, causing UnboundLocalError when referenced outside it.
+    Fix: initialize the variable to None before entering the with block so
+    that callers receive None (rather than an unbound-variable crash) when
+    the step fails.
+    """
+
+    def test_receiver_validates_report_returns_none_on_trigger_failure(
+        self, monkeypatch
+    ):
+        """receiver_validates_report must return None (not raise UnboundLocalError)
+        when post_to_trigger raises inside the demo_step block."""
+        from unittest.mock import MagicMock
+
+        import vultron.demo.helpers.workflow as workflow_mod
+
+        monkeypatch.setattr(
+            workflow_mod,
+            "post_to_trigger",
+            MagicMock(side_effect=RuntimeError("trigger failed")),
+        )
+
+        receiver = MagicMock()
+        receiver.id_ = "http://example.com/api/v2/actors/vendor-1"
+
+        result = workflow_mod.receiver_validates_report(
+            receiver_client=MagicMock(),
+            receiver=receiver,
+            offer_id="offer-abc",
+        )
+        assert result == {}
+
+    def test_receiver_engages_case_returns_none_on_trigger_failure(
+        self, monkeypatch
+    ):
+        """receiver_engages_case must return None (not raise UnboundLocalError)
+        when post_to_trigger raises inside the demo_step block."""
+        from unittest.mock import MagicMock
+
+        import vultron.demo.helpers.workflow as workflow_mod
+
+        monkeypatch.setattr(
+            workflow_mod,
+            "post_to_trigger",
+            MagicMock(side_effect=RuntimeError("trigger failed")),
+        )
+
+        receiver = MagicMock()
+        receiver.id_ = "http://example.com/api/v2/actors/vendor-1"
+
+        result = workflow_mod.receiver_engages_case(
+            receiver_client=MagicMock(),
+            receiver=receiver,
+            case_id="case-abc",
+        )
+        assert result == {}
+
+    def test_seed_offer_record_for_actor_returns_none_on_trigger_failure(
+        self, monkeypatch
+    ):
+        """seed_offer_record_for_actor must return None (not raise
+        UnboundLocalError) when post_to_trigger raises inside the demo_step
+        block."""
+        from unittest.mock import MagicMock
+
+        import vultron.demo.helpers.workflow as workflow_mod
+
+        monkeypatch.setattr(
+            workflow_mod,
+            "post_to_trigger",
+            MagicMock(side_effect=RuntimeError("trigger failed")),
+        )
+
+        actor = MagicMock()
+        actor.id_ = "http://example.com/api/v2/actors/vendor-1"
+
+        result = workflow_mod.seed_offer_record_for_actor(
+            client=MagicMock(),
+            actor=actor,
+            offer_id="offer-abc",
+            report_id="report-abc",
+            offer_actor_id="actor-abc",
+        )
+        assert result == {}

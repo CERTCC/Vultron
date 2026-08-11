@@ -261,6 +261,7 @@ def _phase_invite_vendor(
     logger.info("Phase 2: Coordinator invites Vendor")
     logger.info("─" * 80)
 
+    invite_result = None
     with demo_step("Coordinator invites Vendor with CVDRole.VENDOR"):
         invite_result = post_to_trigger(
             client=coordinator_client,

@@ -248,6 +248,7 @@ def _phase_report_submission(
         )
 
     # C1 invites V1 with CVDRole.VENDOR.
+    invite_v1_result = None
     with demo_step("C1 invites V1 with CVDRole.VENDOR"):
         invite_v1_result = post_to_trigger(
             client=c1_client,
@@ -304,6 +305,7 @@ def _phase_report_submission(
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR.
+    invite_c2_result = None
     with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
         invite_c2_result = post_to_trigger(
             client=c1_client,
