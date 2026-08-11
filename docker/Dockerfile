@@ -111,5 +111,9 @@ RUN groupadd --gid 1000 vscode \
 # Claude Code CLI (installed as vscode user so it lands in ~/.local)
 RUN su - vscode -c "curl -fsSL https://claude.ai/install.sh | bash"
 
+# /app is owned by root from the earlier COPY steps; hand it to vscode so
+# `git pull` in poststart.sh doesn't fail on dubious-ownership checks.
+RUN chown -R vscode:vscode /app
+
 WORKDIR /app
 USER vscode
