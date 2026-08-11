@@ -794,16 +794,13 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
 `embargo_adherence` is the boolean projection of PEC state: `True` iff
 PEC = `SIGNATORY`, `False` otherwise.
 
-!!! note "Derived vs. stored: unresolved"
-    This specification states `embargo_adherence` as a derived property. The
-    current implementation carries it as a stored boolean field on
-    `ParticipantStatus`, defaulting to `True`. A stored field can drift from the
-    PEC state it is meant to project, and the fail-open default differs from what
-    a derived value would yield at initial `NO_EMBARGO`.
+The implementation MUST expose `embargo_adherence` as a computed property
+(e.g., Pydantic `@computed_field`) derived from `consent.state`. It MUST NOT
+be a stored field that can drift from the PEC state it projects.
+Consent changes MUST be applied as a PEC trigger through the validated
+transition path (ADR-0048, ADR-0056).
 
-    Implementations MUST NOT record a consent change by assigning this field
-    directly. Consent changes MUST be applied as a PEC trigger through the
-    validated transition path, which fails closed on an illegal transition.
+- *Source: `specs/case-management.yaml` CM-18-008; ADR-0056*
 
 #### 6.4.7 Gating Full Case Delivery
 
@@ -1375,10 +1372,9 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
     third-party assertion ("I notified this Vendor"), which raises questions about
     who may assert, whether the subject may dispute, and whether transport-level
     delivery success suffices. Filed as a Concern.
-14. **`embargo_adherence` derived vs. stored** — §6.4.6. Specified here as
-    derived from PEC state; implemented as a stored boolean defaulting to `True`.
-    Needs a decision, and if it stays stored, an invariant and an enforcement
-    point.
+14. **`embargo_adherence` derived vs. stored** — §6.4.6. Resolved by ADR-0056:
+    `embargo_adherence` is a computed property derived from PEC state.
+    Implementation issue tracked separately.
 15. **Negative acknowledgement** — §5.6. Error message types are deliberately
     unmodelled (ADR-0049), and unprocessable inbound messages are dead-lettered
     with no sender notification. Whether the protocol needs an error-reply facet

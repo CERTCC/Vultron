@@ -530,6 +530,12 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `specs/` for the bare name as well as the quoted/path form, and update every spec entry
   that references it — including `statement:`, `rationale:`, and cross-reference fields.
   *Source: ISSUE-2011*
+- **`embargo_adherence` Is a `@computed_field`, Not a Settable Field** —
+  `ParticipantStatus.embargo_adherence` is derived from `consent.state`
+  (`True` iff `PEC.SIGNATORY`). Do NOT set it directly or declare it as a
+  stored field. To change the value, apply a PEC trigger via
+  `CaseParticipant.apply_pec_transition()`. See CM-18-008, ADR-0056.
+  *Source: CONCERN-2091*
 - **Delegated-Emit Trigger Use Cases MUST Set `actor=case_actor_id`,
   `attributed_to=requesting_actor_id`** — trigger use cases that emit an
   Activity on behalf of the CaseActor (invite, ownership transfer, and any

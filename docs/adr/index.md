@@ -125,6 +125,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0053 Route Ownership-Transfer Offer and Accept Through the CaseActor](0053-ownership-transfer-routed-via-caseactor.md)
 - [ADR-0054 Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues](0054-learnings-queue-as-files-not-issues.md)
 - [ADR-0055 CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows](0055-ci-failure-alerting-via-github-issues.md)
+- [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](0056-embargo-adherence-computed-field.md)
 
 ## Proposed ADRs
 
