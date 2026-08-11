@@ -1149,7 +1149,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
     ):
         """Run _phase_ownership_handoff with find_ownership_transfer_offer_for_actor mocked.
 
-        Returns (trigger_calls_list, mock_find, coordinator_client, coordinator, case).
+        Returns (trigger_calls_list, mock_find, coordinator_client, coordinator, case, original_offer).
         """
         import contextlib
 

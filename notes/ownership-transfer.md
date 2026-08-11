@@ -136,6 +136,17 @@ Remove the `post_to_inbox_and_wait` self-delivery block (lines ~427–434).
 The Accept now reaches the CaseActor automatically because
 `EmitAcceptCaseOwnershipTransferNode` addresses it there.
 
+After the Vendor1 offer-trigger returns, poll Coordinator's DataLayer with
+`find_ownership_transfer_offer_for_actor(coordinator_client, case_id, transferee_id=coordinator.id_)`
+to discover the forwarded Offer ID. Use the returned ID — **NOT** `ownership_offer.id_` — for
+the `accept-case-ownership-transfer` trigger body.
+
+> **Rationale:** `OfferCaseOwnershipTransferReceivedUseCase` creates a new Offer with a new ID
+> (CM-21-005). The original Offer exists only in the CaseActor's DataLayer; polling for it on
+> Coordinator's container (`wait_for_object_stored(original_offer.id_)`) will never match.
+> The discriminator-based poll (`find_ownership_transfer_offer_for_actor`) scans for semantic
+> properties (type + target + object) rather than identity (specific ID).
+
 ---
 
 ## Analogy: Invite/Accept Handshake

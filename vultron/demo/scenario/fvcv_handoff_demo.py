@@ -381,6 +381,7 @@ def _phase_ownership_handoff(
     # when the CaseActor processes Vendor1's Offer.  The forwarded Offer lands in
     # Coordinator's DataLayer under a different ID; the original Offer only exists
     # in the CaseActor's DataLayer.  Polling for the original ID would never match.
+    ownership_offer_id: str = ""
     with demo_check(
         "Forwarded Offer(VulnerabilityCase) delivered to Coordinator's DataLayer (CM-21-005)"
     ):
