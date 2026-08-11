@@ -284,7 +284,7 @@ self._attributed_to = owner_id if case_actor_id else None        # CM-24-002/003
 | Trigger use case | Notes |
 |---|---|
 | `SvcInviteActorToCaseUseCase` | ✅ reference — correct |
-| `SvcOfferCaseOwnershipTransferUseCase` | ❌ as of CONCERN-2170 — tracked by #2170 impl issue |
+| `SvcOfferCaseOwnershipTransferUseCase` | ❌ as of CONCERN-2170 — tracked in #2173 |
 | Other delegated-emit trigger use cases | audit scope of the CM-24 impl issue |
 
 ### Shared-Helper Requirement (CM-24-005)

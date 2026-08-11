@@ -57,10 +57,10 @@ Offering actor calls trigger: offer-case-ownership-transfer
       constructs: Offer(VulnerabilityCase, target=transferee_id)
       actor:      case_actor_id                ← delegated-message contract
       attributed_to: offering_actor_id
-      addressed:  to=[transferee_id]           ← delivered directly to transferee
+      addressed:  to=[case_actor_id]           ← MUST (CM-21-005)
       queued in:  CaseActor's outbox           ← CM-24-004
 
-CaseActor self-receives the Offer (via outbox → inbox round-trip)
+CaseActor inbox receives Offer
   → OfferCaseOwnershipTransferReceivedUseCase:
       1. Records the Offer object (idempotent).
       2. Commits CaseLedgerEntry (offer-recorded).
@@ -69,8 +69,8 @@ CaseActor self-receives the Offer (via outbox → inbox round-trip)
 ```
 
 > **Correction (CONCERN-2170)**: Earlier descriptions of this flow stated the
-> Offer was "queued in: offering actor's outbox" with `actor=offering_actor`.
-> That was wrong.  Bug ISSUE-2142 confirmed the Coordinator rejects Offers
+> Offer was "queued in: offering actor's outbox" with `actor=offering_actor`
+> and no `attributed_to`.  That was wrong.  Bug ISSUE-2142 confirmed the Coordinator rejects Offers
 > whose `actor` names the Finder rather than the CaseActor.  The delegated
 > pattern (CM-24-001 through CM-24-004) is the correct model.
 
