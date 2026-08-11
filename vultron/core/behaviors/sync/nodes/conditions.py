@@ -182,7 +182,7 @@ _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 _CLOSE_CASE_EVENT = "close_case"
-_SUBMIT_REPORT_EVENT = "submit_report"
+_ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 
 
 class IsRemoveEmbargoEventNode(DataLayerCondition):
@@ -351,7 +351,7 @@ class IsCloseCaseEventNode(DataLayerCondition):
 
 
 class IsSubmitReportEventNode(DataLayerCondition):
-    """Precondition: return SUCCESS when this log entry IS a submit_report event.
+    """Precondition: return SUCCESS when this log entry IS an add_report_to_case event.
 
     Used as the precondition in the ``OfferReportEffects`` Selector's inner
     Sequence in ``AnnounceLogEntryReceivedBT``::
@@ -378,7 +378,7 @@ class IsSubmitReportEventNode(DataLayerCondition):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type == _SUBMIT_REPORT_EVENT:
+        if entry.event_type == _ADD_REPORT_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 

@@ -297,8 +297,8 @@ def run_invite_path_rm_triage(
     spoofing via seed-offer-record is needed or permitted.
 
     Steps:
-    1. Wait for submit_report ledger entry to be backfilled and processed
-       (ensures VultronOfferRecord exists before validate-report fires).
+    1. Wait for VultronOfferRecord (created from add_report_to_case backfill)
+       to appear on the actor's DataLayer before validate-report fires.
     2. Trigger validate-report (RM → VALID).
     3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
     4. Trigger engage-case (RM → ACCEPTED).
@@ -322,10 +322,9 @@ def run_invite_path_rm_triage(
     # Wait for VultronOfferRecord to exist in the actor's DataLayer before
     # triggering validate-report.  For the initial report recipient the record
     # is created immediately by the adapter on receipt; for invite-path joiners
-    # it is created by ApplyOfferReportFromLedgerNode after the submit_report
-    # ledger entry is backfilled via SYNC.  Polling the record directly covers
-    # both cases without timing out on the initial-recipient path (which has no
-    # submit_report ledger entry to wait for).
+    # it is created by ApplyOfferReportFromLedgerNode after the
+    # add_report_to_case ledger entry is backfilled via SYNC.  Polling the
+    # record directly covers both cases.
     from vultron.core.models.offer_record import VultronOfferRecord
 
     offer_record_id = VultronOfferRecord.build_id(offer_id)

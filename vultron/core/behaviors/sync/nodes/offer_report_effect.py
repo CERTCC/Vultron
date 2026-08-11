@@ -13,11 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Ledger effect node for Offer(VulnerabilityReport) entries.
+"""Ledger effect node for add_report_to_case entries.
 
 Provides :class:`ApplyOfferReportFromLedgerNode`, which creates a
 ``VultronOfferRecord`` when an invited actor processes the canonical
-``submit_report`` ledger entry backfilled from the case owner.
+``add_report_to_case`` ledger entry backfilled from the case owner.
 
 Per ADR-0035 DL-06-002, SYNC-02-002, ISSUE-2134.
 """
@@ -34,20 +34,19 @@ from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 
 
 class ApplyOfferReportFromLedgerNode(DataLayerAction):
-    """Apply a ``submit_report`` ledger entry to the local DataLayer.
+    """Apply an ``add_report_to_case`` ledger entry to the local DataLayer.
 
     When an invited actor receives ``Announce(CaseLedgerEntry)`` for the
-    canonical ``Offer(VulnerabilityReport)`` entry (``event_type="submit_report"``),
-    this node creates a :class:`~vultron.core.models.offer_record.VultronOfferRecord`
-    keyed by ``VultronOfferRecord.build_id(offer_id)`` so that
-    ``SvcValidateReportUseCase`` can proceed without spoofing.
+    canonical ``add_report_to_case`` entry, this node creates a
+    :class:`~vultron.core.models.offer_record.VultronOfferRecord` keyed by
+    ``VultronOfferRecord.build_id(offer_id)`` so that ``SvcValidateReportUseCase``
+    can proceed without spoofing.
 
-    The record is derived entirely from the ledger entry's ``payload_snapshot``:
+    The record is derived from the ledger entry's ``payload_snapshot``:
 
-    - ``log_object_id`` → ``offer_id``
+    - ``payload_snapshot["offerId"]`` → ``offer_id``
     - ``payload_snapshot["object"]["id"]`` → ``report_id``
-    - ``payload_snapshot["actor"]`` → ``offer_actor_id``
-    - ``payload_snapshot["to"]`` → ``offer_to``
+    - ``payload_snapshot["offerActorId"]`` (or ``"actor"``) → ``offer_actor_id``
 
     Idempotent: if the record already exists the node returns SUCCESS without
     overwriting.  Lenient on missing data — if the snapshot is incomplete the
@@ -75,14 +74,19 @@ class ApplyOfferReportFromLedgerNode(DataLayerAction):
 
         entry = _require_log_entry(self.blackboard.activity, self.name)
 
-        # Only handle submit_report entries.
-        if entry.event_type != "submit_report":
+        # Only handle add_report_to_case entries.
+        if entry.event_type != "add_report_to_case":
             return Status.SUCCESS
 
-        offer_id = entry.log_object_id
+        snapshot = (
+            entry.payload_snapshot
+            if isinstance(entry.payload_snapshot, dict)
+            else {}
+        )
+        offer_id = snapshot.get("offerId")
         if not offer_id:
             self.logger.debug(
-                "%s: ledger entry has no log_object_id — skipping (non-fatal)",
+                "%s: add_report_to_case entry has no offerId — skipping (non-fatal)",
                 self.name,
             )
             return Status.SUCCESS
@@ -96,8 +100,10 @@ class ApplyOfferReportFromLedgerNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        snapshot = entry.payload_snapshot
-        offer_actor_id = _extract_id_from_field(snapshot.get("actor"))
+        # offerActorId is the original Offer sender; "actor" is the CaseActor.
+        offer_actor_id = _extract_id_from_field(
+            snapshot.get("offerActorId") or snapshot.get("actor")
+        )
         object_data = snapshot.get("object")
         report_id = (
             _extract_id_from_field(object_data)
@@ -110,7 +116,7 @@ class ApplyOfferReportFromLedgerNode(DataLayerAction):
 
         if not offer_actor_id or not report_id:
             self.logger.debug(
-                "%s: payload_snapshot missing 'actor' or 'object.id'"
+                "%s: payload_snapshot missing offer actor or object.id"
                 " — skipping offer-record creation (non-fatal)",
                 self.name,
             )

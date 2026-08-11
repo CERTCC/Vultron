@@ -106,36 +106,40 @@ def _make_announce_event(
 
 
 def _make_offer_report_snapshot() -> dict:
-    """Build a payload_snapshot for an Offer(VulnerabilityReport) ledger entry.
+    """Build a payload_snapshot for an add_report_to_case ledger entry.
 
-    Mirrors what build_activity_payload_snapshot produces for the submit-report
-    Offer activity:  type=Offer, object={id, type=VulnerabilityReport, ...},
-    actor=reporter, context=case_id.
+    Mirrors what build_add_report_to_case_snapshot produces when offer_id is
+    known: type=Add, object={id=REPORT_ID, type=VulnerabilityReport},
+    actor=case-owner, offerId=OFFER_ID, offerActorId=REPORTER_ACTOR_ID.
     """
     return {
-        "type": "Offer",
-        "id": OFFER_ID,
-        "actor": REPORTER_ACTOR_ID,
+        "type": "Add",
+        "actor": CASE_OWNER_ACTOR_ID,
         "context": CASE_ID,
-        "to": [CASE_OWNER_ACTOR_ID],
+        "offerId": OFFER_ID,
+        "offerActorId": REPORTER_ACTOR_ID,
         "object": {
             "id": REPORT_ID,
             "type": "VulnerabilityReport",
             "content": "Test vulnerability report",
             "attributedTo": REPORTER_ACTOR_ID,
         },
+        "target": {
+            "id": CASE_ID,
+            "type": "VulnerabilityCase",
+        },
     }
 
 
 def _make_offer_report_ledger_entry():
-    """Build a VultronCaseLedgerEntry for a submit_report canonical event."""
+    """Build a VultronCaseLedgerEntry for an add_report_to_case canonical event."""
     snapshot = _make_offer_report_snapshot()
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=1,
-            object_id=OFFER_ID,
-            event_type="submit_report",
+            object_id=REPORT_ID,
+            event_type="add_report_to_case",
             payload_snapshot=snapshot,
             prev_log_hash=CASE_GENESIS_HASH,
         )
