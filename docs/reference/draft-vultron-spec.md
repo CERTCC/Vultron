@@ -1045,9 +1045,9 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | CNA | May directly assign CVE IDs; a non-CNA delegates to an external CNA service. Orthogonal to other roles — typically co-held with Coordinator or Vendor |
 | Observer † | Holds no drive obligations for VFD; may report PXA observations (§7.4.2) |
 
-!!! note "† Observer: decided (ADR-0056); Finder: still provisional"
+!!! note "† Observer: decided (ADR-0057); Finder: still provisional"
     **Observer** (`CVDRole.OBSERVER`): the rename from `CVDRole.OTHER` is decided
-    (ADR-0056). The implementation task (renaming the enum value and all
+    (ADR-0057). The implementation task (renaming the enum value and all
     references) is tracked in a separate issue. Observer semantics are now
     normative: full participant (CM-25-001), standard Invite/Accept admission
     (CM-25-002), full case content (CM-25-003), RM triage with engagement
@@ -1331,15 +1331,15 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
    Note the reach: `docs/reference/formal_protocol/index.md` defines the process
    count $N$ over Finders, Vendors, Coordinators, Deployers, and Others, and §3.1
    and §3.4 build on that definition. Marked provisional in §7.3.1.
-6. ~~**Observer rename ADR**~~ — Resolved. ADR-0056
-   (`docs/adr/0056-observer-participant-role.md`) decided the rename and Observer
+6. ~~**Observer rename ADR**~~ — Resolved. ADR-0057
+   (`docs/adr/0057-observer-participant-role.md`) decided the rename and Observer
    semantics (CM-25, CM-26). Implementation (code rename) tracked separately.
 7. ~~**PXA adoption policy**~~ — Resolved. Two-seam model specified in §6.5.1:
    Seam 1 (adoption) and Seam 2 (side-effects), with the
    canonical-write-before-side-effects ordering normative. Source:
    `specs/received-status-handling.yaml`, `notes/received-status-authorization.md`,
    ADR-0046.
-8. ~~**Observer admission and content scope**~~ — Resolved by ADR-0056 and CM-25.
+8. ~~**Observer admission and content scope**~~ — Resolved by ADR-0057 and CM-25.
    Standard Invite/Accept admission (CM-25-002), full case content via MV-10-005
    gate (CM-25-003), RM triage with engagement semantics (CM-25-004). Related to
    #6 (now also resolved).

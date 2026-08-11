@@ -1634,8 +1634,8 @@ groups:
   description: >-
     Requirements for the CVDRole.OBSERVER role (formerly CVDRole.OTHER):
     what an Observer IS, how it is admitted, what content it receives,
-    and how the RM lifecycle applies. Codified by ADR-0056
-    (docs/adr/0056-observer-participant-role.md). Source: CONCERN-2093.
+    and how the RM lifecycle applies. Codified by ADR-0057
+    (docs/adr/0057-observer-participant-role.md). Source: CONCERN-2093.
   specs:
   - id: CM-25-001
     priority: MUST
@@ -1652,9 +1652,9 @@ groups:
       embargo-consent rules as Vendors and Coordinators. The "base role" framing
       establishes OBSERVER as the correct fallback when no other role applies,
       rather than leaving CVDRole.OTHER as an unspecified catch-all.
-      See ADR-0056.
+      See ADR-0057.
     adr:
-    - ADR-0056
+    - ADR-0057
   - id: CM-25-002
     priority: MUST
     kind: protocol
@@ -1676,7 +1676,7 @@ groups:
     - rel_type: refines
       spec_id: CM-16-003
     adr:
-    - ADR-0056
+    - ADR-0057
   - id: CM-25-003
     priority: MUST
     kind: protocol
@@ -1698,7 +1698,7 @@ groups:
     - rel_type: depends_on
       spec_id: MV-10-006
     adr:
-    - ADR-0056
+    - ADR-0057
   - id: CM-25-004
     priority: SHOULD
     kind: protocol
@@ -1718,7 +1718,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-11-002
     adr:
-    - ADR-0056
+    - ADR-0057
   - id: CM-25-005
     priority: MUST_NOT
     kind: protocol
@@ -1742,13 +1742,13 @@ groups:
     - rel_type: refines
       spec_id: CM-03-005
     adr:
-    - ADR-0056
+    - ADR-0057
 
 - id: CM-26
   title: Role Stacking — Union of Permissions
   description: >-
     Requirement governing how conflicting obligations are resolved when a
-    participant holds multiple CVD roles simultaneously. Codified by ADR-0056.
+    participant holds multiple CVD roles simultaneously. Codified by ADR-0057.
     Source: CONCERN-2093.
   specs:
   - id: CM-26-001
@@ -1775,4 +1775,4 @@ groups:
     - rel_type: refines
       spec_id: CM-25-005
     adr:
-    - ADR-0056
+    - ADR-0057
