@@ -105,10 +105,12 @@ Chosen option: **Rename CVDRole.OTHER → CVDRole.OBSERVER**, because:
 
 ## Validation
 
-- `test/core/models/test_case_participant.py` updated to use
-  `ObserverParticipant` and `CVDRole.OBSERVER`.
-- `test/core/behaviors/report/test_report_to_others_tree.py` updated accordingly.
 - Spec-check CI (`uv run spec-dump` lint) passes with CM-25 and CM-26 entries.
+- `test/core/models/test_case_participant.py` will be updated to use
+  `CVDRole.OBSERVER` (replacing `CVDRole.OTHER`) and `ObserverParticipant`
+  (replacing `OtherParticipant`) as part of the code rename in #2192.
+- `test/core/behaviors/report/test_report_to_others_tree.py` will be updated
+  accordingly in #2192.
 
 ## More Information
 
