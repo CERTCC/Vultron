@@ -1037,8 +1037,28 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-18-005
+    - rel_type: depends_on
+      spec_id: CM-18-008
     adr:
     - ADR-0048
+    - ADR-0056
+  - id: CM-18-008
+    priority: MUST
+    kind: project
+    statement: '`ParticipantStatus.embargo_adherence` MUST be implemented as a computed property (e.g., Pydantic `@computed_field`)
+      that returns `True` if and only if `consent.state == PEC.SIGNATORY`. It MUST NOT be declared as a stored field. The wire
+      projection (`as_ParticipantStatus.from_core()`) MUST derive the value from the consent state rather than copying a stored
+      field.'
+    rationale: >
+      A stored boolean field can drift from the PEC state it is meant to project and its fail-open default (`True`)
+      violates the principle that unset consent should not be treated as active consent. Making `embargo_adherence` a
+      computed property eliminates the drift risk permanently and makes the fail-closed invariant unbypassable.
+      Resolved by ADR-0056, closing the open question recorded in the draft specification §6.4.6.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-006
+    adr:
+    - ADR-0056
   - id: CM-18-007
     priority: MUST
     kind: project
