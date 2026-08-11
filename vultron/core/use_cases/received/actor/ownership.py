@@ -44,6 +44,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         self._dl = dl
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -101,17 +102,41 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
         # Forward the Offer to the transferee — CaseActor only (CM-21-005).
         # Only runs when BT succeeded (ledger entry committed).
+        # CaseActor builds a NEW Offer: actor=case_actor_id,
+        # attributed_to=original_offerer, to=[transferee_id].
+        # Queued in CaseActor's own outbox so the registered outbox monitor
+        # delivers it to the transferee's inbox.
+        if self._trigger_activity is None:
+            logger.warning(
+                "OfferCaseOwnershipTransferReceived: no trigger_activity"
+                " port — cannot forward offer to transferee (CM-21-005)"
+            )
+            return
         case = self._dl.read(case_id)
         if isinstance(case, VulnerabilityCase):
             case_actor_id = _resolve_case_manager_id(case, self._dl)
-            if case_actor_id == receiving_actor_id and transferee_id:
-                add_activity_to_outbox(
-                    transferee_id, request.activity_id, self._dl
+            original_actor_id = request.actor_id
+            if (
+                case_actor_id is not None
+                and case_actor_id == receiving_actor_id
+                and transferee_id
+                and original_actor_id is not None
+            ):
+                forwarded_id, _ = (
+                    self._trigger_activity.offer_case_ownership_transfer(
+                        case_id=case_id,
+                        transferee_id=transferee_id,
+                        actor=case_actor_id,
+                        to=[transferee_id],
+                        attributed_to=original_actor_id,
+                    )
                 )
+                add_activity_to_outbox(case_actor_id, forwarded_id, self._dl)
                 logger.info(
                     "OfferCaseOwnershipTransferReceived: forwarded"
-                    " offer '%s' to transferee '%s' (CM-21-005)",
-                    request.activity_id,
+                    " offer '%s' (as '%s') to transferee '%s' (CM-21-005)",
+                    forwarded_id,
+                    case_actor_id,
                     transferee_id,
                 )
 

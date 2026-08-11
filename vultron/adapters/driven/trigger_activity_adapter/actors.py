@@ -632,6 +632,7 @@ class _ActorsMixin:
         actor: str,
         content: str | None = None,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
@@ -646,6 +647,8 @@ class _ActorsMixin:
         }
         if content is not None:
             extra["content"] = content
+        if attributed_to is not None:
+            extra["attributed_to"] = attributed_to
         activity = offer_case_ownership_transfer_activity(
             case=case,
             target=transferee_id,
