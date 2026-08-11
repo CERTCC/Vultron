@@ -26,7 +26,7 @@ from typing import Optional, Tuple
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
-    wait_for_object_stored,
+    wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
 )
 from vultron.demo.utils import (
@@ -297,8 +297,8 @@ def run_invite_path_rm_triage(
     spoofing via seed-offer-record is needed or permitted.
 
     Steps:
-    1. Wait for VultronOfferRecord (created from add_report_to_case backfill)
-       to appear on the actor's DataLayer before validate-report fires.
+    1. Wait for add_report_to_case ledger entry in invited actor's ledger;
+       SYNC processing of this entry creates the VultronOfferRecord.
     2. Trigger validate-report (RM → VALID).
     3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
     4. Trigger engage-case (RM → ACCEPTED).
@@ -319,21 +319,17 @@ def run_invite_path_rm_triage(
     """
     offer_id = getattr(offer, "id_", str(offer))
 
-    # Wait for VultronOfferRecord to exist in the actor's DataLayer before
-    # triggering validate-report.  For the initial report recipient the record
-    # is created immediately by the adapter on receipt; for invite-path joiners
-    # it is created by ApplyOfferReportFromLedgerNode after the
-    # add_report_to_case ledger entry is backfilled via SYNC.  Polling the
-    # record directly covers both cases.
-    from vultron.core.models.offer_record import VultronOfferRecord
-
-    offer_record_id = VultronOfferRecord.build_id(offer_id)
+    # Wait for the add_report_to_case ledger entry to appear in the invited
+    # actor's ledger before triggering validate-report.  This entry's SYNC
+    # processing runs ApplyOfferReportFromLedgerNode, which creates the
+    # VultronOfferRecord — the prerequisite for validate-report to succeed.
     with demo_check(
-        "VultronOfferRecord available to actor before validate-report"
+        "add_report_to_case ledger entry backfilled before validate-report"
     ):
-        wait_for_object_stored(
+        wait_for_event_type_in_ledger(
             client=invited_client,
-            obj_id=offer_record_id,
+            case_id=case.id_,
+            event_type="add_report_to_case",
             timeout_seconds=timeout_seconds,
         )
 
