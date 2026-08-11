@@ -25,7 +25,10 @@ from typing import Optional, Tuple
 
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
-from vultron.demo.helpers.polling import wait_for_participant_rm_state
+from vultron.demo.helpers.polling import (
+    wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
+)
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -294,10 +297,12 @@ def run_invite_path_rm_triage(
     spoofing via seed-offer-record is needed or permitted.
 
     Steps:
-    1. Trigger validate-report (RM → VALID).
-    2. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
-    3. Trigger engage-case (RM → ACCEPTED).
-    4. Poll until CaseActor reflects RM.ACCEPTED.
+    1. Wait for submit_report ledger entry to be backfilled and processed
+       (ensures VultronOfferRecord exists before validate-report fires).
+    2. Trigger validate-report (RM → VALID).
+    3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
+    4. Trigger engage-case (RM → ACCEPTED).
+    5. Poll until CaseActor reflects RM.ACCEPTED.
 
     Args:
         invited_client: Client for the invited actor's container.
@@ -313,6 +318,18 @@ def run_invite_path_rm_triage(
         timeout_seconds: Polling timeout per wait call (default 20s).
     """
     offer_id = getattr(offer, "id_", str(offer))
+
+    # Wait for the submit_report ledger entry to be backfilled and processed
+    # by ApplyOfferReportFromLedgerNode before triggering validate-report.
+    # Without this wait, validate-report fires before VultronOfferRecord exists
+    # and the trigger returns 404 (Offer not found).
+    with demo_check("submit_report ledger entry backfilled to invited actor"):
+        wait_for_event_type_in_ledger(
+            client=invited_client,
+            case_id=case.id_,
+            event_type="submit_report",
+            timeout_seconds=timeout_seconds,
+        )
 
     receiver_validates_report(
         receiver_client=invited_client,
