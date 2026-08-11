@@ -296,6 +296,48 @@ class TestApplyOfferReportFromLedgerNode:
         assert offer_record.report_id == REPORT_ID
         assert offer_record.offer_actor_id == REPORTER_ACTOR_ID
 
+    def test_stores_report_object_from_ledger_snapshot_when_absent(
+        self, bridge, datalayer, case_actor
+    ) -> None:
+        """The full report object is reconstructed from the ledger snapshot.
+
+        Regression for #2180: when the report is added to the case *after* the
+        case was announced to an invited participant, the Announce(VulnerabilityCase)
+        carried no embedded report (CBT-01-007 path is empty), so the report
+        object only ever reaches the participant inside the add_report_to_case
+        ledger snapshot.  ApplyOfferReportFromLedgerNode must therefore store the
+        report object too — otherwise _reconstitute_offer 404s on the report
+        lookup even though the offer record exists.
+        """
+        from vultron.core.behaviors.sync.nodes.offer_report_effect import (
+            ApplyOfferReportFromLedgerNode,
+        )
+
+        # The report object was never seeded (no embedded report in a prior
+        # case announce) — the ledger snapshot is the only source.
+        assert datalayer.read(REPORT_ID) is None
+
+        entry = _make_offer_report_ledger_entry()
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=ApplyOfferReportFromLedgerNode(
+                name="ApplyOfferReportFromLedger"
+            ),
+            actor_id=INVITED_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.SUCCESS
+        stored_report = datalayer.read(REPORT_ID)
+        assert stored_report is not None, (
+            "ApplyOfferReportFromLedgerNode must store the VulnerabilityReport "
+            "reconstructed from the add_report_to_case ledger snapshot when the "
+            "report was not previously seeded (#2180)"
+        )
+        assert isinstance(stored_report, VulnerabilityReport)
+        assert stored_report.id_ == REPORT_ID
+
     def test_idempotent_when_offer_record_already_exists(
         self, bridge, datalayer, case_actor
     ) -> None:

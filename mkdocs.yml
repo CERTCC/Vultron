@@ -272,6 +272,7 @@ nav:
       - Demo CI Job Structure — Accept Barrier and Concurrency Group: 'adr/0052-demo-ci-job-structure-barrier-accepted.md'
       - Route Ownership-Transfer Offer and Accept Through the CaseActor: 'adr/0053-ownership-transfer-routed-via-caseactor.md'
       - Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues: 'adr/0054-learnings-queue-as-files-not-issues.md'
+      - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0055-buffer-pre-genesis-ledger-entries.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
