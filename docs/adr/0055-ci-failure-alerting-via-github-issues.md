@@ -45,10 +45,12 @@ items; filing a failure issue there creates a trackable, closeable signal withou
 any external service dependency.
 
 The composite action lives at `.github/actions/notify-failure`. Every qualifying
-workflow (push to `main` or `schedule` trigger) wires it as a final step. On
-failure it searches for an open issue with `ci:main-failure` + a
-workflow-specific label and either comments on the existing issue or creates a new
-one. On success it closes any matching open issue.
+workflow (push to `main` or `schedule` trigger) wires two steps: one conditioned
+on failure (file/update an issue) and one conditioned on success (close the
+matching issue). Each step calls the composite action with a `mode` input
+(`notify` vs `close`). Keeping the two steps separate avoids embedding
+workflow-status detection logic inside the action itself — the caller's
+`if: failure()` / `if: success()` conditions handle that entirely.
 
 The `ci:main-failure` label is reserved for this mechanism; the label description
 documents that it is bot-managed.

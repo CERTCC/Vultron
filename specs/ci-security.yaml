@@ -3,6 +3,7 @@ title: CI Security
 description: Requirements for securing CI/CD workflows and GitHub Actions usage in the Vultron project.
 version: 1.0.0
 scope:
+
 - prototype
 - production
 tags:
@@ -72,10 +73,9 @@ groups:
     kind: process
     statement: >-
       Every workflow triggered by push to `main` or by a `schedule` event MUST
-      include a final step that files or updates a GitHub Issue when the workflow
-      fails. The step MUST use the shared `.github/actions/notify-failure`
-      composite action and MUST run on failure using an appropriate job-level or
-      step-level condition.
+      include a step conditioned on failure that files or updates a GitHub Issue.
+      The step MUST use the shared `.github/actions/notify-failure` composite
+      action.
     rationale: >-
       Without structured failure notification, a broken `main` or a failed
       scheduled job goes undetected until a developer manually audits the Actions
@@ -86,13 +86,14 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      The notify-failure step MUST always run (not only on failure) and MUST close
-      any open failure issue for that workflow when the current run succeeds,
-      providing recovery visibility.
+      Every qualifying workflow (per CISEC-05-001) MUST also include a separate
+      step conditioned on success that closes any open failure issue for that
+      workflow, providing recovery visibility.
     rationale: >-
       A failure issue that stays open after the workflow recovers is misleading.
-      Recovery closure ensures the issue tracker reflects the current health of
-      `main`.
+      Two dedicated steps (one on failure, one on success) keep each step
+      single-purpose and avoid embedding workflow-status logic inside the
+      composite action itself.
   - id: CISEC-05-003
     priority: MUST
     kind: process
