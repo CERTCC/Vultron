@@ -105,3 +105,17 @@ groups:
     kind: process
     statement: A CI verification test SHOULD confirm that every qualifying workflow (push to `main` or `schedule` trigger)
       includes the `.github/actions/notify-failure` composite action step.
+  - id: CISEC-05-005
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A workflow triggered on the `issues: labeled` event SHOULD enforce that the
+      `ci:main-failure` label is bot-managed: if `github.actor` is not
+      `github-actions[bot]`, the label MUST be removed immediately. This prevents
+      label spoofing that could suppress failure notification or create false alerts.
+    rationale: >-
+      The `ci:main-failure` label is the deduplication key used by the composite
+      action to find and update an existing failure issue rather than creating a
+      new one. If a human or external actor applies the label manually, the signal
+      is corrupted — the action may comment on an unrelated issue or fail to file
+      a new one. Bot-only enforcement keeps the alerting signal reliable.

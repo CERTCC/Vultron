@@ -554,8 +554,9 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   Composite Action** — any workflow that triggers on `push: branches: [main]` or
   on `schedule:` MUST include `.github/actions/notify-failure` as a final step
   (CISEC-05-001). Without it, failures on `main` or unattended scheduled runs go
-  undetected until someone manually audits the Actions tab. The step handles both
-  failure (file/update a `ci:main-failure` issue) and recovery (close that issue).
+  undetected until someone manually audits the Actions tab. Two separate steps are
+  required: one on failure (file/update a `ci:main-failure` issue, CISEC-05-001)
+  and one on success (close the issue for recovery visibility, CISEC-05-002).
   *Source: CONCERN-2132*
 
 ---
