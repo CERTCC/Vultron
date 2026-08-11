@@ -108,8 +108,8 @@ CaseActor inbox receives Accept
 
 - `_emit()` MUST use `actor=self.actor_id` (the CaseActor's ID) and pass
   `attributed_to=self.attributed_to` to the factory call.
-- `to` MUST be `[transferee_id]` (addressed directly to the transferee;
-  the CaseActor self-receives via the outbox→inbox round-trip).
+- `to` MUST be `[case_actor_id]` — the Offer routes through the CaseActor
+  (CM-21-005); the CaseActor processes it and forwards to the transferee.
 - The `target` field of the Offer carries `transferee_id` (as before).
 
 ### EmitAcceptCaseOwnershipTransferNode
