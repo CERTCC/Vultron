@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7-labs
+
 FROM python:3.13-slim-bookworm AS base
 RUN apt-get update && apt-get install -y --no-install-recommends git curl && rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip uv
@@ -21,13 +23,14 @@ FROM dep-layer AS dependencies
 # Copy the full application source and install the project package
 # (including console-script entry points such as vultron-demo).
 # Code-only changes only bust this layer, not the dependency layer above.
-COPY . /app/
+# .git/.agents are dev-only (see the dev stage) and stay out of runtime images.
+COPY --exclude=.git --exclude=.agents . /app/
 ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
 FROM dep-layer AS test
-COPY . /app/
+COPY --exclude=.git --exclude=.agents . /app/
 ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --dev

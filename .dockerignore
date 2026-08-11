@@ -1,5 +1,4 @@
 # Version control
-.git
 .gitignore
 .gitattributes
 
@@ -56,7 +55,6 @@ wip_notes
 
 # Dev-environment files
 .env
-.agents
 .github
 .copilot
 .devcontainer
