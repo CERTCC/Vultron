@@ -124,7 +124,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0052 Demo CI Job Structure: Accept Barrier + Concurrency Group Over Job Consolidation](0052-demo-ci-job-structure-barrier-accepted.md) *(provisional)*
 - [ADR-0053 Route Ownership-Transfer Offer and Accept Through the CaseActor](0053-ownership-transfer-routed-via-caseactor.md)
 - [ADR-0054 Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues](0054-learnings-queue-as-files-not-issues.md)
-- [ADR-0055 Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed](0055-buffer-pre-genesis-ledger-entries.md)
+- [ADR-0055 Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed](0055-buffer-pre-genesis-ledger-entries.md)
 
 ## Proposed ADRs
 

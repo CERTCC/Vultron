@@ -134,9 +134,24 @@ def drain_gap_buffer(
             receiving_actor_id=receiving_actor_id,
             object_=successor,
         )
-        result = _run_announce_bt(
-            dl, drain_event, receiving_actor_id, gap_buffer, sync_port
-        )
+        try:
+            result = _run_announce_bt(
+                dl, drain_event, receiving_actor_id, gap_buffer, sync_port
+            )
+        except Exception:
+            # The announce BT raised (e.g. a residual mismatch reaches
+            # SendRejectLogEntryNode with no sync_port).  The successor was
+            # already popped by take_next, so re-buffer it before aborting the
+            # cascade — otherwise the entry is silently lost — and let a future
+            # arrival or CaseActor replay retry it.
+            if dl.read(successor.id_) is None:
+                gap_buffer.buffer(successor)
+            logger.exception(
+                "sync: draining buffered entry '%s' raised — re-buffered "
+                "pending retry",
+                successor.id_,
+            )
+            return
         if result.status == Status.FAILURE and dl.read(successor.id_) is None:
             # Application failed and the entry was not persisted; hold it again
             # so a future arrival or CaseActor replay can retry.

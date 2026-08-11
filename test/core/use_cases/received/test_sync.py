@@ -620,4 +620,3 @@ class TestPreGenesisAnnounceBuffering:
 
         assert all(dl.read(e.id_) is not None for e in entries)
         assert gap_buffer.depth(CASE_URI) == 0
-        assert gap_buffer.depth(CASE_URI) == 0
