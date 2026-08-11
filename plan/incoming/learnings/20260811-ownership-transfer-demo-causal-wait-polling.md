@@ -52,4 +52,4 @@ copy with a new ID.
 > the recipient's container.
 
 Related: issue #2181 (broader pattern: demos conflate sequential with causal ordering).
-Fix PR: https://github.com/CERTCC/Vultron/pull/2182
+Fix PR: <https://github.com/CERTCC/Vultron/pull/2182>

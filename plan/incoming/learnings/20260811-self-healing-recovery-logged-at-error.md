@@ -37,7 +37,7 @@ precisely scoped — genuine chain corruption is handled by a different node
 
 ## Root cause vs symptom
 
-#2169 fixed the symptom (log level). The underlying protocol gap — no
+Issue #2169 fixed the symptom (log level). The underlying protocol gap — no
 pre-genesis buffer for `Announce(CaseLedgerEntry)` arriving before
 `Create(VulnerabilityCase)` — is tracked as **#2186** (child of #2136, blocks
 the merge-to-main task #2143). See

@@ -106,7 +106,7 @@ Extend to:
 
 **Forwarded-Offer wire format** (CM-21-005, mirrors Invite-flow analogy):
 
-```
+```text
 Offer(VulnerabilityCase,
     actor        = case_actor_id,       ← CaseActor is the sender
     attributed_to = original_actor_id,  ← Vendor1's intent carried forward
