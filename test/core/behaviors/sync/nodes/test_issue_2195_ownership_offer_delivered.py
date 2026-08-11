@@ -144,11 +144,6 @@ def _offer_ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#2195 — ownership-transfer offer never delivered to coordinator "
-    "DataLayer; xfail removed once delivered",
-)
 def test_ownership_offer_object_materialized_on_coordinator_replica(
     bridge, datalayer, case_actor, case_replica
 ):

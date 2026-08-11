@@ -8,6 +8,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyCloseCaseFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
+    ApplyOfferOwnershipTransferFromLedgerNode,
     ApplyOfferReportFromLedgerNode,
     ApplyOwnershipTransferFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
@@ -19,6 +20,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
     IsInviteAcceptEventNode,
+    IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
@@ -210,6 +212,30 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                         name="SkipIfNotOwnershipTransferEvent",
                         child=IsOwnershipTransferEventNode(
                             name="CheckNotOwnershipTransferEvent"
+                        ),
+                    ),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="OfferOwnershipTransferEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyOfferOwnershipTransferEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsOfferOwnershipTransferEventNode(
+                                name="IsOfferOwnershipTransferEvent"
+                            ),
+                            ApplyOfferOwnershipTransferFromLedgerNode(
+                                name="ApplyOfferOwnershipTransferFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotOfferOwnershipTransferEvent",
+                        child=IsOfferOwnershipTransferEventNode(
+                            name="CheckNotOfferOwnershipTransferEvent"
                         ),
                     ),
                 ],
