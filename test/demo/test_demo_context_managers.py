@@ -334,3 +334,44 @@ class TestUnboundLocalErrorRegression:
             offer_actor_id="actor-abc",
         )
         assert result == {}
+
+    def test_reporter_submits_report_no_unbound_error_on_trigger_failure(
+        self, monkeypatch
+    ):
+        """reporter_submits_report must not raise UnboundLocalError when
+        post_to_trigger raises inside the demo_step block (regression for #2191).
+
+        `result` is initialized to None before the block; the guard
+        `if result is not None else {}` must be reached, not an unbound
+        variable access.  A downstream error (e.g. VultronActivityConstructionError
+        from parse_submit_report_offer receiving an empty dict) is expected and
+        acceptable — it is not the regression being guarded against.
+        """
+        from unittest.mock import MagicMock
+
+        import vultron.demo.helpers.workflow as workflow_mod
+
+        monkeypatch.setattr(
+            workflow_mod,
+            "post_to_trigger",
+            MagicMock(side_effect=RuntimeError("trigger failed")),
+        )
+
+        reporter = MagicMock()
+        reporter.id_ = "http://example.com/api/v2/actors/finder-1"
+        receiver = MagicMock()
+        receiver.id_ = "http://example.com/api/v2/actors/vendor-1"
+
+        try:
+            workflow_mod.reporter_submits_report(
+                receiver_client=MagicMock(),
+                reporter=reporter,
+                receiver=receiver,
+                reporter_client=MagicMock(),
+            )
+        except UnboundLocalError as exc:
+            pytest.fail(
+                f"reporter_submits_report raised UnboundLocalError: {exc!r}"
+            )
+        except Exception:
+            pass  # downstream errors (e.g. VultronActivityConstructionError) are expected
