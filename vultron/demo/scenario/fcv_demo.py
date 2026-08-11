@@ -94,10 +94,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -202,25 +200,12 @@ def _phase_report_submission(
         receiver=coordinator_in_coordinator,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    # Coordinator validates then engages the case (RM→ACCEPTED), holding
+    # CASE_OWNER; each step is gated on the coordinator's own RM state.
+    case = run_direct_path_rm_triage(
         receiver_client=coordinator_client,
         receiver=coordinator_in_coordinator,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("VulnerabilityCase created in Coordinator's DataLayer"):
-        case = find_case_for_offer(coordinator_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected VulnerabilityCase after validate-report on Coordinator"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    # Coordinator engages the case (RM→ACCEPTED), holding CASE_OWNER.
-    receiver_engages_case(
-        receiver_client=coordinator_client,
-        receiver=coordinator_in_coordinator,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for Coordinator + Finder + CaseActor (3 participants) before

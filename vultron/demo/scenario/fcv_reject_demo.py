@@ -89,10 +89,8 @@ from vultron.demo.helpers.sync import (
     _get_log_entries_for_case,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -190,24 +188,10 @@ def _phase_report_submission(
         receiver=coordinator_in_coordinator,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    case = run_direct_path_rm_triage(
         receiver_client=coordinator_client,
         receiver=coordinator_in_coordinator,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("VulnerabilityCase created in Coordinator's DataLayer"):
-        case = find_case_for_offer(coordinator_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected VulnerabilityCase after validate-report on Coordinator"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    receiver_engages_case(
-        receiver_client=coordinator_client,
-        receiver=coordinator_in_coordinator,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for Coordinator + Finder + CaseActor (3 participants).

@@ -104,10 +104,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -219,24 +217,10 @@ def _phase_report_submission(
         receiver=c1_in_c1,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    case = run_direct_path_rm_triage(
         receiver_client=c1_client,
         receiver=c1_in_c1,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("as_VulnerabilityCase exists in C1's DataLayer"):
-        case = find_case_for_offer(c1_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected as_VulnerabilityCase to be created after validate-report"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    receiver_engages_case(
-        receiver_client=c1_client,
-        receiver=c1_in_c1,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for the initial participants (Finder + C1 + CaseActor) before

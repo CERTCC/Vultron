@@ -26,6 +26,8 @@ The composite tree factory is in ``announce_case_received_tree.py`` at
 the process-area root per BTND-07-003.
 """
 
+from typing import Any, Union
+
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
@@ -33,6 +35,28 @@ from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.case import VulnerabilityCase
+
+
+def _store_embedded_reports(case_obj, datalayer) -> None:
+    """Persist full VulnerabilityReport objects embedded in *case_obj*.
+
+    Per CBT-01-007: receiving handlers store domain objects by iterating
+    embedded collections.  Only full objects (not bare string refs) are
+    saved; bare IDs are skipped since the object data is not available.
+
+    Duck-type check: an embedded object has a non-None ``id_`` attribute and
+    a ``type_`` of ``"VulnerabilityReport"``.  Bare string references are
+    skipped cleanly.
+    """
+    for report_ref in getattr(case_obj, "vulnerability_reports", []):
+        if isinstance(report_ref, str):
+            continue
+        report_id = getattr(report_ref, "id_", None)
+        report_type = getattr(report_ref, "type_", None)
+        if not report_id or str(report_type) != "VulnerabilityReport":
+            continue
+        if datalayer.read(report_id) is None:
+            datalayer.save(report_ref)
 
 
 class SeedAnnouncedCaseNode(DataLayerAction):
@@ -50,7 +74,7 @@ class SeedAnnouncedCaseNode(DataLayerAction):
     def __init__(
         self,
         case_id: str,
-        case_obj: VulnerabilityCase,
+        case_obj: Union[VulnerabilityCase, Any],
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:
@@ -81,6 +105,7 @@ class SeedAnnouncedCaseNode(DataLayerAction):
                 self.name,
                 self.case_id,
             )
+            _store_embedded_reports(self.case_obj, self.datalayer)
             _store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
@@ -89,6 +114,7 @@ class SeedAnnouncedCaseNode(DataLayerAction):
 
         try:
             self.datalayer.save(self.case_obj)
+            _store_embedded_reports(self.case_obj, self.datalayer)
             _store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )

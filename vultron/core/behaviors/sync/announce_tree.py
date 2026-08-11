@@ -8,6 +8,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyCloseCaseFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
+    ApplyOfferReportFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
     CheckHashOrRejectOnMismatchNode,
     CheckIsOwnCaseActorNode,
@@ -18,6 +19,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsInviteAcceptEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
+    IsSubmitReportEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
@@ -157,6 +159,30 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                         name="SkipIfNotCloseCaseEvent",
                         child=IsCloseCaseEventNode(
                             name="CheckNotCloseCaseEvent"
+                        ),
+                    ),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="OfferReportEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyOfferReportEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsSubmitReportEventNode(
+                                name="IsSubmitReportEvent"
+                            ),
+                            ApplyOfferReportFromLedgerNode(
+                                name="ApplyOfferReportFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotSubmitReportEvent",
+                        child=IsSubmitReportEventNode(
+                            name="CheckNotSubmitReportEvent"
                         ),
                     ),
                 ],

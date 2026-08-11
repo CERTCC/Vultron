@@ -182,6 +182,7 @@ _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 _CLOSE_CASE_EVENT = "close_case"
+_ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 
 
 class IsRemoveEmbargoEventNode(DataLayerCondition):
@@ -345,6 +346,39 @@ class IsCloseCaseEventNode(DataLayerCondition):
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
         if entry.event_type == _CLOSE_CASE_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsSubmitReportEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS an add_report_to_case event.
+
+    Used as the precondition in the ``OfferReportEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``::
+
+        Selector(OfferReportEffects)
+          Sequence
+            IsSubmitReportEventNode   ← SUCCESS iff event_type matches
+            ApplyOfferReportFromLedgerNode
+          Inverter(IsSubmitReportEventNode)  ← SUCCESS iff wrong event type
+
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyOfferReportFromLedgerNode fails, both branches of the Selector fail
+    and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, ISSUE-2134.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type == _ADD_REPORT_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
