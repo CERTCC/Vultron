@@ -163,7 +163,11 @@ function vendorNumber(laneId: string): number {
  */
 type LaneIndexMap = Record<string, number>
 
-function makeParticipant(laneId: Exclude<LaneId, 'unknown'>, laneIndex: number): ParticipantState {
+function makeParticipant(
+  laneId: Exclude<LaneId, 'unknown'>,
+  laneIndex: number,
+  visible: boolean
+): ParticipantState {
   if (laneId === 'finder') {
     return {
       id: 'finder',
@@ -175,7 +179,7 @@ function makeParticipant(laneId: Exclude<LaneId, 'unknown'>, laneIndex: number):
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
-      visible: true,
+      visible,
       laneIndex,
     }
   }
@@ -190,7 +194,7 @@ function makeParticipant(laneId: Exclude<LaneId, 'unknown'>, laneIndex: number):
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
-      visible: true,
+      visible,
       laneIndex,
     }
   }
@@ -211,7 +215,7 @@ function makeParticipant(laneId: Exclude<LaneId, 'unknown'>, laneIndex: number):
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
-      visible: true,
+      visible,
       laneIndex,
     }
   }
@@ -227,12 +231,19 @@ function makeParticipant(laneId: Exclude<LaneId, 'unknown'>, laneIndex: number):
     embargoAccepted: false,
     hasPublished: false,
     hasClosed: false,
-    visible: true,
+    visible,
     laneIndex,
   }
 }
 
-/** Create a lane if it doesn't exist yet (robust to mid-stream / subset ledgers). */
+/**
+ * Create a lane if it doesn't exist yet (robust to mid-stream / subset ledgers).
+ * New lanes are created NOT-YET-JOINED (`visible: false`): the pre-scan assigns a
+ * stable lane index up front, but a participant only becomes visible — and thus
+ * only starts receiving consequence nodes (see `consequenceLanes`) — at the point
+ * it actually joins the case (`markJoined`). This is what stops consequence nodes
+ * from being drawn into a lane before that participant is part of the case.
+ */
 function ensureParticipant(
   participants: Map<string, ParticipantState>,
   laneId: LaneId,
@@ -240,8 +251,23 @@ function ensureParticipant(
 ): void {
   if (laneId === 'unknown') return
   if (!participants.has(laneId)) {
-    participants.set(laneId, makeParticipant(laneId, laneIndex[laneId] ?? participants.size))
+    // Created not-yet-joined; membership is granted separately via `markJoined`.
+    participants.set(laneId, makeParticipant(laneId, laneIndex[laneId] ?? participants.size, false))
   }
+}
+
+/**
+ * Mark a lane as having JOINED the case (visible from now on). Idempotent. This is
+ * the membership signal that gates consequence-node emission (`consequenceLanes`)
+ * and lane rendering: a participant receives consequence nodes only from the event
+ * at which it joins onward. Called at the moments a participant actually enters the
+ * case — the offer roster at case creation, an invitee at accept-invite — and
+ * defensively whenever a lane is the decision-maker or the subject of a status.
+ */
+function markJoined(participants: Map<string, ParticipantState>, laneId: LaneId): void {
+  if (laneId === 'unknown') return
+  const p = participants.get(laneId)
+  if (p && !p.visible) participants.set(laneId, { ...p, visible: true })
 }
 
 /**
@@ -315,6 +341,11 @@ function synthesizeCluster(
   violationReason?: string,
   inferred?: { note: string }
 ): TimelineEvent[] {
+  // Emitting a decision node means this lane is acting → it has joined the case.
+  // This defensive flip covers any lane that produces a node without going through
+  // an explicit join handler (e.g. a status/note before its formal join in a
+  // reordered ledger); the consequence fan-out below then correctly includes it.
+  markJoined(participants, decisionLaneId as LaneId)
   const decision = participants.get(decisionLaneId)
   if (!decision) return []
 
@@ -654,10 +685,21 @@ function handleOffer(
   }
   roster.add(actorUrlToLaneId(entry.payloadSnapshot?.actor))
   for (const laneId of roster) ensureParticipant(participants, laneId, laneIndex)
-  // Ensure the standard lanes exist even if the index was sparse.
+  // Ensure the standard lanes exist even if the index was sparse. NOTE: vendor-1 is
+  // created defensively but is NOT auto-joined here — in fcv/fccv the primary vendor
+  // is a LATE joiner absent from the offer roster (the coordinator is the receiver),
+  // so it must stay hidden until its accept-invite. Only the actual roster joins now.
   ensureParticipant(participants, 'finder', laneIndex)
   ensureParticipant(participants, 'vendor-1', laneIndex)
   ensureParticipant(participants, 'caseactor', laneIndex)
+
+  // Grant membership to the participants actually present at case creation: the
+  // offer roster (finder + receiver/owner + the case-actor recorder). These are the
+  // only lanes that should receive this event's consequence nodes; late joiners
+  // (invited vendors/coordinators) become visible at their own accept-invite.
+  for (const laneId of roster) markJoined(participants, laneId)
+  markJoined(participants, 'finder')
+  markJoined(participants, 'caseactor')
 
   // Seed case-level EM/PXA from the offer's structured CaseStatus (trust the
   // structured fields, not its `name` — the sample's name "NONE pxa" lies).

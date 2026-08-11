@@ -558,8 +558,21 @@ function AppLogReplay() {
     )
   }
 
-  // Render timeline visualization
-  const activeLanes = getActiveLanes(demoState)
+  // Render timeline visualization.
+  //
+  // Lanes appear only when the participant JOINS the case (user's choice). In
+  // playback terms a lane joins at the moment its first node is revealed, so we
+  // gate lane presence on the revealed-node slice: a lane renders iff it has ≥1
+  // node in timelineEvents[0..currentEventIndex]. `getActiveLanes` first drops any
+  // never-joined lane (mapper `visible` flag); the slice filter then reveals the
+  // rest progressively. Effect: the case starts with just its founding roster
+  // (finder + receiver/owner + case actor) and late joiners (invited vendors /
+  // coordinators) pop into their fixed slots as playback reaches their join — the
+  // vertical layout grows with the case. Both the sidebar panels and the timeline
+  // lane backgrounds derive from this same set, so they stay in lockstep.
+  const revealedEvents = demoState.timelineEvents.slice(0, currentEventIndex + 1)
+  const revealedLaneIds = new Set(revealedEvents.map((e) => e.participantId ?? e.actor))
+  const activeLanes = getActiveLanes(demoState).filter((p) => revealedLaneIds.has(p.id))
 
   // Collapse-aware vertical layout. Lanes stack in activeLanes order; a collapsed
   // lane occupies LANE_HEIGHT_COLLAPSED instead of LANE_HEIGHT. Node/arrow/lane Y
