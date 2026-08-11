@@ -456,6 +456,65 @@ def test_check_cs_state_transitions_observed_detects_no_status_entries():
     assert violations
 
 
+def test_check_cs_state_transitions_observed_no_vfd_passes_without_fix_ready():
+    """check_fix_ready=False skips VFd check — reject-flow scenario regression.
+
+    Reproduces the fcv-reject Invariant 15 failure (issue #2121): a scenario
+    where Vendor never participates produces no VFd observation, which triggered
+    a spurious violation when check_fix_ready was unconditional.
+    """
+    actor_id = "https://example.org/actors/coordinator"
+    h0 = _SHA256("no-vfd:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        event_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": "ACCEPTED",
+                "emConsentState": "SIGNATORY",
+                "cvdRole": ["COORDINATOR"],
+                "vfdState": "vfd",  # no vendor → never VFd
+                "caseStatus": {"pxaState": "Pxa"},  # P-transition present
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_cs_state_transitions_observed(
+        replicas, check_fix_ready=False
+    )
+    assert not violations
+
+
+def test_check_cs_state_transitions_observed_no_vfd_still_requires_published():
+    """check_fix_ready=False still enforces the P-transition requirement."""
+    actor_id = "https://example.org/actors/coordinator"
+    h0 = _SHA256("no-vfd-no-p:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        event_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": "ACCEPTED",
+                "emConsentState": "SIGNATORY",
+                "cvdRole": ["COORDINATOR"],
+                "vfdState": "vfd",
+                "caseStatus": {"pxaState": "pxa"},  # no P yet
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_cs_state_transitions_observed(
+        replicas, check_fix_ready=False
+    )
+    assert violations
+
+
 # ---------------------------------------------------------------------------
 # Positive-case (happy-path) tests using conftest fixtures
 # ---------------------------------------------------------------------------
