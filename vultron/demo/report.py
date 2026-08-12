@@ -15,9 +15,13 @@
 
 Parses the JSONL case-ledger replica files produced by demo scenario runs
 (``{DEVLOGS_DIR}/{demo}/{actor}/{case_slug}-case-ledger.jsonl``, written by
-:func:`vultron.demo.scenario.two_actor_demo._phase_dump_case_ledgers`) and
-renders a selective, human-readable report — "who did what to whom, with what
-activity, in what order."
+:func:`vultron.demo.helpers.ledger_dump.dump_case_ledgers`) and renders a
+selective, human-readable report — "who did what to whom, with what activity,
+in what order."
+
+The ``dump-manifest.json`` file that ``dump_case_ledgers`` writes alongside the
+replicas (ISSUE-2239) is not part of this tool's input; ``discover_replicas``
+globs only ``**/*-case-ledger.jsonl``.
 
 The tool is intentionally standalone (its own ``__main__`` entry point,
 invokable as ``python -m vultron.demo.report`` or via the

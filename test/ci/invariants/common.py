@@ -33,6 +33,7 @@ from pathlib import Path
 import pytest
 
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,72 @@ def participant_status_identity_and_rm(
 # ---------------------------------------------------------------------------
 
 
+def _read_dump_manifests(search_root: Path) -> list[dict]:
+    """Return every readable ``dump-manifest.json`` under *search_root*.
+
+    A manifest is the scenario's own record that its case-ledger dump ran —
+    see ``vultron.demo.helpers.ledger_dump``.  Its presence is what lets this
+    module tell "the demo never ran" apart from "the demo ran and produced no
+    ledger entries" (DEMOCI-10-001).
+
+    Raises:
+        Failed: When a manifest exists but cannot be parsed, since a corrupt
+            manifest is itself evidence that something went wrong.
+    """
+    manifests: list[dict] = []
+    candidates = [
+        search_root / DUMP_MANIFEST_FILENAME,
+        *sorted(search_root.glob(f"**/{DUMP_MANIFEST_FILENAME}")),
+    ]
+    for path in dict.fromkeys(candidates):
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            pytest.fail(
+                f"{path} is unreadable ({type(exc).__name__}: {exc}) — the "
+                "demo dumped a manifest but it cannot be parsed, so the "
+                "invariant result cannot be trusted"
+            )
+        if isinstance(data, dict):
+            manifests.append(data)
+    return manifests
+
+
+def _fail_no_ledgers_despite_dump(
+    search_root: Path,
+    manifests: list[dict],
+) -> None:
+    """Fail with the manifests' account of why no ledger files were captured."""
+    lines = [
+        f"No case-ledger files under {search_root}, but "
+        f"{len(manifests)} dump manifest(s) show the demo ran and dumped. "
+        "This is a real invariant failure, not missing test data."
+    ]
+    for manifest in manifests:
+        lines.append(
+            f"- demo {manifest.get('demoName', '?')!r}: "
+            f"case={manifest.get('caseId')!r} "
+            f"captured={manifest.get('ledgerFileCount', 0)}"
+            f"/{manifest.get('targetCount', 0)} actors"
+        )
+        reason = manifest.get("reason")
+        if reason:
+            lines.append(f"    reason: {reason}")
+        actors = manifest.get("actors")
+        if isinstance(actors, list):
+            for actor in actors:
+                if not isinstance(actor, dict) or actor.get("captured"):
+                    continue
+                lines.append(
+                    f"    missing {actor.get('actorName', '?')!r} "
+                    f"(route {actor.get('routeKey', '?')!r}): "
+                    f"{actor.get('reason') or 'no reason recorded'}"
+                )
+    pytest.fail("\n".join(lines))
+
+
 def load_devlogs(
     demo_name: str | None = None,
 ) -> dict[str, list[dict]]:
@@ -125,8 +192,14 @@ def load_devlogs(
     Groups entries by the containing actor directory name and sorts each
     actor's entries by ``log_index`` ascending.
 
-    Calls ``pytest.skip`` when ``devlogs/`` is absent, empty, or (when
-    ``demo_name`` is given) the scenario sub-directory is absent or empty.
+    Calls ``pytest.skip`` when there is no evidence the demo ever ran:
+    ``devlogs/`` absent, the scenario sub-directory absent, or no ledger files
+    *and* no ``dump-manifest.json``.
+
+    Calls ``pytest.fail`` when a ``dump-manifest.json`` is present but no
+    ledger files are: the scenario ran, dumped, and still produced no ledger
+    entries, which is a real invariant failure that must not be skipped over
+    (DEMOCI-10-001, ISSUE-2239).
 
     Returns:
         ``{actor_name: [sorted entry dicts, ...]}``.
@@ -150,10 +223,14 @@ def load_devlogs(
         replicas.setdefault(actor_name, []).extend(load_jsonl(jsonl_file))
 
     if not replicas:
+        manifests = _read_dump_manifests(search_root)
+        if manifests:
+            _fail_no_ledgers_despite_dump(search_root, manifests)
         skip_hint = f"devlogs/{demo_name}/" if demo_name else "devlogs/"
         pytest.skip(
-            f"No *-case-ledger.jsonl files found under {skip_hint} — "
-            "run the demo first (see test/ci/README-case-log-ratchet.md)"
+            f"No *-case-ledger.jsonl files found under {skip_hint} and no "
+            f"{DUMP_MANIFEST_FILENAME} — run the demo first "
+            "(see test/ci/README-case-log-ratchet.md)"
         )
 
     for actor in replicas:

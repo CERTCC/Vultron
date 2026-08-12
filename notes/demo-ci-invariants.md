@@ -39,6 +39,66 @@ invariant-harness (matrix: fv) → downloads artifact → runs pytest
 
 ---
 
+## Artifact Availability on Failure (DEMOCI-10)
+
+**Problem**: The separate-job pattern above only pays off if the artifact
+*exists* when the demo fails. It did not. Each `run_<name>_demo()` called
+`_phase_dump_case_ledgers()` as its last statement, so an assertion escaping a
+`demo_check`/`demo_gate` block skipped the dump; `main()`'s
+`finally: assert_demo_success()` still raised, so CI reported the demo failure
+but `devlogs/` was empty. The `invariant-harness` job then died on **artifact
+download** — the run that most needed forensics produced none, and the harness
+reported a plumbing error instead of an invariant result (issue #2239).
+
+**Design**: three pieces, spec'd as DEMOCI-10-001 through DEMOCI-10-004.
+
+1. **A shared harness owns the ordering.**
+   `vultron/demo/helpers/harness.py` provides `scenario_harness(demo_name)`.
+   Every `run_<name>_demo()` body runs inside it: it resets the failure
+   accumulator, always dumps the case ledgers on the way out (normal return or
+   any `BaseException`), then calls `assert_demo_success()` last. Scenarios
+   register their dump with `harness.dump_with(...)` as soon as a case exists,
+   so every later phase can fail without costing the ledgers. `main()` no longer
+   wraps the run in `try/finally: assert_demo_success()` — a second owner of the
+   accumulator would assert before the dump had run. See DEMOMA-23.
+
+2. **The dump always leaves a manifest.**
+   `vultron/demo/helpers/ledger_dump.py::dump_case_ledgers()` writes
+   `devlogs/<demo>/dump-manifest.json` from a `finally`, recording `demoName`,
+   `caseId`, `ledgerFileCount`, `targetCount`, an optional top-level `reason`,
+   and a per-actor list naming each missing actor with the reason it was
+   missing. So the artifact is non-empty even when there were no ledgers at all
+   to capture — including the "died before any case existed" case, where the
+   manifest records `ledgerFileCount: 0` and the reason why.
+
+3. **`load_devlogs()` fails instead of skipping when a dump happened.**
+   Previously a missing/empty `devlogs/` meant "no test data" → `pytest.skip`,
+   which reads green. Now `load_devlogs()` distinguishes the two cases:
+
+   | State of the downloaded artifact | Outcome |
+   |---|---|
+   | no `devlogs/`, or no `devlogs/<demo>/` | `skip` — the demo genuinely did not run |
+   | no ledger files **and** no `dump-manifest.json` | `skip` — same |
+   | no ledger files **but** a manifest exists | **`fail`** — real invariant failure |
+   | manifest present but unparseable | **`fail`** |
+   | ledger files present | load and check normally |
+
+   The failure message reproduces the manifest's own account — case ID, captured
+   *X* of *Y* targets, and one line per missing actor with its route key and
+   reason — so the harness output explains *why* there are no ledgers rather
+   than leaving a reviewer to guess.
+
+**A dump failure must not mask the scenario failure.** Errors raised inside the
+dump are recorded in the manifest's `reason` field and swallowed; the harness
+re-raises the original exception with the accumulated `demo_check` failures
+attached as exception notes (DEMOCI-10-004).
+
+Regression coverage: `test/demo/test_issue_2239_ledger_dump_in_finally.py`
+(all nine scenarios), `test/demo/test_scenario_harness.py`, and
+`test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`.
+
+---
+
 ## Harness File Conventions
 
 Each scenario gets **one self-contained harness file**,
@@ -48,7 +108,9 @@ existing nine:
 
 1. Declare `_DEMO_NAME = "<scenario>"` at module scope.
 2. Load replicas with `load_devlogs(demo_name=_DEMO_NAME)`, imported from
-   `test/ci/invariants/common.py`.
+   `test/ci/invariants/common.py`. It skips when the demo did not run and
+   **fails** when the demo ran, dumped, and still produced no ledgers — see
+   "Artifact Availability on Failure" above.
 3. Declare `_CHAIN_ACTORS` (scenario-role names, not docker service names) and
    `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
 4. Call the shared check functions from `common.py`; keep scenario-specific

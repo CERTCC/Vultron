@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.7.0
+version: 1.8.0
 scope:
   - prototype
   - production
@@ -865,3 +865,86 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001
+
+  - id: DEMOCI-10
+    title: Case-Ledger Artifact Availability on Failure
+    specs:
+      - id: DEMOCI-10-001
+        priority: MUST
+        kind: project
+        statement: >-
+          Every demo scenario MUST export its case ledgers from a path that runs
+          whether or not the scenario's phases succeeded — in practice, from the
+          shared scenario harness's exception path as well as its success path
+          (see DEMOMA-23-001). A scenario MUST NOT place the ledger dump only
+          after its last phase, where any escaping exception skips it.
+        rationale: >-
+          `demo_check` and `demo_step` accumulate rather than raise, so the
+          exceptions that do escape a scenario are the ones that most need
+          forensics — and those were exactly the runs that uploaded nothing,
+          because the dump sat inline after the last phase. Losing the ledgers on
+          failure inverts the value of the artifact.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+
+      - id: DEMOCI-10-002
+        priority: MUST
+        kind: project
+        statement: >-
+          The case-ledger dump MUST always write a `dump-manifest.json` under
+          `devlogs/<demo-name>/`, even when it captured no ledgers at all. The
+          manifest MUST record `demoName`, `caseId`, `ledgerFileCount`,
+          `targetCount`, an optional top-level `reason`, and one `actors[]` entry
+          per dump target carrying `actorName`, `routeKey`, `captured`,
+          `entryCount`, `ledgerFile`, and `reason`.
+        rationale: >-
+          The `upload-artifact` step and the `invariant-harness` job's download
+          both need the artifact to exist. An always-present manifest makes the
+          download succeed unconditionally and turns "nothing was uploaded" into
+          a machine-readable statement of which actors were missing and why, so
+          the invariant harness can report a real invariant result instead of a
+          download error.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-001
+
+      - id: DEMOCI-10-003
+        priority: MUST
+        kind: project
+        statement: >-
+          `test/ci/invariants/common.py::load_devlogs()` MUST fail — not skip —
+          when a `dump-manifest.json` is present under the scenario's devlogs
+          directory but no `*-case-ledger.jsonl` file is, and MUST fail when a
+          manifest is present but unparseable. It MUST skip only when there is no
+          evidence the demo ran: no `devlogs/`, no scenario sub-directory, or
+          neither ledger files nor a manifest.
+        rationale: >-
+          Skipping on absent data is right for a developer who has not run the
+          demo and wrong for CI, where absent data means the scenario died. The
+          manifest is the evidence that distinguishes the two cases; without it
+          the harness reported green for scenarios that produced no ledger at
+          all.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+          - rel_type: implements
+            spec_id: DEMOCI-10-002
+
+      - id: DEMOCI-10-004
+        priority: MUST
+        kind: project
+        statement: >-
+          A failure inside the case-ledger dump MUST NOT replace the exception
+          that ended the scenario. The dump MUST record its own failure through
+          the accumulator and the manifest, and the original exception MUST
+          propagate unchanged.
+        rationale: >-
+          A dump that runs on the failure path runs precisely when the system is
+          already unhealthy, so it is the most likely thing to fail second. If it
+          raises over the first exception, the fix that preserves the artifacts
+          destroys the diagnosis instead — the same class of masking as the
+          `try/finally: assert_demo_success()` shape it replaces.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-001
