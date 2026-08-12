@@ -276,6 +276,7 @@ nav:
       - embargo_adherence Is a Computed Property Derived from PEC State: 'adr/0056-embargo-adherence-computed-field.md'
       - Rename CVDRole.OTHER to CVDRole.OBSERVER and Define Observer Participant Semantics: 'adr/0057-observer-participant-role.md'
       - Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order: 'adr/0058-causal-gating-in-demo-scenarios.md'
+      - Embargo Invite RSVP Deadline on Invite.end_time: 'adr/0059-embargo-invite-rsvp-deadline.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
