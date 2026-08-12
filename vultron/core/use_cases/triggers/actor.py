@@ -365,10 +365,16 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
 
         self._offer_id = request.offer_id
 
-        raw_case_id = _as_id(getattr(offer, "object_", None))
+        # Two shapes reach this point for the same Offer: the SYNC replica path
+        # stores a VultronOwnershipTransferOfferRecord (case URI in `case_id`),
+        # while the HTTP-inbox path stores the wire Offer activity (case in
+        # `object_`, possibly rehydrated to a typed object).  Accept either.
+        raw_case_id = _as_id(
+            getattr(offer, "case_id", None) or getattr(offer, "object_", None)
+        )
         if not raw_case_id:
             raise VultronNotFoundError(
-                "VulnerabilityCase (in Offer.object_)", request.offer_id
+                "VulnerabilityCase (in Offer case reference)", request.offer_id
             )
         self._case_id = raw_case_id
 

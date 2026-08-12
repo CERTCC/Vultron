@@ -24,9 +24,23 @@ core uses from the forwarded ``Offer(VulnerabilityCase)`` activity:
 - ``offer_id``: the URI of the Offer activity (used as ``id_`` so that
   ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` can look it up via
   ``dl.read(offer_id)``)
-- ``object_``: the URI of the offered ``VulnerabilityCase`` (extracted from
-  the ``object`` field of the snapshot; used by ``_as_id()`` in ``_prepare``
-  to recover ``case_id``)
+- ``case_id``: the URI of the offered ``VulnerabilityCase`` (extracted from
+  the ``object`` field of the snapshot; read back by ``_prepare`` to recover
+  the case being transferred)
+
+Both facts are required and non-empty (``UriString``): a record that cannot
+name the case it offers is useless to ``_prepare``, which would raise
+``VultronNotFoundError`` on it anyway.  ``ApplyOfferOwnershipTransferFromLedgerNode``
+therefore declines to store a record it cannot fully populate, rather than
+storing a half-record that turns a "missing offer" 404 into a "missing case"
+404 (CS-08-002, ARCH-10-001).
+
+The case URI is deliberately named ``case_id`` rather than ``object_``: the
+DataLayer rehydrates the AS2 reference fields (``object_``, ``target``,
+``origin``, ``result``, ``instrument``) from ID strings into typed objects on
+read, so a field named ``object_`` would come back as a ``VulnerabilityCase``
+instance rather than the ``str`` its annotation promises.  This mirrors
+``VultronOfferRecord``, which names its equivalent fact ``report_id``.
 
 Populated by ``ApplyOfferOwnershipTransferFromLedgerNode`` on the SYNC
 ledger-replication path (#2195, ISSUE-2195).
@@ -56,8 +70,8 @@ class VultronOwnershipTransferOfferRecord(CoreObject):
         serialization_alias="type",
     )
     offer_id: UriString = Field(..., description="URI of the Offer activity")
-    object_: str = Field(
-        default="",
+    case_id: UriString = Field(
+        ...,
         description="URI of the offered VulnerabilityCase",
     )
 

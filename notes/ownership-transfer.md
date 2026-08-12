@@ -179,10 +179,11 @@ The announce tree (`create_announce_log_entry_tree`) has a Selector slot for
 - `IsOfferOwnershipTransferEventNode` — Condition: checks
   `entry.event_type == "offer_case_ownership_transfer"`
 - `ApplyOfferOwnershipTransferFromLedgerNode` — Action: extracts `offer_id`
-  from `payload_snapshot["id"]` and `case_id` from `payload_snapshot["object"]`,
-  creates a `VultronOwnershipTransferOfferRecord`, and saves it to the
-  DataLayer so that `SvcAcceptCaseOwnershipTransferUseCase._prepare` can
-  `dl.read(offer_id)` without a 404.
+  from `payload_snapshot["id"]` and `case_id` from `payload_snapshot["object"]`
+  (inline dict or bare URI string), creates a
+  `VultronOwnershipTransferOfferRecord`, and saves it to the DataLayer so that
+  `SvcAcceptCaseOwnershipTransferUseCase._prepare` can `dl.read(offer_id)`
+  without a 404.
 
 **Why this is needed**: `SvcAcceptCaseOwnershipTransferUseCase._prepare` calls
 `self._dl.read(request.offer_id)` to resolve the case ID embedded in the
@@ -194,7 +195,27 @@ This is analogous to how report-offer backfill works in the invite flow — the
 ledger entry carries the full payload snapshot, and the announce-tree effect
 node reconstructs the core object from it.
 
-**Spec ref**: CM-21-007.
+**Both facts are required.** The record's `case_id` is a non-empty `UriString`,
+and the effect node declines to store a record it cannot fully populate. A
+half-record would satisfy `dl.read(offer_id)` and then fail one line later on
+the case lookup — moving the #2195 404 rather than removing it. The case URI is
+named `case_id`, not `object_`, because the DataLayer rehydrates the AS2
+reference fields (`object_`, `target`, `origin`, `result`, `instrument`) from ID
+strings into typed objects on read; a field named `object_` would come back as a
+`VulnerabilityCase` instance rather than the `str` its annotation promises.
+`_prepare` reads `case_id` first and falls back to `object_` for the wire Offer
+activity the HTTP-inbox path stores.
+
+**Status contract (SYNC-12-001)**: the effect node returns SUCCESS when there is
+nothing to apply (no offer id, or no resolvable case id) and FAILURE only when a
+well-formed record could not be written. FAILURE propagates through the slot's
+Selector to block `PersistReceivedLogEntry`, so an entry is never persisted
+without its effects.
+
+**Spec refs**: CM-21-005 (the offer hop this slot materializes — offer addressed
+to the CaseActor inbox and forwarded by it), SYNC-02-002, SYNC-12-001,
+ADR-0035 DL-06-002. CM-21-007 covers the ledger commit and broadcast that follow
+a successful *accept*, which is a different hop.
 
 ---
 

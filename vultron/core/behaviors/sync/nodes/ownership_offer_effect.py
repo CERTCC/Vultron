@@ -27,7 +27,11 @@ in the local DataLayer.  This makes the offer readable by
 ``SvcAcceptCaseOwnershipTransferUseCase._prepare``, which calls
 ``dl.read(offer_id)`` and 404s when the object is absent (#2195).
 
-Per ADR-0035 DL-06-002, SYNC-02-002, CM-21-007, ISSUE-2195.
+Per ADR-0035 DL-06-002, SYNC-02-002, SYNC-12-001, CM-21-005, ISSUE-2195.
+
+(CM-21-005 governs the offer hop this slot materializes — the offer is addressed
+to the CaseActor inbox and forwarded by it.  CM-21-007, which covers the ledger
+commit and broadcast that follow a successful *accept*, is a different hop.)
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 
@@ -56,11 +61,12 @@ class IsOfferOwnershipTransferEventNode(DataLayerCondition):
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
     no-op for the wrong event type).  When the condition matches but
-    ApplyOfferOwnershipTransferFromLedgerNode fails, both branches of the
-    Selector fail and the FAILURE propagates to block PersistReceivedLogEntry
-    (SYNC-12-001).
+    ApplyOfferOwnershipTransferFromLedgerNode returns FAILURE — i.e. the effect
+    itself could not be applied — both branches of the Selector fail and the
+    FAILURE propagates to block PersistReceivedLogEntry, so the entry is not
+    persisted without its effects (SYNC-12-001).
 
-    Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-002, SYNC-12-001.
+    Per BTND-08-001, BTND-08-002, CM-21-005, SYNC-02-002, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -95,14 +101,24 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
     ``dl.read(offer_id)`` without a 404 (#2195).
 
     Idempotent: if the object is already present the node returns SUCCESS
-    without overwriting.  Lenient on missing or unparse-able data — if the
-    snapshot cannot be reconstructed into a typed offer activity, the node
-    logs a warning and returns SUCCESS to avoid blocking the ``Announce``
-    processing flow.
+    without overwriting.
+
+    Status contract — the distinction matters for SYNC-12-001, which forbids
+    persisting a ledger entry whose effects did not apply:
+
+    - **Nothing to apply** → SUCCESS.  The snapshot carries no offer id, or no
+      case id, or is not a dict at all.  There is no effect to fail; the entry
+      is still a valid ledger fact and must not be blocked.  A partially
+      populated record is *not* written — one that cannot name its case would
+      only convert ``_prepare``'s "offer not found" 404 into "case not found in
+      offer" (#2195).
+    - **Effect failed** → FAILURE.  The record was well-formed but the
+      DataLayer write raised.  That is a genuine effect failure, so the node
+      fails and the surrounding Selector blocks ``PersistReceivedLogEntry``.
 
     Per ADR-0035 DL-06-002 (domain facts from a received protocol message MUST
-    be recorded as core state at extraction time), SYNC-02-002, CM-21-007,
-    ISSUE-2195.
+    be recorded as core state at extraction time), SYNC-02-002, SYNC-12-001,
+    CM-21-005, ISSUE-2195.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -119,9 +135,6 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
         from vultron.core.behaviors.sync.nodes.conditions import (
             _require_log_entry,
         )
-        from vultron.core.models.ownership_transfer_offer_record import (
-            VultronOwnershipTransferOfferRecord,
-        )
 
         entry = _require_log_entry(self.blackboard.activity, self.name)
         snapshot = (
@@ -134,7 +147,7 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
         if not offer_id:
             self.logger.debug(
                 "%s: offer_case_ownership_transfer entry has no id"
-                " — skipping (non-fatal)",
+                " — nothing to apply (non-fatal)",
                 self.name,
             )
             return Status.SUCCESS
@@ -147,34 +160,80 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        # Extract case_id from the snapshot's object field (dict or bare string).
-        object_field = snapshot.get("object")
-        if isinstance(object_field, dict):
-            case_id = object_field.get("id", "")
-        elif isinstance(object_field, str):
-            case_id = object_field
-        else:
-            case_id = ""
+        case_id = _case_id_from_snapshot(snapshot)
+        if not case_id:
+            self.logger.warning(
+                "%s: offer '%s' snapshot carries no resolvable case id"
+                " — declining to store a record that cannot name its case"
+                " (nothing to apply, non-fatal)",
+                self.name,
+                offer_id,
+            )
+            return Status.SUCCESS
+
+        return self._save_offer_record(offer_id, case_id)
+
+    def _save_offer_record(self, offer_id: str, case_id: str) -> Status:
+        """Build and persist the record; FAILURE only if the write itself fails."""
+        assert self.datalayer is not None
+        from vultron.core.models.ownership_transfer_offer_record import (
+            VultronOwnershipTransferOfferRecord,
+        )
 
         try:
             record = VultronOwnershipTransferOfferRecord(
                 offer_id=offer_id,
-                object_=case_id,
+                case_id=case_id,
             )
-            self.datalayer.save(record)
-            self.logger.info(
-                "%s: stored VultronOwnershipTransferOfferRecord '%s'"
-                " from ledger snapshot (ADR-0035 DL-06-002, ISSUE-2195)",
+        except ValidationError as exc:
+            # Malformed snapshot data, not a failed effect — stay lenient so a
+            # bad payload cannot wedge ledger replication (SYNC-12-001 applies
+            # to effects that fail, not to entries with nothing to apply).
+            self.logger.warning(
+                "%s: offer '%s' snapshot did not validate into a"
+                " VultronOwnershipTransferOfferRecord: %s",
                 self.name,
                 offer_id,
+                exc,
             )
+            return Status.SUCCESS
+
+        try:
+            self.datalayer.save(record)
         except Exception as exc:
-            self.logger.warning(
+            # A well-formed effect that could not be written IS a failed
+            # effect: fail so the Selector blocks PersistReceivedLogEntry and
+            # the entry is not persisted without it (SYNC-12-001).
+            self.logger.error(
                 "%s: could not store VultronOwnershipTransferOfferRecord"
                 " for offer '%s': %s",
                 self.name,
                 offer_id,
                 exc,
             )
+            return Status.FAILURE
 
+        self.logger.info(
+            "%s: stored VultronOwnershipTransferOfferRecord '%s' for case '%s'"
+            " from ledger snapshot (ADR-0035 DL-06-002, ISSUE-2195)",
+            self.name,
+            offer_id,
+            case_id,
+        )
         return Status.SUCCESS
+
+
+def _case_id_from_snapshot(snapshot: dict[str, Any]) -> str:
+    """Extract the offered case URI from a snapshot ``object`` field.
+
+    The field may be an inline dict (``{"id": ..., "type": ...}``) or a bare
+    URI string, depending on how the Offer was serialized.  Returns ``""`` when
+    neither form yields an id.
+    """
+    object_field = snapshot.get("object")
+    if isinstance(object_field, dict):
+        case_id = object_field.get("id", "")
+        return case_id if isinstance(case_id, str) else ""
+    if isinstance(object_field, str):
+        return object_field
+    return ""
