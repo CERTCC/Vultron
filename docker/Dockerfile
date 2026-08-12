@@ -92,6 +92,16 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get update && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+# start-dev.sh bind-mounts the host ~/.gitconfig read-only, and on macOS its
+# credential.helper points at a Homebrew gh path (/usr/local/bin on Intel,
+# /opt/homebrew/bin on Apple Silicon). apt installs gh to /usr/bin here, so
+# without these links git cannot find the helper and every push inside a slot
+# dies with "could not read Username for 'https://github.com'". The mount is
+# read-only, so the host config cannot be rewritten — make its path resolve.
+RUN ln -sf /usr/bin/gh /usr/local/bin/gh \
+    && mkdir -p /opt/homebrew/bin \
+    && ln -sf /usr/bin/gh /opt/homebrew/bin/gh
+
 # Node.js 22 (required by Claude Code)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
