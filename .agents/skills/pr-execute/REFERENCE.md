@@ -24,7 +24,7 @@ Run **full suite (unit + integration)** if PR modifies any of:
 
 ### All Tests Pass ✅
 
-Proceed to Phase 5.
+Proceed to Phase 6.
 
 ### Unit Tests Fail ❌
 
@@ -144,9 +144,80 @@ Stop and surface to the user if:
 - 2+ consecutive test failures after fix attempts
 - Test output suggests missing context (env vars, setup, infrastructure)
 - Error suggests architectural issue (breaking change to core logic)
+- A merge conflict whose correct resolution is genuinely unclear (see
+  § "Conflict Resolution Rules") — abort the merge, do not guess
+- `merge-state.sh` still reports `CONFLICTING` after a resolution was pushed
+- `git push` is rejected as non-fast-forward after a merge, implying someone
+  rewrote the remote branch
 
 Report the state with linked Bug issue evidence, structured blockers, and
 explicit blocked/unblocked status.
+
+---
+
+## Conflict Resolution Rules
+
+### Why sync runs late
+
+The branch is synced in Phase 4 — after all fixes and CI remediation, before the
+test suite. Three reasons:
+
+1. **Execute's own fixes can create conflicts.** A fix touching the same lines a
+   base-branch commit touched is only conflicting once both exist.
+2. **The base branch moves during the run.** Triage's merge state is stale by the
+   time execute finishes; another PR can land mid-pipeline.
+3. **Tests must run on the merged tree.** A clean merge can still be a *semantic*
+   conflict — both sides apply, the result is broken. Only running the suite
+   post-merge catches that.
+
+### Merge, do not rewrite
+
+Once a branch is pushed and a PR is open, use `sync-with-main.sh` (merge commit),
+not `freshen-branch.sh` (cherry-pick rewrite). Rewriting a pushed branch requires
+a force-push, which orphans reviewers' line comments and breaks any `commit_ref`
+already recorded in the triage/execute artifacts. `freshen-branch.sh` belongs to
+`create-pr`, before the first push.
+
+### Resolving each path
+
+| Situation | Resolution |
+|---|---|
+| Base changed a line the PR does not care about | Take base (`--theirs` in merge terms), then re-verify the PR's intent still holds |
+| PR intentionally changed what base also changed | Combine by hand — keep the PR's semantic and base's refactor |
+| Both added entries to a list/registry/index | Keep **both** entries; this is the most common false conflict |
+| Generated or lock file (`uv.lock`, `board-ids.json`) | Take base, then regenerate from the merged sources |
+| `CHANGELOG`/history/append-only file | Keep both blocks in chronological order — see `archived_notes/append-only-file-handling.md` |
+| Conflict is in a file the PR never meant to touch | Take base wholesale, then confirm with `git diff <base_ref>...HEAD` that the file is absent from the PR diff |
+
+Rules that do not bend:
+
+- **Read both sides before resolving.** `git log --merge -p -- <path>` shows the
+  competing commits. Blind `--ours`/`--theirs` on an unread file silently reverts
+  someone's work.
+- **Never resolve by deleting the base's changes** to make the PR's diff apply.
+  That is a silent revert; it is worse than the conflict.
+- **Verify no markers remain** before pushing:
+  `git grep -nE '^(<<<<<<<|=======|>>>>>>>)'` must be empty.
+- **Re-run the full suite after resolving**, even if it passed pre-merge.
+- **Never resolve a conflict you do not understand.** Abort
+  (`sync-with-main.sh --abort`), record the merge-state finding as `skipped` with
+  the conflicted paths and why, and stop. An honest stop beats a wrong merge.
+
+### Commit message
+
+`git commit --no-edit` keeps git's generated `Merge branch 'main' into <branch>`
+message, which is what tooling expects. If the resolution required judgment,
+amend a body describing it:
+
+```text
+Merge branch 'main' into task/1234-slug
+
+Resolved conflicts in:
+- vultron/core/models/case/case.py — kept both new fields
+- uv.lock — regenerated after taking main's version
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+```
 
 ---
 
@@ -207,6 +278,15 @@ File: `.claude/pr-{number}-execute.json`
   "timestamp": "2026-01-01T00:00:00Z",
   "integration_tests_run": true,
   "final_ci_status": "passing",
+  "merge_state": {
+    "base_ref": "main",
+    "synced": true,
+    "sync_commit_ref": "def5678",
+    "conflicts_resolved": ["vultron/core/models/case/case.py", "uv.lock"],
+    "mergeable_after_sync": "MERGEABLE",
+    "merge_state_status_after_sync": "CLEAN",
+    "undrafted": false
+  },
   "results": [
     {
       "finding_id": "phase5-missing-nonemptystring-0",
@@ -250,6 +330,22 @@ File: `.claude/pr-{number}-execute.json`
 finding must have an outcome. `pr-verify` checks this count and warns if they
 diverge (indicating execute was interrupted before completion).
 
+### `merge_state` Fields
+
+| Field | Meaning |
+|---|---|
+| `base_ref` | Branch synced against — copied from `pr_metadata.base_ref`, not assumed to be `main` |
+| `synced` | `true` if the branch contains the base tip after Phase 4 |
+| `sync_commit_ref` | Merge commit SHA, or `null` if the branch was already current |
+| `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge |
+| `mergeable_after_sync` | `merge-state.sh` result from Phase 4 step 6 |
+| `merge_state_status_after_sync` | `mergeStateStatus` from the same call |
+| `undrafted` | `true` if execute ran `gh pr ready` and dropped `needs-rebase` |
+
+`merge_state` is **required**. `pr-verify` treats a missing or `synced: false`
+block as a hard gate failure — an execute run that never checked mergeability
+cannot produce a READY-TO-MERGE verdict.
+
 ---
 
 ## Execute Comment Format
@@ -262,6 +358,18 @@ diverge (indicating execute was interrupted before completion).
 **Deferred (awaiting your input)**: <K>
 **Tests run**: unit only / unit + integration
 **CI status after push**: ✅ passing / ❌ failing / ⏳ pending
+**Base sync**: ✅ merged `<base_ref>` @ `def5678` — <N> conflicts resolved / ✅ already current / ❌ conflicts unresolved
+
+---
+
+### Conflicts Resolved
+
+| Path | Resolution |
+|---|---|
+| `vultron/core/models/case/case.py` | Kept both new fields |
+| `uv.lock` | Took `main`, regenerated |
+
+_Omit this section entirely when the merge was clean._
 
 ---
 
