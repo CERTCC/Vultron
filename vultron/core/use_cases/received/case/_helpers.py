@@ -10,6 +10,9 @@ from vultron.core.behaviors.case.update_support import (
     find_excluded_actor_ids,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.participant_status import (
+    participant_status_rm_state,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM, is_monotonic_rm_forward
@@ -98,13 +101,20 @@ def _store_embedded_participants(
 
 
 def _participant_rm_state(participant: object) -> RM | None:
-    """Return the latest RM state recorded on *participant*, if any."""
+    """Return the latest RM state recorded on *participant*, if any.
+
+    ``None`` means *no status has been recorded yet* — a legitimate state that
+    callers must handle.  It does **not** mean "the status was unreadable":
+    a status that exists but exposes no usable ``rm`` dimension raises, because
+    that is a shape mismatch rather than an absence (issue #2232, ARCH-15).
+
+    Raises:
+        VultronValidationError: when the latest status is not core-shaped.
+    """
     statuses = getattr(participant, "participant_statuses", None) or []
     if not statuses:
         return None
-    rm = getattr(statuses[-1], "rm", None)
-    state = getattr(rm, "state", None)
-    return state if isinstance(state, RM) else None
+    return participant_status_rm_state(statuses[-1])
 
 
 def _would_regress_participant(

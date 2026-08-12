@@ -237,3 +237,86 @@ def test_object_to_record_nested_report_not_duplicated_in_offer_data():
     serialised = json.dumps(record.data_)
     assert report.content is not None
     assert report.content not in serialised
+
+
+# ---------------------------------------------------------------------------
+# Wire/core shape guard on the write path (issue #2232)
+# ---------------------------------------------------------------------------
+
+
+def test_object_to_record_normalizes_wire_class_shadowing_a_core_type():
+    """A wire vocab class whose ``type_`` has a core counterpart is normalised.
+
+    Regression for #2232: the only shape guard was ``type_.startswith("as_")``,
+    but wire vocabulary ``type_`` values are bare ("CaseParticipant"), so a
+    wire-shaped object was happily written into a core-typed DataLayer row.
+    Core readers then saw a flat ``rm_state`` where they expected a nested
+    ``rm`` dimension.
+
+    The row must now carry the canonical core shape — nested
+    ``rm: {"state": ...}`` — so no wire-shaped ``CaseParticipant`` row exists to
+    be misread.
+    """
+    from vultron.core.models.registry import CORE_VOCABULARY
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+
+    wire_participant = as_CaseParticipant(
+        attributed_to="https://example.org/actors/vendor",
+        context="https://example.org/cases/case-2232",
+    )
+    # The pre-existing guard cannot catch this: type_ is bare, not "as_"-prefixed.
+    assert not str(wire_participant.type_).startswith("as_")
+    assert str(wire_participant.type_) in CORE_VOCABULARY
+
+    record = object_to_record(cast(Any, wire_participant))
+
+    assert record.type_ == "CaseParticipant"
+    statuses = record.data_["participant_statuses"]
+    assert statuses, "normalised participant must retain its RM ladder"
+    for status in statuses:
+        # Canonical core shape: nested rm dimension, no flat rm_state.
+        assert "rm_state" not in status
+        assert status["rm"]["state"] == "START"
+
+
+def test_object_to_record_normalizes_wire_participant_status():
+    """A wire ``ParticipantStatus`` persists in the nested core ``rm`` shape."""
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_status import (
+        as_ParticipantStatus,
+    )
+
+    wire_status = as_ParticipantStatus(
+        rm_state=RM.VALID,
+        context="https://example.org/cases/case-2232",
+        attributed_to="https://example.org/actors/vendor",
+    )
+
+    record = object_to_record(cast(Any, wire_status))
+
+    assert record.type_ == "ParticipantStatus"
+    assert "rm_state" not in record.data_
+    assert record.data_["rm"]["state"] == "VALID"
+
+
+def test_object_to_record_still_accepts_wire_activities():
+    """Activities have no core counterpart, so they must remain persistable."""
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2232",
+        content="details",
+        attributed_to="https://example.org/finder",
+    )
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
+        actor="https://example.org/finder",
+    )
+
+    record = object_to_record(offer)
+    assert record.type_ == "Offer"

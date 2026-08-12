@@ -17,13 +17,41 @@
 
 """Provides a Record model for document database storage."""
 
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
 
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+
+_WIRE_MODULE_PREFIX = "vultron.wire.as2"
+
+# Wire vocabulary ``type_`` values are *bare* names ("CaseParticipant"), not
+# ``as_``-prefixed, so the ``as_`` guard in ``Record.from_obj`` never fires for
+# them.  Fifteen wire classes therefore shadow a ``CORE_VOCABULARY`` entry and
+# can be written into a core-typed row, producing a row whose field shape does
+# not match the class that reads it back (issue #2232).
+#
+# Types listed here are normalised to their core counterpart via ``to_core()``
+# before serialisation, so the persisted row always carries the canonical core
+# shape.  The set may only GROW as the remaining shadowing types are migrated;
+# it is the write-side analogue of ``KNOWN_WIRE_ESCAPES`` in
+# ``test/architecture/test_dl_read_returns_core_objects.py`` (DL-05-004).
+#
+# ``ParticipantStatus`` and ``CaseParticipant`` are normalised because their
+# two shapes are structurally incompatible: core nests ``rm: RmDimension``
+# while wire uses a flat ``rm_state``, so a wire-shaped row silently yields
+# ``None`` for ``status.rm.state``.  The other thirteen shadowing types
+# (``VulnerabilityCase``, ``VulnerabilityReport``, the actor types, …) differ
+# only by key spelling today and are not yet normalised — tracked in #2268.
+_NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
+    {
+        "CaseParticipant",
+        "ParticipantStatus",
+    }
+)
 
 # ActivityStreams fields typed as ``as_ObjectRef`` (accept URI string
 # references).  Only these fields are candidates for dehydration.  Fields
@@ -195,6 +223,47 @@ def _retype_inline_object_refs(
         return obj
 
 
+def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
+    """Return the core-shaped equivalent of *obj*, or *obj* unchanged.
+
+    A wire vocabulary class whose bare ``type_`` shadows a ``CORE_VOCABULARY``
+    entry would otherwise be written into a core-typed row in the wire field
+    shape, so whichever class reads the row back decides what the data means
+    (issue #2232).  For the types in :data:`_NORMALIZE_WIRE_TO_CORE` the
+    difference is structural — core ``ParticipantStatus`` nests
+    ``rm: RmDimension`` where the wire shape carries a flat ``rm_state`` — so
+    the row is normalised here, at the persistence boundary, and no
+    wire-shaped row is ever stored.
+
+    Raises:
+        ValueError: when the wire object cannot be projected to its core
+            counterpart.  Core types are stricter than wire types, so a
+            projection failure means the object was never valid domain data;
+            surfacing it beats persisting a row nothing can read (ARCH-15).
+    """
+    if not type(obj).__module__.startswith(_WIRE_MODULE_PREFIX):
+        return obj
+    type_ = obj.type_
+    if type_ not in _NORMALIZE_WIRE_TO_CORE or type_ not in CORE_VOCABULARY:
+        return obj
+    to_core = getattr(obj, "to_core", None)
+    if to_core is None:
+        raise ValueError(
+            f"Wire class {type(obj).__name__} shadows core type '{type_}' but"
+            " has no to_core() projection, so it cannot be persisted in the"
+            " canonical core shape (issue #2232)."
+        )
+    try:
+        return cast(PersistableModel, to_core())
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise ValueError(
+            f"Cannot persist {type(obj).__name__} '{obj.id_}': projecting it"
+            f" to core type '{type_}' failed ({exc}). A wire-shaped"
+            f" '{type_}' row must not be stored — normalise at the wire→core"
+            " boundary instead (issue #2232)."
+        ) from exc
+
+
 class Record(StorableRecord):
     """Record wrapper stored in TinyDB.
 
@@ -218,6 +287,11 @@ class Record(StorableRecord):
             raise ValueError(
                 "Object 'type_' attribute cannot start with 'as_' for Record conversion"
             )
+
+        # Wire ``type_`` values are bare, so the guard above cannot catch a
+        # wire class shadowing a core type.  Normalise those to the canonical
+        # core shape before serialising (issue #2232).
+        obj = _normalize_to_core(obj)
 
         record = Record(
             id_=obj.id_,

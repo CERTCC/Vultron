@@ -30,6 +30,7 @@ import pytest
 from vultron.core.models.dimensions import RmDimension, VfdDimension
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
+from vultron.errors import VultronValidationError
 
 # ---------------------------------------------------------------------------
 # Test stubs
@@ -159,8 +160,17 @@ def test_resolve_participant_state_defaults_when_participant_not_found():
     assert vfd == CS_vfd.vfd
 
 
-def test_resolve_participant_state_defaults_when_invalid_rm_type():
-    """Falls back to RM.START when rm_state is not an RM enum value."""
+def test_resolve_participant_state_raises_when_invalid_rm_type():
+    """Raises when the latest status carries an unusable RM state.
+
+    This previously fell back to ``RM.START``, which silently reset the
+    participant's RM ladder to its initial state and then rejected the next
+    legitimate transition as backwards (#2264, a symptom of #2232).  A status
+    that exists but exposes no usable ``rm`` is a shape mismatch, not an
+    absence, so it must raise (ARCH-15-001..004).  Absence — an empty
+    ``participant_statuses`` list — still returns ``RM.START``; see
+    ``test_resolve_participant_state_defaults_when_no_statuses``.
+    """
 
     class _BadRmAttr:
         state = "not-an-rm"
@@ -173,12 +183,10 @@ def test_resolve_participant_state_defaults_when_invalid_rm_type():
     dl = _FakeDL(stored=participant)
     use_case = _make_use_case(dl)
 
-    rm, vfd = use_case._resolve_current_participant_state(
-        _as_persistence(dl), "any-id"
-    )
-
-    assert rm == RM.START
-    assert isinstance(vfd, CS_vfd)
+    with pytest.raises(VultronValidationError, match="no valid RM state"):
+        use_case._resolve_current_participant_state(
+            _as_persistence(dl), "any-id"
+        )
 
 
 def test_resolve_participant_state_defaults_when_invalid_vfd_type():

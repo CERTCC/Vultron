@@ -27,7 +27,9 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -151,3 +153,53 @@ class ParticipantStatus(CoreObject):
     @classmethod
     def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
         return coerce_cvd_roles(v)
+
+
+def participant_status_rm_state(status: Any) -> RM:
+    """Return the RM state of a single ``ParticipantStatus``.
+
+    This is the canonical RM-dimension reader.  Core :class:`ParticipantStatus`
+    carries a nested ``rm: RmDimension`` (ADR-0036, SDO-03-002); the wire
+    projection ``as_ParticipantStatus`` carries a flat ``rm_state: RM`` and no
+    ``rm`` attribute at all.  Reading ``rm`` off a wire-shaped status therefore
+    yields ``None``, and every caller that tolerated that ``None`` silently
+    took a wrong branch — the defect behind issue #2232.
+
+    A status object always has an RM state in the canonical shape (``rm`` has a
+    ``default_factory``), so there is no legitimate ``None`` outcome here: an
+    absent or unusable ``rm`` means the object is not core-shaped, and that is a
+    defect to surface rather than absorb (ARCH-15-001..004).
+
+    Callers for whom *absence* is legitimate — e.g. a participant with an empty
+    ``participant_statuses`` list — must make that check themselves before
+    calling, per the lenient-helper rule in ``notes/domain-validation.md``.
+
+    Args:
+        status: A single participant status object.
+
+    Returns:
+        The :class:`RM` state recorded on *status*.
+
+    Raises:
+        VultronValidationError: when *status* exposes no usable ``rm``
+            dimension — typically because it is a wire-shaped status that
+            should have been normalised at the wire→core boundary.
+    """
+    rm = getattr(status, "rm", None)
+    if rm is None:
+        raise VultronValidationError(
+            f"ParticipantStatus {getattr(status, 'id_', status)!r} has no 'rm'"
+            f" dimension (got a {type(status).__name__}). Core"
+            " ParticipantStatus uses a nested 'rm: RmDimension'; the wire"
+            " shape uses a flat 'rm_state'. Convert at the wire→core boundary"
+            " (as_ParticipantStatus.to_core()) instead of reading the wire"
+            " shape here. See issue #2232."
+        )
+    state = getattr(rm, "state", None)
+    if not isinstance(state, RM):
+        raise VultronValidationError(
+            f"ParticipantStatus {getattr(status, 'id_', status)!r} has an 'rm'"
+            f" dimension with no valid RM state (got {state!r}). See issue"
+            " #2232."
+        )
+    return state

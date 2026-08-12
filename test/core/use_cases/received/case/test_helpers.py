@@ -322,3 +322,66 @@ class TestBootstrapReporterUpgradesFromStart:
             f"(it is already beyond ACCEPTED); got {len(statuses)} (#624)"
         )
         assert statuses[0].rm.state == RM.CLOSED
+
+
+# ---------------------------------------------------------------------------
+# RM-regression guard must not go inert on a shape mismatch (issue #2232)
+# ---------------------------------------------------------------------------
+
+
+class TestParticipantRmStateShapeGuard:
+    """``_participant_rm_state`` must raise on a wire-shaped status.
+
+    Regression for #2232: on a wire-shaped participant ``getattr(status, "rm")``
+    was ``None``, so ``_participant_rm_state`` returned ``None`` and
+    ``_would_regress_participant`` returned ``False`` — the RM-rollback guard
+    shipped inert.  A shape mismatch must raise (ARCH-15-001..004); an
+    empty status list legitimately stays ``None``.
+    """
+
+    _CONTEXT = "https://example.org/cases/case-2232"
+
+    def test_returns_latest_state_for_core_shaped_participant(self):
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.use_cases.received.case._helpers import (
+            _participant_rm_state,
+        )
+
+        actor = "https://example.org/actors/alice"
+        participant = CaseParticipant(
+            attributed_to=actor, context=self._CONTEXT
+        )
+        participant.append_rm_state(
+            RM.RECEIVED, actor=actor, context=self._CONTEXT
+        )
+        assert _participant_rm_state(participant) is RM.RECEIVED
+
+    def test_returns_none_for_empty_status_list(self):
+        """Lenient where absence is legitimate (notes/domain-validation.md)."""
+        from vultron.core.use_cases.received.case._helpers import (
+            _participant_rm_state,
+        )
+
+        class _NoStatuses:
+            participant_statuses: list = []
+
+        assert _participant_rm_state(_NoStatuses()) is None
+
+    def test_raises_on_wire_shaped_participant(self):
+        from vultron.core.use_cases.received.case._helpers import (
+            _participant_rm_state,
+        )
+        from vultron.errors import VultronValidationError
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        wire_participant = as_CaseParticipant(
+            attributed_to="https://example.org/actors/vendor",
+            context=self._CONTEXT,
+        )
+        latest = wire_participant.participant_statuses[-1]
+        assert getattr(latest, "rm", None) is None
+
+        with pytest.raises(VultronValidationError):
+            _participant_rm_state(wire_participant)

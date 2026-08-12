@@ -26,7 +26,11 @@ from typing import Any, cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerCondition,
+    read_rm_states,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
@@ -299,19 +303,15 @@ class ValidateRMTransitionNode(DataLayerCondition):
             )
             return Status.FAILURE
 
-        new_rm_state = (
-            status_obj.rm.state if hasattr(status_obj, "rm") else None
-        )
         current_status = getattr(participant, "participant_status", None)
-
-        if new_rm_state is None or current_status is None:
-            self.logger.debug(
-                "ValidateRMTransitionNode: no current status or new RM state,"
-                " skipping validation"
-            )
+        if current_status is None:
+            self.logger.debug("ValidateRMTransitionNode: no current status")
             return Status.SUCCESS
 
-        current_rm = current_status.rm.state
+        states = read_rm_states(self, status_obj, current_status)
+        if states is None:
+            return Status.FAILURE
+        new_rm_state, current_rm = states
         if current_rm == RM.CLOSED:
             self.feedback_message = (
                 "Participant is already in terminal RM.CLOSED state"
@@ -464,9 +464,10 @@ class CheckParticipantRMNotClosedNode(DataLayerCondition):
         if current_status is None:
             return Status.SUCCESS
 
-        current_rm = (
-            current_status.rm.state if hasattr(current_status, "rm") else None
-        )
+        states = read_rm_states(self, current_status)
+        if states is None:
+            return Status.FAILURE
+        (current_rm,) = states
         if current_rm != RM.CLOSED:
             return Status.SUCCESS
 

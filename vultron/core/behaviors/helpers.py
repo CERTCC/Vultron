@@ -44,16 +44,59 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import (
+    participant_status_rm_state,
+)
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.core.states.rm import RM
+from vultron.errors import VultronValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    *statuses: Any,
+) -> tuple[RM, ...] | None:
+    """Return the RM states of *statuses*, or ``None`` to signal FAILURE.
+
+    A ``ParticipantStatus`` whose RM dimension is unreadable is a shape
+    mismatch, not an absence.  Substituting a default (``RM.START``, ``None``)
+    let an invalid transition through unchecked and silently reset a
+    participant's RM ladder (#2264, a symptom of #2232), so ARCH-15-004
+    requires FAILURE instead of a degraded SUCCESS.
+
+    Callers for whom *absence* is legitimate (e.g. a participant with no
+    recorded status) must handle that case before calling.
+
+    Args:
+        node: The calling BT node.  Its ``feedback_message`` and ``logger`` are
+            used to report the mismatch, and its ``participant_id`` (when
+            present) identifies the participant in the message.
+        *statuses: Status objects to read, in the caller's preferred order.
+
+    Returns:
+        A tuple of :class:`RM` states positionally matching *statuses*, or
+        ``None`` when any status is not core-shaped.  On ``None`` the caller
+        must return ``Status.FAILURE``.
+    """
+    try:
+        return tuple(participant_status_rm_state(s) for s in statuses)
+    except VultronValidationError as exc:
+        participant_id = getattr(node, "participant_id", "<unknown>")
+        node.feedback_message = (
+            "Non-canonical ParticipantStatus shape for participant"
+            f" '{participant_id}': {exc}"
+        )
+        node.logger.error(f"{node.name}: {node.feedback_message}")
+        return None
 
 
 class DataLayerCondition(py_trees.behaviour.Behaviour):
