@@ -58,6 +58,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -144,11 +145,6 @@ def _offer_ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#2195 — ownership-transfer offer never delivered to coordinator "
-    "DataLayer; xfail removed once delivered",
-)
 def test_ownership_offer_object_materialized_on_coordinator_replica(
     bridge, datalayer, case_actor, case_replica
 ):
@@ -189,4 +185,20 @@ def test_ownership_offer_object_materialized_on_coordinator_replica(
         "Announce(CaseLedgerEntry) for the ownership-transfer offer — "
         "otherwise accept-case-ownership-transfer 404s on dl.read(offer_id) "
         "(#2195)."
+    )
+
+    # Presence alone is not enough: _prepare reads the case URI back off the
+    # stored record and raises VultronNotFoundError when it cannot resolve one.
+    # Without this second assertion the probe passes on a record that still
+    # 404s the accept trigger — it merely moves the 404 one line down.
+    assert (
+        _as_id(
+            getattr(stored_offer, "case_id", None)
+            or getattr(stored_offer, "object_", None)
+        )
+        == CASE_ID
+    ), (
+        "The materialized offer must name the case it offers, so "
+        "SvcAcceptCaseOwnershipTransferUseCase._prepare can recover case_id "
+        "from it (#2195)."
     )

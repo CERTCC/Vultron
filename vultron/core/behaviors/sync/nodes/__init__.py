@@ -72,6 +72,10 @@ from vultron.core.behaviors.sync.nodes.offer_report_effect import (
 from vultron.core.behaviors.sync.nodes.ownership_effects import (
     ApplyOwnershipTransferFromLedgerNode,
 )
+from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
+    ApplyOfferOwnershipTransferFromLedgerNode,
+    IsOfferOwnershipTransferEventNode,
+)
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectNonClosedLogEntryRecipientsNode,
     FanOutLogEntryExcludingClosedNode,
@@ -109,6 +113,8 @@ __all__ = [
     "ApplyCloseCaseFromLedgerNode",
     "ApplyOfferReportFromLedgerNode",
     "ApplyOwnershipTransferFromLedgerNode",
+    "ApplyOfferOwnershipTransferFromLedgerNode",
+    "IsOfferOwnershipTransferEventNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",

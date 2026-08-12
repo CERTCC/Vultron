@@ -24,6 +24,9 @@ from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.ownership_transfer_offer_record import (
+    VultronOwnershipTransferOfferRecord,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -675,6 +678,14 @@ class _ActorsMixin:
         Reads the stored offer from the DataLayer, derives the ``to:`` field
         from the offer's ``actor`` when not supplied, and persists the Accept
         (TRIG-11-002).
+
+        On a replica whose only source for the Offer was the replicated
+        ``offer_case_ownership_transfer`` ledger entry, what is stored at
+        ``offer_id`` is a core ``VultronOwnershipTransferOfferRecord`` rather
+        than the wire activity — the SYNC path cannot construct wire objects
+        (ARCH-03-001).  Rebuild the wire Offer from that record here, where wire
+        imports are allowed, so both delivery paths converge on the same Accept
+        (#2225, ADR-0035 DL-06-002).
         """
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
             as_Offer,
@@ -683,6 +694,8 @@ class _ActorsMixin:
         raw = self._dl.read(offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
+        if isinstance(raw, VultronOwnershipTransferOfferRecord):
+            raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)
         if to is None:
             offer_actor_id = _as_id(getattr(offer, "actor", None))
@@ -700,3 +713,38 @@ class _ActorsMixin:
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def _offer_from_core_record(
+        self, record: "VultronOwnershipTransferOfferRecord"
+    ) -> Any:
+        """Rebuild the wire ownership-transfer Offer from its core record.
+
+        ``_OfferCaseOwnershipTransferActivity.object_`` MUST be an inline
+        ``as_VulnerabilityCase`` — a bare URI is rejected at construction and
+        would also make the activity indistinguishable from a SUBMIT_REPORT
+        Offer during semantic dispatch.  The case itself is already on the
+        replica (the SYNC path seeds it before the offer entry is applied), so
+        read it and project it to its wire form.
+        """
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: PLC0415
+            as_VulnerabilityCase,
+        )
+
+        case = self._dl.read(record.case_id)
+        if case is None:
+            raise VultronNotFoundError("VulnerabilityCase", record.case_id)
+        wire_case = (
+            case
+            if isinstance(case, as_VulnerabilityCase)
+            else as_VulnerabilityCase.from_core(cast(Any, case))
+        )
+        # Reuse the same factory the offering side calls, so the rebuilt Offer
+        # is constructed exactly the way the wire path would have built it
+        # (test/architecture/test_activity_factory_imports.py forbids adapters
+        # from reaching into vultron.wire.as2.vocab.activities directly).
+        return offer_case_ownership_transfer_activity(
+            case=wire_case,
+            target=record.target_id,
+            id_=record.offer_id,
+            actor=record.actor_id,
+        )
