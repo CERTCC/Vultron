@@ -105,6 +105,11 @@ DOCKER_ARGS=(
     -e WIP_NOTES=/app/wip_notes
     -e WIP_OUTPUTS=/app/wip_outputs
     -v "$HOME/.claude:/home/vscode/.claude"
+    # .devcontainer is excluded from the build context except certs/ (see
+    # .dockerignore), so mount it here. Without this the tracked files under it
+    # are missing from /app and `git status` reports them as deleted. Writable so
+    # that the `git pull` in poststart.sh can fast-forward them.
+    -v "$SCRIPT_DIR/.devcontainer:/app/.devcontainer"
     -v "$MAIN_DIR/wip_notes:/app/wip_notes:ro"
     -v "$WIP_OUTPUTS_SLOT:/app/wip_outputs"
     -v "$GRAPHIFY_HOST:/app/graphify-out"
