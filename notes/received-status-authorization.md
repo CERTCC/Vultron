@@ -66,15 +66,54 @@ not wired into the CaseActor's received-side pipeline.
 ```text
 AddParticipantStatusBT (Sequence)
 ├─ VerifySenderIsParticipantNode        ← unchanged
-├─ CheckParticipantRMNotClosedNode      ← unchanged
+├─ FilterParticipantStatusDimensionsNode ← per-dimension adjudication (RSH-05)
 ├─ GuardedCommitOrSkip                  ← unchanged (CLP-10-006)
-├─ AppendParticipantStatusNode          ← records "X said FOO" (unchanged)
+├─ AppendParticipantStatusNode          ← records the accepted portion
 ├─ StatusUpdateGuard (Fallback)         ← NEW
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
 │   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (AlwaysSucceed)
 ├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
 └─ AutoCloseIfCaseManager               ← unchanged
 ```
+
+### Per-dimension partial accept (RSH-05, ADR-0060)
+
+`FilterParticipantStatusDimensionsNode` replaced the former
+`CheckParticipantRMNotClosedNode` guard. The old guard — and
+`ValidateRMTransitionNode` inside the append subtree — refused a whole
+`ParticipantStatus` snapshot when its `rm` dimension was unacceptable, which
+discarded the accepted `vfd`/`pxa` values *and* aborted this Sequence before
+the Seam 1 emit, silently skipping embargo teardown (ISSUE-2235).
+
+The guard now adjudicates `rm`, `vfd` and `pxa` independently and publishes a
+*filtered* `ParticipantStatus` in which each refused dimension carries the
+participant's current value forward. It is read-only with respect to the
+DataLayer (CLP-10-006), so it can run before `GuardedCommitOrSkip` and the
+canonical entry snapshots the accepted portion rather than the raw claim.
+
+`em` is deliberately **not** adjudicated here — embargo state belongs to Seam 2
+(ISSUE-2256).
+
+Two blackboard keys carry the handoff. Both are written on *every* tick (with
+`None` when nothing was filtered) and matched by object ID on read, because the
+py_trees blackboard is process-global and `BTBridge.execute_with_setup` restores
+only `datalayer` and `trigger_activity_factory` between runs:
+
+| Key | Producer | Consumers |
+|---|---|---|
+| `append_status_dimension_filter` | `FilterParticipantStatusDimensionsNode` | `ResolveAndPersistStatusObjectNode`, `ValidateRMTransitionNode` |
+| `ledger_payload_object_override` | `FilterParticipantStatusDimensionsNode` | `CommitCaseLedgerEntryNode` |
+
+`ledger_payload_object_override` is defined in
+`vultron/core/behaviors/case/nodes/lifecycle.py` next to its consumer and is
+deliberately generic (`{"object_id", "object"}`): any receive tree may
+substitute the `object` entry of the ledger payload snapshot, and the other
+receive trees are unaffected because the override is opt-in and ID-matched.
+
+`ValidateRMTransitionNode` keeps its all-or-nothing RM semantics when the
+append subtree is used standalone. It only relaxes when the blackboard says
+`rm` was refused upstream and carried forward — a narrower change than
+reordering its terminal-`CLOSED` and equality checks would have been.
 
 ### CASE_OWNER gospel-bypass rationale
 

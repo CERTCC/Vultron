@@ -40,6 +40,15 @@ from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 
 logger = logging.getLogger(__name__)
 
+#: Blackboard key by which a preceding read-only guard in any receive tree may
+#: substitute the ``object`` entry of the canonical ledger ``payload_snapshot``
+#: read by :class:`CommitCaseLedgerEntryNode`.  The value is a mapping
+#: ``{"object_id": <id the override applies to>, "object": <snapshot dict>}``,
+#: or ``None`` when no substitution applies.
+#:
+#: Producers: :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`.
+BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
+
 
 def _extract_payload_snapshot(
     activity: Any, dl: CasePersistence | None = None
@@ -54,6 +63,16 @@ def _extract_payload_snapshot(
     return cast(
         dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
     )
+
+
+def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
+    """Return the ID of a payload snapshot's ``object``, inlined or not."""
+    value = payload_snapshot.get("object")
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, dict):
+        return value.get("id") or value.get("id_") or None
+    return None
 
 
 class CommitCaseLedgerEntryNode(DataLayerAction):
@@ -107,6 +126,10 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="sync_port", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
+            access=py_trees.common.Access.READ,
+        )
 
     def initialise(self) -> None:
         super().initialise()
@@ -126,6 +149,34 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             return self.blackboard.get("activity")
         except KeyError:
             return None
+
+    def _resolve_payload_object_override(
+        self, payload_snapshot: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Return a substitute ``object`` entry for the payload snapshot.
+
+        A preceding read-only guard may have adjudicated the inbound assertion
+        and published the portion the receiver actually accepts (RSH-05).  The
+        canonical entry must record *that*, not the raw claim, otherwise the
+        refused value is hash-chained and replicated to every participant.
+
+        The override names the object ID it applies to and is honoured only
+        when the snapshot's ``object`` refers to the same ID: the py_trees
+        blackboard is process-global and not cleared between executions, so an
+        unmatched override is a leftover from an earlier run and is ignored.
+        """
+        try:
+            override = self.blackboard.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE)
+        except KeyError:
+            return None
+        if not isinstance(override, dict):
+            return None
+        replacement = override.get("object")
+        if not isinstance(replacement, dict):
+            return None
+        if _snapshot_object_id(payload_snapshot) != override.get("object_id"):
+            return None
+        return replacement
 
     def _activity_metadata(
         self, activity: Any | None, case_id: str
@@ -178,6 +229,23 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         if payload_snapshot and payload_snapshot.get("context") != case_id:
             payload_snapshot = dict(payload_snapshot)
             payload_snapshot["context"] = case_id
+
+        # Record the portion of the assertion the receiver accepts, when a
+        # preceding guard adjudicated it (RSH-05).
+        if payload_snapshot:
+            replacement = self._resolve_payload_object_override(
+                payload_snapshot
+            )
+            if replacement is not None:
+                payload_snapshot = dict(payload_snapshot)
+                payload_snapshot["object"] = replacement
+                self.logger.info(
+                    "%s: snapshotting the accepted portion of object '%s'"
+                    " for case '%s' (RSH-05)",
+                    self.name,
+                    _snapshot_object_id(payload_snapshot),
+                    case_id,
+                )
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,

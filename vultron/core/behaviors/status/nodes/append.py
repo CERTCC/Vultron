@@ -15,9 +15,10 @@
 
 """Append-participant-status leaf nodes for DEMOMA-07-003 step 2.
 
-Contains the five leaf nodes that implement the append sequence:
-load participant, check idempotency, resolve status object, validate RM
-transition, and append + save.
+Contains the leaf nodes that implement the append sequence: check idempotency,
+load participant, resolve status object, and append + save.  The RM-transition
+guards that also participate in that sequence live in
+:mod:`vultron.core.behaviors.status.nodes.rm_validation` (BTND-07-004).
 """
 
 import logging
@@ -27,14 +28,13 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.status.nodes.dimension_filter import (
+    BB_DIMENSION_FILTER,
+    resolve_dimension_filter,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.states.rm import (
-    RM,
-    is_monotonic_rm_forward,
-    is_valid_rm_transition,
-)
 from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
@@ -190,8 +190,14 @@ class CheckStatusNotAlreadyAppendedNode(DataLayerCondition):
 class ResolveAndPersistStatusObjectNode(DataLayerAction):
     """Resolve the status object by ID, persisting fallback if needed.
 
-    Tries the DataLayer first; if not found, uses ``status_obj_fallback``,
-    saves it, then re-reads the canonical wire-format record.
+    When :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
+    has partially accepted the inbound status, the *filtered* status (refused
+    dimensions carried forward) is persisted at ``status_id`` and used in place
+    of the raw assertion, so that the appended record, the ledger ``object``
+    reference and the Seam 2 emit all describe the accepted portion (RSH-05).
+
+    Otherwise tries the DataLayer first; if not found, uses
+    ``status_obj_fallback``, saves it, then re-reads the canonical record.
 
     Validates that the resolved object is a ParticipantStatus (has rm and
     vfd attributes).
@@ -219,13 +225,30 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
             key="append_status_status_obj",
             access=py_trees.common.Access.WRITE,
         )
+        self.blackboard.register_key(
+            key=BB_DIMENSION_FILTER,
+            access=py_trees.common.Access.READ,
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        status_obj = self.datalayer.read(self.status_id)
+        filtered = resolve_dimension_filter(self.blackboard, self.status_id)
+        if filtered is not None:
+            status_obj = filtered["filtered_status"]
+            self.datalayer.save(status_obj)
+            self.logger.info(
+                "ResolveAndPersistStatusObjectNode: persisted partially"
+                " accepted status '%s' (refused: %s) in place of the raw"
+                " assertion (RSH-05)",
+                self.status_id,
+                ", ".join(filtered["refused"]),
+            )
+            status_obj = self.datalayer.read(self.status_id) or status_obj
+        else:
+            status_obj = self.datalayer.read(self.status_id)
         if not hasattr(status_obj, "id_"):
             status_obj = self.status_obj_fallback
             if status_obj is not None:
@@ -258,108 +281,6 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
             "append_status_status_obj", status_obj, overwrite=True
         )
         return Status.SUCCESS
-
-
-class ValidateRMTransitionNode(DataLayerCondition):
-    """Validate RM state transition rules.
-
-    Checks that the new RM state does not violate transition rules:
-    - Accepts non-adjacent forward RM jumps (sender is authoritative)
-    - Rejects backwards RM transitions
-
-    Returns SUCCESS if the transition is valid or if participant has no current
-    status (nothing to validate against).
-
-    Returns FAILURE if a backwards RM transition is detected.
-    """
-
-    def __init__(self, participant_id: str, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self.participant_id = participant_id
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="append_status_status_obj",
-            access=py_trees.common.Access.READ,
-        )
-
-    def update(self) -> Status:
-        participant = self.blackboard.get("append_status_participant")
-        status_obj = self.blackboard.get("append_status_status_obj")
-
-        if participant is None or status_obj is None:
-            self.feedback_message = "Participant or status not on blackboard"
-            self.logger.warning(
-                "ValidateRMTransitionNode: %s", self.feedback_message
-            )
-            return Status.FAILURE
-
-        new_rm_state = (
-            status_obj.rm.state if hasattr(status_obj, "rm") else None
-        )
-        current_status = getattr(participant, "participant_status", None)
-
-        if new_rm_state is None or current_status is None:
-            self.logger.debug(
-                "ValidateRMTransitionNode: no current status or new RM state,"
-                " skipping validation"
-            )
-            return Status.SUCCESS
-
-        current_rm = current_status.rm.state
-        if current_rm == RM.CLOSED:
-            self.feedback_message = (
-                "Participant is already in terminal RM.CLOSED state"
-                f" (received {new_rm_state}) for participant"
-                f" '{self.participant_id}'"
-            )
-            self.logger.info(
-                "ValidateRMTransitionNode: %s — rejecting",
-                self.feedback_message,
-            )
-            return Status.FAILURE
-
-        if current_rm == new_rm_state:
-            self.logger.debug(
-                "ValidateRMTransitionNode: no RM state change (both %s)",
-                current_rm,
-            )
-            return Status.SUCCESS
-
-        if is_valid_rm_transition(current_rm, new_rm_state):
-            self.logger.debug(
-                "ValidateRMTransitionNode: valid adjacent transition"
-                " %s → %s",
-                current_rm,
-                new_rm_state,
-            )
-            return Status.SUCCESS
-
-        if is_monotonic_rm_forward(current_rm, new_rm_state):
-            self.logger.info(
-                "ValidateRMTransitionNode: non-adjacent forward RM"
-                " transition %s → %s for participant '%s';"
-                " accepting sender-authoritative state",
-                current_rm,
-                new_rm_state,
-                self.participant_id,
-            )
-            return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Backwards RM transition {current_rm} → {new_rm_state}"
-            f" for participant '{self.participant_id}'"
-        )
-        self.logger.warning(
-            "ValidateRMTransitionNode: %s — rejecting",
-            self.feedback_message,
-        )
-        return Status.FAILURE
 
 
 class AppendStatusAndSaveParticipantNode(DataLayerAction):
@@ -417,83 +338,3 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
             self.participant_id,
         )
         return Status.SUCCESS
-
-
-class CheckParticipantRMNotClosedNode(DataLayerCondition):
-    """Pre-flight guard: FAILURE when participant is in RM.CLOSED with no prior
-    status match.
-
-    Used in ``add_participant_status_tree`` precondition guards to reject
-    CLOSED→CLOSED rewrites before the commit runs (CLP-10-006).
-
-    When ``status_id`` is supplied and the participant is CLOSED, returns
-    SUCCESS if ``status_id`` is already in ``participant.participant_statuses``
-    (idempotent delivery of a VALID→CLOSED update whose trigger side already
-    appended the status).  Returns FAILURE only for genuine CLOSED→CLOSED
-    rewrite attempts (status not yet in participant's list).
-
-    Returns SUCCESS when the participant has no current status, the current
-    RM state is not CLOSED, or the incoming status was already appended.
-    """
-
-    def __init__(
-        self,
-        participant_id: str,
-        status_id: str = "",
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.participant_id = participant_id
-        self.status_id = status_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        participant = self.datalayer.read(self.participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.logger.debug(
-                "%s: participant '%s' not found — allowing (no terminal check)",
-                self.name,
-                self.participant_id,
-            )
-            return Status.SUCCESS
-
-        current_status = getattr(participant, "participant_status", None)
-        if current_status is None:
-            return Status.SUCCESS
-
-        current_rm = (
-            current_status.rm.state if hasattr(current_status, "rm") else None
-        )
-        if current_rm != RM.CLOSED:
-            return Status.SUCCESS
-
-        # Participant is CLOSED. Allow if the incoming status was already
-        # appended by the trigger side (idempotent re-delivery of VALID→CLOSED).
-        if self.status_id:
-            existing_ids = [
-                _as_id(s)
-                for s in getattr(participant, "participant_statuses", [])
-            ]
-            if self.status_id in existing_ids:
-                self.logger.debug(
-                    "%s: participant '%s' is CLOSED but status '%s' already"
-                    " in participant_statuses — allowing idempotent commit",
-                    self.name,
-                    self.participant_id,
-                    self.status_id,
-                )
-                return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Participant '{self.participant_id}' is already in terminal"
-            " RM.CLOSED — rejecting status update (DEMOMA-07-003)"
-        )
-        self.logger.info(
-            "%s: %s",
-            self.name,
-            self.feedback_message,
-        )
-        return Status.FAILURE

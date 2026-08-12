@@ -209,3 +209,124 @@ groups:
       as a parallel refactor target: once `EmitCaseStatusUpdateNode` is in
       place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
       ledger writes as well. That refactor is blocked-by the impl issue.
+
+- id: RSH-05
+  title: Per-Dimension Partial Accept (liberal accept)
+  description: >
+    An inbound `Add(ParticipantStatus, CaseParticipant)` carries a snapshot of
+    several independent state machines (`rm`, `vfd`, `em`, `pxa`, `consent`).
+    These requirements govern adjudicating each dimension on its own rather
+    than accepting or discarding the snapshot as a unit.
+    Derived from ISSUE-2235 and epic ISSUE-2229 (Postel's maxim / liberal
+    accept).
+  specs:
+  - id: RSH-05-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` MUST
+      adjudicate each state dimension of the reported status independently. An
+      unacceptable value in one dimension MUST NOT cause the values reported in
+      the other dimensions to be discarded.
+    rationale: >
+      RM, VFD, EM, PXA and PEC are independent state machines. A value that is
+      unacceptable in one dimension carries no information about the others, so
+      discarding the whole snapshot destroys state the receiver has no grounds
+      to refuse. Liberal accept (ISSUE-2229): accept everything acceptable.
+    notes: >
+      Implemented by `FilterParticipantStatusDimensionsNode` in
+      `vultron/core/behaviors/status/nodes/dimension_filter.py`, wired as a
+      precondition guard of `add_participant_status_tree`. It supersedes
+      `CheckParticipantRMNotClosedNode`, whose all-or-nothing RM refusal was
+      the defect reported in ISSUE-2235.
+  - id: RSH-05-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      When a dimension is refused, the receiver MUST record the participant's
+      current value for that dimension alongside the accepted values from the
+      other dimensions, as a single `ParticipantStatus`.
+    rationale: >
+      The recorded status must remain a coherent snapshot of the receiver's
+      view of the participant. Omitting the refused dimension would leave it
+      undefined; recording the asserted value would adopt a claim the receiver
+      just refused.
+  - id: RSH-05-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      A refused dimension MUST NOT prevent the Seam 1 emit (RSH-01-003) from
+      running. The self-addressed `Add(CaseStatus)` MUST still be emitted
+      whenever any dimension of the update was accepted.
+    rationale: >
+      Seam 2 owns embargo teardown (RSH-01-004). Aborting the Seam 1 sequence
+      on a refused dimension silently skipped teardown — the concrete failure
+      reported in ISSUE-2235.
+  - id: RSH-05-004
+    priority: MUST
+    kind: protocol
+    statement: >
+      The canonical `CaseLedgerEntry` committed for a partially accepted status
+      MUST snapshot the accepted portion, not the raw assertion.
+    rationale: >
+      The canonical projection is replicated to every participant and bound
+      into the hash chain. Snapshotting the raw assertion would fan out a value
+      the receiver refused, and each replica would apply it. Recording the
+      accepted portion is also what makes the refusal visible: the canonical
+      entry differs from what the sender asserted.
+    notes: >
+      Implemented via the `ledger_payload_object_override` blackboard contract
+      read by `CommitCaseLedgerEntryNode`. The guard runs before
+      `GuardedCommit` per CLP-10-006, so the adjudication is available at
+      commit time. The guard is read-only with respect to the DataLayer.
+  - id: RSH-05-005
+    priority: MUST
+    kind: protocol
+    statement: >
+      A status update in which every refused dimension leaves the resulting
+      snapshot indistinguishable from the participant's current state MUST be
+      refused in full: nothing is appended and no canonical ledger entry is
+      committed.
+    rationale: >
+      Such an assertion carries no acceptable information. Appending it would
+      grow the participant's status history and the hash chain without
+      recording any state change.
+  - id: RSH-05-006
+    priority: MUST
+    kind: protocol
+    statement: >
+      `RM.CLOSED` MUST be treated as terminal for the `rm` dimension only. A
+      participant at `RM.CLOSED` MUST still have accepted values in other
+      dimensions recorded.
+    rationale: >
+      A vendor that has closed its report management workflow may still deploy
+      a fix (VFD) or observe public disclosure (PXA). Freezing the whole
+      snapshot at RM closure discards real protocol state.
+  - id: RSH-05-007
+    priority: MUST
+    kind: protocol
+    statement: >
+      A participant applying an `Announce(CaseLedgerEntry)` for an
+      `add_participant_status_to_participant` event MUST NOT let it move a
+      replica's RM state backwards on the RM progress scale. The local value
+      MUST be carried forward for that dimension; all other dimensions are
+      applied as the entry describes them.
+    rationale: >
+      Monotonic visibility (see notes/sync-ledger-replication.md). The Case
+      Actor is authoritative for which transition happened, but a replayed,
+      reordered, or divergent entry would otherwise un-see progress the replica
+      has already observed. Lateral moves at the same rank
+      (`VALID` <-> `INVALID`) are re-adjudication, not regression, and are
+      applied unchanged.
+  - id: RSH-05-008
+    priority: SHOULD
+    kind: protocol
+    statement: >
+      The `em` dimension SHOULD NOT be adjudicated at Seam 1; embargo state
+      belongs to Seam 2 (`add_case_status_tree`).
+    rationale: >
+      EM is per-case rather than per-participant and its authorization seam is
+      the SideEffectsGuard (RSH-02-001). Adjudicating it in the Seam 1 guard
+      would duplicate — and could contradict — Seam 2's decision.
+    notes: >
+      Seam 2 EM adjudication is tracked in ISSUE-2256.

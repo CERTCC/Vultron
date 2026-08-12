@@ -222,7 +222,15 @@ invariants under normal operation and partial failure:
 3. **Idempotent replay**: Reprocessing any log prefix (including duplicates)
    MUST NOT change the resulting state.
 4. **Monotonic visibility**: Participants MUST NOT regress their acknowledged
-   log position.
+   log position. This extends to projected protocol state:
+   `ApplyParticipantStatusFromLedgerNode` will not let an entry move a
+   replica's RM state backwards on the progress scale, even though the Case
+   Actor is authoritative for *which* transition happened. A replayed,
+   reordered, or divergent entry would otherwise un-see progress the replica
+   has already observed. The local value is carried forward for `rm` only;
+   every other dimension is applied as the entry describes it, and lateral
+   moves at the same rank (`VALID` ↔ `INVALID`) are re-adjudication rather than
+   regression (RSH-05-007, ADR-0060).
 5. **Reject-on-divergence**: Entries that do not extend the current hash
    chain MUST be rejected and MUST trigger resynchronization.
 

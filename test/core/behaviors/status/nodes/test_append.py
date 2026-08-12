@@ -16,9 +16,9 @@
 """Unit tests for append-participant-status leaf nodes.
 
 Tests SkipIfIdempotentNode, LoadParticipantNode,
-CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
-ValidateRMTransitionNode, and AppendStatusAndSaveParticipantNode
-from nodes.append.
+CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode and
+AppendStatusAndSaveParticipantNode from ``nodes.append``, plus
+ValidateRMTransitionNode from ``nodes.rm_validation``.
 
 Per DEMOMA-07-003 step 2.
 """
@@ -35,6 +35,8 @@ from vultron.core.behaviors.status.nodes.append import (
     LoadParticipantNode,
     ResolveAndPersistStatusObjectNode,
     SkipIfIdempotentNode,
+)
+from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
 from vultron.enums.roles import CVDRole
