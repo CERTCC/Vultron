@@ -530,6 +530,23 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `specs/` for the bare name as well as the quoted/path form, and update every spec entry
   that references it — including `statement:`, `rationale:`, and cross-reference fields.
   *Source: ISSUE-2011*
+- **`embargo_adherence` Is a `@computed_field`, Not a Settable Field** —
+  `ParticipantStatus.embargo_adherence` is derived from `consent.state`
+  (`True` iff `PEC.SIGNATORY`). Do NOT set it directly or declare it as a
+  stored field. To change the value, apply a PEC trigger via
+  `CaseParticipant.apply_pec_transition()`. See CM-18-008, ADR-0056.
+  *Source: CONCERN-2091*
+- **Delegated-Emit Trigger Use Cases MUST Set `actor=case_actor_id`,
+  `attributed_to=requesting_actor_id`** — trigger use cases that emit an
+  Activity on behalf of the CaseActor (invite, ownership transfer, and any
+  future delegated flows) MUST set `self._actor_id = case_actor_id` and
+  `self._attributed_to = requesting_actor_id` in `_prepare()`, then queue
+  the Activity in the CaseActor's outbox (CM-24-001 through CM-24-004).
+  Setting `actor` to the requesting actor directly causes receivers to reject
+  the message (ISSUE-2142).  Use the shared `_prepare_delegated_context()`
+  helper (or equivalent) — never reconstruct the pattern inline (CM-24-005).
+  See [notes/case-communication-model.md](notes/case-communication-model.md)
+  § "Delegated-Message Pattern". *Source: CONCERN-2170*
 - **Multiple Related Fix PRs Targeting a Shared CI Suite Must Use an Integration
   Branch, Not Race to `main`** — when 3+ related bug fix PRs are open
   simultaneously and all affect the same CI suite (e.g. Demo Integration), open
@@ -539,6 +556,27 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   is green. Racing parallel PRs to `main` means each PR can only confirm its own
   scenario passes — none can confirm it hasn't perturbed other currently-passing
   scenarios. *Source: CONCERN-2137*
+- **New Push-to-`main` or Scheduled Workflows MUST Wire the `notify-failure`
+  Composite Action** — any workflow that triggers on `push: branches: [main]` or
+  on `schedule:` MUST include `.github/actions/notify-failure` as a final step
+  (CISEC-05-001). Without it, failures on `main` or unattended scheduled runs go
+  undetected until someone manually audits the Actions tab. Two separate steps are
+  required: one on failure (file/update a `ci:main-failure` issue, CISEC-05-001)
+  and one on success (close the issue for recovery visibility, CISEC-05-002).
+  *Source: CONCERN-2132*
+- **Demo Steps Must Be Gated on Their Cause, Not Their Position in the Script** —
+  a scenario step that depends on an asynchronous effect MUST gate on the
+  committed state of the actor that *produces* that effect, read from that actor's
+  own container. An HTTP 202 return, elapsed time, and step order are not
+  evidence; neither is an observable that resolves synchronously during the
+  triggering request (ISSUE-2134). Discover a forwarded object by discriminator
+  scan, never by the sender's original ID (ISSUE-2178). Use `demo_gate` (stops
+  dependent steps) for preconditions and `demo_check` (advisory) for assertions,
+  and never patch either out with `nullcontext` in tests. See EDF-06, DEMOMA-22,
+  DEMOCI-01-007, ADR-0058,
+  [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
+  § "Temporal Sequence vs. Causal Sequence", and
+  [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md). *Source: CONCERN-2181*
 - **`SemanticEntry` Phrases MUST Use Only `{actor}`, `{object}`, `{target}`** —
   the runtime render pipeline (`CaseTimelineEvent.summary`, `event_phrase()`)
   never fills `{context}`, `{origin}`, or `{inner_object}`. A phrase referencing

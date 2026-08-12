@@ -272,7 +272,11 @@ nav:
       - Demo CI Job Structure — Accept Barrier and Concurrency Group: 'adr/0052-demo-ci-job-structure-barrier-accepted.md'
       - Route Ownership-Transfer Offer and Accept Through the CaseActor: 'adr/0053-ownership-transfer-routed-via-caseactor.md'
       - Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues: 'adr/0054-learnings-queue-as-files-not-issues.md'
-      - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0055-buffer-pre-genesis-ledger-entries.md'
+      - CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows: 'adr/0055-ci-failure-alerting-via-github-issues.md'
+      - embargo_adherence Is a Computed Property Derived from PEC State: 'adr/0056-embargo-adherence-computed-field.md'
+      - Rename CVDRole.OTHER to CVDRole.OBSERVER and Define Observer Participant Semantics: 'adr/0057-observer-participant-role.md'
+      - Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order: 'adr/0058-causal-gating-in-demo-scenarios.md'
+      - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0059-buffer-pre-genesis-ledger-entries.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -342,6 +346,9 @@ plugins:
             heading_level: 2
   - markdown-exec
   - search
+  # autorefs is declared explicitly so mkdocstrings does not auto-append it
+  # after print-site, which would trip print-site's must-be-last check.
+  - autorefs
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'

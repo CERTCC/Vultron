@@ -175,9 +175,77 @@ Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
 
 ---
 
+## CaseStatus Emission Authority (RSH-04)
+
+### The invariant
+
+CaseStatus is the **only protocol channel** for communicating EM and PXA
+state changes to participant replicas. This means:
+
+1. **Only the CaseActor (CASE_MANAGER) emits `Add(CaseStatus)` directly.**
+   All other participants embed a suggested `CaseStatus` inside
+   `Add(ParticipantStatus)` and let the two-seam model decide whether to
+   adopt it (RSH-04-001).
+
+2. **Every CaseActor-side EM or PXA state mutation MUST be followed by a
+   canonical `CaseStatus` ledger write** (RSH-04-002, RSH-04-003). Without
+   it, all participant replicas remain stale until the next round-trip.
+
+### The emit mechanism
+
+A shared BT node, `EmitCaseStatusUpdateNode`, performs the canonical write:
+
+1. Reads the updated `CaseStatus` from the case record (post-mutation state).
+2. Appends it to `case.case_statuses` and persists.
+3. Commits a `CaseLedgerEntry` (the authoritative ledger record).
+4. The `Announce(CaseLedgerEntry)` broadcast that syncs participants to
+   the new state is handled by the existing announce mechanism downstream.
+
+This node is wired **after** every EM lifecycle node in each BT tree factory
+(Propose, Accept, Reject, Terminate, and cascade variants such as
+`RejectProposedEmbargoLifecycleNode` and `ApplyEmbargoTeardownNode`).
+
+### Causality (important)
+
+The correct causal order is:
+
+```text
+CaseActor mutates EM/PXA state
+  → writes CaseStatus to ledger (authoritative)
+  → Announce(CaseLedgerEntry) syncs participants
+```
+
+**Not** the inbox-loopback pattern that `EmitAddCaseStatusToSelfNode`
+currently uses:
+
+```text
+[kludge] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
+```
+
+The inbox seam (Seam 1 → Seam 2) exists for evaluating **external participant
+suggestions**, not for the CaseActor recording its own authoritative state
+changes. `EmitAddCaseStatusToSelfNode` is a recognized kludge; a follow-on
+issue will refactor the inbound path to use direct ledger writes as well
+(blocked by the `EmitCaseStatusUpdateNode` impl issue).
+
+### BT nodes in scope for the emit invariant
+
+| Node / Tree | EM transition | Covered by `EmitCaseStatusUpdateNode`? |
+|---|---|---|
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NO_EMBARGO → PROPOSED | Pending (ISSUE-2175) |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_revision_trigger_bt` (revision, with `ValidateEmbargoRevisionStateNode` guard) | ACTIVE → REVISE | Pending (ISSUE-2175) |
+| `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Pending |
+| `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NO_EMBARGO | Pending |
+| `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Pending |
+| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NO_EMBARGO | Pending |
+| `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Pending |
+
+---
+
 ## References
 
 - ADR-0046: `docs/adr/0046-received-status-authorization.md`
-- Spec: `specs/received-status-handling.yaml` RSH-01 through RSH-03
+- Spec: `specs/received-status-handling.yaml` RSH-01 through RSH-04
+- Source Concern: CONCERN-1667
 - Source Idea: IDEA-1836
 - Superseded approach: `notes/bt-fuzzer-rm-threat.md` (sentinel integration context)

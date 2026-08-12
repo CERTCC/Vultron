@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.6.0
+version: 1.7.0
 scope:
   - prototype
   - production
@@ -55,13 +55,15 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Error detection and accumulation MUST be implemented by extending
-          the existing demo_step and demo_check context managers in
+          Error detection and accumulation MUST be implemented by the
+          demo_step, demo_check, and demo_gate context managers in
           vultron/demo/utils.py.
         rationale: >-
           All demo workflow steps and verification blocks already use these
           context managers; centralising error accumulation there minimises
-          the change surface.
+          the change surface. demo_gate was added by DEMOCI-01-007: it
+          accumulates identically, and differs only in that it also stops the
+          steps that depend on the failed precondition.
 
       - id: DEMOCI-01-005
         priority: MUST
@@ -94,6 +96,33 @@ groups:
             spec_id: DEMOCI-01-003
           - rel_type: refines
             spec_id: DEMOCI-01-004
+
+      - id: DEMOCI-01-007
+        priority: MUST
+        kind: project
+        statement: >-
+          A causal precondition MUST be expressed with a `demo_gate` context
+          manager, distinct from `demo_check`. On failure `demo_gate` MUST
+          record the failure in the accumulator exactly as `demo_check` does,
+          and MUST additionally prevent execution of the steps that depend on
+          the unmet precondition. `demo_check` MUST remain advisory: it records
+          and continues.
+        rationale: >-
+          Accumulate-and-continue is correct for verification assertions — report
+          every failed check, not just the first — and wrong for preconditions,
+          where continuing buries the real failure under secondary ones and makes
+          the gate indistinguishable from a comment. Both behaviours are needed,
+          so they need distinct names. See ADR-0058 and EDF-06-005.
+        adr:
+          - ADR-0058
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-01-003
+            note: >-
+              Constrains control flow only; the accumulation and
+              exit-code contract of DEMOCI-01-001 and DEMOCI-01-003 is unchanged.
+          - rel_type: implements
+            spec_id: EDF-06-005
 
   - id: DEMOCI-02
     title: GitHub Actions Demo Workflow

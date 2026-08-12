@@ -1,6 +1,7 @@
 ---
 status: accepted-provisional
 date: 2026-07-30
+updated: 2026-08-11
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: []
@@ -111,11 +112,47 @@ which is removed from `add_participant_status_tree`.
 - Unit tests: CS states outside {P, X, A} do not trigger teardown
 - Regression: CS.P path unaffected after migration of PublicDisclosureBranchNode
 
+## Outbound Emit Invariant
+
+The two-seam model governs **inbound** participant suggestions. A parallel
+invariant applies to the CaseActor's **own** EM and PXA state mutations:
+
+> Every CaseActor-side EM or PXA state change MUST be followed by a canonical
+> `CaseStatus` ledger write. `CaseStatus` is the only protocol channel for
+> communicating EM and PXA state to participant replicas.
+
+The correct causal order is:
+
+```text
+CaseActor mutates EM/PXA state
+  → writes CaseStatus to case.case_statuses + CaseLedgerEntry (authoritative)
+  → Announce(CaseLedgerEntry) syncs participants
+```
+
+A shared `EmitCaseStatusUpdateNode` (direct write, not inbox-routed) is wired
+after every EM lifecycle BT node. This is **not** a new seam decision — it
+carves a limited exception to ADR-0021's inbox-routing rule: the CaseActor's
+own outbound EM/PXA state change emissions write directly to the ledger rather
+than routing through the inbox seam. The existing `EmitAddCaseStatusToSelfNode` (inbox-loopback path)
+is a kludge that will be refactored once `EmitCaseStatusUpdateNode` is in place.
+
+### CaseStatus Emission Authority (RSH-04)
+
+Only the CaseActor (acting as CASE_MANAGER) emits `Add(CaseStatus)` directly.
+All other participants embed a suggested `CaseStatus` inside
+`Add(ParticipantStatus)`; the two-seam model decides whether to adopt it.
+
+See `specs/received-status-handling.yaml` RSH-04-001 through RSH-04-004 and
+`notes/received-status-authorization.md` § "CaseStatus Emission Authority".
+
+---
+
 ## More Information
 
 Design ratified in IDEA-1836 planning session (2026-07-30).
-Status is `accepted-provisional` — the design is the agreed direction but has
-not yet been validated by a complete implementation pass.
+Status is `accepted-provisional` — the inbound two-seam design is implemented;
+the outbound emit invariant (`EmitCaseStatusUpdateNode`) is pending
+(CONCERN-1667 implementation child issue).
 
 Generated spec requirements: `specs/received-status-handling.yaml` RSH-01
-through RSH-03.
+through RSH-04.

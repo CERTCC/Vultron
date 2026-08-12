@@ -124,7 +124,11 @@ General information about architectural decision records is available at <https:
 - [ADR-0052 Demo CI Job Structure: Accept Barrier + Concurrency Group Over Job Consolidation](0052-demo-ci-job-structure-barrier-accepted.md) *(provisional)*
 - [ADR-0053 Route Ownership-Transfer Offer and Accept Through the CaseActor](0053-ownership-transfer-routed-via-caseactor.md)
 - [ADR-0054 Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues](0054-learnings-queue-as-files-not-issues.md)
-- [ADR-0055 Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed](0055-buffer-pre-genesis-ledger-entries.md)
+- [ADR-0055 CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows](0055-ci-failure-alerting-via-github-issues.md)
+- [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](0056-embargo-adherence-computed-field.md)
+- [ADR-0057 Rename `CVDRole.OTHER` to `CVDRole.OBSERVER` and Define Observer Participant Semantics](0057-observer-participant-role.md)
+- [ADR-0058 Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order](0058-causal-gating-in-demo-scenarios.md) *(provisional)*
+- [ADR-0059 Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed](0059-buffer-pre-genesis-ledger-entries.md)
 
 ## Proposed ADRs
 

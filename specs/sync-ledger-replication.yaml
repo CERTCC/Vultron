@@ -456,8 +456,8 @@ groups:
     genuinely lost rather than merely early.  The forward-gap buffer of SYNC-14 alone does not
     cover this window: it only holds entries for a case whose genesis anchor is already known,
     so a distinct pre-genesis hold and a drain triggered by the case seed are required.
-    Rationale for the buffer-and-drain path (SYNC-15-004, SYNC-15-005): ADR-0055
-    (docs/adr/0055-buffer-pre-genesis-ledger-entries.md).
+    Rationale for the buffer-and-drain path (SYNC-15-004, SYNC-15-005): ADR-0059
+    (docs/adr/0059-buffer-pre-genesis-ledger-entries.md).
   specs:
   - id: SYNC-15-001
     priority: MUST

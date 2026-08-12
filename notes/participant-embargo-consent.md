@@ -211,11 +211,11 @@ notes with sensitive information) is gated on `embargo_adherence=True`.
 - The machine name is `ParticipantEmbargoConsent`
 - Define states and triggers in a new module:
   `vultron/core/states/participant_embargo_consent.py`
-- `VultronParticipantStatus.embargo_adherence: bool` should become a
-  `@property` that returns `self._consent_state == "SIGNATORY"` (or equivalent)
-- Alternatively, retain `embargo_adherence: bool` as a plain stored field for
-  backward compatibility, but enforce transitions via use-case logic
-- The stored field value should mirror the derived property on every update
+- `ParticipantStatus.embargo_adherence` is a `@computed_field` (Pydantic v2)
+  that returns `self.consent is not None and self.consent.state == PEC.SIGNATORY`.
+  It MUST NOT be declared as a stored field. Consent writes go through
+  `apply_pec_transition()` on `CaseParticipant`; the computed field reflects the
+  result automatically. Decision: ADR-0056.
 
 ---
 
