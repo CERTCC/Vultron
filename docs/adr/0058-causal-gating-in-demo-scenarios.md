@@ -63,8 +63,10 @@ observe before advancing, and where should that requirement live?
   cannot simply convert gates into hard aborts.
 - Nine scenario modules totalling roughly 9,700 lines already exist; a solution
   requiring all of them to be rewritten in a new form is unlikely to be finished.
-- ADR-0037 and ADR-0055 already moved one class of ordering problem into
-  actor-side buffering. A harness rule must not contradict that.
+- ADR-0037 and the pre-genesis ledger-entry buffering decision (ADR-0055 *on the
+  `fix/demo-ci` branch*, not the ADR-0055 on `main`; it is subject to renumbering
+  when that branch merges under #2143) already moved one class of ordering problem
+  into actor-side buffering. A harness rule must not contradict that.
 
 ## Considered Options
 
@@ -177,8 +179,9 @@ around it.
 
 ### Push all ordering into the actors
 
-- Good, because it fixes the production protocol, not just the demo — which
-  ADR-0055 showed is sometimes the real defect.
+- Good, because it fixes the production protocol, not just the demo — which the
+  pre-genesis buffering decision on `fix/demo-ci` showed is sometimes the real
+  defect.
 - Good, because a harness that never needs to sequence is the simplest harness.
 - Neutral, because it is already the chosen approach for the specific case of
   pre-genesis ledger entries.
@@ -216,7 +219,8 @@ machines and BT nodes ... are likely already correct. The gap is in the *demo
 harness* ... not in the actor logic itself." Post-concern evidence shows the same
 causal gap exists in the protocol layer: #2169's fan-out race is server-side and
 a client-side demo wait cannot prevent it, #2186 was consequently fixed in the
-protocol (ADR-0055), and #2194 — a bare-string `Accept.object_` that trips the
+protocol (the pre-genesis buffering ADR on `fix/demo-ci`), and #2194 — a
+bare-string `Accept.object_` that trips the
 MV-09-001 outbox gate so the activity is never delivered — is squarely an actor
 logic bug. The pattern this ADR addresses is real and well-attested, but it is
 not exclusively a harness problem, and this decision does not green Epic #2136 on
@@ -227,6 +231,14 @@ Related decisions: ADR-0037 (buffer out-of-order ledger entries), ADR-0055 on
 the `fix/demo-ci` branch (buffer pre-genesis ledger entries — the production-side
 counterpart of this decision), ADR-0041 (`log_index` order is causal order),
 ADR-0052 (demo CI job structure).
+
+> **Note on the ADR-0055 number.** Two distinct ADRs currently hold the number
+> 0055: on `main` it is "CI Failure Alerting via GitHub Issues", and on
+> `fix/demo-ci` it is "Buffer Pre-Genesis Ledger Entries". Every reference to
+> pre-genesis buffering in this ADR and in the accompanying notes means the
+> `fix/demo-ci` one. That ADR must be renumbered when `fix/demo-ci` merges
+> (#2143), the way ADR-0056 was renumbered to ADR-0057 for the same reason — so
+> prefer the title over the number when citing it.
 
 Source concern: CONCERN-2181. Evidence: the Epic #2136 sub-issues ISSUE-2120,
 ISSUE-2134, ISSUE-2135, ISSUE-2141, ISSUE-2169, ISSUE-2178, ISSUE-2180, and

@@ -978,11 +978,8 @@ groups:
       post-review fixes). Omitting any wait step causes the scenario to proceed on
       state that has not yet been committed to the target actor's DataLayer,
       producing consistent CI failures rather than intermittent flakes.
-      This requirement is now the FVCV-handoff instance of the general rule
-      DEMOMA-22-001, which applies the same constraint to every scenario. The
-      general form additionally constrains *what* the wait may observe
-      (EDF-06-001 through EDF-06-003); "a polling wait exists here" is
-      necessary but not sufficient.
+      This requirement is the FVCV-handoff instance of the general rule
+      DEMOMA-22-001 (see relationships).
     preconditions:
     - description: >-
         FVCV-handoff scenario executing; Vendor1 has just emitted the ownership-transfer
@@ -1020,6 +1017,14 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007
+    - rel_type: refines
+      spec_id: DEMOMA-22-001
+      note: >-
+        This requirement is the FVCV-handoff instance of the general rule
+        DEMOMA-22-001, which applies the same constraint to every scenario and
+        additionally constrains *what* the wait may observe (EDF-06-001 through
+        EDF-06-003). "A polling wait exists here" is necessary but not
+        sufficient. This requirement remains active; it is not superseded.
   - id: DEMOMA-11-010
     priority: MUST
     kind: project
@@ -2829,11 +2834,13 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EDF-06-001
-    - rel_type: supersedes
+    - rel_type: constrains
       spec_id: DEMOMA-11-009
       note: >-
-        DEMOMA-11-009 is retained as the FVCV-handoff instance; this is the
-        general rule it becomes an instance of.
+        DEMOMA-11-009 remains active and is NOT superseded: it is retained as
+        the FVCV-handoff instance of this general rule, and additionally
+        constrained by it (the general form also governs *what* the wait may
+        observe, per EDF-06-001 through EDF-06-003).
     tags:
     - demo
     - testing
@@ -2841,18 +2848,30 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Causal gate primitives MUST be defined in `vultron/demo/helpers/`.
-      Scenario modules MUST NOT define their own polling or retry loops.
+      Causal gate *predicates* — the reusable functions that poll or scan an
+      actor's own state to decide whether a precondition holds — MUST be defined
+      in `vultron/demo/helpers/`. Scenario modules MUST NOT define their own
+      polling or retry loops. This requirement does NOT relocate the `demo_gate`
+      context manager itself, which DEMOCI-01-007 places in
+      `vultron/demo/utils.py` alongside `demo_step` and `demo_check`.
     rationale: >-
       A MUST-level application of DEMOMA-17-001 (extract before reuse) to the
       gating vocabulary specifically. Hand-rolled loops in scenario modules are
       how the #2178 defect survived in `fccv_handoff_demo.py` after being fixed
-      in `fvcv_handoff_demo.py` — the fix had nowhere shared to land.
+      in `fvcv_handoff_demo.py` — the fix had nowhere shared to land. The split
+      is deliberate: the control-flow primitive lives with the other context
+      managers, and the observables it gates on live in the helper vocabulary.
     adr:
     - ADR-0058
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-01-007
+      note: >-
+        DEMOCI-01-007 owns the location and semantics of the `demo_gate` context
+        manager; this requirement owns the location of the predicates passed to
+        it.
     tags:
     - demo
     - testing

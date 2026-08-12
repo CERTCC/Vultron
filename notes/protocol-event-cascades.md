@@ -11,6 +11,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
+  - notes/event-driven-control-flow.md
 relevant_packages:
   - vultron/core/use_cases
   - vultron/core/behaviors
@@ -191,7 +192,9 @@ DEMOMA-22 and rationale in ADR-0058.
 The two are easy to confuse because they present the same way in CI, and the fix
 differs sharply: a missing cascade needs a BT subtree, while a harness race needs
 a gate — or, when the effect can be *lost* rather than merely delayed, actor-side
-buffering (ADR-0037, ADR-0055). Diagnose which one you have before fixing it.
+buffering (ADR-0037, and the pre-genesis buffering ADR on the `fix/demo-ci`
+branch — not `main`'s ADR-0055, which is unrelated). Diagnose which one you have
+before fixing it.
 
 ## Related
 

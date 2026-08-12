@@ -248,7 +248,8 @@ Fixing them one at a time does not stop the next scenario from reintroducing it.
    call site so they are not mistaken for causal gates (EDF-06-006).
 7. **Raising a timeout is not a fix.** If a gate times out reliably, either the
    observable is wrong (see 1–3) or the effect can be *lost* rather than delayed —
-   in which case the protocol must buffer it (ADR-0037, ADR-0055) and a demo guard
+   in which case the protocol must buffer it (ADR-0037, and the pre-genesis
+   buffering ADR on `fix/demo-ci` — not `main`'s ADR-0055) and a demo guard
    would be papering over a production bug.
 
 **Testing gates:** exercise the real context manager. A test that patches
