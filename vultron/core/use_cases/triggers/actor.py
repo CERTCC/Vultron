@@ -360,13 +360,13 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         offer = self._dl.read(request.offer_id)
         if offer is None:
             raise VultronNotFoundError(
-                "_OfferCaseOwnershipTransferActivity", request.offer_id
+                "VultronOwnershipTransferOfferRecord", request.offer_id
             )
 
         self._offer_id = request.offer_id
 
         raw_case_id = _as_id(getattr(offer, "object_", None))
-        if raw_case_id is None:
+        if not raw_case_id:
             raise VultronNotFoundError(
                 "VulnerabilityCase (in Offer.object_)", request.offer_id
             )

@@ -165,6 +165,39 @@ Use this analogy when explaining the model to new contributors.
 
 ---
 
+## Replica-side Materialization (SYNC Path)
+
+When a participant joins a case that already has an ownership-transfer offer
+in flight, or when a Coordinator replica receives the ledger broadcast for
+`offer_case_ownership_transfer`, the Offer object must be materialized from
+the `Announce(CaseLedgerEntry)` entry — it does **not** arrive via the HTTP
+inbox path.
+
+The announce tree (`create_announce_log_entry_tree`) has a Selector slot for
+`OfferOwnershipTransferEffects`. The two BT nodes that wire this slot are:
+
+- `IsOfferOwnershipTransferEventNode` — Condition: checks
+  `entry.event_type == "offer_case_ownership_transfer"`
+- `ApplyOfferOwnershipTransferFromLedgerNode` — Action: extracts `offer_id`
+  from `payload_snapshot["id"]` and `case_id` from `payload_snapshot["object"]`,
+  creates a `VultronOwnershipTransferOfferRecord`, and saves it to the
+  DataLayer so that `SvcAcceptCaseOwnershipTransferUseCase._prepare` can
+  `dl.read(offer_id)` without a 404.
+
+**Why this is needed**: `SvcAcceptCaseOwnershipTransferUseCase._prepare` calls
+`self._dl.read(request.offer_id)` to resolve the case ID embedded in the
+offer. If the Coordinator replica never materialized the Offer object (because
+it arrived only via the SYNC path, not the HTTP inbox), `_prepare` raises
+`VultronNotFoundError("VultronOwnershipTransferOfferRecord", offer_id)`.
+
+This is analogous to how report-offer backfill works in the invite flow — the
+ledger entry carries the full payload snapshot, and the announce-tree effect
+node reconstructs the core object from it.
+
+**Spec ref**: CM-21-007.
+
+---
+
 ## Guarded-Commit Pattern Reminder
 
 `AcceptCaseOwnershipTransferReceivedUseCase` is a **received-side** use case.
