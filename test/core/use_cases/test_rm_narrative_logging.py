@@ -216,6 +216,7 @@ class TestInvitedPathBootstrap:
         ), "Expected True — RM.VALID → RM.ACCEPTED must succeed"
         participant = dl.read(_PARTICIPANT_ID)
         assert participant is not None
+        assert isinstance(participant, CaseParticipant)
         assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
 
     def test_accepted_without_prior_validate_is_blocked(

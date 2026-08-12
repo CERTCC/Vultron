@@ -39,10 +39,13 @@ This test is a shape-replica of the affected sites
 so no Docker or live HTTP is required.
 """
 
+from typing import cast
+
 import pytest
 
 import vultron.demo.utils as demo_utils
 from vultron.demo.utils import (
+    DataLayerClient,
     assert_demo_success,
     demo_step,
     reset_demo_failures,
@@ -59,12 +62,14 @@ def _accept_ownership_transfer_shape() -> dict | None:
     ``accept_ownership`` as ``None`` (initialised before the block) rather than
     raising ``UnboundLocalError``.
     """
-    accept_ownership = None
+    accept_ownership: dict | None = None
     with demo_step(
         "Coordinator accepts case ownership transfer (TRIG-11-002)"
     ):
         accept_result = demo_utils.post_to_trigger(
-            client=None,
+            # The client is never dereferenced: the only caller monkeypatches
+            # post_to_trigger to raise before it would be used.
+            client=cast(DataLayerClient, None),
             actor_id="https://vultron.example/actors/coordinator",
             behavior="accept-case-ownership-transfer",
             body={"offer_id": "https://vultron.example/offers/1"},
