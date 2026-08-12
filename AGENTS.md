@@ -466,6 +466,27 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   conflict markers, `git add <file>`, `git cherry-pick --continue --no-edit`,
   then `git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH"`.
   Use `manage_worktree.sh ensure-synced` in preference to the raw script.
+- **A Red CI Job Is Not Evidence That Its Assertions Ran** — a job that dies in
+  an earlier step (artifact download, dependency setup, container build) never
+  reaches pytest, so its red status says nothing about what the tests assert.
+  Open the log and identify the failing *step* before concluding a test is
+  wrong, unsatisfiable, or "can never pass". A permanently-red
+  `<scenario> Invariant Harness` job was misread this way in CONCERN-2243: it
+  failed at `actions/download-artifact` on every run, so the assertion blamed
+  for the failure had never once executed. Note the inverse trap too — an
+  all-skipped pytest run exits 0 and reports **green** while checking nothing.
+  See [notes/demo-ci-invariants.md](notes/demo-ci-invariants.md) § "Reading a
+  Red Invariant Harness Job".
+- **Trace Shared Helper Layers Before Declaring an Event Unemitted** — in the
+  demo suite, protocol activity is emitted from shared helpers in
+  `vultron/demo/helpers/workflow.py` (e.g. `receiver_engages_case()`,
+  `run_direct_path_rm_triage()`), not from the scenario files. Grepping a
+  scenario file — or even all of `vultron/demo/scenario/` — finds nothing and
+  invites the false conclusion that no code emits the event. Search the helper
+  and semantic-registry layers, and confirm against
+  `graphify explain "<function>"` call edges, before asserting absence.
+  CONCERN-2243 filed a Concern on this basis for an event emitted by all nine
+  scenarios.
   See also ISSUE-1784 (tracking the script fix).
 - **`git rebase` "local changes would be overwritten" With a Clean Working Tree**
   — this error can be a false positive when the rebased branch diverges far from

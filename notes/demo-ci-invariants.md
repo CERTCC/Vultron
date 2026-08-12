@@ -44,7 +44,7 @@ invariant-harness (matrix: fv) → downloads artifact → runs pytest
 Each scenario gets **one self-contained harness file**,
 `test/ci/invariants/test_<scenario>_invariants.py`. There is no shared
 per-scenario base class and no registry module. A new harness follows the
-existing eight:
+existing nine:
 
 1. Declare `_DEMO_NAME = "<scenario>"` at module scope.
 2. Load replicas with `load_devlogs(demo_name=_DEMO_NAME)`, imported from
@@ -71,7 +71,7 @@ and must be kept in step.
 > in `common.py` — it carries no scenario mapping. Do not bolt scenario routing
 > onto it.
 
-Known duplication: all eight harnesses re-implement the same ~14 universal
+Known duplication: all nine harnesses re-implement the same ~14 universal
 invariant tests as near-identical thin wrappers over `common.py`. Extracting
 them is tracked separately; the per-file `_DEMO_NAME` + `load_devlogs` idiom is
 not the duplication worth fixing.
@@ -90,19 +90,27 @@ missing from a scenario that requires it).
 **Design**: Each scenario defines its own required event-type list that
 extends the four universal types with scenario-specific required phases.
 The spec requirements in `specs/multi-actor-demo.yaml` DEMOMA-16-001 through
-DEMOMA-16-008 are the normative source; the test constants implement them.
+DEMOMA-16-011 are the normative source; the test constants implement them.
 
 ### Scenario required event types
 
-| Scenario | Universal 4 | Additional required |
-|---|---|---|
-| FV | validate_report, add_participant_status_to_participant, close_case, add_note_to_case | (none) |
-| FVV | same | invite_actor_to_case |
-| FVCV-extension | same | invite_actor_to_case, offer_case_participant |
-| FVCV-handoff | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCCV-handoff | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCV | same | invite_actor_to_case |
-| FCVCV | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3) |
+This table MUST match the DEMOMA-16 requirements one-for-one — one row per
+scenario, no scenario omitted. It drifted from the spec on four counts before
+CONCERN-2243 (three rows understated their required types; the FCCV-extension
+and FCV-reject rows were absent entirely), which is exactly the drift
+DEMOMA-16-008 exists to prevent.
+
+| Scenario | Spec | Universal 4 | Additional required |
+|---|---|---|---|
+| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case | (none) |
+| FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
+| FCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| FCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
 
 ### Relationship to scenario-specific test functions
 
@@ -125,6 +133,52 @@ When a scenario phase is added or removed, update both:
 Both MUST change in the same PR per DEMOMA-16-008. Failure to update the spec
 is a latent silent-failure risk; failure to update the test means the new spec
 requirement is untested.
+
+Corollary for planning work: an amendment to a DEMOMA-16 requirement and the
+corresponding edits to `_XXX_EXPECTED_EVENT_TYPES` cannot be split across a
+docs PR and a later implementation PR. Either both land now, or both are
+deferred to the implementation PR together.
+
+---
+
+## Reading a Red Invariant Harness Job (CONCERN-2243)
+
+**A red `<scenario> Invariant Harness` job is not evidence that any invariant
+was violated — or even evaluated.** The job has three distinct red modes and
+one false-green mode, and they are easy to confuse:
+
+| Job outcome | What actually happened | What it tells you about invariants |
+|---|---|---|
+| Red at `Download case log JSONL files` | The demo job never uploaded an artifact, so `actions/download-artifact` errored (`Artifact not found for name: <scenario>-case-logs`). **pytest never ran.** | Nothing at all |
+| Red at `Run case-ledger invariant harness` | pytest ran and an assertion failed | A real invariant result |
+| Green with every test skipped | `load_devlogs` called `pytest.skip` because `devlogs/<scenario>/` held no `*-case-ledger.jsonl`; a skip-only run exits 0 | Nothing — this is a **false green** |
+
+CONCERN-2243 was filed because a permanently-red `fvcv-handoff Invariant
+Harness` was read as proof that its `engage_case` assertion could never pass.
+The job was in fact dying in the first mode: it failed at artifact download on
+every run, so the assertion had never once executed. The assertion itself is
+correct — `engage_case` is emitted by all nine scenarios (see below) — and the
+absence of the entries it looks for was a real protocol defect elsewhere.
+
+Before drawing any conclusion from this job, open the log and confirm which
+step failed.
+
+### `engage_case` is universal, not scenario-specific
+
+Every scenario drives an engage-case trigger, so `engage_case` is a universal
+required event type on the same footing as `validate_report`:
+
+- `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow.py`) calls
+  `receiver_engages_case()` for the report's direct receiver — used by all
+  eight multi-actor scenarios.
+- `run_invite_path_rm_triage()` calls it again for the invited participant —
+  used by seven of them (CM-11-002).
+- `fv_demo.py` calls `receiver_engages_case()` directly via
+  `vendor_engages_case()`.
+
+Emission is therefore located in the **shared helper layer**, not at scenario
+call sites; grepping a single scenario file for `engage` finds nothing and
+invites the false conclusion that no code emits it.
 
 ---
 
