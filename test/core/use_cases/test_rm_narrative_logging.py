@@ -156,6 +156,78 @@ class TestUpdateParticipantRmStateLogging:
         assert not _narrative_records(caplog)
 
 
+@pytest.fixture()
+def indexed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
+    """Case where actor is in actor_participant_index but participant NOT in DL.
+
+    Simulates the invited-path bootstrap gap (ISSUE-2216, ISSUE-2223): the
+    CaseActor's Announce(VulnerabilityCase) delivers only string IDs in
+    case_participants, so _store_embedded_participants skips them and no
+    CaseParticipant object lands in the invitee's DL.
+    """
+    participant = CaseParticipant(
+        id_=_PARTICIPANT_ID,
+        attributed_to=_ACTOR_ID,
+        context=_CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+    # NOTE: participant is NOT persisted to dl — this is the bug scenario
+    case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+    case.add_participant(participant)
+    dl.create(case)
+    stored = dl.read(_CASE_ID)
+    assert isinstance(stored, VulnerabilityCase)
+    return stored
+
+
+class TestInvitedPathBootstrap:
+    """update_participant_rm_state when actor indexed but participant absent.
+
+    Regression for ISSUE-2216: after MV-09-001 fix, invited actors reach
+    RM.VALID but engage-case returns 422 because the CaseParticipant object
+    was never hydrated into the invitee's local DL.
+    """
+
+    def test_bootstrap_creates_participant_at_valid(
+        self, indexed_case: VulnerabilityCase, dl: SqliteDataLayer
+    ) -> None:
+        """validate-report path: actor indexed but participant absent → bootstrap succeeds."""
+        result = update_participant_rm_state(_CASE_ID, _ACTOR_ID, RM.VALID, dl)
+        assert (
+            result is True
+        ), "Expected True — indexed actor should bootstrap participant"
+        participant = dl.read(_PARTICIPANT_ID)
+        assert (
+            participant is not None
+        ), "Participant must be in DL after bootstrap"
+        assert isinstance(participant, CaseParticipant)
+        assert participant.participant_statuses[-1].rm.state == RM.VALID
+
+    def test_engage_case_succeeds_after_validate(
+        self, indexed_case: VulnerabilityCase, dl: SqliteDataLayer
+    ) -> None:
+        """engage-case path: validate seeds participant, then ACCEPTED succeeds."""
+        assert update_participant_rm_state(_CASE_ID, _ACTOR_ID, RM.VALID, dl)
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert (
+            result is True
+        ), "Expected True — RM.VALID → RM.ACCEPTED must succeed"
+        participant = dl.read(_PARTICIPANT_ID)
+        assert participant is not None
+        assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
+
+    def test_accepted_without_prior_validate_is_blocked(
+        self, indexed_case: VulnerabilityCase, dl: SqliteDataLayer
+    ) -> None:
+        """RECEIVED → ACCEPTED is not a valid RM transition; must return False."""
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert result is False
+
+
 class TestCurrentParticipantRmState:
     """current_participant_rm_state reads the latest RM state, or START."""
 
