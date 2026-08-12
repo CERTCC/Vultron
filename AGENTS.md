@@ -564,6 +564,19 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   required: one on failure (file/update a `ci:main-failure` issue, CISEC-05-001)
   and one on success (close the issue for recovery visibility, CISEC-05-002).
   *Source: CONCERN-2132*
+- **Demo Steps Must Be Gated on Their Cause, Not Their Position in the Script** —
+  a scenario step that depends on an asynchronous effect MUST gate on the
+  committed state of the actor that *produces* that effect, read from that actor's
+  own container. An HTTP 202 return, elapsed time, and step order are not
+  evidence; neither is an observable that resolves synchronously during the
+  triggering request (ISSUE-2134). Discover a forwarded object by discriminator
+  scan, never by the sender's original ID (ISSUE-2178). Use `demo_gate` (stops
+  dependent steps) for preconditions and `demo_check` (advisory) for assertions,
+  and never patch either out with `nullcontext` in tests. See EDF-06, DEMOMA-22,
+  DEMOCI-01-007, ADR-0058,
+  [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
+  § "Temporal Sequence vs. Causal Sequence", and
+  [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md). *Source: CONCERN-2181*
 
 ---
 

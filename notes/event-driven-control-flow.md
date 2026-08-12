@@ -6,10 +6,13 @@ description: >
   patterns and design rationale.
 related_specs:
   - specs/event-driven-control-flow.yaml
+  - specs/multi-actor-demo.yaml
+  - specs/demo-ci.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-composability.md
   - notes/protocol-event-cascades.md
+  - notes/demo-ci-diagnostics.md
 relevant_packages:
   - vultron/bt
   - vultron/core
@@ -117,6 +120,126 @@ flow?"* Those are the primary events. Everything else should happen
 automatically. If the demo must manually inject an intermediate step, that is
 a signal that a cascade is not yet automated — a gap to fix, not a demo
 pattern to copy.
+
+---
+
+## Temporal Sequence vs. Causal Sequence
+
+(CONCERN-2181, ADR-0058. Normative requirements: `specs/event-driven-control-flow.yaml`
+EDF-06; `specs/multi-actor-demo.yaml` DEMOMA-22.)
+
+A scenario script is a list of steps, so it is natural to write it as a temporal
+sequence: *A, and then B, and then C*. The protocol it drives is not temporal —
+it is causal: *A, **therefore** B, **therefore** C*. Every place those two
+readings differ is a race, because a trigger endpoint returns HTTP 202 and the
+effect is committed later, by a `BackgroundTasks` job, on a different container.
+
+The distinction is not stylistic. Seven of the nineteen sub-issues of Epic #2136
+were the same defect in a different scenario: a step ran before the event that
+would enable it had propagated. Bug #2178's triage put it exactly: *"the demo
+treated async causal steps as sequential (x then y) rather than causally linked
+(x therefore y)."*
+
+### The chain each step sits in
+
+A cross-actor step is never one event. It is a chain, and a gate can be placed
+at any link — but only the last link proves the step's precondition:
+
+```text
+A addresses → A sends → delivered to B's inbox → B processes → B commits → B replies
+                     ↑                        ↑                        ↑
+              "sent" (sender-side)     "delivered"            "committed" ← gate here
+```
+
+Gating on an earlier link is the recurring error. `notes/demo-ci-diagnostics.md`
+names the same three layers — Sent, Received, Committed — for reading a failed
+run; the gate belongs at Committed.
+
+### Three rules that follow
+
+1. **Gate on the effect, observed where it lands.** The predicate must be a
+   property of the actor that *commits* the effect, read from that actor's own
+   container. A sender-side observation proves only that the sender emitted
+   something (EDF-06-002).
+
+2. **A synchronous observable is not evidence of an asynchronous effect.** In
+   #2134, `engage-case` was gated on "the case object exists" — which resolves
+   synchronously during `validate-report` — instead of "this participant reached
+   `RM.VALID`", which commits after the 202 returns. The first is a proxy for the
+   cause having *started* (EDF-06-003).
+
+3. **Find a caused object by what it is, not by the ID of its cause.** When a
+   received-side use case forwards a *new* activity, the consequent has a new
+   identity. In #2178 the demo polled for the original Offer ID; the Coordinator
+   only ever held the forwarded Offer, with a different ID (CM-21-005). Scan for
+   semantic properties — type, target, object — as `find_case_invite_for_actor`
+   and `find_cp_offer_for_case` do (EDF-06-004). The #2178 fix adds
+   `find_ownership_transfer_offer_for_actor` in the same shape; it arrives with
+   the `fix/demo-ci` integration branch.
+
+### A gate must actually gate
+
+Expressing a precondition with an advisory check is worse than having none: it
+reads like a gate in review and does nothing at runtime. `demo_check` records a
+failure and returns, so the dependent step runs anyway on state that was never
+established, and the resulting cascade of secondary failures buries the real one.
+
+Use `demo_gate` for a causal precondition and `demo_check` for a verification
+assertion. `demo_gate` accumulates identically — DEMOCI-01-003's
+report-everything contract is preserved — and additionally stops the steps that
+depend on the unmet precondition (DEMOCI-01-007, EDF-06-005).
+
+When writing tests for a gate, exercise the real context manager. Patching it out
+with `contextlib.nullcontext` makes the assertion propagate and the test pass
+while proving nothing about gating. This idiom is currently used in seven demo
+test modules, so no test in the suite exercises the real control flow of these
+context managers — which is how the advisory `RM.VALID` gate before `engage-case`
+went unnoticed.
+
+### Not every wait is a defect
+
+Some waits are irreducibly temporal and must stay: service liveness probes,
+protocol deadlines such as embargo expiry, and transport retry backoff. Name them
+as temporal at the call site so they are not "fixed" into meaningless causal
+gates, and so the causal-gate inventory stays honest (EDF-06-006).
+
+Some preconditions are not observable at all today. An actor having *processed* a
+delivery leaves no completion record — the inbox receipt log records arrival, and
+processing happens in a background task. Every "processed" gate is therefore
+inferential: it observes a downstream effect and assumes the antecedent caused it.
+When a precondition cannot be expressed as an observable predicate, record that
+gap rather than substituting a `sleep` (EDF-06-007).
+
+### Where this stops being a harness problem
+
+Harness-side gating cannot fix a cause that never becomes observable. #2169's
+finder race is server-side fan-out, and a client-side wait cannot prevent it; the
+real fix was actor-side buffering (ADR-0037, and the pre-genesis ledger-entry
+buffering ADR carried on the `fix/demo-ci` branch — numbered 0055 there, pending
+renumber when that branch merges under #2143; on `main`, ADR-0055 is an unrelated
+CI-alerting decision). Where the actor buffers, the harness needs no gate at all — so some
+existing `wait_for_case_on_container` sites may be removable.
+
+The test for which side owns a race: if the effect is *eventually* guaranteed by
+a wired recovery path, the harness may wait for it. If the effect can be *lost*,
+the protocol must buffer it, and a demo guard is papering over a production bug.
+
+### Scenario narratives as a conformance oracle
+
+A gate enforces that the harness waited for the right thing. It cannot tell you
+whether the ordering the scenario encodes is the ordering the CVD process
+actually requires — the script is the only statement of intent, so it cannot
+disagree with itself.
+
+That is what the narratives under `docs/topics/scenarios/` are for: one page per
+scenario describing the case's progress in domain terms, with each step's
+antecedent named and no reference to endpoints, helpers, or containers. Because it
+is written independently of the implementation, it can contradict it. Each
+narrative carries a machine-readable list of causal edges, and the invariant
+harness asserts every declared edge appears in the observed case ledger with the
+antecedent's `log_index` before the consequent's — `log_index` order is causal
+order (ADR-0041), and the harness already reads the ledger dumps
+(DEMOMA-22-003 through DEMOMA-22-006).
 
 ---
 
