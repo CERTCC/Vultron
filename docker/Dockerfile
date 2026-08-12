@@ -23,14 +23,29 @@ FROM dep-layer AS dependencies
 # Copy the full application source and install the project package
 # (including console-script entry points such as vultron-demo).
 # Code-only changes only bust this layer, not the dependency layer above.
-# .git/.agents are dev-only (see the dev stage) and stay out of runtime images.
-COPY --exclude=.git --exclude=.agents . /app/
+#
+# Dev-only paths are excluded HERE rather than in .dockerignore, because
+# .dockerignore applies to the whole build context and would also strip them
+# from the `dev` stage that backs the devcontainer. Keep this list in sync with
+# the `test` stage below; the `dev` stage deliberately copies everything.
+COPY --exclude=.git --exclude=.agents \
+     --exclude=.github --exclude=.devcontainer \
+     --exclude=.gitignore --exclude=.gitattributes \
+     --exclude=archived_notes \
+     --exclude=docker/Dockerfile \
+     . /app/
 ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
 FROM dep-layer AS test
-COPY --exclude=.git --exclude=.agents . /app/
+# Same exclusion set as the `dependencies` stage above.
+COPY --exclude=.git --exclude=.agents \
+     --exclude=.github --exclude=.devcontainer \
+     --exclude=.gitignore --exclude=.gitattributes \
+     --exclude=archived_notes \
+     --exclude=docker/Dockerfile \
+     . /app/
 ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --dev
@@ -96,7 +111,16 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
-# Install project source (after all heavy system tooling is cached)
+# Install project source (after all heavy system tooling is cached).
+# The devcontainer needs every TRACKED path — .git, .github, archived_notes,
+# .gitignore and docker/Dockerfile included. Anything omitted here shows up as a
+# phantom deletion in `git status` inside the container, so this COPY takes no
+# --exclude flags by design; add nothing to .dockerignore that this stage needs.
+#
+# Only two categories are withheld, both via .dockerignore: secrets (.env,
+# .devcontainer/*.env), and gitignored paths that start-dev.sh clobber-mounts
+# over /app at runtime (.devcontainer, wip_notes, wip_outputs, graphify-out).
+# Being gitignored, those cannot surface as phantom deletions.
 COPY . /app/
 ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
