@@ -162,8 +162,8 @@ end-to-end (per the "protocol fix only" decision on #2180).
 
 Root-cause / symptom split and the deterministic-genesis insight are recorded in
 `plan/incoming/learnings/` (`20260811-self-healing-recovery-logged-at-error.md`,
-`20260810-clp-08-005-protocol-hardening-gap`) and issues #2186 (root cause) /
-#2180 (symptom). Builds on ADR-0037 (forward-gap buffering) and the SYNC-15
+`20260810-clp-08-005-protocol-hardening-gap`) and issues #2186 (root cause) and #2180
+(symptom). Builds on ADR-0037 (forward-gap buffering) and the SYNC-15
 Genesis-Unavailable requirements.
 
 Generated spec requirements: `sync-ledger-replication.yaml` SYNC-15-004 and

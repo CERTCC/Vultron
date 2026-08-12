@@ -18,7 +18,7 @@
 import logging
 from typing import Any, Callable, cast
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlmodel import SQLModel
 
 from vultron.adapters.driven.db_record import (
@@ -196,23 +196,40 @@ class SqliteDataLayer:
         ``self.read()`` and replaces it with the full domain object.  If a
         referenced object is not found the string is kept and a DEBUG message
         is logged.
+
+        When a field holds an inline ``PersistableModel`` (kept inline by
+        ``_KEEP_INLINE_NESTED_TYPES`` rather than dehydrated to a bare ID),
+        this method recurses into it so that the nested object's own reference
+        fields are expanded too.  Without this recursion an inline Offer's
+        ``target`` would remain a bare string URI and break semantic dispatch
+        that relies on the resolved type (e.g. Organisation ≠ CaseParticipant
+        for ``OfferCaseManagerRolePattern`` vs ``OfferCaseOwnershipTransfer``).
         """
         updates: dict[str, object] = {}
         for field_name in _AS_OBJECT_REF_FIELDS:
             value = getattr(obj, field_name, None)
-            if not isinstance(value, str) or not value:
+            if value is None:
                 continue
-            nested = self.read(value)
-            if nested is None:
-                logger.debug(
-                    "Could not rehydrate field %r with id %r on %r;"
-                    " keeping string reference.",
-                    field_name,
-                    value,
-                    type(obj).__name__,
+            if isinstance(value, str):
+                if not value:
+                    continue
+                nested = self.read(value)
+                if nested is None:
+                    logger.debug(
+                        "Could not rehydrate field %r with id %r on %r;"
+                        " keeping string reference.",
+                        field_name,
+                        value,
+                        type(obj).__name__,
+                    )
+                    continue
+                updates[field_name] = nested
+            elif isinstance(value, BaseModel):
+                rehydrated = self._rehydrate_fields(
+                    cast(PersistableModel, value)
                 )
-                continue
-            updates[field_name] = nested
+                if rehydrated is not value:
+                    updates[field_name] = rehydrated
         if updates:
             obj = obj.model_copy(update=updates)
         return obj
