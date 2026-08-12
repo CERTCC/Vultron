@@ -104,7 +104,7 @@ DOCKER_ARGS=(
     -e VULTRON_MAIN_NAME="$MAIN_NAME"
     -e WIP_NOTES=/app/wip_notes
     -e WIP_OUTPUTS=/app/wip_outputs
-    -v "$HOME/.claude:/home/vscode/.claude"
+    -v "${MAIN_NAME}-data:/home/vscode/.data"
     # .devcontainer is excluded from the build context except certs/ (see
     # .dockerignore), so mount it here. Without this the tracked files under it
     # are missing from /app and `git status` reports them as deleted. Writable so
