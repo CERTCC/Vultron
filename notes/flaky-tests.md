@@ -81,8 +81,10 @@ and fall through to Level 2 (GitHub label search).
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
-| `fcvcv Demo Integration` | #2134 | 2026-08-10 |
-| `fcvcv Invariant Harness` | #2134 | 2026-08-10 |
+| `fcvcv Demo Integration` | #2216 | 2026-08-12 |
+| `fvcv-handoff Demo Integration` | #2216 | 2026-08-12 |
+| `fvcv-handoff Invariant Harness` | #2216 | 2026-08-12 |
+| `fcvcv Invariant Harness` | — | 2026-08-10 |
 | `fcv-reject Invariant Harness` | #2121 | 2026-08-10 |
 
 > These jobs fail intermittently due to inter-container HTTP delivery timeouts
