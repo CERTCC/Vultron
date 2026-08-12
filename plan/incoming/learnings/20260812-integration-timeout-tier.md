@@ -1,8 +1,9 @@
 ---
 title: A timeout tuned for one test tier masquerades as flakiness in another
-date: 2026-08-12
+timestamp: "2026-08-12"
 source: ISSUE-2237
 type: learning
+signal: tooling-issue
 tags: [testing, pytest, timeout, flaky-tests, triage]
 ---
 
@@ -22,8 +23,29 @@ slow test, a single spurious trip aborted the session. At the suite level the
 failure was **reliably red** (2/2 on clean `origin/main` 65fe33f1b); only the
 location was nondeterministic.
 
-Fixed by #2270: `test/conftest.py::apply_integration_timeout` gives
-`integration`-marked tests a 60s tier while the unit suite keeps 5s.
+Fixed by #2270: a two-tier ceiling — 60s for `integration`-marked tests via
+`test/conftest.py::apply_integration_timeout`, and the unit default raised 5s to
+20s in `pyproject.toml`.
+
+## This was diagnosed four times before it was fixed
+
+The same root cause was written up in three earlier learning files, each time as
+a workaround rather than a fix:
+
+| File | Source | What it concluded |
+|---|---|---|
+| `20260803-pytest-full-suite-timeout.md` | ISSUE-1925 | full suite "never finishes"; worked around with scoped runs |
+| `20260805-per-test-timeout-marginal-under-load.md` | ISSUE-1988 | AST ratchets at ~3.4s sit near the 5s ceiling; mitigated one ratchet with a prefilter |
+| `20260808-pytest-thread-timeout-fakes-nondeterminism.md` | ISSUE-2086 | thread-method aborts fake nondeterminism; cost real time chasing phantoms |
+
+Three sessions correctly identified that `timeout = 5` plus
+`timeout_method = "thread"` was the problem, and all three treated the ceiling as
+fixed background. The unit tier was raised to 20s in this session only because
+those three files were read together and the pattern became visible.
+
+Note the second file's finding is why widening only the integration tier would
+have been an incomplete fix: the *unit* suite has AST-walking ratchets at ~3.4s,
+so the 5s ceiling had a load-dependent margin there too.
 
 ## Why it matters
 
@@ -55,5 +77,10 @@ the opposite direction.
 - When widening a timeout, prefer widening the ceiling over switching
   `timeout_method` off `thread`. The signal method cannot interrupt code blocked
   in a C extension, so it converts a noisy abort into an invisible hang.
+- **A recurring workaround is a signal to read the earlier write-ups, not to add
+  another.** Three learning files independently named this root cause and each
+  worked around it. Before writing a learning file about tooling friction, grep
+  `plan/incoming/learnings/` for the same symptom — if it is already there, the
+  finding is not the symptom, it is that nobody fixed the cause.
 
 Related: [[20260812-cs-hypercube-premise-was-wrong]]

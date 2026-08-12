@@ -123,3 +123,39 @@ class TestIntegrationTimeoutValue:
 
     def test_is_still_a_bounded_hang_detector(self):
         assert INTEGRATION_TIMEOUT_SECONDS <= 300
+
+
+class TestUnitTierTimeout:
+    """Pin the unit-tier ceiling in ``pyproject.toml`` (issue #2270).
+
+    Four sessions re-diagnosed a too-tight unit ceiling as flakiness before it
+    was raised. These assertions make a silent revert fail loudly.
+    """
+
+    @staticmethod
+    def _configured_timeout(pytestconfig):
+        return int(pytestconfig.getini("timeout"))
+
+    def test_unit_tier_clears_the_slowest_ast_ratchet(self, pytestconfig):
+        """AST-walking architecture ratchets run ~3.4s in isolation.
+
+        Under full-suite load they were tripping a 5s ceiling. Require enough
+        headroom that load variance cannot reach it.
+        """
+        assert self._configured_timeout(pytestconfig) >= 15
+
+    def test_unit_tier_is_still_a_bounded_hang_detector(self, pytestconfig):
+        assert self._configured_timeout(pytestconfig) <= 60
+
+    def test_integration_tier_is_wider_than_the_unit_tier(self, pytestconfig):
+        assert INTEGRATION_TIMEOUT_SECONDS > self._configured_timeout(
+            pytestconfig
+        )
+
+    def test_thread_method_is_still_in_use(self, pytestconfig):
+        """Documents the coupling the tier values depend on.
+
+        If this ever changes to "signal", a timeout fails one test instead of
+        aborting the session, and the generous ceilings above can be revisited.
+        """
+        assert pytestconfig.getini("timeout_method") == "thread"

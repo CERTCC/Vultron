@@ -47,28 +47,43 @@ Timeouts are **two-tier** (`pytest-timeout`):
 
 | Tier | Ceiling | Set in |
 |---|---|---|
-| Unit (default) | 5s | `timeout = 5`, `pyproject.toml` |
+| Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
 | `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
 
 `test/conftest.py::apply_integration_timeout` widens the ceiling for
 integration-marked tests at collection time. An explicit
 `@pytest.mark.timeout(N)` on a test always wins over the tier default.
 
-**Why two tiers** (#2270): `timeout_method = "thread"` kills the *whole pytest
-process*, not the one slow test. Several integration tests do 3.5-4.3s of
-honest work, so the 5s ceiling tripped nondeterministically and aborted the
-session with **no summary line** — a red integration run carried no information
-about the branch. The unit suite keeps 5s, where it is a genuinely useful hang
-detector.
+**Why these numbers** (#2270): `timeout_method = "thread"` kills the *whole
+pytest process*, not the one slow test, so a trip produces **no summary line**.
+A too-tight ceiling therefore does not surface a slow test — it converts the run
+into an uninformative abort. Both tiers used to be 5s, which was thin enough
+that honest work tripped it under load:
 
-When a **unit** test trips 5s: mock slow deps, avoid `time.sleep()`, or move it
+- integration tests doing 3.5-4.3s of real HTTP work, and
+- AST-walking architecture ratchets at ~3.4s in isolation.
+
+Four separate sessions re-diagnosed the result as flakiness (ISSUE-1925,
+ISSUE-1988, ISSUE-2086, ISSUE-2237) before the ceiling itself was fixed. Raising
+it costs nothing on a genuine hang — that test was never going to finish — and
+the suite stays fast because total runtime is bounded by the tests, not by this
+ceiling.
+
+Both tiers are sized from measurement: the slowest unit test is ~3.1s idle and
+the slowest integration test ~4.3s. The headroom is deliberately large because
+contention (a CI runner, or a background graphify rebuild) inflates these well
+beyond their idle cost — an intermediate unit value of 20s was tried and still
+tripped once under exactly that.
+
+When a test trips its tier: mock slow deps, avoid `time.sleep()`, or move it
 behind the `integration` marker if it really does exercise the full stack.
 `@pytest.mark.timeout(N)` is a last resort and MUST have a comment explaining
 why. Do not use it to paper over slow tests.
 
 A timeout ceiling is a diagnostic tool, not a correctness invariant — if a tier
 is firing on honest work rather than catching hangs, change the tier rather
-than contorting the tests around it.
+than contorting the tests around it. Do not add a row to
+`notes/flaky-tests.md` for a test that is merely near its ceiling.
 
 ---
 

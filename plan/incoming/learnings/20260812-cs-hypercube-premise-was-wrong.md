@@ -1,8 +1,9 @@
 ---
 title: The "completely orphaned" premise in #2237 was wrong, and docs carried stale 64-state claims
-date: 2026-08-12
+timestamp: "2026-08-12"
 source: ISSUE-2237
 type: learning
+signal: process-issue
 tags: [case-states, legacy-code, documentation-drift, specs]
 ---
 
