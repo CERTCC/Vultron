@@ -5,26 +5,6 @@ set -euo pipefail
 echo "=== Post-create setup ==="
 echo ""
 
-# --- Independent clone (non-main slots only) ---
-# main already has the host checkout bind-mounted at $PWD; every other slot
-# clones its own copy here, inside this container's own writable layer, so
-# it shares no git state with any other slot or the host. Seeded from the
-# host checkout via a read-only, one-time --reference for speed; --dissociate
-# copies the borrowed objects in immediately, so this has no ongoing
-# dependency on the mount afterward.
-if [ -n "${VULTRON_ORIGIN_URL:-}" ] && [ ! -d "$PWD/.git" ]; then
-    # Don't echo $VULTRON_ORIGIN_URL — never print a repo URL verbatim, since
-    # a differently-configured remote (this machine or another dev's) could
-    # carry embedded credentials.
-    echo "Cloning repository into $PWD ..."
-    if [ -f /mnt/main-repo.git/HEAD ]; then
-        git clone --reference /mnt/main-repo.git --dissociate "$VULTRON_ORIGIN_URL" "$PWD"
-    else
-        git clone "$VULTRON_ORIGIN_URL" "$PWD"
-    fi
-    echo ""
-fi
-
 # Update Claude Code to latest
 echo "Updating Claude Code..."
 claude update || true
