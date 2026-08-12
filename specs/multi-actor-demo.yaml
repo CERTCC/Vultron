@@ -426,7 +426,7 @@ groups:
     - order: 5
       actor: case_actor
       action: >-
-        [SUPERSEDED] This step previously described an all-participants-RM.CLOSED
+        **SUPERSEDED** This step previously described an all-participants-RM.CLOSED
         check that emitted Leave(VulnerabilityCase) from the Case Actor to trigger
         case closure.  This step is retired: RM case closure now flows through each
         participant's own Leave(VulnerabilityCase) round-trip (CM-23-001).
@@ -435,7 +435,7 @@ groups:
         advances the CaseActor participant to RM.CLOSED (CM-23-004, ADR-0051).
         Implementation: see #1901.
       expected: >-
-        [SUPERSEDED] No AutoCloseSequence fires in add_participant_status_tree.
+        **SUPERSEDED** No AutoCloseSequence fires in add_participant_status_tree.
         Case closure is triggered by Leave(VulnerabilityCase) from the Case Owner.
     postconditions:
     - description: >-
@@ -450,7 +450,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      [SUPERSEDED by CM-23-001 and ADR-0050]  The BT node decomposition
+      **SUPERSEDED by CM-23-001 and ADR-0050**  The BT node decomposition
       requirements for DEMOMA-07-003 step 5 (AllParticipantsRMClosedConditionNode,
       CloseNotYetEmittedConditionNode, EmitCloseCaseNode) are retired from the
       add_participant_status_tree path.  Those nodes MUST NOT be wired into

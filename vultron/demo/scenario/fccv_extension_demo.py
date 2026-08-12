@@ -104,10 +104,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -219,24 +217,10 @@ def _phase_report_submission(
         receiver=c1_in_c1,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    case = run_direct_path_rm_triage(
         receiver_client=c1_client,
         receiver=c1_in_c1,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("as_VulnerabilityCase exists in C1's DataLayer"):
-        case = find_case_for_offer(c1_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected as_VulnerabilityCase to be created after validate-report"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    receiver_engages_case(
-        receiver_client=c1_client,
-        receiver=c1_in_c1,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for the initial participants (Finder + C1 + CaseActor) before
@@ -248,6 +232,7 @@ def _phase_report_submission(
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
+    invite_result = None
     with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
             client=c1_client,
@@ -319,6 +304,7 @@ def _phase_report_submission(
 
 
 def _phase_c2_suggests_vendor(
+    finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
@@ -423,6 +409,17 @@ def _phase_c2_suggests_vendor(
         timeout_seconds=20.0,
     )
     logger.info("✓ M3: Vendor joined case (%d participants)", 5)
+
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=20.0,
+        )
 
     run_invite_path_rm_triage(
         invited_client=vendor_client,
@@ -931,6 +928,7 @@ def run_fccv_extension_demo(
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
     _phase_c2_suggests_vendor(
+        finder_client=finder_client,
         c1_client=c1_client,
         c2_client=c2_client,
         vendor_client=vendor_client,

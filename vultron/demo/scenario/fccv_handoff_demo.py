@@ -101,10 +101,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -263,24 +261,10 @@ def _phase_report_submission(
         receiver=c1_in_c1,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    case = run_direct_path_rm_triage(
         receiver_client=c1_client,
         receiver=c1_in_c1,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("VulnerabilityCase exists in C1's DataLayer"):
-        case = find_case_for_offer(c1_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected VulnerabilityCase to be created after validate-report"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    receiver_engages_case(
-        receiver_client=c1_client,
-        receiver=c1_in_c1,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for initial participants (Finder + C1 + CaseActor).
@@ -326,6 +310,7 @@ def _phase_ownership_handoff(
     logger.info("─" * 80)
 
     # C1 invites C2 with COORDINATOR role.
+    invite_result = None
     with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
             client=c1_client,
@@ -373,6 +358,7 @@ def _phase_ownership_handoff(
     logger.info("C2 has joined the case")
 
     # C1 offers ownership transfer to C2 (TRIG-11-001).
+    ownership_offer_result = None
     with demo_step("C1 offers case ownership transfer to C2 (TRIG-11-001)"):
         ownership_offer_result = post_to_trigger(
             client=c1_client,
@@ -405,6 +391,7 @@ def _phase_ownership_handoff(
     logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
 
     # C2 accepts the ownership transfer (TRIG-11-002).
+    accept_ownership = None
     with demo_step("C2 accepts case ownership transfer (TRIG-11-002)"):
         accept_result = post_to_trigger(
             client=c2_client,
@@ -412,13 +399,13 @@ def _phase_ownership_handoff(
             behavior="accept-case-ownership-transfer",
             body={"offer_id": ownership_offer_id},
         )
-    accept_ownership = as_TransitiveActivity.model_validate(
-        accept_result["activity"]
-    )
-    logger.info(
-        "C2 sent Accept(Offer(VulnerabilityCase)): %s",
-        accept_ownership.id_,
-    )
+        accept_ownership = as_TransitiveActivity.model_validate(
+            accept_result["activity"]
+        )
+        logger.info(
+            "C2 sent Accept(Offer(VulnerabilityCase)): %s",
+            accept_ownership.id_,
+        )
 
     # Deliver the Accept to C2's own inbox so AcceptCaseOwnershipTransfer-
     # ReceivedUseCase runs locally and sets case.attributed_to = C2 on C2's
@@ -459,6 +446,7 @@ def _phase_ownership_handoff(
 
 
 def _phase_c2_invites_vendor(
+    finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
@@ -480,6 +468,7 @@ def _phase_c2_invites_vendor(
     # Trigger on c1_client (the CaseActor's host container) so the invite is
     # emitted as CaseActor.  Vendor's Accept then routes to CaseActor,
     # enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
+    invite_result = None
     with demo_step("C2 invites Vendor to the case"):
         invite_result = post_to_trigger(
             client=c1_client,
@@ -510,8 +499,10 @@ def _phase_c2_invites_vendor(
             behavior="accept-case-invite",
             body={"invite_id": invite.id_},
         )
-    accept = as_TransitiveActivity.model_validate(accept_result["activity"])
-    logger.info("Vendor sent Accept(Invite): %s", accept.id_)
+        accept = as_TransitiveActivity.model_validate(
+            accept_result["activity"]
+        )
+        logger.info("Vendor sent Accept(Invite): %s", accept.id_)
 
     # HttpDeliveryAdapter delivers Vendor's Accept to the CaseActor inbox
     # via the real HTTP path (PCR-08-008).  Poll for the case replica as proof
@@ -533,6 +524,17 @@ def _phase_c2_invites_vendor(
         timeout_seconds=90.0,
     )
     logger.info("✓ Vendor joined case (%d participants)", 5)
+
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=90.0,
+        )
 
     # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
     run_invite_path_rm_triage(
@@ -1069,6 +1071,7 @@ def run_fccv_handoff_demo(
     )
 
     _phase_c2_invites_vendor(
+        finder_client=finder_client,
         c1_client=c1_client,
         c2_client=c2_client,
         vendor_client=vendor_client,

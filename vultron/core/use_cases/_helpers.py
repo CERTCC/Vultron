@@ -268,13 +268,97 @@ def resolve_case(case_id: str, dl: CasePersistence):
     return case_raw
 
 
+def _scan_case_participants_for_actor(
+    case_obj: VulnerabilityCase,
+    actor_id: str,
+    dl: CasePersistence,
+) -> "CaseParticipant | None":
+    """Return the CaseParticipant for actor_id by scanning case_participants.
+
+    Resolves string references via ``dl.read``; skips entries that are
+    missing from the DL or are not ``CaseParticipant`` objects.  Returns
+    ``None`` when no matching participant is found.
+    """
+    for participant_ref in case_obj.case_participants:
+        if isinstance(participant_ref, str):
+            participant_raw = dl.read(participant_ref)
+            if participant_raw is None:
+                continue
+        else:
+            participant_raw = participant_ref
+        if not isinstance(participant_raw, CaseParticipant):
+            continue
+        actor_ref = participant_raw.attributed_to
+        p_actor_id = (
+            actor_ref
+            if isinstance(actor_ref, str)
+            else getattr(actor_ref, "id_", str(actor_ref))
+        )
+        if p_actor_id == actor_id:
+            return participant_raw
+    return None
+
+
+def _bootstrap_invited_participant(
+    participant_id: str,
+    actor_id: str,
+    case_id: str,
+    new_rm_state: RM,
+    dl: CasePersistence,
+) -> bool:
+    """Create a fresh CaseParticipant for an invited actor and advance its RM state.
+
+    Called when actor_participant_index confirms the actor is a participant but
+    the participant object is absent from the local DL.  This occurs on the
+    invited path: Announce(VulnerabilityCase) delivers only string IDs in
+    case_participants, so _store_embedded_participants skips them and no
+    CaseParticipant object lands in the invitee's DL (ISSUE-2216, ISSUE-2223).
+
+    Bootstraps at RM.RECEIVED (the required entry state for an invited actor
+    per CM-11-001) then attempts new_rm_state in one further step.
+    """
+    participant = CaseParticipant(
+        id_=participant_id,
+        attributed_to=actor_id,
+        context=case_id,
+    )
+    # _init_participant_status_if_empty seeds participant_statuses at RM.START.
+    if not participant.append_rm_state(
+        rm_state=RM.RECEIVED, actor=actor_id, context=case_id
+    ):
+        logger.warning(
+            "update_participant_rm_state: bootstrap RECEIVED blocked "
+            "for actor '%s' in case '%s'",
+            actor_id,
+            case_id,
+        )
+        return False
+    if new_rm_state != RM.RECEIVED and not participant.append_rm_state(
+        rm_state=new_rm_state, actor=actor_id, context=case_id
+    ):
+        logger.warning(
+            "update_participant_rm_state: bootstrap RM transition to %s "
+            "blocked for actor '%s' in case '%s'",
+            new_rm_state,
+            actor_id,
+            case_id,
+        )
+        return False
+    dl.create(participant)
+    log_rm_transition(logger, actor_id, case_id, RM.START, new_rm_state)
+    return True
+
+
 def update_participant_rm_state(
     case_id: str, actor_id: str, new_rm_state: RM, dl: CasePersistence
 ) -> bool:
     """Append a new ParticipantStatus with new_rm_state to the actor's
     CaseParticipant in the given case and persist the updated participant.
 
-    Handles both inline and string-reference participants.
+    Handles both inline and string-reference participants.  When the actor is
+    listed in ``actor_participant_index`` but its participant object is absent
+    from the local DL (invited-path bootstrap gap), the participant is
+    created at RM.RECEIVED and advanced to ``new_rm_state`` in one step.
 
     Returns ``True`` on success (including idempotent no-op), ``False`` when
     the case or participant is not found.
@@ -291,70 +375,57 @@ def update_participant_rm_state(
         )
         return False
 
-    for participant_ref in case_obj.case_participants:
-        if isinstance(participant_ref, str):
-            participant_raw = dl.read(participant_ref)
-            if participant_raw is None:
-                continue
-        else:
-            participant_raw = participant_ref
-
-        if not isinstance(participant_raw, CaseParticipant):
-            continue
-
-        participant = participant_raw
-
-        actor_ref = participant.attributed_to
-        p_actor_id = (
-            actor_ref
-            if isinstance(actor_ref, str)
-            else getattr(actor_ref, "id_", str(actor_ref))
-        )
-        if p_actor_id == actor_id:
-            rm_before: RM | None = None
-            if participant.participant_statuses:
-                latest = participant.participant_statuses[-1]
-                rm_before = latest.rm.state
-                if rm_before == new_rm_state:
-                    logger.debug(
-                        "Participant '%s' already in RM state %s in case '%s' "
-                        "(idempotent)",
-                        actor_id,
-                        new_rm_state,
-                        case_id,
-                    )
-                    return True
-            appended = participant.append_rm_state(
-                rm_state=new_rm_state, actor=actor_id, context=case_id
-            )
-            if not appended:
-                logger.warning(
-                    "update_participant_rm_state: RM transition to %s blocked "
-                    "for actor '%s' in case '%s'",
-                    new_rm_state,
-                    actor_id,
-                    case_id,
-                )
-                return False
-            dl.save(participant)
-            # SL-04-001/SL-04-006 narrative template: the per-participant RM
-            # transition is the primary RM story line at INFO.
-            log_rm_transition(
-                logger,
+    participant = _scan_case_participants_for_actor(case_obj, actor_id, dl)
+    if participant is None:
+        participant_id = case_obj.actor_participant_index.get(actor_id)
+        if participant_id is None:
+            logger.warning(
+                "update_participant_rm_state: no CaseParticipant for actor '%s' "
+                "in case '%s'; RM state not updated",
                 actor_id,
                 case_id,
-                rm_before if rm_before is not None else RM.START,
+            )
+            return False
+        return _bootstrap_invited_participant(
+            participant_id, actor_id, case_id, new_rm_state, dl
+        )
+
+    rm_before: RM | None = None
+    if participant.participant_statuses:
+        latest = participant.participant_statuses[-1]
+        rm_before = latest.rm.state
+        if rm_before == new_rm_state:
+            logger.debug(
+                "Participant '%s' already in RM state %s in case '%s' "
+                "(idempotent)",
+                actor_id,
                 new_rm_state,
+                case_id,
             )
             return True
-
-    logger.warning(
-        "update_participant_rm_state: no CaseParticipant for actor '%s' "
-        "in case '%s'; RM state not updated",
+    appended = participant.append_rm_state(
+        rm_state=new_rm_state, actor=actor_id, context=case_id
+    )
+    if not appended:
+        logger.warning(
+            "update_participant_rm_state: RM transition to %s blocked "
+            "for actor '%s' in case '%s'",
+            new_rm_state,
+            actor_id,
+            case_id,
+        )
+        return False
+    dl.save(participant)
+    # SL-04-001/SL-04-006 narrative template: the per-participant RM
+    # transition is the primary RM story line at INFO.
+    log_rm_transition(
+        logger,
         actor_id,
         case_id,
+        rm_before if rm_before is not None else RM.START,
+        new_rm_state,
     )
-    return False
+    return True
 
 
 def current_participant_rm_state(

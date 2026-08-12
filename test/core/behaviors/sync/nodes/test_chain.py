@@ -16,6 +16,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
     PersistLogEntryNode,
+    ReconstructChainTailNode,
 )
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
@@ -169,6 +170,62 @@ def test_create_log_entry_node_allows_case_authored_announce(bridge):
     )
 
     assert result.status == Status.SUCCESS
+
+
+class TestReconstructChainTailPreGenesisLogging:
+    """Bug #2169: the pre-genesis bootstrap window (empty ledger + no per-case
+    genesis hash) is an expected, self-healing condition, not a fault.
+
+    ``ReconstructChainTailNode`` writes the replay-from-genesis sentinel
+    (``tail_hash=""``, ``tail_index=-1``) so the downstream
+    ``ReconstructOrRejectOnMissingCase`` selector fires a
+    ``Reject(CaseLedgerEntry)`` and the CaseActor replays the chain
+    (SYNC-15-001, CLP-08-005).  Because this recovery is by design, it MUST be
+    logged at WARNING — not ERROR — so it does not surface as spurious error
+    noise on replica containers (e.g. ``finder-1``) during the initial
+    Announce/Create delivery race.
+    """
+
+    def test_pre_genesis_logs_warning_not_error(
+        self, bridge, caplog: pytest.LogCaptureFixture
+    ):
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.DEBUG, logger=node_logger):
+            result = bridge.execute_with_setup(
+                tree=ReconstructChainTailNode(
+                    case_id=CASE_ID, name="ReconstructChainTail"
+                ),
+                actor_id=OWNER_ACTOR_ID,
+            )
+
+        assert result.status == Status.FAILURE
+        assert not any(r.levelno == logging.ERROR for r in caplog.records), (
+            "pre-genesis bootstrap window must not log at ERROR — it is an "
+            "expected, self-healing Reject/replay recovery (Bug #2169)"
+        )
+        assert any(
+            r.levelno == logging.WARNING and "CLP-08-005" in r.message
+            for r in caplog.records
+        ), "expected a WARNING explaining the replay-from-genesis recovery"
+
+    def test_pre_genesis_writes_replay_sentinel(self, bridge):
+        result = bridge.execute_with_setup(
+            tree=ReconstructChainTailNode(
+                case_id=CASE_ID, name="ReconstructChainTail"
+            ),
+            actor_id=OWNER_ACTOR_ID,
+        )
+
+        assert result.status == Status.FAILURE
+        blackboard = py_trees.blackboard.Client(name="assert-sentinel")
+        blackboard.register_key(
+            key="tail_hash", access=py_trees.common.Access.READ
+        )
+        blackboard.register_key(
+            key="tail_index", access=py_trees.common.Access.READ
+        )
+        assert blackboard.tail_hash == ""
+        assert blackboard.tail_index == -1
 
 
 class TestPersistLogEntryNodeLogging:

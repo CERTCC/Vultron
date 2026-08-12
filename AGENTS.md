@@ -577,6 +577,13 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
   § "Temporal Sequence vs. Causal Sequence", and
   [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md). *Source: CONCERN-2181*
+- **`SemanticEntry` Phrases MUST Use Only `{actor}`, `{object}`, `{target}`** —
+  the runtime render pipeline (`CaseTimelineEvent.summary`, `event_phrase()`)
+  never fills `{context}`, `{origin}`, or `{inner_object}`. A phrase referencing
+  one of those slots passes the `defaultdict`-based SE-07-004 test (which fills
+  every slot with `"X"`) but produces a dangling `"—"` in production. The
+  allowlist test (SE-07-005 in `test/test_semantic_registry.py`) enforces this
+  structurally. *Source: CONCERN-1898*
 
 ---
 

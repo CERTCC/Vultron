@@ -451,7 +451,7 @@ from the beginning; each entry passes the `CheckLedgerEntryAlreadyStoredNode` ga
 
 This is tracked as issue #1446.
 
-## Genesis-Unavailable Reject (SYNC-15)
+## Genesis-Unavailable Buffer-and-Reject (SYNC-15)
 
 `Announce(CaseLedgerEntry)` can arrive at a participant replica before
 `Create(VulnerabilityCase)` has been processed (a delivery-order race under HTTP
@@ -476,6 +476,46 @@ the CaseActor re-announces all entries once the case is delivered.
 Selector). Spec: SYNC-15-001, SYNC-15-002. Regression test:
 `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase
 ::test_missing_case_queues_reject_with_empty_tail_hash`.
+
+### Pre-Genesis Buffering and Drain on Case Seed (SYNC-15-004/005)
+
+The Reject backstop above is *loss* recovery — it depends on the CaseActor
+re-announcing entries once the case lands, over the same unordered transport,
+so each pre-genesis entry Rejects again and amplifies CLP-08-005 churn (#2169).
+Worse, in the `fcvcv` V1 demo the dropped `add_report_to_case` entry meant no
+`VultronOfferRecord` was ever created and the report offer 404'd (#2180). The
+forward-gap buffer (SYNC-10-004 above) does **not** catch this: its
+`log_index > tail_index + 1` test never fires when there is no chain at all, so
+a pre-genesis entry falls straight through to the reject-on-missing-case path.
+
+**Resolution (ADR-0059, #2186): buffer pre-genesis entries and drain on case
+seed.** The per-case genesis hash is deterministic from the case object alone
+(`compute_genesis_hash` runs at `VulnerabilityCase` construction when
+`attributed_to` is present, CLP-08), so seeding the case is sufficient to anchor
+the chain — no need to wait for the genesis ledger entry to be re-delivered.
+
+- `BufferPreGenesisEntryNode`
+  (`vultron/core/behaviors/sync/nodes/receive.py`) is wired as the first child
+  of the `ReconstructOrRejectOnMissingCase` fallback, wrapped in
+  `FailureIsSuccess` so the genesis `Reject` still fires as the loss backstop.
+  Unlike `BufferOutOfOrderEntryNode` it applies **no** forward-gap check — there
+  is no tail in the pre-genesis window, so every entry for the missing case is
+  held in the same `LedgerGapBuffer`.
+- The ADR-0037 drain is extracted to a module-level
+  `drain_gap_buffer(...)` (`vultron/core/use_cases/received/sync.py`) reused by
+  both the announce receive path and a new drain-on-seed hook in
+  `AnnounceVulnerabilityCaseReceivedUseCase`. In the pre-genesis case the first
+  reconstructed tail is `(genesis_hash, -1)`, so a buffered genesis entry
+  (`prev_log_hash == genesis_hash`) drains first and the rest cascade in
+  hash-chain order, reusing the exact effects-before-persist path (SYNC-12-001).
+- `ANNOUNCE_VULNERABILITY_CASE` was added to `_SYNC_PORT_SEMANTICS` so the seed
+  use case receives the `sync_port` the drain needs to send a Reject on any
+  residual mismatch.
+
+Spec: SYNC-15-004 (buffer pre-genesis), SYNC-15-005 (drain on seed).
+ADR: `docs/adr/0059-buffer-pre-genesis-ledger-entries.md`. Regression tests:
+`test/core/use_cases/received/test_sync.py::TestPreGenesisAnnounceBuffering` and
+`test/core/use_cases/received/actor/test_announce.py::TestAnnounceDrainsPreGenesisBuffer`.
 
 ## Reject/Replay Amplification (SYNC-15-003)
 

@@ -238,3 +238,62 @@ def test_create_case_proposal_phrase_has_no_target_slot():
         "CREATE_CASE_PROPOSAL phrase references {target}, but the factory "
         "sets no target; the slot renders as a dangling em-dash. See #1787."
     )
+
+
+# SE-07-005 — structural slot-allowlist test (CONCERN-1898)
+_RUNTIME_POPULATED_SLOTS = frozenset({"actor", "object", "target"})
+_RESERVED_UNPOPULATED_SLOTS = frozenset({"context", "origin", "inner_object"})
+
+
+def test_no_phrase_uses_unpopulated_slots():
+    """No phrase may reference a slot the render pipeline never fills (SE-07-005).
+
+    The runtime render pipeline (``CaseTimelineEvent.summary``,
+    ``event_phrase()``) only populates ``{actor}``, ``{object}``, and
+    ``{target}``.  A phrase referencing ``{context}``, ``{origin}``, or
+    ``{inner_object}`` passes ``test_phrase_format_map_with_defaults_returns_non_empty``
+    (which uses a ``defaultdict`` that fills every slot) but produces a dangling
+    ``"—"`` in production because those slots are never set at render time.
+    This test makes unfillable-slot bugs a CI failure (CONCERN-1898).
+    """
+    import re
+
+    slot_re = re.compile(r"\{(\w+)\}")
+    violations: list[str] = []
+    for entry in SEMANTIC_REGISTRY:
+        slots = set(slot_re.findall(entry.phrase))
+        bad = slots & _RESERVED_UNPOPULATED_SLOTS
+        if bad:
+            violations.append(
+                f"{entry.semantics.name}: phrase={entry.phrase!r} uses "
+                f"unpopulated slot(s) {sorted(bad)}"
+            )
+    assert not violations, (
+        "The following phrases reference slots the render pipeline never fills:\n"
+        + "\n".join(violations)
+        + "\nUse only {actor}, {object}, {target}. "
+        "If the pipeline is extended to populate a new slot, update "
+        "_RUNTIME_POPULATED_SLOTS in this test."
+    )
+
+
+@pytest.mark.parametrize(
+    "entry", SEMANTIC_REGISTRY, ids=lambda e: e.semantics.name
+)
+def test_no_phrase_uses_unknown_slots(entry):
+    """Every slot name in a phrase must be a known identifier (SE-07-002).
+
+    Catches typos like ``{actr}`` or new slot names introduced without
+    updating the allowlist.  Valid slot names are the runtime-populated set
+    plus the reserved-for-future set documented in SE-07-002.
+    """
+    import re
+
+    all_known = _RUNTIME_POPULATED_SLOTS | _RESERVED_UNPOPULATED_SLOTS
+    slot_re = re.compile(r"\{(\w+)\}")
+    slots = set(slot_re.findall(entry.phrase))
+    unknown = slots - all_known
+    assert not unknown, (
+        f"{entry.semantics.name}: phrase={entry.phrase!r} uses unknown "
+        f"slot(s) {sorted(unknown)}. Valid names: {sorted(all_known)}"
+    )

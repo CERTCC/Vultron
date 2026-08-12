@@ -93,10 +93,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -204,24 +202,10 @@ def _phase_report_submission(
         receiver=vendor_in_vendor,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    case = run_direct_path_rm_triage(
         receiver_client=vendor_client,
         receiver=vendor_in_vendor,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("as_VulnerabilityCase exists in Vendor1's DataLayer"):
-        case = find_case_for_offer(vendor_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected as_VulnerabilityCase to be created after validate-report"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    receiver_engages_case(
-        receiver_client=vendor_client,
-        receiver=vendor_in_vendor,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for the initial participants (Finder + Vendor1 + CaseActor) before
@@ -233,6 +217,7 @@ def _phase_report_submission(
     )
 
     # Vendor1 invites Coordinator with COORDINATOR role only (not CASE_MANAGER).
+    invite_result = None
     with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
             client=vendor_client,
@@ -306,6 +291,7 @@ def _phase_report_submission(
 
 
 def _phase_coordinator_suggests_vendor2(
+    finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
@@ -421,6 +407,17 @@ def _phase_coordinator_suggests_vendor2(
         timeout_seconds=60.0,
     )
     logger.info("✓ M3: Vendor2 joined case (%d participants)", 5)
+
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor2 RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=60.0,
+        )
 
     run_invite_path_rm_triage(
         invited_client=vendor2_client,
@@ -962,6 +959,7 @@ def run_fvcv_extension_demo(
     vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
 
     _phase_coordinator_suggests_vendor2(
+        finder_client=finder_client,
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
         vendor2_client=vendor2_client,
