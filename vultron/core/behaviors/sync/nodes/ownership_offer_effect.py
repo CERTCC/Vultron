@@ -171,9 +171,20 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        return self._save_offer_record(offer_id, case_id)
+        return self._save_offer_record(
+            offer_id,
+            case_id,
+            actor_id=_id_from_snapshot_field(snapshot.get("actor")),
+            target_id=_id_from_snapshot_field(snapshot.get("target")),
+        )
 
-    def _save_offer_record(self, offer_id: str, case_id: str) -> Status:
+    def _save_offer_record(
+        self,
+        offer_id: str,
+        case_id: str,
+        actor_id: str | None = None,
+        target_id: str | None = None,
+    ) -> Status:
         """Build and persist the record; FAILURE only if the write itself fails."""
         assert self.datalayer is not None
         from vultron.core.models.ownership_transfer_offer_record import (
@@ -184,6 +195,8 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
             record = VultronOwnershipTransferOfferRecord(
                 offer_id=offer_id,
                 case_id=case_id,
+                actor_id=actor_id,
+                target_id=target_id,
             )
         except ValidationError as exc:
             # Malformed snapshot data, not a failed effect — stay lenient so a
@@ -223,17 +236,20 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
         return Status.SUCCESS
 
 
-def _case_id_from_snapshot(snapshot: dict[str, Any]) -> str:
-    """Extract the offered case URI from a snapshot ``object`` field.
+def _id_from_snapshot_field(field: Any) -> str | None:
+    """Return the URI carried by a snapshot field, or ``None``.
 
-    The field may be an inline dict (``{"id": ..., "type": ...}``) or a bare
-    URI string, depending on how the Offer was serialized.  Returns ``""`` when
-    neither form yields an id.
+    Snapshot fields may be an inline dict (``{"id": ..., "type": ...}``) or a
+    bare URI string, depending on how the activity was serialized.
     """
-    object_field = snapshot.get("object")
-    if isinstance(object_field, dict):
-        case_id = object_field.get("id", "")
-        return case_id if isinstance(case_id, str) else ""
-    if isinstance(object_field, str):
-        return object_field
-    return ""
+    if isinstance(field, dict):
+        value = field.get("id")
+        return value if isinstance(value, str) and value else None
+    if isinstance(field, str) and field:
+        return field
+    return None
+
+
+def _case_id_from_snapshot(snapshot: dict[str, Any]) -> str:
+    """Extract the offered case URI from a snapshot ``object`` field."""
+    return _id_from_snapshot_field(snapshot.get("object")) or ""

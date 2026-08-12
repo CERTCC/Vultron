@@ -280,3 +280,66 @@ def test_record_round_trips_through_datalayer():
         assert back.case_id == CASE_ID
     finally:
         dl.close()
+
+
+# ---------------------------------------------------------------------------
+# #2225 — the adapter must be able to accept from a SYNC-only replica
+# ---------------------------------------------------------------------------
+
+
+def test_effect_records_offer_actor_and_target(bridge, datalayer, case_actor):
+    """actor/target are recorded so the adapter can rebuild the wire Offer."""
+    offer_id = f"urn:uuid:{uuid.uuid4()}"
+    entry = _offer_entry(offer_id)
+    entry.payload_snapshot["target"] = {
+        "id": "https://example.org/actors/transferee",
+        "type": "Actor",
+    }
+
+    assert _run_effect(bridge, entry, case_actor).status == Status.SUCCESS
+
+    stored = cast(
+        VultronOwnershipTransferOfferRecord, datalayer.read(offer_id)
+    )
+    assert stored.actor_id == "https://example.org/actors/original-owner"
+    assert stored.target_id == "https://example.org/actors/transferee"
+
+
+def test_adapter_accepts_transfer_from_sync_only_replica(
+    bridge, datalayer, case_actor, case_obj
+):
+    """accept_case_ownership_transfer works when only the core record exists.
+
+    Regression for #2225: the replica's DataLayer holds a
+    VultronOwnershipTransferOfferRecord at offer_id, not the wire
+    _OfferCaseOwnershipTransferActivity that
+    accept_case_ownership_transfer_activity requires.  Before the adapter
+    learned to rebuild the wire Offer, this raised a ValidationError surfaced
+    to the demo as `422 ... accept_case_ownership_transfer_activity: invalid
+    arguments`.
+    """
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    transferee = "https://example.org/actors/transferee"
+    offer_id = f"urn:uuid:{uuid.uuid4()}"
+    entry = _offer_entry(offer_id)
+    entry.payload_snapshot["target"] = {"id": transferee, "type": "Actor"}
+
+    assert _run_effect(bridge, entry, case_actor).status == Status.SUCCESS
+    assert isinstance(
+        datalayer.read(offer_id), VultronOwnershipTransferOfferRecord
+    )
+
+    activity_id, activity = TriggerActivityAdapter(
+        datalayer
+    ).accept_case_ownership_transfer(offer_id=offer_id, actor=transferee)
+
+    assert activity_id
+    assert activity["type"] == "Accept"
+    # The Accept must carry the Offer inline, with the case inline inside it.
+    assert activity["object"]["id"] == offer_id
+    assert activity["object"]["object"]["id"] == CASE_ID
+    # to: falls back to the offering actor recorded on the core record.
+    assert activity["to"] == ["https://example.org/actors/original-owner"]

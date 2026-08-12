@@ -212,6 +212,34 @@ well-formed record could not be written. FAILURE propagates through the slot's
 Selector to block `PersistReceivedLogEntry`, so an entry is never persisted
 without its effects.
 
+### Two consumers, one key
+
+`dl.read(offer_id)` has two consumers with different expectations, and on a
+SYNC-only replica what sits at that key is the core record, not the wire Offer:
+
+| Consumer | Needs |
+|---|---|
+| `SvcAcceptCaseOwnershipTransferUseCase._prepare` | anything from which a case id is recoverable |
+| `TriggerActivityAdapter.accept_case_ownership_transfer` | an `_OfferCaseOwnershipTransferActivity` to pass to `accept_case_ownership_transfer_activity` |
+
+The adapter therefore rebuilds the wire Offer from the core record
+(`_offer_from_core_record`), reusing `offer_case_ownership_transfer_activity` —
+the same factory the offering side calls — so both delivery paths converge on an
+identical Accept. Reconstruction lives in the adapter because core may not
+import wire (ARCH-03-001) and because
+`test/architecture/test_activity_factory_imports.py` forbids adapters from
+reaching into `vultron.wire.as2.vocab.activities` directly.
+
+That is why the record also carries `actor_id` and `target_id`: the wire Offer
+needs an `actor` (which also supplies the Accept's `to:` fallback) and a
+`target`. Both are read from the snapshot's `actor` and `target` fields per
+DL-06-002. `object_` must be an **inline** `as_VulnerabilityCase`, not a bare
+URI, so the adapter reads the case from the replica's DataLayer and projects it
+with `as_VulnerabilityCase.from_core`.
+
+Without this, `accept-case-ownership-transfer` returns
+`422 ... accept_case_ownership_transfer_activity: invalid arguments` (#2225).
+
 **Spec refs**: CM-21-005 (the offer hop this slot materializes — offer addressed
 to the CaseActor inbox and forwarded by it), SYNC-02-002, SYNC-12-001,
 ADR-0035 DL-06-002. CM-21-007 covers the ledger commit and broadcast that follow

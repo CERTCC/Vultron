@@ -50,7 +50,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import CoreObject, UriString
+from vultron.core.models.base import CoreObject, NonEmptyString, UriString
 
 
 class VultronOwnershipTransferOfferRecord(CoreObject):
@@ -62,6 +62,13 @@ class VultronOwnershipTransferOfferRecord(CoreObject):
     ``id_`` is set to ``offer_id`` directly so that ``dl.read(offer_id)``
     finds this record — matching what the HTTP-inbox path stores for the
     same Offer via ``_idempotent_create``.
+
+    ``actor_id`` and ``target_id`` are what let the adapter layer rebuild a wire
+    ``_OfferCaseOwnershipTransferActivity`` from this record when a replica's
+    only source for the Offer was the ledger entry (#2225).  They are optional
+    because the adapter can proceed without them — the emitting BT node supplies
+    ``to`` from the resolved case manager, and the wire Offer's ``target`` is
+    itself optional — but when present they MUST be non-empty (CS-08-002).
     """
 
     type_: Literal["VultronOwnershipTransferOfferRecord"] = Field(
@@ -73,6 +80,14 @@ class VultronOwnershipTransferOfferRecord(CoreObject):
     case_id: UriString = Field(
         ...,
         description="URI of the offered VulnerabilityCase",
+    )
+    actor_id: NonEmptyString | None = Field(
+        default=None,
+        description="URI of the actor that offered the transfer",
+    )
+    target_id: NonEmptyString | None = Field(
+        default=None,
+        description="URI of the actor the transfer was offered to",
     )
 
     @model_validator(mode="after")
