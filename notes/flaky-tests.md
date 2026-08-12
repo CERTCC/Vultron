@@ -75,6 +75,32 @@ and fall through to Level 2 (GitHub label search).
 
 ---
 
+## Integration-Marker Tests (pytest node IDs)
+
+No open entries.
+
+> Note: `test/demo/test_pcr_late_joiner.py::test_late_joiner_receives_case_replica`
+> and `test/metadata/test_decision_audit_inventory.py` were **not flaky tests** —
+> they were honest 3.5-4.3s tests colliding with a 5s ceiling sized for the unit
+> suite. Because `timeout_method = "thread"` kills the whole pytest process,
+> `uv run pytest -m integration` aborted with **no summary line**, so a red
+> integration run carried no information about the branch. Reliably red in random
+> order (2/2 on clean `origin/main` 65fe33f1b); passed under `-p no:randomly`,
+> which is what made it look like nondeterminism. Only *which* test tripped
+> followed the `pytest-randomly` seed.
+>
+> **Fixed by #2270** — `test/conftest.py` now gives `integration`-marked tests a
+> 60s tier while the unit suite keeps 5s. Verified 2/2 random-order runs at
+> exit 0, 0 timeout aborts, 1101 passed. Never catalogued as flaky; rows added
+> and removed in the same change (2026-08-12).
+>
+> **Lesson**: before adding a row here, ask whether the test is nondeterministic
+> or whether the *ceiling* is wrong. A timeout tuned for one tier of tests will
+> masquerade as flakiness in another. See also #2249 for the opposite error —
+> cataloguing a deterministic protocol bug as noise.
+
+---
+
 ## CI / Demo Integration Jobs (job name granularity)
 
 | Job name | Issue | Last blocked |

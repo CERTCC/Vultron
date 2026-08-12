@@ -143,7 +143,10 @@ six-step checklist (enum → pattern → use-case → map → tests).
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py` defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
-- **Case States**: `vultron/case_states/` — enums are authoritative
+- **Case States**: `vultron/core/states/cs.py` — CS/VFD/PXA enums are
+  authoritative; `vultron/core/states/cs_invariants.py` holds the CS validity,
+  transition and history invariants (CSB-17). `vultron/core/case_states/` is the
+  legacy string-pattern reference model — do not import it in new code (ADR-0060)
 
 Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
 Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).

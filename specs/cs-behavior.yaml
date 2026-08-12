@@ -1453,3 +1453,140 @@ groups:
       spec_id: SDO-02-004
     - rel_type: refines
       spec_id: BTND-10-001
+
+- id: CSB-17
+  title: CS Compound State and History Validity
+  description: >-
+    CS-internal validity invariants over the compound (VFD x PXA) case state
+    and over whole case histories. Where CSB-16 validates a single write at
+    the persistence boundary, CSB-17 defines which compound states exist,
+    which single-event transitions between them are causally possible, and
+    which orderings of the six CS events a real case could have produced.
+    Mined from the legacy `vultron.core.case_states` hypercube model and
+    re-expressed against the current CS enums; see ADR-0060.
+  specs:
+  - id: CSB-17-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An implementation MUST treat exactly 32 compound CS states as valid: the
+      cross product of the 4 valid VFD states (vfd, Vfd, VFd, VFD) and the 8
+      PXA states. A fix MUST NOT be ready while the vendor is unaware (vF is
+      impossible) and a fix MUST NOT be deployed that was never ready (fD is
+      impossible).
+    rationale: >-
+      The VFD dimension is a linear chain, not a free product of three bits:
+      readiness presupposes awareness and deployment presupposes readiness.
+      Enumerating only the reachable combinations makes the two impossible
+      combinations unrepresentable rather than merely rejected at runtime,
+      which is why `CS_vfd` has four members and not eight.
+    testable: true
+    postconditions:
+    - description: The CS enum has exactly 32 members, one per valid compound state
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CS transition MUST change exactly one of the six CS dimensions, and
+      MUST change it from the not-yet-happened value to the happened value.
+      Transitions that change two or more dimensions at once, that reverse a
+      dimension, or that skip a VFD prerequisite MUST be rejected. There are
+      exactly 58 valid CS transitions.
+    rationale: >-
+      CS events are irreversible and are observed one at a time; a compound
+      state change of Hamming distance greater than one conflates two distinct
+      events and loses their ordering, which is exactly the information history
+      validity depends on.
+    testable: true
+    preconditions:
+    - description: A (source, destination) pair of compound CS states
+    steps:
+    - order: 1
+      actor: validator
+      action: >-
+        Identify the single dimension that differs between source and
+        destination; reject if zero or more than one differs.
+      expected: A single CS event accounts for the change
+    - order: 2
+      actor: validator
+      action: >-
+        Delegate to the changed dimension's own transition table
+        (is_valid_vfd_transition or is_valid_pxa_transition).
+      expected: Monotonicity and VFD prerequisite ordering are enforced
+    postconditions:
+    - description: Only Hamming-distance-1 monotone transitions are accepted
+    relationships:
+    - rel_type: constrains
+      spec_id: CSB-16-001
+    - rel_type: constrains
+      spec_id: CSB-16-002
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An implementation MUST treat the compound states vP (public aware while
+      the vendor is unaware) and pX (exploit public while the public is
+      unaware) as ephemeral. From a vP state the next CS event MUST be V; from
+      a pX state the next CS event MUST be P. Any other next event MUST be
+      rejected.
+    rationale: >-
+      Neither condition can persist in reality: public awareness reaches the
+      vendor, and a published exploit makes the public aware. Modelling these
+      as ephemeral rather than invalid preserves the causal ordering of the
+      events while forbidding the case from progressing in any other direction
+      first. The pX ephemeral rule is the pX to PX invariant of CSB-13-001
+      generalised from the entry cascade to every successor of a pX state.
+    testable: true
+    preconditions:
+    - description: The case is in one of the 12 ephemeral compound CS states
+    postconditions:
+    - description: Each ephemeral state has exactly one valid successor state
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-13-001
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A consumer validating a reported CS history SHOULD validate it causally
+      by replaying the event sequence through CSB-17-002 and CSB-17-003 from
+      the initial state vfdpxa, rather than checking states point-in-time or
+      comparing wall-clock timestamps. A complete history contains all six CS
+      events exactly once; there are exactly 70 valid complete histories out of
+      720 orderings. An incomplete history MUST be validated as a prefix, which
+      MAY end in an ephemeral state.
+    rationale: >-
+      Validity of a case trajectory is a property of the whole ordered
+      sequence, not of any single state: VFDPXA and VFDXAP visit only valid
+      states, but only the first is a possible case history. Wall-clock
+      timestamps cannot substitute, because they may be missing, skewed, or
+      recorded by different participants. Real cases are usually still in
+      progress, so prefix validation is the common case and MUST NOT require
+      all six events.
+    testable: true
+    preconditions:
+    - description: An ordered sequence of CS events, possibly incomplete
+    steps:
+    - order: 1
+      actor: validator
+      action: Reject any event that occurs more than once in the sequence
+      expected: Each CS event happens at most once
+    - order: 2
+      actor: validator
+      action: >-
+        Replay the sequence from vfdpxa, requiring each step to satisfy
+        CSB-17-002 and CSB-17-003 given every event that preceded it.
+      expected: Causally impossible orderings are rejected
+    postconditions:
+    - description: A complete valid history terminates in VFDPXA
+    adr:
+    - ADR-0060

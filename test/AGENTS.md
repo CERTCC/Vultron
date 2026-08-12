@@ -43,10 +43,32 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 
 ### Per-Test Timeout Guardrail
 
-Default 5-second timeout (`pytest-timeout`, `pyproject.toml`). When a test
-trips it: mock slow deps, avoid `time.sleep()`, restructure integration tests.
+Timeouts are **two-tier** (`pytest-timeout`):
+
+| Tier | Ceiling | Set in |
+|---|---|---|
+| Unit (default) | 5s | `timeout = 5`, `pyproject.toml` |
+| `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
+
+`test/conftest.py::apply_integration_timeout` widens the ceiling for
+integration-marked tests at collection time. An explicit
+`@pytest.mark.timeout(N)` on a test always wins over the tier default.
+
+**Why two tiers** (#2270): `timeout_method = "thread"` kills the *whole pytest
+process*, not the one slow test. Several integration tests do 3.5-4.3s of
+honest work, so the 5s ceiling tripped nondeterministically and aborted the
+session with **no summary line** — a red integration run carried no information
+about the branch. The unit suite keeps 5s, where it is a genuinely useful hang
+detector.
+
+When a **unit** test trips 5s: mock slow deps, avoid `time.sleep()`, or move it
+behind the `integration` marker if it really does exercise the full stack.
 `@pytest.mark.timeout(N)` is a last resort and MUST have a comment explaining
 why. Do not use it to paper over slow tests.
+
+A timeout ceiling is a diagnostic tool, not a correctness invariant — if a tier
+is firing on honest work rather than catching hangs, change the tier rather
+than contorting the tests around it.
 
 ---
 
