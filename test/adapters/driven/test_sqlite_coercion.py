@@ -87,6 +87,58 @@ class TestRehydrateFields:
         assert result is not None
         assert isinstance(result.object_, str)  # type: ignore[union-attr]
 
+    def test_inline_activity_target_expanded_via_recursion(self, dl):
+        """_rehydrate_fields recurses into inline BaseModel objects.
+
+        When Accept.object_ is an inline Offer (kept inline by
+        _KEEP_INLINE_NESTED_TYPES), _rehydrate_fields must recurse into the
+        Offer and expand its own string reference fields (e.g. target) from
+        the DataLayer.  Without recursion the bare-string target causes
+        OfferCaseManagerRolePattern to permissively match any
+        Offer(VulnerabilityCase), silently mis-routing ownership-transfer
+        Accepts as accept_case_manager_role (SE-08-001, ISSUE-2194).
+        """
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        org_id = "https://example.org/actors/target-org"
+        org = as_Organization(id_=org_id, name="Target Org")
+        dl.save(org)
+
+        case = as_VulnerabilityCase()
+        # target is a bare string URI — must be expanded on read-back via recursion
+        offer = as_Offer(
+            object_=case,
+            target=org_id,
+            actor="https://example.org/actors/sender",
+        )
+        accept = as_Accept(
+            object_=offer,
+            actor="https://example.org/actors/accepter",
+        )
+        # Store Accept only; the Offer is kept inline by _KEEP_INLINE_NESTED_TYPES.
+        # The org is found by _rehydrate_fields recursing into the inline Offer.
+        dl.create(accept)
+
+        stored = dl.read(accept.id_)
+
+        assert stored is not None
+        inline_offer = getattr(stored, "object_", None)
+        assert (
+            inline_offer is not None
+        ), "object_ should be present on stored Accept"
+        assert not isinstance(
+            inline_offer, str
+        ), "Accept.object_ should be the inline Offer, not a bare string"
+        assert not isinstance(inline_offer.target, str), (  # type: ignore[union-attr]
+            f"Offer.target should be the typed actor after recursion,"
+            f" not bare string {inline_offer.target!r}"  # type: ignore[union-attr]
+        )
+        assert isinstance(inline_offer.target, as_Actor)  # type: ignore[union-attr]
+
 
 # ---------------------------------------------------------------------------
 # DL-REHYDRATE: _coerce_to_semantic_class tests
