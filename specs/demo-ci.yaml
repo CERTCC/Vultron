@@ -408,11 +408,12 @@ groups:
           `test/ci/invariants/test_fv_invariants.py`) MUST include a
           per-scenario expected-event-types list that is comprehensive for that
           scenario: it MUST cover all protocol phases that the scenario is
-          designed to exercise, not only the four universal phases shared by
+          designed to exercise, not only the five universal phases shared by
           all scenarios.
         rationale: >-
-          A shared minimal list (validate_report, add_participant_status_to_participant,
-          close_case, add_note_to_case) does not guard against a scenario-specific
+          A shared minimal list (validate_report,
+          add_participant_status_to_participant, close_case, add_note_to_case,
+          engage_case) does not guard against a scenario-specific
           phase (e.g. notes-exchange) regressing silently. Each scenario's
           expected-event-types list must reflect what that scenario is designed
           to prove end-to-end.
@@ -574,7 +575,7 @@ groups:
           The minimum PR validation scenario set is `fv`, `fvcv-handoff`,
           `fcvcv`, and `fcv-reject`. Together these four scenarios cover all
           distinct protocol event types exercised by the full scenario suite:
-          the four universal types plus `invite_actor_to_case`,
+          the five universal types plus `invite_actor_to_case`,
           `offer_case_participant`, `accept_invite_actor_to_case`,
           `accept_actor_recommendation`, and `reject_invite_actor_to_case`.
           The `demo-integration.yml` workflow MUST use this 4-scenario set as

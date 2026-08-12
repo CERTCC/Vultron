@@ -81,14 +81,15 @@ not the duplication worth fixing.
 ## Per-Scenario Expected Event Types (DEMOMA-16)
 
 **Problem**: All per-scenario `_XXX_EXPECTED_EVENT_TYPES` lists historically
-contained only the four universal types (`validate_report`,
-`add_participant_status_to_participant`, `close_case`, `add_note_to_case`),
+contained only the four types then treated as universal (`validate_report`,
+`add_participant_status_to_participant`, `close_case`, `add_note_to_case` —
+`engage_case` became the fifth in ISSUE-2266),
 regardless of the scenario's actual protocol coverage. This allowed
 scenario-specific phases to regress silently (e.g. `invite_actor_to_case`
 missing from a scenario that requires it).
 
 **Design**: Each scenario defines its own required event-type list that
-extends the four universal types with scenario-specific required phases.
+extends the five universal types with scenario-specific required phases.
 The spec requirements in `specs/multi-actor-demo.yaml` DEMOMA-16-001 through
 DEMOMA-16-011 are the normative source; the test constants implement them.
 
@@ -100,9 +101,9 @@ CONCERN-2243 (three rows understated their required types; the FCCV-extension
 and FCV-reject rows were absent entirely), which is exactly the drift
 DEMOMA-16-008 exists to prevent.
 
-| Scenario | Spec | Universal 4 | Additional required |
+| Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
-| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case | (none) |
+| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
 | FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case |
@@ -166,7 +167,9 @@ step failed.
 ### `engage_case` is universal, not scenario-specific
 
 Every scenario drives an engage-case trigger, so `engage_case` is a universal
-required event type on the same footing as `validate_report`:
+required event type on the same footing as `validate_report` — it is the fifth
+type in DEMOMA-16-001 and appears in all nine `_XXX_EXPECTED_EVENT_TYPES`
+lists (ISSUE-2266). The three emission paths are:
 
 - `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow.py`) calls
   `receiver_engages_case()` for the report's direct receiver — used by all
@@ -179,6 +182,15 @@ required event type on the same footing as `validate_report`:
 Emission is therefore located in the **shared helper layer**, not at scenario
 call sites; grepping a single scenario file for `engage` finds nothing and
 invites the false conclusion that no code emits it.
+
+Before ISSUE-2266, only `test_fvcv_handoff_invariants.py` listed
+`engage_case` — added by PR #2018 as a scenario-specific type without amending
+the spec (a DEMOMA-16-008 violation), which left an engage-case regression
+silent in the other eight scenarios. The `fvcv-handoff`
+`check_event_type_count(..., "engage_case", min_count=2)` assertion remains
+scenario-specific: it asserts the *count* Vendor2's post-join triage cycle
+implies (CM-11-002), which is a stronger claim than the universal presence
+check.
 
 ---
 
