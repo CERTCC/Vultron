@@ -281,6 +281,58 @@ class TestCoerceToSemanticClass:
         assert result.object_.case_id == entry.case_id  # type: ignore[union-attr]
         assert result.object_.log_object_id == entry.log_object_id  # type: ignore[union-attr]
 
+    def test_retype_inline_object_refs_recurses_into_sub_activities(self):
+        """_retype_inline_object_refs recurses into re-typed inline sub-activities.
+
+        Accept(object_=Offer(object_=CaseLedgerEntry(case_id=...))) — both Offer
+        and CaseLedgerEntry are kept inline by _KEEP_INLINE_NESTED_TYPES.
+        Without recursion, re-typing the Offer via model_validate parses the inner
+        CaseLedgerEntry dict against the base as_Object union (as_Offer.object_ is
+        typed Union[as_Object, as_Link, str, CoreObject]), silently dropping
+        domain-specific fields such as case_id and event_type.  With the recursive
+        call, _retype_inline_object_refs runs again on the re-typed Offer's raw
+        sub-data and restores the CaseLedgerEntry to its specific class.
+        """
+        from vultron.adapters.driven.db_record import Record
+        from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+            as_CaseLedgerEntry,
+        )
+
+        ledger_entry = as_CaseLedgerEntry(
+            case_id="https://example.org/cases/retype-recurse-1",
+            log_object_id="https://example.org/activities/obj-retype-1",
+            event_type="log_entry_committed",
+            log_index=0,
+        )
+        offer = as_Offer(
+            object_=ledger_entry,
+            actor="https://example.org/actors/sender",
+        )
+        accept = as_Accept(
+            object_=offer,
+            actor="https://example.org/actors/accepter",
+        )
+
+        record = Record.from_obj(accept)
+        result = record.to_obj()
+
+        inner_offer = getattr(result, "object_", None)
+        assert (
+            inner_offer is not None
+        ), "Accept.object_ must be the inline Offer"
+        assert not isinstance(
+            inner_offer, str
+        ), "Accept.object_ must not collapse to a bare string"
+        inner_entry = getattr(inner_offer, "object_", None)
+        assert isinstance(inner_entry, as_CaseLedgerEntry), (
+            f"Offer.object_ should be re-typed to as_CaseLedgerEntry by recursive "
+            f"_retype_inline_object_refs; got {type(inner_entry).__name__!r}"
+        )
+        assert (
+            inner_entry.case_id == "https://example.org/cases/retype-recurse-1"
+        )
+        assert inner_entry.event_type == "log_entry_committed"
+
     def test_non_activity_object_not_coerced(self, dl):
         """Non-activity objects (e.g. as_VulnerabilityReport) are returned as-is."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (

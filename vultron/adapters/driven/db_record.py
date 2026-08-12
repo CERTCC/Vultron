@@ -181,8 +181,11 @@ def _retype_inline_object_refs(
     """
     updates: dict[str, Any] = {}
     for field_name in _AS_OBJECT_REF_FIELDS:
-        typed = _retype_inline_ref(obj, field_name, data.get(field_name))
+        raw_sub = data.get(field_name)
+        typed = _retype_inline_ref(obj, field_name, raw_sub)
         if typed is not None:
+            if isinstance(raw_sub, dict):
+                typed = _retype_inline_object_refs(typed, raw_sub)
             updates[field_name] = typed
     if not updates:
         return obj
