@@ -138,15 +138,16 @@ class TestCoreVocabularyHierarchy:
             f"  newly violating: {sorted(has_to_camel - _TO_CAMEL_BACKLOG_1991)}\n"
             f"  fixed but still listed: {sorted(_TO_CAMEL_BACKLOG_1991 - has_to_camel)}\n"
             "to_camel is an AS2 serialization concern and belongs only in the"
-            " wire layer (ARCH-12-004, issue #1991)."
+            " wire layer (ARCH-12-004, #2288 / #2289)."
         )
 
     @pytest.mark.xfail(
         strict=True,
-        reason="Goal state for issue #1991: no CoreObject subclass inherits "
-        "alias_generator=to_camel from as_Base. 8 known classes remain, "
-        "enumerated in _TO_CAMEL_BACKLOG_1991. When the last is fixed this test "
-        "XPASSes and fails the build — delete the marker and the backlog then.",
+        reason="Goal state tracked in #2288 and #2289 (supersedes closed #1991): "
+        "no CoreObject subclass inherits alias_generator=to_camel from as_Base. "
+        "8 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
+        "When the last is fixed this test XPASSes and fails the build — "
+        "delete the marker and the backlog then.",
     )
     def test_no_core_object_has_to_camel_alias_generator(self) -> None:
         """No CoreObject subclass may use alias_generator=to_camel.
