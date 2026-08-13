@@ -115,7 +115,7 @@ No open entries.
 | `fcvcv Invariant Harness` | #2233 | 2026-08-13 |
 | `fcv-reject Invariant Harness` | #2233 | 2026-08-13 |
 | `fv Invariant Harness` | #2233 | 2026-08-13 |
-| `fv Demo Integration` | — | 2026-08-13 |
+| `fv Demo Integration` | #2241 | 2026-08-13 |
 
 > `fv Demo Integration` is a different animal from the #2233 rows below it, and
 > from the async-race rows above. It passed at `dc31b6c6` and failed at
@@ -127,9 +127,15 @@ No open entries.
 > exception, so control falls through and raises
 > `UnboundLocalError: cannot access local variable 'result'`, which buries the
 > real 422 under a traceback pointing at the wrong line. Pre-existing base code
-> (last touched by #1387, #543), unrelated to #2279's ledger-dump change —
-> though that path throws its own secondary error at `ledger_dump.py:434` in the
-> same run.
+> (last touched by #1387, #543).
+>
+> **#2241 already owns this pattern** — "assignment inside a swallowing
+> `demo_check` block then used after it" — so this row cites it rather than a new
+> issue. The concrete callsite and run evidence are recorded there; note the
+> pattern reaches `demo_step` too, not just `demo_check`. The related reporting
+> failure is #2240. The `ValueError: No case ledger entries` later in the same run
+> is *not* a second bug: `ledger_dump.py:434` raises it deliberately because the
+> run died before any ledger was written. See also #2281.
 >
 > The rows with no issue number fail intermittently due to inter-container HTTP
 > delivery timeouts (async race windows). Root cause documented in
