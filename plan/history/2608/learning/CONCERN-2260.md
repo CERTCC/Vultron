@@ -8,7 +8,7 @@ type: learning
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/2285>
 ADR: ADR-0063
-Impl chain: #2286 → #2287 / #2288 → #2289 (Epic #2229)
+Impl chain: #2286 → #2287 / #2288 → #2289 (Epic #2222)
 
 ## What the concern claimed, and what was actually true
 
