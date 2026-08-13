@@ -209,7 +209,8 @@ def _insert_raw_row(dl, id_, type_, data):
     """Insert *data* verbatim, bypassing object_to_record normalisation.
 
     Mirrors the ``crud.create`` + ``StorableRecord`` write path, which stores
-    ``record.data_`` as given (issue #2280).
+    ``record.data_`` as given, skipping ``Record.from_obj``'s wire→core
+    normalisation (issue #2283).
     """
     with Session(dl._engine) as session:
         session.add(
