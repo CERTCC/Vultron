@@ -40,6 +40,9 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import (
+    participant_status_rm_state,
+)
 from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
@@ -109,9 +112,7 @@ class AdvanceParticipantToRMClosedNode(DataLayerAction):
 
         # Idempotency: skip if already at RM.CLOSED
         for ps in participant.participant_statuses:
-            rm_dim = getattr(ps, "rm", None)
-            rm_state = getattr(rm_dim, "state", None) if rm_dim else None
-            if rm_state == RM.CLOSED:
+            if participant_status_rm_state(ps) == RM.CLOSED:
                 self.logger.debug(
                     "%s: participant '%s' already at RM.CLOSED — no-op",
                     self.name,
@@ -212,9 +213,7 @@ class AdvanceCaseActorToRMClosedNode(DataLayerAction):
 
         # Idempotency: skip if already at RM.CLOSED
         for ps in participant.participant_statuses:
-            rm_dim = getattr(ps, "rm", None)
-            rm_state = getattr(rm_dim, "state", None) if rm_dim else None
-            if rm_state == RM.CLOSED:
+            if participant_status_rm_state(ps) == RM.CLOSED:
                 self.logger.debug(
                     "%s: case actor '%s' already at RM.CLOSED — no-op",
                     self.name,

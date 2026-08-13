@@ -32,7 +32,10 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    participant_status_rm_state,
+)
 from vultron.core.states.rm import RM
 from vultron.core.ports.sync_activity import SyncActivityPort
 
@@ -75,11 +78,7 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerAction):
                 ps = ps_ref
             if not isinstance(ps, ParticipantStatus):
                 continue
-            rm_dim = getattr(ps, "rm", None)
-            if (
-                rm_dim is not None
-                and getattr(rm_dim, "state", None) == RM.CLOSED
-            ):
+            if participant_status_rm_state(ps) == RM.CLOSED:
                 return True
         return False
 

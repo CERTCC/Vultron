@@ -36,15 +36,10 @@ Container mapping (docker-compose-multi-actor.yml services):
 Spec: DEMOMA-19 (GitHub issue #1925).
 """
 
-import json
 import logging
 import os
-import pathlib
 import sys
 
-import httpx2 as httpx
-
-from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -77,6 +72,12 @@ from vultron.demo.helpers.actions import (
     actor_notifies_fix_deployed,
     actor_notifies_fix_ready,
     actor_notifies_published,
+)
+from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.ledger_dump import (
+    LedgerDumpTarget,
+    dump_case_ledgers,
+    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -995,75 +996,35 @@ def _phase_dump_case_ledgers(
     case: as_VulnerabilityCase,
     demo_name: str = "fcvcv",
 ) -> None:
-    """Dump case ledger entries from each actor container to JSONL files."""
-    logger.info("─" * 80)
-    logger.info("Phase 8: Case log JSONL export")
-    logger.info("─" * 80)
+    """Dump case ledger entries from each actor container to JSONL files.
 
-    output_root = pathlib.Path(os.environ.get("DEVLOGS_DIR", "/app/devlogs"))
-    case_id = case.id_ or ""
-    case_id_slug = (
-        case_id.replace("://", "_")
-        .replace("/", "_")
-        .replace(":", "_")
-        .strip("_")
-    )
-
-    case_actor_sub_actor_key = next(
-        (
-            strip_id_prefix(actor_id)
-            for actor_id in case.actor_participant_index
-            if strip_id_prefix(actor_id).startswith("case-actor")
-        ),
-        None,
-    )
-
+    Thin scenario-specific wrapper over
+    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
+    per-actor export, the 404 handling, and the dump manifest. This function
+    only names FCVCV's participants and where each one's ledger lives.
+    """
     # Devlog directory names use scenario-role names (DEMOMA-19-007):
     # finder, c1, v1, c2, v2, case-actor.
     # Container routing keys must match actual docker-compose service/actor paths.
-    actors: list[tuple[str, DataLayerClient, str]] = [
-        ("finder", finder_client, "finder"),
+    targets = [
+        LedgerDumpTarget("finder", finder_client, "finder"),
         # C1 is on the coordinator container; route key is "coordinator".
-        ("c1", c1_client, "coordinator"),
+        LedgerDumpTarget("c1", c1_client, "coordinator"),
         # V1 is on the vendor container; route key is "vendor".
-        ("v1", v1_client, "vendor"),
+        LedgerDumpTarget("v1", v1_client, "vendor"),
         # C2 is on actor5; route key is "vendor2" (actor5 seed).
-        ("c2", c2_client, "vendor2"),
+        LedgerDumpTarget("c2", c2_client, "vendor2"),
         # V2 is on actor6; route key is "vendor-deployer".
-        ("v2", v2_client, "vendor-deployer"),
+        LedgerDumpTarget("v2", v2_client, "vendor-deployer"),
     ]
-    if case_actor_sub_actor_key is not None:
-        actors.append(("case-actor", c1_client, case_actor_sub_actor_key))
+    # The case-actor is a sub-actor inside the C1 container.
+    case_actor_route_key = resolve_case_actor_route_key(case)
+    if case_actor_route_key is not None:
+        targets.append(
+            LedgerDumpTarget("case-actor", c1_client, case_actor_route_key)
+        )
 
-    for actor_name, client, actor_route_key in actors:
-        with demo_step(f"Dumping case ledger for {actor_name}"):
-            case_key = strip_id_prefix(case_id)
-            log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
-            try:
-                entries = client.get_list(log_path)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code != 404:
-                    raise
-                logger.info(
-                    "Case not found on %s container (HTTP 404); skipping.",
-                    actor_name,
-                )
-                entries = []
-            if not entries:
-                raise ValueError(
-                    f"No case ledger entries for actor={actor_name!r}, "
-                    f"case_id={case_id!r}"
-                )
-
-            out_dir = output_root / demo_name / actor_name
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_file = out_dir / f"{case_id_slug}-case-ledger.jsonl"
-
-            with out_file.open("w", encoding="utf-8") as fh:
-                for entry in entries:
-                    fh.write(json.dumps(entry) + "\n")
-
-            logger.info("Wrote %d log entries → %s", len(entries), out_file)
+    dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
 
 def run_fcvcv_demo(
@@ -1090,118 +1051,125 @@ def run_fcvcv_demo(
     logger.info("C2 container:     %s", c2_client.base_url)
     logger.info("V2 container:     %s", v2_client.base_url)
 
-    (
-        finder,
-        c1,
-        c1_in_c1,
-        v1,
-        v1_in_v1,
-        c2_in_c2,
-        v2,
-        report,
-        offer,
-        case,
-    ) = _phase_report_submission(
-        finder_client,
-        c1_client,
-        v1_client,
-        c2_client,
-        v2_client,
-        finder_id,
-        c1_id,
-        v1_id,
-        c2_id,
-        v2_id,
-    )
+    with scenario_harness("fcvcv") as harness:
+        (
+            finder,
+            c1,
+            c1_in_c1,
+            v1,
+            v1_in_v1,
+            c2_in_c2,
+            v2,
+            report,
+            offer,
+            case,
+        ) = _phase_report_submission(
+            finder_client,
+            c1_client,
+            v1_client,
+            c2_client,
+            v2_client,
+            finder_id,
+            c1_id,
+            v1_id,
+            c2_id,
+            v2_id,
+        )
 
-    _phase_c2_suggests_v2(
-        finder_client=finder_client,
-        c1_client=c1_client,
-        c2_client=c2_client,
-        v2_client=v2_client,
-        c1_in_c1=c1_in_c1,
-        c2_in_c2=c2_in_c2,
-        v2=v2,
-        case=case,
-        offer=offer,
-        report=report,
-        finder=finder,
-    )
+        # Register the dump as soon as there is a case to dump, so every phase
+        # below can fail without costing us the ledgers (ISSUE-2239).
+        harness.dump_with(
+            lambda: _phase_dump_case_ledgers(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                v1_client=v1_client,
+                c2_client=c2_client,
+                v2_client=v2_client,
+                case=case,
+                demo_name=harness.demo_name,
+            )
+        )
 
-    v2_in_v2 = get_actor_by_id(v2_client, v2.id_)
-    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
+        _phase_c2_suggests_v2(
+            finder_client=finder_client,
+            c1_client=c1_client,
+            c2_client=c2_client,
+            v2_client=v2_client,
+            c1_in_c1=c1_in_c1,
+            c2_in_c2=c2_in_c2,
+            v2=v2,
+            case=case,
+            offer=offer,
+            report=report,
+            finder=finder,
+        )
 
-    _phase_sync_verification(
-        finder_client,
-        c1_client,
-        v1_client,
-        c2_client,
-        v2_client,
-        c1,
-        finder,
-        case,
-    )
-    _phase_notes_exchange(
-        finder_client=finder_client,
-        c1_client=c1_client,
-        v1_client=v1_client,
-        c2_client=c2_client,
-        v2_client=v2_client,
-        finder_in_finder=finder_in_finder,
-        c1_in_c1=c1_in_c1,
-        v1_in_v1=v1_in_v1,
-        c2_in_c2=c2_in_c2,
-        v2_in_v2=v2_in_v2,
-        case=case,
-    )
-    _phase_fix_lifecycle(
-        c1_client,
-        v1_client,
-        v2_client,
-        finder_client,
-        v1,
-        v1_in_v1,
-        v2,
-        v2_in_v2,
-        case,
-    )
-    _phase_publication(
-        finder_client,
-        c1_client,
-        v1_client,
-        c2_client,
-        v2_client,
-        c1,
-        c1_in_c1,
-        c2_in_c2,
-        v1,
-        v1_in_v1,
-        v2,
-        v2_in_v2,
-        finder_in_finder,
-        case,
-    )
-    _phase_case_closure(
-        finder_client,
-        c1_client,
-        v1_client,
-        c2_client,
-        v2_client,
-        c1_in_c1,
-        v1_in_v1,
-        c2_in_c2,
-        v2_in_v2,
-        finder_in_finder,
-        case,
-    )
-    _phase_dump_case_ledgers(
-        finder_client=finder_client,
-        c1_client=c1_client,
-        v1_client=v1_client,
-        c2_client=c2_client,
-        v2_client=v2_client,
-        case=case,
-    )
+        v2_in_v2 = get_actor_by_id(v2_client, v2.id_)
+        finder_in_finder = get_actor_by_id(finder_client, finder.id_)
+
+        _phase_sync_verification(
+            finder_client,
+            c1_client,
+            v1_client,
+            c2_client,
+            v2_client,
+            c1,
+            finder,
+            case,
+        )
+        _phase_notes_exchange(
+            finder_client=finder_client,
+            c1_client=c1_client,
+            v1_client=v1_client,
+            c2_client=c2_client,
+            v2_client=v2_client,
+            finder_in_finder=finder_in_finder,
+            c1_in_c1=c1_in_c1,
+            v1_in_v1=v1_in_v1,
+            c2_in_c2=c2_in_c2,
+            v2_in_v2=v2_in_v2,
+            case=case,
+        )
+        _phase_fix_lifecycle(
+            c1_client,
+            v1_client,
+            v2_client,
+            finder_client,
+            v1,
+            v1_in_v1,
+            v2,
+            v2_in_v2,
+            case,
+        )
+        _phase_publication(
+            finder_client,
+            c1_client,
+            v1_client,
+            c2_client,
+            v2_client,
+            c1,
+            c1_in_c1,
+            c2_in_c2,
+            v1,
+            v1_in_v1,
+            v2,
+            v2_in_v2,
+            finder_in_finder,
+            case,
+        )
+        _phase_case_closure(
+            finder_client,
+            c1_client,
+            v1_client,
+            c2_client,
+            v2_client,
+            c1_in_c1,
+            v1_in_v1,
+            c2_in_c2,
+            v2_in_v2,
+            finder_in_finder,
+            case,
+        )
 
     logger.info("=" * 80)
     logger.info("FCVCV DEMO COMPLETE ✓  (full 5-actor lifecycle)")
@@ -1241,8 +1209,6 @@ def main(
         c2_id: Optional deterministic URI for the C2 actor.
         v2_id: Optional deterministic URI for the V2 actor.
     """
-    reset_demo_failures()
-
     f_url = finder_url or FINDER_BASE_URL
     c1_resolved = c1_url or C1_BASE_URL
     v1_resolved = v1_url or V1_BASE_URL
@@ -1275,21 +1241,21 @@ def main(
                 logger.error("=" * 80)
                 sys.exit(1)
 
-    try:
-        run_fcvcv_demo(
-            finder_client=finder_client,
-            c1_client=c1_client,
-            v1_client=v1_client,
-            c2_client=c2_client,
-            v2_client=v2_client,
-            finder_id=finder_id or FINDER_ACTOR_ID,
-            c1_id=c1_id or C1_ACTOR_ID,
-            v1_id=v1_id or V1_ACTOR_ID,
-            c2_id=c2_id or C2_ACTOR_ID,
-            v2_id=v2_id or V2_ACTOR_ID,
-        )
-    finally:
-        assert_demo_success()
+    # scenario_harness() inside run_fcvcv_demo() owns the failure accumulator:
+    # it resets it, always dumps the case ledgers, and asserts success — so a
+    # failure here never costs us the artifacts (ISSUE-2239).
+    run_fcvcv_demo(
+        finder_client=finder_client,
+        c1_client=c1_client,
+        v1_client=v1_client,
+        c2_client=c2_client,
+        v2_client=v2_client,
+        finder_id=finder_id or FINDER_ACTOR_ID,
+        c1_id=c1_id or C1_ACTOR_ID,
+        v1_id=v1_id or V1_ACTOR_ID,
+        c2_id=c2_id or C2_ACTOR_ID,
+        v2_id=v2_id or V2_ACTOR_ID,
+    )
 
 
 if __name__ == "__main__":
