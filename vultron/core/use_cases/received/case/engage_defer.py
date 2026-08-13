@@ -52,7 +52,11 @@ class EngageCaseReceivedUseCase:
         # the CaseActor and commit the ledger entry (fix for #2300).
         # Fall back to the sender's ID only when receiving_actor_id is absent
         # (e.g. in legacy unit tests that do not populate the field).
-        receiving_actor_id = request.receiving_actor_id or actor_id
+        receiving_actor_id = (
+            request.receiving_actor_id
+            if request.receiving_actor_id is not None
+            else actor_id
+        )
 
         # Persist any inline participant objects carried in the case snapshot
         # so BT nodes (CheckParticipantExists, AppendParticipantStatusNode) can
@@ -116,7 +120,11 @@ class DeferCaseReceivedUseCase:
         # The BT must execute under the receiving actor's identity so that
         # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
         # the CaseActor and commit the ledger entry (fix for #2300).
-        receiving_actor_id = request.receiving_actor_id or actor_id
+        receiving_actor_id = (
+            request.receiving_actor_id
+            if request.receiving_actor_id is not None
+            else actor_id
+        )
 
         logger.info(
             "Actor '%s' defers case '%s' (RM → DEFERRED)",

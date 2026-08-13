@@ -340,3 +340,119 @@ class TestEngageCaseLedgerCommit:
         assert isinstance(updated, VultronParticipant)
         latest_status = updated.participant_statuses[-1]
         assert latest_status.rm.state == RM.ACCEPTED
+
+
+class TestDeferCaseLedgerCommit:
+    """DeferCaseReceivedUseCase must commit a defer_case ledger entry.
+
+    Symmetric regression for #2300 on the defer path.
+    """
+
+    _SENDER_ID = "https://example.org/actors/vendor-2300-defer"
+    _CASE_MANAGER_ID = "https://example.org/actors/coordinator-2300-defer"
+    _CASE_ID = "https://example.org/cases/case-2300-defer"
+    _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
+    _CM_PARTICIPANT_ID = f"{_CASE_ID}/participants/coordinator"
+
+    @pytest.fixture
+    def dl(self):
+        return SqliteDataLayer("sqlite:///:memory:")
+
+    @pytest.fixture
+    def seeded_dl(self, dl):
+        from vultron.core.models.vultron_types import VultronCaseActor
+
+        dl.create(VultronCaseActor(id_=self._SENDER_ID, name="Vendor"))
+        vendor_p = VultronParticipant(
+            id_=self._VENDOR_PARTICIPANT_ID,
+            attributed_to=self._SENDER_ID,
+            context=self._CASE_ID,
+            participant_statuses=[
+                ParticipantStatus(
+                    attributed_to=self._SENDER_ID,
+                    context=self._CASE_ID,
+                    rm=RmDimension(state=RM.RECEIVED),
+                ),
+                ParticipantStatus(
+                    attributed_to=self._SENDER_ID,
+                    context=self._CASE_ID,
+                    rm=RmDimension(state=RM.VALID),
+                ),
+            ],
+        )
+        dl.create(vendor_p)
+        dl.create(
+            VultronCaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator")
+        )
+        cm_p = VultronParticipant(
+            id_=self._CM_PARTICIPANT_ID,
+            attributed_to=self._CASE_MANAGER_ID,
+            context=self._CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+        )
+        dl.create(cm_p)
+        case = VultronCase(
+            id_=self._CASE_ID,
+            name="Defer Ledger Commit Regression #2300",
+            attributed_to=self._CASE_MANAGER_ID,
+            case_participants=[
+                self._VENDOR_PARTICIPANT_ID,
+                self._CM_PARTICIPANT_ID,
+            ],
+            actor_participant_index={
+                self._SENDER_ID: self._VENDOR_PARTICIPANT_ID,
+                self._CASE_MANAGER_ID: self._CM_PARTICIPANT_ID,
+            },
+        )
+        dl.create(case)
+        return dl
+
+    def _defer_event(self) -> DeferCaseReceivedEvent:
+        return DeferCaseReceivedEvent(
+            activity_id=f"{self._CASE_ID}/activities/defer-2300",
+            actor_id=self._SENDER_ID,
+            receiving_actor_id=self._CASE_MANAGER_ID,
+            object_=VultronObject(id_=self._CASE_ID),
+            semantic_type=MessageSemantics.DEFER_CASE,
+            activity=VultronActivity(
+                type_="Ignore",
+                actor=self._SENDER_ID,
+                object_=VultronCase(id_=self._CASE_ID),
+                context=self._CASE_ID,
+            ),
+        )
+
+    def test_defer_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
+        self, seeded_dl
+    ):
+        """DeferCaseReceivedUseCase commits a defer_case ledger entry.
+
+        Symmetric regression test to TestEngageCaseLedgerCommit for the
+        defer path. Regression for #2300.
+        """
+        from vultron.core.models.case_ledger_entry import (
+            VultronCaseLedgerEntry,
+        )
+
+        DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
+
+        entries = seeded_dl.list_objects("CaseLedgerEntry")
+        defer_entries = [
+            e
+            for e in entries
+            if isinstance(e, VultronCaseLedgerEntry)
+            and e.event_type == "defer_case"
+        ]
+        assert len(defer_entries) == 1, (
+            "Expected exactly one 'defer_case' ledger entry when "
+            "receiving_actor_id is the CaseManager — regression for #2300"
+        )
+
+    def test_defer_case_transitions_vendor_rm_to_deferred(self, seeded_dl):
+        """DeferCaseReceivedUseCase still transitions the deferring actor's RM to DEFERRED."""
+        DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
+
+        updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
+        assert isinstance(updated, VultronParticipant)
+        latest_status = updated.participant_statuses[-1]
+        assert latest_status.rm.state == RM.DEFERRED
