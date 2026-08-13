@@ -111,9 +111,10 @@ No open entries.
 | `fccv-extension` | — | 2026-07-31 |
 | `fcvcv Demo Integration` | #2233 | 2026-08-13 |
 | `fvcv-handoff Demo Integration` | #2233 | 2026-08-13 |
-| `fvcv-handoff Invariant Harness` | #2266 | 2026-08-13 |
-| `fcvcv Invariant Harness` | — | 2026-08-10 |
-| `fcv-reject Invariant Harness` | #2121 (closed) | 2026-08-10 |
+| `fvcv-handoff Invariant Harness` | #2233 | 2026-08-13 |
+| `fcvcv Invariant Harness` | #2233 | 2026-08-13 |
+| `fcv-reject Invariant Harness` | #2233 | 2026-08-13 |
+| `fv Invariant Harness` | #2233 | 2026-08-13 |
 
 > The rows with no issue number fail intermittently due to inter-container HTTP
 > delivery timeouts (async race windows). Root cause documented in
@@ -121,13 +122,19 @@ No open entries.
 > When a new occurrence is confirmed, `pr-execute` will open or comment on a
 > `flaky-test` + `bug` issue and record it here.
 >
-> The three rows citing #2233 / #2266 are **not** flaky — they are deterministic
-> and branch-independent. `engage-case` returns HTTP 422 on the invite path
-> (`SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`), tracked as
-> #2233; the harness row is the assertion-scope gap tracked as #2266. They are
-> listed here because `pr-execute` records blocked jobs here regardless of
-> cause, and because #2216 — the issue they used to cite — is closed and no
-> longer the right pointer. Do not re-diagnose them as nondeterminism.
+> The rows citing **#2233 are not flaky** — they are deterministic and
+> branch-independent. `engage-case` returns HTTP 422 on the invite path
+> (`SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`), so the
+> event is never emitted; #2266 then promoted `engage_case` to a universal
+> invariant asserted in all nine scenarios, which turned one silent gap into a
+> red `Invariant Harness` job per scenario. Both are open. `origin/main`
+> `06bf60c2` fails **15** of these jobs on its own, so a PR that fails a subset
+> of them has not caused them.
+>
+> These rows are listed here because `pr-execute` records blocked jobs here
+> regardless of cause, and because #2216 and #2121 — the issues they used to
+> cite — are both closed and no longer the right pointer. Do not re-diagnose
+> them as nondeterminism, and do not "fix" them on a feature branch.
 
 ---
 
