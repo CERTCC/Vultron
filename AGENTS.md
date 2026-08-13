@@ -271,6 +271,19 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Case Participant Lookup**: `case_participants` is authoritative; check
   `actor_participant_index` first (fast path), fall back to `case_participants`.
   Fail only on contradictions, not cache misses.
+- **Construction-Time Validation Does Not Cover Assignment or `append`** —
+  Pydantic validates a model when it is built, and not again. `case.field = x`
+  and `case.field.append(x)` both bypass every type guarantee, so a wire-shaped
+  object can occupy a core-typed field and then read as *absent* rather than
+  raising (#2232, #2264). Do not hand-mutate `case_participants`,
+  `case_statuses` or `participant_statuses`; use the canonical mutators
+  (CM-27-001, PRM-03-003). Corollary: **never assign to `self` inside a
+  `mode="after"` model validator** (ARCH-21-004) — once `validate_assignment` is
+  on, the assignment re-runs the validator and it re-enters itself, which
+  presents as a baffling `RecursionError` far from the cause. Derive in
+  `mode="before"` instead. See
+  [notes/domain-validation.md](notes/domain-validation.md)
+  § "Post-Construction Mutation: Three Doors, One Lock".
 - **Orphan Module Cleanup Requires Importer Proof** — verify no live importers
   in `vultron/` and `test/` before deleting.
 - **Worktree Sync Checks Need Ancestry Verification** — use `ensure-synced`
