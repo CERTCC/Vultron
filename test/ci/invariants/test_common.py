@@ -735,6 +735,70 @@ class TestLoadDevlogsManifestHandling:
             common.load_devlogs()
         assert "devlogs/" in str(excinfo.value)
 
+    def test_filters_entries_by_manifest_case_id_on_accumulation(
+        self, tmp_path, monkeypatch
+    ):
+        """load_devlogs filters out entries from prior runs via manifest caseId.
+
+        When devlogs/ accumulates ledger files from multiple runs, the
+        hash-chain invariant fails because entries from different cases are
+        concatenated into one log.  The manifest's caseId identifies the
+        current run; load_devlogs must drop any entry whose caseId differs.
+        Regression: issue #2273.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "fv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+
+        CASE_A = "https://example.org/cases/case-a"
+        CASE_B = "https://example.org/cases/case-b"
+
+        entry_a = {
+            "logIndex": 0,
+            "entryHash": "ha",
+            "prevLogHash": "0",
+            "event_type": "old_event",
+            "caseId": CASE_A,
+        }
+        entry_b = {
+            "logIndex": 0,
+            "entryHash": "hb",
+            "prevLogHash": "0",
+            "event_type": "new_event",
+            "caseId": CASE_B,
+        }
+
+        # Two JSONL files — one from each run — simulating local accumulation
+        (actor_dir / "case-a-case-ledger.jsonl").write_text(
+            json.dumps(entry_a) + "\n", encoding="utf-8"
+        )
+        (actor_dir / "case-b-case-ledger.jsonl").write_text(
+            json.dumps(entry_b) + "\n", encoding="utf-8"
+        )
+
+        # Manifest identifies the most recent run as case-b
+        (tmp_path / "fv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fv",
+                    "caseId": CASE_B,
+                    "ledgerFileCount": 1,
+                    "targetCount": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        replicas = common.load_devlogs("fv")
+
+        assert "case-actor" in replicas
+        case_ids_in_result = {e.get("caseId") for e in replicas["case-actor"]}
+        assert case_ids_in_result == {CASE_B}, (
+            f"Expected only {CASE_B!r}, got {case_ids_in_result!r}. "
+            "load_devlogs must filter by manifest caseId to prevent "
+            "hash-chain corruption from cross-run accumulation (issue #2273)."
+        )
+
     def test_fails_when_any_scenario_manifest_reports_no_ledgers(
         self, tmp_path, monkeypatch
     ):

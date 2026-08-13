@@ -27,6 +27,7 @@ import sys
 from typing import Optional, Tuple
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -87,6 +88,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_event_type_in_ledger,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (  # noqa: F401
@@ -435,15 +437,11 @@ def _phase_report_submission(
         receiver=vendor_in_vendor,
         reporter_client=finder_client,
     )
-    vendor_validates_report(
-        vendor_client=vendor_client,
-        vendor=vendor_in_vendor,
-        offer_id=offer.id_,
-    )
-
-    # ADR-0041: vendor writes VultronReportCaseLink and sends Create(as_CaseProposal)
-    # to CaseActor.  No local VulnerabilityCase is created until CaseActor responds.
-    # Simulate the CaseActor response by calling trigger/create-case directly.
+    # Vendor receives the Offer → RM.RECEIVED.  The case must exist before
+    # validate-report fires so that the case-actor ledger can record the
+    # validate_report eventType.  Per ADR-0041, case creation is gated on the
+    # CaseActor accepting a CaseProposal; in single-server mode that round-trip
+    # is blocked, so we simulate the CaseActor response directly.
     offer_data = vendor_client.get(f"/datalayer/{offer.id_}")
     report_id = _report_id_from_offer_data(offer_data, offer.id_)
     create_case_result = post_to_trigger(
@@ -472,6 +470,8 @@ def _phase_report_submission(
 
     # ADR-0041: CaseActor normally seeds participants via case_proposal_received_tree,
     # but nested ASGI delivery is blocked in single-server mode.  Seed directly.
+    # Participants are seeded without pre-populated RM state so that the protocol
+    # drives every RM transition (RECEIVED → VALID → ACCEPTED) through triggers.
     seed_case_participants_for_demo(
         case_id=case.id_,
         vendor_actor_id=vendor_in_vendor.id_,
@@ -479,8 +479,28 @@ def _phase_report_submission(
         report_id=report_id,
     )
 
-    # validate-report advances RM to VALID only; engage-case is a separate
-    # explicit step that advances RM to ACCEPTED (RM state machine protocol).
+    # validate-report advances RM to VALID and records the validate_report
+    # eventType in the case-actor ledger.  The case must already exist at this
+    # point (EnsureEmbargoExists requires a live case with an active embargo).
+    # Causal gate: poll until RM.VALID is committed before triggering engage-case,
+    # which requires RM.VALID as its precondition (run_direct_path_rm_triage pattern).
+    vendor_validates_report(
+        vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
+        offer_id=offer.id_,
+    )
+
+    with demo_check(
+        f"{vendor_in_vendor.id_} reached RM.VALID before engage-case"
+    ):
+        wait_for_participant_rm_state(
+            client=vendor_client,
+            case_id=case.id_,
+            actor_id=vendor_in_vendor.id_,
+            expected_states={RM.VALID, RM.ACCEPTED},
+        )
+
+    # engage-case advances RM to ACCEPTED (RM state machine protocol).
     vendor_engages_case(
         vendor_client=vendor_client,
         vendor=vendor_in_vendor,

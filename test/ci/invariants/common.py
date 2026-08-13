@@ -251,6 +251,17 @@ def load_devlogs(
     for actor in replicas:
         replicas[actor] = sorted(replicas[actor], key=log_index)
 
+    # Filter to the most recent run's case when the manifest provides a caseId.
+    # Without this, accumulated JSONL files from prior local runs chain entries
+    # from different cases together and break the hash-chain invariant (issue #2273).
+    manifest_case_ids = {m.get("caseId") for m in manifests if m.get("caseId")}
+    if len(manifest_case_ids) == 1:
+        (filter_id,) = manifest_case_ids
+        for actor in replicas:
+            replicas[actor] = [
+                e for e in replicas[actor] if case_id(e) == filter_id
+            ]
+
     return replicas
 
 

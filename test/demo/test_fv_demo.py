@@ -36,7 +36,6 @@ import vultron.demo.scenario.fv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.cli import main
-from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -1158,16 +1157,6 @@ class TestVerifyM1State:
 class TestRunTwoActorDemo:
     """Test the complete FV workflow via run_fv_demo."""
 
-    # The single-container in-process harness never commits CaseLedgerEntry
-    # records, so SYNC-2 replica verification cannot pass here (issue #2267).
-    # The multi-container demo CI job does commit them, so this gap is specific
-    # to this test.
-    KNOWN_IN_PROCESS_SYNC_GAP = (
-        "CHECK FAILED: Finder replica state matches authoritative Vendor "
-        "state — Replica has no CaseLedgerEntry records for the case — "
-        "SYNC-2 replication did not complete"
-    )
-
     def test_full_workflow_succeeds(
         self, client: TestClient, base: str, caplog, tmp_path, monkeypatch
     ):
@@ -1177,31 +1166,23 @@ class TestRunTwoActorDemo:
         finder_id = f"{base}/actors/finder-full-test"
         vendor_id = f"{base}/actors/vendor-full-test"
 
-        # run_fv_demo() now always dumps the ledgers (ISSUE-2239), so this test
-        # has to say where. Without this the dump lands in the repo-root
-        # devlogs/ (#2274) — and on a CI runner it cannot land at all, which
-        # adds four "STEP FAILED: Dumping case ledger …" entries to the
-        # accumulator and breaks the exact-match assertion below.
+        # run_fv_demo() always dumps the ledgers (ISSUE-2239), so point it at
+        # a temp directory so it does not land in the repo-root devlogs/.
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        # run_fv_demo() now asserts demo success from inside the shared
-        # scenario harness (ISSUE-2239), which surfaces the in-process SYNC-2
-        # gap that previous runs accumulated and dropped on the floor. Assert
-        # on that one known failure exactly, so any *other* phase failure still
-        # fails this test. Drop the pytest.raises() once #2267 is fixed.
+        # After issue #2273 (validate-report ordering fix), the in-process
+        # SYNC-2 gap (#2267) is also resolved: case-actor ledger entries now
+        # exist (validate_report + engage_case are properly recorded), enabling
+        # Finder replica replication to complete.  The demo should succeed
+        # with no failures.
         with caplog.at_level(logging.ERROR):
-            with pytest.raises(DemoFailureError) as excinfo:
-                demo.run_fv_demo(
-                    finder_client=finder_client,
-                    vendor_client=vendor_client,
-                    finder_id=finder_id,
-                    vendor_id=vendor_id,
-                )
+            demo.run_fv_demo(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                finder_id=finder_id,
+                vendor_id=vendor_id,
+            )
 
-        assert excinfo.value.failures == [self.KNOWN_IN_PROCESS_SYNC_GAP], (
-            "FV workflow failed for reasons beyond the known in-process "
-            f"SYNC-2 gap (#2267): {excinfo.value.failures}"
-        )
         assert "ERROR SUMMARY" not in caplog.text, (
             "Expected demo to succeed, but got errors:\n" + caplog.text
         )
@@ -1997,6 +1978,7 @@ class TestFvMilestoneAssertions:
             ),
             patch.object(demo, "find_case_for_offer", return_value=case),
             patch.object(demo, "seed_case_participants_for_demo"),
+            patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "vendor_engages_case"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_finder_case"),
