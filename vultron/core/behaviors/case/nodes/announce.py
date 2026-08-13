@@ -114,8 +114,16 @@ class SeedAnnouncedCaseNode(DataLayerAction):
             _store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
-            _normalize_participant_refs(self.case_obj)
-            self.datalayer.save(self.case_obj)
+            # Persist a copy whose case_participants are string IDs only.
+            # model_copy avoids direct field assignment (CM-27-001, #2295).
+            _case_to_save = self.case_obj.model_copy(
+                update={
+                    "case_participants": _normalize_participant_refs(
+                        self.case_obj
+                    )
+                }
+            )
+            self.datalayer.save(_case_to_save)
             _link_report_case_links(self.datalayer, self.case_obj)
             return Status.SUCCESS
 
@@ -126,8 +134,16 @@ class SeedAnnouncedCaseNode(DataLayerAction):
             _store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
-            _normalize_participant_refs(self.case_obj)
-            self.datalayer.save(self.case_obj)
+            # Persist a copy whose case_participants are string IDs only.
+            # model_copy avoids direct field assignment (CM-27-001, #2295).
+            _case_to_save = self.case_obj.model_copy(
+                update={
+                    "case_participants": _normalize_participant_refs(
+                        self.case_obj
+                    )
+                }
+            )
+            self.datalayer.save(_case_to_save)
             _store_embedded_reports(self.case_obj, self.datalayer)
             _link_report_case_links(self.datalayer, self.case_obj)
             self.logger.info(

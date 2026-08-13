@@ -25,30 +25,32 @@ from vultron.errors import VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-def _normalize_participant_refs(case_obj: Any) -> None:
-    """Normalize ``case_participants`` to contain only string IDs in-place.
+def _normalize_participant_refs(case_obj: Any) -> list[str]:
+    """Return ``case_participants`` as a list of string IDs.
 
     After :func:`_store_embedded_participants` has projected and persisted each
-    inline participant as a standalone DataLayer record, replace any remaining
-    inline objects in ``case_participants`` with their string IDs so the
-    persisted ``VulnerabilityCase`` row is free of inline sub-objects (#2233).
+    inline participant as a standalone DataLayer record, callers should persist
+    the case with ``case_participants`` replaced by the returned string-ID list
+    so the stored row is free of inline sub-objects (#2233).
 
-    Safe to call on both core and wire case objects — uses ``getattr``/attribute
-    assignment rather than typing the parameter.  No-ops when the list is
-    already string-only or empty.
+    Does **not** mutate *case_obj*; callers use ``model_copy`` to build the
+    object to persist (CM-27-001 — direct field assignment to shape-dual
+    collections is not permitted).
+
+    Safe to call on both core and wire case objects — uses ``getattr`` to
+    access ``case_participants`` without typing the parameter.  Returns an
+    empty list when ``case_participants`` is absent or empty.
     """
-    participants = getattr(case_obj, "case_participants", None)
-    if not participants:
-        return
-    normalized: list[str] = []
+    participants = getattr(case_obj, "case_participants", None) or []
+    result: list[str] = []
     for ref in participants:
         if isinstance(ref, str):
-            normalized.append(ref)
+            result.append(ref)
         else:
             pid = getattr(ref, "id_", None)
             if pid is not None:
-                normalized.append(str(pid))
-    case_obj.case_participants = normalized  # type: ignore[assignment]
+                result.append(str(pid))
+    return result
 
 
 def _find_report_case_link(
