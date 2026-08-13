@@ -754,6 +754,7 @@ def run_fcv_demo(
                 coordinator_client=coordinator_client,
                 vendor_client=vendor_client,
                 case=case,
+                demo_name=harness.demo_name,
             )
         )
 

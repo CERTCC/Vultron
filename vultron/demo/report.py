@@ -52,7 +52,6 @@ import argparse
 import html
 import json
 import logging
-import os
 import sys
 import webbrowser
 from collections import defaultdict
@@ -63,13 +62,10 @@ from typing import Any, Iterable
 from pydantic import BaseModel, Field
 
 from vultron.core.models.events.base import MessageSemantics
+from vultron.demo.helpers.ledger_dump import default_devlogs_root
 from vultron.semantic_registry import lookup_entry
 
 logger = logging.getLogger(__name__)
-
-#: Repo root, used to resolve the default ``devlogs/`` directory. This module
-#: lives at ``vultron/demo/report.py`` → ``parents[2]`` is the repository root.
-_REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 #: Glob for the per-actor case-ledger replica files.
 _LEDGER_GLOB = "**/*-case-ledger.jsonl"
@@ -1101,11 +1097,13 @@ def generate_report(input_dir: Path, fmt: str) -> str:
 
 
 def default_input_dir() -> Path:
-    """Return the default input directory (``DEVLOGS_DIR`` env, else ``devlogs/``)."""
-    env = os.environ.get("DEVLOGS_DIR")
-    if env:
-        return Path(env)
-    return _REPO_ROOT / "devlogs"
+    """Return the default input directory (``DEVLOGS_DIR`` env, else ``devlogs/``).
+
+    Delegates to :func:`vultron.demo.helpers.ledger_dump.default_devlogs_root`
+    so this reader and the dump that writes the ledgers cannot disagree about
+    where they live (DEMOMA-17-001).
+    """
+    return default_devlogs_root()
 
 
 def default_output_path(input_dir: Path, fmt: str) -> Path:

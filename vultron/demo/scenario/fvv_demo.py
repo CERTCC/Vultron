@@ -752,6 +752,7 @@ def run_fvv_demo(
                 vendor=vendor,
                 vendor2=vendor2,
                 case=case,
+                demo_name=harness.demo_name,
             )
         )
 

@@ -106,6 +106,28 @@ class ScenarioHarness:
         self.dump = dump
 
 
+def _backstop_manifest(demo_name: str) -> None:
+    """Write the fallback manifest for *demo_name*, swallowing any error.
+
+    ``dump_case_ledgers`` writes its own manifest from a ``finally``, so this
+    backstop only fires when the dump died before getting that far. Writing it
+    unconditionally would stamp the "dump crashed" reason onto runs whose dump
+    was fine.
+
+    It must not raise: it runs while the dump's own exception is in flight, and
+    an error here would replace that exception with a less informative one
+    (DEMOCI-10-004).
+    """
+    try:
+        ensure_dump_manifest(demo_name, DUMP_CRASHED_REASON)
+    except BaseException:
+        logger.exception(
+            "Could not write the fallback dump manifest for the %s demo; "
+            "reporting the dump's own failure instead",
+            demo_name,
+        )
+
+
 def _run_dump(harness: ScenarioHarness) -> None:
     """Dump ledgers, guaranteeing a manifest and never raising.
 
@@ -113,25 +135,44 @@ def _run_dump(harness: ScenarioHarness) -> None:
     (DEMOCI-01-003). That is what makes this safe to call from a ``finally``:
     the accumulated failure is still reported, but it cannot mask the exception
     that ended the scenario.
-    """
-    if harness.dump is None:
-        write_dump_manifest(
-            LedgerDumpReport(
-                demo_name=harness.demo_name, reason=NO_CASE_REASON
-            )
-        )
-        return
 
-    with demo_step(f"Dumping case ledgers for the {harness.demo_name} demo"):
-        try:
-            harness.dump()
-        except BaseException:
-            # ``dump_case_ledgers`` writes its own manifest from a ``finally``,
-            # so this backstop only fires when the dump died before getting
-            # that far. Writing it unconditionally would stamp the "dump
-            # crashed" reason onto runs whose dump was fine.
-            ensure_dump_manifest(harness.demo_name, DUMP_CRASHED_REASON)
-            raise
+    Every path — including the manifest-only path taken when no dump was ever
+    registered, and a ``BaseException`` that ``demo_step`` does not catch — is
+    contained here. ``_run_dump`` never propagates, because its caller still
+    has the scenario's own exception to re-raise (DEMOCI-10-004,
+    DEMOMA-23-004).
+    """
+    try:
+        if harness.dump is None:
+            with demo_step(
+                f"Recording the {harness.demo_name} dump manifest "
+                "(no case to export)"
+            ):
+                write_dump_manifest(
+                    LedgerDumpReport(
+                        demo_name=harness.demo_name, reason=NO_CASE_REASON
+                    )
+                )
+            return
+
+        with demo_step(
+            f"Dumping case ledgers for the {harness.demo_name} demo"
+        ):
+            try:
+                harness.dump()
+            except BaseException:
+                _backstop_manifest(harness.demo_name)
+                raise
+    except BaseException:
+        # ``demo_step`` already recorded anything deriving from ``Exception``;
+        # this only catches what it lets through (``KeyboardInterrupt``,
+        # ``SystemExit``). Either way the scenario's own outcome is the one
+        # worth reporting, so the dump's failure stops here.
+        logger.exception(
+            "Case-ledger dump for the %s demo failed; reporting the "
+            "scenario's own outcome instead",
+            harness.demo_name,
+        )
 
 
 def _note_accumulated_failures(exc: BaseException) -> None:

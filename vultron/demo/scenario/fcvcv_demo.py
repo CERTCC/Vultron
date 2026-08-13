@@ -1086,6 +1086,7 @@ def run_fcvcv_demo(
                 c2_client=c2_client,
                 v2_client=v2_client,
                 case=case,
+                demo_name=harness.demo_name,
             )
         )
 

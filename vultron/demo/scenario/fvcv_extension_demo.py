@@ -918,10 +918,11 @@ def run_fvcv_extension_demo(
             vendor2_id,
         )
 
-        vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
-
         # Register the dump as soon as there is a case to dump, so every phase
-        # below can fail without costing us the ledgers (ISSUE-2239).
+        # below can fail without costing us the ledgers (ISSUE-2239,
+        # DEMOMA-23-003). This must stay above the get_actor_by_id() lookup
+        # below: that is a network call, and if it fails the case already exists
+        # with ledgers worth keeping.
         harness.dump_with(
             lambda: _phase_dump_case_ledgers(
                 finder_client=finder_client,
@@ -931,10 +932,13 @@ def run_fvcv_extension_demo(
                 finder=finder,
                 vendor=vendor,
                 coordinator=coordinator,
-                vendor2=vendor2_in_vendor2,
+                vendor2=vendor2,
                 case=case,
+                demo_name=harness.demo_name,
             )
         )
+
+        vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
 
         _phase_coordinator_suggests_vendor2(
             finder_client=finder_client,

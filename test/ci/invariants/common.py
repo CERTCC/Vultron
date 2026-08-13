@@ -33,7 +33,10 @@ from pathlib import Path
 import pytest
 
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
+from vultron.demo.helpers.ledger_dump import (
+    DUMP_MANIFEST_FILENAME,
+    default_devlogs_root,
+)
 from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
@@ -41,8 +44,11 @@ from vultron.enums.roles import CVDRole
 # ---------------------------------------------------------------------------
 
 _SHA256_HEX_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-_REPO_ROOT: Path = Path(__file__).resolve().parents[3]
-_DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
+
+#: Where the harness looks for the ledgers the demo dumped. Resolved by the same
+#: helper the dump writes through, so pointing ``DEVLOGS_DIR`` somewhere else
+#: cannot silently turn this harness into a no-op skip (DEMOMA-17-001).
+_DEVLOGS_DIR: Path = default_devlogs_root()
 
 
 # ---------------------------------------------------------------------------
@@ -144,8 +150,13 @@ def _read_dump_manifests(search_root: Path) -> list[dict]:
                 "demo dumped a manifest but it cannot be parsed, so the "
                 "invariant result cannot be trusted"
             )
-        if isinstance(data, dict):
-            manifests.append(data)
+        if not isinstance(data, dict):
+            pytest.fail(
+                f"{path} parsed as {type(data).__name__}, not an object — the "
+                "demo dumped a manifest but it cannot be interpreted, so the "
+                "invariant result cannot be trusted"
+            )
+        manifests.append(data)
     return manifests
 
 
@@ -222,8 +233,12 @@ def load_devlogs(
         actor_name = jsonl_file.parent.name
         replicas.setdefault(actor_name, []).extend(load_jsonl(jsonl_file))
 
+    # Read the manifests unconditionally: DEMOCI-10-003 fails on a manifest that
+    # is present but unparseable whatever else the dump produced, so this check
+    # cannot live inside the `not replicas` branch below.
+    manifests = _read_dump_manifests(search_root)
+
     if not replicas:
-        manifests = _read_dump_manifests(search_root)
         if manifests:
             _fail_no_ledgers_despite_dump(search_root, manifests)
         skip_hint = f"devlogs/{demo_name}/" if demo_name else "devlogs/"

@@ -1169,13 +1169,20 @@ class TestRunTwoActorDemo:
     )
 
     def test_full_workflow_succeeds(
-        self, client: TestClient, base: str, caplog
+        self, client: TestClient, base: str, caplog, tmp_path, monkeypatch
     ):
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
         finder_id = f"{base}/actors/finder-full-test"
         vendor_id = f"{base}/actors/vendor-full-test"
+
+        # run_fv_demo() now always dumps the ledgers (ISSUE-2239), so this test
+        # has to say where. Without this the dump lands in the repo-root
+        # devlogs/ (#2274) — and on a CI runner it cannot land at all, which
+        # adds four "STEP FAILED: Dumping case ledger …" entries to the
+        # accumulator and breaks the exact-match assertion below.
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
         # run_fv_demo() now asserts demo success from inside the shared
         # scenario harness (ISSUE-2239), which surfaces the in-process SYNC-2

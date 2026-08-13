@@ -896,6 +896,7 @@ def run_fccv_extension_demo(
                 c2_client=c2_client,
                 vendor_client=vendor_client,
                 case=case,
+                demo_name=harness.demo_name,
             )
         )
 

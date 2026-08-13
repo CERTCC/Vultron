@@ -59,8 +59,10 @@ logger = logging.getLogger(__name__)
 DUMP_MANIFEST_FILENAME = "dump-manifest.json"
 """Name of the per-scenario manifest written on every dump attempt."""
 
-DEFAULT_OUTPUT_ROOT = "/app/devlogs"
-"""Fallback devlogs root used when ``DEVLOGS_DIR`` is unset."""
+#: Repo root, used to resolve the default ``devlogs/`` directory. This module
+#: lives at ``vultron/demo/helpers/ledger_dump.py`` → ``parents[3]`` is the
+#: repository root.
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 LEDGER_FILE_SUFFIX = "-case-ledger.jsonl"
 
@@ -156,6 +158,32 @@ class LedgerDumpReport:
         }
 
 
+def default_devlogs_root() -> pathlib.Path:
+    """Return ``DEVLOGS_DIR`` when set, else ``<repo root>/devlogs``.
+
+    The single resolution of the devlogs root for the whole project;
+    :func:`vultron.demo.report.default_input_dir` and the invariant harness
+    both delegate here so a writer and a reader can never disagree about where
+    the ledgers live (DEMOMA-17-001).
+
+    The default must not be a container path. ``docker-compose-multi-actor.yml``
+    sets ``DEVLOGS_DIR=/app/devlogs`` explicitly for the demo runner, so the
+    fallback only ever fires *outside* the container — on a CI runner or a
+    developer checkout, where ``/app`` cannot be created and ``mkdir`` raises
+    ``PermissionError`` (ISSUE-2239).
+
+    An empty ``DEVLOGS_DIR`` counts as unset; ``pathlib.Path("")`` is the
+    current directory, which is never what an empty env var means.
+
+    Returns:
+        The directory under which per-scenario dump sub-directories live.
+    """
+    env = os.environ.get("DEVLOGS_DIR")
+    if env:
+        return pathlib.Path(env)
+    return _REPO_ROOT / "devlogs"
+
+
 def resolve_output_root(
     output_root: pathlib.Path | None = None,
 ) -> pathlib.Path:
@@ -169,7 +197,7 @@ def resolve_output_root(
     """
     if output_root is not None:
         return output_root
-    return pathlib.Path(os.environ.get("DEVLOGS_DIR", DEFAULT_OUTPUT_ROOT))
+    return default_devlogs_root()
 
 
 def case_id_slug(case_id: str) -> str:

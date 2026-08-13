@@ -154,6 +154,61 @@ class TestExceptionPropagation:
         )
 
 
+class TestUnwritableDevlogsRoot:
+    """The dump root is not always writable, and that must not lose the cause.
+
+    This is the shape that turned the ``Tests (pytest)`` job red: the default
+    devlogs root pointed at a container path, so on a CI runner every write
+    raised. A dump that cannot write anywhere is still only ever a *reported*
+    failure — never a substitute for the scenario's own exception
+    (DEMOCI-10-004, DEMOMA-23-004).
+    """
+
+    @pytest.fixture
+    def unwritable(self, tmp_path, monkeypatch):
+        """Point DEVLOGS_DIR under a regular file, so every mkdir raises."""
+        blocker = tmp_path / "not-a-directory"
+        blocker.write_text("", encoding="utf-8")
+        monkeypatch.setenv("DEVLOGS_DIR", str(blocker / "devlogs"))
+        return blocker
+
+    def test_manifest_failure_does_not_mask_the_body_exception(
+        self, unwritable
+    ) -> None:
+        """The no-dump-registered path writes its manifest bare — guard it."""
+        with pytest.raises(RuntimeError, match="original cause"):
+            with scenario_harness("unit"):
+                raise RuntimeError("original cause")
+
+    def test_manifest_failure_does_not_mask_a_registered_dump_failure(
+        self, unwritable
+    ) -> None:
+        with pytest.raises(RuntimeError, match="original cause"):
+            with scenario_harness("unit") as harness:
+                harness.dump_with(MagicMock(side_effect=OSError("no disk")))
+                raise RuntimeError("original cause")
+
+    def test_backstop_failure_does_not_replace_the_dump_error(
+        self, unwritable
+    ) -> None:
+        """The recorded failure is the dump's, not the backstop manifest's."""
+        with pytest.raises(DemoFailureError) as exc_info:
+            with scenario_harness("unit") as harness:
+                harness.dump_with(MagicMock(side_effect=OSError("no disk")))
+
+        assert any(
+            "no disk" in failure for failure in exc_info.value.failures
+        ), exc_info.value.failures
+
+    def test_unwritable_root_is_reported_not_raised(self, unwritable) -> None:
+        """A clean body with an unwritable root fails loudly, via the accumulator."""
+        with pytest.raises(DemoFailureError) as exc_info:
+            with scenario_harness("unit"):
+                pass
+
+        assert exc_info.value.failures
+
+
 class TestFailureAccumulatorReset:
     def test_harness_clears_failures_from_a_previous_run(
         self, _devlogs

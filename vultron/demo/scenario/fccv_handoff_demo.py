@@ -1020,6 +1020,7 @@ def run_fccv_handoff_demo(
                 c2_client=c2_client,
                 vendor_client=vendor_client,
                 case=case,
+                demo_name=harness.demo_name,
             )
         )
 

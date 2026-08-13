@@ -534,6 +534,7 @@ def run_fcv_reject_demo(
                 finder_client=finder_client,
                 coordinator_client=coordinator_client,
                 case=case,
+                demo_name=harness.demo_name,
             )
         )
 
