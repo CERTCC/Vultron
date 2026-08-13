@@ -24,15 +24,10 @@ authoritative Vendor1 state.
 Spec: D5-5 (GitHub issue #1265).
 """
 
-import json
 import logging
 import os
-import pathlib
 import sys
 
-import httpx2 as httpx
-
-from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -65,6 +60,12 @@ from vultron.demo.helpers.actions import (
     actor_notifies_fix_ready,
     actor_notifies_published,
 )
+from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.ledger_dump import (
+    LedgerDumpTarget,
+    dump_case_ledgers,
+    resolve_case_actor_route_key,
+)
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
@@ -93,10 +94,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -184,24 +183,10 @@ def _phase_report_submission(
         receiver=vendor_in_vendor,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    case = run_direct_path_rm_triage(
         receiver_client=vendor_client,
         receiver=vendor_in_vendor,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("as_VulnerabilityCase exists in Vendor1's DataLayer"):
-        case = find_case_for_offer(vendor_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected as_VulnerabilityCase to be created after validate-report"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    receiver_engages_case(
-        receiver_client=vendor_client,
-        receiver=vendor_in_vendor,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for the initial participants (Finder + Vendor1 + CaseActor) before
@@ -221,6 +206,7 @@ def _phase_report_submission(
         )
 
     # Vendor1 invites Vendor2 to the case.
+    invite_result = None
     with demo_step("Vendor1 invites Vendor2 to the case"):
         invite_result = post_to_trigger(
             client=vendor_client,
@@ -265,6 +251,16 @@ def _phase_report_submission(
         case_id=case.id_,
         expected_count=4,
     )
+
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor2 RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
 
     # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
     run_invite_path_rm_triage(
@@ -695,66 +691,26 @@ def _phase_dump_case_ledgers(
     case: as_VulnerabilityCase,
     demo_name: str = "fvv",
 ) -> None:
-    """Dump case ledger entries from each actor container to JSONL files."""
-    logger.info("─" * 80)
-    logger.info("Phase: Case log JSONL export")
-    logger.info("─" * 80)
+    """Dump case ledger entries from each actor container to JSONL files.
 
-    output_root = pathlib.Path(os.environ.get("DEVLOGS_DIR", "/app/devlogs"))
-    case_id = case.id_ or ""
-    case_id_slug = (
-        case_id.replace("://", "_")
-        .replace("/", "_")
-        .replace(":", "_")
-        .strip("_")
-    )
-
-    case_actor_sub_actor_key = next(
-        (
-            strip_id_prefix(actor_id)
-            for actor_id in case.actor_participant_index
-            if strip_id_prefix(actor_id).startswith("case-actor")
-        ),
-        None,
-    )
-
-    actors: list[tuple[str, DataLayerClient, str]] = [
-        ("finder", finder_client, "finder"),
-        ("vendor", vendor_client, "vendor"),
-        ("vendor2", vendor2_client, "vendor2"),
+    Thin scenario-specific wrapper over
+    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
+    per-actor export, the 404 handling, and the dump manifest. This function
+    only names FVV's participants and where each one's ledger lives.
+    """
+    targets = [
+        LedgerDumpTarget("finder", finder_client, "finder"),
+        LedgerDumpTarget("vendor", vendor_client, "vendor"),
+        LedgerDumpTarget("vendor2", vendor2_client, "vendor2"),
     ]
-    if case_actor_sub_actor_key is not None:
-        actors.append(("case-actor", vendor_client, case_actor_sub_actor_key))
+    # The case-actor is a sub-actor inside the vendor1 container.
+    case_actor_route_key = resolve_case_actor_route_key(case)
+    if case_actor_route_key is not None:
+        targets.append(
+            LedgerDumpTarget("case-actor", vendor_client, case_actor_route_key)
+        )
 
-    for actor_name, client, actor_route_key in actors:
-        with demo_step(f"Dumping case ledger for {actor_name}"):
-            case_key = strip_id_prefix(case_id)
-            log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
-            try:
-                entries = client.get_list(log_path)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code != 404:
-                    raise
-                logger.info(
-                    "Case not found on %s container (HTTP 404); skipping.",
-                    actor_name,
-                )
-                entries = []
-            if not entries:
-                raise ValueError(
-                    f"No case ledger entries for actor={actor_name!r}, "
-                    f"case_id={case_id!r}"
-                )
-
-            out_dir = output_root / demo_name / actor_name
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_file = out_dir / f"{case_id_slug}-case-ledger.jsonl"
-
-            with out_file.open("w", encoding="utf-8") as fh:
-                for entry in entries:
-                    fh.write(json.dumps(entry) + "\n")
-
-            logger.info("Wrote %d log entries → %s", len(entries), out_file)
+    dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
 
 def run_fvv_demo(
@@ -773,81 +729,88 @@ def run_fvv_demo(
     logger.info("Vendor1 container: %s", vendor_client.base_url)
     logger.info("Vendor2 container: %s", vendor2_client.base_url)
 
-    finder, vendor, vendor_in_vendor, vendor2, report, offer, case = (
-        _phase_report_submission(
+    with scenario_harness("fvv") as harness:
+        finder, vendor, vendor_in_vendor, vendor2, report, offer, case = (
+            _phase_report_submission(
+                finder_client,
+                vendor_client,
+                vendor2_client,
+                finder_id,
+                vendor_id,
+                vendor2_id,
+            )
+        )
+
+        # Register the dump as soon as there is a case to dump, so every phase
+        # below can fail without costing us the ledgers (ISSUE-2239).
+        harness.dump_with(
+            lambda: _phase_dump_case_ledgers(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                finder=finder,
+                vendor=vendor,
+                vendor2=vendor2,
+                case=case,
+                demo_name=harness.demo_name,
+            )
+        )
+
+        vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
+        finder_in_finder = get_actor_by_id(finder_client, finder.id_)
+
+        _phase_sync_verification(
             finder_client,
             vendor_client,
             vendor2_client,
-            finder_id,
-            vendor_id,
-            vendor2_id,
+            vendor,
+            finder,
+            vendor2,
+            case,
         )
-    )
-
-    vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
-    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
-
-    _phase_sync_verification(
-        finder_client,
-        vendor_client,
-        vendor2_client,
-        vendor,
-        finder,
-        vendor2,
-        case,
-    )
-    _phase_notes_exchange(
-        finder_client=finder_client,
-        vendor_client=vendor_client,
-        vendor2_client=vendor2_client,
-        finder_in_finder=finder_in_finder,
-        vendor_in_vendor=vendor_in_vendor,
-        vendor2_in_vendor2=vendor2_in_vendor2,
-        case=case,
-    )
-    _phase_fix_lifecycle(
-        finder_client,
-        vendor_client,
-        vendor2_client,
-        vendor,
-        vendor_in_vendor,
-        vendor2,
-        vendor2_in_vendor2,
-        case,
-    )
-    _phase_publication(
-        finder_client,
-        vendor_client,
-        vendor2_client,
-        vendor,
-        vendor_in_vendor,
-        vendor2,
-        vendor2_in_vendor2,
-        finder,
-        finder_in_finder,
-        case,
-    )
-    _phase_case_closure(
-        finder_client,
-        vendor_client,
-        vendor2_client,
-        vendor,
-        vendor_in_vendor,
-        vendor2,
-        vendor2_in_vendor2,
-        finder,
-        finder_in_finder,
-        case,
-    )
-    _phase_dump_case_ledgers(
-        finder_client=finder_client,
-        vendor_client=vendor_client,
-        vendor2_client=vendor2_client,
-        finder=finder,
-        vendor=vendor,
-        vendor2=vendor2,
-        case=case,
-    )
+        _phase_notes_exchange(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            vendor2_client=vendor2_client,
+            finder_in_finder=finder_in_finder,
+            vendor_in_vendor=vendor_in_vendor,
+            vendor2_in_vendor2=vendor2_in_vendor2,
+            case=case,
+        )
+        _phase_fix_lifecycle(
+            finder_client,
+            vendor_client,
+            vendor2_client,
+            vendor,
+            vendor_in_vendor,
+            vendor2,
+            vendor2_in_vendor2,
+            case,
+        )
+        _phase_publication(
+            finder_client,
+            vendor_client,
+            vendor2_client,
+            vendor,
+            vendor_in_vendor,
+            vendor2,
+            vendor2_in_vendor2,
+            finder,
+            finder_in_finder,
+            case,
+        )
+        _phase_case_closure(
+            finder_client,
+            vendor_client,
+            vendor2_client,
+            vendor,
+            vendor_in_vendor,
+            vendor2,
+            vendor2_in_vendor2,
+            finder,
+            finder_in_finder,
+            case,
+        )
 
     logger.info("=" * 80)
     logger.info("FVV DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
@@ -880,8 +843,6 @@ def main(
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
     """
-    reset_demo_failures()
-
     f_url = finder_url or FINDER_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
     v2_url = vendor2_url or VENDOR2_BASE_URL
@@ -908,17 +869,17 @@ def main(
                 logger.error("=" * 80)
                 sys.exit(1)
 
-    try:
-        run_fvv_demo(
-            finder_client=finder_client,
-            vendor_client=vendor_client,
-            vendor2_client=vendor2_client,
-            finder_id=finder_id,
-            vendor_id=vendor_id,
-            vendor2_id=vendor2_id,
-        )
-    finally:
-        assert_demo_success()
+    # scenario_harness() inside run_fvv_demo() owns the failure accumulator: it
+    # resets it, always dumps the case ledgers, and asserts success — so a
+    # failure here never costs us the artifacts (ISSUE-2239).
+    run_fvv_demo(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+        vendor2_client=vendor2_client,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        vendor2_id=vendor2_id,
+    )
 
 
 if __name__ == "__main__":

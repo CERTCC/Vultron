@@ -794,16 +794,13 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
 `embargo_adherence` is the boolean projection of PEC state: `True` iff
 PEC = `SIGNATORY`, `False` otherwise.
 
-!!! note "Derived vs. stored: unresolved"
-    This specification states `embargo_adherence` as a derived property. The
-    current implementation carries it as a stored boolean field on
-    `ParticipantStatus`, defaulting to `True`. A stored field can drift from the
-    PEC state it is meant to project, and the fail-open default differs from what
-    a derived value would yield at initial `NO_EMBARGO`.
+The implementation MUST expose `embargo_adherence` as a computed property
+(e.g., Pydantic `@computed_field`) derived from `consent.state`. It MUST NOT
+be a stored field that can drift from the PEC state it projects.
+Consent changes MUST be applied as a PEC trigger through the validated
+transition path (ADR-0048, ADR-0056).
 
-    Implementations MUST NOT record a consent change by assigning this field
-    directly. Consent changes MUST be applied as a PEC trigger through the
-    validated transition path, which fails closed on an illegal transition.
+- *Source: `specs/case-management.yaml` CM-18-008; ADR-0056*
 
 #### 6.4.7 Gating Full Case Delivery
 
@@ -1048,23 +1045,20 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | CNA | May directly assign CVE IDs; a non-CNA delegates to an external CNA service. Orthogonal to other roles — typically co-held with Coordinator or Vendor |
 | Observer † | Holds no drive obligations for VFD; may report PXA observations (§7.4.2) |
 
-!!! warning "† Observer and Finder: provisional, pending ADRs"
-    The role set above does **not** yet match the implementation, and two changes
-    are pending decision:
+!!! note "† Observer: decided (ADR-0057); Finder: still provisional"
+    **Observer** (`CVDRole.OBSERVER`): the rename from `CVDRole.OTHER` is decided
+    (ADR-0057). The implementation task (renaming the enum value and all
+    references) is tracked in a separate issue. Observer semantics are now
+    normative: full participant (CM-25-001), standard Invite/Accept admission
+    (CM-25-002), full case content (CM-25-003), RM triage with engagement
+    semantics (CM-25-004), VFD exclusion for sole-Observer participants (CM-25-005).
+    Role-stacking union principle: CM-26-001.
 
-    - **Observer** is the intended rename of the current `OTHER` role. The rename
-      is not yet decided or implemented; `CVDRole.OTHER` is what exists today.
-    - **Finder** exists in the current implementation (`CVDRole.FINDER`) and is
-      *omitted* above deliberately, on the rationale that Reporter is the
-      protocol-salient role. That removal is also not yet decided.
-
-    Both require an ADR before this section can be treated as normative. Note that
-    Finder removal reaches further than the role list: the formal protocol
-    definition this document builds on (§3.1, §3.4) defines the process count over
-    Finders, Vendors, Coordinators, Deployers, and Others.
-
-    Implementers should treat this table as the *intended* taxonomy and
-    `vultron/enums/roles.py` as the current one.
+    **Finder** still requires an ADR before the removal can be treated as normative.
+    The formal protocol definition this document builds on (§3.1, §3.4) defines
+    the process count over Finders, Vendors, Coordinators, Deployers, and Others.
+    `CVDRole.FINDER` exists in the current implementation and is retained until
+    the ADR is written.
 
 !!! note "Note on Reporter"
     Reporters are most often also the discoverer of the vulnerability, but
@@ -1337,19 +1331,18 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
    Note the reach: `docs/reference/formal_protocol/index.md` defines the process
    count $N$ over Finders, Vendors, Coordinators, Deployers, and Others, and §3.1
    and §3.4 build on that definition. Marked provisional in §7.3.1.
-6. **Observer rename ADR** — Decision to rename `OTHER` → Observer similarly needs
-   an ADR, and the enum change needs an issue. Interacts with #8: renaming without
-   settling what an Observer *is* only relabels the ambiguity. Marked provisional
-   in §7.3.1.
+6. ~~**Observer rename ADR**~~ — Resolved. ADR-0057
+   (`docs/adr/0057-observer-participant-role.md`) decided the rename and Observer
+   semantics (CM-25, CM-26). Implementation (code rename) tracked separately.
 7. ~~**PXA adoption policy**~~ — Resolved. Two-seam model specified in §6.5.1:
    Seam 1 (adoption) and Seam 2 (side-effects), with the
    canonical-write-before-side-effects ordering normative. Source:
    `specs/received-status-handling.yaml`, `notes/received-status-authorization.md`,
    ADR-0046.
-8. **Observer admission and content scope** — §7.3.3 establishes that an Observer
-   in a case is a T1 participant, not a passive consumer. Still open: how a
-   role-light participant is admitted (presumably the standard `Invite` /
-   `Accept(Invite)` path), and what case content it should receive. Related to #6.
+8. ~~**Observer admission and content scope**~~ — Resolved by ADR-0057 and CM-25.
+   Standard Invite/Accept admission (CM-25-002), full case content via MV-10-005
+   gate (CM-25-003), RM triage with engagement semantics (CM-25-004). Related to
+   #6 (now also resolved).
 9. **CNA eligibility criteria** — The CVE ID assignment tree encodes CNA
    Operational Rules v4.1.0 criteria inline. Should the RFC cite these as
    normative external requirements, or treat the eligibility checks as
@@ -1375,10 +1368,9 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
     third-party assertion ("I notified this Vendor"), which raises questions about
     who may assert, whether the subject may dispute, and whether transport-level
     delivery success suffices. Filed as a Concern.
-14. **`embargo_adherence` derived vs. stored** — §6.4.6. Specified here as
-    derived from PEC state; implemented as a stored boolean defaulting to `True`.
-    Needs a decision, and if it stays stored, an invariant and an enforcement
-    point.
+14. **`embargo_adherence` derived vs. stored** — §6.4.6. Resolved by ADR-0056:
+    `embargo_adherence` is a computed property derived from PEC state.
+    Implementation issue tracked separately.
 15. **Negative acknowledgement** — §5.6. Error message types are deliberately
     unmodelled (ADR-0049), and unprocessable inbound messages are dead-lettered
     with no sender notification. Whether the protocol needs an error-reply facet

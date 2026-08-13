@@ -19,22 +19,32 @@ event types it exercises. Event types are those recorded as `event_type` in
 (`test_invariant_5_expected_event_types_present`) in each scenario's
 `test/ci/invariants/test_XXX_invariants.py` file.
 
-| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | reject_invite_actor_to_case |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fv                | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
-| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   | ✓ |
+| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | reject_invite_actor_to_case |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
+| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
+| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
+| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
+| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
+| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
+| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
+| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
+| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   | ✓ |
 
 **Notes:**
 
-- The four universal types (`validate_report`, `add_participant_status_to_participant`,
-  `close_case`, `add_note_to_case`) appear in every scenario (DEMOMA-16-001).
+- The five universal types (`validate_report`, `add_participant_status_to_participant`,
+  `close_case`, `add_note_to_case`, `engage_case`) appear in every scenario
+  (DEMOMA-16-001).
+- `engage_case` is universal because emission lives in the shared demo helper
+  layer, not at scenario call sites: `run_direct_path_rm_triage()` calls
+  `receiver_engages_case()` for the direct receiver (all eight multi-actor
+  scenarios), `run_invite_path_rm_triage()` calls it again for the invited
+  participant (seven of them, CM-11-002), and `fv_demo.py` calls it via
+  `vendor_engages_case()`. It was promoted from a `fvcv-handoff`-only entry to
+  the fifth universal type in ISSUE-2266; see
+  `notes/demo-ci-invariants.md` § "`engage_case` is universal, not
+  scenario-specific".
 - Ownership transfer (`attributed_to` mutation via `AcceptCaseOwnershipTransferNode`)
   is exercised by `fvcv-handoff` and `fccv-handoff` but does **not** emit a
   `CaseLedgerEntry` with a named `event_type`. It is therefore not observable via
@@ -53,6 +63,15 @@ event types it exercises. Event types are those recorded as `event_type` in
   `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because the Vendor
   rejects rather than accepts, `accept_invite_actor_to_case` does NOT appear in
   this scenario. No other current scenario exercises this ledger entry.
+  **Invariant 15 note**: because the Vendor never participates, no actor advances
+  the VFD state machine and `vfd_state == 'VFd'` is structurally unreachable.
+  However, `check_cs_state_transitions_observed()` in
+  `test/ci/invariants/common.py` no longer accepts a `check_fix_ready` parameter
+  — the VFd assertion is unconditional as of PR #2152. `test_invariant_15` in
+  `test_fcv_reject_invariants.py` passes without `check_fix_ready=False` because
+  `fcv-reject` CI produces a VFd observation in practice. When copy-pasting
+  Invariant 15 from another harness, do not pass `check_fix_ready=False` — that
+  parameter no longer exists (DEMOCI-06-001, ISSUE-2121, PR #2152).
 - `add_case_participant` is emitted by `AcceptInviteNode`
   (`vultron/core/behaviors/case/nodes/accept_invite.py:181`) on the CaseActor
   received-side when processing Accept(Invite). This event records the internal
@@ -96,6 +115,7 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 | `add_participant_status_to_participant` | Participant status tracking |
 | `close_case` | Case closure |
 | `add_note_to_case` | Case note / information sharing |
+| `engage_case` | RM engagement (RM state: valid → accepted) |
 | `invite_actor_to_case` | Actor invitation |
 | `offer_case_participant` | Suggest-actor flow (ADR-0026) |
 | `accept_invite_actor_to_case` | Invitation acceptance |
@@ -115,7 +135,7 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 ### Why the minimum set is sufficient
 
 The 4-scenario minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`) covers
-all 9 `event_type` columns and the ownership-transfer path. The additional
+all 10 `event_type` columns and the ownership-transfer path. The additional
 dimensions (CVD role variation, multi-vendor fix paths, embargo phases) are
 either:
 
@@ -136,7 +156,7 @@ the minimum set's event-type and protocol-path coverage. (`fcv-reject` is the
 
 | Scenario | Covered by minimum set | Rationale |
 |---|:---:|---|
-| fv | ✓ (member) | 2-actor baseline; covers all 4 universal event types with no invitation phases |
+| fv | ✓ (member) | 2-actor baseline; covers all 5 universal event types with no invitation phases |
 | fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
 | fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, case))` (invitation-layer rejection) |
@@ -148,7 +168,7 @@ the minimum set's event-type and protocol-path coverage. (`fcv-reject` is the
 
 ### Coverage proof
 
-The minimum set of 4 scenarios covers all 9 distinct event types:
+The minimum set of 4 scenarios covers all 10 distinct event types:
 
 | Event type | Covered by |
 |---|---|
@@ -156,6 +176,7 @@ The minimum set of 4 scenarios covers all 9 distinct event types:
 | add_participant_status_to_participant | fv |
 | close_case | fv |
 | add_note_to_case | fv |
+| engage_case | fv |
 | invite_actor_to_case | fvcv-handoff |
 | accept_invite_actor_to_case | fvcv-handoff |
 | offer_case_participant | fcvcv |

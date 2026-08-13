@@ -169,9 +169,15 @@ The distinction that matters:
 **Root cause of the pattern:** The inbox endpoint returns 202 immediately
 (`BackgroundTasks`) before the activity is fully processed. Naive polling
 after a trigger timed out, so mail-carrying was added as a workaround. The
-correct fix is to use a polling helper with a sufficient timeout — the real
-HTTP delivery path (`HttpDeliveryAdapter`) with its retry/backoff will
-complete; the demo just needs to wait long enough.
+correct fix is to gate on the effect the delivery causes — the real HTTP
+delivery path (`HttpDeliveryAdapter`) with its retry/backoff will complete.
+
+> **Amended (CONCERN-2181):** this section previously ended "the demo just needs
+> to wait long enough." That framing is what the causal-gating rule corrects. A
+> long-enough timeout is not the fix; observing the *right thing* is. Choose the
+> observable per EDF-06-002 and EDF-06-003 — the committed state of the actor
+> that produces the effect, read from its own container — and express it with
+> `demo_gate`, not a raised timeout. See the next section.
 
 **How to apply:**
 
@@ -198,6 +204,64 @@ pattern to eliminate; CONCERN-1653's self-delivery pattern is orthogonal and
 remains correct.
 
 <!-- Source: CONCERN-1635 -->
+
+---
+
+### Gate Each Step on Its Cause, Not on Its Position in the Script
+
+A scenario is a list of steps, so it is tempting to write it as "A, and then B."
+The protocol is causal: "A, **therefore** B." Where those differ you have a race,
+because triggers return HTTP 202 and the effect commits later, in a background
+task, on another container.
+
+**Why:** Seven of the nineteen sub-issues of Epic #2136 were this same defect in
+a different scenario — a step ran before the event enabling it had propagated.
+Fixing them one at a time does not stop the next scenario from reintroducing it.
+
+**How to apply:**
+
+1. **Gate on the committed effect, read where it commits.** The predicate must be
+   a property of the actor that commits the effect, fetched from *that actor's own
+   client*. Observing it on the sender proves only that the sender emitted
+   something (EDF-06-002).
+2. **Never gate on a synchronously-available proxy.** If the observable resolves
+   during the triggering request while the effect commits after the 202, it proves
+   the cause *started*, not that it finished. Bug #2134: `engage-case` gated on
+   "case exists" instead of the receiver's own `RM.VALID` (EDF-06-003).
+3. **Discover a caused object by its properties, not its cause's ID.** When a
+   received-side use case forwards a *new* activity, the consequent has a new
+   identity. Use a discriminator scan — `find_case_invite_for_actor`,
+   `find_cp_offer_for_case`, and (arriving with the `fix/demo-ci` branch)
+   `find_ownership_transfer_offer_for_actor` — not
+   `wait_for_object_stored(obj_id=<sender's original id>)`, which silently times
+   out. Bug #2178 (EDF-06-004).
+4. **Use `demo_gate`, not `demo_check`, for a precondition.** `demo_check` records
+   the failure and returns, so the dependent step runs anyway on state that was
+   never established. `demo_gate` accumulates identically but stops the dependent
+   steps (DEMOCI-01-007, EDF-06-005).
+5. **Put the gate in `vultron/demo/helpers/`.** Scenario modules MUST NOT define
+   their own polling loops — that is how the #2178 fix landed in
+   `fvcv_handoff_demo.py` but not `fccv_handoff_demo.py` (DEMOMA-22-002,
+   DEMOMA-17-001).
+6. **Label irreducibly temporal waits as such.** Liveness probes, embargo
+   deadlines, and transport backoff are legitimately time-based; say so at the
+   call site so they are not mistaken for causal gates (EDF-06-006).
+7. **Raising a timeout is not a fix.** If a gate times out reliably, either the
+   observable is wrong (see 1–3) or the effect can be *lost* rather than delayed —
+   in which case the protocol must buffer it (ADR-0037, ADR-0059) and a demo guard
+   would be papering over a production bug.
+
+**Testing gates:** exercise the real context manager. A test that patches
+`demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
+propagate and passes while proving nothing — that is precisely how the missing
+gate before `engage-case` escaped notice.
+
+See `specs/event-driven-control-flow.yaml` EDF-06, `specs/multi-actor-demo.yaml`
+DEMOMA-22, ADR-0058, and
+[notes/event-driven-control-flow.md](../../notes/event-driven-control-flow.md)
+§ "Temporal Sequence vs. Causal Sequence".
+
+<!-- Source: CONCERN-2181 -->
 
 ---
 
@@ -245,3 +309,56 @@ labels (`actor1`–`actor4`) so the compose file is scenario-agnostic. Until
 then, use the existing services with role-alias bindings.
 
 <!-- Source: ISSUE-1216, plan/incoming/learnings/20260722-fccv-handoff-container-remapping.md -->
+
+---
+
+### The Ledger Dump Belongs in the Failure Path, Not After the Last Phase
+
+A scenario's forensic artifacts are worth the most in exactly the run that
+fails. Code placed *after* the last phase runs only when nothing went wrong.
+Before #2239, every `run_<name>_demo()` called `_phase_dump_case_ledgers()` as
+its final statement, so any assertion escaping a `demo_check`/`demo_gate` block
+skipped the dump entirely — `main()`'s `finally: assert_demo_success()` still
+raised, CI still failed, but `devlogs/` was empty and the `invariant-harness`
+job died on artifact download instead of reporting an invariant result.
+
+**Why:** A demo that fails without artifacts is indistinguishable from a demo
+that never ran. Worse, the invariant harness *skipped* on a missing directory,
+so the pipeline read green for the wrong reason.
+
+**How to apply:**
+
+1. **Run the scenario inside `scenario_harness()`.** Wrap the whole body of
+   `run_<name>_demo()` in `with scenario_harness("<demo-name>") as harness:`.
+   The harness resets the failure accumulator on entry, always dumps on the way
+   out (success or exception), and calls `assert_demo_success()` last
+   (DEMOMA-23-001).
+2. **Register the dump the moment a case exists.** Immediately after the phase
+   that creates the case, call `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`.
+   Every phase below that line can then fail without costing the ledgers
+   (DEMOMA-23-003).
+3. **Do not re-add `try/finally: assert_demo_success()` in `main()`.** The
+   harness owns the accumulator; a second owner reintroduces the bug by
+   asserting before the dump has run (DEMOMA-23-001).
+4. **Keep `_phase_dump_case_ledgers` thin.** It builds
+   `LedgerDumpTarget`s and delegates to
+   `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. No per-scenario
+   fetch/write loops (DEMOMA-23-002, DEMOMA-17-001).
+5. **The manifest is not optional.** `dump_case_ledgers()` writes
+   `devlogs/<demo>/dump-manifest.json` from a `finally`, recording the case ID,
+   how many ledger files were captured, and for each missing actor *why*. That
+   file is what lets the invariant harness fail on a real "no ledger entries"
+   assertion rather than on a download error (DEMOCI-10-002, DEMOCI-10-003).
+6. **A dump failure must never replace the scenario's exception.** The harness
+   swallows dump errors into the manifest's `reason` field and re-raises the
+   original failure with the accumulated `demo_check` failures attached as
+   exception notes (DEMOCI-10-004, DEMOMA-23-004).
+
+**Testing this:** patch a mid-scenario phase to raise, point `DEVLOGS_DIR` at a
+`tmp_path`, and assert the manifest exists. See
+`test/demo/test_issue_2239_ledger_dump_in_finally.py`.
+
+See `specs/demo-ci.yaml` DEMOCI-10, `specs/multi-actor-demo.yaml` DEMOMA-23,
+and [notes/demo-ci-invariants.md](../../notes/demo-ci-invariants.md).
+
+<!-- Source: ISSUE-2239 -->

@@ -18,7 +18,7 @@
 import logging
 from typing import Any, Callable, cast
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlmodel import SQLModel
 
 from vultron.adapters.driven.db_record import (
@@ -31,6 +31,7 @@ from vultron.core.models import find_in_core_vocabulary
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.errors import VultronValidationError
 from vultron.semantic_registry import (
     find_matching_semantics,
     semantics_to_activity_class as _semantics_to_activity_class,
@@ -169,23 +170,129 @@ class SqliteDataLayer:
            ``as_Offer``), coerce via ``model_validate`` so that callers always
            receive the most precise type without manual coercion.
         """
+        wire_obj: PersistableModel | None
         try:
             core_cls = find_in_core_vocabulary(row.type_)
-            obj = cast(PersistableModel, core_cls.model_validate(row.data))
-        except (KeyError, ValidationError):
-            # KeyError: no core counterpart → fall back to wire vocabulary.
-            # ValidationError: stored data came from a wire object whose schema
-            # differs from the core class (e.g. as_EmbargoEvent lacks context).
-            # Fall back to the wire path in both cases.
-            rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
-            try:
-                obj = cast(PersistableModel, record_to_object(rec))
-            except (ValueError, ValidationError):
+        except KeyError:
+            # No core counterpart (AS2 Activity types) → wire vocabulary path.
+            wire_obj = self._wire_object_from_row(row)
+            if wire_obj is None:
                 return None
+            obj = wire_obj
+        else:
+            try:
+                obj = cast(PersistableModel, core_cls.model_validate(row.data))
+            except ValidationError:
+                # Stored data came from a wire object whose schema differs from
+                # the core class (e.g. as_EmbargoEvent lacks context).  Return
+                # the wire object un-projected: that is the long-standing
+                # behaviour the KNOWN_WIRE_ESCAPES ratchet in
+                # test/architecture/test_dl_read_returns_core_objects.py
+                # measures, and projecting here would dehydrate inline nested
+                # objects that callers of these rows still expect inline.
+                wire_obj = self._wire_object_from_row(row)
+                if wire_obj is None:
+                    return None
+                obj = wire_obj
+            except VultronValidationError as exc:
+                # A core type's own shape guard rejected the row — e.g.
+                # CaseParticipant's wire-spelled-key guard (#2232).  It is not a
+                # ValueError subclass, so without naming it here it would escape
+                # this ladder entirely instead of falling back like every other
+                # shape mismatch (DL-05-002).
+                #
+                # Unlike the ValidationError case above, the row *is* a
+                # wire-spelled copy of a core type, so project it: handing back
+                # a wire object makes every core-typed caller fail (resolve_case
+                # raises "Expected VulnerabilityCase, got as_VulnerabilityCase").
+                wire_obj = self._wire_object_from_row(row)
+                if wire_obj is None:
+                    return None
+                obj = self._project_wire_row_to_core(row, wire_obj, exc)
         if obj is None:
             return None
         obj = self._rehydrate_fields(obj)
         return self._coerce_to_semantic_class(obj)
+
+    def _wire_object_from_row(
+        self, row: VultronObjectRecord
+    ) -> PersistableModel | None:
+        """Reconstruct *row* through the wire vocabulary, or ``None``."""
+        rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
+        try:
+            return cast(PersistableModel, record_to_object(rec))
+        except (ValueError, ValidationError, VultronValidationError):
+            return None
+
+    def _project_wire_row_to_core(
+        self,
+        row: VultronObjectRecord,
+        wire_obj: PersistableModel,
+        core_exc: Exception,
+    ) -> PersistableModel:
+        """Project a wire-vocabulary fallback back to its core counterpart.
+
+        ``_from_row`` reaches this only when the row's ``type_`` *has* a core
+        counterpart but the stored data does not validate against it, so the
+        wire class was used instead.  Handing that wire object to core callers
+        is what DL-05-001/DL-05-002 forbid: a wire ``as_VulnerabilityCase``
+        reaching ``resolve_case`` raises "Expected VulnerabilityCase, got
+        as_VulnerabilityCase" rather than reading the case (issue #2232).
+
+        ``to_core()`` is the same projection the write path applies in
+        ``_normalize_to_core`` — the persistence-boundary half of ADR-0062,
+        applied on the way out as well as on the way in.  Wire types are looser
+        than core types, so a row that fails core validation directly can still
+        project cleanly: ``to_core()`` maps flat wire spellings onto the nested
+        core shape instead of dropping them.
+
+        When the projection also fails, *wire_obj* is returned unchanged — that
+        is the pre-#2232 behaviour for these rows, and degrading it to ``None``
+        would turn a wrongly-typed read into a missing-object read.  Both
+        outcomes are logged: a silent fallback here is what made this class of
+        shape bug so hard to trace.
+        """
+        to_core = getattr(wire_obj, "to_core", None)
+        if to_core is None:
+            logger.warning(
+                "Row %r (type %r) failed core validation (%s) and its wire"
+                " fallback %s has no to_core() projection; returning the wire"
+                " object (DL-05-002, issue #2232).",
+                row.id_,
+                row.type_,
+                core_exc,
+                type(wire_obj).__name__,
+            )
+            return wire_obj
+        try:
+            projected = cast(PersistableModel, to_core())
+        except (
+            ValidationError,
+            VultronValidationError,
+            ValueError,
+            TypeError,
+        ) as exc:
+            logger.warning(
+                "Row %r (type %r) failed core validation (%s) and projecting"
+                " its wire fallback %s to core also failed (%s); returning the"
+                " wire object (issue #2232).",
+                row.id_,
+                row.type_,
+                core_exc,
+                type(wire_obj).__name__,
+                exc,
+            )
+            return wire_obj
+        logger.debug(
+            "Row %r (type %r) failed core validation (%s); recovered the core"
+            " shape by projecting the wire fallback %s via to_core()"
+            " (issue #2232).",
+            row.id_,
+            row.type_,
+            core_exc,
+            type(wire_obj).__name__,
+        )
+        return projected
 
     def _rehydrate_fields(self, obj: PersistableModel) -> PersistableModel:
         """Expand dehydrated object-reference fields back to typed objects.
@@ -196,23 +303,40 @@ class SqliteDataLayer:
         ``self.read()`` and replaces it with the full domain object.  If a
         referenced object is not found the string is kept and a DEBUG message
         is logged.
+
+        When a field holds an inline ``PersistableModel`` (kept inline by
+        ``_KEEP_INLINE_NESTED_TYPES`` rather than dehydrated to a bare ID),
+        this method recurses into it so that the nested object's own reference
+        fields are expanded too.  Without this recursion an inline Offer's
+        ``target`` would remain a bare string URI and break semantic dispatch
+        that relies on the resolved type (e.g. Organisation ≠ CaseParticipant
+        for ``OfferCaseManagerRolePattern`` vs ``OfferCaseOwnershipTransfer``).
         """
         updates: dict[str, object] = {}
         for field_name in _AS_OBJECT_REF_FIELDS:
             value = getattr(obj, field_name, None)
-            if not isinstance(value, str) or not value:
+            if value is None:
                 continue
-            nested = self.read(value)
-            if nested is None:
-                logger.debug(
-                    "Could not rehydrate field %r with id %r on %r;"
-                    " keeping string reference.",
-                    field_name,
-                    value,
-                    type(obj).__name__,
+            if isinstance(value, str):
+                if not value:
+                    continue
+                nested = self.read(value)
+                if nested is None:
+                    logger.debug(
+                        "Could not rehydrate field %r with id %r on %r;"
+                        " keeping string reference.",
+                        field_name,
+                        value,
+                        type(obj).__name__,
+                    )
+                    continue
+                updates[field_name] = nested
+            elif isinstance(value, BaseModel):
+                rehydrated = self._rehydrate_fields(
+                    cast(PersistableModel, value)
                 )
-                continue
-            updates[field_name] = nested
+                if rehydrated is not value:
+                    updates[field_name] = rehydrated
         if updates:
             obj = obj.model_copy(update=updates)
         return obj
@@ -305,7 +429,7 @@ class SqliteDataLayer:
                     obj.model_dump(by_alias=True, serialize_as_any=True)
                 ),
             )
-        except (ValidationError, TypeError) as exc:
+        except (ValidationError, VultronValidationError, TypeError) as exc:
             logger.warning(
                 "Could not coerce %r to semantic class %r: %s",
                 type(obj).__name__,
@@ -321,7 +445,7 @@ class SqliteDataLayer:
         try:
             record = Record.model_validate(stored_record)
             return cast(PersistableModel, record_to_object(record))
-        except (ValidationError, ValueError):
+        except (ValidationError, VultronValidationError, ValueError):
             pass
 
         raw_type = stored_record.get("type")
@@ -331,7 +455,7 @@ class SqliteDataLayer:
                 return cast(
                     PersistableModel, vocab_cls.model_validate(stored_record)
                 )
-            except KeyError:
+            except (KeyError, ValidationError, VultronValidationError):
                 pass
 
         raw_type = stored_record.get("type_")
@@ -342,7 +466,7 @@ class SqliteDataLayer:
                 return cast(
                     PersistableModel, vocab_cls.model_validate(raw_data)
                 )
-            except KeyError:
+            except (KeyError, ValidationError, VultronValidationError):
                 pass
 
         return None

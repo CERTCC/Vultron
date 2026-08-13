@@ -49,7 +49,9 @@ The **Case State (CS)** tracks awareness and readiness across six binary dimensi
 | **A/a** | **A** | **a** | Active attacks have been observed / not observed |
 
 Each transition from lowercase to uppercase represents an event; once uppercase,
-it cannot revert. This forms a 64-state lattice (2^6 combinations).
+it cannot revert. The 2^6 combinations give a 64-state lattice, of which only
+**32 are reachable**: `vF*` (fix ready, vendor unaware) and `*fD*` (fix deployed,
+fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 ---
 
@@ -182,7 +184,8 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **CVDRole** | A StrEnum representing individual, atomic CVD roles (FINDER, REPORTER, VENDOR, DEPLOYER, COORDINATOR, OTHER, CASE_OWNER, CASE_MANAGER); participants hold zero or more roles represented as `list[CVDRole]`; preferred representation for new code (replaces legacy bitmask) | Role value, role enum |
+| **CVDRole** | A StrEnum representing individual, atomic CVD roles (FINDER, REPORTER, VENDOR, DEPLOYER, COORDINATOR, OBSERVER, CASE_OWNER, CASE_MANAGER, CVE_NUMBERING_AUTHORITY); participants hold zero or more roles represented as `list[CVDRole]`; preferred representation for new code (replaces legacy bitmask) | Role value, role enum |
+| **Observer** | A **CVDRole** value (`CVDRole.OBSERVER`) representing a case participant with no vendor-fix-deployment obligations; the base role — lowest non-null privilege set — admitted via standard Invite/Accept (CM-25). Formerly `CVDRole.OTHER`; renamed in ADR-0057. A participant holding OBSERVER alongside VENDOR or DEPLOYER retains VFD obligations from those roles (CM-26). | Watcher, monitor, OTHER (deprecated) |
 | **Dimension Object** | A small immutable `BaseModel` capturing the state of exactly one state machine (RM, EM, VFD, or PXA) at a point in time; replaces flat fields in `CaseStatus`/`ParticipantStatus` per ADR-0036 | Status sub-object, state fragment |
 | **Advisory** | A public disclosure document summarizing a vulnerability's details, remediation, and affected parties; produced by the publication pipeline via a Draft → Review → Submit sequence | Security advisory, disclosure document, bulletin |
 | **Advisory Review Decision** | A record produced by a **Reviewer** (Evaluator-type **Coordination Agent**) capturing whether an **Advisory** draft needs revision; the `needs_revision` flag gates the BT pipeline; to block submission for any reason, the Evaluator MUST return `Status.FAILURE` (BT-18-007) | Review result, review outcome |
@@ -209,7 +212,7 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
    - The **Case State (CS)** — the six-dimensional VfDpxa lattice model
    - A **Case Status** — a snapshot of CS, RM, and EM at one moment
    - An RM or EM state — a specific state machine location
-   - **Recommendation**: Prefer precise terms. Use "Case State" for the 64-node lattice; "Case Status" for a snapshot; "RM state" or "EM state" for a specific state machine location.
+   - **Recommendation**: Prefer precise terms. Use "Case State" for the lattice (64 combinations, 32 reachable); "Case Status" for a snapshot; "RM state" or "EM state" for a specific state machine location.
 
 2. **"Participant" vs. "Actor"**:
    - An **Actor** is any URI-identified federated peer (a role in the protocol).

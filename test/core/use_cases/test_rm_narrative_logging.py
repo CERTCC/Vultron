@@ -156,6 +156,79 @@ class TestUpdateParticipantRmStateLogging:
         assert not _narrative_records(caplog)
 
 
+@pytest.fixture()
+def indexed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
+    """Case where actor is in actor_participant_index but participant NOT in DL.
+
+    Simulates the invited-path bootstrap gap (ISSUE-2216, ISSUE-2223): the
+    CaseActor's Announce(VulnerabilityCase) delivers only string IDs in
+    case_participants, so _store_embedded_participants skips them and no
+    CaseParticipant object lands in the invitee's DL.
+    """
+    participant = CaseParticipant(
+        id_=_PARTICIPANT_ID,
+        attributed_to=_ACTOR_ID,
+        context=_CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+    # NOTE: participant is NOT persisted to dl — this is the bug scenario
+    case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+    case.add_participant(participant)
+    dl.create(case)
+    stored = dl.read(_CASE_ID)
+    assert isinstance(stored, VulnerabilityCase)
+    return stored
+
+
+class TestInvitedPathBootstrap:
+    """update_participant_rm_state when actor indexed but participant absent.
+
+    Regression for ISSUE-2216: after MV-09-001 fix, invited actors reach
+    RM.VALID but engage-case returns 422 because the CaseParticipant object
+    was never hydrated into the invitee's local DL.
+    """
+
+    def test_bootstrap_creates_participant_at_valid(
+        self, indexed_case: VulnerabilityCase, dl: SqliteDataLayer
+    ) -> None:
+        """validate-report path: actor indexed but participant absent → bootstrap succeeds."""
+        result = update_participant_rm_state(_CASE_ID, _ACTOR_ID, RM.VALID, dl)
+        assert (
+            result is True
+        ), "Expected True — indexed actor should bootstrap participant"
+        participant = dl.read(_PARTICIPANT_ID)
+        assert (
+            participant is not None
+        ), "Participant must be in DL after bootstrap"
+        assert isinstance(participant, CaseParticipant)
+        assert participant.participant_statuses[-1].rm.state == RM.VALID
+
+    def test_engage_case_succeeds_after_validate(
+        self, indexed_case: VulnerabilityCase, dl: SqliteDataLayer
+    ) -> None:
+        """engage-case path: validate seeds participant, then ACCEPTED succeeds."""
+        assert update_participant_rm_state(_CASE_ID, _ACTOR_ID, RM.VALID, dl)
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert (
+            result is True
+        ), "Expected True — RM.VALID → RM.ACCEPTED must succeed"
+        participant = dl.read(_PARTICIPANT_ID)
+        assert participant is not None
+        assert isinstance(participant, CaseParticipant)
+        assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
+
+    def test_accepted_without_prior_validate_is_blocked(
+        self, indexed_case: VulnerabilityCase, dl: SqliteDataLayer
+    ) -> None:
+        """RECEIVED → ACCEPTED is not a valid RM transition; must return False."""
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert result is False
+
+
 class TestCurrentParticipantRmState:
     """current_participant_rm_state reads the latest RM state, or START."""
 
@@ -186,3 +259,80 @@ class TestCurrentParticipantRmState:
         case = dl.read(_CASE_ID)
         assert isinstance(case, VulnerabilityCase)
         assert current_participant_rm_state(case, _ACTOR_ID, dl) == RM.VALID
+
+
+class TestInlineParticipantStaleness:
+    """update_participant_rm_state must read from DL, not stale inline objects.
+
+    Regression for #2233: when case_participants contains inline CaseParticipant
+    objects (not string IDs), the old code returned the inline object directly.
+    If the standalone DL record had advanced beyond the inline snapshot, the
+    stale RM state caused valid transitions to be rejected.
+
+    Root cause: _scan_case_participants_for_actor used ``participant_raw =
+    participant_ref`` for non-string entries, bypassing the live DL record.
+
+    Fix: always look up via actor_participant_index → dl.read() (CM-19-003).
+    """
+
+    def _make_participant(self, rm_state: RM) -> CaseParticipant:
+        p = CaseParticipant(
+            id_=_PARTICIPANT_ID,
+            attributed_to=_ACTOR_ID,
+            context=_CASE_ID,
+            case_roles=[CVDRole.VENDOR],
+        )
+        p.append_rm_state(RM.RECEIVED, actor=_ACTOR_ID, context=_CASE_ID)
+        if rm_state != RM.RECEIVED:
+            p.append_rm_state(rm_state, actor=_ACTOR_ID, context=_CASE_ID)
+        return p
+
+    def test_engage_case_succeeds_when_inline_copy_is_stale(
+        self, dl: SqliteDataLayer
+    ) -> None:
+        """Stale inline RECEIVED in case_participants must not block ACCEPTED.
+
+        Simulates the demo scenario where _build_case_object materialises inline
+        participants for AC-5, leaving case_participants with inline objects at
+        RM.RECEIVED while the standalone DL record has advanced to RM.VALID
+        (written by validate-report).  engage-case must still succeed.
+        """
+        # Standalone DL record at VALID (written by validate-report)
+        live_participant = self._make_participant(RM.VALID)
+        dl.create(live_participant)
+
+        # Case with INLINE CaseParticipant at RECEIVED — the stale snapshot
+        stale_inline = self._make_participant(RM.RECEIVED)
+        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case.actor_participant_index[_ACTOR_ID] = _PARTICIPANT_ID
+        case.case_participants.append(stale_inline)  # inline, not string ID
+        dl.create(case)
+
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert result is True, (
+            "Expected True — VALID → ACCEPTED must succeed; "
+            "inline RECEIVED copy in case_participants must be ignored (CM-19-003)"
+        )
+        after = dl.read(_PARTICIPANT_ID)
+        assert isinstance(after, CaseParticipant)
+        assert after.participant_statuses[-1].rm.state == RM.ACCEPTED
+
+    def test_string_id_in_case_participants_still_reads_live_record(
+        self, dl: SqliteDataLayer
+    ) -> None:
+        """String-ID path: dl.read() is used and sees the live record."""
+        live_participant = self._make_participant(RM.VALID)
+        dl.create(live_participant)
+
+        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case.add_participant(
+            live_participant
+        )  # appends string ID via add_participant
+        dl.create(case)
+
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert result is True, "String-ID path: VALID → ACCEPTED must succeed"

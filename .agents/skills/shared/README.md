@@ -19,6 +19,25 @@ Shared scripts and reference documents referenced by multiple skills.
 | `add-to-project.sh` | Add issue to Project #24 with Schedule | `bash .agents/skills/shared/add-to-project.sh <N> [Focus\|Now\|Next\|Later\|Someday]` |
 | `query-now-epics.sh` | List open Epics with Schedule=Now | `bash .agents/skills/shared/query-now-epics.sh` |
 | `board-id.sh` | Resolve any board node/field/option/issue-type ID **by name** (TTL-cached) | `bash .agents/skills/shared/board-id.sh <category> [<Name>]` |
+| `freshen-branch.sh` | Rebase-free freshening onto `origin/main` **before the first push** | `bash .agents/skills/shared/freshen-branch.sh` |
+| `sync-with-main.sh` | Merge the base branch into an **already-pushed** PR branch; leaves conflicts for the caller | `bash .agents/skills/shared/sync-with-main.sh [<base-branch>]` |
+| `merge-state.sh` | Report a PR's mergeability, polling past GitHub's transient `UNKNOWN` | `bash .agents/skills/shared/merge-state.sh [<pr-number>]` |
+
+## freshen vs sync — pick by whether the branch is pushed
+
+Both bring a task branch current with its base, but they are not
+interchangeable:
+
+| | `freshen-branch.sh` | `sync-with-main.sh` |
+|---|---|---|
+| When | Before the first push (`create-pr` Phase 2) | After a PR exists (`pr-execute` Phase 4) |
+| How | Cherry-picks onto a fresh base — rewrites history | Merge commit — preserves pushed SHAs |
+| Push | Normal push (branch not yet public) | Normal push (no `--force` ever needed) |
+| On conflict | Aborts cleanly, exit `1` — caller opens a draft PR with `needs-rebase` | Leaves the merge in progress, exit `1` — caller resolves and commits |
+
+Using `freshen-branch.sh` on a pushed branch would require a force-push, which
+orphans reviewers' line comments and invalidates any `commit_ref` already
+recorded in the PR pipeline artifacts.
 
 ## Board IDs — never hardcode them
 

@@ -5,9 +5,12 @@
 # concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-001.
 #
 # Triggers:
-#   pull_request  — minimum PR validation set (4 scenarios, DEMOCI-06-002)
-#   push to main  — full 9-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
-#   workflow_dispatch — full 9-scenario suite (for manual re-runs)
+#   pull_request  — minimum PR validation set (4 scenarios, DEMOCI-06-002);
+#                   targets both `main` and `fix/demo-ci` integration branches
+#   push to main/fix/demo-ci — full 9-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
+#   workflow_dispatch — full 9-scenario suite; accepts optional `ref` input
+#                       so the suite can be run against any branch (e.g.
+#                       `fix/demo-ci`) without opening a PR to `main`
 #
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
@@ -60,7 +63,8 @@ name: Demo Integration
 
 on:
   pull_request:
-    branches: ["main"]
+    # fix/demo-ci: temporary integration branch — remove when merged (#2144).
+    branches: ["main", "fix/demo-ci"]
     paths:
       - "vultron/**"
       - "!vultron/metadata/**"
@@ -78,7 +82,8 @@ on:
       # The scenario matrix itself gates which demos run.
       - ".github/demo-scenarios.json"
   push:
-    branches: ["main"]
+    # fix/demo-ci: temporary integration branch — remove when merged (#2144).
+    branches: ["main", "fix/demo-ci"]
     paths:
       - "vultron/**"
       - "!vultron/metadata/**"
@@ -92,6 +97,16 @@ on:
       - ".github/actions/build-demo-images/**"
       - ".github/demo-scenarios.json"
   workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        description: >-
+          Branch, tag, or SHA to check out and run the full demo suite against.
+          Defaults to the branch the workflow is dispatched from. Use this to
+          manually validate an integration branch (e.g. fix/demo-ci) before
+          merging it to main.
+        required: false
+        default: ""
 
 # DEMOCI-02-011: cancel superseded PR runs; never cancel on-main runs.
 concurrency:
@@ -100,7 +115,7 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write  # needed for docker buildx bake cache-to: type=gha
+  actions: write  # needed for cancel-in-progress (concurrency group)
 
 jobs:
   # DEMOCI-06-002, DEMOCI-06-003: resolve the scenario matrix for this event.
@@ -121,6 +136,8 @@ jobs:
       matrix: ${{ steps.select.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Select scenario matrix
         id: select
@@ -157,24 +174,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
-      # DEMOCI-02-007: Docker layer caching via Buildx GHA cache.
-      # On push-to-main runs, write to the "demo-integration-main" scope so
-      # new PR branches can read it as a warm fallback (DEMOCI-05-003).
-      # On pull_request runs, write to "demo-integration" (visible only to
-      # the same PR branch) and read "demo-integration-main" as a fallback so
-      # a brand-new PR branch still gets a warm start.
       - name: Build Docker images
         uses: ./.github/actions/build-demo-images
-        with:
-          cache-scope: >-
-            ${{ github.ref == 'refs/heads/main'
-              && 'demo-integration-main'
-              || 'demo-integration' }}
-          cache-from-extra-scope: >-
-            ${{ github.ref != 'refs/heads/main'
-              && 'demo-integration-main'
-              || '' }}
 
       # DEMOCI-02-005, DEMOCI-02-006: run demo; detect failure via
       # exit code of the demo-runner container.
@@ -199,9 +203,10 @@ jobs:
           path: devlogs/
           retention-days: 30
 
-      # DEMOCI-02-008: collect combined stream and per-service logs on failure.
+      # DEMOCI-02-008: collect combined stream and per-service logs on failure
+      # or cancellation (a cancelled job ends up undiagnosable without logs).
       - name: Collect container logs
-        if: failure()
+        if: failure() || cancelled()
         run: |
           COMPOSE_FILE=docker/docker-compose-multi-actor.yml
           mkdir -p /tmp/demo-logs
@@ -213,7 +218,7 @@ jobs:
           done
 
       - name: Upload container logs
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ matrix.demo }}-container-logs
@@ -221,10 +226,12 @@ jobs:
           retention-days: 7
 
       # DEMOCI-02-010: always tear down containers and volumes.
+      # --timeout 30 caps the per-container stop grace period so a wedged
+      # container cannot consume the remaining job time budget (#2245).
       - name: Tear down containers and volumes
         if: always()
         run: |
-          docker compose -f docker/docker-compose-multi-actor.yml down -v
+          docker compose -f docker/docker-compose-multi-actor.yml down -v --timeout 30
 
   # DEMOCI-04-001, DEMOCI-04-002, DEMOCI-04-003: separate invariant-harness job
   # so invariant failures produce an independent pass/fail status on the PR even
@@ -248,6 +255,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       # DEMOCI-04-003: download the JSONL artifact produced by the demo job.
       - name: Download case log JSONL files
@@ -257,9 +266,8 @@ jobs:
           path: devlogs/
 
       # AC-925-1: run canonical-log invariant harness against JSONL artifacts.
-      # Invariants not yet passing are marked xfail so the build stays green;
-      # unexpected passes appear as XPASS (visible but not failing).
-      # See test/ci/README-case-log-ratchet.md for the ratchet workflow.
+      # All invariants are currently passing; no xfail markers are in use.
+      # See test/ci/README-case-log-ratchet.md for the invariant inventory.
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
 

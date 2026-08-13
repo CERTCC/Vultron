@@ -189,6 +189,77 @@ class BufferOutOfOrderEntryNode(DataLayerAction):
         return Status.FAILURE
 
 
+class BufferPreGenesisEntryNode(DataLayerAction):
+    """Hold a ledger entry that arrived before its ``VulnerabilityCase`` seed.
+
+    This is the *pre-genesis* companion to :class:`BufferOutOfOrderEntryNode`.
+    When ``ReconstructChainTail`` cannot derive the per-case genesis hash
+    because the ``VulnerabilityCase`` is not yet present in the DataLayer
+    (CLP-08-005), the receive path would otherwise send a
+    ``Reject(CaseLedgerEntry)`` and *drop* the entry, leaving convergence to the
+    reject → replay round-trip (which can itself reorder and churn — #2169).
+
+    Because delivery is unordered, an ``Announce(CaseLedgerEntry)`` can precede
+    the ``Create``/``Announce(VulnerabilityCase)`` that seeds the case.  This
+    node parks the entry in the actor-local
+    :class:`~vultron.core.models.ledger_gap_buffer.LedgerGapBuffer` keyed by its
+    ``prev_log_hash`` so the case-seed path can drain it once the genesis anchor
+    is known (issue #2186, SYNC-15-004).
+
+    Unlike :class:`BufferOutOfOrderEntryNode`, it does **not** apply a
+    forward-gap check: there is no reconstructed tail in the pre-genesis window,
+    so *every* entry for the missing case is held — including the genesis entry
+    (``log_index == 0``), whose ``prev_log_hash`` equals the per-case genesis
+    hash and therefore drains first once the case is seeded.
+
+    Returns SUCCESS when the entry was buffered, FAILURE otherwise (buffering
+    disabled, no gap buffer injected, or the size bound dropped it).  Its status
+    only structures the enclosing tree — a ``Reject(CaseLedgerEntry)`` is sent
+    on every pre-genesis entry regardless, so the CaseActor's replay remains the
+    backstop (SYNC-15-001).  The entry is deliberately NOT persisted here; the
+    drain applies effects before persisting, honouring SYNC-12-001 / SYNC-14-005.
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._gap_buffer: LedgerGapBuffer | None = None
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="gap_buffer", access=py_trees.common.Access.READ
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._gap_buffer = cast(
+                LedgerGapBuffer, self.blackboard.gap_buffer
+            )
+        except (AttributeError, KeyError):
+            self._gap_buffer = None
+
+    def update(self) -> Status:
+        if self._gap_buffer is None:
+            return Status.FAILURE
+
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if self._gap_buffer.buffer(entry):
+            self.logger.info(
+                "%s: buffered pre-genesis entry '%s' (index=%d) for case '%s' "
+                "pending VulnerabilityCase seed",
+                self.name,
+                entry.id_,
+                entry.log_index,
+                entry.case_id,
+            )
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
 class SendRejectLogEntryNode(DataLayerAction):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)

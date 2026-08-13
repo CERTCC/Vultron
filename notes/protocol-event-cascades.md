@@ -11,6 +11,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
+  - notes/event-driven-control-flow.md
 relevant_packages:
   - vultron/core/use_cases
   - vultron/core/behaviors
@@ -172,8 +173,32 @@ trigger. The demo-runner calls only Step 1.
 
 ---
 
+## Actor-Side Causality vs. Harness-Side Causal Gating
+
+This note is about causality **inside** an actor: a primary event arrives and the
+actor's BT drives the consequences automatically, as subtrees rather than as
+procedural calls or manual demo triggers. Its failure mode is a *missing cascade*
+— the consequence never fires, so a demo has to trigger it by hand.
+
+There is a second, distinct causality problem on the **harness** side: the
+consequence does fire, but asynchronously, and the scenario script advances before
+it lands. Its failure mode is a *race*, not a gap. That problem — gating each
+scenario step on evidence that its antecedent was committed, rather than on step
+order or elapsed time — is covered in
+[notes/event-driven-control-flow.md](event-driven-control-flow.md)
+§ "Temporal Sequence vs. Causal Sequence", with requirements in EDF-06 and
+DEMOMA-22 and rationale in ADR-0058.
+
+The two are easy to confuse because they present the same way in CI, and the fix
+differs sharply: a missing cascade needs a BT subtree, while a harness race needs
+a gate — or, when the effect can be *lost* rather than merely delayed, actor-side
+buffering (ADR-0037, and ADR-0059 for pre-genesis buffering). Diagnose which one you have
+before fixing it.
+
 ## Related
 
+- `notes/event-driven-control-flow.md` (harness-side causal gating, EDF-06,
+  ADR-0058; the conceptual model this note's gap inventory sits inside)
 - `notes/bt-integration.md` (subtree map, trunk-removed branches
   model, anti-pattern examples)
 - `specs/behavior-tree-integration.yaml` BT-06-001, BT-06-005, BT-06-006

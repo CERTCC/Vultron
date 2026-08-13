@@ -841,3 +841,91 @@ class TestAnnounceLogEntryAppliesCloseCase:
             f"Expected exactly 1 RM.CLOSED ParticipantStatus;"
             f" found {closed_count}"
         )
+
+
+NEW_OWNER_ID = "https://example.org/actors/new-owner"
+
+
+def _make_ownership_transfer_entry(
+    log_index: int, new_owner_id: str, prev_hash: str = _ZERO_HASH
+) -> VultronCaseLedgerEntry:
+    """Create a ledger entry with event_type='accept_case_ownership_transfer'."""
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/ownership-{log_index}",
+            event_type="accept_case_ownership_transfer",
+            payload_snapshot={"actor": new_owner_id},
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+class TestAnnounceLogEntryAppliesOwnershipTransfer:
+    """Participant receiving accept_case_ownership_transfer entry updates attributed_to."""
+
+    def test_participant_updates_attributed_to_on_ownership_transfer(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """BT updates attributed_to on case replica when entry is accept_case_ownership_transfer."""
+        entry = _make_ownership_transfer_entry(
+            0, NEW_OWNER_ID, case_obj.genesis_hash
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == NEW_OWNER_ID
+
+    def test_ownership_transfer_is_idempotent(
+        self, bridge, datalayer, case_actor
+    ):
+        """Running BT when case already has correct owner must succeed silently."""
+        case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=NEW_OWNER_ID)
+        datalayer.save(case)
+        entry = _make_ownership_transfer_entry(
+            0, NEW_OWNER_ID, case.genesis_hash
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == NEW_OWNER_ID
+
+    def test_ownership_transfer_not_applied_for_unrelated_event(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """OwnershipTransferEffects Selector short-circuits for unrelated event types."""
+        entry = _make_entry(
+            0, case_obj.genesis_hash
+        )  # event_type="test_event"
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == OWNER_ACTOR_ID

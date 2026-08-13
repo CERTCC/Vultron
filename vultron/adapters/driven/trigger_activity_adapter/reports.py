@@ -36,6 +36,55 @@ from ._base import _DUMP_KWARGS, _to_wire
 logger = logging.getLogger(__name__)
 
 
+def _reconstitute_offer(
+    offer_id: str, dl: "CaseOutboxPersistence"
+) -> Any | None:
+    """Reconstitute a wire Offer from VultronOfferRecord + VulnerabilityReport.
+
+    Per ADR-0035 DL-06-004: the adapter layer MAY read stored activity only
+    via the wire/adapter-owned seam that never interprets it (for wire envelope
+    reconstitution).  When the wire Offer is absent (e.g. for invite-path
+    actors who never received it directly), the domain facts recorded in
+    VultronOfferRecord are sufficient to reconstitute the Offer envelope.
+
+    Uses rm_submit_report_activity (AF-03-001) to stay within the factory
+    boundary — passing id_=offer_id preserves the original offer's identity.
+
+    Returns None if the necessary records are not available.
+    """
+    offer_record = dl.read(VultronOfferRecord.build_id(offer_id))
+    if not isinstance(offer_record, VultronOfferRecord):
+        return None
+    report = _to_wire(dl.read(offer_record.report_id), as_VulnerabilityReport)
+    if report is None:
+        logger.debug(
+            "_reconstitute_offer: report '%s' not found in DataLayer"
+            " — cannot reconstitute offer '%s'",
+            offer_record.report_id,
+            offer_id,
+        )
+        return None
+    to = (
+        offer_record.offer_to[0]
+        if offer_record.offer_to
+        else offer_record.offer_actor_id
+    )
+    try:
+        return rm_submit_report_activity(
+            report=report,
+            to=to,
+            actor=offer_record.offer_actor_id,
+            id_=offer_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "_reconstitute_offer: failed to reconstitute offer '%s': %s",
+            offer_id,
+            exc,
+        )
+        return None
+
+
 class _ReportsMixin:
     """Trigger activity methods for as_VulnerabilityReport objects."""
 
@@ -88,6 +137,13 @@ class _ReportsMixin:
             raise
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
+    def _resolve_offer(self, offer_id: str) -> Any:
+        """Read wire Offer from DL; reconstitute from VultronOfferRecord if absent."""
+        offer = cast(Any, self._dl.read(offer_id))
+        if offer is None:
+            offer = _reconstitute_offer(offer_id, self._dl)
+        return offer
+
     def validate_report(
         self,
         offer_id: str,
@@ -96,7 +152,7 @@ class _ReportsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Accept(Offer)`` validate-report activity."""
-        offer = cast(Any, self._dl.read(offer_id))
+        offer = self._resolve_offer(offer_id)
         activity = rm_validate_report_activity(offer=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)
@@ -115,7 +171,7 @@ class _ReportsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Reject(Offer)`` close-report activity."""
-        offer = cast(Any, self._dl.read(offer_id))
+        offer = self._resolve_offer(offer_id)
         activity = rm_close_report_activity(offer=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)
@@ -133,7 +189,7 @@ class _ReportsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``TentativeReject(Offer)`` activity."""
-        offer = cast(Any, self._dl.read(offer_id))
+        offer = self._resolve_offer(offer_id)
         activity = rm_invalidate_report_activity(
             offer=offer, actor=actor, to=to
         )
@@ -153,7 +209,7 @@ class _ReportsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
-        offer = cast(Any, self._dl.read(offer_id))
+        offer = self._resolve_offer(offer_id)
         activity = as_Read(object_=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)

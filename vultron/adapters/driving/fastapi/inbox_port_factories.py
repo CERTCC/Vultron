@@ -134,6 +134,13 @@ _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        # ANNOUNCE_VULNERABILITY_CASE seeds the local VulnerabilityCase, which
+        # anchors the per-case genesis hash and lets AnnounceVulnerabilityCase-
+        # ReceivedUseCase drain any pre-genesis Announce(CaseLedgerEntry) it
+        # parked in the gap buffer.  The drain re-runs the announce receive path,
+        # which sends a Reject on any residual mismatch, so it needs sync_port
+        # (SYNC-15-005, #2186, #2180).
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.CLOSE_CASE,
         MessageSemantics.INVITE_ACTOR_TO_CASE,

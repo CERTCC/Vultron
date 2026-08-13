@@ -621,6 +621,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         content: str | None = None,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 

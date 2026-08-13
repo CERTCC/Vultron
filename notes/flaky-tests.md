@@ -26,6 +26,8 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
+| `test/ci/invariants/test_fv_invariants.py::test_invariant_5_expected_event_types_present[validate_report]` | #2274 | 2026-08-13 |
+| `test/ci/invariants/test_fv_invariants.py::test_invariant_5_expected_event_types_present[engage_case]` | #2274 | 2026-08-13 |
 
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
@@ -75,18 +77,74 @@ and fall through to Level 2 (GitHub label search).
 
 ---
 
+## Integration-Marker Tests (pytest node IDs)
+
+No open entries.
+
+> Note: `test/demo/test_pcr_late_joiner.py::test_late_joiner_receives_case_replica`
+> and `test/metadata/test_decision_audit_inventory.py` were **not flaky tests** —
+> they were honest 3.5-4.3s tests colliding with a 5s ceiling sized for the unit
+> suite. Because `timeout_method = "thread"` kills the whole pytest process,
+> `uv run pytest -m integration` aborted with **no summary line**, so a red
+> integration run carried no information about the branch. Reliably red in random
+> order (2/2 on clean `origin/main` 65fe33f1b); passed under `-p no:randomly`,
+> which is what made it look like nondeterminism. Only *which* test tripped
+> followed the `pytest-randomly` seed.
+>
+> **Fixed by #2270** — `test/conftest.py` now gives `integration`-marked tests a
+> 60s tier while the unit suite runs at 30s (raised from 5s in the same issue,
+> because AST-walking ratchets at ~3.4s were tripping the old ceiling under
+> full-suite load). Verified 2/2 random-order runs at
+> exit 0, 0 timeout aborts, 1101 passed. Never catalogued as flaky; rows added
+> and removed in the same change (2026-08-12).
+>
+> **Lesson**: before adding a row here, ask whether the test is nondeterministic
+> or whether the *ceiling* is wrong. A timeout tuned for one tier of tests will
+> masquerade as flakiness in another. See also #2249 for the opposite error —
+> cataloguing a deterministic protocol bug as noise.
+
+---
+
 ## CI / Demo Integration Jobs (job name granularity)
 
 | Job name | Issue | Last blocked |
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
+| `fv Demo Integration` | #2241 | 2026-08-13 |
 
-> These jobs fail intermittently due to inter-container HTTP delivery timeouts
-> (async race windows). Root cause documented in `plan/incoming/learnings/`
-> entry `20260731-async-race-windows-in-fv-demo.md`. When a new occurrence is
-> confirmed, `pr-execute` will open or comment on a `flaky-test` + `bug` issue
-> and record it here.
+> `fv Demo Integration` is a different animal from the async-race rows above
+> it. It passed at `dc31b6c6` and failed at `0b607c11` — a docs-only diff —
+> while base `fe951d00` does not fail it at all, so the trigger is genuinely
+> intermittent. But the *failure* is deterministic once triggered:
+> `add-note-to-case` returns an intermittent 422, and
+> `vultron/demo/helpers/notes.py:92` then reads `result` outside the
+> `with demo_step(...)` block that assigned it. `demo_step` suppresses the
+> exception, so control falls through and raises
+> `UnboundLocalError: cannot access local variable 'result'`, which buries the
+> real 422 under a traceback pointing at the wrong line. Pre-existing base code
+> (last touched by #1387, #543).
+>
+> **#2241 already owns this pattern** — "assignment inside a swallowing
+> `demo_check` block then used after it" — so this row cites it rather than a
+> new issue. The concrete callsite and run evidence are recorded there; note
+> the pattern reaches `demo_step` too, not just `demo_check`. The related
+> reporting failure is #2240. The `ValueError: No case ledger entries` later in
+> the same run is *not* a second bug: `ledger_dump.py:434` raises it
+> deliberately because the run died before any ledger was written. See also
+> #2281.
+>
+> The rows with no issue number fail intermittently due to inter-container HTTP
+> delivery timeouts (async race windows). Root cause documented in
+> `plan/incoming/learnings/` entry `20260731-async-race-windows-in-fv-demo.md`.
+> When a new occurrence is confirmed, `pr-execute` will open or comment on a
+> `flaky-test` + `bug` issue and record it here.
+>
+> **Removed 2026-08-13:** `fcvcv Demo Integration`, `fvcv-handoff Demo
+> Integration`, `fvcv-handoff Invariant Harness`, `fcvcv Invariant Harness`,
+> `fcv-reject Invariant Harness`, `fv Invariant Harness` — these were
+> **deterministic** failures caused by the engage-case 422 (#2233, now fixed).
+> They are gone from this catalog because the fix lands with the PR for #2233.
 
 ---
 

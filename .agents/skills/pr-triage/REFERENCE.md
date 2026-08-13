@@ -156,6 +156,45 @@ full suite.
 
 ---
 
+## Merge State Findings
+
+`mergeable` and `merge_state_status` come from `merge-state.sh` (which wraps
+`gh pr view --json mergeable,mergeStateStatus`). They are computed independently
+by GitHub, so check both.
+
+| `mergeable` | Meaning | Severity |
+|---|---|---|
+| `MERGEABLE` | No conflicts with base | none |
+| `CONFLICTING` | Merge conflicts present | **FAIL** |
+| `UNKNOWN` | GitHub has not finished computing (or the PR is closed) | **FAIL** — cannot be treated as clean |
+
+| `merge_state_status` | Meaning | Severity |
+|---|---|---|
+| `CLEAN` | Mergeable, checks green | none |
+| `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
+| `BEHIND` | Base advanced; repo requires up-to-date branches | **IMPROVE** |
+| `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
+| `BLOCKED` | Missing required review or failing required check | **IMPROVE** (note the cause; not fixable by execute) |
+| `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |
+| `HAS_HOOKS` | Mergeable with pre-receive hooks | none |
+| `UNKNOWN` | Not yet computed | **FAIL** |
+
+### Why merge conflicts are always FAIL
+
+A conflict means the PR cannot be merged at all — it is the most complete form
+of "broken" in the FAIL/IMPROVE/NEW-ISSUE taxonomy. Resolving it is never out of
+scope and never a separate issue: only the conflicted branch can be fixed, and
+only by whoever holds it. Do not tag a conflict `new-issue-ask` or
+`new-issue-no-ask`.
+
+### Stacked PRs
+
+`base_ref` is not always `main`. When a PR targets another task branch, all
+sync operations in execute must use that base — see `sync-with-main.sh`, which
+takes the base branch as its first argument.
+
+---
+
 ## Triage Artifact Schema
 
 File: `.claude/pr-{number}-triage.json`
@@ -173,7 +212,10 @@ File: `.claude/pr-{number}-triage.json`
     "changed_files": ["vultron/core/behaviors/foo.py"],
     "ci_status": "failing",
     "domains": ["core/behaviors"],
-    "needs_integration_tests": true
+    "needs_integration_tests": true,
+    "mergeable": "CONFLICTING",
+    "merge_state_status": "DIRTY",
+    "is_draft": false
   },
   "findings": [
     {
@@ -221,6 +263,8 @@ File: `.claude/pr-{number}-triage.json`
 **Linked issues**: #N (<title>)
 **Changed files**: <count> files — <domains>
 **CI status**: ✅ passing / ❌ failing / ⏳ pending
+**Merge state**: ✅ mergeable (CLEAN) / ❌ CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN
+**Base branch**: <base_ref>
 **Needs integration tests**: yes / no
 
 ---
@@ -232,8 +276,9 @@ File: `.claude/pr-{number}-triage.json`
 | phase5-missing-nonemptystring-0 | spec-conformance | ❌ FAIL | Field `summary` must use OptionalNonEmptyString | fix-now |
 | phase9-bt-integration-note-stale-0 | notes-currency | ⚠️ IMPROVE | `notes/bt-integration.md` not updated | fix-now |
 | phase8-unused-import-0 | code-review | ⚠️ IMPROVE | Unused import in `behaviors/foo.py:12` | fix-now |
+| phase12-merge-conflict-0 | merge-state | ❌ FAIL | Conflicts with `main` in 3 files | fix-now |
 
-**Total**: 2 FAIL · 1 IMPROVE · 0 NEW-ISSUE
+**Total**: 2 FAIL · 2 IMPROVE · 0 NEW-ISSUE
 
 ---
 
