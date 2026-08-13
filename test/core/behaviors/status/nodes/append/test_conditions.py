@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for append-participant-status leaf nodes.
+"""Tests for append/conditions.py: idempotency guards and RM validation.
 
 Tests SkipIfIdempotentNode, LoadParticipantNode,
 CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode and
@@ -23,14 +23,12 @@ ValidateRMTransitionNode from ``nodes.rm_validation``.
 Per DEMOMA-07-003 step 2.
 """
 
-import pytest
 import py_trees
 from py_trees.common import Status
 
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.append import (
-    AppendStatusAndSaveParticipantNode,
+    CheckParticipantRMNotClosedNode,
     CheckStatusNotAlreadyAppendedNode,
     LoadParticipantNode,
     ResolveAndPersistStatusObjectNode,
@@ -39,73 +37,10 @@ from vultron.core.behaviors.status.nodes.append import (
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
-ACTOR_ID = "https://example.org/actors/vendor"
-CASE_MANAGER_ID = "https://example.org/actors/case-actor"
-CASE_ID = "https://example.org/cases/case-01"
-PARTICIPANT_ID = "https://example.org/cases/case-01/participants/vendor"
-CM_PARTICIPANT_ID = "https://example.org/cases/case-01/participants/case-actor"
-STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
-@pytest.fixture
-def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
-
-
-@pytest.fixture
-def bridge(dl):
-    return BTBridge(datalayer=dl)
-
-
-@pytest.fixture
-def participant():
-    return as_CaseParticipant(
-        id_=PARTICIPANT_ID,
-        context=CASE_ID,
-        attributed_to=ACTOR_ID,
-        case_roles=[CVDRole.CASE_OWNER],
-    )
-
-
-@pytest.fixture
-def status_obj():
-    return as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
-
-
-@pytest.fixture
-def populated_dl(dl, participant, status_obj):
-    case_manager_participant = as_CaseParticipant(
-        id_=CM_PARTICIPANT_ID,
-        context=CASE_ID,
-        attributed_to=CASE_MANAGER_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
-    case.add_participant(participant)
-    case.add_participant(case_manager_participant)
-    dl.create(case)
-    dl.create(participant)
-    dl.create(case_manager_participant)
-    dl.create(status_obj)
-    return dl
-
-
-@pytest.fixture
-def populated_bridge(populated_dl):
-    return BTBridge(datalayer=populated_dl)
-
+from .conftest import ACTOR_ID, CASE_ID, PARTICIPANT_ID, STATUS_ID
 
 # ---------------------------------------------------------------------------
 # SkipIfIdempotentNode
@@ -147,27 +82,6 @@ class TestSkipIfIdempotentNode:
 
 
 # ---------------------------------------------------------------------------
-# LoadParticipantNode
-# ---------------------------------------------------------------------------
-
-
-class TestLoadParticipantNode:
-    def test_loads_participant_to_blackboard(self, populated_bridge):
-        node = LoadParticipantNode(participant_id=PARTICIPANT_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_missing_participant_fails(self, bridge):
-        node = LoadParticipantNode(
-            participant_id="https://example.org/cases/missing/p"
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
 # CheckStatusNotAlreadyAppendedNode
 # ---------------------------------------------------------------------------
 
@@ -205,29 +119,6 @@ class TestCheckStatusNotAlreadyAppendedNode:
 
 
 # ---------------------------------------------------------------------------
-# ResolveAndPersistStatusObjectNode
-# ---------------------------------------------------------------------------
-
-
-class TestResolveAndPersistStatusObjectNode:
-    def test_resolves_from_dl(self, populated_bridge):
-        node = ResolveAndPersistStatusObjectNode(
-            status_id=STATUS_ID, status_obj_fallback=None
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_missing_without_fallback_fails(self, bridge):
-        node = ResolveAndPersistStatusObjectNode(
-            status_id="https://example.org/missing", status_obj_fallback=None
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
 # ValidateRMTransitionNode
 # ---------------------------------------------------------------------------
 
@@ -247,31 +138,122 @@ class TestValidateRMTransitionNode:
         )
         assert result.status == Status.SUCCESS
 
-
-# ---------------------------------------------------------------------------
-# AppendStatusAndSaveParticipantNode
-# ---------------------------------------------------------------------------
-
-
-class TestAppendStatusAndSaveParticipantNode:
-    def test_appends_status(self, populated_bridge, populated_dl):
-        p_before = populated_dl.read(PARTICIPANT_ID)
-        initial_count = len(p_before.participant_statuses)
-
-        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+    def test_no_current_status_succeeds(self, populated_bridge):
+        """Participant with no prior status passes transition validation."""
         resolve = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID, status_obj_fallback=None
         )
-        append = AppendStatusAndSaveParticipantNode(
-            status_id=STATUS_ID, participant_id=PARTICIPANT_ID
-        )
+        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        validate = ValidateRMTransitionNode(participant_id=PARTICIPANT_ID)
         seq = py_trees.composites.Sequence(
-            name="TestSeq", memory=False, children=[load, resolve, append]
+            name="TestSeq",
+            memory=False,
+            children=[load, resolve, validate],
         )
         result = populated_bridge.execute_with_setup(
             tree=seq, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
 
+    def test_backwards_transition_fails(self, populated_dl):
+        """A status with CLOSED RM on a participant already CLOSED → FAILURE."""
+        # Build a status with RM.CLOSED and append it to the participant.
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_ParticipantStatus,
+        )
+
+        closed_status_id = "https://example.org/cases/case-01/statuses/closed"
+        closed_status = as_ParticipantStatus(
+            id_=closed_status_id,
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(closed_status)
+
+        # Put participant in CLOSED — append CLOSED last so participant_status
+        # (= participant_statuses[-1]) reflects RM.CLOSED.
         p = populated_dl.read(PARTICIPANT_ID)
-        assert len(p.participant_statuses) == initial_count + 1
+        p.participant_statuses.append(closed_status)
+        populated_dl.save(p)
+
+        # Now try to validate a new status transition — should fail since
+        # participant is already CLOSED.
+        bridge = BTBridge(datalayer=populated_dl)
+        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        resolve = ResolveAndPersistStatusObjectNode(
+            status_id=STATUS_ID, status_obj_fallback=None
+        )
+        validate = ValidateRMTransitionNode(participant_id=PARTICIPANT_ID)
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[load, resolve, validate],
+        )
+        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# CheckParticipantRMNotClosedNode
+# ---------------------------------------------------------------------------
+
+
+class TestCheckParticipantRMNotClosedNode:
+    def test_open_participant_succeeds(self, populated_dl):
+        """Participant not in CLOSED state → SUCCESS."""
+        bridge = BTBridge(datalayer=populated_dl)
+        node = CheckParticipantRMNotClosedNode(participant_id=PARTICIPANT_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+    def test_missing_participant_succeeds(self, bridge):
+        """Participant not found in DataLayer → SUCCESS (no terminal check)."""
+        node = CheckParticipantRMNotClosedNode(
+            participant_id="https://example.org/missing/participant"
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+    def test_closed_participant_fails(self, populated_dl):
+        """Participant already in RM.CLOSED without prior status match → FAILURE."""
+        closed_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/c1",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(closed_status)
+        p = populated_dl.read(PARTICIPANT_ID)
+        p.participant_statuses.append(closed_status)
+        populated_dl.save(p)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        node = CheckParticipantRMNotClosedNode(
+            participant_id=PARTICIPANT_ID, status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    def test_closed_participant_with_matching_status_succeeds(
+        self, populated_dl
+    ):
+        """Participant CLOSED but status already appended → SUCCESS (idempotent)."""
+        status = populated_dl.read(STATUS_ID)
+        closed_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/c1",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(closed_status)
+        p = populated_dl.read(PARTICIPANT_ID)
+        # STATUS_ID appended first, then CLOSED last — so participant_status
+        # (= participant_statuses[-1]) is CLOSED, but STATUS_ID is present.
+        p.participant_statuses.append(status)
+        p.participant_statuses.append(closed_status)
+        populated_dl.save(p)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        node = CheckParticipantRMNotClosedNode(
+            participant_id=PARTICIPANT_ID, status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS

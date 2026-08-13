@@ -120,7 +120,29 @@ pythonpath = ["."]
 #
 # See AGENTS.md "Testing" section for full guidance.
 addopts = "-ra -q -m 'not integration'"
-timeout = 5
+# Unit-tier per-test timeout.  Raised 5 -> 30 in #2270.
+#
+# `timeout_method = "thread"` cannot cancel one test — it kills the whole pytest
+# process, so a trip yields no summary line at all.  That makes a too-tight
+# ceiling actively harmful: it converts a slow test into an uninformative
+# aborted session.  At 5s the margin was thin enough that AST-walking
+# architecture ratchets (~3.4s in isolation) tripped it nondeterministically
+# under full-suite load, and four separate sessions re-diagnosed it as flakiness
+# (ISSUE-1925, ISSUE-1988, ISSUE-2086, ISSUE-2237).
+#
+# Sized from measurement, not taste: the slowest unit test on an idle machine is
+# ~3.1s (`test_real_specs_load` setup), so this is ~10x headroom.  An
+# intermediate value of 20s was tried and still tripped once while a background
+# graphify rebuild competed for CPU — contention on a loaded dev box or CI
+# runner inflates these well beyond their idle cost.
+#
+# A generous ceiling costs nothing on a genuine hang: that test was never going
+# to finish, and 30s is still far below the CI job timeout.  The suite stays fast
+# because total runtime (~120s) is bounded by the tests, not by this ceiling.
+#
+# Integration tests get a wider tier; see `INTEGRATION_TIMEOUT_SECONDS` in
+# `test/conftest.py`.
+timeout = 30
 timeout_method = "thread"
 testpaths = [
     "test",

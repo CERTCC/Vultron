@@ -143,7 +143,14 @@ six-step checklist (enum → pattern → use-case → map → tests).
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py` defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
-- **Case States**: `vultron/case_states/` — enums are authoritative
+- **Case States**: `vultron/core/states/cs.py` — CS/VFD/PXA enums are
+  authoritative; `vultron/core/states/cs_invariants.py` holds the CS validity,
+  transition and history invariants (CSB-17). `vultron/core/case_states/` is the
+  legacy string-pattern reference model, retained as an independent oracle and
+  still imported by `states/cs.py` and `use_cases/query/action_rules.py`. Reach
+  for `cs_invariants.py` for new protocol-path work; the legacy module's only
+  remaining new-code use is as the oracle in the CSB-17 equivalence tests
+  (ADR-0060)
 
 Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
 Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
@@ -500,8 +507,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   and semantic-registry layers, and confirm against
   `graphify explain "<function>"` call edges, before asserting absence.
   CONCERN-2243 filed a Concern on this basis for an event emitted by all nine
-  scenarios.
-  See also ISSUE-1784 (tracking the script fix).
+  scenarios. *Source: CONCERN-2243*
 - **`git rebase` "local changes would be overwritten" With a Clean Working Tree**
   — this error can be a false positive when the rebased branch diverges far from
   main and both sides touched the same files. Fix: cherry-pick onto a fresh branch
@@ -509,7 +515,9 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   instead of rebasing. The error message is misleading — it is NOT evidence of
   uncommitted work. See also: single large-commit branches with 70+ files trigger a
   sequencer duplicate-pick bug; the cherry-pick workaround resolves both variants.
-  *Sources: ISSUE-1518, ISSUE-1504*
+  If `freshen-branch.sh` took this path and then hit a conflict, it can leave the
+  temp branch behind — delete it by hand (ISSUE-1784).
+  *Sources: ISSUE-1518, ISSUE-1504, ISSUE-1784*
 - **Verify Issue ACs Against Current Code Before Starting** — an issue may already
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
   Check current `main` against all ACs before writing any code; if satisfied, close

@@ -29,7 +29,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 
