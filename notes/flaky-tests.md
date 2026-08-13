@@ -115,7 +115,22 @@ No open entries.
 | `fcvcv Invariant Harness` | #2233 | 2026-08-13 |
 | `fcv-reject Invariant Harness` | #2233 | 2026-08-13 |
 | `fv Invariant Harness` | #2233 | 2026-08-13 |
+| `fv Demo Integration` | — | 2026-08-13 |
 
+> `fv Demo Integration` is a different animal from the #2233 rows below it, and
+> from the async-race rows above. It passed at `dc31b6c6` and failed at
+> `0b607c11` — a docs-only diff — while base `fe951d00` does not fail it at all,
+> so the trigger is genuinely intermittent. But the *failure* is deterministic
+> once triggered: `add-note-to-case` returns an intermittent 422, and
+> `vultron/demo/helpers/notes.py:92` then reads `result` outside the
+> `with demo_step(...)` block that assigned it. `demo_step` suppresses the
+> exception, so control falls through and raises
+> `UnboundLocalError: cannot access local variable 'result'`, which buries the
+> real 422 under a traceback pointing at the wrong line. Pre-existing base code
+> (last touched by #1387, #543), unrelated to #2279's ledger-dump change —
+> though that path throws its own secondary error at `ledger_dump.py:434` in the
+> same run.
+>
 > The rows with no issue number fail intermittently due to inter-container HTTP
 > delivery timeouts (async race windows). Root cause documented in
 > `plan/incoming/learnings/` entry `20260731-async-race-windows-in-fv-demo.md`.
