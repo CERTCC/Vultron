@@ -613,6 +613,81 @@ def is_valid_pxa_transition(source: CS_pxa, dest: CS_pxa) -> bool:
     )
 
 
+def _is_component_regression(
+    source_component: str, dest_component: str
+) -> bool:
+    """Return True if a single V/F/D or P/X/A component un-sets itself.
+
+    Each component is a two-valued flag whose lowercase form means "has not
+    happened yet" and whose uppercase form means "has happened" (e.g.
+    ``VendorAwareness.VENDOR_UNAWARE = "v"`` vs ``VENDOR_AWARE = "V"``).
+    Every one of these facts is a one-way latch: once a vendor is aware, a fix
+    is ready, an exploit is public, or attacks are observed, that cannot become
+    untrue.  A component therefore regresses exactly when it goes from
+    uppercase to lowercase.
+    """
+    return str(source_component).isupper() and str(dest_component).islower()
+
+
+def _is_monotonic_forward(
+    source: VfdState | PxaState, dest: VfdState | PxaState
+) -> bool:
+    """Return True if *dest* strictly advances *source* with no component
+    regressing.
+
+    ``source`` and ``dest`` are the ``NamedTuple`` values of a ``CS_vfd`` or
+    ``CS_pxa`` member; their components are compared position-wise.
+    """
+    if source == dest:
+        return False
+    return not any(
+        _is_component_regression(s, d) for s, d in zip(source, dest)
+    )
+
+
+def is_monotonic_vfd_forward(source: CS_vfd, dest: CS_vfd) -> bool:
+    """Return True if (source → dest) advances VFD without regressing.
+
+    ``is_valid_vfd_transition`` only recognises the three *adjacent*
+    single-component steps of the VFD machine (``vfd → Vfd → VFd → VFD``).
+    A peer may legitimately report a state several steps ahead — e.g. a vendor
+    that became aware, readied and deployed a fix between two status updates
+    reports ``vfd → VFD`` in one message.  That is monotone but not adjacent,
+    so it needs this weaker check.
+
+    Equality returns ``False`` (nothing advanced); callers that treat a status
+    confirmation as acceptable must test equality separately.  Mirrors
+    :func:`vultron.core.states.rm.is_monotonic_rm_forward`.
+
+    Examples::
+
+        is_monotonic_vfd_forward(CS_vfd.vfd, CS_vfd.VFD)  # True
+        is_monotonic_vfd_forward(CS_vfd.Vfd, CS_vfd.Vfd)  # False (no change)
+        is_monotonic_vfd_forward(CS_vfd.VFd, CS_vfd.Vfd)  # False (F un-set)
+    """
+    return _is_monotonic_forward(source.value, dest.value)
+
+
+def is_monotonic_pxa_forward(source: CS_pxa, dest: CS_pxa) -> bool:
+    """Return True if (source → dest) advances PXA without regressing.
+
+    The P/X/A components are mutually independent one-way latches, so any
+    combination of them being newly set is monotone forward — including
+    multi-component jumps such as ``pxa → PXA`` that
+    :func:`is_valid_pxa_transition` does not recognise.
+
+    Equality returns ``False`` (nothing advanced).  Mirrors
+    :func:`vultron.core.states.rm.is_monotonic_rm_forward`.
+
+    Examples::
+
+        is_monotonic_pxa_forward(CS_pxa.pxa, CS_pxa.PXa)  # True
+        is_monotonic_pxa_forward(CS_pxa.Pxa, CS_pxa.pxa)  # False (P un-set)
+        is_monotonic_pxa_forward(CS_pxa.PxA, CS_pxa.PXa)  # False (A un-set)
+    """
+    return _is_monotonic_forward(source.value, dest.value)
+
+
 def create_vfd_machine() -> Machine:
     """
     Generates a new Case State Vendor Fix Deploy Machine object
