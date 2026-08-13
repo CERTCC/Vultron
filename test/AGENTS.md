@@ -334,7 +334,7 @@ CI job** from the demo run. When adding or modifying a scenario test file:
 
 **Per-scenario expected-event-types**: each `_XXX_EXPECTED_EVENT_TYPES` list
 must be comprehensive for its scenario (see `notes/demo-ci-invariants.md` and
-DEMOMA-16-001 through DEMOMA-16-008). When adding a new scenario phase that
+DEMOMA-16-001 through DEMOMA-16-011). When adding a new scenario phase that
 produces a new `event_type`, update both the spec requirement and the test
 constant in the same PR.
 
