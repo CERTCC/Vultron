@@ -59,9 +59,9 @@ migration.
 - Cross-machine rules (RM/EM × CS emit guards) belong to #2236, not here.
 - `hypercube.py` pulls in networkx, numpy and pandas. Nothing on the protocol
   path should acquire that dependency weight.
-- The 500-line module guideline (CS-18-001): `cs.py` is already 673 lines, so
-  new code goes in a sibling module. `cs_invariants.py` itself lands over the
-  guideline too; it is kept whole deliberately, because the rule family is a
+- The 500-line module guideline (CS-18-001): `cs.py` is already over the
+  guideline, so new code goes in a sibling module. `cs_invariants.py` itself
+  lands over it too; it is kept whole deliberately, because the rule family is a
   single closed set of invariants whose only natural split — predicates apart
   from the tables they read — would put a rule and its enforcement in different
   files. Splitting is revisited if a second rule family lands here.
@@ -185,7 +185,7 @@ analytical model, which is genuinely useful and genuinely non-normative.
 
 ## Validation
 
-- `test/core/states/test_cs_invariants.py` (109 tests) — exhaustive equivalence
+- `test/core/states/test_cs_invariants.py` — exhaustive equivalence
   against the legacy implementation: the `CS` enum equals the legacy 32-state
   set; the new transition rule admits exactly the legacy 58 edges; the causal
   replay admits exactly the legacy 70 histories; and `is_valid_cs_history`
