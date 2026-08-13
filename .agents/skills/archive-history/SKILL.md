@@ -16,7 +16,8 @@ Archive one completed work item to `plan/history/`, lint the new files, and
 commit + push them to the current branch.
 
 **Always invoke this skill AFTER the PR is opened** — so the PR URL can be
-embedded in the entry body. History entries are immutable once committed.
+embedded in the entry body. History entries become immutable once merged into
+`main` — see [Constraints](#constraints).
 
 ---
 
@@ -107,4 +108,9 @@ git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git"
   `git add`, commit, and push are not needed (HM-08-004, HM-08-006).
 - **Do not call `git push` separately** — this skill always pushes as its final step (file mode only).
 - **Do not amend** — open a new commit via a fresh invocation rather than amending.
-- History files are **immutable** once pushed.
+- History files are **immutable once merged into main** — not once pushed. While the
+  entry is still on an unmerged branch it is ordinary working-branch content: if a
+  fact in it goes stale before the PR merges (a reparented epic, a renumbered
+  issue), correct it in place and commit the fix. Immutability starts at merge,
+  because that is when the entry becomes shared history others may cite. After the
+  merge, correct the record with a **new** entry rather than editing the old one.

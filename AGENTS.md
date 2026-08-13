@@ -278,6 +278,20 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core)** — all classes
   in `vultron/wire/as2/vocab/objects/` use `as_` prefix. Bare name = core type.
   See ARCH-14-001.
+- **Never Reach for `alias_generator` or `by_alias=True` in Core to Get camelCase**
+  — core needs wire-shaped JSON only for `CaseLedgerEntry.payloadSnapshot`, and it
+  MUST get it from the `WireRenderPort` driven port, not from the domain model.
+  A core-side alias cannot express structural core/wire differences (nested
+  `consent: PecDimension` vs flat `emConsentState`), so it always accretes
+  per-field hand-patches that drift from `from_core()`. See ARCH-20-001,
+  CLP-07-009, CLP-07-010 and
+  [notes/core-wire-rendering-port.md](notes/core-wire-rendering-port.md).
+- **Deleting a Wire-Spelling Shim Without a Reject-Guard Is a Silent Data-Loss
+  Bug** — Pydantic v2 defaults to `extra="ignore"`, so removing a validator that
+  accepted a legacy key makes that key *silently dropped* and the field default
+  to its start value (a lost RM ladder, not an error). Always pair the deletion
+  with a `model_validator(mode="before")` built on `reject_wire_spelled_keys`
+  (`vultron/core/models/_wire_spelling.py`). See SDO-03-005, ARCH-15-002.
 - **Flat `nodes.py` in BT Areas Is Non-Compliant** — use `nodes/` subpackage;
   `__init__.py` MUST re-export all public names. See BTND-07-001, BTND-07-003.
 - **Splits Must Not Produce New God Modules** — submodules ≤500 lines; split
