@@ -227,15 +227,20 @@ Note: DEMOCI-02-011 was authored as a SHOULD but never implemented — neither
 workflow carried a `concurrency` block before CONCERN-1859. It is now a MUST
 and is wired on both triggers.
 
-### Cache-warm workflow removal (DEMOCI-05-003)
+### Cache configuration (DEMOCI-02-007)
 
-`demo-image-cache-warm.yml` existed *only* because `demo-integration.yml` did
-not run on `main`: it built the demo images on push-to-main and exported them
-to the `demo-integration-main` GHA cache scope so new PR branches got a warm
-fallback cache (PR-branch caches are not visible across branches). Once the
-on-main run of `demo-integration.yml` exports that same scope, the dedicated
-cache-warm workflow is a redundant second image build and is **removed**. One
-on-main build now both validates the demo and warms the cache.
+`demo-image-cache-warm.yml` was removed when `demo-integration.yml` gained an
+on-main trigger (DEMOCI-05-001): a single build could then both validate the
+demo and export the GHA cache, making a separate cache-warming run redundant.
+
+Subsequently, the GHA cache export was found to be completely inoperable: the
+required tokens (`ACTIONS_RUNTIME_TOKEN`, `ACTIONS_CACHE_URL`) are only
+injected into `uses:` action steps, not into `run:` shell steps — so the
+`docker buildx bake --set "*.cache-to=type=gha"` args in the composite
+action's `run:` step could never reach the cache backend (#2248). The cache
+configuration has been removed; every job builds from scratch.
+DEMOCI-02-007 is retained as a SHOULD, documenting the intent when a
+working caching mechanism becomes available.
 
 ### Out of scope: merge queue
 
