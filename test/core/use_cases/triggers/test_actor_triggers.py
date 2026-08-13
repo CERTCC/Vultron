@@ -1311,11 +1311,15 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
 
-    def test_accept_raises_when_offer_has_no_object(self):
-        """VultronNotFoundError raised when Offer.object_ (case ref) is absent.
+    def test_accept_raises_when_offer_has_no_case_reference(self):
+        """VultronNotFoundError raised when the Offer names no case.
 
-        This exercises the new guard added in this PR:
-        ``_as_id(getattr(offer, "object_", None)) is None → raise``.
+        ``_prepare`` accepts either shape of stored offer — the SYNC replica's
+        ``VultronOwnershipTransferOfferRecord`` (case URI in ``case_id``) or the
+        HTTP-inbox path's wire Offer activity (case in ``object_``) — and raises
+        only when neither yields an id.  Both attributes must therefore be
+        cleared on the mock; a bare ``MagicMock`` would auto-create a truthy
+        ``case_id`` and silently satisfy the guard.
         """
         from unittest.mock import MagicMock
 
@@ -1333,6 +1337,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         actor_mock.id_ = actor_id
 
         offer_mock = MagicMock()
+        offer_mock.case_id = None
         offer_mock.object_ = None
 
         mock_dl = MagicMock()

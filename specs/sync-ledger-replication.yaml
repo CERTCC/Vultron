@@ -4,7 +4,7 @@ description: >-
   Requirements for the append-only canonical recorded case ledger, replication transport,
   conflict handling, per-peer state tracking, and retry semantics for distributed case
   state synchronization across Participant Actors.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -440,17 +440,24 @@ groups:
       is recoverable because SYNC-14-002 already sent a Reject, so eviction MUST NOT be relied
       upon to trigger recovery by itself.
 - id: SYNC-15
-  title: Genesis-Unavailable Reject
+  title: Genesis-Unavailable Buffer-and-Reject
   description: >-
     A participant replica receives Announce(CaseLedgerEntry) activities from the CaseActor
     over an unordered transport.  If the CaseActor delivers a ledger entry before the
-    Create(VulnerabilityCase) activity has been processed by the participant (a delivery
-    race under HTTP BackgroundTasks), the replica cannot reconstruct the per-case genesis
-    hash (CLP-08-005) and must not silently drop the entry.  Silently dropping causes the
-    entry to be permanently lost because the CaseActor never learns that delivery failed
-    and never replays.  Sending a Reject triggers the same replay backstop as the
-    hash-mismatch path (SYNC-08-005, SYNC-14-002), allowing convergence once the case is
-    delivered.
+    Create/Announce(VulnerabilityCase) activity has been processed by the participant (a
+    delivery race under HTTP BackgroundTasks), the replica cannot reconstruct the per-case
+    genesis hash (CLP-08-005) and must not silently drop the entry.  Silently dropping causes
+    the entry to be permanently lost because the CaseActor never learns that delivery failed
+    and never replays.  A pre-genesis entry is therefore held in the same non-ledger holding
+    area used for forward gaps (SYNC-14) and drained once the case seed anchors the genesis
+    hash, making convergence independent of whether the case or its ledger entries arrive
+    first (issue #2186, #2180).  A Reject is still sent as the loss backstop, triggering the
+    same replay path as the hash-mismatch case (SYNC-08-005, SYNC-14-002) for an entry that is
+    genuinely lost rather than merely early.  The forward-gap buffer of SYNC-14 alone does not
+    cover this window: it only holds entries for a case whose genesis anchor is already known,
+    so a distinct pre-genesis hold and a drain triggered by the case seed are required.
+    Rationale for the buffer-and-drain path (SYNC-15-004, SYNC-15-005): ADR-0059
+    (docs/adr/0059-buffer-pre-genesis-ledger-entries.md).
   specs:
   - id: SYNC-15-001
     priority: MUST
@@ -525,3 +532,57 @@ groups:
     - rel_type: refines
       spec_id: SYNC-15-001
       note: The genesis Reject that SYNC-15-001 mandates is the highest-volume source of no-progress replays
+  - id: SYNC-15-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant receives a valid Announce(CaseLedgerEntry) but cannot reconstruct the
+      per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
+      (CLP-08-005), the participant MUST NOT rely solely on the reject/replay round-trip; it
+      MUST retain the entry in the same non-ledger holding area used for forward gaps (SYNC-14),
+      keyed by its prev_log_hash, pending arrival of the case seed.  Unlike a forward gap
+      (SYNC-14-001) this hold applies without a tail_index comparison — no chain tail exists in
+      the pre-genesis window — so every entry for the missing case is held, including the
+      genesis entry (log_index 0) whose prev_log_hash equals the per-case genesis hash.
+    rationale: >-
+      The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
+      for the same reason forward gaps are buffered (SYNC-14): replay re-announces entries
+      individually over the same unordered transport and each pre-genesis entry Rejects again,
+      amplifying churn (issue #2169) and, for the fvcv-handoff demo, dropping the
+      add_report_to_case entry so no VultronOfferRecord is ever created (issue #2180). Holding
+      the entry lets it drain deterministically once the case is seeded.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-14-001
+      note: Reuses the same non-ledger holding area and prev_log_hash keying as the forward-gap buffer
+    - rel_type: depends_on
+      spec_id: SYNC-14-005
+      note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while buffered
+    - rel_type: refines
+      spec_id: SYNC-15-001
+      note: The Reject is retained as the loss backstop; buffering is the primary convergence path
+  - id: SYNC-15-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After a participant seeds the VulnerabilityCase (via Create or Announce(VulnerabilityCase)),
+      which anchors the deterministic per-case genesis hash (CLP-08), it MUST drain the holding
+      area for that case: it MUST locate the buffered entry (if any) whose prev_log_hash equals
+      the per-case genesis hash, apply-then-persist it via the same path as in-order delivery
+      (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no buffered entry extends
+      the current tail.
+    rationale: >-
+      The genesis hash is derivable from the case object alone (deterministic from case_id,
+      created_at, and the CaseActor id per CLP-08), so seeding the case is sufficient to anchor
+      the chain — the participant need not wait for the genesis ledger entry to be re-delivered.
+      Draining on seed is what turns the pre-genesis hold (SYNC-15-004) into convergence.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-14-003
+      note: Reuses the cascading drain defined for forward gaps
+    - rel_type: depends_on
+      spec_id: SYNC-14-004
+      note: The drained entry MUST apply effects before persisting, on the same path as in-order delivery
+    - rel_type: depends_on
+      spec_id: SYNC-15-004
+      note: Drains exactly the entries that SYNC-15-004 buffered during the pre-genesis window

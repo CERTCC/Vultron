@@ -78,19 +78,31 @@ def build_add_report_to_case_snapshot(
     case: VulnerabilityCase,
     actor_id: str,
     case_id: str,
+    offer_id: str | None = None,
+    offer_actor_id: str | None = None,
 ) -> dict[str, Any]:
-    """Build the ``add_report_to_case`` snapshot (``Add(VulnerabilityReport)``)."""
+    """Build the ``add_report_to_case`` snapshot (``Add(VulnerabilityReport)``).
+
+    ``offer_id`` and ``offer_actor_id`` are embedded when provided so that
+    invited actors can reconstruct a ``VultronOfferRecord`` from the SYNC
+    backfilled entry (ISSUE-2134, SYNC-02-002).
+    """
     report_dict = obj_to_inline_dict(report)
     report_dict.setdefault("type", "VulnerabilityReport")
     case_dict = obj_to_inline_dict(case)
     case_dict.setdefault("type", "VulnerabilityCase")
-    return {
+    snapshot: dict[str, Any] = {
         "type": "Add",
         "actor": actor_id,
         "object": report_dict,
         "target": case_dict,
         "context": case_id,
     }
+    if offer_id:
+        snapshot["offerId"] = offer_id
+    if offer_actor_id:
+        snapshot["offerActorId"] = offer_actor_id
+    return snapshot
 
 
 def build_add_participant_status_snapshot(

@@ -50,14 +50,14 @@ dependencies = [
     "py-trees>=2.5.0",
     "rdflib>=7.2.1",
     "scipy>=1.18.0",
-    "uvicorn>=0.52.0",
+    "uvicorn>=0.52.1",
     "click>=8.4.2",
     "griffelib>=2.1.0",
     "transitions>=0.9.3",
     "sqlmodel>=0.0.39",
     "pyyaml>=6.0",
     "python-frontmatter>=1.3.0",
-    "pydantic-settings>=2.14.2",
+    "pydantic-settings>=2.15.0",
     "httpx2",
 ]
 dynamic = ["version",]
@@ -120,7 +120,29 @@ pythonpath = ["."]
 #
 # See AGENTS.md "Testing" section for full guidance.
 addopts = "-ra -q -m 'not integration'"
-timeout = 5
+# Unit-tier per-test timeout.  Raised 5 -> 30 in #2270.
+#
+# `timeout_method = "thread"` cannot cancel one test — it kills the whole pytest
+# process, so a trip yields no summary line at all.  That makes a too-tight
+# ceiling actively harmful: it converts a slow test into an uninformative
+# aborted session.  At 5s the margin was thin enough that AST-walking
+# architecture ratchets (~3.4s in isolation) tripped it nondeterministically
+# under full-suite load, and four separate sessions re-diagnosed it as flakiness
+# (ISSUE-1925, ISSUE-1988, ISSUE-2086, ISSUE-2237).
+#
+# Sized from measurement, not taste: the slowest unit test on an idle machine is
+# ~3.1s (`test_real_specs_load` setup), so this is ~10x headroom.  An
+# intermediate value of 20s was tried and still tripped once while a background
+# graphify rebuild competed for CPU — contention on a loaded dev box or CI
+# runner inflates these well beyond their idle cost.
+#
+# A generous ceiling costs nothing on a genuine hang: that test was never going
+# to finish, and 30s is still far below the CI job timeout.  The suite stays fast
+# because total runtime (~120s) is bounded by the tests, not by this ceiling.
+#
+# Integration tests get a wider tier; see `INTEGRATION_TIMEOUT_SECONDS` in
+# `test/conftest.py`.
+timeout = 30
 timeout_method = "thread"
 testpaths = [
     "test",
@@ -150,7 +172,7 @@ profile = "black"
 dev = [
     "black>=26.5.1",
     "flake8>=7.3.0",
-    "graphifyy>=0.9.32",
+    "graphifyy>=0.9.35",
     "isort>=7.0.0",
     "linkchecker>=10.6.0",
     "mypy>=2.3.0",

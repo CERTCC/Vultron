@@ -28,15 +28,10 @@ VFDPxa closure.  Coordinator closes the case.
 Spec: DEMOMA-12 (GitHub issue #1593).
 """
 
-import json
 import logging
 import os
-import pathlib
 import sys
 
-import httpx2 as httpx
-
-from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -67,6 +62,12 @@ from vultron.demo.helpers.actions import (
     actor_notifies_fix_ready,
     actor_notifies_published,
 )
+from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.ledger_dump import (
+    LedgerDumpTarget,
+    dump_case_ledgers,
+    resolve_case_actor_route_key,
+)
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
@@ -94,10 +95,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -202,25 +201,12 @@ def _phase_report_submission(
         receiver=coordinator_in_coordinator,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    # Coordinator validates then engages the case (RM→ACCEPTED), holding
+    # CASE_OWNER; each step is gated on the coordinator's own RM state.
+    case = run_direct_path_rm_triage(
         receiver_client=coordinator_client,
         receiver=coordinator_in_coordinator,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("VulnerabilityCase created in Coordinator's DataLayer"):
-        case = find_case_for_offer(coordinator_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected VulnerabilityCase after validate-report on Coordinator"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    # Coordinator engages the case (RM→ACCEPTED), holding CASE_OWNER.
-    receiver_engages_case(
-        receiver_client=coordinator_client,
-        receiver=coordinator_in_coordinator,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for Coordinator + Finder + CaseActor (3 participants) before
@@ -259,6 +245,7 @@ def _phase_report_submission(
 def _phase_invite_vendor(
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
     coordinator_in_coordinator: as_Actor,
     vendor: as_Actor,
     case: as_VulnerabilityCase,
@@ -275,6 +262,7 @@ def _phase_invite_vendor(
     logger.info("Phase 2: Coordinator invites Vendor")
     logger.info("─" * 80)
 
+    invite_result = None
     with demo_step("Coordinator invites Vendor with CVDRole.VENDOR"):
         invite_result = post_to_trigger(
             client=coordinator_client,
@@ -325,6 +313,16 @@ def _phase_invite_vendor(
         timeout_seconds=20.0,
     )
     logger.info("✓ M2: Vendor joined case (4 participants)")
+
+    # Gate: Finder must have the case replica before Vendor's RM triage
+    # broadcasts Announce(CaseLedgerEntry) to all participants (CLP-08-005).
+    with demo_check("Finder's DataLayer received case replica"):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=20.0,
+        )
+    logger.info("Finder received case replica")
 
     # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
     run_invite_path_rm_triage(
@@ -685,68 +683,28 @@ def _phase_dump_case_ledgers(
     case: as_VulnerabilityCase,
     demo_name: str = "fcv",
 ) -> None:
-    """Dump case ledger entries from each actor container to JSONL files."""
-    logger.info("─" * 80)
-    logger.info("Phase: Case log JSONL export")
-    logger.info("─" * 80)
+    """Dump case ledger entries from each actor container to JSONL files.
 
-    output_root = pathlib.Path(os.environ.get("DEVLOGS_DIR", "/app/devlogs"))
-    case_id = case.id_ or ""
-    case_id_slug = (
-        case_id.replace("://", "_")
-        .replace("/", "_")
-        .replace(":", "_")
-        .strip("_")
-    )
-
-    case_actor_sub_actor_key = next(
-        (
-            strip_id_prefix(actor_id)
-            for actor_id in case.actor_participant_index
-            if strip_id_prefix(actor_id).startswith("case-actor")
-        ),
-        None,
-    )
-
-    actors: list[tuple[str, DataLayerClient, str]] = [
-        ("finder", finder_client, "finder"),
-        ("coordinator", coordinator_client, "coordinator"),
-        ("vendor", vendor_client, "vendor"),
+    Thin scenario-specific wrapper over
+    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
+    per-actor export, the 404 handling, and the dump manifest. This function
+    only names FCV's participants and where each one's ledger lives.
+    """
+    targets = [
+        LedgerDumpTarget("finder", finder_client, "finder"),
+        LedgerDumpTarget("coordinator", coordinator_client, "coordinator"),
+        LedgerDumpTarget("vendor", vendor_client, "vendor"),
     ]
-    if case_actor_sub_actor_key is not None:
-        actors.append(
-            ("case-actor", coordinator_client, case_actor_sub_actor_key)
+    # The case-actor is a sub-actor inside the coordinator container.
+    case_actor_route_key = resolve_case_actor_route_key(case)
+    if case_actor_route_key is not None:
+        targets.append(
+            LedgerDumpTarget(
+                "case-actor", coordinator_client, case_actor_route_key
+            )
         )
 
-    for actor_name, client, actor_route_key in actors:
-        with demo_step(f"Dumping case ledger for {actor_name}"):
-            case_key = strip_id_prefix(case_id)
-            log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
-            try:
-                entries = client.get_list(log_path)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code != 404:
-                    raise
-                logger.info(
-                    "Case not found on %s container (HTTP 404); skipping.",
-                    actor_name,
-                )
-                entries = []
-            if not entries:
-                raise ValueError(
-                    f"No case ledger entries for actor={actor_name!r}, "
-                    f"case_id={case_id!r}"
-                )
-
-            out_dir = output_root / demo_name / actor_name
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_file = out_dir / f"{case_id_slug}-case-ledger.jsonl"
-
-            with out_file.open("w", encoding="utf-8") as fh:
-                for entry in entries:
-                    fh.write(json.dumps(entry) + "\n")
-
-            logger.info("Wrote %d log entries → %s", len(entries), out_file)
+    dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
 
 def run_fcv_demo(
@@ -768,91 +726,98 @@ def run_fcv_demo(
     if case_actor_client is not None:
         logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
-    (
-        finder,
-        finder_in_finder,
-        coordinator,
-        coordinator_in_coordinator,
-        vendor_obj,
-        report,
-        offer,
-        case,
-    ) = _phase_report_submission(
-        finder_client=finder_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        case_actor_client=case_actor_client,
-        finder_id=finder_id,
-        coordinator_id=coordinator_id,
-        vendor_id=vendor_id,
-    )
+    with scenario_harness("fcv") as harness:
+        (
+            finder,
+            finder_in_finder,
+            coordinator,
+            coordinator_in_coordinator,
+            vendor_obj,
+            report,
+            offer,
+            case,
+        ) = _phase_report_submission(
+            finder_client=finder_client,
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            case_actor_client=case_actor_client,
+            finder_id=finder_id,
+            coordinator_id=coordinator_id,
+            vendor_id=vendor_id,
+        )
 
-    vendor_in_vendor = _phase_invite_vendor(
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        coordinator_in_coordinator=coordinator_in_coordinator,
-        vendor=vendor_obj,
-        case=case,
-        offer=offer,
-        report=report,
-        finder=finder,
-    )
+        # Register the dump as soon as there is a case to dump, so every phase
+        # below can fail without costing us the ledgers (ISSUE-2239).
+        harness.dump_with(
+            lambda: _phase_dump_case_ledgers(
+                finder_client=finder_client,
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                case=case,
+                demo_name=harness.demo_name,
+            )
+        )
 
-    _phase_sync_verification(
-        finder_client=finder_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        finder=finder,
-        coordinator=coordinator,
-        case=case,
-    )
+        vendor_in_vendor = _phase_invite_vendor(
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            coordinator_in_coordinator=coordinator_in_coordinator,
+            vendor=vendor_obj,
+            case=case,
+            offer=offer,
+            report=report,
+            finder=finder,
+        )
 
-    _phase_notes_exchange(
-        finder_client=finder_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        finder_in_finder=finder_in_finder,
-        coordinator_in_coordinator=coordinator_in_coordinator,
-        vendor_in_vendor=vendor_in_vendor,
-        case=case,
-    )
+        _phase_sync_verification(
+            finder_client=finder_client,
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            finder=finder,
+            coordinator=coordinator,
+            case=case,
+        )
 
-    _phase_fix_lifecycle(
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        coordinator=coordinator,
-        vendor=vendor_obj,
-        vendor_in_vendor=vendor_in_vendor,
-        case=case,
-    )
+        _phase_notes_exchange(
+            finder_client=finder_client,
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            finder_in_finder=finder_in_finder,
+            coordinator_in_coordinator=coordinator_in_coordinator,
+            vendor_in_vendor=vendor_in_vendor,
+            case=case,
+        )
 
-    _phase_publication(
-        finder_client=finder_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        coordinator=coordinator,
-        coordinator_in_coordinator=coordinator_in_coordinator,
-        vendor_in_vendor=vendor_in_vendor,
-        finder_in_finder=finder_in_finder,
-        case=case,
-    )
+        _phase_fix_lifecycle(
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            coordinator=coordinator,
+            vendor=vendor_obj,
+            vendor_in_vendor=vendor_in_vendor,
+            case=case,
+        )
 
-    _phase_case_closure(
-        finder_client=finder_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        coordinator_in_coordinator=coordinator_in_coordinator,
-        vendor_in_vendor=vendor_in_vendor,
-        finder_in_finder=finder_in_finder,
-        case=case,
-    )
+        _phase_publication(
+            finder_client=finder_client,
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            coordinator=coordinator,
+            coordinator_in_coordinator=coordinator_in_coordinator,
+            vendor_in_vendor=vendor_in_vendor,
+            finder_in_finder=finder_in_finder,
+            case=case,
+        )
 
-    _phase_dump_case_ledgers(
-        finder_client=finder_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        case=case,
-    )
+        _phase_case_closure(
+            finder_client=finder_client,
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            coordinator_in_coordinator=coordinator_in_coordinator,
+            vendor_in_vendor=vendor_in_vendor,
+            finder_in_finder=finder_in_finder,
+            case=case,
+        )
 
     logger.info("=" * 80)
     logger.info("FCV DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
@@ -886,8 +851,6 @@ def main(
         coordinator_id: Optional deterministic URI for the Coordinator actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
-    reset_demo_failures()
-
     f_url = finder_url or FINDER_BASE_URL
     c_url = coordinator_url or COORDINATOR_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
@@ -917,18 +880,18 @@ def main(
                 logger.error("=" * 80)
                 sys.exit(1)
 
-    try:
-        run_fcv_demo(
-            finder_client=finder_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            finder_id=finder_id,
-            coordinator_id=coordinator_id,
-            vendor_id=vendor_id,
-        )
-    finally:
-        assert_demo_success()
+    # scenario_harness() inside run_fcv_demo() owns the failure accumulator: it
+    # resets it, always dumps the case ledgers, and asserts success — so a
+    # failure here never costs us the artifacts (ISSUE-2239).
+    run_fcv_demo(
+        finder_client=finder_client,
+        coordinator_client=coordinator_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        finder_id=finder_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+    )
 
 
 if __name__ == "__main__":

@@ -43,10 +43,47 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 
 ### Per-Test Timeout Guardrail
 
-Default 5-second timeout (`pytest-timeout`, `pyproject.toml`). When a test
-trips it: mock slow deps, avoid `time.sleep()`, restructure integration tests.
+Timeouts are **two-tier** (`pytest-timeout`):
+
+| Tier | Ceiling | Set in |
+|---|---|---|
+| Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
+| `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
+
+`test/conftest.py::apply_integration_timeout` widens the ceiling for
+integration-marked tests at collection time. An explicit
+`@pytest.mark.timeout(N)` on a test always wins over the tier default.
+
+**Why these numbers** (#2270): `timeout_method = "thread"` kills the *whole
+pytest process*, not the one slow test, so a trip produces **no summary line**.
+A too-tight ceiling therefore does not surface a slow test — it converts the run
+into an uninformative abort. Both tiers used to be 5s, which was thin enough
+that honest work tripped it under load:
+
+- integration tests doing 3.5-4.3s of real HTTP work, and
+- AST-walking architecture ratchets at ~3.4s in isolation.
+
+Four separate sessions re-diagnosed the result as flakiness (ISSUE-1925,
+ISSUE-1988, ISSUE-2086, ISSUE-2237) before the ceiling itself was fixed. Raising
+it costs nothing on a genuine hang — that test was never going to finish — and
+the suite stays fast because total runtime is bounded by the tests, not by this
+ceiling.
+
+Both tiers are sized from measurement: the slowest unit test is ~3.1s idle and
+the slowest integration test ~4.3s. The headroom is deliberately large because
+contention (a CI runner, or a background graphify rebuild) inflates these well
+beyond their idle cost — an intermediate unit value of 20s was tried and still
+tripped once under exactly that.
+
+When a test trips its tier: mock slow deps, avoid `time.sleep()`, or move it
+behind the `integration` marker if it really does exercise the full stack.
 `@pytest.mark.timeout(N)` is a last resort and MUST have a comment explaining
 why. Do not use it to paper over slow tests.
+
+A timeout ceiling is a diagnostic tool, not a correctness invariant — if a tier
+is firing on honest work rather than catching hangs, change the tier rather
+than contorting the tests around it. Do not add a row to
+`notes/flaky-tests.md` for a test that is merely near its ceiling.
 
 ---
 
@@ -334,7 +371,7 @@ CI job** from the demo run. When adding or modifying a scenario test file:
 
 **Per-scenario expected-event-types**: each `_XXX_EXPECTED_EVENT_TYPES` list
 must be comprehensive for its scenario (see `notes/demo-ci-invariants.md` and
-DEMOMA-16-001 through DEMOMA-16-008). When adding a new scenario phase that
+DEMOMA-16-001 through DEMOMA-16-011). When adding a new scenario phase that
 produces a new `event_type`, update both the spec requirement and the test
 constant in the same PR.
 

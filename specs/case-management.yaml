@@ -804,10 +804,10 @@ groups:
   - id: CM-16-012
     priority: MAY
     kind: protocol
-    statement: The default role list MAY be `[CVDRole.OTHER]` when the Evaluator can determine that the suggested actor does
-      not fit any known CVD role but still requires case membership (e.g., a security researcher with no vendor affiliation).
-      `CVDRole.OTHER` is the most conservative choice because it makes no assumption about the actor's function in the CVD
-      process.
+    statement: The default role list MAY be `[CVDRole.OBSERVER]` when the Evaluator can determine that the suggested actor
+      does not fit any known CVD role but still requires case membership (e.g., a security researcher with no vendor
+      affiliation). `CVDRole.OBSERVER` is the most conservative choice because it makes no assumption about the actor's
+      function in the CVD process beyond case observation (CM-25-001).
   - id: CM-16-013
     priority: MAY
     kind: protocol
@@ -1039,6 +1039,7 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0048
+    - ADR-0056
   - id: CM-18-007
     priority: MUST
     kind: project
@@ -1058,6 +1059,23 @@ groups:
       spec_id: CM-14-003
     adr:
     - ADR-0048
+  - id: CM-18-008
+    priority: MUST
+    kind: project
+    statement: '`ParticipantStatus.embargo_adherence` MUST be implemented as a computed property (e.g., Pydantic `@computed_field`)
+      that returns `True` if and only if `consent.state == PEC.SIGNATORY`. It MUST NOT be declared as a stored field. The wire
+      projection (`as_ParticipantStatus.from_core()`) MUST derive the value from the consent state rather than copying a stored
+      field.'
+    rationale: >
+      A stored boolean field can drift from the PEC state it is meant to project and its fail-open default (`True`)
+      violates the principle that unset consent should not be treated as active consent. Making `embargo_adherence` a
+      computed property eliminates the drift risk permanently and makes the fail-closed invariant unbypassable.
+      Resolved by ADR-0056, closing the open question recorded in the draft specification §6.4.6.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-006
+    adr:
+    - ADR-0056
 - id: CM-19
   title: Participant Index Discipline
   specs:
@@ -1522,3 +1540,306 @@ groups:
       spec_id: CM-02-009
     adr:
     - ADR-0051
+
+- id: CM-24
+  title: CaseActor-Delegated Activity Authorship Contract
+  description: >-
+    Requirements for how trigger use cases assign `actor` and `attributed_to`
+    when the CaseActor emits an Activity on behalf of a requesting participant
+    (delegated message).  The reference implementation is
+    SvcInviteActorToCaseUseCase._prepare().  Codified from CONCERN-2170.
+  specs:
+  - id: CM-24-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a trigger use case causes the CaseActor to emit a protocol Activity
+      on behalf of a requesting participant (delegated message), the `actor`
+      field of the emitted Activity MUST be set to the CaseActor's actor ID,
+      not the requesting participant's actor ID.
+    rationale: >-
+      Receiving actors authenticate messages by matching the `actor` field
+      against known case participants.  An Activity whose `actor` names a
+      non-CaseActor participant is not recognised as a CaseActor-authorised
+      delegation and may be rejected or misrouted.  Bug ISSUE-2142
+      (ownership-transfer offer delivery timeout) is direct evidence:
+      the Coordinator rejected an Offer whose `actor` named the Finder.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-009
+  - id: CM-24-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a delegated Activity is emitted by the CaseActor, the
+      `attributed_to` field MUST be set to the requesting participant's actor
+      ID so that receivers can recover the originating identity.
+    rationale: >-
+      `attributed_to` is the AS2-standard field for recording who delegated an
+      action.  Without it, the intent of the message cannot be attributed to the
+      correct participant, and audit trails are incomplete.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-001
+  - id: CM-24-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When no dedicated CaseActor exists for a case (no participant with
+      CVDRole.CASE_MANAGER in the actor_participant_index), the Activity is sent
+      directly by the requesting participant.  In this case `actor` MUST be the
+      requesting participant's actor ID and `attributed_to` MUST be None.
+    rationale: >-
+      Without a CaseActor the delegation channel does not exist.  Forcing
+      `actor=None` or a fallback CaseActor ID would produce an invalid wire
+      message.  The SvcInviteActorToCaseUseCase reference implementation
+      demonstrates this fallback at actor.py:160-166.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-001
+  - id: CM-24-004
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Trigger use cases that emit delegated Activities MUST queue the
+      constructed Activity in the CaseActor's outbox, not in the requesting
+      participant's outbox.  self._actor_id MUST be set to case_actor_id in
+      _prepare() so that the BT bridge runs under the CaseActor's identity.
+    rationale: >-
+      The CaseActor's outbox is the delivery path to other participants.
+      Queuing a delegated Activity in the requesting actor's outbox bypasses
+      the CaseActor as the authoritative intermediary and breaks the
+      CaseLedgerEntry audit trail.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-001
+  - id: CM-24-005
+    priority: MUST
+    kind: architecture
+    statement: >-
+      All trigger use cases that emit delegated Activities MUST use a shared
+      helper (e.g. _prepare_delegated_context() or equivalent) that enforces
+      the CM-24-001 through CM-24-004 invariants.  No callsite may independently
+      reconstruct the delegated-authorship pattern without going through this
+      shared helper.
+    rationale: >-
+      Independent reconstruction of the actor/attributed_to assignment at each
+      callsite is structurally fragile.  CONCERN-2170 documents two callsites
+      that deviated: SvcOfferCaseOwnershipTransferUseCase (wrong actor, no
+      attributed_to) proved the pattern is re-broken every time a new callsite
+      is added.  A shared helper eliminates the entire class of defect.
+
+- id: CM-25
+  title: Observer Participant Semantics
+  description: >-
+    Requirements for the CVDRole.OBSERVER role (formerly CVDRole.OTHER):
+    what an Observer IS, how it is admitted, what content it receives,
+    and how the RM lifecycle applies. Codified by ADR-0057
+    (docs/adr/0057-observer-participant-role.md). Source: CONCERN-2093.
+  specs:
+  - id: CM-25-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Observer (`CVDRole.OBSERVER`) is a Tier-1 case participant: it MUST
+      hold a `CaseParticipant` record, run the standard RM lifecycle, and satisfy
+      the same embargo-consent gate (MV-10-005) as any other participant.
+      CVDRole.OBSERVER is the base role — the lowest non-null privilege set in
+      the Vultron protocol. All other CVD roles are additive to it.
+    rationale: >-
+      Defining Observer as a full participant (not a passive consumer or an
+      external T0 actor) ensures it is subject to the same admission and
+      embargo-consent rules as Vendors and Coordinators. The "base role" framing
+      establishes OBSERVER as the correct fallback when no other role applies,
+      rather than leaving CVDRole.OTHER as an unspecified catch-all.
+      See ADR-0057.
+    adr:
+    - ADR-0057
+  - id: CM-25-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Observer MUST be admitted via the standard Invite/Accept flow (CM-17).
+      The `Invite` activity sent by the CaseActor MUST embed
+      `case_roles=[CVDRole.OBSERVER]`. An empty `case_roles` list MUST NOT be
+      used for Observer invitations; `[]` is indistinguishable from the
+      `caseRoles=[]` admission defect (issue #1288) and violates the CM-16-003
+      non-empty invariant.
+    rationale: >-
+      Requiring a non-empty `case_roles` value is load-bearing: the participant
+      record created on `Accept(Invite)` (CM-17-004 step 3) reads roles from
+      the persisted Invite wire object. A missing or empty list would create an
+      Observer participant with no role — indistinguishable from a defect.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-003
+    - rel_type: refines
+      spec_id: CM-16-003
+    adr:
+    - ADR-0057
+  - id: CM-25-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Observer MUST receive full case content. The existing MV-10-005 delivery
+      gate (participant admitted at RM.RECEIVED AND embargo signatory, or no
+      active embargo) is the sole gate on case content for an Observer. No
+      additional or reduced delivery tier applies.
+    rationale: >-
+      An Observer has accepted the embargo terms by admitting to the case
+      (MV-10-006). Presence-based consent is the substantive gate; the absence
+      of a remediation function does not change what the Observer is entitled
+      to receive once admitted and embargo-consenting. Introducing a separate
+      reduced delivery tier for Observers is deferred: `notes/stub-objects.md`
+      describes the potential future mechanism but it is not yet implemented.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-10-005
+    - rel_type: depends_on
+      spec_id: MV-10-006
+    adr:
+    - ADR-0057
+  - id: CM-25-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      After accepting a case invitation and receiving the full case replica, an
+      Observer SHOULD run the standard RM triage cycle (CM-11-002):
+      RM.VALID or RM.INVALID, then RM.ACCEPTED or RM.DEFERRED.
+      For an Observer, RM.ACCEPTED means "I am actively engaged with / monitoring
+      this case" — it does NOT imply commitment to develop or deploy a fix.
+    rationale: >-
+      The RM triage cycle represents an Observer's assessment of whether the
+      case is relevant to them and whether they intend to remain engaged. An
+      Observer that determines the case is outside their scope should transition
+      to RM.INVALID or RM.DEFERRED, not silently stay at RM.RECEIVED. This
+      preserves the RM machine's semantics as a participation-intent signal.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-11-002
+    adr:
+    - ADR-0057
+  - id: CM-25-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant whose `case_roles` list contains ONLY `CVDRole.OBSERVER`
+      MUST NOT emit VFD state-transition messages (CV, CF, or CD). An Observer
+      has no vendor-fix-deployment obligations and no authority to advance the
+      VFD dimension on behalf of a product or service.
+    note: >-
+      This restriction is scoped to sole-OBSERVER participants. When
+      CVDRole.OBSERVER is combined with any role that carries VFD obligations
+      (CVDRole.VENDOR, CVDRole.DEPLOYER), the union-of-permissions rule (CM-26-001)
+      applies: the VFD obligations of the co-role supersede this restriction.
+      Code checking this exclusion MUST test `case_roles == [CVDRole.OBSERVER]`
+      (or equivalent sole-role check), NOT merely `CVDRole.OBSERVER in case_roles`.
+    rationale: >-
+      An Observer joined the case to monitor it, not to own a fix path. Permitting
+      VFD emissions from a role with no fix obligations would corrupt the VFD state
+      machine for the case (e.g., a monitoring actor falsely claiming fix deployment).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-03-005
+    adr:
+    - ADR-0057
+
+- id: CM-26
+  title: Role Stacking — Union of Permissions
+  description: >-
+    Requirement governing how conflicting obligations are resolved when a
+    participant holds multiple CVD roles simultaneously. Codified by ADR-0057.
+    Source: CONCERN-2093.
+  specs:
+  - id: CM-26-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant's permitted and obligated actions are determined by the
+      **union** of what their role list permits. A MUST NOT restriction
+      attached to one role is superseded when any other role in the participant's
+      `case_roles` list carries a MAY, SHOULD, or MUST for the same action class.
+    note: >-
+      Example: CVDRole.OBSERVER MUST NOT emit VFD transitions (CM-25-005), but
+      CVDRole.DEPLOYER SHOULD emit the D transition when a fix is deployed.
+      A participant holding both roles SHOULD emit VFD/D transitions, because
+      DEPLOYER's SHOULD overrides OBSERVER's MUST NOT.
+    rationale: >-
+      CVD roles represent orthogonal functions a participant may perform. When a
+      participant holds more than one function (e.g., a security researcher who
+      is also a Deployer for an affected product), restricting them based on their
+      least-capable role would incorrectly limit their protocol participation.
+      The union model prevents role restrictions from blocking obligations that
+      exist under a co-role.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-25-005
+    adr:
+    - ADR-0057
+
+- id: CM-27
+  title: Case Collection Mutation Discipline
+  description: >-
+    Requirements governing post-construction mutation of the case collections
+    whose items exist in incompatible wire and core shapes. `validate_assignment`
+    does not cover in-place mutation — `list.append` is not an attribute
+    assignment, so Pydantic never observes it — so these collections need a
+    separate prohibition. Codified by ADR-0064. Source: CONCERN-2261.
+  specs:
+  - id: CM-27-001
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      Core code under `vultron/core/` MUST NOT mutate `case_participants` or
+      `case_statuses` directly on a `VulnerabilityCase` instance after
+      construction (e.g. `case.case_participants.append(...)`,
+      `case.case_statuses = [...]`). The canonical mutators on
+      `VulnerabilityCase` MUST be used for all post-construction changes. The
+      mutator methods themselves, in `vultron/core/models/case.py`, are exempt.
+    rationale: >-
+      A wire-shaped participant or status appended to a core-typed list does not
+      raise when read — it reads as absent, and readers substitute an initial
+      state, silently resetting the case's ladder (#2232, #2264).
+      `validate_assignment` cannot close this door because `append` is not an
+      assignment. This mirrors PRM-03-001, whose identical prohibition drove
+      direct `case_roles` mutation in `vultron/` to zero sites.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-21-001
+    adr:
+    - ADR-0064
+  - id: CM-27-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Passing `case_participants=[...]` or `case_statuses=[...]` as a constructor
+      argument when creating a `VulnerabilityCase` is permitted and does not
+      violate CM-27-001; the prohibition applies only to post-construction
+      mutation.
+    rationale: >-
+      Constructor arguments are validated, which is precisely the guarantee
+      CM-27-001 exists to restore. This clarification prevents over-application
+      of the rule, mirroring PRM-03-002.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-27-001
+    adr:
+    - ADR-0064
+  - id: CM-27-003
+    priority: MUST
+    kind: project
+    statement: >-
+      `VulnerabilityCase` MUST expose a canonical mutator for appending a case
+      status, so that CM-27-001 can be satisfied without direct list mutation.
+      `add_participant()` and `remove_participant()` already provide this for
+      `case_participants`.
+    rationale: >-
+      A prohibition with no sanctioned alternative is unimplementable. At the
+      time of writing `case_statuses` had no mutator at all — only the
+      `current_status` and `case_status` readers — so the rule requires one to be
+      added.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-27-001
+    adr:
+    - ADR-0064

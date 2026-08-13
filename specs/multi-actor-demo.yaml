@@ -4,7 +4,7 @@ description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
   acceptance testing, and reproducibility. Includes per-scenario required
   event-type lists for the case-ledger invariant harness.
-version: 1.2.0
+version: 1.4.0
 scope:
 
 - prototype
@@ -426,7 +426,7 @@ groups:
     - order: 5
       actor: case_actor
       action: >-
-        [SUPERSEDED] This step previously described an all-participants-RM.CLOSED
+        **SUPERSEDED** This step previously described an all-participants-RM.CLOSED
         check that emitted Leave(VulnerabilityCase) from the Case Actor to trigger
         case closure.  This step is retired: RM case closure now flows through each
         participant's own Leave(VulnerabilityCase) round-trip (CM-23-001).
@@ -435,7 +435,7 @@ groups:
         advances the CaseActor participant to RM.CLOSED (CM-23-004, ADR-0051).
         Implementation: see #1901.
       expected: >-
-        [SUPERSEDED] No AutoCloseSequence fires in add_participant_status_tree.
+        **SUPERSEDED** No AutoCloseSequence fires in add_participant_status_tree.
         Case closure is triggered by Leave(VulnerabilityCase) from the Case Owner.
     postconditions:
     - description: >-
@@ -450,7 +450,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      [SUPERSEDED by CM-23-001 and ADR-0050]  The BT node decomposition
+      **SUPERSEDED by CM-23-001 and ADR-0050**  The BT node decomposition
       requirements for DEMOMA-07-003 step 5 (AllParticipantsRMClosedConditionNode,
       CloseNotYetEmittedConditionNode, EmitCloseCaseNode) are retired from the
       add_participant_status_tree path.  Those nodes MUST NOT be wired into
@@ -978,6 +978,8 @@ groups:
       post-review fixes). Omitting any wait step causes the scenario to proceed on
       state that has not yet been committed to the target actor's DataLayer,
       producing consistent CI failures rather than intermittent flakes.
+      This requirement is the FVCV-handoff instance of the general rule
+      DEMOMA-22-001 (see relationships).
     preconditions:
     - description: >-
         FVCV-handoff scenario executing; Vendor1 has just emitted the ownership-transfer
@@ -1015,6 +1017,14 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007
+    - rel_type: refines
+      spec_id: DEMOMA-22-001
+      note: >-
+        This requirement is the FVCV-handoff instance of the general rule
+        DEMOMA-22-001, which applies the same constraint to every scenario and
+        additionally constrains *what* the wait may observe (EDF-06-001 through
+        EDF-06-003). "A polling wait exists here" is necessary but not
+        sufficient. This requirement remains active; it is not superseded.
   - id: DEMOMA-11-010
     priority: MUST
     kind: project
@@ -1827,16 +1837,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The four universal event types — `validate_report`,
-      `add_participant_status_to_participant`, `close_case`, and
-      `add_note_to_case` — MUST appear at least once in the authoritative
-      case-actor log for every multi-actor demo scenario.
+      The five universal event types — `validate_report`,
+      `add_participant_status_to_participant`, `close_case`,
+      `add_note_to_case`, and `engage_case` — MUST appear at least once in the
+      authoritative case-actor log for every multi-actor demo scenario.
     rationale: >-
-      These four types represent the minimal protocol coverage shared by all
-      scenarios: report validation, participant state tracking, case
-      closure, and at least one note (notes-exchange phase). Any scenario
-      that does not produce all four has not completed the basic CVD
-      lifecycle.
+      These five types are the minimal coverage shared by all scenarios:
+      report validation, RM engagement (VALID → ACCEPTED), participant state
+      tracking, case closure, and at least one note. A scenario missing any of
+      the five has not completed the basic CVD lifecycle. `engage_case` is as
+      universal as `validate_report`: emission lives in the shared demo helper
+      layer, not at scenario call sites, so no scenario file names the trigger
+      itself (CONCERN-2243). Paths: see `notes/demo-ci-invariants.md`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
@@ -1845,7 +1857,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In addition to the four universal types (DEMOMA-16-001), the FV scenario
+      In addition to the five universal types (DEMOMA-16-001), the FV scenario
       MUST verify that its expected-event-types list is restricted to types that
       the FV scenario actually produces. FV does not include an
       `invite_actor_to_case` phase; the Finder joins by submitting a report,
@@ -1862,7 +1874,7 @@ groups:
     statement: >-
       The FVV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because Vendor1 invites
+      to the five universal types (DEMOMA-16-001), because Vendor1 invites
       Vendor2 into the case and Vendor2 explicitly accepts via the
       `accept-case-invite` trigger.
     relationships:
@@ -1878,7 +1890,7 @@ groups:
       The FVCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the four universal types (DEMOMA-16-001), because Vendor1
+      addition to the five universal types (DEMOMA-16-001), because Vendor1
       invites Coordinator, Coordinator uses the ADR-0026 suggest-actor flow
       (`offer_case_participant`) to propose Vendor2, Vendor1 approves the
       recommendation (`accept_actor_recommendation`), CaseActor converts the
@@ -1896,7 +1908,7 @@ groups:
     statement: >-
       The FVCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because Vendor1 invites
+      to the five universal types (DEMOMA-16-001), because Vendor1 invites
       Coordinator, the Coordinator accepts and becomes the new CASE_OWNER,
       and Coordinator then invites Vendor2 who also accepts.
     rationale: >-
@@ -1921,7 +1933,7 @@ groups:
     statement: >-
       The FCCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because C1 invites C2,
+      to the five universal types (DEMOMA-16-001), because C1 invites C2,
       C2 accepts and becomes the new CASE_OWNER, and C2 then invites the
       Vendor who also accepts.
     relationships:
@@ -1936,7 +1948,7 @@ groups:
     statement: >-
       The FCV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because the Coordinator
+      to the five universal types (DEMOMA-16-001), because the Coordinator
       invites both the Finder and the Vendor into the case, and both Finder
       and Vendor explicitly accept via the `accept-case-invite` trigger.
     relationships:
@@ -1969,7 +1981,7 @@ groups:
       The FCVCV scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the four universal types (DEMOMA-16-001).
+      addition to the five universal types (DEMOMA-16-001).
       `invite_actor_to_case` appears at least three times (C1 invites V1, C1
       invites C2, and CaseActor invites V2 via the ADR-0026 path);
       `offer_case_participant` appears at least once (C2 suggests V2 to C1
@@ -2008,7 +2020,7 @@ groups:
       The FCCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the four universal types (DEMOMA-16-001), because
+      addition to the five universal types (DEMOMA-16-001), because
       Coordinator1 invites Coordinator2, Coordinator2 uses the ADR-0026
       suggest-actor flow (`offer_case_participant`) to propose the Vendor,
       Coordinator1 approves the recommendation (`accept_actor_recommendation`),
@@ -2026,7 +2038,7 @@ groups:
     statement: >-
       The FCV-reject scenario expected-event-types list MUST include
       `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to
-      the four universal types (DEMOMA-16-001), because the Coordinator invites
+      the five universal types (DEMOMA-16-001), because the Coordinator invites
       the Vendor and the Vendor sends `Reject(Invite(actor, case))` (an
       invitation-layer rejection), which triggers
       `RejectInviteActorToCaseReceivedUseCase` on the CaseActor and produces
@@ -2802,3 +2814,216 @@ groups:
       spec_id: DEMOMA-16-009
     - rel_type: refines
       spec_id: DEMOMA-21-001
+- id: DEMOMA-22
+  title: Causal Gating and Scenario Narratives
+  specs:
+  - id: DEMOMA-22-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every scenario script under `vultron/demo/scenario/` MUST gate each
+      asynchronous protocol boundary on a causal precondition satisfying
+      EDF-06-001 through EDF-06-003 before driving the next trigger.
+    rationale: >-
+      This generalizes DEMOMA-11-009, which stated the rule for FVCV-handoff
+      alone. Seven of the nineteen sub-issues of Epic #2136 were the same
+      defect — a step proceeding before its enabling event had propagated —
+      reproduced in a different scenario each time. A per-scenario requirement
+      cannot prevent the next scenario from rediscovering it. See ADR-0058.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: EDF-06-001
+    - rel_type: constrains
+      spec_id: DEMOMA-11-009
+      note: >-
+        DEMOMA-11-009 remains active and is NOT superseded: it is retained as
+        the FVCV-handoff instance of this general rule, and additionally
+        constrained by it (the general form also governs *what* the wait may
+        observe, per EDF-06-001 through EDF-06-003).
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Causal gate *predicates* — the reusable functions that poll or scan an
+      actor's own state to decide whether a precondition holds — MUST be defined
+      in `vultron/demo/helpers/`. Scenario modules MUST NOT define their own
+      polling or retry loops. This requirement does NOT relocate the `demo_gate`
+      context manager itself, which DEMOCI-01-007 places in
+      `vultron/demo/utils.py` alongside `demo_step` and `demo_check`.
+    rationale: >-
+      A MUST-level application of DEMOMA-17-001 (extract before reuse) to the
+      gating vocabulary specifically. Hand-rolled loops in scenario modules are
+      how the #2178 defect survived in `fccv_handoff_demo.py` after being fixed
+      in `fvcv_handoff_demo.py` — the fix had nowhere shared to land. The split
+      is deliberate: the control-flow primitive lives with the other context
+      managers, and the observables it gates on live in the helper vocabulary.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-01-007
+      note: >-
+        DEMOCI-01-007 owns the location and semantics of the `demo_gate` context
+        manager; this requirement owns the location of the predicates passed to
+        it.
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Each demo scenario MUST have a narrative page under
+      `docs/topics/scenarios/` that describes the case's progress through the
+      CVD process in domain terms, without reference to implementation
+      details such as endpoint names, helper functions, or container topology.
+      Each narrative step MUST state the antecedent that causes it.
+    rationale: >-
+      A narrative written in domain terms is an independent statement of what
+      the protocol is supposed to accomplish. Because it is written without
+      reference to the implementation, it can disagree with the implementation
+      — which is precisely what makes it usable as a conformance oracle rather
+      than a restatement of the code.
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - documentation
+  - id: DEMOMA-22-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Each scenario narrative MUST carry a machine-readable list of causal
+      edges. Each edge MUST name the antecedent event, the consequent event,
+      and the actor that commits the consequent.
+    rationale: >-
+      Prose alone drifts silently from the code it describes. A structured edge
+      list is the part of the narrative a test can check, and it forces the
+      author to state the causal claim precisely enough to be falsifiable.
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - documentation
+  - id: DEMOMA-22-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The invariant harness MUST assert, for each scenario, that every causal
+      edge declared in that scenario's narrative appears in the observed case
+      ledger, with the antecedent's log index preceding the consequent's.
+    rationale: >-
+      The case ledger already records `log_index` in causal order (ADR-0041)
+      and the invariant harness already reads the per-scenario ledger dumps, so
+      checking declared causality against observed causality needs no new
+      instrumentation. This is what converts the narrative from documentation
+      into a conformance check.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-001
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A change to a scenario's protocol flow MUST update that scenario's
+      narrative and its declared causal edges in the same pull request.
+    rationale: >-
+      Without this, the conformance check decays into a ratchet that is
+      weakened whenever it fails. Updating both together makes a deliberate
+      protocol change visible as a narrative change, which is the point.
+    adr:
+    - ADR-0058
+    tags:
+    - demo
+    - documentation
+- id: DEMOMA-23
+  title: Shared Scenario Harness
+  specs:
+  - id: DEMOMA-23-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `run_<name>_demo()` orchestrator MUST run its phase body inside the
+      shared `scenario_harness("<demo-name>")` context manager from
+      `vultron.demo.helpers.harness`, which resets the failure accumulator, always
+      dumps the case ledgers, and only then asserts demo success. The scenario's
+      `main()` MUST NOT wrap the run in `try: ... finally: assert_demo_success()`.
+    rationale: >-
+      Each scenario previously repeated the same three responsibilities in a
+      slightly different order, and the `finally: assert_demo_success()` shape in
+      `main()` substituted a generic `DemoFailureError` for whatever actually went
+      wrong. One harness fixes the order once for all scenarios: run phases,
+      always dump, then assert.
+    relationships:
+    - rel_type: implements
+      spec_id: DEMOCI-10-001
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-23-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A scenario's `_phase_dump_case_ledgers()` MUST be a thin wrapper over
+      `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`, declaring only that
+      scenario's dump targets (actor name, client, route key, and any fallback).
+      Per-actor fetching, 404 handling, JSONL writing, and manifest writing MUST
+      live in the shared helper, not in the scenario module.
+    rationale: >-
+      Nine copies of the same export loop is exactly the copy-paste that
+      DEMOMA-17-001 forbids, and it is why a defect in the dump had to be fixed
+      nine times. Keeping the scenario-specific participant map in the scenario
+      and the mechanics in the helper puts each fact in one place.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    tags:
+    - demo
+  - id: DEMOMA-23-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A scenario MUST register its dump with `harness.dump_with(...)` as soon as
+      a case exists — immediately after the report-submission phase returns —
+      rather than at the end of the run.
+    rationale: >-
+      The harness can only dump what it has been given. Registering the dump at
+      the first point where a case exists is what makes every later phase failure
+      survivable: the ledgers that existed at the moment of failure are still
+      exported.
+    relationships:
+    - rel_type: implements
+      spec_id: DEMOCI-10-001
+    tags:
+    - demo
+  - id: DEMOMA-23-004
+    priority: SHOULD
+    kind: project
+    statement: >-
+      When a scenario body raises, the harness SHOULD attach the accumulated
+      `demo_step`/`demo_check` failures to the propagating exception as notes
+      rather than raising `DemoFailureError` in their place.
+    rationale: >-
+      The accumulated soft failures are usually downstream consequences of the
+      exception, so they are context, not the cause. Attaching them as notes keeps
+      both: the reader sees the failure that stopped the run and every check that
+      had already failed.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-10-004
+    tags:
+    - demo
