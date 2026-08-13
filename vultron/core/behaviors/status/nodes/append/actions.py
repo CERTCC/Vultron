@@ -13,21 +13,24 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Append-participant-status leaf nodes for DEMOMA-07-003 step 2.
+"""Action nodes for the append-participant-status workflow.
 
-Contains the leaf nodes that implement the append sequence: check idempotency,
-load participant, resolve status object, and append + save.  The RM-transition
-guards that also participate in that sequence live in
-:mod:`vultron.core.behaviors.status.nodes.rm_validation` (BTND-07-004).
+Contains the three DataLayer-mutating action nodes:
+
+- :class:`LoadParticipantNode` — load the CaseParticipant from DataLayer to
+  blackboard.
+- :class:`ResolveAndPersistStatusObjectNode` — resolve (and optionally persist)
+  the ParticipantStatus object.
+- :class:`AppendStatusAndSaveParticipantNode` — append the resolved status to
+  the participant and persist.
 """
 
-import logging
 from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.status.nodes.dimension_filter import (
     BB_DIMENSION_FILTER,
     resolve_dimension_filter,
@@ -35,58 +38,6 @@ from vultron.core.behaviors.status.nodes.dimension_filter import (
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.models._helpers import _as_id
-
-logger = logging.getLogger(__name__)
-
-
-class SkipIfIdempotentNode(py_trees.behaviour.Behaviour):
-    """Idempotency guard for the append-participant-status Selector.
-
-    Returns SUCCESS when *status_id* is already present in the participant's
-    status list — causing the parent Selector to short-circuit and skip the
-    append subtree. Returns FAILURE when the status is not yet appended,
-    allowing the parent Selector to continue to the append subtree.
-
-    This is the inverse of :class:`CheckStatusNotAlreadyAppendedNode`: that
-    node is used to halt a Sequence on duplicate; this node is used to skip
-    an append Selector on duplicate.
-
-    Per DEMOMA-07-003 step 2 idempotency requirement.
-    """
-
-    def __init__(
-        self,
-        status_id: str,
-        participant_id: str,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.status_id = status_id
-        self.participant_id = participant_id
-
-    def setup(self, **kwargs: Any) -> None:
-        self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.READ,
-        )
-
-    def update(self) -> Status:
-        participant = self.blackboard.get("append_status_participant")
-        if participant is None:
-            return Status.FAILURE
-
-        existing_ids = [_as_id(s) for s in participant.participant_statuses]
-        if self.status_id in existing_ids:
-            logging.getLogger(self.__class__.__module__).info(
-                "SkipIfIdempotentNode: status '%s' already on participant"
-                " '%s' — idempotent, skipping (SUCCESS)",
-                self.status_id,
-                self.participant_id,
-            )
-            return Status.SUCCESS
-        return Status.FAILURE
 
 
 class LoadParticipantNode(DataLayerAction):
@@ -135,66 +86,14 @@ class LoadParticipantNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CheckStatusNotAlreadyAppendedNode(DataLayerCondition):
-    """Check idempotency: is the status already appended to the participant?
-
-    Returns SUCCESS if the status is NOT already on the participant
-    (i.e., it's safe to append). Returns SUCCESS if the participant has no
-    statuses yet.
-
-    Returns FAILURE if the status ID already exists in the participant's
-    status list, indicating the append would be redundant.
-    """
-
-    def __init__(
-        self, status_id: str, participant_id: str, name: str | None = None
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.status_id = status_id
-        self.participant_id = participant_id
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.READ,
-        )
-
-    def update(self) -> Status:
-        participant = self.blackboard.get("append_status_participant")
-        if participant is None:
-            self.feedback_message = "Participant not on blackboard"
-            self.logger.warning(
-                "CheckStatusNotAlreadyAppendedNode: %s",
-                self.feedback_message,
-            )
-            return Status.FAILURE
-
-        existing_ids = [_as_id(s) for s in participant.participant_statuses]
-        if self.status_id in existing_ids:
-            self.logger.info(
-                "CheckStatusNotAlreadyAppendedNode: status '%s' already"
-                " on participant '%s' — idempotent, skipping",
-                self.status_id,
-                self.participant_id,
-            )
-            return Status.FAILURE
-
-        self.logger.debug(
-            "CheckStatusNotAlreadyAppendedNode: status '%s' not yet appended",
-            self.status_id,
-        )
-        return Status.SUCCESS
-
-
 class ResolveAndPersistStatusObjectNode(DataLayerAction):
     """Resolve the status object by ID, persisting fallback if needed.
 
     When :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
     has partially accepted the inbound status, the *filtered* status (refused
     dimensions carried forward) is persisted at ``status_id`` and used in place
-    of the raw assertion, so that the appended record, the ledger ``object``
-    reference and the Seam 2 emit all describe the accepted portion (RSH-05).
+    of the raw assertion, so that the appended record describes the accepted
+    portion (RSH-05).
 
     Otherwise tries the DataLayer first; if not found, uses
     ``status_obj_fallback``, saves it, then re-reads the canonical record.

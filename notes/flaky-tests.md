@@ -26,6 +26,8 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
+| `test/ci/invariants/test_fv_invariants.py::test_invariant_5_expected_event_types_present[validate_report]` | #2274 | 2026-08-13 |
+| `test/ci/invariants/test_fv_invariants.py::test_invariant_5_expected_event_types_present[engage_case]` | #2274 | 2026-08-13 |
 
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
