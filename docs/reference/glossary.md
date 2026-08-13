@@ -49,7 +49,9 @@ The **Case State (CS)** tracks awareness and readiness across six binary dimensi
 | **A/a** | **A** | **a** | Active attacks have been observed / not observed |
 
 Each transition from lowercase to uppercase represents an event; once uppercase,
-it cannot revert. This forms a 64-state lattice (2^6 combinations).
+it cannot revert. The 2^6 combinations give a 64-state lattice, of which only
+**32 are reachable**: `vF*` (fix ready, vendor unaware) and `*fD*` (fix deployed,
+fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 ---
 
@@ -210,7 +212,7 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
    - The **Case State (CS)** — the six-dimensional VfDpxa lattice model
    - A **Case Status** — a snapshot of CS, RM, and EM at one moment
    - An RM or EM state — a specific state machine location
-   - **Recommendation**: Prefer precise terms. Use "Case State" for the 64-node lattice; "Case Status" for a snapshot; "RM state" or "EM state" for a specific state machine location.
+   - **Recommendation**: Prefer precise terms. Use "Case State" for the lattice (64 combinations, 32 reachable); "Case Status" for a snapshot; "RM state" or "EM state" for a specific state machine location.
 
 2. **"Participant" vs. "Actor"**:
    - An **Actor** is any URI-identified federated peer (a role in the protocol).

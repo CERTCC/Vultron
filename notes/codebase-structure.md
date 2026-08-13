@@ -50,14 +50,19 @@ Enums are currently organized across multiple locations in the codebase:
 - `vultron/enums/` — bottom-of-stack neutral enumeration layer (`CVDRole`,
   `serialize_roles`, `validate_roles`; MUST NOT import from `vultron/core/`
   or `vultron/config/`); see `docs/adr/0031-vultron-enums-neutral-layer.md`
-- `vultron/case_states/enums/` — case state enums, split into submodules:
-  - `cvss_31.py`
+- `vultron/core/states/` — the authoritative CS/RM/EM/PEC state enums
+  (`cs.py`, `rm.py`, `em.py`, `participant_embargo_consent.py`) plus
+  `cs_invariants.py` (CS validity/history rules)
+- `vultron/core/case_states/patterns/` — legacy case-state *pattern* tables,
+  keyed by 6-character state patterns rather than enums; reference model only,
+  see ADR-0060:
+  - `base.py`
+  - `cvss31.py`
   - `embargo.py`
   - `explanations.py`
   - `info.py`
   - `potential_actions.py`
-  - `ssvc_2.py`
-  - `utils.py`
+  - `ssvc.py`
   - `vep.py`
   - `zerodays.py`
 - `vultron/wire/as2/vocab/` — vocabulary-level type enums (moved from
@@ -71,14 +76,14 @@ so that enums are easy to find and manage. For example:
   `events.py` base)
 - `vultron/core/models/enums/` — enums shared across core models (e.g.,
   `CVDRole`, state machine enums migrated from `vultron/bt` and
-  `vultron/case_states`)
+  `vultron/core/case_states`)
 - `vultron/wire/as2/enums.py` — AS2 structural enums (already in place)
 
 Enums imported from outside `core` that are used in `core` are candidates
 for relocation into `core` (refactoring from their original location as
 needed). In particular:
 
-- Enums in `vultron/bt/` and `vultron/case_states/` that represent domain
+- Enums in `vultron/bt/` and `vultron/core/case_states/` that represent domain
   concepts (not BT-engine internals) SHOULD migrate to `core/models/enums/`.
 - If a given area has many enums, split them into an `enums/` subpackage
   with multiple files rather than one large `enums.py`.
