@@ -130,6 +130,7 @@ def case_with_participant(dl, actor):
         RM.VALID, actor=actor.id_, context=case_obj.id_
     )
     case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
     dl.create(case_obj)
     dl.create(participant)
     _add_case_manager(case_obj, dl)

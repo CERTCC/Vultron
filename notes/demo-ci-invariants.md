@@ -50,7 +50,7 @@ but `devlogs/` was empty. The `invariant-harness` job then died on **artifact
 download** — the run that most needed forensics produced none, and the harness
 reported a plumbing error instead of an invariant result (issue #2239).
 
-**Design**: three pieces, spec'd as DEMOCI-10-001 through DEMOCI-10-004.
+**Design**: four pieces, spec'd as DEMOCI-10-001 through DEMOCI-10-005.
 
 1. **A shared harness owns the ordering.**
    `vultron/demo/helpers/harness.py` provides `scenario_harness(demo_name)`.
@@ -88,14 +88,24 @@ reported a plumbing error instead of an invariant result (issue #2239).
    reason — so the harness output explains *why* there are no ledgers rather
    than leaving a reviewer to guess.
 
-**A dump failure must not mask the scenario failure.** Errors raised inside the
-dump are recorded in the manifest's `reason` field and swallowed; the harness
-re-raises the original exception with the accumulated `demo_check` failures
-attached as exception notes (DEMOCI-10-004).
+   A dump failure must not mask the scenario failure. Errors raised inside the
+   dump are recorded in the manifest's `reason` field and swallowed; the harness
+   re-raises the original exception with the accumulated `demo_check` failures
+   attached as exception notes (DEMOCI-10-004).
+
+4. **The harness exits non-zero on an all-skip session.**
+   When `devlogs/` is absent or empty, `load_devlogs()` calls `pytest.skip()` at
+   fixture level and every test skips. pytest exits 0 by default for skip-only
+   sessions, which let CI report green even though no invariant was checked.
+   An `_AllSkipGuard` pytest plugin registered in
+   `test/ci/invariants/conftest.py` forces `session.exitstatus = 1` whenever at
+   least one test was reported and all reported outcomes were `"skipped"`
+   (DEMOCI-10-005). This converts a vacuous pass into a visible red.
 
 Regression coverage: `test/demo/test_issue_2239_ledger_dump_in_finally.py`
-(all nine scenarios), `test/demo/test_scenario_harness.py`, and
-`test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`.
+(all nine scenarios), `test/demo/test_scenario_harness.py`,
+`test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`, and
+`test/ci/invariants/test_common.py::TestAllSkipGuard`.
 
 ---
 
@@ -207,14 +217,14 @@ deferred to the implementation PR together.
 ## Reading a Red Invariant Harness Job (CONCERN-2243)
 
 **A red `<scenario> Invariant Harness` job is not evidence that any invariant
-was violated — or even evaluated.** The job has three distinct red modes and
-one false-green mode, and they are easy to confuse:
+was violated — or even evaluated.** The job has three distinct red modes, and
+they are easy to confuse:
 
 | Job outcome | What actually happened | What it tells you about invariants |
 |---|---|---|
 | Red at `Download case log JSONL files` | The demo job never uploaded an artifact, so `actions/download-artifact` errored (`Artifact not found for name: <scenario>-case-logs`). **pytest never ran.** | Nothing at all |
 | Red at `Run case-ledger invariant harness` | pytest ran and an assertion failed | A real invariant result |
-| Green with every test skipped | `load_devlogs` called `pytest.skip` because `devlogs/<scenario>/` held no `*-case-ledger.jsonl`; a skip-only run exits 0 | Nothing — this is a **false green** |
+| Red at `Run case-ledger invariant harness` with every test skipped | `load_devlogs` called `pytest.skip` because `devlogs/<scenario>/` held no `*-case-ledger.jsonl`; the `_AllSkipGuard` (DEMOCI-10-005) forces `exitstatus=1` | Nothing — vacuous red; no invariant was checked |
 
 CONCERN-2243 was filed because a permanently-red `fvcv-handoff Invariant
 Harness` was read as proof that its `engage_case` assertion could never pass.
