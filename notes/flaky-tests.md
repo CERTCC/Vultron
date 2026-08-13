@@ -112,6 +112,8 @@ No open entries.
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
 | `fv Demo Integration` | #2241 | 2026-08-13 |
+| `fvcv-handoff Demo Integration` | #2221 | 2026-08-13 |
+| `fvcv-handoff Invariant Harness` | #2221 | 2026-08-13 |
 
 > `fv Demo Integration` is a different animal from the async-race rows above
 > it. It passed at `dc31b6c6` and failed at `0b607c11` — a docs-only diff —
@@ -145,6 +147,14 @@ No open entries.
 > `fcv-reject Invariant Harness`, `fv Invariant Harness` — these were
 > **deterministic** failures caused by the engage-case 422 (#2233, now fixed).
 > They are gone from this catalog because the fix lands with the PR for #2233.
+>
+> **Re-added 2026-08-13 (`fvcv-handoff` only):** a new intermittent occurrence
+> of `fvcv-handoff Demo Integration` and `fvcv-handoff Invariant Harness` was
+> confirmed during PR #2303 with the temporal-poll-timeout shape ("Timed out
+> waiting for participant count 5"). This is a different failure mode from the
+> #2233 deterministic failure — it is an async race window of the class tracked
+> by #2221 (causal gating epic) and #2203 (migration task). Rows re-added
+> pointing to #2221; see also breadcrumbs on those issues.
 
 ---
 
