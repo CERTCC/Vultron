@@ -821,3 +821,14 @@ class TestAllSkipGuard:
         session = _ses(0)
         guard.pytest_sessionfinish(session=session)
         assert session.exitstatus == 1
+
+    def test_does_not_trigger_for_xfail_expected_failures(self):
+        """xfail expected-failure (outcome='skipped', wasxfail set) → not counted."""
+        guard = _AllSkipGuard()
+        rpt = _types.SimpleNamespace(
+            when="call", outcome="skipped", wasxfail="reason"
+        )
+        guard.pytest_runtest_logreport(rpt)
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 0

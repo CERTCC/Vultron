@@ -188,7 +188,7 @@ class _AllSkipGuard:
         self._outcomes: list[str] = []
 
     def pytest_runtest_logreport(self, report) -> None:
-        if report.when == "call":
+        if report.when == "call" and not getattr(report, "wasxfail", None):
             self._outcomes.append(report.outcome)
         elif report.when == "setup" and report.outcome == "skipped":
             # Fixture-level skip: no "call" phase follows.
