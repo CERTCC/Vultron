@@ -189,8 +189,17 @@ def test_resolve_participant_state_raises_when_invalid_rm_type():
         )
 
 
-def test_resolve_participant_state_defaults_when_invalid_vfd_type():
-    """Falls back to CS_vfd.vfd when vfd_state is not a CS_vfd enum value."""
+def test_resolve_participant_state_raises_when_invalid_vfd_type():
+    """Raises when the latest status carries an unusable VFD state.
+
+    The VFD counterpart of
+    ``test_resolve_participant_state_raises_when_invalid_rm_type``: this
+    previously fell back to ``CS_vfd.vfd``, resetting the participant's
+    vendor-fix ladder to its initial state the same way ``RM.START`` reset the
+    RM ladder (#2264, a symptom of #2232).  Absence — an empty
+    ``participant_statuses`` list — still returns ``CS_vfd.vfd``; see
+    ``test_resolve_participant_state_defaults_when_no_statuses``.
+    """
 
     class _BadVfdAttr:
         state = "not-a-cs-vfd"
@@ -203,12 +212,10 @@ def test_resolve_participant_state_defaults_when_invalid_vfd_type():
     dl = _FakeDL(stored=participant)
     use_case = _make_use_case(dl)
 
-    rm, vfd = use_case._resolve_current_participant_state(
-        _as_persistence(dl), "any-id"
-    )
-
-    assert isinstance(rm, RM)
-    assert vfd == CS_vfd.vfd
+    with pytest.raises(VultronValidationError, match="no valid VFD state"):
+        use_case._resolve_current_participant_state(
+            _as_persistence(dl), "any-id"
+        )
 
 
 # ---------------------------------------------------------------------------
