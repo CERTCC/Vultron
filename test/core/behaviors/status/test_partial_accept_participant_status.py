@@ -709,6 +709,61 @@ class TestLedgerApplyRmRatchet:
         )
         assert _vfd_of(latest) == CS_vfd.VFd.name
 
+    def test_unreadable_local_rm_fails_instead_of_skipping_the_ratchet(
+        self, dl, monkeypatch
+    ):
+        """An unreadable RM floor is a shape mismatch, not "no floor".
+
+        The ratchet needs the replica's current RM to know what a regression
+        *is*.  Reading that floor with a defaulting accessor turned a
+        non-core-shaped local record into ``None``, which made the ratchet a
+        no-op and applied the regressing entry unchecked — the #2264 failure
+        mode, silent because the ratchet only logs when it refuses something.
+        ARCH-15-001 and ARCH-15-002 require FAILURE (ADR-0062).
+        """
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
+        _seed_case(dl, current, None)
+
+        # A *core* participant (so the node does not skip it as "not found")
+        # whose latest status is wire-shaped: flat ``rmState``, no ``rm``
+        # attribute at all.  Pydantic does not validate on list append, which
+        # is how such a record survives into a replica in the first place.
+        broken = cast(CaseParticipant, dl.read(PARTICIPANT_ID))
+        assert isinstance(broken, CaseParticipant)
+        broken.participant_statuses[-1] = cast(Any, current)
+
+        real_read = dl.read
+        monkeypatch.setattr(
+            dl,
+            "read",
+            lambda object_id: (
+                broken if object_id == PARTICIPANT_ID else real_read(object_id)
+            ),
+        )
+
+        entry = _status_snapshot_entry(rm_state="RECEIVED", vfd_state="VFd")
+        event = _announce_event(entry)
+
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(
+                name="ApplyParticipantStatusFromLedger"
+            ),
+            actor_id=ACTOR_ID,
+            activity=event,
+        )
+        assert (
+            result.status == Status.FAILURE
+        ), "an unreadable RM floor must fail, not silently skip the ratchet"
+
+        assert real_read(ASSERTED_STATUS_ID) is None, (
+            "the regressing status must not be persisted when the ratchet"
+            " cannot be enforced"
+        )
+        assert ASSERTED_STATUS_ID not in [
+            str(getattr(s, "id_", s)) for s in broken.participant_statuses
+        ], "the regressing status must not reach participant_statuses"
+
 
 # ---------------------------------------------------------------------------
 # Blackboard hygiene
