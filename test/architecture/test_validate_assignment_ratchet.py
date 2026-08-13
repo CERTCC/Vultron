@@ -27,7 +27,8 @@ A wire-shaped object sitting in a core-shaped field does not raise when read —
 reads as absent, and the reader substitutes an initial state, silently resetting
 the participant's ladder.  That is the #2232 / #2264 failure mode.
 
-This module ratchets the three-step remediation planned in issue #2261 and
+This module ratchets the three-step remediation planned in issue #2261 (steps:
+#2293, #2294, #2295) and
 decided in ADR-0064.  Each step owns one **backlog**: an exact set, asserted with
 ``==`` so it fails in *both* directions.
 
@@ -68,8 +69,8 @@ _CORE_ROOT = Path("vultron/core")
 _MODELS_PACKAGE = "vultron.core.models"
 
 # ---------------------------------------------------------------------------
-# Backlog 1 — ``mode="after"`` validators that assign to ``self`` (issue #2261,
-# step 1).  ``validate_assignment`` re-runs every ``mode="after"`` validator on
+# Backlog 1 — ``mode="after"`` validators that assign to ``self`` (issue #2293,
+# step 1 of #2261).  ``validate_assignment`` re-runs every ``mode="after"`` validator on
 # each assignment, so a validator that writes to ``self`` re-enters itself.  A
 # guarded one terminates at depth 2; an unguarded one recurses forever.  Turning
 # the flag on before these are fixed aborts 400+ tests with ``RecursionError``
@@ -115,7 +116,7 @@ _SELF_ASSIGNING_AFTER_VALIDATORS: frozenset[str] = frozenset(
 
 # ---------------------------------------------------------------------------
 # Backlog 2 — the classes that must carry ``validate_assignment`` directly
-# (issue #2261, step 2).  Every other core model inherits it from one of these,
+# (issue #2294, step 2 of #2261).  Every other core model inherits it from one of these,
 # so the enumeration stays at ten entries rather than listing all 103 classes.
 #
 # ``VultronBase`` is **permanently excluded**, not a backlog item: it is the
@@ -147,8 +148,8 @@ _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
 _LENIENT_SHARED_BASE = "VultronBase"
 
 # ---------------------------------------------------------------------------
-# Backlog 3 — modules that mutate a shape-dual collection in place (issue #2261,
-# step 3).  ``validate_assignment`` does **not** close this door: ``.append()``
+# Backlog 3 — modules that mutate a shape-dual collection in place (issue #2295,
+# step 3 of #2261).  ``validate_assignment`` does **not** close this door: ``.append()``
 # is not an assignment, so Pydantic never sees it.  The remedy is the pattern
 # PRM-03-001/PRM-05-004 already used for ``case_roles``, which drove direct
 # ``case_roles`` mutation in ``vultron/`` to zero: a MUST-NOT spec entry,
@@ -298,13 +299,13 @@ def test_self_assigning_after_validator_backlog_is_exact():
         f"  fixed but still listed: {sorted(_SELF_ASSIGNING_AFTER_VALIDATORS - found)}\n"
         "A validator that writes to `self` re-enters itself once"
         ' `validate_assignment` is on. Derive in `mode="before"` instead'
-        " (ADR-0064, issue #2261)."
+        " (ADR-0064, issue #2293)."
     )
 
 
 @pytest.mark.xfail(
     strict=True,
-    reason='Goal state for issue #2261 step 1: no core `mode="after"` validator'
+    reason='Goal state for issue #2293 (#2261 step 1): no core `mode="after"` validator'
     " assigns to `self`. 23 known sites remain, enumerated in"
     " _SELF_ASSIGNING_AFTER_VALIDATORS. When the last one is fixed this test"
     " XPASSes and fails the build — delete the marker and the backlog then.",
@@ -375,7 +376,7 @@ def test_wire_branch_does_not_enable_validate_assignment():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Goal state for issue #2261 step 2: every core model carries"
+    reason="Goal state for issue #2294 (#2261 step 2): every core model carries"
     " validate_assignment. Blocked on step 1 — flipping the flag first aborts"
     " 400+ tests with RecursionError. When step 2 lands this test XPASSes and"
     " fails the build — delete the marker then.",
@@ -404,13 +405,13 @@ def test_collection_mutation_backlog_is_exact():
         f"  fixed but still listed: {sorted(_COLLECTION_MUTATION_BACKLOG - found)}\n"
         f"Collections covered: {', '.join(_SHAPE_DUAL_COLLECTIONS)}. Route writes"
         " through the canonical mutators on VulnerabilityCase / CaseParticipant"
-        " (issue #2261, ADR-0064)."
+        " (issue #2295, ADR-0064)."
     )
 
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Goal state for issue #2261 step 3: no module outside the canonical"
+    reason="Goal state for issue #2295 (#2261 step 3): no module outside the canonical"
     " mutators mutates case_participants, case_statuses or participant_statuses"
     " in place. 3 known modules remain. When the last is fixed this test XPASSes"
     " and fails the build — delete the marker and the backlog then.",
