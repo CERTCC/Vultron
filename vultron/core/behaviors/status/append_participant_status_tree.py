@@ -85,7 +85,10 @@ def append_participant_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj_fallback,
             ),
-            ValidateRMTransitionNode(participant_id=participant_id),
+            ValidateRMTransitionNode(
+                participant_id=participant_id,
+                status_id=status_id,
+            ),
             AppendStatusAndSaveParticipantNode(
                 status_id=status_id,
                 participant_id=participant_id,

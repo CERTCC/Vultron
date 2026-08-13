@@ -13,7 +13,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for append/conditions.py: idempotency guards and RM validation."""
+"""Tests for append/conditions.py: idempotency guards and RM validation.
+
+Tests SkipIfIdempotentNode, LoadParticipantNode,
+CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode and
+AppendStatusAndSaveParticipantNode from ``nodes.append``, plus
+ValidateRMTransitionNode from ``nodes.rm_validation``.
+
+Per DEMOMA-07-003 step 2.
+"""
 
 import py_trees
 from py_trees.common import Status
@@ -25,6 +33,8 @@ from vultron.core.behaviors.status.nodes.append import (
     LoadParticipantNode,
     ResolveAndPersistStatusObjectNode,
     SkipIfIdempotentNode,
+)
+from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
 from vultron.core.states.rm import RM

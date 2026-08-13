@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Tests for ApplyParticipantStatusFromLedgerNode.
+"""Regression tests for ApplyParticipantStatusFromLedgerNode.
 
 Covers the critical round-trip serialization bug: a CORE ParticipantStatus
 appended directly to as_CaseParticipant.participant_statuses was serialized with

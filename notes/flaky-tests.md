@@ -83,17 +83,29 @@ and fall through to Level 2 (GitHub label search).
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
-| `fcvcv Demo Integration` | #2216 | 2026-08-12 |
-| `fvcv-handoff Demo Integration` | #2216 | 2026-08-12 |
-| `fvcv-handoff Invariant Harness` | #2216 | 2026-08-12 |
-| `fcvcv Invariant Harness` | — | 2026-08-10 |
-| `fcv-reject Invariant Harness` | #2121 | 2026-08-10 |
+| `fcvcv Demo Integration` | #2233 (was #2216, closed) | 2026-08-13 |
+| `fvcv-handoff Demo Integration` | #2233 (was #2216, closed) | 2026-08-13 |
+| `fvcv-handoff Invariant Harness` | #2233 (was #2216, closed) | 2026-08-13 |
+| `fcvcv Invariant Harness` | #2233 | 2026-08-13 |
+| `fcv-reject Invariant Harness` | #2233 (was #2121, closed) | 2026-08-13 |
+| `fv Invariant Harness` | #2233 | 2026-08-13 |
 
-> These jobs fail intermittently due to inter-container HTTP delivery timeouts
-> (async race windows). Root cause documented in `plan/incoming/learnings/`
-> entry `20260731-async-race-windows-in-fv-demo.md`. When a new occurrence is
-> confirmed, `pr-execute` will open or comment on a `flaky-test` + `bug` issue
-> and record it here.
+> Some of these jobs fail intermittently due to inter-container HTTP delivery
+> timeouts (async race windows). Root cause documented in
+> `plan/incoming/learnings/` entry `20260731-async-race-windows-in-fv-demo.md`.
+> When a new occurrence is confirmed, `pr-execute` will open or comment on a
+> `flaky-test` + `bug` issue and record it here.
+>
+> **The six rows pointing at #2233 are not flaky** — they fail on *every* run
+> until the engage-case 422 lands, and they are listed here only because
+> `pr-execute`'s dedup procedure looks here first. The Demo Integration pair
+> fails on `SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`; the
+> four Invariant Harness rows fail downstream of it on
+> `test_invariant_5_expected_event_types_present[engage_case]`, because the 422
+> aborts the trigger before `GuardedCommitCaseLedgerEntryBT` can record the
+> entry that #2266 made universally required. Keep them in one row set: routing
+> them to separate issues is what left #2216 and #2121 as stale pointers here
+> after they were closed.
 
 ---
 

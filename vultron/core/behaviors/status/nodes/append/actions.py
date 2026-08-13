@@ -31,6 +31,10 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.status.nodes.dimension_filter import (
+    BB_DIMENSION_FILTER,
+    resolve_dimension_filter,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
@@ -85,8 +89,14 @@ class LoadParticipantNode(DataLayerAction):
 class ResolveAndPersistStatusObjectNode(DataLayerAction):
     """Resolve the status object by ID, persisting fallback if needed.
 
-    Tries the DataLayer first; if not found, uses ``status_obj_fallback``,
-    saves it, then re-reads the canonical wire-format record.
+    When :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
+    has partially accepted the inbound status, the *filtered* status (refused
+    dimensions carried forward) is persisted at ``status_id`` and used in place
+    of the raw assertion, so that the appended record describes the accepted
+    portion (RSH-05).
+
+    Otherwise tries the DataLayer first; if not found, uses
+    ``status_obj_fallback``, saves it, then re-reads the canonical record.
 
     Validates that the resolved object is a ParticipantStatus (has rm and
     vfd attributes).
@@ -114,13 +124,30 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
             key="append_status_status_obj",
             access=py_trees.common.Access.WRITE,
         )
+        self.blackboard.register_key(
+            key=BB_DIMENSION_FILTER,
+            access=py_trees.common.Access.READ,
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        status_obj = self.datalayer.read(self.status_id)
+        filtered = resolve_dimension_filter(self.blackboard, self.status_id)
+        if filtered is not None:
+            status_obj = filtered["filtered_status"]
+            self.datalayer.save(status_obj)
+            self.logger.info(
+                "ResolveAndPersistStatusObjectNode: persisted partially"
+                " accepted status '%s' (refused: %s) in place of the raw"
+                " assertion (RSH-05)",
+                self.status_id,
+                ", ".join(filtered["refused"]),
+            )
+            status_obj = self.datalayer.read(self.status_id) or status_obj
+        else:
+            status_obj = self.datalayer.read(self.status_id)
         if not hasattr(status_obj, "id_"):
             status_obj = self.status_obj_fallback
             if status_obj is not None:
