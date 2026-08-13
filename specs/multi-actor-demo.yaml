@@ -4,7 +4,7 @@ description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
   acceptance testing, and reproducibility. Includes per-scenario required
   event-type lists for the case-ledger invariant harness.
-version: 1.3.0
+version: 1.4.0
 scope:
 
 - prototype
@@ -2949,3 +2949,82 @@ groups:
     tags:
     - demo
     - documentation
+- id: DEMOMA-23
+  title: Shared Scenario Harness
+  specs:
+  - id: DEMOMA-23-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `run_<name>_demo()` orchestrator MUST run its phase body inside the
+      shared `scenario_harness("<demo-name>")` context manager from
+      `vultron.demo.helpers.harness`, which resets the failure accumulator, always
+      dumps the case ledgers, and only then asserts demo success. The scenario's
+      `main()` MUST NOT wrap the run in `try: ... finally: assert_demo_success()`.
+    rationale: >-
+      Each scenario previously repeated the same three responsibilities in a
+      slightly different order, and the `finally: assert_demo_success()` shape in
+      `main()` substituted a generic `DemoFailureError` for whatever actually went
+      wrong. One harness fixes the order once for all scenarios: run phases,
+      always dump, then assert.
+    relationships:
+    - rel_type: implements
+      spec_id: DEMOCI-10-001
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-23-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A scenario's `_phase_dump_case_ledgers()` MUST be a thin wrapper over
+      `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`, declaring only that
+      scenario's dump targets (actor name, client, route key, and any fallback).
+      Per-actor fetching, 404 handling, JSONL writing, and manifest writing MUST
+      live in the shared helper, not in the scenario module.
+    rationale: >-
+      Nine copies of the same export loop is exactly the copy-paste that
+      DEMOMA-17-001 forbids, and it is why a defect in the dump had to be fixed
+      nine times. Keeping the scenario-specific participant map in the scenario
+      and the mechanics in the helper puts each fact in one place.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    tags:
+    - demo
+  - id: DEMOMA-23-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A scenario MUST register its dump with `harness.dump_with(...)` as soon as
+      a case exists — immediately after the report-submission phase returns —
+      rather than at the end of the run.
+    rationale: >-
+      The harness can only dump what it has been given. Registering the dump at
+      the first point where a case exists is what makes every later phase failure
+      survivable: the ledgers that existed at the moment of failure are still
+      exported.
+    relationships:
+    - rel_type: implements
+      spec_id: DEMOCI-10-001
+    tags:
+    - demo
+  - id: DEMOMA-23-004
+    priority: SHOULD
+    kind: project
+    statement: >-
+      When a scenario body raises, the harness SHOULD attach the accumulated
+      `demo_step`/`demo_check` failures to the propagating exception as notes
+      rather than raising `DemoFailureError` in their place.
+    rationale: >-
+      The accumulated soft failures are usually downstream consequences of the
+      exception, so they are context, not the cause. Attaching them as notes keeps
+      both: the reader sees the failure that stopped the run and every check that
+      had already failed.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-10-004
+    tags:
+    - demo
