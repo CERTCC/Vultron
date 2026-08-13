@@ -29,6 +29,12 @@ except ImportError as exc:  # pragma: no cover
         "Install it with: pip install pyyaml"
     ) from exc
 
+# libyaml-backed loader when the wheel provides it, else the pure-Python one.
+# Same SafeLoader semantics either way; the C loader parses the ~1.2 MB spec
+# corpus about 10x faster, which matters because ``load_registry()`` is
+# uncached and several tests run under a 5 s per-test timeout.
+_SafeLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
 
 def effective_scope(
     spec: Spec, group: SpecGroup, file: SpecFile
@@ -229,7 +235,7 @@ def load_registry(
 
     files = []
     for yaml_path in sorted(spec_dir.glob("*.yaml")):
-        raw = yaml.safe_load(yaml_path.read_text())
+        raw = yaml.load(yaml_path.read_text(), Loader=_SafeLoader)
         files.append(SpecFile.model_validate(raw))
 
     return SpecRegistry(files=files)

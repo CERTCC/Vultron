@@ -11,7 +11,12 @@ AC-1 of ISSUE-1976.
 from __future__ import annotations
 
 import hashlib
+import json
 
+import pytest
+from _pytest.outcomes import Failed, Skipped
+
+from test.ci.invariants import common
 from test.ci.invariants.common import (
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
@@ -30,6 +35,7 @@ from test.ci.invariants.common import (
     check_payload_context_uses_case_uri,
     check_rm_closed_termination,
 )
+from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 
 CASE_URI = "https://example.org/cases/test-case"
 _SHA256 = lambda s: hashlib.sha256(s.encode()).hexdigest()  # noqa: E731
@@ -588,3 +594,158 @@ class TestAllInvariantsPassOnValidChain:
         self, single_actor_replicas
     ):
         assert check_cs_state_transitions_observed(single_actor_replicas) == []
+
+
+# ---------------------------------------------------------------------------
+# load_devlogs() artifact handling (ISSUE-2239)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadDevlogsManifestHandling:
+    """``load_devlogs`` must fail — not skip — once a demo has dumped.
+
+    Before ISSUE-2239, a scenario that died mid-phase uploaded nothing, so the
+    invariant harness could not tell "the demo never ran" apart from "the demo
+    ran and produced no ledger entries" and skipped in both cases (a false
+    green).  The dump now always writes ``dump-manifest.json``, which is the
+    evidence that distinguishes the two.
+    """
+
+    def test_skips_when_devlogs_dir_is_absent(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path / "nope")
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs("fvv")
+        assert "devlogs/" in str(excinfo.value)
+
+    def test_skips_when_scenario_ran_no_dump(self, tmp_path, monkeypatch):
+        """No manifest means the dump never ran, so there is nothing to judge."""
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "fvv").mkdir()
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs("fvv")
+        assert "run the" in str(excinfo.value)
+
+    def test_fails_when_manifest_reports_no_ledgers(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fvv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": "The scenario failed before a case existed.",
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+        message = excinfo.value.msg or ""
+        assert "no case-ledger" in message.lower()
+        assert "The scenario failed before a case existed." in message
+
+    def test_failure_message_names_each_missing_actor(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fvv",
+                    "caseId": CASE_URI,
+                    "ledgerFileCount": 0,
+                    "targetCount": 2,
+                    "reason": None,
+                    "actors": [
+                        {
+                            "actorName": "finder",
+                            "routeKey": "finder",
+                            "captured": False,
+                            "entryCount": 0,
+                            "ledgerFile": None,
+                            "reason": "ValueError: No case ledger entries",
+                        },
+                        {
+                            "actorName": "vendor",
+                            "routeKey": "vendor",
+                            "captured": False,
+                            "entryCount": 0,
+                            "ledgerFile": None,
+                            "reason": None,
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+        message = excinfo.value.msg or ""
+        assert "finder" in message
+        assert "ValueError: No case ledger entries" in message
+        assert "vendor" in message
+
+    def test_fails_when_manifest_is_unreadable(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            "{not json", encoding="utf-8"
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+        assert "unreadable" in (excinfo.value.msg or "")
+
+    def test_returns_entries_when_ledger_files_exist(
+        self, tmp_path, monkeypatch, single_actor_replicas
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "fvv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+        (tmp_path / "fvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "fvv", "ledgerFileCount": 1}),
+            encoding="utf-8",
+        )
+        entries = single_actor_replicas["case-actor"]
+        (actor_dir / "test-case-case-ledger.jsonl").write_text(
+            "".join(json.dumps(e) + "\n" for e in entries), encoding="utf-8"
+        )
+
+        replicas = common.load_devlogs("fvv")
+
+        assert list(replicas) == ["case-actor"]
+        assert [common.log_index(e) for e in replicas["case-actor"]] == list(
+            range(len(entries))
+        )
+
+    def test_skip_survives_when_no_demo_name_and_no_manifest(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "unrelated").mkdir()
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs()
+        assert "devlogs/" in str(excinfo.value)
+
+    def test_fails_when_any_scenario_manifest_reports_no_ledgers(
+        self, tmp_path, monkeypatch
+    ):
+        """Un-scoped loads look for a manifest anywhere beneath devlogs/."""
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "fvv", "ledgerFileCount": 0}),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs()
+        assert "no case-ledger" in (excinfo.value.msg or "").lower()

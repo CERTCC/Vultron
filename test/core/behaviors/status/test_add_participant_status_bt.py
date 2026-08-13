@@ -691,7 +691,9 @@ class TestPublicDisclosureBranchNode:
         from vultron.core.states.cs import CS_pxa
         from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-        cs = as_CaseStatus()
+        # ``context`` is required by core CaseStatus; omitting it made the
+        # nested status unprojectable to the core shape (#2232).
+        cs = as_CaseStatus(context=CASE_ID)
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
@@ -731,7 +733,9 @@ class TestPublicDisclosureBranchNode:
         populated_dl.create(embargo)
         populated_dl.save(case)
 
-        cs = as_CaseStatus()
+        # ``context`` is required by core CaseStatus; omitting it made the
+        # nested status unprojectable to the core shape (#2232).
+        cs = as_CaseStatus(context=CASE_ID)
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
