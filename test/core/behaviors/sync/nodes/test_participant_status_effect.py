@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Regression tests for ApplyParticipantStatusFromLedgerNode (effects.py).
+"""Regression tests for ApplyParticipantStatusFromLedgerNode.
 
 Covers the critical round-trip serialization bug: a CORE ParticipantStatus
 appended directly to as_CaseParticipant.participant_statuses was serialized with
@@ -27,7 +27,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sync.nodes.effects import (
+from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
 from vultron.core.models.case_actor import VultronCaseActor

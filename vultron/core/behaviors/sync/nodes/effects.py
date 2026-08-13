@@ -20,8 +20,6 @@ non-Case-Actor participant processes a ledger entry of a specific event type.
 
 Currently implemented effects:
 
-- :class:`ApplyParticipantStatusFromLedgerNode`: applies an
-  ``add_participant_status_to_participant`` event to the local participant record.
 - :class:`ApplyNoteFromLedgerNode`: applies an ``add_note_to_case`` event to
   the local case replica by attaching the note ID to ``notes``.
 - :class:`ApplyInviteAcceptFromLedgerNode`: applies an
@@ -32,6 +30,12 @@ Currently implemented effects:
   :class:`~vultron.core.models.participant_status.ParticipantStatus` to
   ``RM.CLOSED`` (CM-23-003, ADR-0050).
 
+Effects that carry enough logic to warrant their own module live beside this
+one and import :func:`_extract_id_from_field` from here:
+:mod:`~vultron.core.behaviors.sync.nodes.participant_status_effect`,
+:mod:`~vultron.core.behaviors.sync.nodes.ownership_effects` and
+:mod:`~vultron.core.behaviors.sync.nodes.offer_report_effect` (BTND-07-004).
+
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
 specs/case-management.yaml CM-23-003, and
 specs/sync-ledger-replication.yaml SYNC-02-002.
@@ -40,7 +44,7 @@ specs/sync-ledger-replication.yaml SYNC-02-002.
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import py_trees
 from py_trees.common import Status
@@ -50,13 +54,10 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
-    ParticipantStatus,
     participant_status_rm_state,
 )
 
 logger = logging.getLogger(__name__)
-
-_ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 
 
 def _extract_id_from_field(value: Any) -> str | None:
@@ -72,143 +73,6 @@ def _extract_id_from_field(value: Any) -> str | None:
     if isinstance(value, dict):
         return value.get("id") or value.get("id_") or None
     return getattr(value, "id_", None) or getattr(value, "id", None) or None
-
-
-class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
-    """Apply an ``add_participant_status_to_participant`` ledger entry locally.
-
-    When a non-Case-Actor participant receives
-    ``Announce(CaseLedgerEntry)`` and the entry's ``event_type`` is
-    ``add_participant_status_to_participant``, this node reconstructs the
-    :class:`~vultron.core.models.participant_status.ParticipantStatus` from
-    the entry's ``payload_snapshot`` and appends it to the matching
-    :class:`~vultron.core.models.case_participant.CaseParticipant` in the
-    local DataLayer.
-
-    The Case Actor is considered authoritative: RM-state validation is skipped
-    (the Case Actor already validated the transition before committing the
-    entry).  Idempotency is preserved — if the status ID is already present in
-    the participant's list, the node returns SUCCESS without modifying the
-    DataLayer.
-
-    Lenient on missing data: if the participant is not found in the local
-    DataLayer (this actor may have a partial view of the case), or the
-    payload snapshot is incomplete, the node returns SUCCESS without error to
-    avoid blocking the ``Announce`` processing flow.
-
-    Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
-    specs/sync-ledger-replication.yaml SYNC-02-002.
-    """
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        snapshot = entry.payload_snapshot
-
-        status_data = snapshot.get("object")
-        target_data = snapshot.get("target")
-
-        status_id = _extract_id_from_field(status_data)
-        participant_id = _extract_id_from_field(target_data)
-
-        if not status_id or not participant_id:
-            self.logger.debug(
-                "%s: payload_snapshot missing 'object' or 'target' id"
-                " — skipping status apply (non-fatal)",
-                self.name,
-            )
-            return Status.SUCCESS
-
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.logger.debug(
-                "%s: participant '%s' not found in local DataLayer"
-                " — skipping (non-fatal, partial case view)",
-                self.name,
-                participant_id,
-            )
-            return Status.SUCCESS
-
-        existing_ids = [_as_id(s) for s in participant.participant_statuses]
-        if status_id in existing_ids:
-            self.logger.debug(
-                "%s: status '%s' already present on participant '%s'"
-                " — idempotent no-op",
-                self.name,
-                status_id,
-                participant_id,
-            )
-            return Status.SUCCESS
-
-        if not isinstance(status_data, dict):
-            self.logger.warning(
-                "%s: payload_snapshot 'object' is not a dict"
-                " — cannot reconstruct ParticipantStatus for '%s'",
-                self.name,
-                status_id,
-            )
-            return Status.SUCCESS
-
-        try:
-            status_obj = ParticipantStatus.model_validate(status_data)
-        except Exception as exc:
-            self.logger.warning(
-                "%s: failed to reconstruct ParticipantStatus from"
-                " payload_snapshot for '%s': %s",
-                self.name,
-                status_id,
-                exc,
-            )
-            return Status.SUCCESS
-
-        if self.datalayer.read(status_id) is None:
-            self.datalayer.save(status_obj)
-
-        # Read back from the DataLayer to obtain the vocabulary-typed
-        # (wire-format) version of the status object.  Appending the
-        # core-model instance directly to ``participant_statuses``
-        # (typed ``list[WireParticipantStatus]``) causes Pydantic to
-        # serialize the list with default field values instead of the
-        # actual values, because the declared element type governs
-        # serialization when the runtime type differs.  Reading back
-        # via the DataLayer reconstructs the object through the
-        # vocabulary registry, returning the wire-format class that
-        # round-trips correctly.
-        status_from_dl = self.datalayer.read(status_id)
-        if status_from_dl is None:
-            self.logger.warning(
-                "%s: status '%s' not readable from DataLayer after"
-                " save — skipping participant update",
-                self.name,
-                status_id,
-            )
-            return Status.SUCCESS
-
-        participant.participant_statuses.append(
-            cast(ParticipantStatus, status_from_dl)
-        )
-        self.datalayer.save(participant)
-
-        self.logger.info(
-            "%s: applied ledger status update '%s' to participant '%s'"
-            " (DEMOMA-07-003 step 3 receiver-side)",
-            self.name,
-            status_id,
-            participant_id,
-        )
-        return Status.SUCCESS
 
 
 class ApplyNoteFromLedgerNode(DataLayerAction):

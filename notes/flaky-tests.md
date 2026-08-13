@@ -109,16 +109,16 @@ No open entries.
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
-| `fcvcv Demo Integration` | #2233 | 2026-08-13 |
-| `fvcv-handoff Demo Integration` | #2233 | 2026-08-13 |
-| `fvcv-handoff Invariant Harness` | #2233 | 2026-08-13 |
+| `fcvcv Demo Integration` | #2233 (was #2216, closed) | 2026-08-13 |
+| `fvcv-handoff Demo Integration` | #2233 (was #2216, closed) | 2026-08-13 |
+| `fvcv-handoff Invariant Harness` | #2233 (was #2216, closed) | 2026-08-13 |
 | `fcvcv Invariant Harness` | #2233 | 2026-08-13 |
-| `fcv-reject Invariant Harness` | #2233 | 2026-08-13 |
+| `fcv-reject Invariant Harness` | #2233 (was #2121, closed) | 2026-08-13 |
 | `fv Invariant Harness` | #2233 | 2026-08-13 |
 | `fv Demo Integration` | #2241 | 2026-08-13 |
 
-> `fv Demo Integration` is a different animal from the #2233 rows below it, and
-> from the async-race rows above. It passed at `dc31b6c6` and failed at
+> `fv Demo Integration` is a different animal from both the #2233 rows and the
+> async-race rows above it. It passed at `dc31b6c6` and failed at
 > `0b607c11` — a docs-only diff — while base `fe951d00` does not fail it at all,
 > so the trigger is genuinely intermittent. But the *failure* is deterministic
 > once triggered: `add-note-to-case` returns an intermittent 422, and
@@ -143,19 +143,23 @@ No open entries.
 > When a new occurrence is confirmed, `pr-execute` will open or comment on a
 > `flaky-test` + `bug` issue and record it here.
 >
-> The rows citing **#2233 are not flaky** — they are deterministic and
-> branch-independent. `engage-case` returns HTTP 422 on the invite path
-> (`SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`), so the
-> event is never emitted; #2266 then promoted `engage_case` to a universal
-> invariant asserted in all nine scenarios, which turned one silent gap into a
-> red `Invariant Harness` job per scenario. Both are open. `origin/main`
+> **The six rows pointing at #2233 are not flaky** — they are deterministic and
+> branch-independent, failing on *every* run until the engage-case 422 lands. The
+> Demo Integration pair fails on
+> `SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`; the four
+> Invariant Harness rows fail downstream of it on
+> `test_invariant_5_expected_event_types_present[engage_case]`, because the 422
+> aborts the trigger before `GuardedCommitCaseLedgerEntryBT` can record the entry
+> that #2266 made universally required across all nine scenarios — turning one
+> silent gap into a red `Invariant Harness` job per scenario. `origin/main`
 > `06bf60c2` fails **15** of these jobs on its own, so a PR that fails a subset
 > of them has not caused them.
 >
-> These rows are listed here because `pr-execute` records blocked jobs here
-> regardless of cause, and because #2216 and #2121 — the issues they used to
-> cite — are both closed and no longer the right pointer. Do not re-diagnose
-> them as nondeterminism, and do not "fix" them on a feature branch.
+> Keep them in one row set: routing them to separate issues is what left #2216
+> and #2121 as stale pointers here after they were closed. They are listed here
+> at all because `pr-execute`'s dedup procedure looks here first and records
+> blocked jobs regardless of cause. Do not re-diagnose them as nondeterminism,
+> and do not "fix" them on a feature branch.
 
 ---
 
