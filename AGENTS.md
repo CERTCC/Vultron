@@ -492,9 +492,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **FastAPI `dependency_overrides` Key Must Be Re-Exported When Converting a
   Router Module to a Package** — scan tests for `module.dependency_function`
   patterns. Issue #970.
-- **Guarded-Commit Tests Must Use the CASE_MANAGER Actor as `receiving_actor_id`**
-  — `CheckIsCaseManagerNode` checks the participant entry, not the service ID.
-  See BT-17-005.
+- **Guarded-Commit BTs Must Execute Under the CASE_MANAGER Actor's Identity** —
+  `CheckIsCaseManagerNode` compares the *blackboard* `actor_id` against the case's
+  CASE_MANAGER participant. Any code that calls `execute_with_setup` for a BT
+  containing `GuardedCommitCaseLedgerEntryBT` MUST pass the *receiving* actor's
+  ID (e.g. `request.receiving_actor_id`), NOT the sender's (`request.actor_id`).
+  This applies to production received-side use cases and to tests alike. In tests,
+  use `actor_id=case_manager_actor_id`; in received-side use cases, use
+  `actor_id=request.receiving_actor_id if request.receiving_actor_id is not None
+  else request.actor_id`. See BT-17-005. *Source: ISSUE-2300*
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
 - **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —

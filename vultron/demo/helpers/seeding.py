@@ -1109,11 +1109,9 @@ def seed_case_participants_for_demo(
     """Seed vendor, reporter, and CaseActor participants on an ADR-0041 case.
 
     Under ADR-0041, the CaseActor normally creates participants via
-    ``case_proposal_received_tree`` when it accepts a ``CaseProposal``.  In
-    single-server demo/test environments the nested ASGI delivery is blocked
-    (depth > 0 guard prevents deadlocks), so the CaseProposal round-trip never
-    completes.  This helper compensates by seeding participants directly in the
-    DataLayer and setting ``EM.ACTIVE`` so the demo milestone checks pass.
+    ``case_proposal_received_tree`` when it accepts a ``CaseProposal``.
+    This helper compensates by seeding participants directly in the DataLayer
+    and setting ``EM.ACTIVE`` so the demo milestone checks pass.
 
     It is safe to call this multiple times for the same case — idempotency
     guards on ``actor_participant_index`` prevent duplicate records.
