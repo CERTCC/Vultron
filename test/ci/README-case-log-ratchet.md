@@ -1,8 +1,7 @@
-# Case-Log Invariant Ratchet Workflow
+# Case-Log Invariant Harness
 
-This document describes the ratchet workflow for the CI case-ledger invariant
-harness, satisfying AC-6 of issue
-[#925](https://github.com/CERTCC/Vultron/issues/925).
+This document describes the CI case-ledger invariant harness, satisfying AC-6
+of issue [#925](https://github.com/CERTCC/Vultron/issues/925).
 
 The harness is modular (issue [#1592](https://github.com/CERTCC/Vultron/issues/1592)):
 universal invariant check functions live in
@@ -38,12 +37,9 @@ DEMOMA-16-001 spec statement, and needs no demo artifacts.
 
 Each scenario test file parses JSONL case-ledger replica files produced by
 the corresponding demo and asserts universal invariants (via `common.py`)
-plus scenario-specific checks. All invariants that are not yet passing are
-decorated with `pytest.mark.xfail` so the CI build stays green while fix
-PRs land one at a time.
-
-Each fix PR ratchets exactly one invariant from "expected failure" to
-"permanent regression guard" by removing its `xfail` decorator.
+plus scenario-specific checks. There are no active `xfail` markers anywhere in
+`test/ci/`. All invariants pass except invariant 5, which ISSUE-2266 made red in
+every scenario on purpose — see [Invariant Status](#invariant-status).
 
 ---
 
@@ -71,12 +67,11 @@ to include in the regular unit-test run.
 
 ---
 
-## Invariant List and Status
+## Invariant Status
 
 Per-actor parametrized tests (1, 12–14) show status per actor role.
-`✅` = passing today, `⏳` = xfail (fix tracked in linked issue),
-`⚠️` = failing today and **not** xfailed, so the job is red (linked issue owns
-the fix).
+`✅` = passing today, `⚠️` = failing today and **not** `xfail`ed, so the job is
+red (the linked issue owns the fix).
 
 > **Invariant 5 is currently red, by design.** ISSUE-2266 promoted
 > `engage_case` to the fifth universal expected event type (DEMOMA-16-001)
@@ -108,28 +103,13 @@ the fix).
 
 ---
 
-## Ratchet: Flipping an xfail to Passing
+## CI Behavior (AC-5)
 
-When a fix PR lands that resolves one of the `xfail` invariants:
-
-1. **Identify the test function** — each test's docstring contains its
-   AC number (e.g., `AC-4.2`) and a note: "remove the `xfail` decorator
-   to make it a permanent regression guard."
-
-2. **Remove the `xfail` decorator** from that test function.
-
-3. **Run the harness** (with demo artifacts in place) to confirm the test
-   now passes:
-
-   ```bash
-   uv run pytest test/ci/invariants/ -v
-   ```
-
-4. **Commit the decorator removal** in the same PR as (or immediately
-   after) the fix, citing the issue number.
-
-5. **Update the table above** — change ⏳ xfail to ✅ passing and clear
-   the "Resolving issue" column.
+| Scenario | Outcome |
+|----------|---------|
+| Invariant passes | ✅ green |
+| Invariant **fails** | ❌ build fails |
+| No `devlogs/` present | ✅ green (all tests skipped) |
 
 ---
 
@@ -172,10 +152,7 @@ When a fix PR lands that resolves one of the `xfail` invariants:
        ...
    ```
 
-5. Add a row to the invariant table above.
-
-6. Run `uv run pytest test/ci/invariants/ -v` (with demo artifacts) to
-   confirm the new test appears with the expected `XFAIL` status.
+   Then add a row to the invariant status table above.
 
 ### Adding a new scenario
 
@@ -189,22 +166,6 @@ When a fix PR lands that resolves one of the `xfail` invariants:
 4. Add scenario-specific invariants below the universal section.
 
 5. Update the scenario table at the top of this document.
-
----
-
-## CI Behavior (AC-5)
-
-| Scenario | Outcome |
-|----------|---------|
-| Non-xfailed invariant passes | ✅ green |
-| Non-xfailed invariant **fails** | ❌ build fails |
-| xfailed invariant fails (expected) | ✅ green (reported as `XFAIL`) |
-| xfailed invariant passes unexpectedly | ✅ green but reported as `XPASS` |
-| No `devlogs/` present | ✅ green (all tests skipped) |
-
-The `strict=False` on every `xfail` decorator implements this: unexpected
-passes (`XPASS`) are visible in the CI report but do not cause a non-zero
-exit code.
 
 ---
 

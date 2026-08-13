@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.7.0
+version: 1.8.0
 scope:
   - prototype
   - production
@@ -213,22 +213,31 @@ groups:
           `--abort-on-container-exit --exit-code-from demo-runner`.
 
       - id: DEMOCI-02-007
-        priority: MUST
+        priority: SHOULD
         kind: project
         statement: >-
-          The workflow MUST use GitHub Actions Docker layer caching to avoid
-          rebuilding unchanged dependency layers on every run.
+          The workflow SHOULD use Docker layer caching to avoid rebuilding
+          unchanged dependency layers on every run. GHA cache export via
+          composite `run:` steps is inoperable because GitHub only injects
+          the required cache tokens (ACTIONS_RUNTIME_TOKEN,
+          ACTIONS_CACHE_URL) into `uses:` steps; accordingly the GHA cache
+          configuration has been removed. This entry documents the intent for
+          when a working caching mechanism becomes available (#2248).
 
       - id: DEMOCI-02-008
         priority: MUST
         kind: project
         statement: >-
           The workflow MUST upload all container logs as a CI artifact when
-          the demo job fails, and MUST NOT upload logs on success.
+          the demo job fails or is cancelled, and MUST NOT upload logs on
+          success.
         rationale: >-
-          Logs are diagnostic information; uploading them only on failure
-          keeps successful run artifacts clean while providing full context
-          for debugging broken runs.
+          Logs are diagnostic information; uploading them only on failure or
+          cancellation keeps successful run artifacts clean while providing
+          full context for debugging broken or timed-out runs. A cancelled
+          job (e.g. caused by a wedged container hitting the job timeout)
+          converts a diagnosable failure into an undiagnosable one unless
+          logs are collected on the cancelled path (#2245).
 
       - id: DEMOCI-02-009
         priority: MUST
@@ -271,11 +280,10 @@ groups:
           pile up and waste CI minutes while delaying feedback; a newer commit
           renders earlier PR-branch runs pointless. Cancelling superseded PR
           runs reclaims those minutes. On-main runs are never cancelled because
-          each run both validates the merged main HEAD (DEMOCI-05-001) and
-          protects the fallback cache scope that new PR branches read from (see
-          DEMOCI-02-007 and DEMOCI-05-003). Keyed on the ref, a burst of merges
-          to main still runs each qualifying commit to completion rather than
-          collapsing to the newest, preserving per-commit failure attribution.
+          each run validates the merged main HEAD (DEMOCI-05-001); keyed on
+          the ref, a burst of merges to main still runs each qualifying commit
+          to completion rather than collapsing to the newest, preserving
+          per-commit failure attribution.
 
   - id: DEMOCI-03
     title: Extensibility for Additional Demo Scenarios
@@ -492,31 +500,6 @@ groups:
             spec_id: DEMOCI-05-001
           - rel_type: refines
             spec_id: DEMOCI-02-011
-
-      - id: DEMOCI-05-003
-        priority: MUST
-        kind: project
-        statement: >-
-          The on-main run of demo-integration.yml MUST export its Docker image
-          layers to the `demo-integration-main` GitHub Actions cache scope so
-          that new PR branches read a warm fallback cache (per DEMOCI-02-007).
-          The dedicated demo-image-cache-warm.yml workflow, whose sole purpose
-          was to warm this cache on main, MUST be removed once the on-main demo
-          run performs the same cache export, to avoid a redundant second image
-          build on every qualifying push to main.
-        rationale: >-
-          Before this change, demo-integration.yml ran only on pull_request, so
-          a separate demo-image-cache-warm.yml existed purely to build the demo
-          images on main and populate the demo-integration-main cache scope for
-          new PR branches. Once demo-integration.yml itself runs on push to main
-          and writes that scope, a second cache-only build is pure waste. Folding
-          the cache export into the on-main run gives one build that both
-          validates the demo and warms the cache.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-05-001
-          - rel_type: refines
-            spec_id: DEMOCI-02-007
 
       - id: DEMOCI-05-004
         priority: MUST
