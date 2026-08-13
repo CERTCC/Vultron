@@ -134,6 +134,28 @@ groups:
     adr:
     - ADR-0033
     - ADR-0036
+  - id: SDO-03-005
+    priority: MUST
+    kind: project
+    statement: Because unknown keys are ignored by default in Pydantic v2, removing a flat-field migration shim from `CaseStatus`
+      or `ParticipantStatus` MUST be accompanied by a `model_validator(mode="before")` that raises `VultronValidationError`
+      when a retired flat key (`rm_state`/`rmState`, `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`, `em_state`/`emState`,
+      `pxa_state`/`pxaState`) is present. Deleting the shim without such a guard is prohibited.
+    rationale: 'With `extra="ignore"`, a flat `rm_state` key would be silently discarded and `rm.state` would default to `RM.START`
+      — a whole RM ladder lost with no error, which is the defect class of issue #2232 and a violation of ARCH-15-001/ARCH-15-002.
+      The guard converts the loss into a loud failure that `DataLayer._from_row` already catches and recovers via the wire→core
+      projection path (ADR-0062).'
+    verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise `VultronValidationError`;
+      neither yields a model whose `rm.state` is `RM.START`.'
+    relationships:
+    - rel_type: depends_on
+      spec_id: SDO-03-003
+      note: SDO-03-003 requires the shims to go; this requirement constrains how they are removed safely.
+    - rel_type: refines
+      spec_id: ARCH-15-002
+    adr:
+    - ADR-0062
+    - ADR-0063
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:
