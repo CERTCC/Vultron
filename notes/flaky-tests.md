@@ -111,19 +111,13 @@ No open entries.
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
-| `fcvcv Demo Integration` | #2233 (was #2216, closed) | 2026-08-13 |
-| `fvcv-handoff Demo Integration` | #2233 (was #2216, closed) | 2026-08-13 |
-| `fvcv-handoff Invariant Harness` | #2233 (was #2216, closed) | 2026-08-13 |
-| `fcvcv Invariant Harness` | #2233 | 2026-08-13 |
-| `fcv-reject Invariant Harness` | #2233 (was #2121, closed) | 2026-08-13 |
-| `fv Invariant Harness` | #2233 | 2026-08-13 |
 | `fv Demo Integration` | #2241 | 2026-08-13 |
 
-> `fv Demo Integration` is a different animal from both the #2233 rows and the
-> async-race rows above it. It passed at `dc31b6c6` and failed at
-> `0b607c11` — a docs-only diff — while base `fe951d00` does not fail it at all,
-> so the trigger is genuinely intermittent. But the *failure* is deterministic
-> once triggered: `add-note-to-case` returns an intermittent 422, and
+> `fv Demo Integration` is a different animal from the async-race rows above
+> it. It passed at `dc31b6c6` and failed at `0b607c11` — a docs-only diff —
+> while base `fe951d00` does not fail it at all, so the trigger is genuinely
+> intermittent. But the *failure* is deterministic once triggered:
+> `add-note-to-case` returns an intermittent 422, and
 > `vultron/demo/helpers/notes.py:92` then reads `result` outside the
 > `with demo_step(...)` block that assigned it. `demo_step` suppresses the
 > exception, so control falls through and raises
@@ -132,12 +126,13 @@ No open entries.
 > (last touched by #1387, #543).
 >
 > **#2241 already owns this pattern** — "assignment inside a swallowing
-> `demo_check` block then used after it" — so this row cites it rather than a new
-> issue. The concrete callsite and run evidence are recorded there; note the
-> pattern reaches `demo_step` too, not just `demo_check`. The related reporting
-> failure is #2240. The `ValueError: No case ledger entries` later in the same run
-> is *not* a second bug: `ledger_dump.py:434` raises it deliberately because the
-> run died before any ledger was written. See also #2281.
+> `demo_check` block then used after it" — so this row cites it rather than a
+> new issue. The concrete callsite and run evidence are recorded there; note
+> the pattern reaches `demo_step` too, not just `demo_check`. The related
+> reporting failure is #2240. The `ValueError: No case ledger entries` later in
+> the same run is *not* a second bug: `ledger_dump.py:434` raises it
+> deliberately because the run died before any ledger was written. See also
+> #2281.
 >
 > The rows with no issue number fail intermittently due to inter-container HTTP
 > delivery timeouts (async race windows). Root cause documented in
@@ -145,23 +140,11 @@ No open entries.
 > When a new occurrence is confirmed, `pr-execute` will open or comment on a
 > `flaky-test` + `bug` issue and record it here.
 >
-> **The six rows pointing at #2233 are not flaky** — they are deterministic and
-> branch-independent, failing on *every* run until the engage-case 422 lands. The
-> Demo Integration pair fails on
-> `SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`; the four
-> Invariant Harness rows fail downstream of it on
-> `test_invariant_5_expected_event_types_present[engage_case]`, because the 422
-> aborts the trigger before `GuardedCommitCaseLedgerEntryBT` can record the entry
-> that #2266 made universally required across all nine scenarios — turning one
-> silent gap into a red `Invariant Harness` job per scenario. `origin/main`
-> `06bf60c2` fails **15** of these jobs on its own, so a PR that fails a subset
-> of them has not caused them.
->
-> Keep them in one row set: routing them to separate issues is what left #2216
-> and #2121 as stale pointers here after they were closed. They are listed here
-> at all because `pr-execute`'s dedup procedure looks here first and records
-> blocked jobs regardless of cause. Do not re-diagnose them as nondeterminism,
-> and do not "fix" them on a feature branch.
+> **Removed 2026-08-13:** `fcvcv Demo Integration`, `fvcv-handoff Demo
+> Integration`, `fvcv-handoff Invariant Harness`, `fcvcv Invariant Harness`,
+> `fcv-reject Invariant Harness`, `fv Invariant Harness` — these were
+> **deterministic** failures caused by the engage-case 422 (#2233, now fixed).
+> They are gone from this catalog because the fix lands with the PR for #2233.
 
 ---
 

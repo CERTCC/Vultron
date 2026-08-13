@@ -62,6 +62,7 @@ def case_with_participant(
         name="Participant Case",
         vulnerability_reports=[report.id_],
         case_participants=[participant.id_],
+        actor_participant_index={actor.id_: participant.id_},
         attributed_to=actor.id_,
     )
     bt_scenario.seed(participant, case)

@@ -158,6 +158,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
         name="Test Case",
         vulnerability_reports=[report.id_],
         case_participants=[participant.id_],
+        actor_participant_index={actor_id: participant.id_},
     )
     datalayer.create(case)
     return case
@@ -448,6 +449,10 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
         name="Multi-participant case",
         vulnerability_reports=[report.id_],
         case_participants=[participant_a.id_, participant_b.id_],
+        actor_participant_index={
+            actor_a: participant_a.id_,
+            actor_b: participant_b.id_,
+        },
     )
     datalayer.create(case)
 
