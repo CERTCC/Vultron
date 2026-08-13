@@ -19,7 +19,7 @@ Both nodes here adjudicate the ``rm`` dimension *alone* and refuse the whole
 snapshot when it is unacceptable.  That is correct for the standalone
 ``append_participant_status_tree``, where the caller has already decided which
 status to append, but it is the wrong shape for a receive-side seam — see
-:mod:`vultron.core.behaviors.status.nodes.dimension_filter` and ADR-0060
+:mod:`vultron.core.behaviors.status.nodes.dimension_filter` and ADR-0061
 (RSH-05, ISSUE-2235).
 """
 

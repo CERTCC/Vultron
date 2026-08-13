@@ -28,7 +28,7 @@ Submodules:
 - ``replay``: Replay and fan-out action nodes for replication
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept, close-case)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
-  monotonic-RM ratchet (ADR-0060)
+  monotonic-RM ratchet (ADR-0061)
 - ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``:
   per-effect ledger-apply nodes
 """

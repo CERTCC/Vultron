@@ -18,7 +18,7 @@
 Provides :class:`ApplyParticipantStatusFromLedgerNode`, which applies an
 ``add_participant_status_to_participant`` ledger entry to the local participant
 record, and the RM ratchet that keeps that application monotonic (RSH-05-007,
-ADR-0060).
+ADR-0061).
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3 and
 specs/sync-ledger-replication.yaml SYNC-02-002.
@@ -217,8 +217,13 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
             status_obj, participant, status_id, participant_id
         )
 
-        if self.datalayer.read(status_id) is None:
-            self.datalayer.save(status_obj)
+        # Saved unconditionally: the read-back below is what actually reaches
+        # ``participant_statuses``, so skipping the save when the object already
+        # exists locally would silently discard the RM ratchet applied above and
+        # append the un-ratcheted status instead — regressing the replica's RM
+        # while the ratchet's own log line claims the opposite (RSH-05-007,
+        # SYNC-02-002).
+        self.datalayer.save(status_obj)
 
         # Read back from the DataLayer to obtain the vocabulary-typed
         # (wire-format) version of the status object.  Appending the

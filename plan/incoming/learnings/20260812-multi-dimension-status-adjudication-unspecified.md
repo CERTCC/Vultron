@@ -20,7 +20,7 @@ whole snapshot and aborts the enclosing Sequence. That silently dropped accepted
 teardown. Nothing in the spec was violated, because nothing in the spec covered
 it.
 
-Filled by RSH-05-001..008 and ADR-0060. The generalizable lesson: whenever a
+Filled by RSH-05-001..008 and ADR-0061. The generalizable lesson: whenever a
 spec group governs a **composite** object, it needs an explicit statement of
 whether the object is adjudicated as a unit or per component. "Validate X" is
 ambiguous for any X that is a tuple of independent values, and the BT node

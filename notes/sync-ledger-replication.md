@@ -230,7 +230,18 @@ invariants under normal operation and partial failure:
    has already observed. The local value is carried forward for `rm` only;
    every other dimension is applied as the entry describes it, and lateral
    moves at the same rank (`VALID` ↔ `INVALID`) are re-adjudication rather than
-   regression (RSH-05-007, ADR-0060).
+   regression (RSH-05-007, ADR-0061).
+
+   The ratcheted status is saved to the DataLayer **unconditionally**. The node
+   appends the object it reads *back* from the DataLayer — a wire-typed instance
+   is required, because appending the core model to a
+   `list[WireParticipantStatus]` makes Pydantic serialize it with the declared
+   element type's defaults. So the ratchet only takes effect if the ratcheted
+   copy is what got written. A status object can already be stored locally
+   without being on the participant (an out-of-order `Announce` of the object
+   itself, or a replayed entry), and skipping the save in that case appends the
+   un-ratcheted status while the ratchet's own warning claims the local value was
+   carried forward.
 5. **Reject-on-divergence**: Entries that do not extend the current hash
    chain MUST be rejected and MUST trigger resynchronization.
 

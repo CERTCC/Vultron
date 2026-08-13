@@ -277,7 +277,7 @@ nav:
       - Rename CVDRole.OTHER to CVDRole.OBSERVER and Define Observer Participant Semantics: 'adr/0057-observer-participant-role.md'
       - Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order: 'adr/0058-causal-gating-in-demo-scenarios.md'
       - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0059-buffer-pre-genesis-ledger-entries.md'
-      - Adjudicate Received ParticipantStatus Per Dimension, Not as a Unit: 'adr/0060-per-dimension-partial-accept.md'
+      - Adjudicate Received ParticipantStatus Per Dimension, Not as a Unit: 'adr/0061-per-dimension-partial-accept.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

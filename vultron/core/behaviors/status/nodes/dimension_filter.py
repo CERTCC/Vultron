@@ -70,8 +70,38 @@ logger = logging.getLogger(__name__)
 
 #: Blackboard key carrying the per-dimension filter outcome for the append
 #: nodes downstream (``ResolveAndPersistStatusObjectNode``,
-#: ``ValidateRMTransitionNode``).  ``None`` when nothing was refused.
+#: ``ValidateRMTransitionNode``).  ``None`` when nothing was filtered.
 BB_DIMENSION_FILTER = "append_status_dimension_filter"
+
+
+def _accepted_wire_patch(filtered: ParticipantStatus) -> dict[str, Any]:
+    """Return the adjudicated dimension values keyed by their wire aliases.
+
+    The canonical ledger's ``payload_snapshot['object']`` is the *sender's*
+    wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfdState``, nested
+    ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
+    override is therefore published as a **patch** rather than a replacement
+    object: dumping this core model would emit nested ``rm``/``vfd`` dimension
+    objects and lose the fields the guard never adjudicated, and core must not
+    import the wire layer to convert (ADR-0009, ADR-0017).  Patching leaves the
+    snapshot's shape exactly as the non-override path produces it and rewrites
+    only what was adjudicated (RSH-05-004, RSH-05-009).
+
+    The alias names below are the same ones the core models already accept as
+    wire-compat input — see ``ParticipantStatus._migrate_flat_fields`` and
+    ``CaseStatus._migrate_flat_fields`` — so they are part of core's existing
+    surface, not new knowledge of the wire format.
+    """
+    patch: dict[str, Any] = {
+        "rmState": filtered.rm.state.name,
+        "vfdState": filtered.vfd.state.name,
+    }
+    if filtered.case_status is not None:
+        patch["caseStatus"] = {
+            "emState": filtered.case_status.em.state.name,
+            "pxaState": filtered.case_status.pxa.state.name,
+        }
+    return patch
 
 
 def _to_core_status(status_obj: Any) -> ParticipantStatus | None:
@@ -126,6 +156,25 @@ def _significant_state(status: ParticipantStatus) -> tuple:
     )
 
 
+def _dimension_state(status: ParticipantStatus, dimension: str) -> Any:
+    """Return the state of one adjudicated dimension of *status*.
+
+    Used to tell a dimension that was genuinely *rewritten* from one that was
+    blocked but whose recorded value matches the assertion anyway.
+    """
+    if dimension == "rm":
+        return status.rm.state
+    if dimension == "vfd":
+        return status.vfd.state
+    if dimension == "pxa":
+        return (
+            None
+            if status.case_status is None
+            else status.case_status.pxa.state
+        )
+    return None
+
+
 def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
     """Return True if *asserted* is an acceptable RM value given *current*.
 
@@ -154,6 +203,14 @@ def _adjudicate_dimensions(
     ``consent``, ``case_engagement``, ``embargo_adherence``, ``cvd_role`` and
     ``tracking_id`` are not adjudicated here — ``em`` in particular belongs to
     Seam 2 (ADR-0046, ISSUE-2256).
+
+    The two return values are deliberately not the same set.  ``refused`` names
+    the dimensions whose *asserted* value was rejected; ``update_fields`` also
+    carries dimensions the sender said nothing about, which must be preserved
+    rather than dropped.  An inbound status with no ``case_status`` at all is
+    the common case: it asserts nothing about ``pxa``/``em``, so the
+    participant's current ``case_status`` is carried forward instead of letting
+    the omission erase state the receiver already holds (RSH-05-002).
     """
     refused: list[str] = []
     update_fields: dict[str, Any] = {}
@@ -172,7 +229,11 @@ def _adjudicate_dimensions(
 
     asserted_cs = asserted.case_status
     current_cs = current.case_status
-    if asserted_cs is not None and current_cs is not None:
+    if asserted_cs is None and current_cs is not None:
+        # Nothing asserted about pxa/em — carry the receiver's own view
+        # forward.  Persisting the assertion as-is would blank both.
+        update_fields["case_status"] = current_cs.model_copy(deep=True)
+    elif asserted_cs is not None and current_cs is not None:
         current_pxa = current_cs.pxa.state
         asserted_pxa = asserted_cs.pxa.state
         if asserted_pxa != current_pxa and not is_monotonic_pxa_forward(
@@ -249,7 +310,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
         ``None`` when no filtering applies — to prevent a previous run's
         override from leaking into this one.
         """
-        if filtered is None or not refused:
+        if filtered is None:
             self.blackboard.set(BB_DIMENSION_FILTER, None, overwrite=True)
             self.blackboard.set(
                 BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None, overwrite=True
@@ -270,12 +331,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
             {
                 "object_id": self.status_id,
-                "object": filtered.model_dump(
-                    mode="json",
-                    by_alias=True,
-                    serialize_as_any=True,
-                    exclude_none=True,
-                ),
+                "fields": _accepted_wire_patch(filtered),
             },
             overwrite=True,
         )
@@ -291,6 +347,11 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
+        # Clear first, unconditionally: the no-op paths below must not inherit
+        # a previous execution's override from the process-global blackboard,
+        # and neither must the datalayer-missing early return (BT-17-003/004).
+        self._publish((), None)
+
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -318,8 +379,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             return Status.SUCCESS
 
         refused, update_fields = _adjudicate_dimensions(current, asserted)
-        if not refused:
-            self._publish((), None)
+        if not update_fields:
             return Status.SUCCESS
 
         # ``name`` on a ParticipantStatus is a derived state summary (the wire
@@ -330,12 +390,16 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
         update_fields["name"] = None
         filtered = asserted.model_copy(update=update_fields)
 
+        # RSH-05-005: nothing acceptable was carried by this assertion, so
+        # appending it would grow the status history and the hash chain without
+        # recording a state change.  Reached both when every refused dimension
+        # left the snapshot at the current state and when an omitted
+        # ``case_status`` was the only thing carried forward.
         if _significant_state(filtered) == _significant_state(current):
             self.feedback_message = (
                 f"Status '{self.status_id}' refused in full for participant"
-                f" '{self.participant_id}': refused dimension(s)"
-                f" {', '.join(refused)} and no other dimension carries new"
-                " state"
+                f" '{self.participant_id}': {self._carry_summary(refused)}"
+                " and no other dimension carries new state"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             self._publish((), None)
@@ -344,14 +408,30 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
         self._publish(tuple(refused), filtered)
         self.feedback_message = (
             f"Partially accepted status '{self.status_id}' for participant"
-            f" '{self.participant_id}': refused {', '.join(refused)}"
+            f" '{self.participant_id}': {self._carry_summary(refused)}"
         )
+        # A refused dimension whose recorded value equals the asserted one
+        # discarded nothing — RM.CLOSED restated by a participant that has
+        # already closed is the common case (RSH-05-006).  Naming it as a
+        # refusal in the operator-facing log would misdescribe the audit trail,
+        # so report what was actually rewritten.
+        rewritten = [
+            dim
+            for dim in refused
+            if _dimension_state(filtered, dim)
+            != _dimension_state(asserted, dim)
+        ]
         self.logger.warning(
-            "%s: refused dimension(s) %s for participant '%s' (asserted"
-            " rm=%s vfd=%s pxa=%s; recording rm=%s vfd=%s pxa=%s) — RSH-05"
-            " partial accept",
+            "%s: %s for participant '%s' (asserted rm=%s vfd=%s pxa=%s;"
+            " recording rm=%s vfd=%s pxa=%s) — RSH-05 partial accept",
             self.name,
-            ", ".join(refused),
+            (
+                f"rewrote dimension(s) {', '.join(rewritten)}"
+                if rewritten
+                else "blocked dimension(s) "
+                + ", ".join(refused)
+                + " with no change to the asserted value"
+            ),
             self.participant_id,
             asserted.rm.state,
             asserted.vfd.state,
@@ -369,6 +449,13 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             ),
         )
         return Status.SUCCESS
+
+    @staticmethod
+    def _carry_summary(refused: list[str]) -> str:
+        """Describe what the filter did, for feedback messages."""
+        if refused:
+            return f"refused dimension(s) {', '.join(refused)}"
+        return "carried the current case_status forward (none asserted)"
 
 
 def resolve_dimension_filter(

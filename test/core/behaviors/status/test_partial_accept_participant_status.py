@@ -48,8 +48,17 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
+    _merge_snapshot_object_fields,
+)
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
+)
+from vultron.core.behaviors.status.nodes.dimension_filter import (
+    BB_DIMENSION_FILTER,
+    FilterParticipantStatusDimensionsNode,
+    resolve_dimension_filter,
 )
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
@@ -61,6 +70,7 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
@@ -91,6 +101,7 @@ PARTICIPANT_ID = f"{CASE_ID}/participants/vendor"
 CM_PARTICIPANT_ID = f"{CASE_ID}/participants/case-actor"
 CURRENT_STATUS_ID = f"{PARTICIPANT_ID}/statuses/current"
 ASSERTED_STATUS_ID = f"{PARTICIPANT_ID}/statuses/asserted"
+SECOND_STATUS_ID = f"{PARTICIPANT_ID}/statuses/asserted-2"
 
 _ZERO_HASH = "0" * 64
 
@@ -170,12 +181,13 @@ def _status_ids(dl: SqliteDataLayer, participant_id: str) -> list[str]:
 
 
 def _ledger_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
-    return [
+    entries = [
         cast(VultronCaseLedgerEntry, obj)
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, VultronCaseLedgerEntry)
         and cast(VultronCaseLedgerEntry, obj).case_id == CASE_ID
     ]
+    return sorted(entries, key=lambda e: e.log_index)
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +218,7 @@ def _current_status(
         context=CASE_ID,
         rm_state=rm_state,
         vfd_state=vfd_state,
+        em_consent_state=PEC.SIGNATORY,
         case_status=as_CaseStatus(
             id_=f"{CURRENT_STATUS_ID}/cs",
             context=CASE_ID,
@@ -218,20 +231,32 @@ def _current_status(
 def _asserted_status(
     rm_state: RM,
     vfd_state: CS_vfd,
-    pxa_state: CS_pxa,
+    pxa_state: CS_pxa | None,
+    status_id: str = ASSERTED_STATUS_ID,
 ) -> as_ParticipantStatus:
-    """The inbound assertion from the sender."""
-    return as_ParticipantStatus(
-        id_=ASSERTED_STATUS_ID,
-        context=CASE_ID,
-        rm_state=rm_state,
-        vfd_state=vfd_state,
-        case_status=as_CaseStatus(
-            id_=f"{ASSERTED_STATUS_ID}/cs",
+    """The inbound assertion from the sender.
+
+    ``pxa_state=None`` builds a status with **no** ``case_status`` at all — the
+    normal shape when the sender has nothing to say about the case-level
+    dimensions, not a malformed message.
+    """
+    case_status = (
+        None
+        if pxa_state is None
+        else as_CaseStatus(
+            id_=f"{status_id}/cs",
             context=CASE_ID,
             em_state=EM.NONE,
             pxa_state=pxa_state,
-        ),
+        )
+    )
+    return as_ParticipantStatus(
+        id_=status_id,
+        context=CASE_ID,
+        rm_state=rm_state,
+        vfd_state=vfd_state,
+        em_consent_state=PEC.SIGNATORY,
+        case_status=case_status,
     )
 
 
@@ -399,6 +424,126 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert _vfd_of(snapshot_object) == CS_vfd.VFd.name
         assert _pxa_of(snapshot_object) == CS_pxa.Pxa.name
 
+    def test_ledger_snapshot_keeps_the_wire_shape_of_an_unfiltered_snapshot(
+        self, dl, make_payload
+    ):
+        """Adjudication must rewrite values, never reshape the snapshot.
+
+        ``payload_snapshot['object']`` is consumed by every replica and by the
+        invariant harness, which read the flat wire aliases (``rmState``,
+        ``vfdState``, ``emConsentState``, ``cvdRole``) and the nested
+        ``caseStatus``.  The guard runs in ``vultron.core`` and cannot import
+        the wire layer to rebuild the object, so it publishes a *patch* over the
+        sender's already-wire-shaped snapshot.  A snapshot built by dumping the
+        core model instead would carry nested ``rm``/``vfd`` dimension objects
+        and silently drop every field the guard never adjudicated
+        (CLP-07-001, CM-18-006, ADR-0009).
+        """
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert result.status == Status.SUCCESS
+
+        entries = _ledger_entries(dl)
+        assert len(entries) == 1
+        snap = entries[0].payload_snapshot["object"]
+        assert isinstance(snap, dict)
+
+        # Flat wire aliases, carrying the adjudicated values.
+        assert snap["rmState"] == RM.VALID.name
+        assert snap["vfdState"] == CS_vfd.VFd.name
+
+        # Fields the guard never adjudicated survive the patch untouched.
+        assert (
+            snap.get("emConsentState") == PEC.SIGNATORY.name
+        ), "emConsentState must survive adjudication (fcvcv invariant harness)"
+        assert "cvdRole" in snap, "cvdRole must survive adjudication"
+        assert "@context" in snap, "@context must survive adjudication"
+        assert snap.get("type") == "ParticipantStatus"
+
+        # No core-model shapes, and no stale snake_case twin of a patched field.
+        assert not isinstance(
+            snap.get("rm"), dict
+        ), f"core 'rm' dimension object leaked into the snapshot: {snap!r}"
+        assert not isinstance(
+            snap.get("vfd"), dict
+        ), f"core 'vfd' dimension object leaked into the snapshot: {snap!r}"
+        assert "rm_state" not in snap
+        assert "vfd_state" not in snap
+
+        # The nested caseStatus is patched in place, keeping its own identity.
+        case_status = snap["caseStatus"]
+        assert isinstance(case_status, dict)
+        assert case_status["pxaState"] == CS_pxa.Pxa.name
+        assert case_status["emState"] == EM.NONE.name
+        assert case_status.get("id") == f"{ASSERTED_STATUS_ID}/cs"
+        assert "pxa_state" not in case_status
+
+
+# ---------------------------------------------------------------------------
+# An omitted case_status asserts nothing — it must not erase pxa/em
+# ---------------------------------------------------------------------------
+
+
+class TestOmittedCaseStatusIsNotAnAssertion:
+    """A status with no ``caseStatus`` says nothing about ``pxa``/``em``.
+
+    Persisting such an assertion verbatim would blank both dimensions on the
+    receiver, which is a silent data loss rather than an adjudication: the
+    sender never claimed anything to adjudicate (RSH-05-002).
+    """
+
+    def test_omitted_case_status_does_not_erase_pxa_and_em(
+        self, dl, make_payload
+    ):
+        """vfd advances; the receiver's own ``case_status`` carries forward."""
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pXa)
+        asserted = _asserted_status(RM.VALID, CS_vfd.VFd, None)
+        assert asserted.case_status is None
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        assert result.status == Status.SUCCESS, (
+            "an omitted case_status is not a refusal"
+            f" (feedback: {result.feedback_message})"
+        )
+
+        latest = _latest_status(dl, PARTICIPANT_ID)
+        assert (
+            _vfd_of(latest) == CS_vfd.VFd.name
+        ), "the vfd advance is accepted"
+        assert (
+            _pxa_of(latest) == CS_pxa.pXa.name
+        ), "an unasserted pxa must be carried forward, not blanked"
+        assert (
+            _em_of(latest) == EM.NONE.name
+        ), "an unasserted em must be carried forward, not blanked"
+
+    def test_omitted_case_status_alone_carries_no_new_state(
+        self, dl, make_payload
+    ):
+        """Nothing asserted but the omission → refused in full, no entry.
+
+        Carrying ``case_status`` forward is not new information, so appending
+        the status would grow the history and the hash chain without recording
+        a state change (RSH-05-005).  Run as the Case Manager so a commit
+        *would* fire if the guards let it through.
+        """
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pXa)
+        asserted = _asserted_status(RM.VALID, CS_vfd.Vfd, None)
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert result.status == Status.FAILURE
+
+        assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
+        assert _ledger_entries(dl) == []
+        latest = _latest_status(dl, PARTICIPANT_ID)
+        assert _pxa_of(latest) == CS_pxa.pXa.name
+        assert _em_of(latest) == EM.NONE.name
+
 
 # ---------------------------------------------------------------------------
 # Terminal RM.CLOSED
@@ -524,3 +669,238 @@ class TestLedgerApplyRmRatchet:
         assert (
             _vfd_of(latest) == CS_vfd.VFd.name
         ), "the accepted vfd advance must still be applied"
+
+    def test_ratchet_holds_when_the_status_object_is_already_stored_locally(
+        self, dl
+    ):
+        """The ratchet must survive a status object already in the DataLayer.
+
+        The node appends the object it *reads back* from the DataLayer, so the
+        ratcheted value only reaches ``participant_statuses`` if the ratcheted
+        copy is saved.  A status object can already be stored locally without
+        being on the participant — an out-of-order ``Announce`` of the object
+        itself, or a replayed entry — and skipping the save in that case appends
+        the un-ratcheted status while the ratchet's own log line claims the
+        local value was carried forward (RSH-05-007, SYNC-02-002).
+        """
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
+        _seed_case(dl, current, None)
+        # Present as a stored object, absent from participant_statuses.
+        dl.create(_asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.pxa))
+        assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
+
+        entry = _status_snapshot_entry(rm_state="RECEIVED", vfd_state="VFd")
+        event = _announce_event(entry)
+
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(
+                name="ApplyParticipantStatusFromLedger"
+            ),
+            actor_id=ACTOR_ID,
+            activity=event,
+        )
+        assert result.status == Status.SUCCESS
+
+        latest = _latest_status(dl, PARTICIPANT_ID)
+        assert _rm_of(latest) == RM.VALID.name, (
+            "the ratcheted rm must be persisted even when the status object"
+            " was already present in the local DataLayer"
+        )
+        assert _vfd_of(latest) == CS_vfd.VFd.name
+
+
+# ---------------------------------------------------------------------------
+# Blackboard hygiene
+#
+# The py_trees blackboard is process-global and is not cleared between tree
+# executions, so every key a node writes is a potential leak into the next run
+# (BT-17-003, BT-17-004).  The ledger override is the dangerous one: it rewrites
+# what gets hash-chained and replicated to every participant.
+# ---------------------------------------------------------------------------
+
+
+class TestLedgerOverrideDoesNotLeakBetweenExecutions:
+    """A stale override must never reach a later commit."""
+
+    def test_second_execution_does_not_inherit_the_first_overrides(
+        self, dl, make_payload
+    ):
+        """Two runs of the same status ID, no blackboard clear in between.
+
+        Run 1 partially accepts and commits the adjudicated snapshot.  Run 2 is
+        an idempotent re-delivery: the filter adjudicates nothing, so run 2's
+        receipt entry must record the snapshot exactly as it arrived.  Both runs
+        carry the same ``object_id``, so the commit node's ID match cannot catch
+        this leak — the filter has to clear the key on its no-op path
+        (BT-17-003, BT-17-004).
+        """
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+
+        first = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert first.status == Status.SUCCESS
+        assert ASSERTED_STATUS_ID in _status_ids(dl, PARTICIPANT_ID)
+
+        second = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert second.status == Status.SUCCESS
+
+        entries = _ledger_entries(dl)
+        assert len(entries) == 2, "each receipt commits its own entry"
+        assert (
+            entries[0].payload_snapshot["object"]["rmState"] == RM.VALID.name
+        ), "run 1 records the adjudicated rm"
+        assert (
+            entries[1].payload_snapshot["object"]["rmState"]
+            == RM.RECEIVED.name
+        ), (
+            "run 2 adjudicated nothing, so a stale override from run 1 must not"
+            " rewrite its snapshot"
+        )
+
+    def test_a_distinct_status_id_does_not_inherit_the_override(
+        self, dl, make_payload
+    ):
+        """A leftover override for another object is ignored by the ID match."""
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+
+        assert (
+            _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload).status
+            == Status.SUCCESS
+        )
+
+        # Wholly acceptable, so the filter publishes nothing of its own.
+        second_status = _asserted_status(
+            RM.ACCEPTED, CS_vfd.VFd, CS_pxa.Pxa, status_id=SECOND_STATUS_ID
+        )
+        dl.create(second_status)
+        assert (
+            _run_tree(dl, second_status, CASE_MANAGER_ID, make_payload).status
+            == Status.SUCCESS
+        )
+
+        entries = _ledger_entries(dl)
+        assert len(entries) == 2
+        second_snap = entries[1].payload_snapshot["object"]
+        assert second_snap["id"] == SECOND_STATUS_ID
+        assert (
+            second_snap["rmState"] == RM.ACCEPTED.name
+        ), "the second status must be snapshotted as asserted"
+
+    def test_filter_clears_a_stale_override_when_no_datalayer_is_available(
+        self,
+    ):
+        """The datalayer-missing early return must still clear both keys.
+
+        ``update()`` clears before it checks for the DataLayer, so a node that
+        cannot do its job leaves no adjudication behind for the commit node to
+        act on.
+        """
+        reader = py_trees.blackboard.Client(name="override-reader")
+        for key in (BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, BB_DIMENSION_FILTER):
+            reader.register_key(key=key, access=py_trees.common.Access.READ)
+
+        node = FilterParticipantStatusDimensionsNode(
+            participant_id=PARTICIPANT_ID, status_id=ASSERTED_STATUS_ID
+        )
+        node.setup()
+        node.blackboard.set(
+            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
+            {"object_id": ASSERTED_STATUS_ID, "fields": {"rmState": "CLOSED"}},
+            overwrite=True,
+        )
+        node.blackboard.set(
+            BB_DIMENSION_FILTER,
+            {"status_id": ASSERTED_STATUS_ID, "refused": ("rm",)},
+            overwrite=True,
+        )
+
+        assert node.datalayer is None
+        assert node.update() == Status.FAILURE
+        assert reader.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE) is None
+        assert reader.get(BB_DIMENSION_FILTER) is None
+
+
+class TestResolveDimensionFilter:
+    """The downstream helper must not read another execution's outcome."""
+
+    def test_returns_none_for_a_mismatched_status_id(self):
+        client = py_trees.blackboard.Client(name="filter-writer")
+        client.register_key(
+            key=BB_DIMENSION_FILTER, access=py_trees.common.Access.WRITE
+        )
+        payload = {"status_id": ASSERTED_STATUS_ID, "refused": ("rm",)}
+        client.set(BB_DIMENSION_FILTER, payload, overwrite=True)
+
+        assert resolve_dimension_filter(client, ASSERTED_STATUS_ID) is payload
+        assert resolve_dimension_filter(client, SECOND_STATUS_ID) is None
+
+    def test_returns_none_when_unset_or_not_a_dict(self):
+        client = py_trees.blackboard.Client(name="filter-reader")
+        client.register_key(
+            key=BB_DIMENSION_FILTER, access=py_trees.common.Access.WRITE
+        )
+        assert resolve_dimension_filter(client, ASSERTED_STATUS_ID) is None
+
+        client.set(BB_DIMENSION_FILTER, None, overwrite=True)
+        assert resolve_dimension_filter(client, ASSERTED_STATUS_ID) is None
+
+
+class TestMergeSnapshotObjectFields:
+    """Unit coverage for the patch merge applied to a payload snapshot."""
+
+    def test_patches_flat_fields_and_drops_stale_snake_case_twins(self):
+        merged = _merge_snapshot_object_fields(
+            {
+                "id": ASSERTED_STATUS_ID,
+                "rmState": "RECEIVED",
+                "rm_state": "RECEIVED",
+                "emConsentState": "SIGNATORY",
+                "name": "RECEIVED VFd",
+            },
+            {"rmState": "VALID", "vfdState": "VFd"},
+        )
+        assert merged["rmState"] == "VALID"
+        assert merged["vfdState"] == "VFd"
+        assert "rm_state" not in merged, (
+            "a stale snake_case twin would let a consumer read the value the"
+            " receiver just refused"
+        )
+        assert merged["emConsentState"] == "SIGNATORY"
+        assert merged["id"] == ASSERTED_STATUS_ID
+        assert "name" not in merged, "the sender's derived label is dropped"
+
+    def test_merges_one_level_of_nesting_without_replacing_it(self):
+        merged = _merge_snapshot_object_fields(
+            {
+                "id": ASSERTED_STATUS_ID,
+                "caseStatus": {
+                    "id": f"{ASSERTED_STATUS_ID}/cs",
+                    "type": "CaseStatus",
+                    "pxaState": "PXA",
+                    "pxa_state": "PXA",
+                    "emState": "NONE",
+                },
+            },
+            {"caseStatus": {"pxaState": "pxa", "emState": "NONE"}},
+        )
+        case_status = merged["caseStatus"]
+        assert case_status["pxaState"] == "pxa"
+        assert "pxa_state" not in case_status
+        assert case_status["id"] == f"{ASSERTED_STATUS_ID}/cs"
+        assert case_status["type"] == "CaseStatus"
+
+    def test_leaves_a_bare_reference_alone(self):
+        """Clobbering a reference string would drop the reference entirely."""
+        current = {
+            "id": ASSERTED_STATUS_ID,
+            "caseStatus": f"{ASSERTED_STATUS_ID}/cs",
+        }
+        merged = _merge_snapshot_object_fields(
+            current, {"rmState": "VALID", "caseStatus": {"pxaState": "pxa"}}
+        )
+        assert merged["caseStatus"] == f"{ASSERTED_STATUS_ID}/cs"
+        assert merged["rmState"] == "VALID"

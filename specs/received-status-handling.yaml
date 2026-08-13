@@ -279,6 +279,10 @@ groups:
       read by `CommitCaseLedgerEntryNode`. The guard runs before
       `GuardedCommit` per CLP-10-006, so the adjudication is available at
       commit time. The guard is read-only with respect to the DataLayer.
+
+      The override is a *patch* — `{"object_id": ..., "fields": {...}}` keyed by
+      wire alias — merged onto the snapshot's existing `object`, not a
+      replacement object. See RSH-05-009 for why.
   - id: RSH-05-005
     priority: MUST
     kind: protocol
@@ -330,3 +334,25 @@ groups:
       would duplicate — and could contradict — Seam 2's decision.
     notes: >
       Seam 2 EM adjudication is tracked in ISSUE-2256.
+  - id: RSH-05-009
+    priority: MUST
+    kind: protocol
+    statement: >
+      Adjudicating a received status MUST NOT change the shape of the
+      `payload_snapshot.object` it records: the entry MUST carry the same wire
+      fields an unadjudicated entry for the same activity would carry, with only
+      the adjudicated dimension values rewritten.
+    rationale: >
+      Every replica and the case-ledger invariant harness read the snapshot's
+      flat wire aliases (`rmState`, `vfdState`, `emConsentState`, `cvdRole`) and
+      its nested `caseStatus` (CLP-07-001, CM-18-006). A whole-object
+      replacement built in `vultron.core` would emit core dimension objects
+      (`rm: {state}`) and silently drop every field the guard never adjudicated,
+      because core MUST NOT import `vultron.wire` to convert (ADR-0009,
+      ADR-0017). Publishing a field patch instead makes shape preservation
+      structural rather than a property the guard has to remember to maintain.
+    notes: >
+      The merge is one level deep, so a patched `caseStatus.pxaState` keeps the
+      nested object's own `id` and remaining fields. A patched alias also drops
+      any stale snake_case twin of the same field, so a consumer that prefers
+      the snake_case spelling cannot read the value the receiver refused.
