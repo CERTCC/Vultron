@@ -56,6 +56,9 @@ _FVV_EXPECTED_EVENT_TYPES = [
     ),
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
+    # DEMOMA-16-001: universal — the shared RM-triage helpers in
+    # vultron/demo/helpers/workflow.py engage the case in every scenario.
+    pytest.param("engage_case", id="engage_case"),
     # DEMOMA-16-003: Vendor1 invites Vendor2; Vendor2 accepts.
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
     pytest.param(

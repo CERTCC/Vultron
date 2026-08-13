@@ -81,14 +81,15 @@ not the duplication worth fixing.
 ## Per-Scenario Expected Event Types (DEMOMA-16)
 
 **Problem**: All per-scenario `_XXX_EXPECTED_EVENT_TYPES` lists historically
-contained only the four universal types (`validate_report`,
-`add_participant_status_to_participant`, `close_case`, `add_note_to_case`),
+contained only the four types then treated as universal (`validate_report`,
+`add_participant_status_to_participant`, `close_case`, `add_note_to_case` —
+`engage_case` became the fifth in ISSUE-2266),
 regardless of the scenario's actual protocol coverage. This allowed
 scenario-specific phases to regress silently (e.g. `invite_actor_to_case`
 missing from a scenario that requires it).
 
 **Design**: Each scenario defines its own required event-type list that
-extends the four universal types with scenario-specific required phases.
+extends the five universal types with scenario-specific required phases.
 The spec requirements in `specs/multi-actor-demo.yaml` DEMOMA-16-001 through
 DEMOMA-16-011 are the normative source; the test constants implement them.
 
@@ -100,9 +101,9 @@ CONCERN-2243 (three rows understated their required types; the FCCV-extension
 and FCV-reject rows were absent entirely), which is exactly the drift
 DEMOMA-16-008 exists to prevent.
 
-| Scenario | Spec | Universal 4 | Additional required |
+| Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
-| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case | (none) |
+| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
 | FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case |
@@ -166,7 +167,9 @@ step failed.
 ### `engage_case` is universal, not scenario-specific
 
 Every scenario drives an engage-case trigger, so `engage_case` is a universal
-required event type on the same footing as `validate_report`:
+required event type on the same footing as `validate_report` — it is the fifth
+type in DEMOMA-16-001 and appears in all nine `_XXX_EXPECTED_EVENT_TYPES`
+lists (ISSUE-2266). The three emission paths are:
 
 - `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow.py`) calls
   `receiver_engages_case()` for the report's direct receiver — used by all
@@ -179,6 +182,15 @@ required event type on the same footing as `validate_report`:
 Emission is therefore located in the **shared helper layer**, not at scenario
 call sites; grepping a single scenario file for `engage` finds nothing and
 invites the false conclusion that no code emits it.
+
+Before ISSUE-2266, only `test_fvcv_handoff_invariants.py` listed
+`engage_case` — added by PR #2018 as a scenario-specific type without amending
+the spec (a DEMOMA-16-008 violation), which left an engage-case regression
+silent in the other eight scenarios. The `fvcv-handoff`
+`check_event_type_count(..., "engage_case", min_count=2)` assertion remains
+scenario-specific: it asserts the *count* Vendor2's post-join triage cycle
+implies (CM-11-002), which is a stronger claim than the universal presence
+check.
 
 ---
 
@@ -227,15 +239,20 @@ Note: DEMOCI-02-011 was authored as a SHOULD but never implemented — neither
 workflow carried a `concurrency` block before CONCERN-1859. It is now a MUST
 and is wired on both triggers.
 
-### Cache-warm workflow removal (DEMOCI-05-003)
+### Cache configuration (DEMOCI-02-007)
 
-`demo-image-cache-warm.yml` existed *only* because `demo-integration.yml` did
-not run on `main`: it built the demo images on push-to-main and exported them
-to the `demo-integration-main` GHA cache scope so new PR branches got a warm
-fallback cache (PR-branch caches are not visible across branches). Once the
-on-main run of `demo-integration.yml` exports that same scope, the dedicated
-cache-warm workflow is a redundant second image build and is **removed**. One
-on-main build now both validates the demo and warms the cache.
+`demo-image-cache-warm.yml` was removed when `demo-integration.yml` gained an
+on-main trigger (DEMOCI-05-001): a single build could then both validate the
+demo and export the GHA cache, making a separate cache-warming run redundant.
+
+Subsequently, the GHA cache export was found to be completely inoperable: the
+required tokens (`ACTIONS_RUNTIME_TOKEN`, `ACTIONS_CACHE_URL`) are only
+injected into `uses:` action steps, not into `run:` shell steps — so the
+`docker buildx bake --set "*.cache-to=type=gha"` args in the composite
+action's `run:` step could never reach the cache backend (#2248). The cache
+configuration has been removed; every job builds from scratch.
+DEMOCI-02-007 is retained as a SHOULD, documenting the intent when a
+working caching mechanism becomes available.
 
 ### Out of scope: merge queue
 
