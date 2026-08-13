@@ -4,7 +4,7 @@ status: active
 description: >
   Why core needs wire-shaped JSON at all, why `alias_generator=to_camel` on core
   types was the wrong way to get it, and the driven-port seam that replaces it.
-  Covers the four consumers of the old core-side aliasing, the reject-guard
+  Covers the five consumers of the old core-side aliasing, the reject-guard
   required before any flat-field shim is deleted, and the failure modes to watch
   for during implementation.
 related_specs:
@@ -106,10 +106,12 @@ CLP-10-005..008 constrain `execute()`. Moving the commit itself into an adapter
 would breach both. If you find yourself designing "a ledger-writing adapter",
 stop and re-read CLP-09.
 
-## The four consumers of the old aliasing
+## The five consumers of the old aliasing
 
-Anyone touching this must account for all four; the first two are in core, the
-last two are outside it and were the surprise.
+Anyone touching this must account for all five. Rows 1, 2 and 5 are in core;
+rows 3 and 4 are outside it and were the surprise. Row 5 depends on the *shim*
+rather than the alias generator, and appeared after the planning baseline — see
+the re-enumeration warning below.
 
 | # | Site | What it did |
 |---|---|---|
@@ -196,6 +198,30 @@ glance like it depends on core-side aliasing. It does not.
 `emConsentState = SIGNATORY` and `embargoAdherence = True`; the *core* dump yields
 `emConsentState = None`. The wire projection is what satisfies the spec, so
 CM-18-006 needs no amendment — and it is evidence for the port, not against it.
+
+## DRPT-02-008 needs no amendment either, and must not be pruned
+
+CONCERN-2260 named DRPT-02-008 alongside CM-18-006 as an interacting
+requirement. It obliges the demo-report extractor to read `pec_state` from
+either the ADR-0036 dimension object (`{"consent": {"state": ...}}`) or any of
+four legacy flat spellings (`emConsentState`, `em_consent_state`,
+`embargoConsentState`, `embargo_consent_state`). Nothing in this work changes
+that, for two reasons:
+
+- The extractor is a **dict reader**, not a model consumer. `_dimension_state`
+  in `vultron/demo/report.py:542-557` walks candidate dicts straight off the
+  `payloadSnapshot`; it never validates through core `ParticipantStatus`. The
+  reject-guards constrain what the *core model* accepts on the way in, so they
+  are invisible to it.
+- The two shapes DRPT-02-008 cares about most both stay reachable. CLP-07-009
+  makes every snapshot wire-shaped, and the wire shape carries the flat
+  `emConsentState` the extractor already handles; the dimension-object form
+  still arrives from core-shaped historical dumps.
+
+So do **not** treat the flat-spelling branches as dead code to delete while
+implementing #2289. Narrowing what the core model accepts is not a licence to
+narrow what a downstream reader tolerates — the extractor parses artefacts of
+unknown vintage, and DRPT-02-008 is still a MUST.
 
 ## Once this lands
 

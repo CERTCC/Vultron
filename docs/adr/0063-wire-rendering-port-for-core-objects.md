@@ -48,12 +48,14 @@ produce the wire's flat `emConsentState` field from the nested `PecDimension`.
 That hand-patch is a partial, drifting reimplementation of
 `as_ParticipantStatus.from_core()`.
 
-Two additional consumers depend on the same core-side aliasing:
+Three additional consumers depend on the same core-side aliasing:
 `_inline_snapshot_reference_value` in `vultron/core/use_cases/_helpers.py`
 (CLP-07-006 inline nesting of `dl.read()` results, which are core objects per
-DL-05-001), and `GET /actors/{id}` in
+DL-05-001); `GET /actors/{id}` in
 `vultron/adapters/driving/fastapi/routers/actors/_routes.py`, which dumps a
-**core** actor class with `by_alias=True` straight into an `AS2JSONResponse`.
+**core** actor class with `by_alias=True` straight into an `AS2JSONResponse`;
+and `vultron/demo/utils.py`, which dumps core objects the same way for demo
+output.
 
 A fifth consumer depends on the *shim* rather than the alias generator:
 `FilterParticipantStatusDimensionsNode._to_core_status` (added by ADR-0061)

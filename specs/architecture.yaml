@@ -198,8 +198,8 @@ groups:
       `datetime`). Core-branch types MUST NOT carry wire-specific concerns: `alias_generator=to_camel`, hardcoded AS2 `@context`
       namespace, or VOCABULARY registration are forbidden in core-branch types.'
     verification: 'No `CoreObject` subclass declares `alias_generator` in its `model_config`, references `to_camel`, or assigns
-      to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` in `test/architecture/test_hierarchy_invariants.py`
-      (which MUST NOT be marked `xfail`) and by the layer-boundary test in `test/architecture/test_layer_boundaries.py`.'
+      to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` in `test/architecture/test_hierarchy_invariants.py`,
+      which MUST NOT be marked `xfail`.'
     rationale: 'An `alias_generator` on a core type gives one `type_` two accepted key spellings, so whichever class reads a
       row decides what the data means (issue #2232). It is also insufficient for its intended purpose: a core `model_dump(by_alias=True)`
       cannot produce the wire shape for a type whose branches differ structurally, which is why a hand-patched `consent`→`emConsentState`

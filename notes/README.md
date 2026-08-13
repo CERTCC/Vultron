@@ -29,7 +29,7 @@ violations, or validating core/wire separation.
 Why core legitimately needs wire-shaped JSON (only for
 `CaseLedgerEntry.payloadSnapshot`), why `alias_generator=to_camel` on core types
 was both an ARCH-12-003 violation and structurally insufficient, and the
-`WireRenderPort` driven seam that replaces it. Lists the four consumers of the
+`WireRenderPort` driven seam that replaces it. Lists the five consumers of the
 old core-side aliasing, the reject-guard that MUST accompany deletion of any
 flat-field shim (SDO-03-005), and why persisted rows are unaffected.
 Normative requirements: `specs/architecture.yaml` ARCH-20,
