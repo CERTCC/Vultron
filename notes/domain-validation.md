@@ -114,6 +114,66 @@ canonical location instead.
 `behaviors/status/nodes/broadcast.py` was deleted in #1378 after its only
 content (`_find_case_manager_id`) was consolidated into `_resolve_case_manager_id`.
 
+### Exception: shape guards live in `models/_wire_spelling.py`
+
+`vultron/core/models/_helpers.py` cannot import from `vultron.core.states` —
+that is a circular import through `states/__init__.py`. Shape guards tend to
+grow state references (a guard that knows about `rm` eventually wants `RM`), so
+they live in `vultron/core/models/_wire_spelling.py` instead of being colocated
+with `_as_id()` and friends. This is a deliberate deviation from the rule above,
+not an oversight; it exists so the cycle cannot be reintroduced by the next
+guard that needs a state enum.
+
+---
+
+## Shape Guards: One Canonical Reader per Dimension (#2232)
+
+`ParticipantStatus` exists in two incompatible shapes: core nests
+`rm: RmDimension` / `vfd: VfdDimension` (SDO-03-002, ADR-0036), while the wire
+projection carries flat `rm_state` / `vfd_state`. Reading a dimension off the
+wrong shape yields `None` — which every reader then quietly substituted an
+initial state for, resetting the participant's ladder (#2264).
+
+**Read a dimension only through its canonical reader.** Both live in
+`vultron/core/models/participant_status.py`:
+
+| Reader | Returns | Raises |
+|---|---|---|
+| `participant_status_rm_state(status)` | the `RM` state | `VultronValidationError` on a non-core shape |
+| `participant_status_vfd_state(status)` | the `CS_vfd` state | `VultronValidationError` on a non-core shape |
+
+```python
+# Wrong — a wire-shaped status degrades to the initial state, silently.
+rm_dim = getattr(status, "rm", None)
+state = getattr(rm_dim, "state", None)
+if not isinstance(state, RM):
+    state = RM.START
+
+# Right — absence and shape mismatch are different outcomes.
+state = participant_status_rm_state(status)
+```
+
+This is the strict/loose rule applied to *shape*: an **empty** status list is a
+legitimate absence and callers must handle it (check `participant_statuses`
+before calling); a status that exists but exposes no usable dimension is a shape
+mismatch and must raise (ARCH-15-001, ARCH-15-002).
+
+**Where a raise is wrong.** At a wire→core ingress boundary, a wire-shaped
+status is *legitimate inbound data*, not a corrupt row. Those sites must
+**project** before reading — `as_ParticipantStatus.to_core()`, or
+`_project_to_core_participant()` in
+`vultron/core/use_cases/received/case/_helpers.py` — rather than let the reader
+raise. Making the reader strict without projecting at ingress first aborted the
+entire received-case behavior tree on every inbound `Announce`, which is how the
+first fix for #2232 regressed.
+
+The mirror-image guard is `reject_wire_spelled_keys()` in
+`vultron/core/models/_wire_spelling.py`: a core type validated against a
+wire-spelled (camelCase) payload drops every snake-only key in silence, because
+Pydantic v2 ignores unknown keys. It is computed per exact class, so a
+`CaseParticipant` role subclass that adds a field is covered without any
+registration step.
+
 ---
 
 ## Routing Failures vs. Validation Failures

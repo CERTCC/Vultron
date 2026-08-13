@@ -129,6 +129,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0057 Rename `CVDRole.OTHER` to `CVDRole.OBSERVER` and Define Observer Participant Semantics](0057-observer-participant-role.md)
 - [ADR-0058 Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order](0058-causal-gating-in-demo-scenarios.md) *(provisional)*
 - [ADR-0059 Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed](0059-buffer-pre-genesis-ledger-entries.md)
+- [ADR-0062 Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary](0062-normalise-wire-to-core-at-both-ingress-and-persistence.md)
 
 ## Proposed ADRs
 
