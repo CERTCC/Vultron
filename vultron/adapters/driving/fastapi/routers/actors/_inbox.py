@@ -193,17 +193,30 @@ def _store_nested_inbox_object(
         else cast(PersistableModel, nested)
     )
 
-    # Normalize case_participants to string IDs before persisting so the stored
-    # VulnerabilityCase row never carries inline sub-objects (#2233 write-path).
-    if hasattr(typed_nested, "case_participants"):
-        from vultron.core.use_cases.received.case._helpers import (
-            _normalize_participant_refs,
-        )
-
-        _normalize_participant_refs(typed_nested)
-
     try:
-        dl.create(object_to_record(typed_nested))
+        # Normalise case_participants to string IDs in the *serialised record*
+        # before persisting so the stored VulnerabilityCase row carries only ID
+        # refs (#2233 write-path).  The Python object is never mutated —
+        # downstream BT nodes must see the original inline objects so they can
+        # project them to core and create standalone DataLayer records.
+        record: "StorableRecord | PersistableModel" = object_to_record(
+            typed_nested
+        )
+        if (
+            hasattr(typed_nested, "case_participants")
+            and isinstance(record, dict)
+            and isinstance(record.get("case_participants"), list)
+        ):
+            record["case_participants"] = [
+                (
+                    entry["id_"]
+                    if isinstance(entry, dict) and "id_" in entry
+                    else entry
+                )
+                for entry in record["case_participants"]
+                if isinstance(entry, (str, dict))
+            ]
+        dl.create(record)
     except VultronValidationError:
         # A shape/projection failure, NOT an "already exists" collision — the
         # object cannot be persisted in the canonical core shape at all

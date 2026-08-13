@@ -100,9 +100,13 @@ class SeedAnnouncedCaseNode(DataLayerAction):
         existing = self.datalayer.read(self.case_id)
         if existing is not None:
             # Idempotent path — case already present locally (MV-10-004).
+            # Still refresh participants and normalise the stored case so the
+            # DataLayer row never carries inline sub-objects (#2233 write-path).
+            # The pre-store in _inbox.py may have already normalised the row,
+            # but this path also handles re-delivery of the same Announce.
             self.logger.debug(
                 "%s: case '%s' already exists locally"
-                " — skipping save (idempotent, MV-10-004)",
+                " — refreshing participants and normalising row (MV-10-004)",
                 self.name,
                 self.case_id,
             )
@@ -110,6 +114,8 @@ class SeedAnnouncedCaseNode(DataLayerAction):
             _store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
+            _normalize_participant_refs(self.case_obj)
+            self.datalayer.save(self.case_obj)
             _link_report_case_links(self.datalayer, self.case_obj)
             return Status.SUCCESS
 
