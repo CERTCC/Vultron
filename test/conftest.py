@@ -21,7 +21,7 @@ Also registers the ``spec`` pytest marker and validates spec IDs referenced
 by ``@pytest.mark.spec`` against the loaded SpecRegistry (SR-05-001,
 SR-05-002).
 
-Finally, it applies the integration-tier per-test timeout. The 5-second
+Finally, it applies the integration-tier per-test timeout. The 30-second
 default in ``pyproject.toml`` is sized for the unit suite; integration tests
 exercise the full HTTP stack and legitimately need longer. See
 ``INTEGRATION_TIMEOUT_SECONDS`` and ``test/AGENTS.md`` § "Per-Test Timeout
@@ -47,15 +47,15 @@ from vultron.metadata.specs import (  # noqa: E402
 
 #: Per-test timeout for ``@pytest.mark.integration`` tests, in seconds.
 #:
-#: The global ``timeout = 5`` in ``pyproject.toml`` is sized for the unit
-#: suite, where 5s is a useful hang detector. It is far too tight for
-#: integration tests: several run at 3.5-4.3s of honest work, and because
-#: ``timeout_method = "thread"`` kills the *whole pytest process* rather than
-#: the one slow test, a single spurious trip aborted the session with no
-#: summary line — turning a red integration run into no signal at all. See
-#: issue #2270.
+#: The global ``timeout = 30`` in ``pyproject.toml`` is sized for the unit
+#: suite, where the slowest honest test runs at ~3.1s. It is still too tight
+#: for integration tests: several run at 3.5-4.3s of honest work against a
+#: much wider load-dependent spread, and because ``timeout_method = "thread"``
+#: kills the *whole pytest process* rather than the one slow test, a single
+#: spurious trip aborted the session with no summary line — turning a red
+#: integration run into no signal at all. See issue #2270.
 #:
-#: 60s is still a bounded hang detector (12x the unit ceiling) while leaving
+#: 60s is still a bounded hang detector (2x the unit ceiling) while leaving
 #: ample headroom over the slowest honest integration test. Tests needing more
 #: keep their own explicit ``@pytest.mark.timeout(N)``, which wins over this.
 INTEGRATION_TIMEOUT_SECONDS = 60

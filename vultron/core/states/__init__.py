@@ -37,6 +37,8 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import (
     CSEvent,
     CS_EVENTS,
+    CS_EVENT_TO_PXA_TRIGGER,
+    CS_EVENT_TO_VFD_TRIGGER,
     PXA_EVENTS,
     VFD_EVENTS,
     apply_cs_event,

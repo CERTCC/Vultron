@@ -90,7 +90,9 @@ No open entries.
 > followed the `pytest-randomly` seed.
 >
 > **Fixed by #2270** — `test/conftest.py` now gives `integration`-marked tests a
-> 60s tier while the unit suite keeps 5s. Verified 2/2 random-order runs at
+> 60s tier while the unit suite runs at 30s (raised from 5s in the same issue,
+> because AST-walking ratchets at ~3.4s were tripping the old ceiling under
+> full-suite load). Verified 2/2 random-order runs at
 > exit 0, 0 timeout aborts, 1101 passed. Never catalogued as flaky; rows added
 > and removed in the same change (2026-08-12).
 >
@@ -107,17 +109,25 @@ No open entries.
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
-| `fcvcv Demo Integration` | #2216 | 2026-08-12 |
-| `fvcv-handoff Demo Integration` | #2216 | 2026-08-12 |
-| `fvcv-handoff Invariant Harness` | #2216 | 2026-08-12 |
+| `fcvcv Demo Integration` | #2233 | 2026-08-13 |
+| `fvcv-handoff Demo Integration` | #2233 | 2026-08-13 |
+| `fvcv-handoff Invariant Harness` | #2266 | 2026-08-13 |
 | `fcvcv Invariant Harness` | — | 2026-08-10 |
-| `fcv-reject Invariant Harness` | #2121 | 2026-08-10 |
+| `fcv-reject Invariant Harness` | #2121 (closed) | 2026-08-10 |
 
-> These jobs fail intermittently due to inter-container HTTP delivery timeouts
-> (async race windows). Root cause documented in `plan/incoming/learnings/`
-> entry `20260731-async-race-windows-in-fv-demo.md`. When a new occurrence is
-> confirmed, `pr-execute` will open or comment on a `flaky-test` + `bug` issue
-> and record it here.
+> The rows with no issue number fail intermittently due to inter-container HTTP
+> delivery timeouts (async race windows). Root cause documented in
+> `plan/incoming/learnings/` entry `20260731-async-race-windows-in-fv-demo.md`.
+> When a new occurrence is confirmed, `pr-execute` will open or comment on a
+> `flaky-test` + `bug` issue and record it here.
+>
+> The three rows citing #2233 / #2266 are **not** flaky — they are deterministic
+> and branch-independent. `engage-case` returns HTTP 422 on the invite path
+> (`SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`), tracked as
+> #2233; the harness row is the assertion-scope gap tracked as #2266. They are
+> listed here because `pr-execute` records blocked jobs here regardless of
+> cause, and because #2216 — the issue they used to cite — is closed and no
+> longer the right pointer. Do not re-diagnose them as nondeterminism.
 
 ---
 

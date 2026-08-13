@@ -172,6 +172,7 @@ def test_pxa_trigger_map_pairs_by_letter(event, trigger):
 # --- compound state validity ----------------------------------------------
 
 
+@pytest.mark.spec("CSB-17-001")
 def test_cs_enum_is_exactly_the_legacy_valid_state_set():
     """The 32 CS members are the legacy model's 32 valid states.
 
@@ -239,6 +240,7 @@ def test_ephemeral_states_are_the_twelve_vp_and_px_states():
         (CS.VFDPXA, set()),
     ],
 )
+@pytest.mark.spec("CSB-17-003")
 def test_required_next_cs_events(state, expected):
     assert required_next_cs_events(state) == frozenset(expected)
 
@@ -259,6 +261,7 @@ def test_ephemeral_states_have_exactly_one_successor():
 # --- transition validity --------------------------------------------------
 
 
+@pytest.mark.spec("CSB-17-002")
 def test_transition_set_matches_legacy_exactly():
     """The re-expressed transition rule admits the legacy model's 58 edges."""
     new_edges = {
@@ -432,6 +435,7 @@ def test_apply_cs_event_reports_the_nearest_blocker_when_several_apply():
 # --- history validity -----------------------------------------------------
 
 
+@pytest.mark.spec("CSB-17-004")
 def test_valid_histories_match_legacy_exactly():
     """The causal replay admits exactly the legacy model's 70 histories.
 
@@ -528,10 +532,56 @@ def test_empty_prefix_is_valid():
     assert is_valid_cs_history_prefix([])
 
 
+@pytest.mark.spec("CSB-17-005")
 def test_every_prefix_of_every_valid_history_is_valid():
     for history in valid_cs_histories():
         for length in range(len(history) + 1):
             assert is_valid_cs_history_prefix(history[:length])
+
+
+@pytest.mark.spec("CSB-17-005")
+def test_accepted_prefixes_are_exactly_the_prefixes_of_valid_histories():
+    """The converse of the test above — the half that gives the API meaning.
+
+    One direction alone would also be satisfied by a predicate that accepts
+    everything. This pins the accepted set to *exactly* the prefix-closure of
+    the 70 valid histories, so every accepted prefix is a trajectory some real
+    case could actually be on, and no legal in-progress case is rejected.
+    """
+    closure = {
+        history[:length]
+        for history in valid_cs_histories()
+        for length in range(len(history) + 1)
+    }
+
+    accepted = {
+        candidate
+        for length in range(len(CS_EVENTS) + 1)
+        for candidate in permutations(CS_EVENTS, length)
+        if is_valid_cs_history_prefix(list(candidate))
+    }
+
+    assert accepted == closure
+
+
+@pytest.mark.spec("CSB-17-005")
+def test_every_accepted_prefix_extends_to_a_complete_valid_history():
+    """No accepted prefix is a dead end.
+
+    Stated the way a caller cares about it: a case sitting on any prefix the
+    predicate accepts always has some legal route left to `VFDPXA`. Note that
+    the accepted set is derived from the predicate, not from
+    `valid_cs_histories()`, so this is not a restatement of the closure test.
+    """
+    completions = valid_cs_histories()
+
+    for length in range(len(CS_EVENTS) + 1):
+        for candidate in permutations(CS_EVENTS, length):
+            if not is_valid_cs_history_prefix(list(candidate)):
+                continue
+            assert any(
+                history[:length] == candidate for history in completions
+            ), f"accepted prefix {_as_string(candidate)} has no completion"
 
 
 @pytest.mark.parametrize(
@@ -544,6 +594,7 @@ def test_every_prefix_of_every_valid_history_is_valid():
         [CSEvent.A, CSEvent.V],
     ],
 )
+@pytest.mark.spec("CSB-17-005")
 def test_accepted_prefixes(prefix):
     assert is_valid_cs_history_prefix(prefix)
 
@@ -579,3 +630,62 @@ def test_replay_rejects_repeated_events():
 def test_replay_of_empty_sequence_returns_the_start_state():
     assert replay_cs_history([]) is CS.vfdpxa
     assert replay_cs_history([], start=CS.VFdPxa) is CS.VFdPxa
+
+
+# --- input coercion -------------------------------------------------------
+#
+# `CSEvent` is a StrEnum, and the legacy `case_states.validations` API this
+# module replaces took plain strings ("VFDPXA"), so a migrating caller will
+# naturally pass them. These pin that the string form works and that garbage
+# makes the predicates answer False rather than raise.
+
+
+@pytest.mark.parametrize(
+    "history,expected",
+    [
+        ("VFDPXA", True),
+        ("FVDPXA", False),  # F before V
+        ("VDFPXA", False),  # D before F
+        ("VFDXPA", True),  # X then P — pX satisfied by the adjacent P
+        ("PVFDXA", True),  # P then V — vP satisfied by the adjacent V
+    ],
+)
+def test_string_histories_match_the_enum_form(history, expected):
+    assert is_valid_cs_history(history) is expected
+    assert is_valid_cs_history([CSEvent(c) for c in history]) is expected
+
+
+def test_string_prefixes_are_accepted():
+    assert is_valid_cs_history_prefix("VF")
+    assert is_valid_cs_history_prefix(["V", "F"])
+    assert not is_valid_cs_history_prefix("F")
+
+
+def test_apply_cs_event_accepts_the_string_form():
+    assert apply_cs_event(CS.vfdpxa, "V") is CS.Vfdpxa
+
+
+@pytest.mark.parametrize(
+    "events",
+    [
+        ["Z"],  # not a CS event letter
+        ["v"],  # lowercase is a state letter, not an event
+        [None],
+        [1],
+        [["V"]],  # unhashable
+    ],
+)
+def test_predicates_reject_non_events_without_raising(events):
+    """A predicate must answer, not explode, on bad input."""
+    assert is_valid_cs_history_prefix(events) is False
+    assert is_valid_cs_history(events) is False
+
+
+def test_ensure_valid_cs_history_names_the_offending_value():
+    with pytest.raises(VultronValidationError, match="is not a CS event"):
+        ensure_valid_cs_history(["Z", "F", "D", "P", "X", "A"])
+
+
+def test_replay_rejects_non_events():
+    with pytest.raises(VultronValidationError, match="is not a CS event"):
+        replay_cs_history(["V", "Z"])

@@ -122,14 +122,23 @@ CS_EVENT_TO_VFD_TRIGGER: dict[CSEvent, VFD_Trigger] = {
     CSEvent.F: VFD_Trigger.F,
     CSEvent.D: VFD_Trigger.D,
 }
-"""Maps a VFD-dimension CS event to the `VfdDimension.transition()` trigger."""
+"""Maps a VFD-dimension CS event to the `VfdDimension.transition()` trigger.
+
+Exported for callers that drive the dimension machines directly rather than
+going through `apply_cs_event` — e.g. emit-time guards that already hold a
+`VfdDimension` and need the trigger for a CS event.
+"""
 
 CS_EVENT_TO_PXA_TRIGGER: dict[CSEvent, PXA_Trigger] = {
     CSEvent.P: PXA_Trigger.P,
     CSEvent.X: PXA_Trigger.X,
     CSEvent.A: PXA_Trigger.A,
 }
-"""Maps a PXA-dimension CS event to the `PxaDimension.transition()` trigger."""
+"""Maps a PXA-dimension CS event to the `PxaDimension.transition()` trigger.
+
+The PXA counterpart of `CS_EVENT_TO_VFD_TRIGGER`; see that map for the
+rationale.
+"""
 
 
 def cs_dimensions(state: CS) -> tuple[CS_vfd, CS_pxa]:
@@ -317,17 +326,44 @@ def next_cs_states(state: CS) -> tuple[CS, ...]:
     )
 
 
-def apply_cs_event(state: CS, event: CSEvent) -> CS:
+def _as_cs_event(value: CSEvent | str) -> CSEvent:
+    """Coerce *value* to a `CSEvent`.
+
+    `CSEvent` is a `StrEnum`, so the single-letter strings of the legacy
+    string-pattern API (``"V"``, ``"F"``, ...) are accepted.  This keeps the
+    bool-returning predicates total: callers migrating from
+    `case_states.validations` naturally pass strings, and a validator must
+    answer their question rather than raise on the input type.
+
+    Raises:
+        VultronValidationError: if *value* is not a CS event.
+    """
+    try:
+        return CSEvent(value)
+    except ValueError as exc:
+        raise VultronValidationError(
+            f"CS history: {value!r} is not a CS event; expected one of"
+            f" {[e.value for e in CS_EVENTS]}."
+        ) from exc
+    except TypeError as exc:
+        raise VultronValidationError(
+            f"CS history: {value!r} is not a CS event (unhashable or"
+            " non-string type)."
+        ) from exc
+
+
+def apply_cs_event(state: CS, event: CSEvent | str) -> CS:
     """Return the state reached by applying *event* to *state*.
 
     Args:
         state: the current compound state
-        event: the event to apply
+        event: the event to apply, as a `CSEvent` or its string value
 
     Returns:
         the resulting compound state
 
     Raises:
+        VultronValidationError: if *event* is not a CS event.
         VultronInvalidStateTransitionError: if *event* cannot fire from
             *state* — because it already happened, because its dimension
             machine forbids it, or because *state* is ephemeral and requires
@@ -337,8 +373,12 @@ def apply_cs_event(state: CS, event: CSEvent) -> CS:
 
         apply_cs_event(CS.vfdpxa, CSEvent.V)  # CS.Vfdpxa
     """
+    event = _as_cs_event(event)
+
     for candidate in CS:
-        if cs_transition_event(state, candidate) is not event:
+        # `!=`, not `is not`: CSEvent is a StrEnum, so a plain string compares
+        # equal without being identical.
+        if cs_transition_event(state, candidate) != event:
             continue
         if is_valid_cs_transition(state, candidate):
             return candidate
@@ -389,7 +429,7 @@ def _ensure_distinct_events(events: Sequence[CSEvent]) -> None:
 
 
 def replay_cs_history(
-    events: Iterable[CSEvent], *, start: CS = CS.vfdpxa
+    events: Iterable[CSEvent | str], *, start: CS = CS.vfdpxa
 ) -> CS:
     """Replay *events* from *start* and return the resulting state.
 
@@ -397,22 +437,24 @@ def replay_cs_history(
     legal given every event that preceded it.
 
     Args:
-        events: the ordered CS events to apply
+        events: the ordered CS events to apply, as `CSEvent` members or their
+            string values (so ``"VFDPXA"`` and ``list(CSEvent)`` both work)
         start: the state to replay from, default `CS.vfdpxa`
 
     Returns:
         the compound state after the last event
 
     Raises:
-        VultronValidationError: if an event repeats.
+        VultronValidationError: if an event repeats or is not a CS event.
         VultronInvalidStateTransitionError: if an event cannot fire at its
             position in the sequence.
 
     Examples::
 
         replay_cs_history([CSEvent.V, CSEvent.F])  # CS.VFdpxa
+        replay_cs_history("VF")                    # CS.VFdpxa
     """
-    sequence = list(events)
+    sequence = [_as_cs_event(event) for event in events]
     _ensure_distinct_events(sequence)
 
     state = start
@@ -422,12 +464,14 @@ def replay_cs_history(
 
 
 def is_valid_cs_history_prefix(
-    events: Sequence[CSEvent], *, start: CS = CS.vfdpxa
+    events: Sequence[CSEvent | str], *, start: CS = CS.vfdpxa
 ) -> bool:
     """Return True if *events* is a legal (possibly incomplete) trajectory.
 
     Use this on real case histories, which are usually still in progress.
-    An empty sequence is trivially valid.
+    An empty sequence is trivially valid.  Events may be `CSEvent` members or
+    their string values.  Anything that is not a CS event makes the sequence
+    invalid rather than raising — this is a predicate, so it always answers.
 
     Note that a prefix ending in an ephemeral state is accepted: the
     ephemeral rules constrain what may come *next*, and nothing has come
@@ -439,6 +483,7 @@ def is_valid_cs_history_prefix(
         is_valid_cs_history_prefix([CSEvent.F])                     # False
         is_valid_cs_history_prefix([CSEvent.X])                     # True  (pX)
         is_valid_cs_history_prefix([CSEvent.X, CSEvent.A])          # False
+        is_valid_cs_history_prefix("VF")                            # True
     """
     try:
         replay_cs_history(events, start=start)
@@ -447,16 +492,20 @@ def is_valid_cs_history_prefix(
     return True
 
 
-def is_valid_cs_history(events: Sequence[CSEvent]) -> bool:
+def is_valid_cs_history(events: Sequence[CSEvent | str]) -> bool:
     """Return True if *events* is a complete, legal case history.
 
     A complete history contains all six events exactly once and reaches
     `CS.VFDPXA`.  Equivalent to the ordering rules ``V ≺ F ≺ D``,
     ``P ≺ X`` or ``XP`` adjacent, and ``V ≺ P`` or ``PV`` adjacent.
 
+    Accepts the string form of the legacy `case_states.validations` API as
+    well as `CSEvent` members.
+
     Examples::
 
         is_valid_cs_history(list(CSEvent))                    # True  (VFDPXA)
+        is_valid_cs_history("VFDPXA")                         # True
         is_valid_cs_history([CSEvent.F, CSEvent.V, ...])      # False (F before V)
     """
     if len(events) != len(CS_EVENTS):
@@ -466,24 +515,26 @@ def is_valid_cs_history(events: Sequence[CSEvent]) -> bool:
     return is_valid_cs_history_prefix(events)
 
 
-def ensure_valid_cs_history(events: Sequence[CSEvent]) -> None:
+def ensure_valid_cs_history(events: Sequence[CSEvent | str]) -> None:
     """Raise unless *events* is a complete, legal case history.
 
     Raises:
-        VultronValidationError: if the history is incomplete or its events
-            are not a permutation of the six CS events.
+        VultronValidationError: if the history is incomplete, contains a
+            value that is not a CS event, or its events are not a
+            permutation of the six CS events.
         VultronInvalidStateTransitionError: if the ordering is causally
             impossible.
     """
-    _ensure_distinct_events(events)
+    sequence = [_as_cs_event(event) for event in events]
+    _ensure_distinct_events(sequence)
 
-    missing = sorted(e.value for e in set(CS_EVENTS) - set(events))
+    missing = sorted(e.value for e in set(CS_EVENTS) - set(sequence))
     if missing:
         raise VultronValidationError(
             f"CS history: incomplete, missing event(s) {missing}."
         )
 
-    replay_cs_history(events)
+    replay_cs_history(sequence)
 
 
 def valid_cs_histories() -> tuple[tuple[CSEvent, ...], ...]:

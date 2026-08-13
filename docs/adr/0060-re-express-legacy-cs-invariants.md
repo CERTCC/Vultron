@@ -59,8 +59,12 @@ migration.
 - Cross-machine rules (RM/EM × CS emit guards) belong to #2236, not here.
 - `hypercube.py` pulls in networkx, numpy and pandas. Nothing on the protocol
   path should acquire that dependency weight.
-- The 500-line module guideline (CS-18-001): `cs.py` is already 674 lines, so
-  new code goes in a sibling module.
+- The 500-line module guideline (CS-18-001): `cs.py` is already 673 lines, so
+  new code goes in a sibling module. `cs_invariants.py` itself lands over the
+  guideline too; it is kept whole deliberately, because the rule family is a
+  single closed set of invariants whose only natural split — predicates apart
+  from the tables they read — would put a rule and its enforcement in different
+  files. Splitting is revisited if a second rule family lands here.
 
 ## Considered Options
 
@@ -91,7 +95,7 @@ valid* and *superseded by structure*.
 | `is_valid_transition`: Hamming distance 1 | Still valid, unenforced | `cs_transition_event()`, CSB-17-002 |
 | `is_valid_transition`: monotone (no UC→lc), same dimension | Still valid, partly enforced per-dimension | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound-level check in `is_valid_cs_transition()`, CSB-17-002 |
 | `TRANSITION_RULES[1]`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`. Partly covered by CSB-13-001 (entry cascade); CSB-17-003 generalises it to every successor of a `pX` state |
-| `TRANSITION_RULES[0]`: `v..P.. → V..P..` | Still valid, covered **nowhere** before this change | `required_next_cs_events()`, CSB-17-003 |
+| `TRANSITION_RULES[0]`: `v..P.. → V..P..` | Still valid, asserted by SM-09-001 as a persistence-time normalization but with no CS-behavior rule of its own | `required_next_cs_events()`, CSB-17-003, which `refines` SM-09-001 by restating it as a trajectory rule |
 | `is_valid_history`: causal event ordering (`V≺F≺D`, `P≺X`/`XP`, `V≺P`/`PV`) | Still valid — **the most valuable rule in the module** | `is_valid_cs_history()` / `is_valid_cs_history_prefix()` / `replay_cs_history()`, CSB-17-004 |
 | `is_valid_pattern` and the whole `.`-wildcard regex pattern language | **Superseded** | Enum membership tuples (`VFD_VENDOR_AWARE`, `PXA_EXPLOIT_PUBLIC`, …) and the `is_*` predicates already do this, type-safely |
 | `hypercube.py` scoring, tf-idf, pagerank, `DESIDERATA`, adjacency matrices | Out of scope — analytical, not normative | Stays in `hypercube.py`; no protocol path needs it |
@@ -159,8 +163,12 @@ analytical model, which is genuinely useful and genuinely non-normative.
 
 ### Consequences
 
-- Good: the `vP → VP` rule is now enforceable for the first time; it existed
-  only in the legacy module and was covered by no spec.
+- Good: the `vP → VP` rule is now enforceable against the current enums for the
+  first time. SM-09-001 already required it, but only at the persistence
+  boundary and only with the legacy string-pattern module as its implementation;
+  CSB-17-003 gives it a CS-behavior expression, and CSB-17-005 settles what it
+  means for an in-progress history (a prefix may end in `vP`; a persisted state
+  may not be `vP`).
 - Good: history validity is available as a causal check on complete *and*
   partial histories, which is what CONCERN #2181 needs.
 - Good: compound-transition validity cannot drift from the dimension objects,
@@ -177,7 +185,7 @@ analytical model, which is genuinely useful and genuinely non-normative.
 
 ## Validation
 
-- `test/core/states/test_cs_invariants.py` (92 tests) — exhaustive equivalence
+- `test/core/states/test_cs_invariants.py` (109 tests) — exhaustive equivalence
   against the legacy implementation: the `CS` enum equals the legacy 32-state
   set; the new transition rule admits exactly the legacy 58 edges; the causal
   replay admits exactly the legacy 70 histories; and `is_valid_cs_history`
@@ -186,7 +194,13 @@ analytical model, which is genuinely useful and genuinely non-normative.
   independently of the predicate under test, and each is asserted to have
   exactly one valid successor.
 - Prefix coverage: every prefix of every valid history validates, and the
-  causally impossible prefixes (`F` first, `XA`, `PA`) are rejected.
+  causally impossible prefixes (`F` first, `XA`, `PA`) are rejected. The
+  converse is pinned too — the accepted set is exactly the prefix-closure of
+  the 70 valid histories, so no accepted prefix is a dead end (CSB-17-005).
+- Input coercion: because `CSEvent` is a `StrEnum`, the single-letter strings of
+  the legacy API are accepted on every entry point and produce identical
+  verdicts; the bool-returning predicates answer `False` for non-events rather
+  than raising.
 
 ## Pros and Cons of the Options
 

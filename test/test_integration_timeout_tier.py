@@ -14,11 +14,19 @@
 """
 Tests for the integration-tier per-test timeout (issue #2270).
 
-The global ``timeout = 5`` in ``pyproject.toml`` is sized for the unit suite.
+The global ``timeout = 30`` in ``pyproject.toml`` is sized for the unit suite.
 ``test/conftest.py`` widens it for ``integration``-marked tests only. These
-tests pin that behaviour so the 5s ceiling cannot silently creep back onto the
-integration suite and abort the session again.
+tests pin both tiers so neither ceiling can silently creep back down and abort
+the session again.
+
+``TestApplyIntegrationTimeout`` exercises the hook against a stub item, which
+pins its own contract but cannot show that pytest-timeout honours a marker
+added at collection time. ``TestResolvedTimeoutsUnderRealPytest`` closes that
+gap by running a real pytest session and reading the timeout each item
+actually resolved to.
 """
+
+import json
 
 import pytest
 
@@ -26,6 +34,8 @@ from test.conftest import (
     INTEGRATION_TIMEOUT_SECONDS,
     apply_integration_timeout,
 )
+
+pytest_plugins = ["pytester"]
 
 
 class FakeItem:
@@ -110,6 +120,95 @@ class TestApplyIntegrationTimeout:
 
     def test_empty_collection_is_a_no_op(self):
         assert apply_integration_timeout([]) == 0
+
+
+_UNIT_TIER_FOR_PROBE = 30
+
+_PROBE_CONFTEST = """
+import json
+import pathlib
+
+import pytest_timeout
+
+from test.conftest import apply_integration_timeout
+
+_resolved = {}
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "integration: integration test")
+
+
+def pytest_collection_modifyitems(items):
+    apply_integration_timeout(items)
+
+
+def pytest_runtest_setup(item):
+    _resolved[item.name] = pytest_timeout._get_item_settings(item).timeout
+
+
+def pytest_sessionfinish(session, exitstatus):
+    pathlib.Path(session.config.rootpath / "resolved.json").write_text(
+        json.dumps(_resolved)
+    )
+"""
+
+_PROBE_TESTS = """
+import pytest
+
+
+@pytest.mark.integration
+def test_integration_tier():
+    pass
+
+
+def test_unit_tier():
+    pass
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(7)
+def test_explicit_marker_wins():
+    pass
+"""
+
+
+class TestResolvedTimeoutsUnderRealPytest:
+    """Assert the timeout each item *actually* resolves to (issue #2270).
+
+    The stub-based tests above verify the hook's own logic. This one runs a
+    real pytest session and asks pytest-timeout what it resolved for each
+    item, which is the only way to catch a hook-ordering regression: the
+    marker is added at collection time, but pytest-timeout reads it much
+    later, in ``pytest_runtest_protocol``.
+    """
+
+    @pytest.fixture
+    def resolved(self, pytester):
+        pytester.makeconftest(_PROBE_CONFTEST)
+        pytester.makepyfile(test_probe=_PROBE_TESTS)
+
+        result = pytester.runpytest(
+            "-p",
+            "no:randomly",
+            "-o",
+            f"timeout={_UNIT_TIER_FOR_PROBE}",
+            "-o",
+            "timeout_method=thread",
+        )
+        result.assert_outcomes(passed=3)
+
+        return json.loads((pytester.path / "resolved.json").read_text())
+
+    def test_integration_item_resolves_to_the_integration_tier(self, resolved):
+        assert resolved["test_integration_tier"] == INTEGRATION_TIMEOUT_SECONDS
+
+    def test_unit_item_resolves_to_the_unit_tier(self, resolved):
+        assert resolved["test_unit_tier"] == _UNIT_TIER_FOR_PROBE
+
+    def test_explicit_marker_beats_the_tier_default(self, resolved):
+        """The demo suite's deliberate values (10, 180) depend on this."""
+        assert resolved["test_explicit_marker_wins"] == 7
 
 
 class TestIntegrationTimeoutValue:

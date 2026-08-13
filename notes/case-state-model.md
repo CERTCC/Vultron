@@ -122,8 +122,8 @@ verdicts split between *still valid* and *superseded by structure*.
 | `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
 | `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
 | `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |
-| `TRANSITION_RULES`: `v..P.. → V..P..` | Still valid, previously enforced **nowhere** | `required_next_cs_events()`, CSB-17-003 |
-| `is_valid_history`: `V≺F≺D`, `P≺X`/`XP`, `V≺P`/`PV` | Still valid — the most valuable rule in the module | `is_valid_cs_history()`, `is_valid_cs_history_prefix()`, `replay_cs_history()`, CSB-17-004 |
+| `TRANSITION_RULES`: `v..P.. → V..P..` | Still valid; SM-09-001 already required it at the persistence boundary, with only the legacy module implementing it | `required_next_cs_events()`, CSB-17-003 (which `refines` SM-09-001) |
+| `is_valid_history`: `V≺F≺D`, `P≺X`/`XP`, `V≺P`/`PV` | Still valid — the most valuable rule in the module | `is_valid_cs_history()`, `is_valid_cs_history_prefix()`, `replay_cs_history()`, CSB-17-004 (complete) and CSB-17-005 (prefixes) |
 | `is_valid_pattern` and the `.`-wildcard pattern language | **Superseded** | Enum membership tuples (`VFD_VENDOR_AWARE`, `PXA_EXPLOIT_PUBLIC`, …) plus the `is_*` predicates |
 | `hypercube.py` scoring, tf-idf, pagerank, `DESIDERATA` | Analytical, not normative | Stays in `hypercube.py`; no protocol path needs it |
 

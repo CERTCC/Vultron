@@ -1483,6 +1483,13 @@ groups:
     testable: true
     postconditions:
     - description: The CS enum has exactly 32 members, one per valid compound state
+    relationships:
+    - rel_type: refines
+      spec_id: SM-09-002
+      note: >-
+        SM-09-002 states the vF/fD prohibition as a rejection rule; this
+        refines it to a structural guarantee by enumerating only the 32
+        reachable combinations, so the impossible ones are unrepresentable.
     adr:
     - ADR-0060
 
@@ -1493,8 +1500,9 @@ groups:
       A CS transition MUST change exactly one of the six CS dimensions, and
       MUST change it from the not-yet-happened value to the happened value.
       Transitions that change two or more dimensions at once, that reverse a
-      dimension, or that skip a VFD prerequisite MUST be rejected. There are
-      exactly 58 valid CS transitions.
+      dimension, or that skip a VFD prerequisite MUST be rejected. These three
+      conditions alone admit 72 transitions; applying the ephemeral-state rule
+      of CSB-17-003 as well leaves exactly 58 valid CS transitions.
     rationale: >-
       CS events are irreversible and are observed one at a time; a compound
       state change of Hamming distance greater than one conflates two distinct
@@ -1508,21 +1516,40 @@ groups:
       actor: validator
       action: >-
         Identify the single dimension that differs between source and
-        destination; reject if zero or more than one differs.
-      expected: A single CS event accounts for the change
+        destination; reject if more than one differs. If none differs, the
+        write is a same-state re-assertion, which CSB-16-001 and CSB-16-002
+        permit as a status confirmation: accept it only when the caller has
+        opted in (the allow_null parameter), and reject it otherwise, because a
+        transition validator's default answer for "no change" must be "that is
+        not a transition".
+      expected: A single CS event accounts for the change, or the caller has
+        explicitly asked for same-state writes to pass
     - order: 2
       actor: validator
       action: >-
         Delegate to the changed dimension's own transition table
         (is_valid_vfd_transition or is_valid_pxa_transition).
       expected: Monotonicity and VFD prerequisite ordering are enforced
+    - order: 3
+      actor: validator
+      action: >-
+        Apply the ephemeral-state rule of CSB-17-003 to the source state.
+      expected: A transition out of a vP or pX state fires only the event that
+        state requires
     postconditions:
     - description: Only Hamming-distance-1 monotone transitions are accepted
     relationships:
     - rel_type: constrains
       spec_id: CSB-16-001
+      note: >-
+        Adds the one-dimension-at-a-time and monotonicity constraints that a
+        per-dimension write validator cannot see. The same-state write CSB-16
+        permits is preserved via the opt-in described in step 1.
     - rel_type: constrains
       spec_id: CSB-16-002
+    - rel_type: depends_on
+      spec_id: CSB-17-003
+      note: The 58-transition count holds only with the ephemeral rule applied.
     adr:
     - ADR-0060
 
@@ -1550,6 +1577,17 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CSB-13-001
+    - rel_type: refines
+      spec_id: SM-09-001
+      note: >-
+        SM-09-001 governs the persistence boundary: an incoming status write
+        carrying vP or pX MUST be promoted to the forced form before it is
+        stored. CSB-17-003 governs trajectory validation, where the same two
+        conditions are modelled as ephemeral states with exactly one legal
+        successor. The two are consistent because they apply at different
+        boundaries: no vP or pX state is ever persisted, but such a state is
+        still a legal intermediate point in a replayed history, and CSB-17-004
+        therefore permits a history prefix to end in one.
     adr:
     - ADR-0060
 
@@ -1562,16 +1600,15 @@ groups:
       the initial state vfdpxa, rather than checking states point-in-time or
       comparing wall-clock timestamps. A complete history contains all six CS
       events exactly once; there are exactly 70 valid complete histories out of
-      720 orderings. An incomplete history MUST be validated as a prefix, which
-      MAY end in an ephemeral state.
+      720 orderings.
     rationale: >-
       Validity of a case trajectory is a property of the whole ordered
       sequence, not of any single state: VFDPXA and VFDXAP visit only valid
       states, but only the first is a possible case history. Wall-clock
       timestamps cannot substitute, because they may be missing, skewed, or
-      recorded by different participants. Real cases are usually still in
-      progress, so prefix validation is the common case and MUST NOT require
-      all six events.
+      recorded by different participants. SHOULD rather than MUST because a
+      consumer holding only a current state, with no event log to replay,
+      cannot do better.
     testable: true
     preconditions:
     - description: An ordered sequence of CS events, possibly incomplete
@@ -1588,5 +1625,46 @@ groups:
       expected: Causally impossible orderings are rejected
     postconditions:
     - description: A complete valid history terminates in VFDPXA
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An incomplete CS history MUST be validated as a prefix: validation MUST
+      NOT require all six CS events, and a prefix MAY end in an ephemeral
+      state. The accepted prefixes are exactly the prefixes of the 70 valid
+      complete histories of CSB-17-004, so every accepted prefix MUST have at
+      least one completion.
+    rationale: >-
+      Real cases are usually still in progress, so requiring six events would
+      reject every live case. Ending in an ephemeral state is unavoidable at the
+      prefix level: CSB-17-003's forced successor has not happened yet when the
+      prefix is cut, which is different from persisting an ephemeral state —
+      SM-09-001 still forbids that. Pinning acceptance to CSB-17-004's prefix
+      closure keeps both directions honest: a validator that merely never
+      rejects a genuine prefix could still accept dead ends.
+    testable: true
+    preconditions:
+    - description: An ordered sequence of CS events with fewer than six entries
+    steps:
+    - order: 1
+      actor: validator
+      action: >-
+        Apply CSB-17-004's replay to the sequence without requiring that it
+        terminate in VFDPXA.
+      expected: >-
+        The prefix is accepted iff it is a prefix of at least one valid
+        complete history
+    postconditions:
+    - description: >-
+        A prefix ending in an ephemeral state is accepted, and its forced
+        successor per CSB-17-003 is the only legal continuation
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-17-004
+    - rel_type: depends_on
+      spec_id: CSB-17-003
     adr:
     - ADR-0060

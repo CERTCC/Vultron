@@ -1,13 +1,14 @@
 ---
 title: A timeout tuned for one test tier masquerades as flakiness in another
-timestamp: "2026-08-12"
-source: ISSUE-2237
+timestamp: 2026-08-12T00:00:00Z
+source: ISSUE-2270
 type: learning
 signal: tooling-issue
-tags: [testing, pytest, timeout, flaky-tests, triage]
 ---
 
 # A timeout tuned for one test tier masquerades as flakiness in another
+
+*Areas: testing, pytest, timeouts, flaky-test triage.*
 
 ## What happened
 
@@ -24,8 +25,8 @@ failure was **reliably red** (2/2 on clean `origin/main` 65fe33f1b); only the
 location was nondeterministic.
 
 Fixed by #2270: a two-tier ceiling — 60s for `integration`-marked tests via
-`test/conftest.py::apply_integration_timeout`, and the unit default raised 5s to
-20s in `pyproject.toml`.
+`test/conftest.py::apply_integration_timeout`, and the unit default raised from
+5s to 30s in `pyproject.toml`.
 
 ## This was diagnosed four times before it was fixed
 
