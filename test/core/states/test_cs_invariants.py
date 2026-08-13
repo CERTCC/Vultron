@@ -39,6 +39,8 @@ from vultron.core.states.cs import (
     CS_vfd,
     PXA_Trigger,
     VFD_Trigger,
+    is_valid_pxa_transition,
+    is_valid_vfd_transition,
     is_vfd_vendor_aware,
 )
 from vultron.core.states.cs_invariants import (
@@ -278,6 +280,56 @@ def test_there_are_58_valid_transitions():
         1 for src in CS for dst in CS if is_valid_cs_transition(src, dst)
     )
     assert count == 58
+
+
+def _satisfies_structural_conditions(src: CS, dst: CS) -> bool:
+    """Conditions 1-3 of CSB-17-002, *without* the ephemeral rule (condition 4).
+
+    Distance-1, monotone, and permitted by the changed dimension's own table —
+    but indifferent to whether *src* is ephemeral.
+    """
+    if src is dst:
+        return False
+    event = cs_transition_event(src, dst)
+    if event is None:
+        return False
+
+    src_vfd, src_pxa = cs_dimensions(src)
+    dst_vfd, dst_pxa = cs_dimensions(dst)
+    if event in VFD_EVENTS:
+        return src_pxa is dst_pxa and is_valid_vfd_transition(src_vfd, dst_vfd)
+    return src_vfd is dst_vfd and is_valid_pxa_transition(src_pxa, dst_pxa)
+
+
+@pytest.mark.spec("CSB-17-002")
+def test_structural_conditions_alone_admit_72_transitions():
+    """Pins CSB-17-002's attribution of the 72 -> 58 reduction.
+
+    The 58 figure needs all four conditions. Conditions 1-3 alone admit 72;
+    the ephemeral rule of CSB-17-003 removes the other 14. CSB-17-002's
+    statement restates both counts, and a restated count next to a
+    requirement reference drifts silently unless something asserts it
+    (see `20260812-restated-counts-in-spec-cross-references-drift.md`).
+    """
+    structural = {
+        (src, dst)
+        for src in CS
+        for dst in CS
+        if _satisfies_structural_conditions(src, dst)
+    }
+    valid = {
+        (src, dst)
+        for src in CS
+        for dst in CS
+        if is_valid_cs_transition(src, dst)
+    }
+
+    assert len(structural) == 72
+    assert len(valid) == 58
+
+    # The 14 removed edges all leave an ephemeral state by the wrong event.
+    assert valid < structural
+    assert all(is_ephemeral_cs_state(src) for src, _ in structural - valid)
 
 
 def test_every_transition_changes_exactly_one_dimension():
