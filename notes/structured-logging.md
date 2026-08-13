@@ -152,10 +152,11 @@ from the #1988 implementation:
   `TransitionRMtoValid`, …), reading the before-state from the latest
   `ParticipantStatus` and falling back to `RM.START`.
   `CreateParticipantStatusNode` is the second path — `leave.py`,
-  `sync/nodes/effects.py`, and `add_participant_status_trigger_tree.py` set
-  `rm_state=` on it directly without going through the helper — so it logs the
-  RM line itself. A new RM-writing node MUST route through one of these two, or
-  its transition will be missing from the INFO narrative.
+  `sync/nodes/close_case_effect.py` (`ApplyCloseCaseFromLedgerNode`), and
+  `add_participant_status_trigger_tree.py` set `rm_state=` on it directly
+  without going through the helper — so it logs the RM line itself. A new
+  RM-writing node MUST route through one of these two, or its transition will
+  be missing from the INFO narrative.
 - CS: `CreateParticipantStatusNode` is the shared writer for both VFD and PXA
   snapshots. `TransitionCStoFixReady` / `TransitionCStoFixDeployed` delegate to
   it and log only at DEBUG — they know the target state but not the origin.
