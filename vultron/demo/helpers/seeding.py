@@ -957,6 +957,16 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
     case_id = case_obj.id_
     if vendor_actor_id in case_obj.actor_participant_index:
         return
+    # Seed vendor at RM.RECEIVED — the minimum state needed so that the
+    # validate-report trigger can advance RECEIVED → VALID and emit the
+    # validate_report eventType to the case-actor ledger.
+    #
+    # In a multi-server deployment the CaseProposal acceptance round-trip would
+    # drive this transition automatically (SubmitReportReceivedUseCase creates
+    # the participant at RM.RECEIVED).  In single-server demo mode that
+    # round-trip is blocked, so we seed it here as the protocol would have.
+    # RM.VALID must NOT be pre-seeded — validate-report must drive that
+    # transition so the eventType appears in the case-actor ledger (issue #2273).
     vendor_p = CaseParticipant(
         attributed_to=vendor_actor_id,
         context=case_id,
@@ -968,11 +978,6 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
                 context=case_id,
                 attributed_to=vendor_actor_id,
             ),
-            ParticipantStatus(
-                rm=RmDimension(state=RM.VALID),
-                context=case_id,
-                attributed_to=vendor_actor_id,
-            ),
         ],
     )
     try:
@@ -981,7 +986,7 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
         pass
     case_obj.add_participant(vendor_p)
     logger.debug(
-        "seed_case_participants_for_demo: added vendor '%s' at RM.VALID",
+        "seed_case_participants_for_demo: added vendor '%s' at RM.RECEIVED",
         vendor_actor_id,
     )
 
