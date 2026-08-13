@@ -271,37 +271,6 @@ def resolve_case(case_id: str, dl: CasePersistence):
     return case_raw
 
 
-def _scan_case_participants_for_actor(
-    case_obj: VulnerabilityCase,
-    actor_id: str,
-    dl: CasePersistence,
-) -> "CaseParticipant | None":
-    """Return the CaseParticipant for actor_id by scanning case_participants.
-
-    Resolves string references via ``dl.read``; skips entries that are
-    missing from the DL or are not ``CaseParticipant`` objects.  Returns
-    ``None`` when no matching participant is found.
-    """
-    for participant_ref in case_obj.case_participants:
-        if isinstance(participant_ref, str):
-            participant_raw = dl.read(participant_ref)
-            if participant_raw is None:
-                continue
-        else:
-            participant_raw = participant_ref
-        if not isinstance(participant_raw, CaseParticipant):
-            continue
-        actor_ref = participant_raw.attributed_to
-        p_actor_id = (
-            actor_ref
-            if isinstance(actor_ref, str)
-            else getattr(actor_ref, "id_", str(actor_ref))
-        )
-        if p_actor_id == actor_id:
-            return participant_raw
-    return None
-
-
 def _bootstrap_invited_participant(
     participant_id: str,
     actor_id: str,
@@ -313,9 +282,9 @@ def _bootstrap_invited_participant(
 
     Called when actor_participant_index confirms the actor is a participant but
     the participant object is absent from the local DL.  This occurs on the
-    invited path: Announce(VulnerabilityCase) delivers only string IDs in
-    case_participants, so _store_embedded_participants skips them and no
-    CaseParticipant object lands in the invitee's DL (ISSUE-2216, ISSUE-2223).
+    invited path when the CaseActor's Announce snapshot carries only string IDs
+    in case_participants: _store_embedded_participants skips string refs, so no
+    CaseParticipant object lands in the invitee's DL (ISSUE-2223).
 
     Bootstraps at RM.RECEIVED (the required entry state for an invited actor
     per CM-11-001) then attempts new_rm_state in one further step.
@@ -358,10 +327,17 @@ def update_participant_rm_state(
     """Append a new ParticipantStatus with new_rm_state to the actor's
     CaseParticipant in the given case and persist the updated participant.
 
-    Handles both inline and string-reference participants.  When the actor is
-    listed in ``actor_participant_index`` but its participant object is absent
-    from the local DL (invited-path bootstrap gap), the participant is
-    created at RM.RECEIVED and advanced to ``new_rm_state`` in one step.
+    Always resolves the participant via ``actor_participant_index`` (per
+    CM-19-003) then reads the live record from the DataLayer.  Inline objects
+    in ``case_participants`` are **not** consulted: they may be stale snapshots
+    from a received ``Announce(VulnerabilityCase)`` whose embedded participants
+    were materialised for delivery but whose RM state has since advanced in the
+    standalone DataLayer record (#2233).
+
+    When the actor is listed in ``actor_participant_index`` but its participant
+    object is absent from the local DL (invited-path bootstrap gap, ISSUE-2223),
+    the participant is created at RM.RECEIVED and advanced to ``new_rm_state``
+    in one step.
 
     Returns ``True`` on success (including idempotent no-op), ``False`` when
     the case or participant is not found.
@@ -378,20 +354,37 @@ def update_participant_rm_state(
         )
         return False
 
-    participant = _scan_case_participants_for_actor(case_obj, actor_id, dl)
-    if participant is None:
-        participant_id = case_obj.actor_participant_index.get(actor_id)
-        if participant_id is None:
-            logger.warning(
-                "update_participant_rm_state: no CaseParticipant for actor '%s' "
-                "in case '%s'; RM state not updated",
-                actor_id,
-                case_id,
-            )
-            return False
+    # CM-19-003: always look up via actor_participant_index (authoritative fast
+    # path); never rely on inline objects in case_participants which may be
+    # stale snapshots (#2233).
+    participant_id = case_obj.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        logger.warning(
+            "update_participant_rm_state: no CaseParticipant for actor '%s' "
+            "in case '%s'; RM state not updated",
+            actor_id,
+            case_id,
+        )
+        return False
+
+    participant_raw = dl.read(participant_id)
+    if participant_raw is None:
+        # Invited-path bootstrap gap: actor is indexed but the standalone
+        # CaseParticipant object was never stored locally (ISSUE-2223).
         return _bootstrap_invited_participant(
             participant_id, actor_id, case_id, new_rm_state, dl
         )
+    if not isinstance(participant_raw, CaseParticipant):
+        logger.warning(
+            "update_participant_rm_state: participant '%s' is wrong type %s "
+            "for actor '%s' in case '%s'; RM state not updated",
+            participant_id,
+            type(participant_raw).__name__,
+            actor_id,
+            case_id,
+        )
+        return False
+    participant = participant_raw
 
     rm_before: RM | None = None
     if participant.participant_statuses:

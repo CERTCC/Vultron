@@ -352,10 +352,24 @@ class FindParticipantByActorIdNode(DataLayerCondition):
         matched_participant: object | None = None
         matched_participant_id: str | None = None
         for participant_ref in getattr(case_obj, "case_participants", []):
-            participant_obj = participant_ref
             if isinstance(participant_ref, str):
                 participant_obj = self.datalayer.read(
                     participant_ref, raise_on_missing=False
+                )
+            else:
+                # For inline objects, read the live DL record to avoid stale
+                # snapshots (#2233 — _build_case_object materialises inlines
+                # for delivery; the standalone record may have advanced since).
+                pid = getattr(participant_ref, "id_", None)
+                live = (
+                    self.datalayer.read(pid, raise_on_missing=False)
+                    if pid
+                    else None
+                )
+                participant_obj = (
+                    live
+                    if isinstance(live, CaseParticipant)
+                    else participant_ref
                 )
             if not isinstance(participant_obj, CaseParticipant):
                 continue

@@ -311,6 +311,87 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
     assert "divergence" in result.feedback_message
 
 
+def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode must read the live DL record, not a stale inline.
+
+    Regression for #2233: when case_participants contains an inline
+    CaseParticipant, the old code returned it directly.  If the standalone DL
+    record had advanced past the inline snapshot, downstream nodes would see
+    stale RM state.  Fix: for non-string refs, do dl.read(id_) to get the live
+    record; fall back to the inline only when the DL record is absent.
+    """
+    actor_id = "https://example.org/actors/vendor-live"
+    participant_id = "https://example.org/participants/vendor-live"
+    case_id = "https://example.org/cases/case-live"
+
+    from vultron.core.states.rm import RM
+
+    # Live DL record at VALID (simulates what validate-report produces)
+    live = CaseParticipant(
+        id_=participant_id,
+        attributed_to=actor_id,
+        context=case_id,
+    )
+    live.append_rm_state(RM.RECEIVED, actor=actor_id, context=case_id)
+    live.append_rm_state(RM.VALID, actor=actor_id, context=case_id)
+    datalayer.save(live)
+
+    # Case has an inline CaseParticipant at RECEIVED (stale snapshot)
+    stale_inline = CaseParticipant(
+        id_=participant_id,
+        attributed_to=actor_id,
+        context=case_id,
+    )
+    stale_inline.append_rm_state(RM.RECEIVED, actor=actor_id, context=case_id)
+
+    case = VultronCase(
+        id_=case_id,
+        name="Case Live",
+        case_participants=[stale_inline],  # inline, not string ID
+        actor_participant_index={actor_id: participant_id},
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(case)
+
+    captured: list[CaseParticipant] = []
+
+    class CaptureBBParticipant(DataLayerCondition):
+        def setup(self, **kwargs):
+            super().setup(**kwargs)
+            self.blackboard.register_key(
+                key="found_live", access=py_trees.common.Access.READ
+            )
+
+        def update(self) -> Status:
+            found = self.blackboard.get("found_live")
+            if isinstance(found, CaseParticipant):
+                captured.append(found)
+            return Status.SUCCESS
+
+    tree = py_trees.composites.Sequence(
+        name="FindAndCapture",
+        memory=False,
+        children=[
+            FindParticipantByActorIdNode(
+                case_id=case_id,
+                target_actor_id=actor_id,
+                participant_key="found_live",
+            ),
+            CaptureBBParticipant(name="Capture"),
+        ],
+    )
+
+    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    assert result.status == Status.SUCCESS
+    assert len(captured) == 1
+    found_participant = captured[0]
+    assert (
+        found_participant.participant_statuses[-1].rm.state == RM.VALID
+    ), "Expected live RM.VALID from DL, not stale RM.RECEIVED from inline copy"
+
+
 def test_read_object_success(bridge, datalayer, sample_record):
     """Verify ReadObject retrieves object from DataLayer."""
     # Read object using BT node (sample_record fixture already saved it)
