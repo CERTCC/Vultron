@@ -749,3 +749,75 @@ class TestLoadDevlogsManifestHandling:
         with pytest.raises(Failed) as excinfo:
             common.load_devlogs()
         assert "no case-ledger" in (excinfo.value.msg or "").lower()
+
+
+# ---------------------------------------------------------------------------
+# _AllSkipGuard (DEMOCI-10-005)
+# ---------------------------------------------------------------------------
+
+import types as _types  # noqa: E402
+
+from test.ci.invariants.conftest import _AllSkipGuard  # noqa: E402
+
+
+def _rpt(when: str, outcome: str):
+    return _types.SimpleNamespace(when=when, outcome=outcome)
+
+
+def _ses(exitstatus: int = 0):
+    return _types.SimpleNamespace(exitstatus=exitstatus)
+
+
+class TestAllSkipGuard:
+    """DEMOCI-10-005: all-skip session must not exit 0."""
+
+    def test_forces_exit_1_on_fixture_level_skips(self):
+        """All tests skipped at setup (fixture skip) → exitstatus forced to 1."""
+        guard = _AllSkipGuard()
+        for _ in range(3):
+            guard.pytest_runtest_logreport(_rpt("setup", "skipped"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1
+
+    def test_forces_exit_1_on_call_level_skips(self):
+        """All tests skipped in the test body → exitstatus forced to 1."""
+        guard = _AllSkipGuard()
+        for _ in range(2):
+            guard.pytest_runtest_logreport(_rpt("call", "skipped"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1
+
+    def test_does_not_trigger_when_any_test_passes(self):
+        """One passing test among skips → exitstatus unchanged."""
+        guard = _AllSkipGuard()
+        guard.pytest_runtest_logreport(_rpt("setup", "skipped"))
+        guard.pytest_runtest_logreport(_rpt("call", "passed"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 0
+
+    def test_does_not_trigger_on_empty_session(self):
+        """No tests reported → exitstatus unchanged."""
+        guard = _AllSkipGuard()
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 0
+
+    def test_does_not_trigger_when_tests_fail(self):
+        """Failed tests → guard does not alter the already-nonzero exitstatus."""
+        guard = _AllSkipGuard()
+        guard.pytest_runtest_logreport(_rpt("call", "failed"))
+        session = _ses(1)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1
+
+    def test_ignores_teardown_reports(self):
+        """Teardown outcomes are not tracked; a setup skip still triggers."""
+        guard = _AllSkipGuard()
+        guard.pytest_runtest_logreport(_rpt("teardown", "passed"))
+        guard.pytest_runtest_logreport(_rpt("setup", "skipped"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1

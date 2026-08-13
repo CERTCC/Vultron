@@ -168,3 +168,36 @@ def full_history_replicas() -> dict[str, list[dict]]:
     """Late actor has the complete chain (no missing entries)."""
     chain = _build_chain("case-actor", _base_events())
     return {"early": chain, "late": list(chain)}
+
+
+# ---------------------------------------------------------------------------
+# DEMOCI-10-005: all-skip guard
+# ---------------------------------------------------------------------------
+
+
+class _AllSkipGuard:
+    """Force exit-code 1 when every collected test was skipped.
+
+    When devlogs are absent, load_devlogs() calls pytest.skip() at fixture
+    level.  A session where all tests skip exits 0 by default, which makes
+    CI report green even though no invariant was actually checked.
+    DEMOCI-10-005 requires the harness to exit non-zero in this case.
+    """
+
+    def __init__(self) -> None:
+        self._outcomes: list[str] = []
+
+    def pytest_runtest_logreport(self, report) -> None:
+        if report.when == "call":
+            self._outcomes.append(report.outcome)
+        elif report.when == "setup" and report.outcome == "skipped":
+            # Fixture-level skip: no "call" phase follows.
+            self._outcomes.append("skipped")
+
+    def pytest_sessionfinish(self, session) -> None:
+        if self._outcomes and all(o == "skipped" for o in self._outcomes):
+            session.exitstatus = 1
+
+
+def pytest_configure(config) -> None:
+    config.pluginmanager.register(_AllSkipGuard(), "_all_skip_guard")

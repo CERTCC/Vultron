@@ -932,3 +932,23 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-001
+
+      - id: DEMOCI-10-005
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness pytest session MUST exit non-zero when every
+          collected test was skipped.  A ``pytest_sessionfinish`` hook registered
+          in ``test/ci/invariants/conftest.py`` MUST set ``session.exitstatus = 1``
+          whenever at least one test was reported and all reported test outcomes
+          were ``"skipped"``.
+        rationale: >-
+          When devlogs are absent or a scenario sub-directory is missing,
+          ``load_devlogs()`` calls ``pytest.skip()`` at fixture level and every
+          test in the file skips.  pytest exits 0 by default for a skip-only
+          session, which lets CI mark the invariant-harness job green even though
+          no invariant was actually checked.  Forcing exit 1 converts a vacuous
+          pass into a visible failure, closing the last gap in DEMOCI-10 coverage.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-003
