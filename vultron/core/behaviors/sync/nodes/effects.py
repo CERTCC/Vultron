@@ -53,6 +53,9 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import (
+    participant_status_rm_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -315,8 +318,7 @@ class ApplyCloseCaseFromLedgerNode(DataLayerAction):
         participant = self.datalayer.read(participant_id)
         if isinstance(participant, CaseParticipant):
             for ps in participant.participant_statuses:
-                rm_dim = getattr(ps, "rm", None)
-                if getattr(rm_dim, "state", None) == RM.CLOSED:
+                if participant_status_rm_state(ps) == RM.CLOSED:
                     self.logger.debug(
                         "%s: departing actor '%s' already at RM.CLOSED — no-op",
                         self.name,

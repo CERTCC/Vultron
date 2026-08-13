@@ -32,7 +32,7 @@ from typing import Any, cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerAction, read_rm_states
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -41,14 +41,6 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM, is_rm_at_least
 
 logger = logging.getLogger(__name__)
-
-
-def _local_rm_state(participant: CaseParticipant) -> RM | None:
-    """Return the replica's current RM state for *participant*, if known."""
-    current = getattr(participant, "participant_status", None)
-    rm_dimension = getattr(current, "rm", None)
-    state = getattr(rm_dimension, "state", None)
-    return state if isinstance(state, RM) else None
 
 
 def _ratchet_rm(
@@ -110,7 +102,10 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
     Lenient on missing data: if the participant is not found in the local
     DataLayer (this actor may have a partial view of the case), or the
     payload snapshot is incomplete, the node returns SUCCESS without error to
-    avoid blocking the ``Announce`` processing flow.
+    avoid blocking the ``Announce`` processing flow.  It is *not* lenient on a
+    malformed local record: a participant whose recorded status is not
+    core-shaped yields FAILURE, because the ratchet cannot be enforced against
+    an unreadable floor (ARCH-15-001, ADR-0062).
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
     specs/sync-ledger-replication.yaml SYNC-02-002.
@@ -128,11 +123,27 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
         participant: CaseParticipant,
         status_id: str,
         participant_id: str,
-    ) -> ParticipantStatus:
-        """Enforce monotonic RM visibility, logging a carried-forward value."""
-        ratcheted, refused_rm = _ratchet_rm(
-            status_obj, _local_rm_state(participant)
-        )
+    ) -> ParticipantStatus | None:
+        """Enforce monotonic RM visibility, logging a carried-forward value.
+
+        Returns ``None`` when the participant's recorded status is not
+        core-shaped, and the caller must then return ``Status.FAILURE``.  A
+        shape mismatch is not an absence: reading it as "no local RM known"
+        would hand :func:`_ratchet_rm` a ``None`` floor and skip the ratchet
+        entirely, letting a regressing entry through unchecked — the defect
+        behind #2264 (ARCH-15-001, ARCH-15-002, ADR-0062).  Genuine absence —
+        a replica whose participant record carries no status yet — has no
+        floor to enforce and is handled here as such.
+        """
+        current = getattr(participant, "participant_status", None)
+        local_rm: RM | None = None
+        if current is not None:
+            states = read_rm_states(self, current)
+            if states is None:
+                return None
+            (local_rm,) = states
+
+        ratcheted, refused_rm = _ratchet_rm(status_obj, local_rm)
         if refused_rm is not None:
             self.logger.warning(
                 "%s: ledger entry for '%s' would regress participant '%s'"
@@ -213,9 +224,20 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        status_obj = self._apply_rm_ratchet(
+        ratcheted = self._apply_rm_ratchet(
             status_obj, participant, status_id, participant_id
         )
+        if ratcheted is None:
+            self.logger.error(
+                "%s: cannot enforce monotonic RM visibility for participant"
+                " '%s' — its recorded status is not core-shaped; refusing to"
+                " apply ledger entry '%s' (ARCH-15-001, ADR-0062)",
+                self.name,
+                participant_id,
+                status_id,
+            )
+            return Status.FAILURE
+        status_obj = ratcheted
 
         # Saved unconditionally: the read-back below is what actually reaches
         # ``participant_statuses``, so skipping the save when the object already
