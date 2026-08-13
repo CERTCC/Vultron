@@ -468,8 +468,6 @@ def _phase_report_submission(
             )
         logger.info("Case created: %s", case.id_)
 
-    # ADR-0041: CaseActor normally seeds participants via case_proposal_received_tree,
-    # but nested ASGI delivery is blocked in single-server mode.  Seed directly.
     # Participants are seeded without pre-populated RM state so that the protocol
     # drives every RM transition (RECEIVED → VALID → ACCEPTED) through triggers.
     seed_case_participants_for_demo(

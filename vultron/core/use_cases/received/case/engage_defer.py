@@ -47,6 +47,13 @@ class EngageCaseReceivedUseCase:
             logger.warning("engage_case: missing case_id on request")
             return
 
+        # The BT must execute under the receiving actor's identity so that
+        # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
+        # the CaseActor and commit the ledger entry (fix for #2300).
+        # Fall back to the sender's ID only when receiving_actor_id is absent
+        # (e.g. in legacy unit tests that do not populate the field).
+        receiving_actor_id = request.receiving_actor_id or actor_id
+
         # Persist any inline participant objects carried in the case snapshot
         # so BT nodes (CheckParticipantExists, AppendParticipantStatusNode) can
         # locate them by UUID.  Mirrors the Create (#564) and Announce (#566)
@@ -68,7 +75,7 @@ class EngageCaseReceivedUseCase:
         )
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=request
+            tree=tree, actor_id=receiving_actor_id, activity=request
         )
 
         if result.status != Status.SUCCESS:
@@ -106,6 +113,11 @@ class DeferCaseReceivedUseCase:
             logger.warning("defer_case: missing case_id on request")
             return
 
+        # The BT must execute under the receiving actor's identity so that
+        # CheckIsCaseManagerNode in GuardedCommitCaseLedgerEntryBT can match
+        # the CaseActor and commit the ledger entry (fix for #2300).
+        receiving_actor_id = request.receiving_actor_id or actor_id
+
         logger.info(
             "Actor '%s' defers case '%s' (RM → DEFERRED)",
             actor_id,
@@ -119,7 +131,7 @@ class DeferCaseReceivedUseCase:
         )
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=request
+            tree=tree, actor_id=receiving_actor_id, activity=request
         )
 
         if result.status != Status.SUCCESS:
