@@ -268,9 +268,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   all matching functions before commit.
 - **Case-Actor Broadcast Guard Tests Need a Third Participant** — include at
   least one non-sender peer or the assertion is vacuous.
-- **Case Participant Lookup**: `case_participants` is authoritative; check
-  `actor_participant_index` first (fast path), fall back to `case_participants`.
-  Fail only on contradictions, not cache misses.
+- **Case Participant Lookup**: `actor_participant_index` is the authoritative fast
+  path. Two lookup patterns exist — pick by context:
+  - **RM state mutation** (`update_participant_rm_state`): MUST use
+    `actor_participant_index → dl.read()` exclusively (CM-19-003). Never read
+    inline objects from `case_participants`; they may be stale snapshots (#2233).
+  - **BT-level resolution** (`FindParticipantByActorIdNode`): check
+    `actor_participant_index` first; fall back to `case_participants` scan for
+    bootstrap compatibility. Fail only on index↔scan contradictions, not cache
+    misses.
 - **Orphan Module Cleanup Requires Importer Proof** — verify no live importers
   in `vultron/` and `test/` before deleting.
 - **Worktree Sync Checks Need Ancestry Verification** — use `ensure-synced`
