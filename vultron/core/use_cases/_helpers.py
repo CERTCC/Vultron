@@ -12,6 +12,9 @@ from vultron.core.behaviors.narrative_log import log_rm_transition
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import (
+    participant_status_rm_state,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import (
     CasePersistence,
@@ -446,8 +449,11 @@ def current_participant_rm_state(
     statuses = participant.participant_statuses
     if not statuses:
         return RM.START
-    state = statuses[-1].rm.state
-    return state if isinstance(state, RM) else RM.START
+    # Canonical reader rather than an isinstance-guarded ``RM.START`` fallback:
+    # substituting the initial state for an unreadable one is the #2264 defect,
+    # and ``participant`` is an already-validated core CaseParticipant here, so
+    # its latest status always carries a usable ``rm`` dimension (issue #2232).
+    return participant_status_rm_state(statuses[-1])
 
 
 def _resolve_case_manager_id(

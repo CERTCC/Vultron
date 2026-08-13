@@ -214,6 +214,48 @@ migrating it out of core is tracked as a **separate concern** (#1506, decided
 in ADR-0035), not part of the DL-05 entity work. Until then, the ratchet
 exemption set enumerates these Activity types explicitly so it can only shrink.
 
+## Write Path Normalises Wire → Core (#2232, ADR-0062)
+
+The read-path rule above says nothing about what gets *written*, and that gap
+was load-bearing. `Record.from_obj()` rejected objects whose `type_` starts with
+`as_` — but wire vocabulary `type_` values are **bare** (`"CaseParticipant"`, not
+`"as_CaseParticipant"`), so the guard never fired for the 15 wire classes that
+shadow a `CORE_VOCABULARY` entry. A wire-shaped object was written into a
+core-typed row, and whichever class read the row back decided what the data
+meant.
+
+For `ParticipantStatus` and `CaseParticipant` the two shapes are *structurally*
+incompatible — core nests `rm: RmDimension` where wire carries a flat `rm_state`
+— so a wire-shaped row makes `status.rm.state` yield `None` rather than merely
+misspell a key.
+
+**Rule:** `Record.from_obj()` normalises through `_normalize_to_core()`
+(`vultron/adapters/driven/db_record.py`) before serialising. The object **and its
+direct children** are projected via `to_core()`; one level of children is
+sufficient because `to_core()` recurses. Child projection is not optional
+polish: a `VulnerabilityCase` row stores its `case_participants` inline, so
+checking only the top level still persisted a flat `rm_state` inside a
+core-shaped case.
+
+`_NORMALIZE_WIRE_TO_CORE` enumerates the migrated types. It is the write-side
+analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
+**grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). The
+remaining 13 shadowing types differ only by key spelling today and are tracked
+in #2268; five of them (the actor types) have no `to_core()` at all yet.
+
+**A projection failure raises `VultronValidationError`, not `ValueError`.**
+`crud.create()` raises `ValueError` for an already-existing row and callers
+legitimately swallow *that*; sharing the type meant an unprojectable object was
+silently never stored and never logged. The two causes must stay distinguishable
+— see `_pre_store_nested_object` in
+`vultron/adapters/driving/fastapi/routers/actors/_inbox.py` for the correct
+two-branch handler.
+
+**This is defense in depth, not the primary boundary.** Projection belongs at
+wire→core ingress; the persistence boundary is the backstop that guarantees no
+wire-shaped row exists regardless of which ingress path missed it. ADR-0062
+records why both are kept.
+
 ## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
 
 **Decided (ADR-0035).** `dl.read(activity_id)` in `vultron/core/` is a

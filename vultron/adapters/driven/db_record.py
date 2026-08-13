@@ -24,6 +24,7 @@ from pydantic import BaseModel, ValidationError
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
@@ -223,6 +224,54 @@ def _retype_inline_object_refs(
         return obj
 
 
+def _project_shadowing_wire_obj(obj: "BaseModel") -> "BaseModel":
+    """Project one object to its core counterpart when it shadows a core type.
+
+    Returns *obj* unchanged unless it is a wire class whose bare ``type_``
+    shadows a :data:`_NORMALIZE_WIRE_TO_CORE` entry.
+
+    Raises:
+        VultronValidationError: when the wire object cannot be projected to its
+            core counterpart.  Core types are stricter than wire types, so a
+            projection failure means the object was never valid domain data;
+            surfacing it beats persisting a row nothing can read (ARCH-15-002).
+            A dedicated error type — not a bare ``ValueError`` — because
+            ``crud.create`` raises ``ValueError`` for an already-existing row
+            and callers legitimately swallow *that*; the two must stay
+            distinguishable.
+    """
+    if not type(obj).__module__.startswith(_WIRE_MODULE_PREFIX):
+        return obj
+    type_ = getattr(obj, "type_", None)
+    if not isinstance(type_, str):
+        return obj
+    if type_ not in _NORMALIZE_WIRE_TO_CORE or type_ not in CORE_VOCABULARY:
+        return obj
+    to_core = getattr(obj, "to_core", None)
+    if to_core is None:
+        raise VultronValidationError(
+            f"Wire class {type(obj).__name__} shadows core type '{type_}' but"
+            " has no to_core() projection, so it cannot be persisted in the"
+            " canonical core shape (issue #2232)."
+        )
+    _PROJECTION_ERRORS = (
+        ValidationError,
+        VultronValidationError,
+        ValueError,
+        TypeError,
+    )
+    try:
+        return cast("BaseModel", to_core())
+    except _PROJECTION_ERRORS as exc:
+        raise VultronValidationError(
+            f"Cannot persist {type(obj).__name__}"
+            f" '{getattr(obj, 'id_', '<no id>')}': projecting it to core type"
+            f" '{type_}' failed ({exc}). A wire-shaped '{type_}' row must not"
+            " be stored — normalise at the wire→core boundary instead"
+            " (issue #2232)."
+        ) from exc
+
+
 def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
     """Return the core-shaped equivalent of *obj*, or *obj* unchanged.
 
@@ -235,33 +284,46 @@ def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
     the row is normalised here, at the persistence boundary, and no
     wire-shaped row is ever stored.
 
+    Both the object itself **and its direct children** are projected.  Only
+    checking the top level left the invariant unmet in the case that motivated
+    it: a ``VulnerabilityCase`` row stores its ``case_participants`` inline, so
+    a wire-shaped participant nested inside a core-shaped case still persisted a
+    flat ``rm_state``.  One level of child projection is sufficient because
+    ``to_core()`` recurses — projecting an ``as_CaseParticipant`` also projects
+    its ``as_ParticipantStatus`` children.
+
     Raises:
-        ValueError: when the wire object cannot be projected to its core
-            counterpart.  Core types are stricter than wire types, so a
-            projection failure means the object was never valid domain data;
-            surfacing it beats persisting a row nothing can read (ARCH-15).
+        VultronValidationError: when a wire object (at either level) cannot be
+            projected to its core counterpart.
     """
-    if not type(obj).__module__.startswith(_WIRE_MODULE_PREFIX):
+    if not isinstance(obj, BaseModel):
         return obj
-    type_ = obj.type_
-    if type_ not in _NORMALIZE_WIRE_TO_CORE or type_ not in CORE_VOCABULARY:
-        return obj
-    to_core = getattr(obj, "to_core", None)
-    if to_core is None:
-        raise ValueError(
-            f"Wire class {type(obj).__name__} shadows core type '{type_}' but"
-            " has no to_core() projection, so it cannot be persisted in the"
-            " canonical core shape (issue #2232)."
-        )
-    try:
-        return cast(PersistableModel, to_core())
-    except (ValidationError, ValueError, TypeError) as exc:
-        raise ValueError(
-            f"Cannot persist {type(obj).__name__} '{obj.id_}': projecting it"
-            f" to core type '{type_}' failed ({exc}). A wire-shaped"
-            f" '{type_}' row must not be stored — normalise at the wire→core"
-            " boundary instead (issue #2232)."
-        ) from exc
+    model = _project_shadowing_wire_obj(obj)
+    updates: dict[str, Any] = {}
+    for field_name in type(model).model_fields:
+        value = getattr(model, field_name, None)
+        if isinstance(value, BaseModel):
+            projected = _project_shadowing_wire_obj(value)
+            if projected is not value:
+                updates[field_name] = projected
+        elif isinstance(value, list) and value:
+            items = [
+                (
+                    _project_shadowing_wire_obj(item)
+                    if isinstance(item, BaseModel)
+                    else item
+                )
+                for item in value
+            ]
+            if any(new is not old for new, old in zip(items, value)):
+                updates[field_name] = items
+    if not updates:
+        return cast(PersistableModel, model)
+    # ``model_copy`` rather than re-validation: the parent's field is declared
+    # with the *wire* child type, so validating a core child against it would
+    # fail.  ``model_dump(serialize_as_any=True)`` in ``from_obj`` serialises
+    # each child by its runtime type, so the core shape is what reaches the row.
+    return cast(PersistableModel, model.model_copy(update=updates))
 
 
 class Record(StorableRecord):

@@ -29,6 +29,7 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
     participant_status_rm_state,
+    participant_status_vfd_state,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -201,9 +202,11 @@ def resolve_participant_state_from_dl(
 
     ``(RM.START, CS_vfd.vfd)`` is returned only when the participant genuinely
     has no recorded status — never as a fallback for a status that could not be
-    read.  Substituting ``RM.START`` on an unreadable status silently reset a
-    participant's RM ladder to its initial state (#2264, a symptom of #2232);
-    a shape mismatch now raises instead (ARCH-15-001..004).
+    read.  Substituting an initial state on an unreadable status silently reset
+    a participant's ladder (#2264, a symptom of #2232); a shape mismatch now
+    raises instead (ARCH-15-001, ARCH-15-002).  Both dimensions go through
+    their canonical reader: leaving VFD on the old ``hasattr``/``isinstance``
+    degrade would have kept the identical defect alive one dimension over.
 
     Raises:
         VultronValidationError: when the latest status is not core-shaped.
@@ -215,12 +218,10 @@ def resolve_participant_state_from_dl(
         statuses = getattr(participant_obj, "participant_statuses")
         if statuses:
             latest = statuses[-1]
-            rm_state = participant_status_rm_state(latest)
-            raw_vfd = (
-                latest.vfd.state if hasattr(latest, "vfd") else CS_vfd.vfd
+            return (
+                participant_status_rm_state(latest),
+                participant_status_vfd_state(latest),
             )
-            vfd_state = raw_vfd if isinstance(raw_vfd, CS_vfd) else CS_vfd.vfd
-            return rm_state, vfd_state
     return RM.START, CS_vfd.vfd
 
 

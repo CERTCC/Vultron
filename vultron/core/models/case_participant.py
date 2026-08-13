@@ -37,8 +37,8 @@ import logging
 from typing import Any, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
-from pydantic.alias_generators import to_camel
 
+from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import (
@@ -49,16 +49,8 @@ from vultron.core.models.participant_status import (
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
-from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
-
-#: camelCase key → canonical snake_case field name for every
-#: :class:`CaseParticipant` field whose wire spelling would otherwise be
-#: silently discarded.  Populated by :func:`_wire_spelled_keys` immediately
-#: after the class body, once ``model_fields`` is available.  Shared by all
-#: role subclasses, which add no fields of their own.
-_WIRE_SPELLED_KEYS: dict[str, str] = {}
 
 
 class CaseParticipant(CoreObject):
@@ -93,44 +85,42 @@ class CaseParticipant(CoreObject):
     def _reject_wire_spelled_keys(cls, data: Any) -> Any:
         """Raise on camelCase keys that Pydantic would silently discard.
 
-        Core-branch types carry no ``alias_generator=to_camel`` — ARCH-12-003
-        forbids it — so a wire-spelled key such as ``participantStatuses`` is
-        an *unknown* key.  Pydantic v2 ignores unknown keys by default, so it
-        was silently dropped and ``_init_participant_status_if_empty`` then
-        re-seeded a single status at ``RM.START``: a whole RM ladder vanished
-        without a trace (issue #2232).  The same drop applied to every other
-        snake-only field on this model (``case_roles``,
-        ``accepted_embargo_ids``, ``embargo_consent_state``,
+        This class declares no ``alias_generator``, so a wire-spelled key such
+        as ``participantStatuses`` is an *unknown* key.  Pydantic v2 ignores
+        unknown keys by default, so it was silently dropped and
+        ``_init_participant_status_if_empty`` then re-seeded a single status at
+        ``RM.START``: a whole RM ladder vanished without a trace (issue #2232).
+        The same drop applied to every other snake-only field on this model
+        (``case_roles``, ``accepted_embargo_ids``, ``embargo_consent_state``,
         ``participant_case_name``), so roles could be lost the same way.
 
         Wire→core conversion belongs at the boundary
         (``as_CaseParticipant.to_core()``, which emits snake_case), not here.
         This validator makes the mismatch loud instead of lossy
-        (ARCH-15-001..004).
+        (ARCH-15-001, ARCH-15-002).
 
         Fields that declare an explicit camelCase ``validation_alias`` (e.g.
         ``in_reply_to``/``inReplyTo``) are sanctioned spellings and are
         accepted unchanged.
 
+        **This guard is one level deep, by design and not by accident.** The
+        nested :class:`ParticipantStatus` *does* set
+        ``alias_generator=to_camel`` and accepts flat wire spellings
+        (``rmState``) through its own migration shim, so
+        ``{"participant_statuses": [{"rmState": "CLOSED"}]}`` is accepted here
+        and yields ``rm.state == RM.CLOSED``.  That asymmetry is a known
+        deviation from ARCH-12-003 tracked in #1991 — the child's shim is what
+        makes this parent guard survivable in the first place — and it is not
+        a hole in the #2232 fix: an aliased child cannot *lose* the ladder, it
+        only spells it differently.  Do not restate ARCH-12-003 as though it
+        held throughout this subtree; it does not yet.
+
         Raises:
             VultronValidationError: when a wire-spelled key is present.
         """
-        if not isinstance(data, dict):
-            return data
-        offenders = sorted(key for key in _WIRE_SPELLED_KEYS if key in data)
-        if offenders:
-            canonical = ", ".join(
-                f"{key} -> {_WIRE_SPELLED_KEYS[key]}" for key in offenders
-            )
-            raise VultronValidationError(
-                f"{cls.__name__} received wire-spelled (camelCase) key(s)"
-                f" {offenders}, which core types do not accept and Pydantic"
-                f" would silently discard: {canonical}. Convert at the"
-                " wire→core boundary (as_CaseParticipant.to_core()) instead of"
-                " validating a wire-shaped payload against a core type. See"
-                " issue #2232."
-            )
-        return data
+        return reject_wire_spelled_keys(
+            cls, data, "as_CaseParticipant.to_core()"
+        )
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
@@ -331,33 +321,6 @@ class CaseParticipant(CoreObject):
     def roles(self) -> list[CVDRole]:
         """Return the participant's current CVD roles as a read-only copy."""
         return list(self.case_roles)
-
-
-def _wire_spelled_keys(model: type[CaseParticipant]) -> dict[str, str]:
-    """Map each field's forbidden camelCase spelling to its canonical name.
-
-    A field's camelCase form is *sanctioned* — and therefore excluded — when
-    the field declares it as an explicit ``validation_alias`` (``in_reply_to``
-    → ``inReplyTo``).  Dunder-ish names ending in ``_`` (``id_``, ``type_``,
-    ``context_``) are skipped: they carry their own aliases and have no
-    camelCase form.
-    """
-    mapping: dict[str, str] = {}
-    for name, field in model.model_fields.items():
-        if name.endswith("_"):
-            continue
-        camel = to_camel(name)
-        if camel == name:
-            continue
-        if isinstance(field.validation_alias, str) and (
-            field.validation_alias == camel
-        ):
-            continue
-        mapping[camel] = name
-    return mapping
-
-
-_WIRE_SPELLED_KEYS.update(_wire_spelled_keys(CaseParticipant))
 
 
 # ---------------------------------------------------------------------------

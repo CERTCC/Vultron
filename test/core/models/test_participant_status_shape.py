@@ -29,7 +29,7 @@ Two silent-failure modes followed from that, both reproduced here:
    dropped, and ``_init_participant_status_if_empty`` re-seeded a single
    status at ``RM.START`` — losing the whole RM ladder.
 2. Reading ``rm`` off a wire-shaped status yielded ``None``, so every core
-   reader degraded instead of failing (ARCH-15-001..004).
+   reader degraded instead of failing (ARCH-15-001, ARCH-15-002).
 
 The fix keeps core snake_case-canonical (ARCH-12-003 forbids
 ``alias_generator=to_camel`` in core-branch types) and makes both failure
@@ -39,11 +39,13 @@ modes raise.  Related: #2264 (RM.START substitution sites).
 import pytest
 
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.dimensions import RmDimension, VfdDimension
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
+    participant_status_vfd_state,
 )
+from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.errors import VultronValidationError
 
@@ -151,10 +153,57 @@ class TestParticipantStatusRmStateHelper:
             participant_status_rm_state(wire_status)
 
     def test_raises_when_rm_carries_no_rm_state(self):
-        """A present-but-unusable ``rm`` must raise rather than return None."""
+        """A present-but-unusable ``rm`` must raise rather than return None.
+
+        ``match=`` pins the *second* guard: without it this test also passes if
+        the ``rm is None`` branch fires, so it would not distinguish the two.
+        """
 
         class _Bogus:
             rm = object()
 
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(VultronValidationError, match="no valid RM state"):
             participant_status_rm_state(_Bogus())
+
+
+class TestParticipantStatusVfdStateHelper:
+    """``participant_status_vfd_state`` is the canonical VFD-dimension reader.
+
+    The VFD dimension had the identical degrade (``getattr(status, "vfd", None)``
+    → substitute ``CS_vfd.vfd``) sitting a few lines from the RM one, so fixing
+    only RM would have left the same defect alive one dimension over (#2232).
+    """
+
+    def test_returns_state_for_core_shaped_status(self):
+        status = ParticipantStatus(
+            context=_CONTEXT, vfd=VfdDimension(state=CS_vfd.Vfd)
+        )
+        assert participant_status_vfd_state(status) is CS_vfd.Vfd
+
+    def test_returns_initial_state_when_unset(self):
+        """A core status defaults its VFD dimension — that is not an error."""
+        status = ParticipantStatus(context=_CONTEXT)
+        assert participant_status_vfd_state(status) is CS_vfd.vfd
+
+    def test_raises_on_wire_shaped_status(self):
+        """A flat ``vfd_state`` status has no ``vfd`` — that must raise."""
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_ParticipantStatus,
+        )
+
+        wire_status = as_ParticipantStatus(
+            context=_CONTEXT, vfd_state=CS_vfd.Vfd
+        )
+        assert getattr(wire_status, "vfd", None) is None
+
+        with pytest.raises(VultronValidationError, match="'vfd' dimension"):
+            participant_status_vfd_state(wire_status)
+
+    def test_raises_when_vfd_carries_no_vfd_state(self):
+        """A present-but-unusable ``vfd`` must raise rather than substitute."""
+
+        class _Bogus:
+            vfd = object()
+
+        with pytest.raises(VultronValidationError, match="no valid VFD state"):
+            participant_status_vfd_state(_Bogus())

@@ -26,6 +26,7 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
+from vultron.core.states.cs import CS_vfd
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -155,7 +156,7 @@ class ParticipantStatus(CoreObject):
         return coerce_cvd_roles(v)
 
 
-def participant_status_rm_state(status: Any) -> RM:
+def participant_status_rm_state(status: object) -> RM:
     """Return the RM state of a single ``ParticipantStatus``.
 
     This is the canonical RM-dimension reader.  Core :class:`ParticipantStatus`
@@ -200,6 +201,48 @@ def participant_status_rm_state(status: Any) -> RM:
         raise VultronValidationError(
             f"ParticipantStatus {getattr(status, 'id_', status)!r} has an 'rm'"
             f" dimension with no valid RM state (got {state!r}). See issue"
+            " #2232."
+        )
+    return state
+
+
+def participant_status_vfd_state(status: object) -> CS_vfd:
+    """Return the VFD state of a single ``ParticipantStatus``.
+
+    The VFD-dimension twin of :func:`participant_status_rm_state`, with the
+    same contract and for the same reason: core :class:`ParticipantStatus`
+    carries a nested ``vfd: VfdDimension`` while the wire projection carries a
+    flat ``vfd_state``, so reading ``vfd`` off a wire-shaped status yields
+    ``None``.  Substituting the initial state (``CS_vfd.vfd``) silently reset a
+    participant's vendor-fix ladder exactly the way ``RM.START`` reset the RM
+    ladder (#2264, a symptom of #2232).
+
+    Args:
+        status: A single participant status object.
+
+    Returns:
+        The :class:`CS_vfd` state recorded on *status*.
+
+    Raises:
+        VultronValidationError: when *status* exposes no usable ``vfd``
+            dimension — typically because it is a wire-shaped status that
+            should have been normalised at the wire→core boundary.
+    """
+    vfd = getattr(status, "vfd", None)
+    if vfd is None:
+        raise VultronValidationError(
+            f"ParticipantStatus {getattr(status, 'id_', status)!r} has no"
+            f" 'vfd' dimension (got a {type(status).__name__}). Core"
+            " ParticipantStatus uses a nested 'vfd: VfdDimension'; the wire"
+            " shape uses a flat 'vfd_state'. Convert at the wire→core boundary"
+            " (as_ParticipantStatus.to_core()) instead of reading the wire"
+            " shape here. See issue #2232."
+        )
+    state = getattr(vfd, "state", None)
+    if not isinstance(state, CS_vfd):
+        raise VultronValidationError(
+            f"ParticipantStatus {getattr(status, 'id_', status)!r} has a 'vfd'"
+            f" dimension with no valid VFD state (got {state!r}). See issue"
             " #2232."
         )
     return state

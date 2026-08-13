@@ -35,7 +35,7 @@ Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, overload
 
 import py_trees
 from pydantic import BaseModel
@@ -61,20 +61,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@overload
 def read_rm_states(
     node: py_trees.behaviour.Behaviour,
-    *statuses: Any,
+    status: object,
+    /,
+) -> tuple[RM] | None: ...
+
+
+@overload
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    status: object,
+    other: object,
+    /,
+) -> tuple[RM, RM] | None: ...
+
+
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    *statuses: object,
 ) -> tuple[RM, ...] | None:
     """Return the RM states of *statuses*, or ``None`` to signal FAILURE.
 
     A ``ParticipantStatus`` whose RM dimension is unreadable is a shape
     mismatch, not an absence.  Substituting a default (``RM.START``, ``None``)
     let an invalid transition through unchecked and silently reset a
-    participant's RM ladder (#2264, a symptom of #2232), so ARCH-15-004
-    requires FAILURE instead of a degraded SUCCESS.
+    participant's RM ladder (#2264, a symptom of #2232), so ARCH-15-001 and
+    ARCH-15-002 require FAILURE instead of a degraded SUCCESS.
 
     Callers for whom *absence* is legitimate (e.g. a participant with no
     recorded status) must handle that case before calling.
+
+    The one- and two-status arities are declared as ``@overload``\\ s with
+    fixed-length return tuples, so a caller that unpacks the result
+    (``new, current = states``) is arity-checked statically instead of raising
+    ``ValueError: too many values to unpack`` at runtime — where a BT node's
+    blanket handler would report it only as an opaque FAILURE.
 
     Args:
         node: The calling BT node.  Its ``feedback_message`` and ``logger`` are

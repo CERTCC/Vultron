@@ -31,6 +31,7 @@ from vultron.core.models import find_in_core_vocabulary
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.errors import VultronValidationError
 from vultron.semantic_registry import (
     find_matching_semantics,
     semantics_to_activity_class as _semantics_to_activity_class,
@@ -172,15 +173,19 @@ class SqliteDataLayer:
         try:
             core_cls = find_in_core_vocabulary(row.type_)
             obj = cast(PersistableModel, core_cls.model_validate(row.data))
-        except (KeyError, ValidationError):
+        except (KeyError, ValidationError, VultronValidationError):
             # KeyError: no core counterpart → fall back to wire vocabulary.
             # ValidationError: stored data came from a wire object whose schema
             # differs from the core class (e.g. as_EmbargoEvent lacks context).
-            # Fall back to the wire path in both cases.
+            # VultronValidationError: a core type's own shape guard rejected the
+            #   row (e.g. CaseParticipant's wire-spelled-key guard, #2232).  It
+            #   is not a ValueError subclass, so without naming it here it would
+            #   escape this ladder instead of falling back like every other
+            #   shape mismatch (DL-05-002).
             rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
             try:
                 obj = cast(PersistableModel, record_to_object(rec))
-            except (ValueError, ValidationError):
+            except (ValueError, ValidationError, VultronValidationError):
                 return None
         if obj is None:
             return None
@@ -322,7 +327,7 @@ class SqliteDataLayer:
                     obj.model_dump(by_alias=True, serialize_as_any=True)
                 ),
             )
-        except (ValidationError, TypeError) as exc:
+        except (ValidationError, VultronValidationError, TypeError) as exc:
             logger.warning(
                 "Could not coerce %r to semantic class %r: %s",
                 type(obj).__name__,
@@ -338,7 +343,7 @@ class SqliteDataLayer:
         try:
             record = Record.model_validate(stored_record)
             return cast(PersistableModel, record_to_object(record))
-        except (ValidationError, ValueError):
+        except (ValidationError, VultronValidationError, ValueError):
             pass
 
         raw_type = stored_record.get("type")
@@ -348,7 +353,7 @@ class SqliteDataLayer:
                 return cast(
                     PersistableModel, vocab_cls.model_validate(stored_record)
                 )
-            except KeyError:
+            except (KeyError, ValidationError, VultronValidationError):
                 pass
 
         raw_type = stored_record.get("type_")
@@ -359,7 +364,7 @@ class SqliteDataLayer:
                 return cast(
                     PersistableModel, vocab_cls.model_validate(raw_data)
                 )
-            except KeyError:
+            except (KeyError, ValidationError, VultronValidationError):
                 pass
 
         return None
