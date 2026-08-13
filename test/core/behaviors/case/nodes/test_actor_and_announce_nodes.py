@@ -39,6 +39,7 @@ from vultron.core.models.events.actor import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -351,6 +352,56 @@ class TestSeedAnnouncedCaseNode:
         ]
         assert skip_records, "Expected the idempotent-skip log entry"
         assert all(r.levelno == logging.DEBUG for r in skip_records)
+
+    def test_persisted_case_has_no_inline_participants(
+        self, bridge, dl, announce_event
+    ) -> None:
+        """Persisted VulnerabilityCase must not carry inline CaseParticipant objects.
+
+        Regression for #2233 write path: _build_case_object materialises inline
+        participants for delivery so that _store_embedded_participants on the
+        receiver side can project and persist them.  SeedAnnouncedCaseNode must
+        normalise case_participants to string IDs *before* saving the case, so
+        the stored row never carries stale inline snapshots that would freeze
+        the RM state visible to update_participant_rm_state.
+        """
+        participant_id = f"{CASE_ID2}/participants/vendor-inline-001"
+        actor_id = "https://example.org/actors/vendor-inline-001"
+
+        # Simulate what _build_case_object produces: a case carrying a fully
+        # materialised inline wire CaseParticipant rather than a bare string ID.
+        inline_participant = as_CaseParticipant(
+            id_=participant_id,
+            attributed_to=actor_id,
+            context=CASE_ID2,
+        )
+        case_with_inline = as_VulnerabilityCase(
+            id_=CASE_ID2, name="Inline Participant Write-Path Test"
+        )
+        case_with_inline.actor_participant_index[actor_id] = participant_id
+        case_with_inline.case_participants.append(inline_participant)
+
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2,
+            case_obj=case_with_inline,
+            request=announce_event,
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=announce_event
+        )
+        assert result.status == Status.SUCCESS
+
+        stored = dl.read(CASE_ID2)
+        assert stored is not None
+        for ref in stored.case_participants:
+            assert isinstance(ref, str), (
+                "Persisted case_participants must contain only string IDs; "
+                f"found inline {type(ref).__name__!r} — write-path bug (#2233)"
+            )
+        # Standalone participant record must also exist
+        assert (
+            dl.read(participant_id) is not None
+        ), "Standalone CaseParticipant record must be stored alongside the case"
 
 
 # ---------------------------------------------------------------------------

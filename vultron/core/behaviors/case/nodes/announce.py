@@ -93,6 +93,7 @@ class SeedAnnouncedCaseNode(DataLayerAction):
             _link_report_case_links,
         )
         from vultron.core.use_cases.received.case._helpers import (
+            _normalize_participant_refs,
             _store_embedded_participants,
         )
 
@@ -113,11 +114,15 @@ class SeedAnnouncedCaseNode(DataLayerAction):
             return Status.SUCCESS
 
         try:
-            self.datalayer.save(self.case_obj)
-            _store_embedded_reports(self.case_obj, self.datalayer)
+            # Store participants first so their standalone records exist before
+            # we normalise case_participants to string IDs, then save the case
+            # with only ID refs (no inline objects) — #2233 write-path fix.
             _store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
+            _normalize_participant_refs(self.case_obj)
+            self.datalayer.save(self.case_obj)
+            _store_embedded_reports(self.case_obj, self.datalayer)
             _link_report_case_links(self.datalayer, self.case_obj)
             self.logger.info(
                 "%s: seeded case '%s' from actor '%s'",

@@ -1,6 +1,7 @@
 """Use cases for vulnerability case activities."""
 
 import logging
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -22,6 +23,32 @@ from vultron.core.states.rm import RM, is_monotonic_rm_forward
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_participant_refs(case_obj: Any) -> None:
+    """Normalize ``case_participants`` to contain only string IDs in-place.
+
+    After :func:`_store_embedded_participants` has projected and persisted each
+    inline participant as a standalone DataLayer record, replace any remaining
+    inline objects in ``case_participants`` with their string IDs so the
+    persisted ``VulnerabilityCase`` row is free of inline sub-objects (#2233).
+
+    Safe to call on both core and wire case objects — uses ``getattr``/attribute
+    assignment rather than typing the parameter.  No-ops when the list is
+    already string-only or empty.
+    """
+    participants = getattr(case_obj, "case_participants", None)
+    if not participants:
+        return
+    normalized: list[str] = []
+    for ref in participants:
+        if isinstance(ref, str):
+            normalized.append(ref)
+        else:
+            pid = getattr(ref, "id_", None)
+            if pid is not None:
+                normalized.append(str(pid))
+    case_obj.case_participants = normalized  # type: ignore[assignment]
 
 
 def _find_report_case_link(

@@ -193,6 +193,15 @@ def _store_nested_inbox_object(
         else cast(PersistableModel, nested)
     )
 
+    # Normalize case_participants to string IDs before persisting so the stored
+    # VulnerabilityCase row never carries inline sub-objects (#2233 write-path).
+    if hasattr(typed_nested, "case_participants"):
+        from vultron.core.use_cases.received.case._helpers import (
+            _normalize_participant_refs,
+        )
+
+        _normalize_participant_refs(typed_nested)
+
     try:
         dl.create(object_to_record(typed_nested))
     except VultronValidationError:
