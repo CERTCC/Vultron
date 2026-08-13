@@ -197,8 +197,19 @@ groups:
     statement: 'The core branch MAY narrow inherited fields via Pydantic validators (e.g., `NonEmptyString | None`, required
       `datetime`). Core-branch types MUST NOT carry wire-specific concerns: `alias_generator=to_camel`, hardcoded AS2 `@context`
       namespace, or VOCABULARY registration are forbidden in core-branch types.'
-    verification: '`CoreObject` and its subclasses do not reference `to_camel` or assign to `VOCABULARY`. Confirmed by the
-      layer-boundary test in `test/architecture/test_layer_boundaries.py`.'
+    verification: 'No `CoreObject` subclass declares `alias_generator` in its `model_config`, references `to_camel`, or assigns
+      to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` in `test/architecture/test_hierarchy_invariants.py`
+      (which MUST NOT be marked `xfail`) and by the layer-boundary test in `test/architecture/test_layer_boundaries.py`.'
+    rationale: 'An `alias_generator` on a core type gives one `type_` two accepted key spellings, so whichever class reads a
+      row decides what the data means (issue #2232). It is also insufficient for its intended purpose: a core `model_dump(by_alias=True)`
+      cannot produce the wire shape for a type whose branches differ structurally, which is why a hand-patched `consent`→`emConsentState`
+      rewrite accumulated in core. Core→wire rendering belongs behind the ARCH-20 driven port.'
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-20-001
+      note: ARCH-20 supplies the driven port that replaces the core-side aliasing this requirement forbids.
+    adr:
+    - ADR-0063
   - id: ARCH-12-004
     priority: MUST
     kind: project
@@ -551,3 +562,121 @@ groups:
       spec_id: ARCH-19-001
     adr:
     - ADR-0019
+- id: ARCH-20
+  title: Core-to-Wire Rendering Port
+  description: Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core legitimately needs
+    a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`, which CLP-07-001 requires to be receiver-reconstitutable
+    AS2 — but producing it by setting `alias_generator=to_camel` on the core type violates ARCH-12-003 and cannot express
+    structural differences between the two branches. This group establishes a driven port as the single rendering seam.
+  rationale: 'Eight `CoreObject` subclasses carried `alias_generator=to_camel` (issue #1991) solely so that core code could
+    call `model_dump(by_alias=True)` when building ledger payload snapshots. The mechanism was both a layer violation and
+    inadequate: `ParticipantStatus` nests `consent: PecDimension` where the wire shape carries a flat `emConsentState`, so
+    core had to hand-patch the dumped dict — a partial, drifting reimplementation of `as_ParticipantStatus.from_core()`. ARCH-01-004
+    prescribes driven ports as the remediation for core→wire needs. See ADR-0063.'
+  specs:
+  - id: ARCH-20-001
+    priority: MUST
+    kind: architecture
+    statement: Core code that requires a wire-shaped representation of a **core-branch** object MUST obtain it through a driven
+      port declared in `vultron/core/ports/`. Core MUST NOT produce that shape itself, whether by declaring an `alias_generator`
+      on the core class, by calling `model_dump(by_alias=True)` on a core-branch instance, or by rewriting dumped keys into
+      wire spellings. Dumping an already-wire-shaped object that core holds (e.g. a received activity being captured verbatim
+      per CLP-07-001) is unaffected by this requirement.
+    rationale: A single rendering seam keeps every fact about wire spelling (camelCase, flat `emConsentState`, the AS2 `@context`)
+      in the wire layer, where the authoritative `from_core()` projections already live. The requirement is scoped to core-branch
+      objects because core legitimately handles wire objects on the verbatim-capture path; conflating the two would make this
+      requirement unverifiable.
+    verification: No `CoreObject` subclass declares an `alias_generator` (enforced by `test_no_core_object_has_to_camel_alias_generator`),
+      so a `by_alias=True` dump of a core-branch instance can no longer yield wire spelling. Each remaining `by_alias=True`
+      call site under `vultron/core/` is additionally reviewed to confirm its subject is a wire object, and annotated as such.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-01-004
+    adr:
+    - ADR-0063
+  - id: ARCH-20-002
+    priority: MUST
+    kind: project
+    statement: The rendering port's adapter MUST produce its output by locating the core object's wire counterpart in the wire
+      vocabulary and invoking that class's `from_core()` projection, then serialising with `by_alias=True`. The adapter MUST
+      NOT reimplement field-name translation.
+    rationale: '`from_core()` is the authoritative projection and already handles structural differences (nested `PecDimension`
+      → flat `emConsentState`). Any second translation path will drift from it, which is the defect ADR-0063 removes.'
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-003
+    priority: MUST
+    kind: project
+    statement: When no wire counterpart exists for the supplied core object, the rendering port MUST raise `VultronValidationError`.
+      It MUST NOT fall back to a core-shaped `model_dump`, return `None`, or emit a partially-rendered object.
+    rationale: A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-001) and is indistinguishable
+      from a correct one at the call site. Failing loudly is required by ARCH-15-002.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-15-002
+    adr:
+    - ADR-0063
+  - id: ARCH-20-004
+    priority: MUST
+    kind: project
+    statement: The rendering port MUST be injected into behavior-tree execution using the established mechanism — a constructor
+      parameter on `BTBridge` published to the blackboard under a named key — in the same manner as `sync_port`. BT nodes and
+      use-case helpers MUST NOT import an adapter directly or instantiate a default renderer.
+    rationale: Consistency with `SyncActivityPort` keeps one injection idiom for driven ports. An import-time default would
+      reintroduce the core→wire import the port exists to prevent (ARCH-01-001).
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-005
+    priority: MUST
+    kind: project
+    statement: Core-branch types MUST NOT declare a `to_json()`, `to_wire()`, or similarly-named method that emits wire-shaped
+      output. Rendering is the port's responsibility, not a method on the domain object.
+    rationale: '`CoreActor.to_json()` dumped with `by_alias=True` and had no callers; such a method is an always-available
+      bypass of the port seam and will be picked up by the next agent that needs camelCase.'
+    verification: No class under `vultron/core/models/` defines a method that calls `model_dump`/`model_dump_json` with `by_alias=True`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-006
+    priority: MUST
+    kind: project
+    statement: Driving adapters that serve AS2 documents over HTTP (e.g. `GET /actors/{id}`) MUST render the response from
+      the corresponding `as_*` wire class. They MUST NOT dump a core-branch class with `by_alias=True` to synthesise an AS2
+      document.
+    rationale: The actor routes relied on the core actor classes' `alias_generator` to shape their external AS2 output, which
+      is why removing that generator has an externally-visible blast radius. Routing through `as_*` classes makes the external
+      contract depend on the wire layer that defines it.
+    verification: The actor router constructs responses via wire vocabulary classes; no `by_alias=True` dump of a `CoreObject`
+      subclass appears in `vultron/adapters/driving/`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-007
+    priority: MUST_NOT
+    kind: project
+    statement: Core code MUST NOT normalise a wire object into its core counterpart by dumping it with `by_alias=True` and
+      revalidating through the core class ("dump-and-revalidate"). Wire→core conversion MUST use the wire class's `to_core()`
+      boundary projection, or the object MUST be obtained already-normalised from the DataLayer port (DL-05-001).
+    rationale: 'Dump-and-revalidate only works while the core class tolerates wire spellings — precisely the ARCH-12-003 violation
+      being removed. `FilterParticipantStatusDimensionsNode._to_core_status` documents this dependency explicitly ("The core
+      model''s `_migrate_flat_fields` validator accepts that shape, so a dump-and-revalidate normalises both"), so the shim
+      and this idiom must be retired together. It is also lossy in the general case: a core class that ignores an unknown key
+      silently discards it.'
+    verification: No module under `vultron/core/` constructs a core model via `CoreClass.model_validate(wire_obj.model_dump(by_alias=True, ...))`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-20-001
+    - rel_type: refines
+      spec_id: SDO-03-005
+    adr:
+    - ADR-0063
