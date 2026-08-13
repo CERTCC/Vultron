@@ -1842,24 +1842,13 @@ groups:
       `add_note_to_case`, and `engage_case` — MUST appear at least once in the
       authoritative case-actor log for every multi-actor demo scenario.
     rationale: >-
-      These five types represent the minimal protocol coverage shared by all
-      scenarios: report validation, RM engagement (VALID → ACCEPTED),
-      participant state tracking, case closure, and at least one note
-      (notes-exchange phase). Any scenario that does not produce all five has
-      not completed the basic CVD lifecycle.
-
-      `engage_case` is as universal as `validate_report` because emission
-      lives in the shared demo helper layer rather than at scenario call
-      sites, via three paths: (1) `run_direct_path_rm_triage()`
-      (`vultron/demo/helpers/workflow.py`) calls `receiver_engages_case()`
-      for the report's direct receiver — used by all eight multi-actor
-      scenarios; (2) `run_invite_path_rm_triage()` calls it again for the
-      invited participant — used by seven of them (CM-11-002); and (3)
-      `fv_demo.py` calls `receiver_engages_case()` directly via
-      `vendor_engages_case()`. Because no scenario file names the trigger
-      itself, grepping a single scenario script for `engage` finds nothing and
-      invites the false conclusion that the event is scenario-specific
-      (CONCERN-2243).
+      These five types are the minimal coverage shared by all scenarios:
+      report validation, RM engagement (VALID → ACCEPTED), participant state
+      tracking, case closure, and at least one note. A scenario missing any of
+      the five has not completed the basic CVD lifecycle. `engage_case` is as
+      universal as `validate_report`: emission lives in the shared demo helper
+      layer, not at scenario call sites, so no scenario file names the trigger
+      itself (CONCERN-2243). Paths: see `notes/demo-ci-invariants.md`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002

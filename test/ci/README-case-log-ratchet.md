@@ -9,12 +9,28 @@ universal invariant check functions live in
 `test/ci/invariants/common.py`; each scenario has its own test file under
 `test/ci/invariants/`.
 
-| Scenario | Test file |
-|----------|-----------|
-| FV | `test/ci/invariants/test_fv_invariants.py` |
-| FVV (three-actor) | `test/ci/invariants/test_fvv_invariants.py` |
-| FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |
-| FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` |
+The nine scenarios and their harness files are registered in
+`.github/demo-scenarios.json`, which is the sole registry — the table below
+mirrors it and MUST be kept in step.
+
+| Scenario | Test file | In PR set |
+|----------|-----------|:---------:|
+| FV | `test/ci/invariants/test_fv_invariants.py` | ✓ |
+| FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` | ✓ |
+| FCVCV | `test/ci/invariants/test_fcvcv_invariants.py` | ✓ |
+| FCV-reject | `test/ci/invariants/test_fcv_reject_invariants.py` | ✓ |
+| FVV (three-actor) | `test/ci/invariants/test_fvv_invariants.py` | |
+| FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` | |
+| FCCV-extension | `test/ci/invariants/test_fccv_extension_invariants.py` | |
+| FCCV-handoff | `test/ci/invariants/test_fccv_handoff_invariants.py` | |
+| FCV | `test/ci/invariants/test_fcv_invariants.py` | |
+
+Scenarios marked *In PR set* run on `pull_request` events (the DEMOCI-06-002
+minimum validation set); all nine run on push-to-main and `workflow_dispatch`.
+
+A tenth file, `test/ci/invariants/test_universal_event_types.py`, is not a
+scenario harness: it is a structural ratchet over the harness constants and the
+DEMOMA-16-001 spec statement, and needs no demo artifacts.
 
 ---
 
@@ -58,7 +74,19 @@ to include in the regular unit-test run.
 ## Invariant List and Status
 
 Per-actor parametrized tests (1, 12–14) show status per actor role.
-`✅` = passing today, `⏳` = xfail (fix tracked in linked issue).
+`✅` = passing today, `⏳` = xfail (fix tracked in linked issue),
+`⚠️` = failing today and **not** xfailed, so the job is red (linked issue owns
+the fix).
+
+> **Invariant 5 is currently red, by design.** ISSUE-2266 promoted
+> `engage_case` to the fifth universal expected event type (DEMOMA-16-001)
+> across all nine harnesses. The event is driven by every scenario but never
+> reaches the ledger, because the engage-case trigger returns HTTP 422
+> (`SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`) — root
+> cause tracked in **#2233**. Until that lands, invariant 5 fails in every
+> scenario. It was deliberately left un-`xfail`ed rather than hidden: #2242
+> exists precisely because these harnesses reported green on confirmed-broken
+> scenarios. Do not "fix" it by editing the expected-event-types constants.
 
 | # | Description | case-actor | vendor | finder | Resolved by |
 |---|-------------|-----------|--------|--------|-------------|
@@ -66,7 +94,7 @@ Per-actor parametrized tests (1, 12–14) show status per actor role.
 | 2 | Cross-actor `entryHash` agreement per `logIndex` | ✅ | n/a | n/a | #789 |
 | 3 | Cross-actor `payloadSnapshot.actor` agreement | ✅ | n/a | n/a | #789 |
 | 4 | Every recorded entry has non-empty `payloadSnapshot` | ✅ | n/a | n/a | #789 |
-| 5 | All expected protocol `eventType`s present | ✅ | n/a | n/a | #1029, #1030 |
+| 5 | All expected protocol `eventType`s present | ⚠️ | n/a | n/a | #1029, #1030; `engage_case` blocked on #2233 |
 | 6 | No RM-state oscillation after `CLOSED` | ✅ | n/a | n/a | #936 |
 | 7 | Log terminates with all participants `RM=CLOSED` | ✅ | n/a | n/a | #789 |
 | 8 | Late-joining participants have full pre-join history | ✅ | n/a | n/a | #937 |
