@@ -6,7 +6,10 @@ description: >
   None/unresolved fields) to "strict" (all required fields guaranteed),
   and how helpers must fail fast when strict guarantees are violated.
 related_specs:
-  - specs/architecture.yaml (ARCH-10-001, ARCH-15-001 through ARCH-15-004)
+  - specs/architecture.yaml (ARCH-10-001, ARCH-15-001 through ARCH-15-004,
+    ARCH-21-001 through ARCH-21-005)
+  - specs/case-management.yaml (CM-27-001 through CM-27-003)
+  - specs/participant-role-management.yaml (PRM-03-003)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/bt-integration.md
@@ -173,6 +176,90 @@ wire-spelled (camelCase) payload drops every snake-only key in silence, because
 Pydantic v2 ignores unknown keys. It is computed per exact class, so a
 `CaseParticipant` role subclass that adds a field is covered without any
 registration step.
+
+---
+
+## Post-Construction Mutation: Three Doors, One Lock (#2261)
+
+Pydantic v2 validates a model at **construction**. Nothing else. The same value
+the constructor rejects is silently accepted through two other doors:
+
+```python
+case = VulnerabilityCase(case_participants=[wire_obj])  # ValidationError
+case.case_participants = [wire_obj]                     # accepted
+case.case_participants.append(wire_obj)                 # accepted
+```
+
+Combine that with the shape duality above and you get the #2232 / #2264 failure:
+a wire-shaped object in a core-typed field does not raise when read — it reads as
+*absent*, so the reader substitutes an initial state and the participant's ladder
+silently resets.
+
+**The two remedies are different mechanisms, because they close different
+doors.** `validate_assignment=True` closes the assignment door. It does
+*nothing* for `append` — an in-place list mutation is not an attribute
+assignment, so Pydantic never observes it. That door is closed by prohibition
+plus canonical mutators plus an architecture ratchet (CM-27-001, PRM-03-003),
+the same way PRM-03-001 closed it for `case_roles`.
+
+### Where `validate_assignment` goes — and where it must not
+
+| Layer | `validate_assignment` | Why |
+|---|---|---|
+| Core models (`vultron/core/models/`) | **on** (ARCH-21-001) | Core fields carry a shape guarantee that readers depend on |
+| `VultronBase` | **never** (ARCH-21-002) | Shared base of both branches; `as_Base` inherits it (ARCH-12-001/002) |
+| Wire (`vultron/wire/`) | **never** (ARCH-21-003) | Inbound data is legitimately loose; strictness belongs at the projection |
+
+Setting the flag on `VultronBase` is the one-line fix that looks right and is
+not. It contradicts ARCH-12-002 and, when measured, produced the largest blast
+radius of any variant (747 failed, 423 errors).
+
+### Pitfall: never assign to `self` in a `mode="after"` validator
+
+This is the trap that makes the whole change non-trivial, and it is invisible
+from reading the model:
+
+```python
+# Wrong — with validate_assignment on, this recurses until the stack is gone.
+@model_validator(mode="after")
+def _set_role(self) -> FinderParticipant:
+    self.case_roles = []          # assignment re-runs this validator...
+    self.add_role(CVDRole.FINDER)
+    return self
+
+# Right — derive before validation, so the derived value is itself validated.
+@model_validator(mode="before")
+@classmethod
+def _set_role(cls, data: Any) -> Any:
+    ...
+```
+
+`validate_assignment` re-runs **every** `mode="after"` validator on each
+assignment, so a validator that writes to `self` re-enters itself. A guarded one
+(`if self.name is None: self.name = ...`) terminates at depth 2; an unguarded one
+never terminates. Enabling the flag before this rule holds aborts 400+ tests with
+`RecursionError` **and nothing else** — the recursion masks every real type
+failure, so the actual blast radius cannot be measured until the validators are
+fixed. ARCH-21-004 makes this a MUST NOT for `vultron/core/`.
+
+Writing the field through `self.__dict__["field"]` was considered and rejected:
+it stops the recursion but leaves the derived value unvalidated, trading one
+silent hole for a smaller one.
+
+Wire-layer validators are **exempt by design** — the wire branch never enables
+the flag, so they cannot re-enter. Twelve of them still assign to `self`. If the
+wire branch ever gains `validate_assignment`, this trap returns.
+
+### Cost
+
+Scalar attribute assignment measured **475 ns → 1464 ns** (3.1×, ~1 µs
+absolute) — immaterial for BT tick loops. The cost that still needs watching is
+collection fields: assigning `case_participants` re-validates all N items, so it
+is O(N) per assignment.
+
+See ADR-0064 for the decision and the three-step rollout, and
+`test/architecture/test_validate_assignment_ratchet.py` for the enumerated
+backlogs that track it.
 
 ---
 

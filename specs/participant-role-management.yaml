@@ -119,6 +119,28 @@ groups:
       over-application of the rule.'
     tags:
     - protocol
+  - id: PRM-03-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      Core code under `vultron/core/` MUST NOT mutate `participant_statuses`
+      directly on a CaseParticipant instance after construction (e.g.
+      `participant.participant_statuses.append(...)`). The canonical mutators on
+      `CaseParticipant` MUST be used. The mutator methods themselves, in
+      `vultron/core/models/case_participant.py`, are exempt.
+    rationale: >-
+      `ParticipantStatus` exists in two incompatible shapes (SDO-03-002,
+      ADR-0036). A wire-shaped status appended to a core-typed list reads as
+      absent, so readers substitute an initial state — the #2232 / #2264 silent
+      reset. `validate_assignment` cannot close this door because `append` is not
+      an attribute assignment. Extends PRM-03-001 to `participant_statuses`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-21-001
+    adr:
+    - ADR-0064
+    tags:
+    - protocol
 - id: PRM-04
   title: Wire Layer Interface Parity
   specs:

@@ -1776,3 +1776,70 @@ groups:
       spec_id: CM-25-005
     adr:
     - ADR-0057
+
+- id: CM-27
+  title: Case Collection Mutation Discipline
+  description: >-
+    Requirements governing post-construction mutation of the case collections
+    whose items exist in incompatible wire and core shapes. `validate_assignment`
+    does not cover in-place mutation — `list.append` is not an attribute
+    assignment, so Pydantic never observes it — so these collections need a
+    separate prohibition. Codified by ADR-0064. Source: CONCERN-2261.
+  specs:
+  - id: CM-27-001
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      Core code under `vultron/core/` MUST NOT mutate `case_participants` or
+      `case_statuses` directly on a `VulnerabilityCase` instance after
+      construction (e.g. `case.case_participants.append(...)`,
+      `case.case_statuses = [...]`). The canonical mutators on
+      `VulnerabilityCase` MUST be used for all post-construction changes. The
+      mutator methods themselves, in `vultron/core/models/case.py`, are exempt.
+    rationale: >-
+      A wire-shaped participant or status appended to a core-typed list does not
+      raise when read — it reads as absent, and readers substitute an initial
+      state, silently resetting the case's ladder (#2232, #2264).
+      `validate_assignment` cannot close this door because `append` is not an
+      assignment. This mirrors PRM-03-001, whose identical prohibition drove
+      direct `case_roles` mutation in `vultron/` to zero sites.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-21-001
+    adr:
+    - ADR-0064
+  - id: CM-27-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Passing `case_participants=[...]` or `case_statuses=[...]` as a constructor
+      argument when creating a `VulnerabilityCase` is permitted and does not
+      violate CM-27-001; the prohibition applies only to post-construction
+      mutation.
+    rationale: >-
+      Constructor arguments are validated, which is precisely the guarantee
+      CM-27-001 exists to restore. This clarification prevents over-application
+      of the rule, mirroring PRM-03-002.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-27-001
+    adr:
+    - ADR-0064
+  - id: CM-27-003
+    priority: MUST
+    kind: project
+    statement: >-
+      `VulnerabilityCase` MUST expose a canonical mutator for appending a case
+      status, so that CM-27-001 can be satisfied without direct list mutation.
+      `add_participant()` and `remove_participant()` already provide this for
+      `case_participants`.
+    rationale: >-
+      A prohibition with no sanctioned alternative is unimplementable. At the
+      time of writing `case_statuses` had no mutator at all — only the
+      `current_status` and `case_status` readers — so the rule requires one to be
+      added.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-27-001
+    adr:
+    - ADR-0064
