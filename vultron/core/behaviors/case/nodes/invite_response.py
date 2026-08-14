@@ -31,13 +31,13 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
 
 
-class EmitAcceptCaseInviteNode(DataLayerAction):
+class EmitAcceptCaseInviteNode(DataLayerActionWithPorts):
     """Create Accept(Invite) and queue in the invitee's outbox.
 
     Uses ``trigger_activity_factory.accept_case_invite()`` — the factory
@@ -88,7 +88,7 @@ class EmitAcceptCaseInviteNode(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitRejectCaseInviteNode(DataLayerAction):
+class EmitRejectCaseInviteNode(DataLayerActionWithPorts):
     """Create Reject(Invite) and queue in the invitee's outbox.
 
     Uses ``trigger_activity_factory.reject_case_invite()`` — the factory

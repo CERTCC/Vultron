@@ -35,7 +35,11 @@ from py_trees.common import Status
 
 from vultron.config import get_config
 from vultron.core.behaviors.case.nodes.case_setup import _derive_case_slug
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerCondition,
+    DataLayerConditionWithPorts,
+)
 from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor as VultronCaseActor
@@ -98,7 +102,7 @@ class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
-class CheckCaseAlreadyExists(DataLayerCondition):
+class CheckCaseAlreadyExists(DataLayerConditionWithPorts):
     """
     Check if a VulnerabilityCase already exists in DataLayer.
 
@@ -150,7 +154,7 @@ class CheckCaseAlreadyExists(DataLayerCondition):
             return Status.FAILURE
 
 
-class CheckCaseExistsForReport(DataLayerCondition):
+class CheckCaseExistsForReport(DataLayerConditionWithPorts):
     """
     Check if a VulnerabilityCase already exists for the given report.
 
@@ -279,7 +283,7 @@ class CheckIsCaseManagerNode(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckPendingProposalExistsForReport(DataLayerCondition):
+class CheckPendingProposalExistsForReport(DataLayerConditionWithPorts):
     """Return SUCCESS when a pending ``VultronReportCaseLink`` exists for the report.
 
     Used as the idempotency guard in the slimmed vendor tree (ADR-0041).
@@ -334,7 +338,7 @@ class CheckPendingProposalExistsForReport(DataLayerCondition):
             return Status.FAILURE
 
 
-class WritePendingReportCaseLinkNode(DataLayerAction):
+class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
     """Write a pending ``VultronReportCaseLink`` for the given report (ADR-0041).
 
     Creates or updates the link with ``case_id=None`` and sets

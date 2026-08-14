@@ -25,12 +25,12 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.participant.common import (
     _ensure_reporter_participant,
 )
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
 
-class EnsureReporterParticipantAtAcceptedNode(DataLayerAction):
+class EnsureReporterParticipantAtAcceptedNode(DataLayerActionWithPorts):
     """BT leaf node that seeds or upgrades the reporter participant to RM.ACCEPTED.
 
     Called from ``CreateCaseReceivedUseCase._handle_bootstrap`` via BTBridge
