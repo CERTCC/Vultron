@@ -129,9 +129,29 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
 #
 # Only two categories are withheld, both via .dockerignore: secrets (.env,
 # .devcontainer/*.env), and gitignored paths that start-dev.sh clobber-mounts
-# over /app at runtime (.devcontainer, wip_notes, wip_outputs, graphify-out).
+# over /app at runtime (wip_notes, wip_outputs, graphify-out).
 # Being gitignored, those cannot surface as phantom deletions.
 COPY . /app/
+
+# Normalize the baked git state. The COPY above brings in the HOST repo's .git
+# verbatim: every local branch, stash, reflog entry and stale worktree record it
+# had at build time. Collapse it to main alone — a stale local branch left lying
+# around is a branch an agent can check out by mistake. poststart.sh re-fetches
+# and force-resets to origin/main when the container is created.
+#
+# This runs BEFORE `uv sync` so the lockfile that gets installed is the one from
+# origin/main, not whatever the host working tree happened to hold.
+RUN git -C /app rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
+        || { echo "ERROR: origin/main missing from the baked .git — run 'git fetch origin' in your host clone, then rebuild"; exit 1; } \
+    && git -C /app worktree prune \
+    && git -C /app checkout -q -f -B main origin/main \
+    && git -C /app for-each-ref --format='%(refname:short)' refs/heads \
+        | grep -vx main \
+        | xargs -r -n1 git -C /app branch -D \
+    && git -C /app stash clear \
+    && git -C /app reflog expire --expire=all --all \
+    && git -C /app gc --prune=now --quiet
+
 ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --dev
@@ -145,8 +165,8 @@ RUN groupadd --gid 1000 vscode \
 # Claude Code CLI (installed as vscode user so it lands in ~/.local)
 RUN su - vscode -c "curl -fsSL https://claude.ai/install.sh | bash"
 
-# /app is owned by root from the earlier COPY steps; hand it to vscode so
-# `git pull` in poststart.sh doesn't fail on dubious-ownership checks.
+# /app is owned by root from the earlier COPY and git steps; hand it to vscode so
+# the git reset in poststart.sh doesn't fail on dubious-ownership checks.
 RUN chown -R vscode:vscode /app
 
 WORKDIR /app

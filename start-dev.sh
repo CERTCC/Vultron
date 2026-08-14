@@ -3,8 +3,8 @@
 # Usage: ./start-dev.sh <slot> [--rebuild]
 #   slot       Name for this dev slot (e.g. inky, pinky, blinky).
 #              Every slot gets its own independent container. /app is baked
-#              into the image and refreshed from origin on every startup via
-#              `git pull` in poststart.sh.
+#              into the image, and poststart.sh force-resets it to origin/main
+#              when the container is created.
 #   --rebuild  Remove the image and rebuild from scratch.
 set -euo pipefail
 
@@ -105,11 +105,10 @@ DOCKER_ARGS=(
     -e WIP_NOTES=/app/wip_notes
     -e WIP_OUTPUTS=/app/wip_outputs
     -v "${MAIN_NAME}-data:/home/vscode/.data"
-    # .devcontainer is excluded from the build context except certs/ (see
-    # .dockerignore), so mount it here. Without this the tracked files under it
-    # are missing from /app and `git status` reports them as deleted. Writable so
-    # that the `git pull` in poststart.sh can fast-forward them.
-    -v "$SCRIPT_DIR/.devcontainer:/app/.devcontainer"
+    # NOTE: .devcontainer is NOT mounted. It is baked into the image and belongs
+    # to the container's own working tree. Mounting the host copy over it made
+    # one host directory the working tree for every slot plus the host repo, so
+    # any git operation in one slot dirtied all the others.
     -v "$MAIN_DIR/wip_notes:/app/wip_notes:ro"
     -v "$WIP_OUTPUTS_SLOT:/app/wip_outputs"
     -v "$GRAPHIFY_HOST:/app/graphify-out"
