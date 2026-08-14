@@ -227,13 +227,25 @@ Rules:
 - Otherwise → `Status.FAILURE` with a descriptive `feedback_message`
 - `None` target → skip validation (caller is preserving current state)
 
-This makes write nodes fail-closed regardless of whether an upstream guard
-is present, weak, or bypassed. See BTND-10-001, SDO-02-004, CSB-16-001/002.
+The ideal is for write nodes to be fail-closed regardless of whether an upstream
+guard is present, weak, or bypassed. See BTND-10-001, SDO-02-004, CSB-16-001/002.
 
 The primary write boundary is `CreateParticipantStatusNode` in
 `vultron/core/behaviors/case/nodes/participant/status.py` — all VFD/RM/PXA
-state-write paths in the prototype route through it or should follow the same
-pattern.
+state-write paths in the prototype route through it. In practice,
+`CreateParticipantStatusNode` itself does not validate inline (see
+`notes/bt-pitfalls.md` § "State-Validation Bypass"). Instead, each call path
+relies on an upstream guard node:
+
+- **Trigger path**: `ValidateTriggerTransitionsNode` — fail-closed; invalid jump
+  raises `VultronValidationError` before `CreateParticipantStatusNode` runs.
+- **Received wire path**: `FilterParticipantStatusDimensionsNode` +
+  `ValidateRMTransitionNode` — partial-accept; refused dimensions carry the
+  current value forward.
+
+`test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet) AST-scans
+`vultron/core/behaviors/` for every dimension constructor call and fails on any
+new unclassified site, making it hard to add an unguarded write path silently.
 
 ---
 
