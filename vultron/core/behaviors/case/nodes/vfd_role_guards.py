@@ -32,7 +32,10 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerCondition,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
@@ -78,7 +81,7 @@ def _resolve_actor_roles(
     return list(participant.roles) if participant.roles else []
 
 
-class CheckVendorRoleNode(DataLayerCondition):
+class CheckVendorRoleNode(DataLayerConditionWithPorts):
     """Gate f→F (vfd_state=VFd): actor MUST hold CVDRole.VENDOR.
 
     Returns ``SUCCESS`` when the executing actor holds ``CVDRole.VENDOR`` in
@@ -131,7 +134,7 @@ class CheckVendorRoleNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class CheckDeployerRoleNode(DataLayerCondition):
+class CheckDeployerRoleNode(DataLayerConditionWithPorts):
     """Gate d→D (vfd_state=VFD): actor MUST hold CVDRole.DEPLOYER.
 
     Returns ``SUCCESS`` when the executing actor holds ``CVDRole.DEPLOYER`` in

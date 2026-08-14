@@ -36,7 +36,11 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
     terminate_embargo_bt,
 )
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -51,7 +55,7 @@ from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F4
 logger = logging.getLogger(__name__)
 
 
-class _PublicDisclosureSkipConditionNode(DataLayerCondition):
+class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
     """Inner guard for :class:`PublicDisclosureBranchNode`.
 
     Returns SUCCESS (skip teardown) when:
@@ -223,7 +227,7 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
         )
 
 
-class EmitAddCaseStatusToSelfNode(DataLayerAction):
+class EmitAddCaseStatusToSelfNode(DataLayerActionWithPorts):
     """Emit a self-addressed ``Add(CaseStatus, VulnerabilityCase)`` to the CaseActor.
 
     When ``StatusUpdateGuard`` passes (RSH-01-003), this node:
