@@ -175,10 +175,6 @@ class SqliteDataLayer:
             core_cls = find_in_core_vocabulary(row.type_)
         except KeyError:
             # No core counterpart (AS2 Activity types) → wire vocabulary path.
-            logger.debug(
-                "_from_row: type %r not in core vocabulary; using wire path",
-                row.type_,
-            )
             wire_obj = self._wire_object_from_row(row)
             if wire_obj is None:
                 return None

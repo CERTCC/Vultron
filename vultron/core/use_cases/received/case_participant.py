@@ -69,6 +69,8 @@ class AddCaseParticipantToCaseReceivedUseCase:
             activity=request,
         )
         if result.status != Status.SUCCESS:
+            # FAILURE here means the participant was not added — always a
+            # protocol error, never a recoverable BT precondition outcome.
             reason = BTBridge.get_failure_reason(tree)
             raise VultronValidationError(
                 f"AddCaseParticipantReceivedBT did not succeed"
