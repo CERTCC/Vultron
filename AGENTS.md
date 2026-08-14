@@ -624,6 +624,13 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   is green. Racing parallel PRs to `main` means each PR can only confirm its own
   scenario passes — none can confirm it hasn't perturbed other currently-passing
   scenarios. *Source: CONCERN-2137*
+- **Delivery Retry Caps That Compose Into an Unbounded Total Are a Resource Hazard** —
+  verify that `inner_retries × per_pass_cap × requeue_cadence` yields a finite total
+  delivery budget before shipping. A bounded inner retry (`max_retries + 1 = 4`)
+  combined with a per-pass-local `err_count` (resets every drain invocation) and an
+  unconditional requeue is unbounded: the composition is `4 × ∞`. Add a persisted
+  per-activity total-attempt counter and a give-up condition (OX-13-001, OX-13-002,
+  ADR-0066). *Source: CONCERN-2302*
 - **New Push-to-`main` or Scheduled Workflows MUST Wire the `notify-failure`
   Composite Action** — any workflow that triggers on `push: branches: [main]` or
   on `schedule:` MUST include `.github/actions/notify-failure` as a final step

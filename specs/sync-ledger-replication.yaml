@@ -4,7 +4,7 @@ description: >-
   Requirements for the append-only canonical recorded case ledger, replication transport,
   conflict handling, per-peer state tracking, and retry semantics for distributed case
   state synchronization across Participant Actors.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -114,6 +114,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: Default values for retry and backoff parameters MUST be documented
+  - id: SYNC-05-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The per-recipient HTTP POST timeout MUST be a configurable parameter of the
+      delivery adapter with a documented default value. The default MUST be set high
+      enough to tolerate a recipient that is briefly busy under normal protocol load
+      (e.g. draining its own outbox); a value of 5 seconds or less is insufficient
+      under CI-representative multi-actor load.
+    rationale: >-
+      The original 5s hardcoded timeout was already rejected as too aggressive by the
+      demo DataLayerClient (timeout=30s, with comment explaining exactly this scenario).
+      A hardcoded timeout that is known to be wrong is a configurable parameter waiting
+      to be written. See CONCERN-2302 §2 and SYNC-05-002.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-05-002
+    adr:
+    - ADR-0066
 - id: SYNC-06
   title: Leadership and Ownership
   specs:
