@@ -24,7 +24,10 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -42,7 +45,7 @@ CASE_STATUS_ALREADY_PRESENT = "case_status_already_present"
 
 
 class CheckCaseStatusIdempotencyNode(
-    SilentIdempotencyGuardMixin, DataLayerCondition
+    SilentIdempotencyGuardMixin, DataLayerConditionWithPorts
 ):
     """AC-1: Verify the CaseStatus has not already been added to the case.
 
@@ -95,7 +98,7 @@ class CheckCaseStatusIdempotencyNode(
         return Status.SUCCESS
 
 
-class ValidateCaseStatusTransitionNode(DataLayerCondition):
+class ValidateCaseStatusTransitionNode(DataLayerConditionWithPorts):
     """AC-2: Validate that the new CaseStatus represents a legal state transition.
 
     Uses ``case.current_status`` as the reference point.  When the case has no
@@ -196,7 +199,7 @@ class ValidateCaseStatusTransitionNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class AppendCaseStatusToCaseNode(DataLayerAction):
+class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
     """Append the resolved CaseStatus to ``case.case_statuses`` and persist.
 
     Resolves the status object from the DataLayer first; if not found there,

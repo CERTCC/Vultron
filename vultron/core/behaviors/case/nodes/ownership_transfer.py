@@ -38,7 +38,7 @@ from typing import Any, cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models._helpers import _as_id
@@ -49,7 +49,7 @@ from vultron.enums.roles import CVDRole
 logger = logging.getLogger(__name__)
 
 
-class EmitOfferCaseOwnershipTransferNode(DataLayerAction):
+class EmitOfferCaseOwnershipTransferNode(DataLayerActionWithPorts):
     """Emit ``Offer(VulnerabilityCase)`` (ownership transfer) to ``transferee_id``.
 
     Calls ``trigger_activity_factory.offer_case_ownership_transfer()`` with
@@ -70,9 +70,6 @@ class EmitOfferCaseOwnershipTransferNode(DataLayerAction):
         self.transferee_id = transferee_id
         self.content = content
         self._captured = captured
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
 
     def _emit(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
@@ -121,7 +118,7 @@ class EmitOfferCaseOwnershipTransferNode(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitAcceptCaseOwnershipTransferNode(DataLayerAction):
+class EmitAcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
     """Emit ``Accept(Offer(VulnerabilityCase))`` (ownership transfer) to offerer.
 
     Calls ``trigger_activity_factory.accept_case_ownership_transfer()``
@@ -140,9 +137,6 @@ class EmitAcceptCaseOwnershipTransferNode(DataLayerAction):
         self.offer_id = offer_id
         self.case_id = case_id
         self._captured = captured
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
 
     def _emit(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
@@ -188,7 +182,7 @@ class EmitAcceptCaseOwnershipTransferNode(DataLayerAction):
             return Status.FAILURE
 
 
-class AcceptCaseOwnershipTransferNode(DataLayerAction):
+class AcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
     """Apply an ownership-transfer acceptance to the case record.
 
     Enforces the at-most-one CASE_OWNER invariant atomically (CM-21-001,
