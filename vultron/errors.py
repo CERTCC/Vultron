@@ -193,3 +193,8 @@ class DemoFailureError(VultronError):
     def __init__(self, message: str, failures: list[str]) -> None:
         super().__init__(message)
         self.failures = failures
+
+    def __str__(self) -> str:
+        lines = [f"{len(self.failures)} demo failure(s):"]
+        lines.extend(f"  {f}" for f in self.failures)
+        return "\n".join(lines)
