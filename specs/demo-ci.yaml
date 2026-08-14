@@ -888,7 +888,11 @@ groups:
           download succeed unconditionally and turns "nothing was uploaded" into
           a machine-readable statement of which actors were missing and why, so
           the invariant harness can report a real invariant result instead of a
-          download error.
+          download error. The manifest's per-actor `reason` field also
+          distinguishes a network-timeout dump failure from a scenario that never
+          started: a timed-out dump records the error in the actor's `reason`
+          alongside `captured: false`, while a pre-run sentinel records no actors
+          at all.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-001
@@ -952,3 +956,35 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-003
+
+      - id: DEMOCI-10-006
+        priority: MUST
+        kind: project
+        statement: >-
+          The CI demo job MUST write a pre-run sentinel `dump-manifest.json`
+          under `devlogs/<demo-name>/` immediately before launching the
+          demo-runner container. The sentinel MUST conform to the DEMOCI-10-002
+          schema with `ledgerFileCount: 0`, `targetCount: 0`, and a `reason`
+          string indicating the demo-runner had not yet started. When the
+          demo-runner subsequently runs and reaches `scenario_harness()`, the
+          harness MUST overwrite the sentinel with the real dump manifest. When
+          the demo-runner exits before reaching `scenario_harness()` — due to a
+          container startup failure, import error, or health-check gate — the
+          sentinel survives and is uploaded as the artifact, so the
+          invariant-harness job can download it and report a real failure
+          instead of a plumbing error.
+        rationale: >-
+          `scenario_harness()` only runs when the demo-runner container starts
+          and the scenario module imports successfully. Docker startup failures,
+          import errors, and health-check `sys.exit(1)` calls all exit before
+          `scenario_harness()` is entered, leaving `devlogs/<demo>/` empty.
+          The `upload-artifact` step then publishes nothing, the
+          `download-artifact` step fails with "Artifact not found", and the
+          invariant-harness job reports a plumbing error instead of an invariant
+          result. The sentinel step closes this gap: the artifact directory is
+          non-empty regardless of how early the runner exits, so the download
+          succeeds and `load_devlogs()` reports a real failure via the
+          manifest-without-ledgers path (DEMOCI-10-003).
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-002
