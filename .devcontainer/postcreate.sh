@@ -45,6 +45,7 @@ set -s extended-keys on
 set -as terminal-features ',xterm-256color:extkeys'
 set -g history-limit 50000
 set -g mouse on
+set -g set-clipboard on
 set -g default-shell /bin/zsh
 EOF
 
