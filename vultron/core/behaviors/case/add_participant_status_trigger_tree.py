@@ -37,6 +37,7 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
+    ValidateTriggerTransitionsNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
@@ -103,6 +104,13 @@ def add_participant_status_trigger_bt(
 
     children.extend(
         [
+            ValidateTriggerTransitionsNode(
+                case_id=case_id,
+                actor_id=actor_id,
+                rm_state=rm_state,
+                vfd_state=vfd_state,
+                pxa_state=pxa_state,
+            ),
             CreateParticipantStatusNode(
                 case_id=case_id,
                 actor_id=actor_id,
