@@ -16,6 +16,7 @@ from vultron.core.models.events.case_participant import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import _idempotent_create
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -68,19 +69,18 @@ class AddCaseParticipantToCaseReceivedUseCase:
             activity=request,
         )
         if result.status != Status.SUCCESS:
-            logger.warning(
-                "AddCaseParticipantReceivedBT did not succeed"
-                " for participant '%s' / case '%s': %s",
-                participant_id,
-                case_id,
-                BTBridge.get_failure_reason(tree),
+            # FAILURE here means the participant was not added — always a
+            # protocol error, never a recoverable BT precondition outcome.
+            reason = BTBridge.get_failure_reason(tree)
+            raise VultronValidationError(
+                f"AddCaseParticipantReceivedBT did not succeed"
+                f" for participant '{participant_id}' / case '{case_id}': {reason}"
             )
-        else:
-            logger.info(
-                "Added participant '%s' to case '%s'",
-                participant_id,
-                case_id,
-            )
+        logger.info(
+            "Added participant '%s' to case '%s'",
+            participant_id,
+            case_id,
+        )
 
 
 class RemoveCaseParticipantFromCaseReceivedUseCase:

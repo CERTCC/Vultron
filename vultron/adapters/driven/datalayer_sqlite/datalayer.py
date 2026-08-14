@@ -182,7 +182,7 @@ class SqliteDataLayer:
         else:
             try:
                 obj = cast(PersistableModel, core_cls.model_validate(row.data))
-            except ValidationError:
+            except ValidationError as exc:
                 # Stored data came from a wire object whose schema differs from
                 # the core class (e.g. as_EmbargoEvent lacks context).  Return
                 # the wire object un-projected: that is the long-standing
@@ -190,6 +190,13 @@ class SqliteDataLayer:
                 # test/architecture/test_dl_read_returns_core_objects.py
                 # measures, and projecting here would dehydrate inline nested
                 # objects that callers of these rows still expect inline.
+                logger.debug(
+                    "_from_row: core_cls.model_validate failed for type %r"
+                    " (row %r): %s; using wire fallback",
+                    row.type_,
+                    row.id_,
+                    exc,
+                )
                 wire_obj = self._wire_object_from_row(row)
                 if wire_obj is None:
                     return None
@@ -205,6 +212,13 @@ class SqliteDataLayer:
                 # wire-spelled copy of a core type, so project it: handing back
                 # a wire object makes every core-typed caller fail (resolve_case
                 # raises "Expected VulnerabilityCase, got as_VulnerabilityCase").
+                logger.debug(
+                    "_from_row: VultronValidationError for type %r (row %r):"
+                    " %s; projecting wire row to core",
+                    row.type_,
+                    row.id_,
+                    exc,
+                )
                 wire_obj = self._wire_object_from_row(row)
                 if wire_obj is None:
                     return None

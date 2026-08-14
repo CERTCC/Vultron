@@ -14,6 +14,8 @@
 
 from typing import cast
 
+import pytest
+
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
@@ -154,6 +156,59 @@ class TestCaseParticipantUseCases:
         assert case is not None
         assert actor_id in case.actor_participant_index
         assert case.actor_participant_index[actor_id] == participant.id_
+
+    def test_add_case_participant_bt_failure_raises(
+        self, monkeypatch, make_payload
+    ):
+        """AddCaseParticipantToCaseReceivedUseCase must raise when the BT fails."""
+        from unittest.mock import MagicMock, patch
+
+        from py_trees.common import Status
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.errors import VultronValidationError
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/caseRaise1",
+            name="TEST-RAISE",
+        )
+        participant = as_CaseParticipant(
+            id_="https://example.org/cases/caseRaise1/participants/coord",
+            attributed_to="https://example.org/users/coordinator",
+            context=case.id_,
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        add_activity = as_Add(
+            actor="https://example.org/users/owner",
+            object_=participant,
+            target=case,
+        )
+        event = make_payload(add_activity)
+
+        failure_result = MagicMock()
+        failure_result.status = Status.FAILURE
+
+        with patch(
+            "vultron.core.use_cases.received.case_participant.BTBridge"
+        ) as MockBridge:
+            bridge_instance = MockBridge.return_value
+            bridge_instance.execute_with_setup.return_value = failure_result
+            MockBridge.get_failure_reason.return_value = "tree failed"
+
+            with pytest.raises(VultronValidationError):
+                AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
 
     def test_remove_case_participant_clears_index(
         self, monkeypatch, make_payload
