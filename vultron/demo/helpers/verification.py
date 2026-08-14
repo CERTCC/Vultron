@@ -330,6 +330,9 @@ def _all_fetchable_participants_rm_closed(
         if not p_data:
             return False
         core_participants.append(as_CaseParticipant(**p_data).to_core())
+    if not core_participants:
+        # No participants were locally fetchable — cannot confirm closure.
+        return False
     return all_participants_rm_closed(core_participants)
 
 

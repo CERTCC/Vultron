@@ -125,8 +125,7 @@ def verify_case_active(
             f" != coordinator active_embargo {receiver_embargo_id!r}"
         )
     logger.info(
-        "✓ case active (reporter): case replica present, matching participant"
-        " index and active embargo"
+        "✓ case active (reporter): case replica present, active embargo present"
     )
 
 

@@ -246,6 +246,24 @@ class TestDemoAccumulator:
 
         assert issubclass(DemoFailureError, VultronError)
 
+    def test_demo_failure_error_str_includes_each_failure(self):
+        """str(DemoFailureError) must list every recorded failure (not just count)."""
+        failures = [
+            "STEP FAILED: step-a — ValueError(x)",
+            "CHECK FAILED: check-b — AssertionError(y)",
+        ]
+        err = DemoFailureError("2 demo failure(s)", failures=failures)
+        s = str(err)
+        assert "STEP FAILED: step-a — ValueError(x)" in s
+        assert "CHECK FAILED: check-b — AssertionError(y)" in s
+
+    def test_demo_failure_error_str_count_matches_listed_items(self):
+        """str(DemoFailureError) count prefix must equal number of listed items."""
+        failures = ["STEP FAILED: a — E()", "CHECK FAILED: b — E()"]
+        err = DemoFailureError("2 demo failure(s)", failures=failures)
+        s = str(err)
+        assert s.startswith("2 demo failure")
+
 
 class TestUnboundLocalErrorRegression:
     """Regression for issue #2191.
