@@ -323,7 +323,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         request = AddParticipantStatusTriggerRequest(
             actor_id=self.actor.id_,
             case_id=self.case.id_,
-            rm_state=RM.ACCEPTED,
+            rm_state=RM.RECEIVED,
         )
         before = set(self.dl.outbox_list_for_actor(self.actor.id_))
         SvcAddParticipantStatusUseCase(
@@ -363,7 +363,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         request = AddParticipantStatusTriggerRequest(
             actor_id=self.actor.id_,
             case_id=self.case.id_,
-            rm_state=RM.ACCEPTED,
+            rm_state=RM.RECEIVED,
         )
         result = SvcAddParticipantStatusUseCase(
             self.dl,
@@ -403,7 +403,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         request = AddParticipantStatusTriggerRequest(
             actor_id=self.actor.id_,
             case_id=self.case.id_,
-            rm_state=RM.ACCEPTED,
+            rm_state=RM.RECEIVED,
         )
         use_case = SvcAddParticipantStatusUseCase(
             self.dl,
@@ -413,13 +413,13 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         use_case.execute()
 
         # On a second call, _resolve_current_participant_state must return
-        # RM.ACCEPTED (the state we just emitted), not RM.START.
+        # RM.RECEIVED (the state we just emitted), not RM.START.
         rm, _ = use_case._resolve_current_participant_state(
             self.dl, self.actor_participant.id_
         )
-        assert rm == RM.ACCEPTED, (
-            f"After execute() with rm_state=RM.ACCEPTED, "
-            f"_resolve_current_participant_state must return RM.ACCEPTED; "
+        assert rm == RM.RECEIVED, (
+            f"After execute() with rm_state=RM.RECEIVED, "
+            f"_resolve_current_participant_state must return RM.RECEIVED; "
             f"got {rm!r} (#624)"
         )
 
@@ -765,3 +765,177 @@ class TestCreateParticipantStatusNode:
             self._run_node(rm_state=None, vfd_state=CS_vfd.Vfd, pxa_state=None)
 
         assert not self._rm_narrative_records(caplog)
+
+
+# ---------------------------------------------------------------------------
+# ValidateTriggerTransitionsNode — AC-1 through AC-6 (issues #2081, #1903)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateTriggerTransitions:
+    """Trigger-path transition guard: fail-closed for invalid state jumps.
+
+    AC-1: Invalid VFD jump → VultronValidationError, no record persisted.
+    AC-2: Invalid RM transition → VultronValidationError, no record persisted.
+    AC-3: Backward PXA → VultronValidationError, no record persisted.
+    AC-4: Same-state write → SUCCESS, record persisted.
+    AC-5: None target → SUCCESS, record persisted.
+    AC-6: Trigger path (end-to-end through use case) rejects invalid VFD jump.
+
+    Per BTND-10-001, SDO-02-004, CSB-16-001, CSB-16-002.
+    Closes #2081, #1903.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from vultron.adapters.driven.datalayer_sqlite import (
+            SqliteDataLayer,
+            reset_datalayer,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        self.actor = as_Service(name="Finder")
+        actor_id = self.actor.id_
+        reset_datalayer(actor_id)
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        self.dl.clear_all()
+        self.dl.create(self.actor)
+
+        self.case_actor = as_Service(name="Case Actor")
+        reset_datalayer(self.case_actor.id_)
+        self.dl.create(self.case_actor)
+
+        self.case = as_VulnerabilityCase(name="Test Case AC-1..6")
+        self.actor_participant = as_CaseParticipant(
+            attributed_to=actor_id,
+            context=self.case.id_,
+            case_roles=[CVDRole.FINDER],
+        )
+        self.case_manager_participant = as_CaseParticipant(
+            attributed_to=self.case_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        self.case.actor_participant_index[actor_id] = (
+            self.actor_participant.id_
+        )
+        self.case.actor_participant_index[self.case_actor.id_] = (
+            self.case_manager_participant.id_
+        )
+        self.dl.create(self.case)
+        self.dl.create(self.actor_participant)
+        self.dl.create(self.case_manager_participant)
+        self.trigger_activity = TriggerActivityAdapter(self.dl)
+        yield
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(actor_id)
+            reset_datalayer(self.case_actor.id_)
+
+    def _execute(self, rm_state=None, vfd_state=None, pxa_state=None):
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            rm_state=rm_state,
+            vfd_state=vfd_state,
+            pxa_state=pxa_state,
+        )
+        return SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+
+    def _status_count(self):
+        participant = self.dl.read(self.actor_participant.id_)
+        return len(getattr(participant, "participant_statuses", []))
+
+    def test_ac1_invalid_vfd_jump_raises_and_persists_nothing(self):
+        """AC-1: vfd → VFD (skips Vfd) raises VultronValidationError; no record written."""
+        from vultron.errors import VultronValidationError
+
+        before = self._status_count()
+        with pytest.raises(VultronValidationError):
+            self._execute(vfd_state=CS_vfd.VFD)
+        assert self._status_count() == before
+
+    def test_ac2_invalid_rm_transition_raises_and_persists_nothing(self):
+        """AC-2: START → CLOSED (non-adjacent) raises VultronValidationError; no record written."""
+        from vultron.errors import VultronValidationError
+
+        before = self._status_count()
+        with pytest.raises(VultronValidationError):
+            self._execute(rm_state=RM.CLOSED)
+        assert self._status_count() == before
+
+    def test_ac3_backward_pxa_raises_and_persists_nothing(self):
+        """AC-3: Pxa → pxa (backward) raises VultronValidationError; no record written.
+
+        First advances to Pxa via a valid write, then attempts a backward
+        move to pxa to confirm the guard rejects it.
+        """
+        from vultron.core.states.cs import CS_pxa
+        from vultron.errors import VultronValidationError
+
+        # Valid forward step: pxa → Pxa.
+        self._execute(pxa_state=CS_pxa.Pxa)
+        before = self._status_count()
+
+        # Backward step: Pxa → pxa must be rejected.
+        with pytest.raises(VultronValidationError):
+            self._execute(pxa_state=CS_pxa.pxa)
+        assert self._status_count() == before
+
+    def test_ac4_same_state_write_succeeds(self):
+        """AC-4: Same-state write (target == current) is a valid confirmation; record persisted."""
+        before = self._status_count()
+        # START → START is a same-state write (initial RM state).
+        self._execute(rm_state=RM.START)
+        assert self._status_count() == before + 1
+
+    def test_ac5_none_target_skips_validation_and_succeeds(self):
+        """AC-5: All-None request skips all validation and persists a snapshot."""
+        before = self._status_count()
+        self._execute(rm_state=None, vfd_state=None, pxa_state=None)
+        assert self._status_count() == before + 1
+
+    def test_ac6_trigger_path_rejects_invalid_vfd_end_to_end(self):
+        """AC-6: The add-participant-status trigger path rejects invalid VFD via use case.
+
+        Confirms the guard is wired into add_participant_status_trigger_bt
+        and therefore fires for every HTTP-trigger invocation.
+        """
+        from vultron.errors import VultronValidationError
+
+        # Participant starts at vfd (initial). Jumping to VFD skips Vfd.
+        with pytest.raises(VultronValidationError, match="VFD"):
+            self._execute(vfd_state=CS_vfd.VFD)
+
+    def test_valid_adjacent_vfd_step_succeeds(self):
+        """Valid adjacent VFD step (vfd → Vfd) is accepted and record persisted."""
+        before = self._status_count()
+        self._execute(vfd_state=CS_vfd.Vfd)
+        assert self._status_count() == before + 1
+
+    def test_valid_adjacent_rm_step_succeeds(self):
+        """Valid adjacent RM step (START → RECEIVED) is accepted and record persisted."""
+        before = self._status_count()
+        self._execute(rm_state=RM.RECEIVED)
+        assert self._status_count() == before + 1
