@@ -135,8 +135,10 @@ reporting a protocol result.
    survives, the artifact is non-empty, the download succeeds, and
    `load_devlogs()` reports a real failure via the manifest-without-ledgers path
    (DEMOCI-10-003). Implementation: `write_prerun_sentinel(demo_name)` in
-   `vultron/demo/helpers/ledger_dump.py`; CI step calls it via `python3 -c` so
-   no uv setup is needed in the demo job.
+   `vultron/demo/helpers/ledger_dump.py` provides a testable Python entry point
+   (exercised by `TestWritePrerunSentinel`). The CI step independently writes
+   the same JSON inline via `python3 -c` with no vultron import, so no uv setup
+   is needed in the demo job.
 
 ### Regression coverage
 

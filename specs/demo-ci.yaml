@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.9.0
+version: 2.0.0
 scope:
   - prototype
   - production
@@ -891,8 +891,8 @@ groups:
           download error. The manifest's per-actor `reason` field also
           distinguishes a network-timeout dump failure from a scenario that never
           started: a timed-out dump records the error in the actor's `reason`
-          alongside `captured: false`, while a pre-run sentinel records no actors
-          at all.
+          alongside `captured: false`, while a pre-run CI sentinel
+          (DEMOCI-10-006) records an empty `actors` array (`actors: []`).
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-001
@@ -964,8 +964,9 @@ groups:
           The CI demo job MUST write a pre-run sentinel `dump-manifest.json`
           under `devlogs/<demo-name>/` immediately before launching the
           demo-runner container. The sentinel MUST conform to the DEMOCI-10-002
-          schema with `ledgerFileCount: 0`, `targetCount: 0`, and a `reason`
-          string indicating the demo-runner had not yet started. When the
+          schema with `caseId: null` (no case exists at pre-run time),
+          `ledgerFileCount: 0`, `targetCount: 0`, and a `reason` string
+          indicating the demo-runner had not yet started. When the
           demo-runner subsequently runs and reaches `scenario_harness()`, the
           harness MUST overwrite the sentinel with the real dump manifest. When
           the demo-runner exits before reaching `scenario_harness()` — due to a
@@ -988,3 +989,5 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-002
+          - rel_type: refines
+            spec_id: DEMOCI-10-003
