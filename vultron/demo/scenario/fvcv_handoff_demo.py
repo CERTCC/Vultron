@@ -585,18 +585,26 @@ def _phase_sync_verification(
             with demo_check(
                 f"{label} ledger coverage (sync-verification phase)"
             ):
+                # Temporal (EDF-06-006): Vendor2 joins Phase 3 so needs extra
+                # ledger catch-up time; causal-gate migration in #2202.
+                timeout = 45.0 if label == "Vendor2" else 15.0
                 wait_for_contiguous_ledger_coverage(
                     client=replica_client,
                     case_id=case.id_,
                     expected_tail_index=vendor_tail_index,
+                    timeout_seconds=timeout,
                 )
             logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, coordinator_client, vendor2_client):
+        # Temporal (EDF-06-006): Vendor2 is a late joiner — allow extra time
+        # for participant-index propagation; causal-gate migration in #2202.
+        p_timeout = 30.0 if replica_client is vendor2_client else 10.0
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_count=5,
+            timeout_seconds=p_timeout,
         )
 
     with demo_check("Finder replica matches authoritative Vendor1 state"):
@@ -958,10 +966,14 @@ def _phase_case_closure(
             (vendor2_client, "Vendor2"),
         ]:
             with demo_check(f"{label} ledger coverage (close phase)"):
+                # Temporal (EDF-06-006): Vendor2 joined Phase 3 so may still
+                # lag; causal-gate migration in #2202.
+                timeout = 45.0 if label == "Vendor2" else 15.0
                 wait_for_contiguous_ledger_coverage(
                     client=replica_client,
                     case_id=case.id_,
                     expected_tail_index=vendor_tail_index,
+                    timeout_seconds=timeout,
                 )
 
 

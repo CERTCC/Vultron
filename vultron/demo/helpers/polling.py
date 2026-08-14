@@ -138,7 +138,8 @@ def wait_for_case_participants(
     vendor_client: DataLayerClient,
     case_id: str,
     expected_count: int,
-    timeout_seconds: float = 5.0,
+    # 15 s: conservative cross-container delivery budget (temporal per EDF-06-006).
+    timeout_seconds: float = 15.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until the case on *vendor_client* reflects *expected_count* participants.
