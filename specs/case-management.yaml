@@ -980,9 +980,6 @@ groups:
     rationale: 'Per `notes/participant-embargo-consent.md`: `LAPSED` means "embargo terms changed; prior consent no longer
       applies." `DECLINED` includes both explicit refusals and timeout-based implicit refusals. Confusing `LAPSED` with the
       timer path is a known documentation pitfall.'
-    relationships:
-    - rel_type: refines
-      spec_id: CM-27-002
   - id: CM-18-003
     priority: MUST
     kind: project

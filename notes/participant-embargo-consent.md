@@ -6,6 +6,8 @@ description: >
   state machine and implementation patterns.
 related_specs:
   - specs/case-management.yaml
+  - specs/embargo-policy.yaml
+  - specs/em-behavior.yaml
 related_notes:
   - notes/stub-objects.md
 relevant_packages:
