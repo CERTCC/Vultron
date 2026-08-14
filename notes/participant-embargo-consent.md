@@ -177,7 +177,7 @@ and #538), so its five sites remain the most critical to keep correct.
 
 ## Pocket Veto (Timer-Based Transitions)
 
-*Spec: CM-18-002, CM-27. Decision: ADR-0059.*
+*Spec: CM-18-002, CM-28. Decision: ADR-0065.*
 
 The `INVITED → DECLINED` and `LAPSED → DECLINED` transitions are timer-based.
 A configurable **embargo invitation timeout** policy window bounds how long an
@@ -188,19 +188,19 @@ non-responsive invitee cannot stall coordination indefinitely.
 **The pocket veto and the RSVP deadline are one mechanism, not two.** The
 policy window is the *implicit, receiver-local* form; `Invite.end_time` is the
 *explicit, bilateral* form. When an invitation carries `Invite.end_time`, that
-value is authoritative and supersedes the local window (CM-27-002). The policy
+value is authoritative and supersedes the local window (CM-28-002). The policy
 window is the fallback for invitations that omit it (EP-07-001, default 7 days).
 Do not introduce a second timeout notion — they will drift.
 
 - The timeout is a **configurable policy option** (per-case or global setting)
 - Enforcement authority is the CaseActor holding `CVDRole.CASE_MANAGER`
-  (CM-27-003)
+  (CM-28-003)
 - Enforcement is **lazy**, not scheduled: lapse is derived from
   `(end_time, now)` whenever PEC state is read or an inbound `Accept`/`Reject`
   is processed. No scheduler is required for correctness. The
   `EmbargoTimerExpired` Sentinel (#1893) is an optional proactive accelerator
 - When a lapse is detected, the CaseActor records the `DECLINE` transition and
-  authors a ledger entry distinguishing it from an explicit refusal (CM-27-005)
+  authors a ledger entry distinguishing it from an explicit refusal (CM-28-005)
 
 > **Provenance note**: the header of this file cites
 > `archived_notes/demo-review-26042001.md` as a source. The term "pocket veto"
@@ -219,7 +219,7 @@ as a known documentation pitfall.
 
 ## RSVP Deadlines on Embargo Invites
 
-*Spec: CM-27, EP-07, EMB-17. Decision: ADR-0059. Source: IDEA-2066.*
+*Spec: CM-28, EP-07, EMB-17. Decision: ADR-0065. Source: IDEA-2066.*
 
 An `Invite(EmbargoEvent)` MAY carry an activity-level `end_time` giving the
 invitee an explicit respond-by deadline.
@@ -273,10 +273,10 @@ embargoes when CS is P/X/A; EMB-17-004 closes the remaining gap where EM has
 ### Why No New PEC State for "Never Responded"
 
 A lapsed invite records `DECLINED`, the same as an explicit refusal
-(CM-27-004). Nothing branches on the difference — re-invitation
+(CM-28-004). Nothing branches on the difference — re-invitation
 (`DECLINED → INVITED`), content gating, and meta-protocol delivery all treat
 them identically. The distinction is *provenance*, and the canonical ledger
-already carries it (CM-27-005): a `Reject(Invite)` entry versus a
+already carries it (CM-28-005): a `Reject(Invite)` entry versus a
 CaseActor-authored lapse entry. A `reason` field on `PecDimension` (which holds
 only `state`) would be a second source of truth able to drift from the ledger.
 Encoding it as a sixth state would put path history into the machine and
@@ -302,7 +302,7 @@ CS-13-001 through CS-13-005 already govern all datetime handling (tz-aware,
 UTC, `now_utc()`, `days_from_now_utc(n)`, RFC 3339 with explicit offset on the
 wire). CS-13-001 covers datetimes the application *produces*; an inbound
 `Invite.end_time` comes from a remote peer and may carry a non-UTC offset, so
-CM-27-006 requires normalising it to UTC before comparison and rejecting a naive
+CM-28-006 requires normalising it to UTC before comparison and rejecting a naive
 value rather than assuming UTC.
 
 ---
@@ -394,17 +394,17 @@ in post-BT procedural code. See `specs/message-validation.yaml` MV-10-005.
   general `DECLINED` case is still open.
 - Should the case actor notify the case owner when a participant's consent
   state transitions to `DECLINED` (via timeout or explicit rejection)?
-  *Partially resolved*: CM-27-005 requires a CaseActor-authored ledger entry for
+  *Partially resolved*: CM-28-005 requires a CaseActor-authored ledger entry for
   a lapse, which makes it visible to the owner via the ledger. Whether a
   *separate* notification activity is also warranted is still open.
 - ~~What is the default embargo invitation timeout?~~ **Resolved**: EP-07-001
   sets the fallback default at 7 days (matching CM-18-002), superseded by
-  `Invite.end_time` when present (CM-27-002). Minimum window is 72h (EP-07-002).
+  `Invite.end_time` when present (CM-28-002). Minimum window is 72h (EP-07-002).
 - No mechanism exists to **rescind** an unanswered invitation before its
   deadline. `as_Undo` is already in the vocabulary
   (`vultron/wire/as2/vocab/base/objects/activities/transitive.py`), so
   `Undo(Invite(EmbargoEvent))` needs no new noun — but it does need a pattern,
-  extractor entry, and use case. Deferred from ADR-0059; tracked as its own
+  extractor entry, and use case. Deferred from ADR-0065; tracked as its own
   Idea under epic #2088.
 - Embargo negotiation **before** report submission is documented as permitted
   (`docs/topics/process_models/model_interactions/rm_em.md`: the EM `propose`

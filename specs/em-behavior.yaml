@@ -1545,9 +1545,9 @@ groups:
   title: Late Accept of an Expired Embargo Invitation
   description: >-
     Behaviors required when an `Accept(Invite(EmbargoEvent))` arrives after the
-    invitation's RSVP deadline (CM-27-001) has passed. The protocol is liberal
+    invitation's RSVP deadline (CM-28-001) has passed. The protocol is liberal
     in what it accepts: a late accepter has signalled willingness to coordinate
-    and MUST NOT be sent away. Codified by ADR-0059. Source: IDEA-2066.
+    and MUST NOT be sent away. Codified by ADR-0065. Source: IDEA-2066.
   trigger:
     type: message_received
     value: EA
@@ -1565,7 +1565,7 @@ groups:
       Being liberal in what is accepted serves CVD outcomes. A late accepter is
       volunteering to coordinate; refusing them converts a missed deadline into
       a lost participant, which is worse for the case than a late consent.
-      See ADR-0059.
+      See ADR-0065.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -1575,9 +1575,9 @@ groups:
         EMB-17-003, or EMB-17-004 has been applied
     relationships:
     - rel_type: depends_on
-      spec_id: CM-27-003
+      spec_id: CM-28-003
     adr:
-    - ADR-0059
+    - ADR-0065
   - id: EMB-17-002
     priority: MUST
     kind: protocol
@@ -1588,7 +1588,7 @@ groups:
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
-      *invitation* is open, not whether the *agreement* is sound. See ADR-0059.
+      *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
     testable: true
     preconditions:
     - em_state:
@@ -1607,7 +1607,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-17-001
     adr:
-    - ADR-0059
+    - ADR-0065
   - id: EMB-17-003
     priority: MUST
     kind: protocol
@@ -1621,7 +1621,7 @@ groups:
       Recording the stale Accept as consent would make the participant a
       signatory to terms they never saw. Rejecting them would discard a
       willing participant. Re-inviting resolves both: the actor stays in the
-      case and is asked to consent to the terms actually in force. See ADR-0059.
+      case and is asked to consent to the terms actually in force. See ADR-0065.
     testable: true
     preconditions:
     - description: >-
@@ -1644,7 +1644,7 @@ groups:
     - rel_type: refines
       spec_id: EMB-17-001
     adr:
-    - ADR-0059
+    - ADR-0065
   - id: EMB-17-004
     priority: MUST
     kind: protocol
@@ -1663,7 +1663,7 @@ groups:
       without transitioning. There is nothing to invite the actor to, so a fresh
       invitation would manufacture a negotiation nobody requested — but the
       actor's case participation is independent of embargo consent and MUST
-      survive. See ADR-0059.
+      survive. See ADR-0065.
     testable: true
     preconditions:
     - em_state:
@@ -1689,4 +1689,4 @@ groups:
         EMB-13-002 covers the P/X/A case; this entry covers an Accept arriving
         after EM EXITED when CS is not yet P/X/A
     adr:
-    - ADR-0059
+    - ADR-0065

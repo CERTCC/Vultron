@@ -132,7 +132,7 @@ sender a way to get their own invite discarded.
 - Bad, because `end_time` now carries two distinct meanings one nesting level
   apart in the same JSON document (`Invite.end_time` = RSVP-by,
   `Invite.object_.end_time` = embargo expiry). This is the principal
-  implementation hazard and is called out in CM-27 and in
+  implementation hazard and is called out in CM-28 and in
   `notes/participant-embargo-consent.md`.
 - Bad, because lazy evaluation means a lapse is recorded when someone next
   looks, not at the instant it occurs. Ledger entry ordering can therefore trail
@@ -143,7 +143,7 @@ sender a way to get their own invite discarded.
 
 ## Validation
 
-- Spec conformance tests for CM-27, EP-07, and EMB-17.
+- Spec conformance tests for CM-28, EP-07, and EMB-17.
 - A test asserting `Invite.end_time` and `Invite.object_.end_time` are read
   independently and never conflated on a single invitation.
 - A test that a sub-floor deadline is clamped, not rejected.
@@ -210,7 +210,7 @@ implementation Tasks land. Revise this ADR in place if they do not hold.
   rescind verb to the message catalog, its pattern, extractor entry, and use
   case is a distinct design activity. Tracked as its own Idea under epic #2088.
 
-Generated spec requirements: `case-management.yaml` CM-27,
+Generated spec requirements: `case-management.yaml` CM-28,
 `embargo-policy.yaml` EP-07, `em-behavior.yaml` EMB-17. CM-18-002 is amended to
-reference CM-27 so the pocket veto and the explicit deadline remain one
+reference CM-28 so the pocket veto and the explicit deadline remain one
 mechanism.

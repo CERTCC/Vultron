@@ -207,7 +207,7 @@ groups:
     Policy requirements for the embargo invite RSVP window: the fallback default
     when no deadline is on the wire, the minimum permitted window, and the
     clamp-on-receipt rule that neutralises coercively short deadlines.
-    Codified by ADR-0059. Source: IDEA-2066.
+    Codified by ADR-0065. Source: IDEA-2066.
   specs:
   - id: EP-07-001
     priority: MUST
@@ -221,12 +221,12 @@ groups:
     rationale: >-
       Aligning the fallback with the pre-existing CM-18-002 policy window means
       an invitation that omits `end_time` behaves exactly as it does today, so
-      adopting CM-27 changes no existing behaviour. See ADR-0059.
+      adopting CM-28 changes no existing behaviour. See ADR-0065.
     relationships:
     - rel_type: implements
-      spec_id: CM-27-002
+      spec_id: CM-28-002
     adr:
-    - ADR-0059
+    - ADR-0065
   - id: EP-07-002
     priority: MUST
     kind: protocol
@@ -238,9 +238,9 @@ groups:
     rationale: >-
       An unbounded-downward deadline weaponises the mechanism: a one-minute RSVP
       window formally invites a participant while guaranteeing they cannot
-      answer, excluding them with the appearance of due process. See ADR-0059.
+      answer, excluding them with the appearance of due process. See ADR-0065.
     adr:
-    - ADR-0059
+    - ADR-0065
   - id: EP-07-003
     priority: MUST
     kind: protocol
@@ -251,7 +251,7 @@ groups:
       malformed on the basis of a sub-minimum deadline, and it MUST log the
       clamp.
     note: >-
-      Both parties must reach the same effective deadline for CM-27-002 to hold.
+      Both parties must reach the same effective deadline for CM-28-002 to hold.
       Because the floor is a configured value, a receiver whose floor differs
       from the sender's can compute a different effective deadline. Deployments
       that require strict bilateral agreement SHOULD align their floor
@@ -260,9 +260,9 @@ groups:
       Clamping makes a coercive deadline ineffective rather than fatal.
       Rejecting the invitation outright would hand the sender exactly what a
       hostile sender wants — an invite that never takes effect — and would
-      punish the invitee for the inviter's misbehaviour. See ADR-0059.
+      punish the invitee for the inviter's misbehaviour. See ADR-0065.
     relationships:
     - rel_type: refines
       spec_id: EP-07-002
     adr:
-    - ADR-0059
+    - ADR-0065

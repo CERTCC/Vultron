@@ -793,7 +793,7 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   terms are current, re-invite with current terms if they are stale, or
   acknowledge as a no-op (retaining case participation) if no embargo remains
 - *Source: `notes/participant-embargo-consent.md` §"Pocket Veto" and
-  §"RSVP Deadlines on Embargo Invites"; ADR-0059; CM-18-002, CM-27, EP-07,
+  §"RSVP Deadlines on Embargo Invites"; ADR-0065; CM-18-002, CM-28, EP-07,
   EMB-17*
 
 #### 6.4.5 Embargo Meta-Protocol Delivery to Non-Signatories
