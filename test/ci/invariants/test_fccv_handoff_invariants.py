@@ -15,11 +15,11 @@ FCCV-handoff-specific invariants:
   each accept their invitation).
 - Vendor is a late joiner — its replica holds the complete log from genesis.
 
-Note on the ownership transfer: the ``Offer(VulnerabilityCase)`` /
-``Accept(Offer(VulnerabilityCase))`` handoff is a direct C1 ↔ C2 exchange
-(TRIG-11-001/TRIG-11-002) and does not emit a canonical CaseActor ledger
-entry.  The demo verifies the resulting ``attributed_to`` change on both
-the C1 and C2 DataLayers via ``demo_check`` assertions instead.
+The ``Accept(Offer(VulnerabilityCase))`` for ownership transfer routes through
+the CaseActor (ADR-0053, CM-21-006/007).  The CaseActor commits a canonical
+``accept_case_ownership_transfer`` ledger entry and broadcasts
+``Announce(CaseLedgerEntry)`` to all participants.  All replicas MUST agree on
+the same ``entry_hash`` for that index (ISSUE-2252, AC-3).
 
 All tests are tagged ``@pytest.mark.case_ledger_invariants``.  They skip
 automatically when ``devlogs/fccv-handoff/`` is absent.
@@ -71,6 +71,12 @@ _FCCV_HANDOFF_EXPECTED_EVENT_TYPES = [
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
     pytest.param(
         "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
+    ),
+    # ADR-0053 / CM-21-007: CaseActor commits one canonical entry when the
+    # Accept(Offer(VulnerabilityCase)) for ownership transfer arrives (AC-3).
+    pytest.param(
+        "accept_case_ownership_transfer",
+        id="accept_case_ownership_transfer",
     ),
 ]
 
@@ -336,6 +342,52 @@ def test_fccv_handoff_accept_invite_at_least_twice(
         fccv_handoff_replicas, "accept_invite_actor_to_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""
+
+
+@pytest.mark.case_ledger_invariants
+def test_fccv_handoff_accept_ownership_transfer_hash_agreement(
+    fccv_handoff_replicas: dict[str, list[dict]],
+) -> None:
+    """All replicas agree on ``entryHash`` for ``accept_case_ownership_transfer``.
+
+    Regression for ISSUE-2252: the transferee (coordinator) ran an unguarded
+    ``CommitCaseLedgerEntryNode``, producing a different ``received_at`` and
+    ``payload_snapshot`` and therefore a different hash than the CaseActor's
+    canonical entry at the same ``logIndex``.  After the fix only the CaseActor
+    writes that entry; all replicas receive it via ``Announce(CaseLedgerEntry)``
+    and must carry the identical ``entryHash`` (AC-3).
+    """
+    transfer_entries: dict[str, list[dict]] = {
+        actor: [
+            e
+            for e in entries
+            if e.get("eventType", e.get("event_type", ""))
+            == "accept_case_ownership_transfer"
+        ]
+        for actor, entries in fccv_handoff_replicas.items()
+    }
+    # Only check actors that have at least one entry for this event type.
+    actors_with_entry = {
+        actor: entries
+        for actor, entries in transfer_entries.items()
+        if entries
+    }
+    if not actors_with_entry:
+        pytest.skip("No accept_case_ownership_transfer entries in devlogs")
+
+    # Collect the set of distinct entryHash values across all replicas.
+    hashes: set[str] = set()
+    for entries in actors_with_entry.values():
+        for e in entries:
+            h = str(e.get("entryHash", e.get("entry_hash", "")))
+            if h:
+                hashes.add(h)
+
+    assert len(hashes) == 1, (
+        f"Cross-replica entryHash disagreement for accept_case_ownership_transfer"
+        f" (ISSUE-2252 regression): found {len(hashes)} distinct hashes across"
+        f" actors {sorted(actors_with_entry)}: {hashes}"
+    )
 
 
 @pytest.mark.case_ledger_invariants
