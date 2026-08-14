@@ -121,13 +121,27 @@ class ReconstructChainTailNode(DataLayerAction):
                 case_id, self.datalayer
             )
         except VultronValidationError as exc:
-            self.logger.error(
-                "%s: cannot reconstruct tail hash for case '%s': %s",
+            # _reconstruct_tail_hash raises here for exactly one condition:
+            # an empty local ledger with no per-case genesis hash yet — the
+            # pre-genesis bootstrap window where an Announce(CaseLedgerEntry)
+            # arrived before the Create(VulnerabilityCase) that seeds genesis.
+            # This is an expected, self-healing situation, NOT a fault: the
+            # downstream ReconstructOrRejectOnMissingCase selector fires a
+            # Reject(CaseLedgerEntry) carrying the empty tail_hash sentinel,
+            # prompting the CaseActor to replay from genesis (SYNC-15-001,
+            # CLP-08-005).  Log at WARNING so this designed recovery does not
+            # surface as spurious ERROR noise on replica containers (#2169).
+            # (Genuine chain corruption — hash mismatch, index gaps — is
+            # handled separately by CheckHashOrRejectOnMismatchNode and never
+            # reaches this branch.)
+            self.logger.warning(
+                "%s: pre-genesis window for case '%s' — sending Reject to "
+                "replay from genesis (CLP-08-005): %s",
                 self.name,
                 case_id,
                 exc,
             )
-            # Write sentinel values so a downstream reject node can fire even
+            # Write sentinel values so the downstream reject node can fire even
             # though the tree would normally stop at this FAILURE.  An empty
             # tail_hash signals "replay from genesis" to the CaseActor
             # (SYNC-15-001, CLP-08-005).

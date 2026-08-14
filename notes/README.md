@@ -25,6 +25,19 @@ validate-at-edge / promote-to-core rule (ADR-0032).
 **Load when**: orienting to architecture boundaries, reviewing layering
 violations, or validating core/wire separation.
 
+**`core-wire-rendering-port.md`**
+Why core legitimately needs wire-shaped JSON (only for
+`CaseLedgerEntry.payloadSnapshot`), why `alias_generator=to_camel` on core types
+was both an ARCH-12-003 violation and structurally insufficient, and the
+`WireRenderPort` driven seam that replaces it. Lists the five consumers of the
+old core-side aliasing, the reject-guard that MUST accompany deletion of any
+flat-field shim (SDO-03-005), and why persisted rows are unaffected.
+Normative requirements: `specs/architecture.yaml` ARCH-20,
+`specs/case-ledger-processing.yaml` CLP-07-009/010.
+**Load when**: touching `alias_generator`/`by_alias` anywhere, building or
+reviewing payload snapshots, removing a flat-field migration shim, or adding a
+core→wire projection.
+
 **`domain-validation.md`**
 Strict vs. loose domain object boundary contract: where objects transition from
 loose (wire-deserialized, possibly-None fields) to strict (all required fields

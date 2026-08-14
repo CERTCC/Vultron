@@ -218,6 +218,57 @@ def test_store_nested_inbox_object_skips_when_no_body(datalayer):
     _store_nested_inbox_object(datalayer, activity, None)
 
 
+def test_store_nested_inbox_object_logs_a_projection_failure(
+    datalayer, caplog
+):
+    """An unpersistable inline object must be logged at ERROR (issue #2232).
+
+    A projection failure and an "already exists" collision both used to surface
+    as ``ValueError`` and were swallowed together at DEBUG, so the row was
+    silently absent and downstream BT nodes reported a misleading "participant
+    not found".  The distinct ``VultronValidationError`` is now logged loudly.
+    """
+    import logging
+
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+
+    # NonEmptyString rejects "" on the core class but not the wire class, so
+    # this participant is constructible yet cannot be projected to core.
+    unprojectable = as_CaseParticipant(
+        id_="urn:uuid:participant-2232-unprojectable",
+        attributed_to=_ACTOR_URI,
+        context="https://example.org/cases/case-2232",
+        accepted_embargo_ids=[""],
+    )
+    activity = as_Announce(actor=_ACTOR_URI, object_=unprojectable)
+
+    with caplog.at_level(logging.ERROR):
+        _store_nested_inbox_object(datalayer, activity, None)
+
+    assert datalayer.read(unprojectable.id_) is None
+    assert "cannot be projected" in caplog.text
+
+
+def test_store_nested_inbox_object_duplicate_stays_at_debug(datalayer, caplog):
+    """A genuine duplicate is not an error — it must not be logged as one."""
+    import logging
+
+    case = as_VulnerabilityCase(
+        id_="urn:uuid:case-dup-2232",
+        name="Duplicate Case",
+    )
+    activity = as_Announce(actor=_ACTOR_URI, object_=case)
+    _store_nested_inbox_object(datalayer, activity, None)
+
+    with caplog.at_level(logging.DEBUG):
+        _store_nested_inbox_object(datalayer, activity, None)
+
+    assert "already exists" in caplog.text
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
 # ---------------------------------------------------------------------------
 # _record_inbox_receipt
 # ---------------------------------------------------------------------------

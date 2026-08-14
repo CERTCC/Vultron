@@ -1158,7 +1158,7 @@ class TestRunTwoActorDemo:
     """Test the complete FV workflow via run_fv_demo."""
 
     def test_full_workflow_succeeds(
-        self, client: TestClient, base: str, caplog
+        self, client: TestClient, base: str, caplog, tmp_path, monkeypatch
     ):
         finder_client = make_client(base)
         vendor_client = make_client(base)
@@ -1166,6 +1166,15 @@ class TestRunTwoActorDemo:
         finder_id = f"{base}/actors/finder-full-test"
         vendor_id = f"{base}/actors/vendor-full-test"
 
+        # run_fv_demo() always dumps the ledgers (ISSUE-2239), so point it at
+        # a temp directory so it does not land in the repo-root devlogs/.
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        # After issue #2273 (validate-report ordering fix), the in-process
+        # SYNC-2 gap (#2267) is also resolved: case-actor ledger entries now
+        # exist (validate_report + engage_case are properly recorded), enabling
+        # Finder replica replication to complete.  The demo should succeed
+        # with no failures.
         with caplog.at_level(logging.ERROR):
             demo.run_fv_demo(
                 finder_client=finder_client,
@@ -1969,6 +1978,7 @@ class TestFvMilestoneAssertions:
             ),
             patch.object(demo, "find_case_for_offer", return_value=case),
             patch.object(demo, "seed_case_participants_for_demo"),
+            patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "vendor_engages_case"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_finder_case"),

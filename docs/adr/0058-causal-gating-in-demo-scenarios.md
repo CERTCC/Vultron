@@ -63,10 +63,9 @@ observe before advancing, and where should that requirement live?
   cannot simply convert gates into hard aborts.
 - Nine scenario modules totalling roughly 9,700 lines already exist; a solution
   requiring all of them to be rewritten in a new form is unlikely to be finished.
-- ADR-0037 and the pre-genesis ledger-entry buffering decision (ADR-0055 *on the
-  `fix/demo-ci` branch*, not the ADR-0055 on `main`; it is subject to renumbering
-  when that branch merges under #2143) already moved one class of ordering problem
-  into actor-side buffering. A harness rule must not contradict that.
+- ADR-0037 and ADR-0059 (buffer pre-genesis ledger entries) already moved one
+  class of ordering problem into actor-side buffering. A harness rule must not
+  contradict that.
 
 ## Considered Options
 
@@ -227,18 +226,10 @@ not exclusively a harness problem, and this decision does not green Epic #2136 o
 its own: #2194 and #2195 are delivery and serialization defects that causal
 gating would not have prevented.
 
-Related decisions: ADR-0037 (buffer out-of-order ledger entries), ADR-0055 on
-the `fix/demo-ci` branch (buffer pre-genesis ledger entries — the production-side
-counterpart of this decision), ADR-0041 (`log_index` order is causal order),
-ADR-0052 (demo CI job structure).
-
-> **Note on the ADR-0055 number.** Two distinct ADRs currently hold the number
-> 0055: on `main` it is "CI Failure Alerting via GitHub Issues", and on
-> `fix/demo-ci` it is "Buffer Pre-Genesis Ledger Entries". Every reference to
-> pre-genesis buffering in this ADR and in the accompanying notes means the
-> `fix/demo-ci` one. That ADR must be renumbered when `fix/demo-ci` merges
-> (#2143), the way ADR-0056 was renumbered to ADR-0057 for the same reason — so
-> prefer the title over the number when citing it.
+Related decisions: ADR-0037 (buffer out-of-order ledger entries), ADR-0059
+(buffer pre-genesis ledger entries — the production-side counterpart of this
+decision), ADR-0041 (`log_index` order is causal order), ADR-0052 (demo CI job
+structure).
 
 Source concern: CONCERN-2181. Evidence: the Epic #2136 sub-issues ISSUE-2120,
 ISSUE-2134, ISSUE-2135, ISSUE-2141, ISSUE-2169, ISSUE-2178, ISSUE-2180, and

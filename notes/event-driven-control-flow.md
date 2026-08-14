@@ -214,10 +214,8 @@ gap rather than substituting a `sleep` (EDF-06-007).
 
 Harness-side gating cannot fix a cause that never becomes observable. #2169's
 finder race is server-side fan-out, and a client-side wait cannot prevent it; the
-real fix was actor-side buffering (ADR-0037, and the pre-genesis ledger-entry
-buffering ADR carried on the `fix/demo-ci` branch — numbered 0055 there, pending
-renumber when that branch merges under #2143; on `main`, ADR-0055 is an unrelated
-CI-alerting decision). Where the actor buffers, the harness needs no gate at all — so some
+real fix was actor-side buffering (ADR-0037, and ADR-0059 for pre-genesis
+ledger-entry buffering). Where the actor buffers, the harness needs no gate at all — so some
 existing `wait_for_case_on_container` sites may be removable.
 
 The test for which side owns a race: if the effect is *eventually* guaranteed by

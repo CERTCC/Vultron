@@ -38,14 +38,15 @@ with the ActivityStreams adoption.
 
 ### Generation 2: State-based model and simulation
 
-**Files**: `vultron/case_states/**/*.py`, `vultron/bt/**/*.py`
+**Files**: `vultron/core/case_states/**/*.py`, `vultron/core/states/**/*.py`,
+`vultron/bt/**/*.py`
 (including `vultron/bt/base/demo/cvd.py`)
 
 These were some of the earliest Python implementations, based on:
 
 - [*A State-Based Model for Coordinated Vulnerability Disclosure*](
   https://www.sei.cmu.edu/documents/1952/2021_003_001_737890.pdf)
-  (CMU/SEI-2021-SR-021) — basis for `vultron/case_states/hypercube.py` and
+  (CMU/SEI-2021-SR-021) — basis for `vultron/core/case_states/hypercube.py` and
   the VFD/PXA state machines.
 - [*Designing Vultron*](
   https://www.sei.cmu.edu/documents/1954/2022_003_001_887202.pdf)
@@ -98,7 +99,7 @@ Update the documentation to match the enum, never the reverse (unless the
 enum itself is explicitly identified as a bug by a maintainer). Canonical
 enum files: `vultron/bt/report_management/states.py` (RM),
 `vultron/bt/embargo_management/states.py` (EM),
-`vultron/case_states/states.py` (CS/VFD/PXA).
+`vultron/core/states/cs.py` (CS/VFD/PXA).
 
 ---
 

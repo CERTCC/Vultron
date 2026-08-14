@@ -82,8 +82,8 @@ def propose_embargo() -> as_Invite:
     return activity
 
 
-# TODO this seems less like an API call and more like a poll
 def choose_preferred_embargo() -> as_Question:
+    # as_Question is the correct type: this is a poll sent to participants, not a direct API call
     embargo_list = [
         embargo_event(90),
         embargo_event(45),

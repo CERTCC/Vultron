@@ -276,6 +276,12 @@ nav:
       - embargo_adherence Is a Computed Property Derived from PEC State: 'adr/0056-embargo-adherence-computed-field.md'
       - Rename CVDRole.OTHER to CVDRole.OBSERVER and Define Observer Participant Semantics: 'adr/0057-observer-participant-role.md'
       - Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order: 'adr/0058-causal-gating-in-demo-scenarios.md'
+      - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0059-buffer-pre-genesis-ledger-entries.md'
+      - Re-express the Legacy Case-State Invariants and Keep the Hypercube as Reference: 'adr/0060-re-express-legacy-cs-invariants.md'
+      - Adjudicate Received ParticipantStatus Per Dimension, Not as a Unit: 'adr/0061-per-dimension-partial-accept.md'
+      - Normalise Wire to Core at Ingress, and Enforce It Again at the Persistence Boundary: 'adr/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md'
+      - Render Core Objects to Wire JSON Through a Driven Port: 'adr/0063-wire-rendering-port-for-core-objects.md'
+      - Enforce Post-Construction Type Safety on the Core Branch Only: 'adr/0064-core-branch-validate-assignment.md'
       - Embargo Invite RSVP Deadline on Invite.end_time: 'adr/0065-embargo-invite-rsvp-deadline.md'
   - About:
     - Contributing: 'about/contributing.md'
@@ -346,6 +352,9 @@ plugins:
             heading_level: 2
   - markdown-exec
   - search
+  # autorefs is declared explicitly so mkdocstrings does not auto-append it
+  # after print-site, which would trip print-site's must-be-last check.
+  - autorefs
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'

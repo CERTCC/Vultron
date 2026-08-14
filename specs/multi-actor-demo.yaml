@@ -4,7 +4,7 @@ description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
   acceptance testing, and reproducibility. Includes per-scenario required
   event-type lists for the case-ledger invariant harness.
-version: 1.3.0
+version: 1.4.0
 scope:
 
 - prototype
@@ -426,7 +426,7 @@ groups:
     - order: 5
       actor: case_actor
       action: >-
-        [SUPERSEDED] This step previously described an all-participants-RM.CLOSED
+        **SUPERSEDED** This step previously described an all-participants-RM.CLOSED
         check that emitted Leave(VulnerabilityCase) from the Case Actor to trigger
         case closure.  This step is retired: RM case closure now flows through each
         participant's own Leave(VulnerabilityCase) round-trip (CM-23-001).
@@ -435,7 +435,7 @@ groups:
         advances the CaseActor participant to RM.CLOSED (CM-23-004, ADR-0051).
         Implementation: see #1901.
       expected: >-
-        [SUPERSEDED] No AutoCloseSequence fires in add_participant_status_tree.
+        **SUPERSEDED** No AutoCloseSequence fires in add_participant_status_tree.
         Case closure is triggered by Leave(VulnerabilityCase) from the Case Owner.
     postconditions:
     - description: >-
@@ -450,7 +450,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      [SUPERSEDED by CM-23-001 and ADR-0050]  The BT node decomposition
+      **SUPERSEDED by CM-23-001 and ADR-0050**  The BT node decomposition
       requirements for DEMOMA-07-003 step 5 (AllParticipantsRMClosedConditionNode,
       CloseNotYetEmittedConditionNode, EmitCloseCaseNode) are retired from the
       add_participant_status_tree path.  Those nodes MUST NOT be wired into
@@ -1798,23 +1798,23 @@ groups:
       `verify_fix_ready` in `vultron/demo/helpers/milestones.py` MUST accept only
       actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
       (fix-ready) transition is gated on VENDOR by `CheckVendorRoleNode`.
-      `verify_fix_deployed` MUST accept actor IDs holding `CVDRole.VENDOR` OR
-      `CVDRole.DEPLOYER`; the d→D (fix-deployed) transition is gated on DEPLOYER
-      by `CheckDeployerRoleNode`. Passing any other actor (e.g. COORDINATOR or
-      CASE_OWNER) to either helper is a caller error. Each helper MUST enforce its
-      precondition at runtime, raising `AssertionError` with the actor ID and its
-      actual roles if the assertion fails.
+      `verify_fix_deployed` MUST accept only actor IDs holding `CVDRole.DEPLOYER`
+      in the case's participant index; the d→D (fix-deployed) transition is gated
+      on DEPLOYER by `CheckDeployerRoleNode`. Passing any other actor (e.g.
+      COORDINATOR, CASE_OWNER, or a VENDOR-only actor without DEPLOYER) to either
+      helper is a caller error. Each helper MUST enforce its precondition at
+      runtime, raising `AssertionError` with the actor ID and its actual roles if
+      the assertion fails.
     rationale: >-
       The f→F (fix-ready) transition requires CVDRole.VENDOR; coordinators have no
       vendor fix path. The d→D (fix-deployed) transition requires CVDRole.DEPLOYER;
-      a vendor who is not a deployer stops at VFd. An actor may hold both roles
-      (e.g. [vendor, deployer]) and passes both checks. The original spec listed
-      VENDOR for both helpers, which was an overfit to single-vendor scenarios
-      where Vendor and Deployer were always the same actor. The FCVCV scenario
-      introduced a distinct Vendor-Deployer actor (V2) that makes the distinction
-      observable. This was the root cause of the M4/M5 CI failures in PR #1623
-      (issue #1593), where `fcv_demo.py` passed `coordinator.id_` instead of
-      `vendor.id_`.
+      a vendor who is not a deployer stops at VFd and cannot advance to VFD
+      (CSB-15-002). An actor may hold both VENDOR and DEPLOYER roles and passes
+      both checks. `verify_fix_deployed` previously accepted VENDOR-or-DEPLOYER,
+      which was misleading: a VENDOR-only actor can never reach VFD regardless of
+      the role guard, so accepting VENDOR in the guard gave a confusing error
+      (VFD state check failure) instead of a clear one (DEPLOYER role check
+      failure). Requiring DEPLOYER-only makes the failure mode unambiguous.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-06-002
@@ -1837,16 +1837,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The four universal event types — `validate_report`,
-      `add_participant_status_to_participant`, `close_case`, and
-      `add_note_to_case` — MUST appear at least once in the authoritative
-      case-actor log for every multi-actor demo scenario.
+      The five universal event types — `validate_report`,
+      `add_participant_status_to_participant`, `close_case`,
+      `add_note_to_case`, and `engage_case` — MUST appear at least once in the
+      authoritative case-actor log for every multi-actor demo scenario.
     rationale: >-
-      These four types represent the minimal protocol coverage shared by all
-      scenarios: report validation, participant state tracking, case
-      closure, and at least one note (notes-exchange phase). Any scenario
-      that does not produce all four has not completed the basic CVD
-      lifecycle.
+      These five types are the minimal coverage shared by all scenarios:
+      report validation, RM engagement (VALID → ACCEPTED), participant state
+      tracking, case closure, and at least one note. A scenario missing any of
+      the five has not completed the basic CVD lifecycle. `engage_case` is as
+      universal as `validate_report`: emission lives in the shared demo helper
+      layer, not at scenario call sites, so no scenario file names the trigger
+      itself (CONCERN-2243). Paths: see `notes/demo-ci-invariants.md`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
@@ -1855,7 +1857,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In addition to the four universal types (DEMOMA-16-001), the FV scenario
+      In addition to the five universal types (DEMOMA-16-001), the FV scenario
       MUST verify that its expected-event-types list is restricted to types that
       the FV scenario actually produces. FV does not include an
       `invite_actor_to_case` phase; the Finder joins by submitting a report,
@@ -1872,7 +1874,7 @@ groups:
     statement: >-
       The FVV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because Vendor1 invites
+      to the five universal types (DEMOMA-16-001), because Vendor1 invites
       Vendor2 into the case and Vendor2 explicitly accepts via the
       `accept-case-invite` trigger.
     relationships:
@@ -1888,7 +1890,7 @@ groups:
       The FVCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the four universal types (DEMOMA-16-001), because Vendor1
+      addition to the five universal types (DEMOMA-16-001), because Vendor1
       invites Coordinator, Coordinator uses the ADR-0026 suggest-actor flow
       (`offer_case_participant`) to propose Vendor2, Vendor1 approves the
       recommendation (`accept_actor_recommendation`), CaseActor converts the
@@ -1906,7 +1908,7 @@ groups:
     statement: >-
       The FVCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because Vendor1 invites
+      to the five universal types (DEMOMA-16-001), because Vendor1 invites
       Coordinator, the Coordinator accepts and becomes the new CASE_OWNER,
       and Coordinator then invites Vendor2 who also accepts.
     rationale: >-
@@ -1931,7 +1933,7 @@ groups:
     statement: >-
       The FCCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because C1 invites C2,
+      to the five universal types (DEMOMA-16-001), because C1 invites C2,
       C2 accepts and becomes the new CASE_OWNER, and C2 then invites the
       Vendor who also accepts.
     relationships:
@@ -1946,7 +1948,7 @@ groups:
     statement: >-
       The FCV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the four universal types (DEMOMA-16-001), because the Coordinator
+      to the five universal types (DEMOMA-16-001), because the Coordinator
       invites both the Finder and the Vendor into the case, and both Finder
       and Vendor explicitly accept via the `accept-case-invite` trigger.
     relationships:
@@ -1979,7 +1981,7 @@ groups:
       The FCVCV scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the four universal types (DEMOMA-16-001).
+      addition to the five universal types (DEMOMA-16-001).
       `invite_actor_to_case` appears at least three times (C1 invites V1, C1
       invites C2, and CaseActor invites V2 via the ADR-0026 path);
       `offer_case_participant` appears at least once (C2 suggests V2 to C1
@@ -2018,7 +2020,7 @@ groups:
       The FCCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the four universal types (DEMOMA-16-001), because
+      addition to the five universal types (DEMOMA-16-001), because
       Coordinator1 invites Coordinator2, Coordinator2 uses the ADR-0026
       suggest-actor flow (`offer_case_participant`) to propose the Vendor,
       Coordinator1 approves the recommendation (`accept_actor_recommendation`),
@@ -2036,7 +2038,7 @@ groups:
     statement: >-
       The FCV-reject scenario expected-event-types list MUST include
       `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to
-      the four universal types (DEMOMA-16-001), because the Coordinator invites
+      the five universal types (DEMOMA-16-001), because the Coordinator invites
       the Vendor and the Vendor sends `Reject(Invite(actor, case))` (an
       invitation-layer rejection), which triggers
       `RejectInviteActorToCaseReceivedUseCase` on the CaseActor and produces
@@ -2301,11 +2303,10 @@ groups:
     rationale: >-
       V1's vendor-only role set (stops at VFd) and V2's vendor-deployer role
       set (reaches VFD) are the key differentiators of this scenario. The
-      distinction verifies DEMOMA-15-001's corrected precondition guards:
+      distinction verifies DEMOMA-15-001's precondition guards:
       `verify_fix_ready` requires VENDOR; `verify_fix_deployed` requires
-      VENDOR or DEPLOYER. Using V1 in a `verify_fix_deployed` call would
-      exercise the wrong path and mask a future regression where the d→D BT
-      gate is weakened.
+      DEPLOYER. Using V1 in a `verify_fix_deployed` call would exercise the
+      wrong path and mask a future regression where the d→D BT gate is weakened.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-15-001
@@ -2947,3 +2948,82 @@ groups:
     tags:
     - demo
     - documentation
+- id: DEMOMA-23
+  title: Shared Scenario Harness
+  specs:
+  - id: DEMOMA-23-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `run_<name>_demo()` orchestrator MUST run its phase body inside the
+      shared `scenario_harness("<demo-name>")` context manager from
+      `vultron.demo.helpers.harness`, which resets the failure accumulator, always
+      dumps the case ledgers, and only then asserts demo success. The scenario's
+      `main()` MUST NOT wrap the run in `try: ... finally: assert_demo_success()`.
+    rationale: >-
+      Each scenario previously repeated the same three responsibilities in a
+      slightly different order, and the `finally: assert_demo_success()` shape in
+      `main()` substituted a generic `DemoFailureError` for whatever actually went
+      wrong. One harness fixes the order once for all scenarios: run phases,
+      always dump, then assert.
+    relationships:
+    - rel_type: implements
+      spec_id: DEMOCI-10-001
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-23-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A scenario's `_phase_dump_case_ledgers()` MUST be a thin wrapper over
+      `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`, declaring only that
+      scenario's dump targets (actor name, client, route key, and any fallback).
+      Per-actor fetching, 404 handling, JSONL writing, and manifest writing MUST
+      live in the shared helper, not in the scenario module.
+    rationale: >-
+      Nine copies of the same export loop is exactly the copy-paste that
+      DEMOMA-17-001 forbids, and it is why a defect in the dump had to be fixed
+      nine times. Keeping the scenario-specific participant map in the scenario
+      and the mechanics in the helper puts each fact in one place.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    tags:
+    - demo
+  - id: DEMOMA-23-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A scenario MUST register its dump with `harness.dump_with(...)` as soon as
+      a case exists — immediately after the report-submission phase returns —
+      rather than at the end of the run.
+    rationale: >-
+      The harness can only dump what it has been given. Registering the dump at
+      the first point where a case exists is what makes every later phase failure
+      survivable: the ledgers that existed at the moment of failure are still
+      exported.
+    relationships:
+    - rel_type: implements
+      spec_id: DEMOCI-10-001
+    tags:
+    - demo
+  - id: DEMOMA-23-004
+    priority: SHOULD
+    kind: project
+    statement: >-
+      When a scenario body raises, the harness SHOULD attach the accumulated
+      `demo_step`/`demo_check` failures to the propagating exception as notes
+      rather than raising `DemoFailureError` in their place.
+    rationale: >-
+      The accumulated soft failures are usually downstream consequences of the
+      exception, so they are context, not the cause. Attaching them as notes keeps
+      both: the reader sees the failure that stopped the run and every check that
+      had already failed.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-10-004
+    tags:
+    - demo

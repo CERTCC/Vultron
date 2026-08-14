@@ -957,6 +957,16 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
     case_id = case_obj.id_
     if vendor_actor_id in case_obj.actor_participant_index:
         return
+    # Seed vendor at RM.RECEIVED — the minimum state needed so that the
+    # validate-report trigger can advance RECEIVED → VALID and emit the
+    # validate_report eventType to the case-actor ledger.
+    #
+    # In a multi-server deployment the CaseProposal acceptance round-trip would
+    # drive this transition automatically (SubmitReportReceivedUseCase creates
+    # the participant at RM.RECEIVED).  In single-server demo mode that
+    # round-trip is blocked, so we seed it here as the protocol would have.
+    # RM.VALID must NOT be pre-seeded — validate-report must drive that
+    # transition so the eventType appears in the case-actor ledger (issue #2273).
     vendor_p = CaseParticipant(
         attributed_to=vendor_actor_id,
         context=case_id,
@@ -968,11 +978,6 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
                 context=case_id,
                 attributed_to=vendor_actor_id,
             ),
-            ParticipantStatus(
-                rm=RmDimension(state=RM.VALID),
-                context=case_id,
-                attributed_to=vendor_actor_id,
-            ),
         ],
     )
     try:
@@ -981,7 +986,7 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
         pass
     case_obj.add_participant(vendor_p)
     logger.debug(
-        "seed_case_participants_for_demo: added vendor '%s' at RM.VALID",
+        "seed_case_participants_for_demo: added vendor '%s' at RM.RECEIVED",
         vendor_actor_id,
     )
 
@@ -1104,11 +1109,9 @@ def seed_case_participants_for_demo(
     """Seed vendor, reporter, and CaseActor participants on an ADR-0041 case.
 
     Under ADR-0041, the CaseActor normally creates participants via
-    ``case_proposal_received_tree`` when it accepts a ``CaseProposal``.  In
-    single-server demo/test environments the nested ASGI delivery is blocked
-    (depth > 0 guard prevents deadlocks), so the CaseProposal round-trip never
-    completes.  This helper compensates by seeding participants directly in the
-    DataLayer and setting ``EM.ACTIVE`` so the demo milestone checks pass.
+    ``case_proposal_received_tree`` when it accepts a ``CaseProposal``.
+    This helper compensates by seeding participants directly in the DataLayer
+    and setting ``EM.ACTIVE`` so the demo milestone checks pass.
 
     It is safe to call this multiple times for the same case — idempotency
     guards on ``actor_participant_index`` prevent duplicate records.

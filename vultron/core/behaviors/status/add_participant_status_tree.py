@@ -30,7 +30,7 @@ Seam 2; ``add_participant_status_tree`` does not execute them directly
 
     AddParticipantStatusBT (Sequence)
     ├─ VerifySenderIsParticipantNode          # Step 1: sender must be known participant
-    ├─ CheckParticipantRMNotClosedNode        # Guard: reject CLOSED→CLOSED rewrites
+    ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence("SkipIfNotCaseManager")
     │   │   └─ Inverter(CheckIsCaseManagerNode)
@@ -41,8 +41,16 @@ Seam 2; ``add_participant_status_tree`` does not execute them directly
     │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
     └─ EmitAddCaseStatusToSelfNode            # Seam 1 emit → triggers Seam 2 (RSH-01-003)
 
+``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
+``pxa`` independently before the commit, so an unacceptable value in one
+dimension no longer discards the accepted dimensions or aborts the Sequence
+before the Seam 1 emit (RSH-05, ISSUE-2235).  It replaces the former
+``CheckParticipantRMNotClosedNode`` guard, subsuming the terminal-``RM.CLOSED``
+check: a wholly refused assertion still returns FAILURE here, before any
+canonical ledger entry is committed.
+
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
-Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
+Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-05.
 Per ADR-0050: canonical RM closure is routed through Leave(VulnerabilityCase)
 receive path in receive_close_case_tree, not here.
 """
@@ -65,8 +73,8 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    CheckParticipantRMNotClosedNode,
     EmitAddCaseStatusToSelfNode,
+    FilterParticipantStatusDimensionsNode,
     VerifySenderIsParticipantNode,
 )
 from vultron.core.models.events.status import (
@@ -167,9 +175,10 @@ def add_participant_status_tree(
                 sender_actor_id=actor_id,
                 case_id=tree_case_id,
             ),
-            CheckParticipantRMNotClosedNode(
+            FilterParticipantStatusDimensionsNode(
                 participant_id=participant_id,
                 status_id=status_id,
+                status_obj_fallback=status_obj,
             ),
         ],
         effect_nodes=[

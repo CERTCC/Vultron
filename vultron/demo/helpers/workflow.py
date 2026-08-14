@@ -25,7 +25,10 @@ from typing import Optional, Tuple
 
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
-from vultron.demo.helpers.polling import wait_for_participant_rm_state
+from vultron.demo.helpers.polling import (
+    wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
+)
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -113,6 +116,7 @@ def reporter_submits_report(
             "in the network stack component. An attacker can exploit this "
             "issue to execute arbitrary code with elevated privileges."
         )
+        result = None
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
@@ -126,7 +130,7 @@ def reporter_submits_report(
                     "recipient_id": receiver.id_,
                 },
             )
-        offer_dict = result.get("offer", {})
+        offer_dict = result.get("offer", {}) if result is not None else {}
         report, offer = parse_submit_report_offer(offer_dict)
         # Deliver the offer from the reporter to the receiver's inbox.
         # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
@@ -183,6 +187,7 @@ def receiver_validates_report(
         activity).
     """
     receiver_obj_id = parse_id(receiver.id_)["object_id"]
+    result: dict = {}
     with demo_step("Receiver validates the vulnerability report"):
         result = post_to_trigger(
             client=receiver_client,
@@ -215,6 +220,7 @@ def receiver_engages_case(
         activity).
     """
     receiver_obj_id = parse_id(receiver.id_)["object_id"]
+    result: dict = {}
     with demo_step("Receiver engages the vulnerability case"):
         result = post_to_trigger(
             client=receiver_client,
@@ -254,6 +260,8 @@ def seed_offer_record_for_actor(
         Response dict from the seed endpoint.
     """
     actor_obj_id = parse_id(actor.id_)["object_id"]
+    result: dict = {}
+
     with demo_step(
         "Seeding offer record for invited actor (CM-11-002 triage)"
     ):
@@ -287,12 +295,15 @@ def run_invite_path_rm_triage(
 ) -> None:
     """Run the full RM triage cycle for an invite-path participant (CM-11-002).
 
-    Invited actors join via Accept(Invite) and lack a VultronOfferRecord, so
-    the standard RM RECEIVED→VALID→ACCEPTED cycle requires a seeded record
-    before the validate-report trigger can succeed.
+    Invited actors join via Accept(Invite) and receive the case via
+    Announce(VulnerabilityCase) with embedded reports + the canonical
+    Offer(VulnerabilityReport) ledger backfill.  The VultronOfferRecord is
+    created from the ledger entry by ApplyOfferReportFromLedgerNode — no
+    spoofing via seed-offer-record is needed or permitted.
 
     Steps:
-    1. Seed a VultronOfferRecord on the invited actor's DataLayer.
+    1. Wait for add_report_to_case ledger entry in invited actor's ledger;
+       SYNC processing of this entry creates the VultronOfferRecord.
     2. Trigger validate-report (RM → VALID).
     3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
     4. Trigger engage-case (RM → ACCEPTED).
@@ -303,7 +314,8 @@ def run_invite_path_rm_triage(
         invited_actor: The invited actor's local replica (e.g. vendor2_in_vendor2).
         offer: The original submit-report Offer activity.
         report: The VulnerabilityReport in the case.
-        finder: The actor that originally submitted the Offer.
+        finder: The actor that originally submitted the Offer (unused; kept for
+            call-site compatibility).
         auth_client: Client for an actor that can see the CaseActor state
             (e.g. the coordinating actor or vendor1_client).
         case: The VulnerabilityCase.
@@ -312,13 +324,19 @@ def run_invite_path_rm_triage(
     """
     offer_id = getattr(offer, "id_", str(offer))
 
-    seed_offer_record_for_actor(
-        client=invited_client,
-        actor=invited_actor,
-        offer_id=offer_id,
-        report_id=report.id_,
-        offer_actor_id=finder.id_,
-    )
+    # Wait for the add_report_to_case ledger entry to appear in the invited
+    # actor's ledger before triggering validate-report.  This entry's SYNC
+    # processing runs ApplyOfferReportFromLedgerNode, which creates the
+    # VultronOfferRecord — the prerequisite for validate-report to succeed.
+    with demo_check(
+        "add_report_to_case ledger entry backfilled before validate-report"
+    ):
+        wait_for_event_type_in_ledger(
+            client=invited_client,
+            case_id=case.id_,
+            event_type="add_report_to_case",
+            timeout_seconds=timeout_seconds,
+        )
 
     receiver_validates_report(
         receiver_client=invited_client,
@@ -351,6 +369,96 @@ def run_invite_path_rm_triage(
             timeout_seconds=timeout_seconds,
         )
     logger.info("✓ %s RM state reached ACCEPTED", invited_obj.id_)
+
+
+def run_direct_path_rm_triage(
+    receiver_client: DataLayerClient,
+    receiver: as_Actor,
+    offer: object,
+    timeout_seconds: float = 20.0,
+) -> as_VulnerabilityCase:
+    """Run the RM triage cycle for a direct (report-submission) receiver.
+
+    The submitted-to actor (a Coordinator or Vendor that received an
+    Offer(VulnerabilityReport) directly) validates the report and then engages
+    the case, holding CASE_OWNER on its own container.
+
+    Steps, each gated on the receiver's *own* participant RM state so the demo
+    follows causal arrows rather than mere sequence:
+
+    1. Trigger validate-report (RM → VALID).
+    2. Resolve the as_VulnerabilityCase created for the offer.
+    3. Poll until the receiver's own participant status reaches RM.VALID —
+       validate-report is dispatched asynchronously (HTTP 202), so the
+       ParticipantStatus commit lands *after* the trigger returns.  engage-case
+       transitions RM.VALID → RM.ACCEPTED and is rejected (HTTP 422,
+       TransitionParticipantRMtoAccepted) if it fires before that commit.
+    4. Trigger engage-case (RM → ACCEPTED).
+    5. Poll until the receiver's own participant status reaches RM.ACCEPTED.
+
+    The invite-path counterpart is :func:`run_invite_path_rm_triage`; both gate
+    engagement on a committed RM.VALID rather than the mere presence of the
+    case object (which appears synchronously during validate and is therefore
+    not a valid causal precondition for engagement).
+
+    Args:
+        receiver_client: Client connected to the receiver's container.
+        receiver: The receiver's local ``as_Actor`` replica.
+        offer: The submit-report ``as_Offer`` activity (or its id).
+        timeout_seconds: Polling timeout per wait call (default 20s).
+
+    Returns:
+        The ``as_VulnerabilityCase`` created for the offer.
+    """
+    offer_id = getattr(offer, "id_", str(offer))
+
+    receiver_validates_report(
+        receiver_client=receiver_client,
+        receiver=receiver,
+        offer_id=offer_id,
+    )
+
+    with demo_check("as_VulnerabilityCase exists after validate-report"):
+        case = find_case_for_offer(receiver_client, offer_id)
+        if case is None:
+            raise AssertionError(
+                "Expected as_VulnerabilityCase to be created after"
+                " validate-report"
+            )
+        logger.info("Case created: %s", case.id_)
+
+    # Gate engage-case on the receiver's OWN RM.VALID commit.  validate-report
+    # returns HTTP 202 before its ParticipantStatus write lands, so engaging on
+    # case-object-presence alone races the async commit (TransitionParticipant
+    # RMtoAccepted 422).  RM.ACCEPTED is accepted too in case the state has
+    # already advanced by the time we poll.
+    with demo_check(f"{receiver.id_} reached RM.VALID before engage-case"):
+        wait_for_participant_rm_state(
+            client=receiver_client,
+            case_id=case.id_,
+            actor_id=receiver.id_,
+            expected_states={RM.VALID, RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
+    logger.info("✓ %s RM state reached VALID", receiver.id_)
+
+    receiver_engages_case(
+        receiver_client=receiver_client,
+        receiver=receiver,
+        case_id=case.id_,
+    )
+
+    with demo_check(f"{receiver.id_} reached RM.ACCEPTED"):
+        wait_for_participant_rm_state(
+            client=receiver_client,
+            case_id=case.id_,
+            actor_id=receiver.id_,
+            expected_states={RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
+    logger.info("✓ %s RM state reached ACCEPTED", receiver.id_)
+
+    return case
 
 
 def _report_id_from_offer_data(

@@ -248,8 +248,7 @@ Fixing them one at a time does not stop the next scenario from reintroducing it.
    call site so they are not mistaken for causal gates (EDF-06-006).
 7. **Raising a timeout is not a fix.** If a gate times out reliably, either the
    observable is wrong (see 1–3) or the effect can be *lost* rather than delayed —
-   in which case the protocol must buffer it (ADR-0037, and the pre-genesis
-   buffering ADR on `fix/demo-ci` — not `main`'s ADR-0055) and a demo guard
+   in which case the protocol must buffer it (ADR-0037, ADR-0059) and a demo guard
    would be papering over a production bug.
 
 **Testing gates:** exercise the real context manager. A test that patches
@@ -310,3 +309,56 @@ labels (`actor1`–`actor4`) so the compose file is scenario-agnostic. Until
 then, use the existing services with role-alias bindings.
 
 <!-- Source: ISSUE-1216, plan/incoming/learnings/20260722-fccv-handoff-container-remapping.md -->
+
+---
+
+### The Ledger Dump Belongs in the Failure Path, Not After the Last Phase
+
+A scenario's forensic artifacts are worth the most in exactly the run that
+fails. Code placed *after* the last phase runs only when nothing went wrong.
+Before #2239, every `run_<name>_demo()` called `_phase_dump_case_ledgers()` as
+its final statement, so any assertion escaping a `demo_check`/`demo_gate` block
+skipped the dump entirely — `main()`'s `finally: assert_demo_success()` still
+raised, CI still failed, but `devlogs/` was empty and the `invariant-harness`
+job died on artifact download instead of reporting an invariant result.
+
+**Why:** A demo that fails without artifacts is indistinguishable from a demo
+that never ran. Worse, the invariant harness *skipped* on a missing directory,
+so the pipeline read green for the wrong reason.
+
+**How to apply:**
+
+1. **Run the scenario inside `scenario_harness()`.** Wrap the whole body of
+   `run_<name>_demo()` in `with scenario_harness("<demo-name>") as harness:`.
+   The harness resets the failure accumulator on entry, always dumps on the way
+   out (success or exception), and calls `assert_demo_success()` last
+   (DEMOMA-23-001).
+2. **Register the dump the moment a case exists.** Immediately after the phase
+   that creates the case, call `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`.
+   Every phase below that line can then fail without costing the ledgers
+   (DEMOMA-23-003).
+3. **Do not re-add `try/finally: assert_demo_success()` in `main()`.** The
+   harness owns the accumulator; a second owner reintroduces the bug by
+   asserting before the dump has run (DEMOMA-23-001).
+4. **Keep `_phase_dump_case_ledgers` thin.** It builds
+   `LedgerDumpTarget`s and delegates to
+   `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. No per-scenario
+   fetch/write loops (DEMOMA-23-002, DEMOMA-17-001).
+5. **The manifest is not optional.** `dump_case_ledgers()` writes
+   `devlogs/<demo>/dump-manifest.json` from a `finally`, recording the case ID,
+   how many ledger files were captured, and for each missing actor *why*. That
+   file is what lets the invariant harness fail on a real "no ledger entries"
+   assertion rather than on a download error (DEMOCI-10-002, DEMOCI-10-003).
+6. **A dump failure must never replace the scenario's exception.** The harness
+   swallows dump errors into the manifest's `reason` field and re-raises the
+   original failure with the accumulated `demo_check` failures attached as
+   exception notes (DEMOCI-10-004, DEMOMA-23-004).
+
+**Testing this:** patch a mid-scenario phase to raise, point `DEVLOGS_DIR` at a
+`tmp_path`, and assert the manifest exists. See
+`test/demo/test_issue_2239_ledger_dump_in_finally.py`.
+
+See `specs/demo-ci.yaml` DEMOCI-10, `specs/multi-actor-demo.yaml` DEMOMA-23,
+and [notes/demo-ci-invariants.md](../../notes/demo-ci-invariants.md).
+
+<!-- Source: ISSUE-2239 -->

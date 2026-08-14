@@ -157,9 +157,11 @@ groups:
     statement: 'The CS state machine MUST enforce two forced (ephemeral) transitions at validation time: (1) `pX → PX` — exploit-public
       forces public-aware; (2) `vP → VP` — public-aware forces vendor-aware. Any incoming CS state that contains `pX` or `vP`
       MUST be promoted to the forced form before being persisted.'
-    rationale: These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
+    rationale: 'These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
       public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public. Enforced
-      by `vultron/core/case_states/validations.py` `TRANSITION_RULES`.
+      by `vultron/core/states/cs_invariants.py` (`is_ephemeral_cs_state`, `required_next_cs_events`). This requirement governs
+      the *persistence* boundary only; CSB-17-003 and CSB-17-005 cover trajectory validation, where an ephemeral state is a
+      legal prefix terminus.'
     relationships:
     - rel_type: implements
       spec_id: VP-14-001

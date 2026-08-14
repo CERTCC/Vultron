@@ -158,6 +158,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
         name="Test Case",
         vulnerability_reports=[report.id_],
         case_participants=[participant.id_],
+        actor_participant_index={actor_id: participant.id_},
     )
     datalayer.create(case)
     return case
@@ -240,9 +241,12 @@ def case_with_manager(
     )
     datalayer.create(cm_participant)
 
+    # attributed_to triggers genesis_hash computation (CLP-08-001/002), required
+    # for CommitCaseLedgerEntryNode to succeed in tests that run as CaseManager.
     case = VultronCase(
         id_="https://example.org/cases/case-manager-001",
         name="Test Case With Manager",
+        attributed_to=case_manager_actor_id,
         vulnerability_reports=[report.id_],
         case_participants=[vendor_participant.id_, cm_participant.id_],
         actor_participant_index={
@@ -448,6 +452,10 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
         name="Multi-participant case",
         vulnerability_reports=[report.id_],
         case_participants=[participant_a.id_, participant_b.id_],
+        actor_participant_index={
+            actor_a: participant_a.id_,
+            actor_b: participant_b.id_,
+        },
     )
     datalayer.create(case)
 
@@ -536,6 +544,47 @@ def test_defer_case_tree_idempotent(
         if s.rm.state == RM.DEFERRED
     ]
     assert len(deferred_entries) == 1
+
+
+# ============================================================================
+# Divergent actor_id tests — verifies _target_actor_id invariant (#2300 fix)
+# ============================================================================
+
+
+def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
+    bridge, datalayer, actor_id, case_manager_actor_id, case_with_manager
+):
+    """TransitionParticipantRMtoAccepted uses the constructor actor_id, not the blackboard.
+
+    After the #2300 fix, received-side BTs run under the CaseManager's identity
+    (blackboard actor_id = CaseManager) while the RM transition must still target
+    the engaging actor (constructor actor_id = vendor).  This test exercises the
+    split-identity path: blackboard != constructor.
+    """
+    request = _make_engage_request(case_with_manager, actor_id)
+    tree = create_engage_case_tree(
+        case_id=case_with_manager.id_, actor_id=actor_id
+    )
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=case_manager_actor_id,
+        activity=request,
+    )
+    assert result.status == Status.SUCCESS
+
+    # Vendor's RM state must be ACCEPTED — not the CaseManager's.
+    vendor_participant_id = case_with_manager.actor_participant_index[actor_id]
+    updated_vendor = datalayer.read(vendor_participant_id)
+    assert updated_vendor.participant_statuses[-1].rm.state == RM.ACCEPTED
+
+    # CaseManager's participant must not have gained an RM entry.
+    cm_participant_id = case_with_manager.actor_participant_index[
+        case_manager_actor_id
+    ]
+    cm_participant = datalayer.read(cm_participant_id)
+    assert not any(
+        s.rm.state == RM.ACCEPTED for s in cm_participant.participant_statuses
+    ), "CaseManager must not have been incorrectly transitioned to ACCEPTED"
 
 
 # ============================================================================

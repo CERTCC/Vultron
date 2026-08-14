@@ -1,6 +1,16 @@
-# Version control
-.gitignore
-.gitattributes
+# This file applies to the whole build context and therefore to EVERY stage in
+# docker/Dockerfile, including the `dev` stage that backs the devcontainer.
+#
+# Two rules keep it honest:
+#   1. Only list paths that NO stage needs at build time. Paths that runtime
+#      images should skip but the dev stage requires (.github, archived_notes,
+#      .gitignore, docker/Dockerfile, ...) belong in a per-stage
+#      `COPY --exclude=` on the runtime/test stages instead. Excluding them here
+#      silently strips them from the devcontainer and makes `git status` report
+#      them as deleted.
+#   2. Anything start-dev.sh clobber-mounts over /app at runtime should be
+#      excluded here — copying it in is waste. Safe only because every such path
+#      is gitignored, so its absence cannot surface as a phantom deletion.
 
 # Python artifacts
 __pycache__
@@ -45,22 +55,38 @@ package-lock.json
 devlogs
 diosts.log
 
-# Notes and docs not needed in runtime images
-archived_notes
-wip_notes
-
 # macOS metadata
 .DS_Store
 **/.DS_Store
 
-# Dev-environment files
-.env
-.github
+# Local agent/assistant state — unknown contents, may hold tokens
 .copilot
+
+# Runtime-mounted paths (rule 2 above). start-dev.sh mounts each of these over
+# /app when it creates the container, so the copied-in version is never read.
+wip_notes
+wip_outputs
+graphify-out
+
+# .devcontainer is clobber-mounted at /app/.devcontainer at runtime, so only
+# what the BUILD needs is admitted: certs/, which docker/Dockerfile copies to
+# /usr/local/share/ca-certificates/ and feeds to update-ca-certificates before
+# the gh / Node / AWS CLI / Claude Code installs curl over HTTPS. Those .crt
+# files are host-local (see .git/info/exclude), so they can never arrive via the
+# in-container `git pull` — the build context is their only route in.
 .devcontainer
 !.devcontainer/certs
-!.devcontainer/postcreate.sh
-!.devcontainer/poststart.sh
 
-# Dockerfile itself is not needed inside app images; demo-entrypoint.sh is still required
-docker/Dockerfile
+# Secrets — must not be baked into any image layer, the dev stage included.
+# NOTE: .dockerignore is independent of .gitignore. A git-ignored secret is
+# still part of the build context and still lands in the image unless it is
+# listed HERE. Never rely on .gitignore to keep credentials out of a layer.
+#
+# devcontainer.env (AWS credentials, written by .devcontainer/setup.sh) is
+# already covered by the .devcontainer rule above; it is repeated explicitly so
+# that re-including more of .devcontainer later cannot quietly admit it.
+# start-dev.sh supplies it at runtime via `docker run --env-file`.
+# .env.example files are intentionally NOT matched by these patterns.
+.env
+**/.env
+.devcontainer/*.env

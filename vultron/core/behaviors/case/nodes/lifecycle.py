@@ -40,6 +40,20 @@ from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 
 logger = logging.getLogger(__name__)
 
+#: Blackboard key by which a preceding read-only guard in any receive tree may
+#: patch the ``object`` entry of the canonical ledger ``payload_snapshot`` read
+#: by :class:`CommitCaseLedgerEntryNode`.  The value is a mapping
+#: ``{"object_id": <id the patch applies to>, "fields": <wire-alias patch>}``,
+#: or ``None`` when no adjudication applies.
+#:
+#: ``fields`` is a *patch*, not a replacement object: the guard names only the
+#: fields it adjudicated, keyed by their wire aliases, and they are merged onto
+#: whatever the snapshot already holds.  That keeps the recorded shape identical
+#: to an unadjudicated entry's (RSH-05-009).
+#:
+#: Producers: :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`.
+BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
+
 
 def _extract_payload_snapshot(
     activity: Any, dl: CasePersistence | None = None
@@ -54,6 +68,63 @@ def _extract_payload_snapshot(
     return cast(
         dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
     )
+
+
+#: snake_case spellings of the patchable flat status fields.  A snapshot is
+#: normally serialized ``by_alias`` (camelCase), but a stale snake_case twin
+#: left alongside a patched alias would let a consumer that prefers the
+#: snake_case spelling read the value the receiver just refused.
+_SNAKE_TWINS: dict[str, str] = {
+    "rmState": "rm_state",
+    "vfdState": "vfd_state",
+    "emState": "em_state",
+    "pxaState": "pxa_state",
+    "emConsentState": "em_consent_state",
+    "caseStatus": "case_status",
+}
+
+
+def _merge_snapshot_object_fields(
+    current: dict[str, Any], fields: dict[str, Any]
+) -> dict[str, Any]:
+    """Merge an adjudication patch onto a snapshot ``object``.
+
+    One level of nesting is merged rather than replaced so that patching
+    ``caseStatus.pxaState`` keeps the snapshot's ``caseStatus`` id and its other
+    fields.  A ``caseStatus`` that is still a bare reference string is left
+    alone — there is nothing to merge into, and clobbering it would drop the
+    reference.
+
+    ``name`` is dropped: it is a derived state summary and the sender's label
+    describes the value that was just refused.
+    """
+    merged = dict(current)
+    for key, value in fields.items():
+        existing = merged.get(key)
+        if isinstance(value, dict):
+            if not isinstance(existing, dict):
+                # Bare reference (or absent) — nothing to patch into.
+                continue
+            nested = dict(existing)
+            for nested_key, nested_value in value.items():
+                nested[nested_key] = nested_value
+                nested.pop(_SNAKE_TWINS.get(nested_key, ""), None)
+            merged[key] = nested
+            continue
+        merged[key] = value
+        merged.pop(_SNAKE_TWINS.get(key, ""), None)
+    merged.pop("name", None)
+    return merged
+
+
+def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
+    """Return the ID of a payload snapshot's ``object``, inlined or not."""
+    value = payload_snapshot.get("object")
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, dict):
+        return value.get("id") or value.get("id_") or None
+    return None
 
 
 class CommitCaseLedgerEntryNode(DataLayerAction):
@@ -107,6 +178,10 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="sync_port", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
+            access=py_trees.common.Access.READ,
+        )
 
     def initialise(self) -> None:
         super().initialise()
@@ -126,6 +201,47 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             return self.blackboard.get("activity")
         except KeyError:
             return None
+
+    def _resolve_payload_object_override(
+        self, payload_snapshot: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Return a substitute ``object`` entry for the payload snapshot.
+
+        A preceding read-only guard may have adjudicated the inbound assertion
+        and published the portion the receiver actually accepts (RSH-05).  The
+        canonical entry must record *that*, not the raw claim, otherwise the
+        refused value is hash-chained and replicated to every participant.
+
+        The override is a **patch**, not a replacement object: the guard names
+        only the fields it adjudicated and they are merged onto the snapshot's
+        existing ``object``.  That keeps the snapshot in the same wire shape the
+        un-adjudicated path produces — flat ``rmState``/``vfdState``, nested
+        ``caseStatus``, ``@context``, ``emConsentState``, ``cvdRole`` — which
+        every replica and the invariant harness rely on (RSH-05-009,
+        CLP-07-001, CM-18-006).  A whole-object replacement built in core would
+        instead emit core dimension objects, since core must not import the wire
+        layer to convert (ADR-0009, ADR-0017).
+
+        The override names the object ID it applies to and is honoured only
+        when the snapshot's ``object`` refers to the same ID: the py_trees
+        blackboard is process-global and not cleared between executions, so an
+        unmatched override is a leftover from an earlier run and is ignored.
+        """
+        try:
+            override = self.blackboard.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE)
+        except KeyError:
+            return None
+        if not isinstance(override, dict):
+            return None
+        fields = override.get("fields")
+        if not isinstance(fields, dict) or not fields:
+            return None
+        current = payload_snapshot.get("object")
+        if not isinstance(current, dict):
+            return None
+        if _snapshot_object_id(payload_snapshot) != override.get("object_id"):
+            return None
+        return _merge_snapshot_object_fields(current, fields)
 
     def _activity_metadata(
         self, activity: Any | None, case_id: str
@@ -178,6 +294,23 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         if payload_snapshot and payload_snapshot.get("context") != case_id:
             payload_snapshot = dict(payload_snapshot)
             payload_snapshot["context"] = case_id
+
+        # Record the portion of the assertion the receiver accepts, when a
+        # preceding guard adjudicated it (RSH-05).
+        if payload_snapshot:
+            replacement = self._resolve_payload_object_override(
+                payload_snapshot
+            )
+            if replacement is not None:
+                payload_snapshot = dict(payload_snapshot)
+                payload_snapshot["object"] = replacement
+                self.logger.info(
+                    "%s: snapshotting the accepted portion of object '%s'"
+                    " for case '%s' (RSH-05)",
+                    self.name,
+                    _snapshot_object_id(payload_snapshot),
+                    case_id,
+                )
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,

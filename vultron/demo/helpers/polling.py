@@ -138,7 +138,8 @@ def wait_for_case_participants(
     vendor_client: DataLayerClient,
     case_id: str,
     expected_count: int,
-    timeout_seconds: float = 5.0,
+    # 15 s: conservative cross-container delivery budget (temporal per EDF-06-006).
+    timeout_seconds: float = 15.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until the case on *vendor_client* reflects *expected_count* participants.
@@ -469,6 +470,103 @@ def find_case_invite_for_actor(
     raise AssertionError(
         f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
         f" case {case_id!r} to appear in DataLayer at {client.base_url}"
+    )
+
+
+def _is_ownership_transfer_offer_for(
+    obj_data: dict, case_id: str, transferee_id: str
+) -> bool:
+    """Return True if *obj_data* is a forwarded Offer(VulnerabilityCase) for *transferee_id*.
+
+    The CaseActor creates a NEW Offer when forwarding an ownership-transfer Offer
+    to the transferee (CM-21-005).  The forwarded Offer has::
+
+        type   = "Offer"
+        target = transferee_id      # the actor being offered ownership
+        object = case_id            # the VulnerabilityCase being transferred
+
+    The original Vendor Offer (addressed to the CaseActor, target=case_actor_id)
+    does NOT match this discriminator, so polling for the forwarded Offer on
+    Coordinator's DataLayer correctly skips the original.
+    """
+    if obj_data.get("type") != "Offer":
+        return False
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != transferee_id:
+        return False
+    inner = obj_data.get("object")
+    inner_id = inner.get("id") if isinstance(inner, dict) else inner
+    return inner_id == case_id
+
+
+def find_ownership_transfer_offer_for_actor(
+    client: DataLayerClient,
+    case_id: str,
+    transferee_id: str,
+    timeout_seconds: float = 90.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CaseActor's forwarded Offer(VulnerabilityCase) for *transferee_id* arrives.
+
+    In the ADR-0053 ownership-transfer flow, Vendor1's Offer is addressed to the
+    CaseActor (``to=[case_actor_id]``).  ``OfferCaseOwnershipTransferReceivedUseCase``
+    then creates a NEW forwarded Offer with a different ID and delivers it to the
+    transferee's inbox.  Polling for the *original* offer ID with
+    ``wait_for_object_stored`` will never succeed on the transferee's container
+    because the original Offer is only stored in the CaseActor's DataLayer.
+
+    This helper scans *client*'s DataLayer for any
+    ``Offer(target=transferee_id, object=case_id)`` and returns its ID so the
+    demo can drive the ``accept-case-ownership-transfer`` trigger with the correct
+    (forwarded) offer ID.
+
+    Args:
+        client: DataLayerClient connected to the transferee's container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        transferee_id: Full URI of the actor being offered case ownership.
+        timeout_seconds: Maximum time to wait before raising (default: 90 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The forwarded offer activity ID string.
+
+    Raises:
+        AssertionError: If no matching Offer is found within *timeout_seconds*.
+
+    Spec: CM-21-005.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            all_objects = client.get("/datalayer/")
+            if isinstance(all_objects, dict):
+                for raw_id, obj_data in all_objects.items():
+                    if not isinstance(obj_data, dict):
+                        continue
+                    if _is_ownership_transfer_offer_for(
+                        obj_data, case_id, transferee_id
+                    ):
+                        obj_id = str(raw_id)
+                        logger.info(
+                            "Found forwarded Offer(VulnerabilityCase) for"
+                            " transferee %s on case %s: %s",
+                            transferee_id,
+                            case_id,
+                            obj_id,
+                        )
+                        return obj_id
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for forwarded Offer(VulnerabilityCase) for"
+        f" transferee {transferee_id!r} on case {case_id!r} to appear in"
+        f" DataLayer at {client.base_url} — CaseActor outbox delivery may"
+        " not have completed (CM-21-005)"
     )
 
 

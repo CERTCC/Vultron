@@ -34,15 +34,10 @@ Container mapping (reuses docker-compose-multi-actor.yml services):
 Spec: DEMOMA-13 (GitHub issue #1620).
 """
 
-import json
 import logging
 import os
-import pathlib
 import sys
 
-import httpx2 as httpx
-
-from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -75,6 +70,12 @@ from vultron.demo.helpers.actions import (
     actor_notifies_fix_ready,
     actor_notifies_published,
 )
+from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.ledger_dump import (
+    LedgerDumpTarget,
+    dump_case_ledgers,
+    resolve_case_actor_route_key,
+)
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
@@ -104,10 +105,8 @@ from vultron.demo.helpers.sync import (
     verify_replica_state,
 )
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
-    receiver_engages_case,
-    receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
 
@@ -219,24 +218,10 @@ def _phase_report_submission(
         receiver=c1_in_c1,
         reporter_client=finder_client,
     )
-    receiver_validates_report(
+    case = run_direct_path_rm_triage(
         receiver_client=c1_client,
         receiver=c1_in_c1,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("as_VulnerabilityCase exists in C1's DataLayer"):
-        case = find_case_for_offer(c1_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected as_VulnerabilityCase to be created after validate-report"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    receiver_engages_case(
-        receiver_client=c1_client,
-        receiver=c1_in_c1,
-        case_id=case.id_,
+        offer=offer,
     )
 
     # Wait for the initial participants (Finder + C1 + CaseActor) before
@@ -248,6 +233,7 @@ def _phase_report_submission(
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
+    invite_result = None
     with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
             client=c1_client,
@@ -319,6 +305,7 @@ def _phase_report_submission(
 
 
 def _phase_c2_suggests_vendor(
+    finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
@@ -424,6 +411,17 @@ def _phase_c2_suggests_vendor(
     )
     logger.info("✓ M3: Vendor joined case (%d participants)", 5)
 
+    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
+    # is broadcast by the triage cycle below.
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=20.0,
+        )
+
     run_invite_path_rm_triage(
         invited_client=vendor_client,
         invited_actor=vendor_in_vendor,
@@ -469,18 +467,26 @@ def _phase_sync_verification(
             with demo_check(
                 f"{label} ledger coverage (sync-verification phase)"
             ):
+                # Temporal (EDF-06-006): Vendor joins Phase 2 so needs extra
+                # ledger catch-up time; causal-gate migration in #2202.
+                timeout = 45.0 if label == "Vendor" else 15.0
                 wait_for_contiguous_ledger_coverage(
                     client=replica_client,
                     case_id=case.id_,
                     expected_tail_index=c1_tail_index,
+                    timeout_seconds=timeout,
                 )
             logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, c2_client, vendor_client):
+        # Temporal (EDF-06-006): Vendor is a late joiner — allow extra time
+        # for participant-index propagation; causal-gate migration in #2202.
+        p_timeout = 30.0 if replica_client is vendor_client else 10.0
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_count=5,
+            timeout_seconds=p_timeout,
         )
 
     with demo_check("Finder replica matches authoritative C1 state"):
@@ -806,10 +812,14 @@ def _phase_case_closure(
             (vendor_client, "Vendor"),
         ]:
             with demo_check(f"{label} ledger coverage (close phase)"):
+                # Temporal (EDF-06-006): Vendor joined Phase 2 so may still
+                # lag on final entries; causal-gate migration in #2202.
+                timeout = 45.0 if label == "Vendor" else 15.0
                 wait_for_contiguous_ledger_coverage(
                     client=replica_client,
                     case_id=case.id_,
                     expected_tail_index=c1_tail_index,
+                    timeout_seconds=timeout,
                 )
 
 
@@ -821,70 +831,30 @@ def _phase_dump_case_ledgers(
     case: as_VulnerabilityCase,
     demo_name: str = "fccv-extension",
 ) -> None:
-    """Dump case ledger entries from each actor container to JSONL files."""
-    logger.info("─" * 80)
-    logger.info("Phase: Case log JSONL export")
-    logger.info("─" * 80)
+    """Dump case ledger entries from each actor container to JSONL files.
 
-    output_root = pathlib.Path(os.environ.get("DEVLOGS_DIR", "/app/devlogs"))
-    case_id = case.id_ or ""
-    case_id_slug = (
-        case_id.replace("://", "_")
-        .replace("/", "_")
-        .replace(":", "_")
-        .strip("_")
-    )
-
-    case_actor_sub_actor_key = next(
-        (
-            strip_id_prefix(actor_id)
-            for actor_id in case.actor_participant_index
-            if strip_id_prefix(actor_id).startswith("case-actor")
-        ),
-        None,
-    )
-
-    actors: list[tuple[str, DataLayerClient, str]] = [
-        ("finder", finder_client, "finder"),
+    Thin scenario-specific wrapper over
+    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
+    per-actor export, the 404 handling, and the dump manifest. This function
+    only names FCCV-extension's participants and where each ledger lives.
+    """
+    targets = [
+        LedgerDumpTarget("finder", finder_client, "finder"),
         # C1 is on the coordinator container; route key is "coordinator".
-        ("vendor", c1_client, "coordinator"),
+        LedgerDumpTarget("vendor", c1_client, "coordinator"),
         # C2 is on actor5; route key is "coordinator2".
-        ("coordinator", c2_client, "coordinator2"),
+        LedgerDumpTarget("coordinator", c2_client, "coordinator2"),
         # Vendor is on the vendor container.
-        ("vendor2", vendor_client, "vendor"),
+        LedgerDumpTarget("vendor2", vendor_client, "vendor"),
     ]
-    if case_actor_sub_actor_key is not None:
-        actors.append(("case-actor", c1_client, case_actor_sub_actor_key))
+    # The case-actor is a sub-actor inside the C1 container.
+    case_actor_route_key = resolve_case_actor_route_key(case)
+    if case_actor_route_key is not None:
+        targets.append(
+            LedgerDumpTarget("case-actor", c1_client, case_actor_route_key)
+        )
 
-    for actor_name, client, actor_route_key in actors:
-        with demo_step(f"Dumping case ledger for {actor_name}"):
-            case_key = strip_id_prefix(case_id)
-            log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
-            try:
-                entries = client.get_list(log_path)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code != 404:
-                    raise
-                logger.info(
-                    "Case not found on %s container (HTTP 404); skipping.",
-                    actor_name,
-                )
-                entries = []
-            if not entries:
-                raise ValueError(
-                    f"No case ledger entries for actor={actor_name!r}, "
-                    f"case_id={case_id!r}"
-                )
-
-            out_dir = output_root / demo_name / actor_name
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_file = out_dir / f"{case_id_slug}-case-ledger.jsonl"
-
-            with out_file.open("w", encoding="utf-8") as fh:
-                for entry in entries:
-                    fh.write(json.dumps(entry) + "\n")
-
-            logger.info("Wrote %d log entries → %s", len(entries), out_file)
+    dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
 
 def run_fccv_extension_demo(
@@ -908,102 +878,110 @@ def run_fccv_extension_demo(
     logger.info("C2 container:     %s", c2_client.base_url)
     logger.info("Vendor container: %s", vendor_client.base_url)
 
-    (
-        finder,
-        c1,
-        c1_in_c1,
-        c2_in_c2,
-        vendor,
-        report,
-        offer,
-        case,
-    ) = _phase_report_submission(
-        finder_client,
-        c1_client,
-        c2_client,
-        vendor_client,
-        finder_id,
-        c1_id,
-        c2_id,
-        vendor_id,
-    )
+    with scenario_harness("fccv-extension") as harness:
+        (
+            finder,
+            c1,
+            c1_in_c1,
+            c2_in_c2,
+            vendor,
+            report,
+            offer,
+            case,
+        ) = _phase_report_submission(
+            finder_client,
+            c1_client,
+            c2_client,
+            vendor_client,
+            finder_id,
+            c1_id,
+            c2_id,
+            vendor_id,
+        )
 
-    vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
+        # Register the dump as soon as there is a case to dump, so every phase
+        # below can fail without costing us the ledgers (ISSUE-2239).
+        harness.dump_with(
+            lambda: _phase_dump_case_ledgers(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                case=case,
+                demo_name=harness.demo_name,
+            )
+        )
 
-    _phase_c2_suggests_vendor(
-        c1_client=c1_client,
-        c2_client=c2_client,
-        vendor_client=vendor_client,
-        c1_in_c1=c1_in_c1,
-        c2_in_c2=c2_in_c2,
-        vendor=vendor,
-        vendor_in_vendor=vendor_in_vendor,
-        case=case,
-        offer=offer,
-        report=report,
-        finder=finder,
-    )
+        vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
-    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
+        _phase_c2_suggests_vendor(
+            finder_client=finder_client,
+            c1_client=c1_client,
+            c2_client=c2_client,
+            vendor_client=vendor_client,
+            c1_in_c1=c1_in_c1,
+            c2_in_c2=c2_in_c2,
+            vendor=vendor,
+            vendor_in_vendor=vendor_in_vendor,
+            case=case,
+            offer=offer,
+            report=report,
+            finder=finder,
+        )
 
-    _phase_sync_verification(
-        finder_client,
-        c1_client,
-        c2_client,
-        vendor_client,
-        c1,
-        finder,
-        case,
-    )
-    _phase_notes_exchange(
-        finder_client=finder_client,
-        c1_client=c1_client,
-        c2_client=c2_client,
-        vendor_client=vendor_client,
-        finder_in_finder=finder_in_finder,
-        c1_in_c1=c1_in_c1,
-        c2_in_c2=c2_in_c2,
-        vendor_in_vendor=vendor_in_vendor,
-        case=case,
-    )
-    _phase_fix_lifecycle(
-        c1_client,
-        vendor_client,
-        vendor,
-        vendor_in_vendor,
-        case,
-    )
-    _phase_publication(
-        finder_client,
-        c1_client,
-        c2_client,
-        vendor_client,
-        c1,
-        c1_in_c1,
-        c2_in_c2,
-        vendor,
-        vendor_in_vendor,
-        finder_in_finder,
-        case,
-    )
-    _phase_case_closure(
-        finder_client,
-        c1_client,
-        c2_client,
-        vendor_client,
-        c1_in_c1,
-        c2_in_c2,
-        vendor_in_vendor,
-        finder_in_finder,
-        case,
-    )
-    _phase_dump_case_ledgers(
-        finder_client=finder_client,
-        c1_client=c1_client,
-        c2_client=c2_client,
-        vendor_client=vendor_client,
-        case=case,
-    )
+        finder_in_finder = get_actor_by_id(finder_client, finder.id_)
+
+        _phase_sync_verification(
+            finder_client,
+            c1_client,
+            c2_client,
+            vendor_client,
+            c1,
+            finder,
+            case,
+        )
+        _phase_notes_exchange(
+            finder_client=finder_client,
+            c1_client=c1_client,
+            c2_client=c2_client,
+            vendor_client=vendor_client,
+            finder_in_finder=finder_in_finder,
+            c1_in_c1=c1_in_c1,
+            c2_in_c2=c2_in_c2,
+            vendor_in_vendor=vendor_in_vendor,
+            case=case,
+        )
+        _phase_fix_lifecycle(
+            c1_client,
+            vendor_client,
+            vendor,
+            vendor_in_vendor,
+            case,
+        )
+        _phase_publication(
+            finder_client,
+            c1_client,
+            c2_client,
+            vendor_client,
+            c1,
+            c1_in_c1,
+            c2_in_c2,
+            vendor,
+            vendor_in_vendor,
+            finder_in_finder,
+            case,
+        )
+        _phase_case_closure(
+            finder_client,
+            c1_client,
+            c2_client,
+            vendor_client,
+            c1_in_c1,
+            c2_in_c2,
+            vendor_in_vendor,
+            finder_in_finder,
+            case,
+        )
 
     logger.info("=" * 80)
     logger.info("FCCV-EXTENSION DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
@@ -1039,8 +1017,6 @@ def main(
         c2_id: Optional deterministic URI for the C2 actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
-    reset_demo_failures()
-
     f_url = finder_url or FINDER_BASE_URL
     c1_resolved = c1_url or C1_BASE_URL
     c2_resolved = c2_url or C2_BASE_URL
@@ -1070,19 +1046,19 @@ def main(
                 logger.error("=" * 80)
                 sys.exit(1)
 
-    try:
-        run_fccv_extension_demo(
-            finder_client=finder_client,
-            c1_client=c1_client,
-            c2_client=c2_client,
-            vendor_client=vendor_client,
-            finder_id=finder_id,
-            c1_id=c1_id,
-            c2_id=c2_id,
-            vendor_id=vendor_id,
-        )
-    finally:
-        assert_demo_success()
+    # scenario_harness() inside run_fccv_extension_demo() owns the failure
+    # accumulator: it resets it, always dumps the case ledgers, and asserts
+    # success — so a failure here never costs us the artifacts (ISSUE-2239).
+    run_fccv_extension_demo(
+        finder_client=finder_client,
+        c1_client=c1_client,
+        c2_client=c2_client,
+        vendor_client=vendor_client,
+        finder_id=finder_id,
+        c1_id=c1_id,
+        c2_id=c2_id,
+        vendor_id=vendor_id,
+    )
 
 
 if __name__ == "__main__":

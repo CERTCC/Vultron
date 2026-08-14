@@ -19,7 +19,7 @@ Emits ``Leave(VulnerabilityCase)`` to the Case Actor inbox.  The Case Actor
 commits a ``close_case`` :class:`~vultron.core.models.case_ledger_entry
 .VultronCaseLedgerEntry` and broadcasts it; each replica then advances the
 departing actor's RM state to ``RM.CLOSED`` via
-:class:`~vultron.core.behaviors.sync.nodes.effects.ApplyCloseCaseFromLedgerNode`
+:class:`~vultron.core.behaviors.sync.nodes.close_case_effect.ApplyCloseCaseFromLedgerNode`
 (ADR-0050, CM-23-002/CM-23-003).
 
 Per specs/case-management.yaml DEMOMA-07-001, CM-23-002, CM-23-003.

@@ -192,8 +192,7 @@ DEMOMA-22 and rationale in ADR-0058.
 The two are easy to confuse because they present the same way in CI, and the fix
 differs sharply: a missing cascade needs a BT subtree, while a harness race needs
 a gate — or, when the effect can be *lost* rather than merely delayed, actor-side
-buffering (ADR-0037, and the pre-genesis buffering ADR on the `fix/demo-ci`
-branch — not `main`'s ADR-0055, which is unrelated). Diagnose which one you have
+buffering (ADR-0037, and ADR-0059 for pre-genesis buffering). Diagnose which one you have
 before fixing it.
 
 ## Related
