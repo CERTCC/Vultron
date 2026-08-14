@@ -161,7 +161,6 @@ pool growth.
 - Inbound analogue (deferred): CERTCC/Vultron#1880
 - Timeout consolidation coordination: CERTCC/Vultron#2202 AC-7
 - Parent epic: CERTCC/Vultron#2231
-- Implementation Tasks: CERTCC/Vultron#2303 (abort-scope + 4xx),
-  CERTCC/Vultron#2304 (timeout + jitter + limits),
-  CERTCC/Vultron#2305 (attempt counter + dead letter)
-  *(issue numbers filled in after Tasks are created)*
+- Implementation Tasks: CERTCC/Vultron#2315 (abort-scope + 4xx),
+  CERTCC/Vultron#2316 (timeout + jitter + limits),
+  CERTCC/Vultron#2317 (attempt counter + dead letter)
