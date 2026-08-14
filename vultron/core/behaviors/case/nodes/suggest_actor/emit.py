@@ -83,8 +83,6 @@ class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
         assert self.datalayer is not None
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
