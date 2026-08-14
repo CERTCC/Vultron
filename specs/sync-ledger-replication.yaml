@@ -131,6 +131,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-05-002
+    adr:
+    - ADR-0066
 - id: SYNC-06
   title: Leadership and Ownership
   specs:

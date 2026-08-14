@@ -367,7 +367,7 @@ groups:
     consuming delivery capacity, masking the true first failure, and providing no
     operator-visible signal. A per-activity attempt counter persisted across drain passes,
     combined with a dead-letter destination on exhaustion, gives the system a finite
-    reliability envelope and an observable failure mode. See ADR-0065 and CONCERN-2302.
+    reliability envelope and an observable failure mode. See ADR-0066 and CONCERN-2302.
   specs:
   - id: OX-13-001
     priority: MUST
@@ -377,7 +377,7 @@ groups:
       drain passes and incremented on every delivery failure, so that the count survives
       outbox_handler invocations and reflects the activity's cumulative delivery history.
     adr:
-    - ADR-0065
+    - ADR-0066
   - id: OX-13-002
     priority: MUST
     kind: project
@@ -386,7 +386,7 @@ groups:
       default value. When an activity exhausts its total attempt budget, it MUST be moved
       to a dead-letter store and MUST NOT be requeued.
     adr:
-    - ADR-0065
+    - ADR-0066
   - id: OX-13-003
     priority: MUST
     kind: project
@@ -397,6 +397,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: OX-13-002
+    adr:
+    - ADR-0066
   - id: OX-13-004
     priority: MUST
     kind: project
@@ -404,7 +406,7 @@ groups:
       Dead-letter entries MUST be readable from the DataLayer so that operators can
       inspect exhausted activities without access to application logs.
     adr:
-    - ADR-0065
+    - ADR-0066
   - id: OX-13-005
     priority: MUST
     kind: project
@@ -417,7 +419,7 @@ groups:
       will never succeed with the same payload; retrying wastes inner retry budget and
       contributes to connection storms. See CONCERN-2302 §3.
     adr:
-    - ADR-0065
+    - ADR-0066
   - id: OX-13-006
     priority: MUST
     kind: project
@@ -432,4 +434,4 @@ groups:
       single bad activity could exhaust the cap before healthy activities were reached,
       delaying ledger-entry delivery past scenario timeouts. See CONCERN-2302 §6/§7.
     adr:
-    - ADR-0065
+    - ADR-0066

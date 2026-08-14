@@ -112,7 +112,7 @@ wrapping pattern.
 
 **`outbox-delivery-reliability.md`**
 Implementation guidance for the outbox delivery reliability hardening (CONCERN-2302 /
-ADR-0065): per-activity abort scope fix, 4xx terminal classification, timeout/jitter/pool
+ADR-0066): per-activity abort scope fix, 4xx terminal classification, timeout/jitter/pool
 configuration, and per-activity attempt counter with dead-letter store.
 **Load when**: implementing Tasks for #2302 (abort scope, 4xx classification,
 timeout/jitter/limits, attempt counter, dead letter), or adding new delivery paths that
