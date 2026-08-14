@@ -50,7 +50,12 @@ but `devlogs/` was empty. The `invariant-harness` job then died on **artifact
 download** — the run that most needed forensics produced none, and the harness
 reported a plumbing error instead of an invariant result (issue #2239).
 
-**Design**: four pieces, spec'd as DEMOCI-10-001 through DEMOCI-10-005.
+**Design**: five pieces in two layers, spec'd as DEMOCI-10-001 through
+DEMOCI-10-006.
+
+### Layer 1 — In-harness failures (DEMOCI-10-001 through DEMOCI-10-005)
+
+These cover any failure that happens *inside* `scenario_harness()`.
 
 1. **A shared harness owns the ordering.**
    `vultron/demo/helpers/harness.py` provides `scenario_harness(demo_name)`.
@@ -69,7 +74,11 @@ reported a plumbing error instead of an invariant result (issue #2239).
    and a per-actor list naming each missing actor with the reason it was
    missing. So the artifact is non-empty even when there were no ledgers at all
    to capture — including the "died before any case existed" case, where the
-   manifest records `ledgerFileCount: 0` and the reason why.
+   manifest records `ledgerFileCount: 0` and the reason why. The per-actor
+   `reason` field also distinguishes a network-timeout dump failure from a
+   scenario that never started: a timed-out dump records the actor's exception
+   in `reason` alongside `captured: false`, while a pre-run sentinel records no
+   actors at all (see Layer 2).
 
 3. **`load_devlogs()` fails instead of skipping when a dump happened.**
    Previously a missing/empty `devlogs/` meant "no test data" → `pytest.skip`,
@@ -102,10 +111,42 @@ reported a plumbing error instead of an invariant result (issue #2239).
    least one test was reported and all reported outcomes were `"skipped"`
    (DEMOCI-10-005). This converts a vacuous pass into a visible red.
 
-Regression coverage: `test/demo/test_issue_2239_ledger_dump_in_finally.py`
-(all nine scenarios), `test/demo/test_scenario_harness.py`,
-`test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`, and
-`test/ci/invariants/test_common.py::TestAllSkipGuard`.
+### Layer 2 — Pre-harness failures (DEMOCI-10-006)
+
+`scenario_harness()` only runs when the demo-runner container starts and the
+scenario module imports successfully. Three failure modes exit before that
+point — none of which the in-harness pieces above can catch:
+
+- **Health-check gate**: `main()` calls `sys.exit(1)` when a container is
+  unreachable.
+- **Import error**: the scenario module fails to import before `main()` runs.
+- **Docker startup failure**: the demo-runner container never starts at all.
+
+In all three cases `devlogs/<demo>/` is never created. The `upload-artifact`
+step publishes nothing, the `download-artifact` step fails with "Artifact not
+found", and the invariant-harness job dies on a plumbing error instead of
+reporting a protocol result.
+
+1. **A CI sentinel step writes the manifest before the demo-runner starts.**
+   The demo job writes `devlogs/<demo>/dump-manifest.json` (conforming to the
+   DEMOCI-10-002 schema, `ledgerFileCount: 0`, `targetCount: 0`) immediately
+   before `docker compose up`. If the demo-runner then runs normally, the
+   harness overwrites the sentinel. If the runner exits early, the sentinel
+   survives, the artifact is non-empty, the download succeeds, and
+   `load_devlogs()` reports a real failure via the manifest-without-ledgers path
+   (DEMOCI-10-003). Implementation: `write_prerun_sentinel(demo_name)` in
+   `vultron/demo/helpers/ledger_dump.py` provides a testable Python entry point
+   (exercised by `TestWritePrerunSentinel`). The CI step independently writes
+   the same JSON inline via `python3 -c` with no vultron import, so no uv setup
+   is needed in the demo job.
+
+### Regression coverage
+
+- `test/demo/test_issue_2239_ledger_dump_in_finally.py` (all nine scenarios)
+- `test/demo/test_scenario_harness.py`
+- `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
+- `test/ci/invariants/test_common.py::TestAllSkipGuard`
+- `test/demo/test_ledger_dump.py::TestWritePrerunSentinel` (AC4 for #2281)
 
 ---
 
