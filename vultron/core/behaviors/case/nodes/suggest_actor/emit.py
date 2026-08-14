@@ -43,7 +43,10 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -55,7 +58,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
 
 
-class RecordRecommendationRecommenderNode(DataLayerAction):
+class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
     """Write recommendation_id → recommender_id into core case state.
 
     Runs as the first effect node in ``RecommendActorToCaseBT`` so downstream
@@ -232,7 +235,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitAcceptActorRecommendationNode(DataLayerAction):
+class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
     """Queue AcceptActorRecommendation to the original recommender.
 
     Used after the Case Owner accepts Offer(CaseParticipant) (CM-16-006 step 3).
@@ -313,7 +316,7 @@ class EmitAcceptActorRecommendationNode(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitRejectActorRecommendationNode(DataLayerAction):
+class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
     """Queue RejectActorRecommendation to the original recommender.
 
     Used after the Case Owner rejects Offer(CaseParticipant) (CM-16-007 step 3).
@@ -391,7 +394,7 @@ class EmitRejectActorRecommendationNode(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
+class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
     """Send a Note DM to the Case Owner noting reinforcing demand.
 
     Used when a second ``Offer(Actor, Case)`` arrives while a first
