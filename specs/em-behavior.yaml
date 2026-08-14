@@ -5,7 +5,7 @@ description: >-
   is triggered by either a received EM message or a local EM state transition, and
   specifies typed preconditions, ordered steps, and postconditions that implementations
   must satisfy.
-version: 0.2.0
+version: 0.3.0
 tags:
 - behavioral
 - state-machine
@@ -1541,3 +1541,152 @@ groups:
     - rel_type: refines
       spec_id: EMB-06-001
       note: ER emission semantics apply; EM returns to NONE
+- id: EMB-17
+  title: Late Accept of an Expired Embargo Invitation
+  description: >-
+    Behaviors required when an `Accept(Invite(EmbargoEvent))` arrives after the
+    invitation's RSVP deadline (CM-28-001) has passed. The protocol is liberal
+    in what it accepts: a late accepter has signalled willingness to coordinate
+    and MUST NOT be sent away. Codified by ADR-0065. Source: IDEA-2066.
+  trigger:
+    type: message_received
+    value: EA
+  specs:
+  - id: EMB-17-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CaseActor receiving an `Accept(Invite(EmbargoEvent))` after the
+      invitation's effective RSVP deadline MUST NOT reject it solely because the
+      deadline has passed. It MUST evaluate whether the accepted embargo is still
+      compatible with the case's current embargo and then apply EMB-17-002,
+      EMB-17-003, or EMB-17-004.
+    rationale: >-
+      Being liberal in what is accepted serves CVD outcomes. A late accepter is
+      volunteering to coordinate; refusing them converts a missed deadline into
+      a lost participant, which is worse for the case than a late consent.
+      See ADR-0065.
+    testable: true
+    preconditions:
+    - description: The referenced invitation's effective RSVP deadline has passed
+    postconditions:
+    - description: >-
+        The Accept is not refused on deadline grounds; one of EMB-17-002,
+        EMB-17-003, or EMB-17-004 has been applied
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-28-003
+    adr:
+    - ADR-0065
+  - id: EMB-17-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the accepted embargo is the case's current embargo, the CaseActor MUST
+      honour the late Accept and record the participant's PEC transition to
+      SIGNATORY, exactly as it would for an on-time Accept.
+    rationale: >-
+      If the terms the participant agreed to are the terms in force, the
+      participant is a valid signatory. The deadline governs whether the
+      *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+      description: EM state is Active
+    - description: >-
+        The accepted embargo ID matches the case's current active embargo
+    steps:
+    - order: 1
+      actor: system
+      action: Record the PEC ACCEPT transition for the accepting participant
+      expected: Participant PEC state is SIGNATORY; embargo_adherence is true
+    postconditions:
+    - description: Participant PEC state is SIGNATORY
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    adr:
+    - ADR-0065
+  - id: EMB-17-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the accepted embargo is NOT the case's current embargo (for example
+      the embargo was revised or replaced after the invitation was sent), the
+      CaseActor MUST issue a fresh `Invite(EmbargoEvent)` to the accepting actor
+      carrying the case's current embargo. It MUST NOT record the stale Accept as
+      consent to the current terms, and it MUST NOT reject the accepting actor.
+    rationale: >-
+      Recording the stale Accept as consent would make the participant a
+      signatory to terms they never saw. Rejecting them would discard a
+      willing participant. Re-inviting resolves both: the actor stays in the
+      case and is asked to consent to the terms actually in force. See ADR-0065.
+    testable: true
+    preconditions:
+    - description: >-
+        The accepted embargo ID does not match the case's current active embargo,
+        and the case has a current embargo
+    steps:
+    - order: 1
+      actor: system
+      action: >-
+        Emit a fresh Invite(EmbargoEvent) to the accepting actor carrying the
+        case's current embargo
+      expected: >-
+        Accepting participant PEC state is INVITED for the current embargo;
+        stale Accept is not recorded as consent
+    postconditions:
+    - description: >-
+        A fresh invitation for the current embargo has been sent; the actor
+        remains a case participant
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    adr:
+    - ADR-0065
+  - id: EMB-17-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NO_EMBARGO),
+      the CaseActor MUST acknowledge the late Accept as a no-op on embargo state,
+      leaving the participant's PEC state at NO_EMBARGO. It MUST NOT issue a
+      fresh invitation, and it MUST NOT remove the accepting actor from the case.
+    note: >-
+      EMB-13-002 independently forbids seeking or accepting new embargoes for a
+      case whose CS state is public, exploit-public, or attacks-observed. This
+      entry closes the remaining gap: an Accept arriving after EM has EXITED
+      while CS is not yet P/X/A previously had no specified behaviour.
+    rationale: >-
+      Follows the EMB-07-003 precedent for post-terminal messages: acknowledge
+      without transitioning. There is nothing to invite the actor to, so a fresh
+      invitation would manufacture a negotiation nobody requested — but the
+      actor's case participation is independent of embargo consent and MUST
+      survive. See ADR-0065.
+    testable: true
+    preconditions:
+    - em_state:
+        - EXITED
+        - NO_EMBARGO
+      description: EM state is Exited or No Embargo
+    steps:
+    - order: 1
+      actor: system
+      action: Acknowledge the Accept without applying a PEC transition
+      expected: >-
+        Participant PEC state remains NO_EMBARGO; participant remains in the
+        case; no fresh invitation is emitted
+    postconditions:
+    - description: >-
+        No embargo state change; accepting actor remains a case participant
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    - rel_type: extends
+      spec_id: EMB-13-002
+      note: >-
+        EMB-13-002 covers the P/X/A case; this entry covers an Accept arriving
+        after EM EXITED when CS is not yet P/X/A
+    adr:
+    - ADR-0065

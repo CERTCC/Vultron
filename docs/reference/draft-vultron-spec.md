@@ -773,11 +773,28 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   retroactively un-given by re-invitation)
 - *Source: ADR-0048; `notes/participant-embargo-consent.md`*
 
-#### 6.4.4 Pocket Veto (Timer-Based Transitions)
+#### 6.4.4 Pocket Veto and RSVP Deadlines (Timer-Based Transitions)
 
 - `INVITED → DECLINED` and `LAPSED → DECLINED` are timer-based
-- Timeout window is a configurable policy option (per-case or global)
-- *Source: `notes/participant-embargo-consent.md` §"Pocket Veto"*
+- An `Invite(EmbargoEvent)` MAY carry an activity-level `end_time` giving an
+  explicit RSVP-by deadline. When present it is authoritative; when absent the
+  configurable policy window applies (default 7 days). The pocket veto is the
+  implicit form of the same mechanism, not a second one
+- `Invite.end_time` (RSVP-by) MUST NOT be confused with
+  `Invite.object_.end_time` (embargo expiry) — the same invitation carries both
+- A minimum RSVP window (default 72h) MUST be enforced; a receiver getting a
+  sub-minimum deadline MUST clamp it up rather than reject the invitation
+- Enforcement authority is the CaseActor (`CVDRole.CASE_MANAGER`), evaluated
+  lazily from `(end_time, now)`; no scheduler is required
+- A lapse records `DECLINED` — the same state as an explicit refusal. The
+  distinction is provenance, carried by the canonical ledger, not by a
+  dedicated PEC state
+- A late `Accept` MUST NOT be refused on deadline grounds: honour it if the
+  terms are current, re-invite with current terms if they are stale, or
+  acknowledge as a no-op (retaining case participation) if no embargo remains
+- *Source: `notes/participant-embargo-consent.md` §"Pocket Veto" and
+  §"RSVP Deadlines on Embargo Invites"; ADR-0065; CM-18-002, CM-28, EP-07,
+  EMB-17*
 
 #### 6.4.5 Embargo Meta-Protocol Delivery to Non-Signatories
 

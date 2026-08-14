@@ -3,7 +3,7 @@ title: Case Management
 description: Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities, and the RM/EM/CS/VFD state
   model. Covers actor isolation at the protocol level, the distinction between participant-specific and participant-agnostic
   state, case initialization sequencing, embargo acceptance ownership, and the invitation acceptance lifecycle.
-version: 1.2.0
+version: 1.3.0
 scope:
 - prototype
 - production
@@ -971,6 +971,12 @@ groups:
       7 days). The pocket veto materialises when the timer fires without a prior acceptance; the system records the transition
       to `DECLINED` as if the participant had declined. The `SIGNATORY → LAPSED` transition is NOT timer-based: it fires when
       the embargo enters the `REVISE` state, invalidating prior consent for the new terms.'
+    note: >-
+      The policy window is the FALLBACK, not the primary mechanism. When the
+      inviting `Invite(EmbargoEvent)` activity carries an explicit
+      `Invite.end_time`, that value is authoritative and supersedes this window
+      (CM-28-002). The pocket veto and the explicit RSVP deadline are ONE
+      mechanism at two levels of explicitness, not two competing timeouts.
     rationale: 'Per `notes/participant-embargo-consent.md`: `LAPSED` means "embargo terms changed; prior consent no longer
       applies." `DECLINED` includes both explicit refusals and timeout-based implicit refusals. Confusing `LAPSED` with the
       timer path is a known documentation pitfall.'
@@ -1776,6 +1782,143 @@ groups:
       spec_id: CM-25-005
     adr:
     - ADR-0057
+- id: CM-28
+  title: Embargo Invite RSVP Deadlines
+  description: >-
+    Requirements for the optional RSVP-by deadline carried on an embargo
+    invitation, the authority relationship between that wire value and the
+    CM-18-002 pocket-veto policy window, and how a lapse is recorded.
+    Codified by ADR-0065. Source: IDEA-2066.
+  specs:
+  - id: CM-28-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An `Invite(EmbargoEvent)` activity MAY carry an activity-level `end_time`.
+      When present, `Invite.end_time` MUST be interpreted as the RSVP-by
+      deadline for that invitation — the instant after which the invitation is
+      no longer open. It MUST NOT be interpreted as the embargo's expiry.
+    note: >-
+      CRITICAL naming hazard: an embargo invitation carries TWO `end_time`
+      fields one nesting level apart in the same JSON document.
+      `Invite.end_time` is the RSVP-by deadline for the invitation;
+      `Invite.object_.end_time` (on the nested `as_EmbargoEvent`) is when the
+      embargo itself ends. Code MUST read these independently and MUST NOT
+      substitute one for the other. The embargo invitation is an `as_Invite`,
+      not an `as_Offer` — see `em_propose_embargo_activity()` in
+      `vultron/wire/as2/factories/embargo.py`.
+    rationale: >-
+      `as_Object.end_time` is inherited by `as_Activity` and therefore by every
+      Vultron activity, so no vocabulary extension is required. On an Activity,
+      AS2 `end_time` already means "valid until", making the RSVP reading
+      idiomatic rather than a repurposing. Placing the deadline on the activity
+      rather than on the embargo object is what allows the same embargo to be
+      offered to several actors with different deadlines, and to one actor twice.
+      See ADR-0065.
+    adr:
+    - ADR-0065
+  - id: CM-28-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When `Invite.end_time` is present it MUST be authoritative for that
+      invitation's expiry, superseding the receiver's local policy window. When
+      `Invite.end_time` is absent, the CM-18-002 policy window MUST apply,
+      preserving the pre-existing behaviour.
+    rationale: >-
+      An explicit wire value lets both parties compute the same lapse instant
+      from the same field, with no additional message exchange. A
+      receiver-local-only window leaves the two parties unable to agree on
+      whether an invitation is still open — the coordination ambiguity that
+      motivated IDEA-2066. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-002
+    adr:
+    - ADR-0065
+  - id: CM-28-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor holding `CVDRole.CASE_MANAGER` MUST be the enforcement
+      authority for embargo invite expiry. Expiry MUST be evaluated lazily:
+      lapse is derived from `(end_time, now)` whenever a participant's PEC state
+      is read or an inbound `Accept`/`Reject` for the invitation is processed.
+      Implementations MUST NOT require a scheduler or Sentinel runtime for
+      correctness.
+    note: >-
+      The `EmbargoTimerExpired` Sentinel (#1893) is an OPTIONAL proactive
+      accelerator that narrows the gap between the deadline and the recorded
+      lapse. It MUST NOT be a prerequisite for CM-28 conformance.
+    rationale: >-
+      No scheduler exists in production, and `notes/coordination-agents.md`
+      still lists the Sentinel invocation and authentication model as open
+      questions. Lazy derivation from an explicit deadline is deterministic and
+      requires no new infrastructure. Centralising enforcement at the CaseActor
+      matches the case-communication model (PCR-08) and the CaseActor's role as
+      canonical ledger author (ADR-0019, ADR-0021). See ADR-0065.
+    adr:
+    - ADR-0065
+  - id: CM-28-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A lapsed invitation MUST be recorded as PEC `DECLINED` via the DECLINE
+      trigger, identically to an explicit refusal. Implementations MUST NOT
+      introduce an additional PEC state to distinguish "never responded" from
+      "explicitly declined".
+    rationale: >-
+      No protocol behaviour branches on the distinction: re-invitation
+      (`DECLINED → INVITED`, CM-18-003), embargo-protected content gating, and
+      embargo meta-protocol delivery all treat the two identically. The
+      difference is provenance, not state, and encoding it as state would put
+      path history into the machine and re-expand the table ADR-0048
+      deliberately simplified. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-003
+    adr:
+    - ADR-0065
+  - id: CM-28-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The lapse MUST be distinguishable from an explicit refusal in the
+      canonical case ledger. The CaseActor MUST author a ledger entry recording
+      the lapse, distinct from the `Reject(Invite(EmbargoEvent))` entry that
+      records an explicit refusal. The provenance MUST NOT be duplicated onto
+      `PecDimension` as a reason field.
+    rationale: >-
+      The canonical ledger is the project's history mechanism (ADR-0019), so
+      lapse-versus-refusal is recoverable from it without a state or a parallel
+      field. A `reason` discriminator on `PecDimension` — which currently holds
+      only `state` — would be a second source of truth able to drift from the
+      ledger. See ADR-0065.
+    adr:
+    - ADR-0065
+  - id: CM-28-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An inbound `Invite.end_time` MUST be normalised to UTC before any
+      comparison against the current time, per CS-13-001. A naive (non
+      timezone-aware) `Invite.end_time` MUST be rejected as malformed rather
+      than assumed to be UTC.
+    note: >-
+      CS-13-001 governs datetimes the application *produces*; an inbound
+      `end_time` is produced by a remote peer and may legitimately carry a
+      non-UTC offset (e.g. `+05:00`). Normalising on receipt keeps deadline
+      comparison correct without requiring peers to send `Z`.
+    rationale: >-
+      A deadline compared in the wrong timezone lapses at the wrong instant,
+      breaking the bilateral determinism CM-28-002 exists to provide. Silently
+      assuming UTC for a naive value would produce an off-by-hours lapse with no
+      diagnostic. See CS-13-001 through CS-13-005 and ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-13-001
+    adr:
+    - ADR-0065
 
 - id: CM-27
   title: Case Collection Mutation Discipline

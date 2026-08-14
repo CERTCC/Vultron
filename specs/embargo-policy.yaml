@@ -4,7 +4,7 @@ description: >-
   Requirements for a standardized embargo policy record associated with an Actor profile.
   Allows actors to declare their default embargo preferences so that coordinators can evaluate
   compatibility before proposing an embargo or inviting an actor to a case.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -201,3 +201,68 @@ groups:
       spec_id: CM-13-005
     - rel_type: implements
       spec_id: CM-18-001
+- id: EP-07
+  title: Embargo Invite RSVP Window Policy
+  description: >-
+    Policy requirements for the embargo invite RSVP window: the fallback default
+    when no deadline is on the wire, the minimum permitted window, and the
+    clamp-on-receipt rule that neutralises coercively short deadlines.
+    Codified by ADR-0065. Source: IDEA-2066.
+  specs:
+  - id: EP-07-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The embargo invite RSVP window MUST be configurable. When an
+      `Invite(EmbargoEvent)` carries no `Invite.end_time`, implementations MUST
+      apply the configured default window, measured from the invitation's
+      `published` timestamp. The default value SHOULD be 7 days, matching
+      CM-18-002.
+    rationale: >-
+      Aligning the fallback with the pre-existing CM-18-002 policy window means
+      an invitation that omits `end_time` behaves exactly as it does today, so
+      adopting CM-28 changes no existing behaviour. See ADR-0065.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-28-002
+    adr:
+    - ADR-0065
+  - id: EP-07-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A minimum RSVP window MUST be enforced. An inviting actor MUST NOT send an
+      `Invite(EmbargoEvent)` whose `Invite.end_time` is less than the configured
+      minimum after the invitation's `published` timestamp. The minimum SHOULD
+      default to 72 hours.
+    rationale: >-
+      An unbounded-downward deadline weaponises the mechanism: a one-minute RSVP
+      window formally invites a participant while guaranteeing they cannot
+      answer, excluding them with the appearance of due process. See ADR-0065.
+    adr:
+    - ADR-0065
+  - id: EP-07-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiving actor that receives an `Invite(EmbargoEvent)` whose
+      `Invite.end_time` is earlier than the configured minimum window MUST clamp
+      the effective deadline up to that minimum. It MUST NOT reject the invite as
+      malformed on the basis of a sub-minimum deadline, and it MUST log the
+      clamp.
+    note: >-
+      Both parties must reach the same effective deadline for CM-28-002 to hold.
+      Because the floor is a configured value, a receiver whose floor differs
+      from the sender's can compute a different effective deadline. Deployments
+      that require strict bilateral agreement SHOULD align their floor
+      configuration; the clamp guarantees safety, not identical arithmetic.
+    rationale: >-
+      Clamping makes a coercive deadline ineffective rather than fatal.
+      Rejecting the invitation outright would hand the sender exactly what a
+      hostile sender wants — an invite that never takes effect — and would
+      punish the invitee for the inviter's misbehaviour. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-07-002
+    adr:
+    - ADR-0065
