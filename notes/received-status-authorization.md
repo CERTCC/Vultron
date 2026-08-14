@@ -66,15 +66,93 @@ not wired into the CaseActor's received-side pipeline.
 ```text
 AddParticipantStatusBT (Sequence)
 ├─ VerifySenderIsParticipantNode        ← unchanged
-├─ CheckParticipantRMNotClosedNode      ← unchanged
+├─ FilterParticipantStatusDimensionsNode ← per-dimension adjudication (RSH-05)
 ├─ GuardedCommitOrSkip                  ← unchanged (CLP-10-006)
-├─ AppendParticipantStatusNode          ← records "X said FOO" (unchanged)
+├─ AppendParticipantStatusNode          ← records the accepted portion
 ├─ StatusUpdateGuard (Fallback)         ← NEW
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
 │   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (AlwaysSucceed)
 ├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
 └─ AutoCloseIfCaseManager               ← unchanged
 ```
+
+### Per-dimension partial accept (RSH-05, ADR-0061)
+
+`FilterParticipantStatusDimensionsNode` replaced the former
+`CheckParticipantRMNotClosedNode` guard. The old guard — and
+`ValidateRMTransitionNode` inside the append subtree — refused a whole
+`ParticipantStatus` snapshot when its `rm` dimension was unacceptable, which
+discarded the accepted `vfd`/`pxa` values *and* aborted this Sequence before
+the Seam 1 emit, silently skipping embargo teardown (ISSUE-2235).
+
+The guard now adjudicates `rm`, `vfd` and `pxa` independently and publishes a
+*filtered* `ParticipantStatus` in which each refused dimension carries the
+participant's current value forward. It is read-only with respect to the
+DataLayer (CLP-10-006), so it can run before `GuardedCommitOrSkip` and the
+canonical entry snapshots the accepted portion rather than the raw claim.
+
+`em` is deliberately **not** adjudicated here — embargo state belongs to Seam 2
+(ISSUE-2256).
+
+Two blackboard keys carry the handoff. Both are written on *every* tick (with
+`None` when nothing was filtered) and matched by object ID on read, because the
+py_trees blackboard is process-global and `BTBridge.execute_with_setup` restores
+only `datalayer` and `trigger_activity_factory` between runs:
+
+| Key | Producer | Consumers |
+|---|---|---|
+| `append_status_dimension_filter` | `FilterParticipantStatusDimensionsNode` | `ResolveAndPersistStatusObjectNode`, `ValidateRMTransitionNode` |
+| `ledger_payload_object_override` | `FilterParticipantStatusDimensionsNode` | `CommitCaseLedgerEntryNode` |
+
+`ledger_payload_object_override` is defined in
+`vultron/core/behaviors/case/nodes/lifecycle.py` next to its consumer and is
+deliberately generic (`{"object_id", "fields"}`): any receive tree may patch the
+`object` entry of the ledger payload snapshot, and the other receive trees are
+unaffected because the override is opt-in and ID-matched.
+
+It carries a **field patch, not a replacement object** (RSH-05-009). The
+snapshot's `object` is the sender's wire-shaped `ParticipantStatus` — flat
+`rmState`/`vfdState`, nested `caseStatus`, plus `@context`, `emConsentState` and
+`cvdRole` — and every replica plus the case-ledger invariant harness read it in
+that shape. A guard in `vultron.core` cannot rebuild that object: core has zero
+`from vultron.wire` imports (ADR-0009, ADR-0017), so dumping the core model
+would emit nested `rm`/`vfd` dimension objects and drop every field the guard
+never adjudicated. Naming only the adjudicated fields, keyed by wire alias, and
+merging them onto the existing snapshot makes shape preservation structural
+rather than something the guard has to remember:
+
+```python
+{"object_id": status_id, "fields": {"rmState": "VALID", "vfdState": "VFd",
+                                    "caseStatus": {"pxaState": "Pxa", ...}}}
+```
+
+`CommitCaseLedgerEntryNode._resolve_payload_object_override` merges one level
+deep, so patching `caseStatus.pxaState` keeps that nested object's own `id`; it
+leaves a `caseStatus` that is still a bare reference string alone, and it drops
+the stale snake_case twin of any patched alias so a consumer preferring
+`rm_state` cannot read the value the receiver just refused.
+
+`ValidateRMTransitionNode` keeps its all-or-nothing RM semantics when the
+append subtree is used standalone. It only relaxes when the blackboard says
+`rm` was refused upstream and carried forward — a narrower change than
+reordering its terminal-`CLOSED` and equality checks would have been.
+
+Two things the guard tracks that are easy to conflate:
+
+- **An omitted `caseStatus` is not a refusal.** A status that says nothing about
+  `pxa`/`em` has the receiver's own `case_status` carried forward; persisting the
+  assertion verbatim would blank both dimensions, which is silent data loss, not
+  adjudication. So the guard returns two different sets: `refused` names the
+  dimensions whose asserted value was rejected, while the `model_copy` update
+  also covers dimensions nobody asserted. If carrying `case_status` forward is
+  the *only* thing the update does, nothing new was learned and the status is
+  refused in full (RSH-05-005).
+- **A blocked dimension is not always a rewritten one.** `RM.CLOSED` restated by
+  a participant already at `RM.CLOSED` is refused by the terminal-state rule, but
+  the recorded value matches the assertion, so nothing was discarded. The
+  operator-facing WARNING distinguishes `rewrote dimension(s) …` from `blocked
+  dimension(s) … with no change to the asserted value`; calling the latter a
+  refusal would misdescribe the audit trail.
 
 ### CASE_OWNER gospel-bypass rationale
 

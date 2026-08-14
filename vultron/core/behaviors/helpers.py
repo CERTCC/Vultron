@@ -35,7 +35,7 @@ Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, overload
 
 import py_trees
 from pydantic import BaseModel
@@ -44,16 +44,82 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import (
+    participant_status_rm_state,
+)
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.core.states.rm import RM
+from vultron.errors import VultronValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+@overload
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    status: object,
+    /,
+) -> tuple[RM] | None: ...
+
+
+@overload
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    status: object,
+    other: object,
+    /,
+) -> tuple[RM, RM] | None: ...
+
+
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    *statuses: object,
+) -> tuple[RM, ...] | None:
+    """Return the RM states of *statuses*, or ``None`` to signal FAILURE.
+
+    A ``ParticipantStatus`` whose RM dimension is unreadable is a shape
+    mismatch, not an absence.  Substituting a default (``RM.START``, ``None``)
+    let an invalid transition through unchecked and silently reset a
+    participant's RM ladder (#2264, a symptom of #2232), so ARCH-15-001 and
+    ARCH-15-002 require FAILURE instead of a degraded SUCCESS.
+
+    Callers for whom *absence* is legitimate (e.g. a participant with no
+    recorded status) must handle that case before calling.
+
+    The one- and two-status arities are declared as ``@overload``\\ s with
+    fixed-length return tuples, so a caller that unpacks the result
+    (``new, current = states``) is arity-checked statically instead of raising
+    ``ValueError: too many values to unpack`` at runtime — where a BT node's
+    blanket handler would report it only as an opaque FAILURE.
+
+    Args:
+        node: The calling BT node.  Its ``feedback_message`` and ``logger`` are
+            used to report the mismatch, and its ``participant_id`` (when
+            present) identifies the participant in the message.
+        *statuses: Status objects to read, in the caller's preferred order.
+
+    Returns:
+        A tuple of :class:`RM` states positionally matching *statuses*, or
+        ``None`` when any status is not core-shaped.  On ``None`` the caller
+        must return ``Status.FAILURE``.
+    """
+    try:
+        return tuple(participant_status_rm_state(s) for s in statuses)
+    except VultronValidationError as exc:
+        participant_id = getattr(node, "participant_id", "<unknown>")
+        node.feedback_message = (
+            "Non-canonical ParticipantStatus shape for participant"
+            f" '{participant_id}': {exc}"
+        )
+        node.logger.error(f"{node.name}: {node.feedback_message}")
+        return None
 
 
 class DataLayerCondition(py_trees.behaviour.Behaviour):
@@ -286,10 +352,24 @@ class FindParticipantByActorIdNode(DataLayerCondition):
         matched_participant: object | None = None
         matched_participant_id: str | None = None
         for participant_ref in getattr(case_obj, "case_participants", []):
-            participant_obj = participant_ref
             if isinstance(participant_ref, str):
                 participant_obj = self.datalayer.read(
                     participant_ref, raise_on_missing=False
+                )
+            else:
+                # For inline objects, read the live DL record to avoid stale
+                # snapshots (#2233 — _build_case_object materialises inlines
+                # for delivery; the standalone record may have advanced since).
+                pid = getattr(participant_ref, "id_", None)
+                live = (
+                    self.datalayer.read(pid, raise_on_missing=False)
+                    if pid
+                    else None
+                )
+                participant_obj = (
+                    live
+                    if isinstance(live, CaseParticipant)
+                    else participant_ref
                 )
             if not isinstance(participant_obj, CaseParticipant):
                 continue

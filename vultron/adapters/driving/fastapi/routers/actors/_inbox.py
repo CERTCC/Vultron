@@ -31,6 +31,7 @@ from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
@@ -193,9 +194,47 @@ def _store_nested_inbox_object(
     )
 
     try:
-        dl.create(object_to_record(typed_nested))
+        # Normalise case_participants to string IDs in the *serialised record*
+        # before persisting so the stored VulnerabilityCase row carries only ID
+        # refs (#2233 write-path).  The Python object is never mutated —
+        # downstream BT nodes must see the original inline objects so they can
+        # project them to core and create standalone DataLayer records.
+        record: "StorableRecord | PersistableModel" = object_to_record(
+            typed_nested
+        )
+        if (
+            hasattr(typed_nested, "case_participants")
+            and isinstance(record, dict)
+            and isinstance(record.get("case_participants"), list)
+        ):
+            record["case_participants"] = [
+                (
+                    entry["id_"]
+                    if isinstance(entry, dict) and "id_" in entry
+                    else entry
+                )
+                for entry in record["case_participants"]
+                if isinstance(entry, (str, dict))
+            ]
+        dl.create(record)
+    except VultronValidationError:
+        # A shape/projection failure, NOT an "already exists" collision — the
+        # object cannot be persisted in the canonical core shape at all
+        # (issue #2232).  Swallowing this silently alongside the duplicate case
+        # left the row absent and downstream nodes reporting a misleading
+        # "participant not found", so it is logged loudly instead.
+        logger.error(
+            "Not pre-storing inline %s %s from ingress: it cannot be projected"
+            " to the canonical core shape.",
+            nested.type_,
+            getattr(nested, "id_", "<no id>"),
+            exc_info=True,
+        )
     except ValueError:
-        pass
+        logger.debug(
+            "Inline object %s already exists in shared DL; skipping re-store.",
+            getattr(nested, "id_", "<no id>"),
+        )
 
 
 def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:

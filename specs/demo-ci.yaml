@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.7.0
+version: 1.9.0
 scope:
   - prototype
   - production
@@ -213,22 +213,31 @@ groups:
           `--abort-on-container-exit --exit-code-from demo-runner`.
 
       - id: DEMOCI-02-007
-        priority: MUST
+        priority: SHOULD
         kind: project
         statement: >-
-          The workflow MUST use GitHub Actions Docker layer caching to avoid
-          rebuilding unchanged dependency layers on every run.
+          The workflow SHOULD use Docker layer caching to avoid rebuilding
+          unchanged dependency layers on every run. GHA cache export via
+          composite `run:` steps is inoperable because GitHub only injects
+          the required cache tokens (ACTIONS_RUNTIME_TOKEN,
+          ACTIONS_CACHE_URL) into `uses:` steps; accordingly the GHA cache
+          configuration has been removed. This entry documents the intent for
+          when a working caching mechanism becomes available (#2248).
 
       - id: DEMOCI-02-008
         priority: MUST
         kind: project
         statement: >-
           The workflow MUST upload all container logs as a CI artifact when
-          the demo job fails, and MUST NOT upload logs on success.
+          the demo job fails or is cancelled, and MUST NOT upload logs on
+          success.
         rationale: >-
-          Logs are diagnostic information; uploading them only on failure
-          keeps successful run artifacts clean while providing full context
-          for debugging broken runs.
+          Logs are diagnostic information; uploading them only on failure or
+          cancellation keeps successful run artifacts clean while providing
+          full context for debugging broken or timed-out runs. A cancelled
+          job (e.g. caused by a wedged container hitting the job timeout)
+          converts a diagnosable failure into an undiagnosable one unless
+          logs are collected on the cancelled path (#2245).
 
       - id: DEMOCI-02-009
         priority: MUST
@@ -271,11 +280,10 @@ groups:
           pile up and waste CI minutes while delaying feedback; a newer commit
           renders earlier PR-branch runs pointless. Cancelling superseded PR
           runs reclaims those minutes. On-main runs are never cancelled because
-          each run both validates the merged main HEAD (DEMOCI-05-001) and
-          protects the fallback cache scope that new PR branches read from (see
-          DEMOCI-02-007 and DEMOCI-05-003). Keyed on the ref, a burst of merges
-          to main still runs each qualifying commit to completion rather than
-          collapsing to the newest, preserving per-commit failure attribution.
+          each run validates the merged main HEAD (DEMOCI-05-001); keyed on
+          the ref, a burst of merges to main still runs each qualifying commit
+          to completion rather than collapsing to the newest, preserving
+          per-commit failure attribution.
 
   - id: DEMOCI-03
     title: Extensibility for Additional Demo Scenarios
@@ -408,11 +416,12 @@ groups:
           `test/ci/invariants/test_fv_invariants.py`) MUST include a
           per-scenario expected-event-types list that is comprehensive for that
           scenario: it MUST cover all protocol phases that the scenario is
-          designed to exercise, not only the four universal phases shared by
+          designed to exercise, not only the five universal phases shared by
           all scenarios.
         rationale: >-
-          A shared minimal list (validate_report, add_participant_status_to_participant,
-          close_case, add_note_to_case) does not guard against a scenario-specific
+          A shared minimal list (validate_report,
+          add_participant_status_to_participant, close_case, add_note_to_case,
+          engage_case) does not guard against a scenario-specific
           phase (e.g. notes-exchange) regressing silently. Each scenario's
           expected-event-types list must reflect what that scenario is designed
           to prove end-to-end.
@@ -492,31 +501,6 @@ groups:
           - rel_type: refines
             spec_id: DEMOCI-02-011
 
-      - id: DEMOCI-05-003
-        priority: MUST
-        kind: project
-        statement: >-
-          The on-main run of demo-integration.yml MUST export its Docker image
-          layers to the `demo-integration-main` GitHub Actions cache scope so
-          that new PR branches read a warm fallback cache (per DEMOCI-02-007).
-          The dedicated demo-image-cache-warm.yml workflow, whose sole purpose
-          was to warm this cache on main, MUST be removed once the on-main demo
-          run performs the same cache export, to avoid a redundant second image
-          build on every qualifying push to main.
-        rationale: >-
-          Before this change, demo-integration.yml ran only on pull_request, so
-          a separate demo-image-cache-warm.yml existed purely to build the demo
-          images on main and populate the demo-integration-main cache scope for
-          new PR branches. Once demo-integration.yml itself runs on push to main
-          and writes that scope, a second cache-only build is pure waste. Folding
-          the cache export into the on-main run gives one build that both
-          validates the demo and warms the cache.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-05-001
-          - rel_type: refines
-            spec_id: DEMOCI-02-007
-
       - id: DEMOCI-05-004
         priority: MUST
         kind: project
@@ -574,7 +558,7 @@ groups:
           The minimum PR validation scenario set is `fv`, `fvcv-handoff`,
           `fcvcv`, and `fcv-reject`. Together these four scenarios cover all
           distinct protocol event types exercised by the full scenario suite:
-          the four universal types plus `invite_actor_to_case`,
+          the five universal types plus `invite_actor_to_case`,
           `offer_case_participant`, `accept_invite_actor_to_case`,
           `accept_actor_recommendation`, and `reject_invite_actor_to_case`.
           The `demo-integration.yml` workflow MUST use this 4-scenario set as
@@ -865,3 +849,106 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001
+
+  - id: DEMOCI-10
+    title: Case-Ledger Artifact Availability on Failure
+    specs:
+      - id: DEMOCI-10-001
+        priority: MUST
+        kind: project
+        statement: >-
+          Every demo scenario MUST export its case ledgers from a path that runs
+          whether or not the scenario's phases succeeded — in practice, from the
+          shared scenario harness's exception path as well as its success path
+          (see DEMOMA-23-001). A scenario MUST NOT place the ledger dump only
+          after its last phase, where any escaping exception skips it.
+        rationale: >-
+          `demo_check` and `demo_step` accumulate rather than raise, so the
+          exceptions that do escape a scenario are the ones that most need
+          forensics — and those were exactly the runs that uploaded nothing,
+          because the dump sat inline after the last phase. Losing the ledgers on
+          failure inverts the value of the artifact.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+
+      - id: DEMOCI-10-002
+        priority: MUST
+        kind: project
+        statement: >-
+          The case-ledger dump MUST always write a `dump-manifest.json` under
+          `devlogs/<demo-name>/`, even when it captured no ledgers at all. The
+          manifest MUST record `demoName`, `caseId`, `ledgerFileCount`,
+          `targetCount`, an optional top-level `reason`, and one `actors[]` entry
+          per dump target carrying `actorName`, `routeKey`, `captured`,
+          `entryCount`, `ledgerFile`, and `reason`.
+        rationale: >-
+          The `upload-artifact` step and the `invariant-harness` job's download
+          both need the artifact to exist. An always-present manifest makes the
+          download succeed unconditionally and turns "nothing was uploaded" into
+          a machine-readable statement of which actors were missing and why, so
+          the invariant harness can report a real invariant result instead of a
+          download error.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-001
+
+      - id: DEMOCI-10-003
+        priority: MUST
+        kind: project
+        statement: >-
+          `test/ci/invariants/common.py::load_devlogs()` MUST fail — not skip —
+          when a `dump-manifest.json` is present under the scenario's devlogs
+          directory but no `*-case-ledger.jsonl` file is, and MUST fail when a
+          manifest is present but unparseable. It MUST skip only when there is no
+          evidence the demo ran: no `devlogs/`, no scenario sub-directory, or
+          neither ledger files nor a manifest.
+        rationale: >-
+          Skipping on absent data is right for a developer who has not run the
+          demo and wrong for CI, where absent data means the scenario died. The
+          manifest is the evidence that distinguishes the two cases; without it
+          the harness reported green for scenarios that produced no ledger at
+          all.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+          - rel_type: implements
+            spec_id: DEMOCI-10-002
+
+      - id: DEMOCI-10-004
+        priority: MUST
+        kind: project
+        statement: >-
+          A failure inside the case-ledger dump MUST NOT replace the exception
+          that ended the scenario. The dump MUST record its own failure through
+          the accumulator and the manifest, and the original exception MUST
+          propagate unchanged.
+        rationale: >-
+          A dump that runs on the failure path runs precisely when the system is
+          already unhealthy, so it is the most likely thing to fail second. If it
+          raises over the first exception, the fix that preserves the artifacts
+          destroys the diagnosis instead — the same class of masking as the
+          `try/finally: assert_demo_success()` shape it replaces.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-001
+
+      - id: DEMOCI-10-005
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness pytest session MUST exit non-zero when every
+          collected test was skipped.  A ``pytest_sessionfinish`` hook registered
+          in ``test/ci/invariants/conftest.py`` MUST set ``session.exitstatus = 1``
+          whenever at least one test was reported and all reported test outcomes
+          were ``"skipped"``.
+        rationale: >-
+          When devlogs are absent or a scenario sub-directory is missing,
+          ``load_devlogs()`` calls ``pytest.skip()`` at fixture level and every
+          test in the file skips.  pytest exits 0 by default for a skip-only
+          session, which lets CI mark the invariant-harness job green even though
+          no invariant was actually checked.  Forcing exit 1 converts a vacuous
+          pass into a visible failure, closing the last gap in DEMOCI-10 coverage.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-003

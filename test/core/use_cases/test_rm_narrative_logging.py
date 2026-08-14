@@ -259,3 +259,80 @@ class TestCurrentParticipantRmState:
         case = dl.read(_CASE_ID)
         assert isinstance(case, VulnerabilityCase)
         assert current_participant_rm_state(case, _ACTOR_ID, dl) == RM.VALID
+
+
+class TestInlineParticipantStaleness:
+    """update_participant_rm_state must read from DL, not stale inline objects.
+
+    Regression for #2233: when case_participants contains inline CaseParticipant
+    objects (not string IDs), the old code returned the inline object directly.
+    If the standalone DL record had advanced beyond the inline snapshot, the
+    stale RM state caused valid transitions to be rejected.
+
+    Root cause: _scan_case_participants_for_actor used ``participant_raw =
+    participant_ref`` for non-string entries, bypassing the live DL record.
+
+    Fix: always look up via actor_participant_index → dl.read() (CM-19-003).
+    """
+
+    def _make_participant(self, rm_state: RM) -> CaseParticipant:
+        p = CaseParticipant(
+            id_=_PARTICIPANT_ID,
+            attributed_to=_ACTOR_ID,
+            context=_CASE_ID,
+            case_roles=[CVDRole.VENDOR],
+        )
+        p.append_rm_state(RM.RECEIVED, actor=_ACTOR_ID, context=_CASE_ID)
+        if rm_state != RM.RECEIVED:
+            p.append_rm_state(rm_state, actor=_ACTOR_ID, context=_CASE_ID)
+        return p
+
+    def test_engage_case_succeeds_when_inline_copy_is_stale(
+        self, dl: SqliteDataLayer
+    ) -> None:
+        """Stale inline RECEIVED in case_participants must not block ACCEPTED.
+
+        Simulates the demo scenario where _build_case_object materialises inline
+        participants for AC-5, leaving case_participants with inline objects at
+        RM.RECEIVED while the standalone DL record has advanced to RM.VALID
+        (written by validate-report).  engage-case must still succeed.
+        """
+        # Standalone DL record at VALID (written by validate-report)
+        live_participant = self._make_participant(RM.VALID)
+        dl.create(live_participant)
+
+        # Case with INLINE CaseParticipant at RECEIVED — the stale snapshot
+        stale_inline = self._make_participant(RM.RECEIVED)
+        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case.actor_participant_index[_ACTOR_ID] = _PARTICIPANT_ID
+        case.case_participants.append(stale_inline)  # inline, not string ID
+        dl.create(case)
+
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert result is True, (
+            "Expected True — VALID → ACCEPTED must succeed; "
+            "inline RECEIVED copy in case_participants must be ignored (CM-19-003)"
+        )
+        after = dl.read(_PARTICIPANT_ID)
+        assert isinstance(after, CaseParticipant)
+        assert after.participant_statuses[-1].rm.state == RM.ACCEPTED
+
+    def test_string_id_in_case_participants_still_reads_live_record(
+        self, dl: SqliteDataLayer
+    ) -> None:
+        """String-ID path: dl.read() is used and sees the live record."""
+        live_participant = self._make_participant(RM.VALID)
+        dl.create(live_participant)
+
+        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case.add_participant(
+            live_participant
+        )  # appends string ID via add_participant
+        dl.create(case)
+
+        result = update_participant_rm_state(
+            _CASE_ID, _ACTOR_ID, RM.ACCEPTED, dl
+        )
+        assert result is True, "String-ID path: VALID → ACCEPTED must succeed"

@@ -26,6 +26,18 @@ between the core (domain) and wire (ActivityStreams) layers:
 
 These invariants are specified in ARCH-12-003 and ARCH-12-004.
 
+Invariants 2 and 3 are not met yet. Their known violations are **enumerated** in
+the two backlog sets below and asserted with ``==``, so the sets fail if a new
+violation appears *and* if a listed one is fixed without being ticked off. Each
+has a companion ``xfail(strict=True)`` goal test, so emptying its backlog makes
+the goal test XPASS and fail the build — forcing the marker to be deleted.
+
+Both backlogs previously sat behind bare ``strict=False`` xfails, which is a
+pattern worth naming: a non-strict xfail keeps passing forever after the work is
+done, so nobody is ever told to clean it up, and it gives no partial-progress
+signal along the way. See ``test_validate_assignment_ratchet.py``, which uses the
+same three-part shape (exact backlog + strict goal + guard-the-guard).
+
 Spec: `specs/architecture.yaml` ARCH-12-003, ARCH-12-004, ARCH-12-007
 Reference: `docs/adr/0017-domain-wire-object-separation.md`
 """
@@ -39,6 +51,39 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
 # AS2 namespace constant from wire layer
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
+
+# ---------------------------------------------------------------------------
+# Backlog: core classes inheriting alias_generator=to_camel from as_Base,
+# violating ARCH-12-004 (issue #1991). This set may only SHRINK.
+# ---------------------------------------------------------------------------
+_TO_CAMEL_BACKLOG_1991: frozenset[str] = frozenset(
+    {
+        "CaseStatus",
+        "CoreActorCollection",
+        "ParticipantStatus",
+        "VultronApplication",
+        "VultronGroup",
+        "VultronOrganization",
+        "VultronPerson",
+        "VultronService",
+    }
+)
+
+# ---------------------------------------------------------------------------
+# Backlog: core-layer classes registered in the wire VOCABULARY registry,
+# violating ARCH-12-003 (issue #1992). This set may only SHRINK.
+# ---------------------------------------------------------------------------
+_NON_AS_BASE_BACKLOG_1992: frozenset[str] = frozenset(
+    {
+        "Actor",
+        "CoreActor",
+        "OfferRecord",
+        "PendingCaseInbox",
+        "PendingCreateCaseActivity",
+        "ReplicationState",
+        "ReportCaseLink",
+    }
+)
 
 
 class TestCoreVocabularyHierarchy:
@@ -74,13 +119,35 @@ class TestCoreVocabularyHierarchy:
                 cls, as_Base
             ), f"{name} inherits from as_Base (wire layer)"
 
+    def test_to_camel_backlog_is_exact(self) -> None:
+        """The #1991 violation set must match reality, in both directions.
+
+        Replaces a bare ``strict=False`` xfail. A non-strict xfail keeps passing
+        after the work is done, so it never tells anyone to remove it, and it
+        gives no signal for partial progress. An exact set does both: it fails if
+        a *new* core class inherits ``alias_generator``, and it fails if one is
+        fixed without being ticked off here.
+        """
+        has_to_camel = {
+            name
+            for name, cls in CORE_VOCABULARY.items()
+            if "alias_generator" in getattr(cls, "model_config", {})
+        }
+        assert has_to_camel == set(_TO_CAMEL_BACKLOG_1991), (
+            "the set of core classes inheriting alias_generator changed.\n"
+            f"  newly violating: {sorted(has_to_camel - _TO_CAMEL_BACKLOG_1991)}\n"
+            f"  fixed but still listed: {sorted(_TO_CAMEL_BACKLOG_1991 - has_to_camel)}\n"
+            "to_camel is an AS2 serialization concern and belongs only in the"
+            " wire layer (ARCH-12-004, #2288 / #2289)."
+        )
+
     @pytest.mark.xfail(
-        strict=False,
-        reason="Known pre-existing violation tracked in #1991. "
-        "CoreObject subclasses VultronPerson, VultronOrganization, VultronService, "
-        "VultronApplication, VultronGroup, CoreActorCollection, CaseStatus, and "
-        "ParticipantStatus inherit alias_generator=to_camel from as_Base (wire layer). "
-        "Tracked in #1991; xfail removed once those classes are refactored.",
+        strict=True,
+        reason="Goal state tracked in #2288 and #2289 (supersedes closed #1991): "
+        "no CoreObject subclass inherits alias_generator=to_camel from as_Base. "
+        "8 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
+        "When the last is fixed this test XPASSes and fails the build — "
+        "delete the marker and the backlog then.",
     )
     def test_no_core_object_has_to_camel_alias_generator(self) -> None:
         """No CoreObject subclass may use alias_generator=to_camel.
@@ -107,12 +174,36 @@ class TestCoreVocabularyHierarchy:
 class TestWireVocabularyHierarchy:
     """Tests for VOCABULARY (wire) hierarchy invariants."""
 
+    def test_non_as_base_vocabulary_backlog_is_exact(self) -> None:
+        """The #1992 violation set must match reality, in both directions.
+
+        See ``test_to_camel_backlog_is_exact`` for why this replaces a
+        ``strict=False`` xfail.
+        """
+        if not VOCABULARY:
+            pytest.skip(
+                "VOCABULARY is empty; wire objects may not be imported yet"
+            )
+
+        non_as_base = {
+            name
+            for name, cls in VOCABULARY.items()
+            if not issubclass(cls, as_Base)
+        }
+        assert non_as_base == set(_NON_AS_BASE_BACKLOG_1992), (
+            "the set of non-as_Base entries in the wire VOCABULARY changed.\n"
+            f"  newly violating: {sorted(non_as_base - _NON_AS_BASE_BACKLOG_1992)}\n"
+            f"  fixed but still listed: {sorted(_NON_AS_BASE_BACKLOG_1992 - non_as_base)}\n"
+            "VOCABULARY must contain only wire-layer ActivityStreams classes"
+            " (ARCH-12-003, issue #1992)."
+        )
+
     @pytest.mark.xfail(
-        strict=False,
-        reason="Known pre-existing violation tracked in #1992. "
-        "Core-layer classes (CoreActor, VultronOfferRecord, PendingCaseInbox, etc.) "
-        "are registered in the wire VOCABULARY registry. "
-        "Tracked in #1992; xfail removed once core-layer vocabulary is kept separate.",
+        strict=True,
+        reason="Goal state for issue #1992: the wire VOCABULARY contains only "
+        "as_Base subclasses. 7 known core-layer entries remain, enumerated in "
+        "_NON_AS_BASE_BACKLOG_1992. When the last is removed this test XPASSes "
+        "and fails the build — delete the marker and the backlog then.",
     )
     def test_all_vocabulary_are_as_base_subclasses(self) -> None:
         """All VOCABULARY classes must be subclasses of as_Base.

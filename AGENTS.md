@@ -143,7 +143,14 @@ six-step checklist (enum → pattern → use-case → map → tests).
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py` defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
-- **Case States**: `vultron/case_states/` — enums are authoritative
+- **Case States**: `vultron/core/states/cs.py` — CS/VFD/PXA enums are
+  authoritative; `vultron/core/states/cs_invariants.py` holds the CS validity,
+  transition and history invariants (CSB-17). `vultron/core/case_states/` is the
+  legacy string-pattern reference model, retained as an independent oracle and
+  still imported by `states/cs.py` and `use_cases/query/action_rules.py`. Reach
+  for `cs_invariants.py` for new protocol-path work; the legacy module's only
+  remaining new-code use is as the oracle in the CSB-17 equivalence tests
+  (ADR-0060)
 
 Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
 Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
@@ -261,9 +268,28 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   all matching functions before commit.
 - **Case-Actor Broadcast Guard Tests Need a Third Participant** — include at
   least one non-sender peer or the assertion is vacuous.
-- **Case Participant Lookup**: `case_participants` is authoritative; check
-  `actor_participant_index` first (fast path), fall back to `case_participants`.
-  Fail only on contradictions, not cache misses.
+- **Case Participant Lookup**: `actor_participant_index` is the authoritative fast
+  path. Two lookup patterns exist — pick by context:
+  - **RM state mutation** (`update_participant_rm_state`): MUST use
+    `actor_participant_index → dl.read()` exclusively (CM-19-003). Never read
+    inline objects from `case_participants`; they may be stale snapshots (#2233).
+  - **BT-level resolution** (`FindParticipantByActorIdNode`): check
+    `actor_participant_index` first; fall back to `case_participants` scan for
+    bootstrap compatibility. Fail only on index↔scan contradictions, not cache
+    misses.
+- **Construction-Time Validation Does Not Cover Assignment or `append`** —
+  Pydantic validates a model when it is built, and not again. `case.field = x`
+  and `case.field.append(x)` both bypass every type guarantee, so a wire-shaped
+  object can occupy a core-typed field and then read as *absent* rather than
+  raising (#2232, #2264). Do not hand-mutate `case_participants`,
+  `case_statuses` or `participant_statuses`; use the canonical mutators
+  (CM-27-001, PRM-03-003). Corollary: **never assign to `self` inside a
+  `mode="after"` model validator** (ARCH-21-004) — once `validate_assignment` is
+  on, the assignment re-runs the validator and it re-enters itself, which
+  presents as a baffling `RecursionError` far from the cause. Derive in
+  `mode="before"` instead. See
+  [notes/domain-validation.md](notes/domain-validation.md)
+  § "Post-Construction Mutation: Three Doors, One Lock".
 - **Orphan Module Cleanup Requires Importer Proof** — verify no live importers
   in `vultron/` and `test/` before deleting.
 - **Worktree Sync Checks Need Ancestry Verification** — use `ensure-synced`
@@ -271,6 +297,20 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core)** — all classes
   in `vultron/wire/as2/vocab/objects/` use `as_` prefix. Bare name = core type.
   See ARCH-14-001.
+- **Never Reach for `alias_generator` or `by_alias=True` in Core to Get camelCase**
+  — core needs wire-shaped JSON only for `CaseLedgerEntry.payloadSnapshot`, and it
+  MUST get it from the `WireRenderPort` driven port, not from the domain model.
+  A core-side alias cannot express structural core/wire differences (nested
+  `consent: PecDimension` vs flat `emConsentState`), so it always accretes
+  per-field hand-patches that drift from `from_core()`. See ARCH-20-001,
+  CLP-07-009, CLP-07-010 and
+  [notes/core-wire-rendering-port.md](notes/core-wire-rendering-port.md).
+- **Deleting a Wire-Spelling Shim Without a Reject-Guard Is a Silent Data-Loss
+  Bug** — Pydantic v2 defaults to `extra="ignore"`, so removing a validator that
+  accepted a legacy key makes that key *silently dropped* and the field default
+  to its start value (a lost RM ladder, not an error). Always pair the deletion
+  with a `model_validator(mode="before")` built on `reject_wire_spelled_keys`
+  (`vultron/core/models/_wire_spelling.py`). See SDO-03-005, ARCH-15-002.
 - **Flat `nodes.py` in BT Areas Is Non-Compliant** — use `nodes/` subpackage;
   `__init__.py` MUST re-export all public names. See BTND-07-001, BTND-07-003.
 - **Splits Must Not Produce New God Modules** — submodules ≤500 lines; split
@@ -452,9 +492,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **FastAPI `dependency_overrides` Key Must Be Re-Exported When Converting a
   Router Module to a Package** — scan tests for `module.dependency_function`
   patterns. Issue #970.
-- **Guarded-Commit Tests Must Use the CASE_MANAGER Actor as `receiving_actor_id`**
-  — `CheckIsCaseManagerNode` checks the participant entry, not the service ID.
-  See BT-17-005.
+- **Guarded-Commit BTs Must Execute Under the CASE_MANAGER Actor's Identity** —
+  `CheckIsCaseManagerNode` compares the *blackboard* `actor_id` against the case's
+  CASE_MANAGER participant. Any code that calls `execute_with_setup` for a BT
+  containing `GuardedCommitCaseLedgerEntryBT` MUST pass the *receiving* actor's
+  ID (e.g. `request.receiving_actor_id`), NOT the sender's (`request.actor_id`).
+  This applies to production received-side use cases and to tests alike. In tests,
+  use `actor_id=case_manager_actor_id`; in received-side use cases, use
+  `actor_id=request.receiving_actor_id if request.receiving_actor_id is not None
+  else request.actor_id`. See BT-17-005. *Source: ISSUE-2300*
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
 - **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —
@@ -466,7 +512,27 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   conflict markers, `git add <file>`, `git cherry-pick --continue --no-edit`,
   then `git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH"`.
   Use `manage_worktree.sh ensure-synced` in preference to the raw script.
-  See also ISSUE-1784 (tracking the script fix).
+- **A Red CI Job Is Not Evidence That Its Assertions Ran** — a job that dies in
+  an earlier step (artifact download, dependency setup, container build) never
+  reaches pytest, so its red status says nothing about what the tests assert.
+  Open the log and identify the failing *step* before concluding a test is
+  wrong, unsatisfiable, or "can never pass". A permanently-red
+  `<scenario> Invariant Harness` job was misread this way in CONCERN-2243: it
+  failed at `actions/download-artifact` on every run, so the assertion blamed
+  for the failure had never once executed. Note the inverse trap too — an
+  all-skipped pytest run exits 0 and reports **green** while checking nothing.
+  See [notes/demo-ci-invariants.md](notes/demo-ci-invariants.md) § "Reading a
+  Red Invariant Harness Job".
+- **Trace Shared Helper Layers Before Declaring an Event Unemitted** — in the
+  demo suite, protocol activity is emitted from shared helpers in
+  `vultron/demo/helpers/workflow.py` (e.g. `receiver_engages_case()`,
+  `run_direct_path_rm_triage()`), not from the scenario files. Grepping a
+  scenario file — or even all of `vultron/demo/scenario/` — finds nothing and
+  invites the false conclusion that no code emits the event. Search the helper
+  and semantic-registry layers, and confirm against
+  `graphify explain "<function>"` call edges, before asserting absence.
+  CONCERN-2243 filed a Concern on this basis for an event emitted by all nine
+  scenarios. *Source: CONCERN-2243*
 - **`git rebase` "local changes would be overwritten" With a Clean Working Tree**
   — this error can be a false positive when the rebased branch diverges far from
   main and both sides touched the same files. Fix: cherry-pick onto a fresh branch
@@ -474,7 +540,9 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   instead of rebasing. The error message is misleading — it is NOT evidence of
   uncommitted work. See also: single large-commit branches with 70+ files trigger a
   sequencer duplicate-pick bug; the cherry-pick workaround resolves both variants.
-  *Sources: ISSUE-1518, ISSUE-1504*
+  If `freshen-branch.sh` took this path and then hit a conflict, it can leave the
+  temp branch behind — delete it by hand (ISSUE-1784).
+  *Sources: ISSUE-1518, ISSUE-1504, ISSUE-1784*
 - **Verify Issue ACs Against Current Code Before Starting** — an issue may already
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
   Check current `main` against all ACs before writing any code; if satisfied, close

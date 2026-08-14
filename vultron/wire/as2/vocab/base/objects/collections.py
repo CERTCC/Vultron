@@ -14,9 +14,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import List, TypeAlias
+from typing import List, Set, TypeAlias
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr, model_validator
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
@@ -30,9 +30,19 @@ class as_Collection(as_Object):
     items: List[as_ObjectRef | None] = Field(default_factory=list)
     current: int | None = 0
 
-    # TODO implement a way to ignore duplicates
-    # _ids: Set[as_Object] = field(default_factory=set, repr=False)
-    # _duplicates: bool = field(default=False, repr=False)
+    _ids: Set[str] = PrivateAttr(
+        default_factory=set
+    )  # tracks id_ URIs for duplicate detection
+
+    @model_validator(mode="after")
+    def _populate_ids(self) -> "as_Collection":
+        for item in self.items:
+            if item is None or isinstance(item, str):
+                continue
+            item_id = getattr(item, "id_", None)
+            if item_id:
+                self._ids.add(str(item_id))
+        return self
 
     @property
     def first(self):
@@ -46,10 +56,17 @@ class as_Collection(as_Object):
     def totalItems(self):
         return len(self.items)
 
-    def append(self, item: as_ObjectRef):
-        # if not self._duplicates and item.id_ not in self._ids:
+    def append(self, item: as_ObjectRef) -> None:
+        if not isinstance(item, str):
+            raw_id = getattr(item, "id_", None)
+            item_id = str(raw_id) if raw_id else ""
+            if item_id and item_id in self._ids:
+                return
+        else:
+            item_id = ""
         self.items.append(item)
-        # self._ids.add(item.id_)
+        if item_id:
+            self._ids.add(item_id)
 
 
 as_CollectionRef: TypeAlias = ActivityStreamRef[as_Collection]

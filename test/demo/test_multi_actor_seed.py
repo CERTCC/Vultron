@@ -434,3 +434,80 @@ class TestSeedCLIWithDeterministicId:
             f"seed-actor6.yaml: expected 6 seed_actor calls "
             f"(1 local + 5 peers), got {len(calls)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for _seed_vendor_participant RM-state pre-seeding (issue #2273)
+# ---------------------------------------------------------------------------
+
+
+class TestSeedVendorParticipantRMState:
+    """_seed_vendor_participant must not pre-seed any RM state.
+
+    RM transitions (RECEIVED → VALID → ACCEPTED) must happen through the
+    protocol, not by pre-seeding the DataLayer.  Pre-seeding RM.VALID causes
+    ``validate_report`` to never appear in the case-actor ledger because the
+    validate-report trigger's short-circuit guard (``CheckRMStateValid``)
+    sees the vendor already at VALID and skips the emission path.
+
+    Regression: issue #2273.
+    """
+
+    def _call_seed_vendor(self):
+        """Call _seed_vendor_participant with a minimal mock case and DL."""
+        from unittest.mock import MagicMock
+
+        from vultron.demo.helpers.seeding import _seed_vendor_participant
+
+        case_obj = MagicMock()
+        case_obj.id_ = "https://example.org/cases/test-case"
+        case_obj.actor_participant_index = {}
+
+        dl = MagicMock()
+        dl.create.return_value = None
+
+        vendor_actor_id = "https://vendor/actors/vendor"
+        _seed_vendor_participant(case_obj, vendor_actor_id, dl)
+        return dl
+
+    def test_vendor_seeded_at_rm_received_not_beyond(self):
+        """Vendor must be seeded at RM.RECEIVED — no higher RM state.
+
+        RM.RECEIVED is the minimum needed for validate-report to advance
+        RECEIVED → VALID.  In a multi-server deployment this transition comes
+        automatically from SubmitReportReceivedUseCase, which creates the
+        case participant at RM.RECEIVED when the Offer is processed.  In
+        single-server demo mode that round-trip is blocked, so seeding at
+        RM.RECEIVED simulates what the protocol would have done.
+
+        RM.VALID must NOT be pre-seeded — validate-report must drive that
+        transition so the validate_report eventType appears in the case-actor
+        ledger (issue #2273).
+        """
+        from vultron.core.states.rm import RM
+
+        dl = self._call_seed_vendor()
+        created_participant = dl.create.call_args.args[0]
+        statuses = getattr(created_participant, "participant_statuses", [])
+        rm_states = [ps.rm.state for ps in statuses]
+        # Must be seeded at exactly RM.RECEIVED (the minimum for validate-report)
+        assert rm_states == [RM.RECEIVED], (
+            f"Expected [RM.RECEIVED], got {rm_states!r}. "
+            "Vendor must be seeded at RM.RECEIVED only; RM.VALID must come "
+            "from validate-report through the protocol (issue #2273)."
+        )
+
+    def test_vendor_seeded_without_rm_valid(self):
+        """RM.VALID must not be pre-seeded; it must come from validate-report."""
+        from vultron.core.states.rm import RM
+
+        dl = self._call_seed_vendor()
+        created_participant = dl.create.call_args.args[0]
+        rm_states = [
+            ps.rm.state
+            for ps in getattr(created_participant, "participant_statuses", [])
+        ]
+        assert RM.VALID not in rm_states, (
+            "Must not pre-seed RM.VALID; validate-report must drive this "
+            "transition through the protocol (issue #2273)."
+        )
