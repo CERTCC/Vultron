@@ -136,7 +136,11 @@ class AddEmbargoEventToCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=(
+                request.receiving_actor_id
+                if request.receiving_actor_id is not None
+                else request.actor_id
+            ),
             activity=request,
             sync_port=self._sync_port,
         )
@@ -486,7 +490,11 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=(
+                request.receiving_actor_id
+                if request.receiving_actor_id is not None
+                else request.actor_id
+            ),
             activity=request,
         )
 

@@ -190,7 +190,11 @@ class CreateReportReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=(
+                request.receiving_actor_id
+                if request.receiving_actor_id is not None
+                else request.actor_id
+            ),
             activity=request,
         )
         if result.status != Status.SUCCESS:
@@ -371,7 +375,11 @@ class InvalidateReportReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=(
+                request.receiving_actor_id
+                if request.receiving_actor_id is not None
+                else request.actor_id
+            ),
             activity=request,
         )
         if result.status != Status.SUCCESS:
@@ -459,7 +467,11 @@ class CloseReportReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=(
+                request.receiving_actor_id
+                if request.receiving_actor_id is not None
+                else request.actor_id
+            ),
             activity=request,
         )
         if result.status != Status.SUCCESS:
