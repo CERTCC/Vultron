@@ -29,22 +29,22 @@ adopting, what is deferred, the known technical mismatch, and the issue
 sequence — so each implementing agent starts from evidence rather than the
 Idea's optimistic framing.
 
-## Current state (verified 2026-07-29)
+## Current state (migration in progress — verified 2026-08-14)
 
 - **Dependency**: `pyproject.toml` already pins `py-trees>=2.5.0`. The Idea's
   "evaluate the upgrade path from the current pin" step is already satisfied —
   no upgrade is required to reach the Ports API.
-- **Ports API present, unused**: `py_trees.ports` exposes `BehaviourWithPorts`
-  (a `PortsMixin` + `Behaviour` subclass), `PortInformation`,
-  `NoDataAvailable`, and a ports registry. A repo-wide search finds **zero**
-  references to `input_ports`, `output_ports`, `BehaviourWithPorts`, or
-  `PortInformation` in `vultron/`, `specs/`, `notes/`, `docs/`, or `test/`.
-- **Node population**: `vultron/core/behaviors/` contains roughly **60 node
-  classes** and about **249 `register_key()` call sites**. Every node currently
-  subclasses `py_trees.behaviour.Behaviour` (or the DataLayer-aware base classes
-  in `helpers.py`) and declares blackboard access imperatively in `setup()` via
-  `register_key()`, following the `{noun}_{id_segment}` naming convention
-  (BTND-03-005, BTND-03-008).
+- **Ports API present and in use**: `py_trees.ports` exposes
+  `BehaviourWithPorts` (a `PortsMixin` + `Behaviour` subclass),
+  `PortInformation`, `NoDataAvailable`, and a ports registry. The pilot (#1808)
+  landed `DataLayerConditionWithPorts` and `DataLayerActionWithPorts` in
+  `vultron/core/behaviors/helpers.py` and migrated a first tranche of
+  `report/nodes/`. The pattern is now the standard base for all new nodes
+  (ADR-0044, BTND-03-009 through BTND-03-011).
+- **Migration progress**: Part 1/5 (#1883) migrated **41 Type-A nodes** across
+  `case/`, `status/`, and `note/` domains — all trivial base-only reparents
+  with no domain-specific `register_key()` calls. Remaining legacy nodes in
+  these and other domains are tracked under the #1809 chain (parts 2–5).
 - **XML parser**: `py_trees.parsers.behaviour_tree_xml` exists but is documented
   as **experimental** ("the parser is experimental and its API may change
   between releases"). It instantiates only classes registered in a
@@ -227,7 +227,17 @@ Derived from the #1558 grill-me interview. All Tasks are children of Epic #427.
    migration recipe. `size:M`.
 2. **#1809 — Full node migration** *(Task, blocked-by #1808)*
    Migrate the remaining `vultron/core/behaviors/` nodes to typed Ports,
-   following #1808's recipe. `size:L`.
+   following #1808's recipe. `size:L`. Split into five sequential sub-Tasks so
+   each part has a reviewable blast radius:
+   - **#1883 (1/5) ✓** — trivial base-only reparent: `case`, `status`, `note`.
+     Type-A nodes only (no domain `register_key()`), pure base-class swap.
+   - **#1884 (2/5)** — trivial base-only reparent: `report`, `embargo`.
+   - **#1885 (3/5)** — read-only extra-input nodes: add `input_ports()` and
+     replace direct blackboard reads with `get_input()`.
+   - **#1886 (4/5)** — WRITE-handoff nodes: establish `output_ports()` and the
+     execution-scoped key convention (AC-3's BTND-03-004 property).
+   - **#1887 (5/5)** — non-DataLayer nodes, composite exemptions, and
+     finalization (including this note's AC-4 completion update).
 3. **#1810 — XML feasibility spike** *(Task, blocked-by #1809)*
    Assess whether protocol BTs can be authored/exported as BehaviorTree XML
    given the constructor-vs-remapping mismatch and the experimental parser.

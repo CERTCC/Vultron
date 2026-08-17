@@ -33,11 +33,11 @@ from py_trees.common import Status
 
 from vultron.config import get_config
 from vultron.core.behaviors.case.nodes.case_setup import _derive_case_slug
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 
-class ProposeReportCaseToActorNode(DataLayerAction):
+class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
     """Send ``Create(as_CaseProposal)`` from ``report_id`` without a prior case.
 
     Used by the slimmed vendor ``receive_report_case_tree`` (ADR-0041).  Unlike

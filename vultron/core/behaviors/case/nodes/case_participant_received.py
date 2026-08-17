@@ -25,13 +25,13 @@ BTND-07-003.
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 
 
-class AddCaseParticipantToCaseReceivedNode(DataLayerAction):
+class AddCaseParticipantToCaseReceivedNode(DataLayerActionWithPorts):
     """Add a participant to a case and persist the updated case.
 
     Reads both the participant and the case from the DataLayer, calls
@@ -89,7 +89,7 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class RemoveCaseParticipantFromCaseReceivedNode(DataLayerAction):
+class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
     """Remove a participant from a case and persist the updated case.
 
     Reads the case from the DataLayer and calls

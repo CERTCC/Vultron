@@ -19,13 +19,13 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.note import VultronNote
 
 
-class SaveNoteNode(DataLayerAction):
+class SaveNoteNode(DataLayerActionWithPorts):
     """Persist a Note to the DataLayer using upsert semantics."""
 
     def __init__(self, note_obj: VultronNote, name: str | None = None):
@@ -48,7 +48,7 @@ class SaveNoteNode(DataLayerAction):
             return Status.FAILURE
 
 
-class AttachNoteToCaseNode(DataLayerAction):
+class AttachNoteToCaseNode(DataLayerActionWithPorts):
     """Attach a note to a VulnerabilityCase in the DataLayer."""
 
     def __init__(

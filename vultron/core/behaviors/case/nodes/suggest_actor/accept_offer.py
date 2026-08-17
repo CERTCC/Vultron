@@ -25,11 +25,11 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 
-class EmitAcceptCaseParticipantOfferNode(DataLayerAction):
+class EmitAcceptCaseParticipantOfferNode(DataLayerActionWithPorts):
     """Case Owner sends Accept(Offer(CaseParticipant)) back to the CaseActor.
 
     Triggered by the Case Owner after reviewing the Offer(CaseParticipant)

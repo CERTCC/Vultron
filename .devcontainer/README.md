@@ -33,11 +33,22 @@ The script will:
 
 Every slot container is ephemeral — it is destroyed when you exit the shell.
 The source code lives at `/app` inside the container, baked into the image at
-build time. On every startup, `poststart.sh` runs `git pull` to bring `/app`
-up to date with `origin/main`.
+build time. When the container is created, `poststart.sh` fetches and then
+force-resets `/app` to `origin/main` — so every slot starts from the same known
+state, on `main`, regardless of which branch your Mac's checkout is on. It does
+not run again when you re-attach to a running container.
+
+The image carries `main` and nothing else. The build strips the local branches,
+stashes and reflog copied in from your Mac's `.git`, so there is no stale local
+branch for an agent to check out by mistake. Branches you have not pushed are
+not reachable from inside a slot — push first if you need one there.
 
 Because containers are destroyed on exit, any uncommitted work in `/app` is
 lost. **Push your work before exiting.**
+
+`.devcontainer/` is baked into the image like any other tracked directory. Edits
+you make to it on your Mac do not appear inside a running container; you get them
+on the next `./start-dev.sh <slot>`, which rebuilds because the file changed.
 
 All slots are identical. There is no "main" slot.
 

@@ -27,7 +27,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models._helpers import _as_id
@@ -35,7 +35,7 @@ from vultron.core.models._helpers import _as_id
 logger = logging.getLogger(__name__)
 
 
-class _ThreatTerminationSkipConditionNode(DataLayerCondition):
+class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
     """Inner guard for :class:`ThreatTerminationBranchNode`.
 
     Returns SUCCESS (skip teardown) when:

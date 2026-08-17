@@ -19,12 +19,12 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 
 
-class CreateNoteNode(DataLayerAction):
+class CreateNoteNode(DataLayerActionWithPorts):
     """Create and persist a Note via the TriggerActivityPort."""
 
     def __init__(
@@ -71,7 +71,7 @@ class CreateNoteNode(DataLayerAction):
             return Status.FAILURE
 
 
-class AttachNoteFromResultNode(DataLayerAction):
+class AttachNoteFromResultNode(DataLayerActionWithPorts):
     """Attach a note to a case, reading ``note_id`` from ``result_out``."""
 
     def __init__(

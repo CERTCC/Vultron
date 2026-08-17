@@ -153,6 +153,14 @@ def demo_notify_fix_ready(
     from vultron.core.states.cs import CS_vfd
 
     with domain_error_translation():
+        # VFD hypercube: vfd → Vfd is the only valid first hop from the
+        # initial state; Vfd → VFd is the second hop. Both must be emitted
+        # in order so ValidateTriggerTransitionsNode passes each step.
+        svc.add_participant_status(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            vfd_state=CS_vfd.Vfd,
+        )
         result = svc.add_participant_status(
             actor_id=actor_id,
             case_id=body.case_id,

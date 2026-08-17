@@ -1187,8 +1187,26 @@ This is a known fragility (GitHub concern #1896): if a guard node is too weak
 an invalid status snapshot can be persisted silently. The same issue applies
 to RM and PXA dimension writes through this node.
 
+**Status (PR #2307, 2026-08-14)**: the fragility is now mitigated for all
+known write paths:
+
+- **Trigger path** (`add_participant_status_trigger_bt`): guarded by
+  `ValidateTriggerTransitionsNode` (new in PR #2307, issues #2081 / #1903).
+  Fail-closed: an invalid RM/VFD/PXA jump raises `VultronValidationError` and
+  no snapshot is written.
+- **Received wire path** (`add_participant_status_tree`): guarded by
+  `FilterParticipantStatusDimensionsNode` + `ValidateRMTransitionNode`
+  (in place since `a17d7649`). Partial-accept: refused dimensions carry forward
+  the current value so other dimensions still land.
+
+`CreateParticipantStatusNode` itself still does not validate inline.
+`test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet, also
+added in PR #2307) AST-audits every `VfdDimension`/`RmDimension`/`PxaDimension`
+constructor call in `vultron/core/behaviors/` and fails immediately on any new
+unclassified site, forcing an explicit audit before merge.
+
 **When writing or reviewing guard nodes that precede `CreateParticipantStatusNode`**:
 treat the guard as the *only* line of defence for transition validity and verify
 it against the state-machine transitions defined in `vultron/core/states/`.
 
-<!-- Source: ISSUE-1825; GitHub concern #1896 -->
+<!-- Source: ISSUE-1825; GitHub concern #1896; PR #2307 -->

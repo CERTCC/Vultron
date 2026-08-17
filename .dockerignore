@@ -68,24 +68,23 @@ wip_notes
 wip_outputs
 graphify-out
 
-# .devcontainer is clobber-mounted at /app/.devcontainer at runtime, so only
-# what the BUILD needs is admitted: certs/, which docker/Dockerfile copies to
-# /usr/local/share/ca-certificates/ and feeds to update-ca-certificates before
-# the gh / Node / AWS CLI / Claude Code installs curl over HTTPS. Those .crt
-# files are host-local (see .git/info/exclude), so they can never arrive via the
-# in-container `git pull` — the build context is their only route in.
-.devcontainer
-!.devcontainer/certs
+# NOTE: .devcontainer is deliberately NOT excluded here. Its files are TRACKED,
+# so rule 1 applies: withholding them left /app/.devcontainer empty, which
+# start-dev.sh had to paper over by bind-mounting the host directory back in.
+# That made one host directory the working tree for every slot container AND the
+# host repo at once, each with its own HEAD — so whichever git wrote last decided
+# the bytes and every other repo reported phantom modifications. Only the secret
+# is withheld now (see below); the rest is baked in.
 
 # Secrets — must not be baked into any image layer, the dev stage included.
 # NOTE: .dockerignore is independent of .gitignore. A git-ignored secret is
 # still part of the build context and still lands in the image unless it is
 # listed HERE. Never rely on .gitignore to keep credentials out of a layer.
 #
-# devcontainer.env (AWS credentials, written by .devcontainer/setup.sh) is
-# already covered by the .devcontainer rule above; it is repeated explicitly so
-# that re-including more of .devcontainer later cannot quietly admit it.
-# start-dev.sh supplies it at runtime via `docker run --env-file`.
+# devcontainer.env (AWS credentials, written by .devcontainer/setup.sh) is the
+# ONLY path under .devcontainer/ withheld from the build. It is gitignored, so
+# its absence cannot surface as a phantom deletion. start-dev.sh supplies it at
+# runtime via `docker run --env-file`.
 # .env.example files are intentionally NOT matched by these patterns.
 .env
 **/.env
