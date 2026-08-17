@@ -250,6 +250,18 @@ class HashChainLedgerRecord(BaseModel):
 
         Excludes ``entry_hash`` to avoid a self-referential dependency.
         All datetime values are serialised to ISO 8601 strings.
+
+        ``received_at`` is the CaseActor's server-generated UTC timestamp,
+        set once at append time and never modified.  Replicas receive this
+        entry via ``Announce(CaseLedgerEntry)`` with ``received_at`` already
+        embedded; they MUST preserve its value rather than regenerating it,
+        otherwise ``verify_hash()`` will return ``False`` on any replica that
+        re-computes the hash (CLP-02-008, SYNC-01-003).
+
+        ``payload_snapshot`` is the activity as captured by the CaseActor at
+        commit time.  Replicas receive and store it verbatim; they MUST NOT
+        reconstruct it locally, as local actor state (e.g. inbox item counts,
+        timestamps) may differ from the CaseActor's snapshot (SYNC-01-003).
         """
         return {
             "case_id": self.case_id,

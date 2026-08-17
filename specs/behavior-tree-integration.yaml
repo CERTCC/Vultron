@@ -425,6 +425,33 @@ groups:
     - rel_type: refines
       spec_id: BT-17-001
       note: The role guard identity check is what makes this fixture requirement necessary
+  - id: BT-17-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A received-side use case that executes a BT containing
+      `GuardedCommitCaseLedgerEntryBT` MUST call `execute_with_setup` with
+      `actor_id=request.receiving_actor_id`, not `request.actor_id`. When a BT
+      node inside that tree also needs to target the sender's participant (e.g.
+      to advance their RM state), it MUST store the sender's ID in a private
+      attribute (e.g. `_target_actor_id`) that `DataLayerAction.setup()` does
+      not overwrite.
+    rationale: >-
+      In received-side use cases, `request.actor_id` is the sender of the
+      inbound activity; `request.receiving_actor_id` is the CaseActor that owns
+      the ledger and whose role must be verified by `CheckIsCaseManagerNode`.
+      Passing the sender ID as `actor_id` causes the role check to fail:
+      the guarded commit never fires, and the ledger entry is silently skipped.
+      `EngageCaseReceivedUseCase` and `DeferCaseReceivedUseCase` both carried
+      this defect until issue #2300 corrected them.
+    verification: >-
+      Search all received-side use-case call sites of `execute_with_setup` that
+      contain a `GuardedCommitCaseLedgerEntryBT`; assert each passes
+      `actor_id=request.receiving_actor_id`.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-17-005
+      note: BT-17-005 covers tests; this entry covers production call sites
 - id: BT-16
   title: Simulation Fuzzer Node Layout
   specs:

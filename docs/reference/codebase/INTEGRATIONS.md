@@ -27,8 +27,8 @@
 
 ### 4) Reliability and Failure Behavior
 
-- **Retry/backoff behavior**: [TODO] — not observed in `prod_http_delivery.py` surface scan; pending deeper review
-- **Timeout policy**: pytest test timeout is 5 s (via `pytest-timeout`); HTTP client timeout for outbound delivery not confirmed — [TODO]
+- **Retry/backoff behavior**: implemented in `vultron/adapters/driven/http_delivery.py` — exponential backoff with configurable `max_retries`, `initial_delay`, `backoff_multiplier`, and `max_delay` constants (SYNC-05-001, SYNC-05-002); exhausting retries for one recipient logs at ERROR and raises `DeliveryError` for outbox requeue (OX-05-002); **no session-level total-retry bound** (ADR-0066 tracks the known compose-to-unbounded concern — GitHub #2314 added per-period limit)
+- **Timeout policy**: pytest test timeout is 5 s per-test (via `pytest-timeout`); HTTP client timeout for outbound delivery configurable via httpx defaults
 - **Circuit-breaker or fallback**: not observed
 
 ### 5) Observability for Integrations
@@ -40,7 +40,8 @@
 ### 6) Evidence
 
 - `vultron/adapters/driven/datalayer_sqlite/`
-- `vultron/adapters/driven/prod_http_delivery.py`
+- `vultron/adapters/driven/http_delivery.py`
+- `vultron/adapters/driven/prod_http_delivery.py` (stub — not yet implemented)
 - `vultron/adapters/driving/fastapi/inbox_handler.py`
 - `vultron/adapters/driving/mcp_server.py`
 - `vultron/adapters/connectors/example/`

@@ -127,6 +127,32 @@ with `_as_id()` and friends. This is a deliberate deviation from the rule above,
 not an oversight; it exists so the cycle cannot be reintroduced by the next
 guard that needs a state enum.
 
+The trap: `states/rm.py`'s own imports look clean (logging, enum, transitions,
+`states.common`), so inspecting the target module tells you nothing. The cycle
+runs through the package `__init__.py` — `models/base.py` imports `_helpers`,
+which triggers `states/__init__.py`, which pulls `states/cs.py` → `states/common.py`
+→ back into `models/base.py` while it is still partially initialised. The error
+looks like a missing symbol in `models.base`, not a cycle.
+
+### Type-specific canonical readers live with their type
+
+A helper that reads one dimension of one model type (e.g. `participant_status_rm_state`)
+belongs in the same module as that type (`vultron/core/models/participant_status.py`),
+not in `_helpers.py`. Two reasons:
+
+1. It cannot go to `_helpers.py` if it needs a state enum (see above).
+2. Colocating the canonical reader with the type keeps the authorship contract
+   clear: the module that defines a type owns its read semantics.
+
+The distinction from shape guards in `_wire_spelling.py`: shape guards are
+cross-cutting (they need to know about the core/wire boundary across multiple
+types); canonical readers are type-specific. Cross-cutting → `_wire_spelling.py`;
+type-specific → the type's own module.
+
+BT-node-level wrappers that combine multiple readers (e.g. `read_rm_states()`)
+live in `vultron/core/behaviors/helpers.py`, which has no circular-import
+restriction (it is below use-cases, above models, and can import from either).
+
 ---
 
 ## Shape Guards: One Canonical Reader per Dimension (#2232)

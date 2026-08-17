@@ -1210,3 +1210,35 @@ treat the guard as the *only* line of defence for transition validity and verify
 it against the state-machine transitions defined in `vultron/core/states/`.
 
 <!-- Source: ISSUE-1825; GitHub concern #1896; PR #2307 -->
+
+---
+
+## Sentinel Blackboard Writes Enable Structured Failure Context for Selector Fallbacks
+
+When a py_trees Sequence needs a fallback action on node failure, the standard
+Selector pattern only works cleanly if the failing node leaves the blackboard in
+a usable state for its sibling.
+
+**Pattern**: write sentinel values to the blackboard **before** returning
+`Status.FAILURE`. The sibling fallback node in the enclosing Selector can then
+read those sentinel values and act on structured failure context rather than
+empty keys.
+
+```python
+# Example: ReconstructChainTailNode writes sentinels before failing
+# so the sibling SendRejectLogEntryNode can compose a well-formed Reject.
+self.blackboard.tail_hash = ""    # sentinel: distinct from any valid 64-char hash
+self.blackboard.tail_index = -1   # sentinel: distinct from any non-negative index
+return Status.FAILURE
+```
+
+**Safety rule**: sentinel values MUST be semantically distinct from all valid
+data so that downstream consumers can distinguish "node failed" from "node
+succeeded with this value". Empty string vs. a 64-character hex hash and `-1`
+vs. a non-negative index are safe sentinels; `0` or `""` are not safe for fields
+where those are valid values.
+
+**When not to use this pattern**: if the failing node is not inside a Selector
+that has a fallback sibling, writing sentinel values is unnecessary overhead.
+Only add sentinels when you are composing a Selector with a specific fallback
+consumer in mind. *Source: ISSUE-1873*

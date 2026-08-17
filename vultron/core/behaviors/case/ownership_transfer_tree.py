@@ -24,7 +24,6 @@ import logging
 import py_trees
 
 from vultron.core.behaviors.case.nodes.lifecycle import (
-    CommitCaseLedgerEntryNode,
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
@@ -59,10 +58,6 @@ def create_accept_ownership_transfer_tree(
             AcceptCaseOwnershipTransferNode(
                 case_id=case_id,
                 new_owner_id=new_owner_id,
-            ),
-            CommitCaseLedgerEntryNode(
-                case_id=case_id,
-                name="CommitOwnershipTransferredEntry",
             ),
         ],
     )
