@@ -187,6 +187,18 @@ jobs:
       - name: Create devlogs directory
         run: mkdir -p devlogs
 
+      # DEMOCI-10-006: write a sentinel before the demo-runner starts so the
+      # artifact is non-empty even on a pre-harness failure (health-check gate,
+      # import error, Docker startup failure).  Uses plain python3 with no uv
+      # setup so it runs regardless of whether the vultron package is available.
+      # The real harness overwrites this sentinel when it runs; if the runner
+      # exits early the sentinel survives and load_devlogs() reports a failure.
+      - name: Write pre-run sentinel manifest
+        env:
+          DEMO: ${{ matrix.demo }}
+        run: |
+          python3 -c "import json,os,pathlib; d=os.environ['DEMO']; p=pathlib.Path('devlogs')/d; p.mkdir(parents=True,exist_ok=True); (p/'dump-manifest.json').write_text(json.dumps({'demoName':d,'caseId':None,'ledgerFileCount':0,'targetCount':0,'reason':'Pre-run sentinel: demo-runner had not yet started.','actors':[]},indent=2)+'\n',encoding='utf-8')"
+
       - name: Run ${{ matrix.demo }} demo
         env:
           DEMO: ${{ matrix.demo }}
