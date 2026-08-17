@@ -127,6 +127,94 @@ def test_update_returns_false_for_non_existing_id(dl, record_factory):
     assert not updated
 
 
+# ---------------------------------------------------------------------------
+# Normalisation: wire-shaped StorableRecord payloads (#2283)
+# ---------------------------------------------------------------------------
+
+
+def test_create_normalises_wire_shaped_storable_record(dl):
+    """create() must normalise flat rm_state → nested rm for ParticipantStatus.
+
+    A StorableRecord with type_="ParticipantStatus" and a wire-spelled flat
+    rm_state key must be stored in the canonical core shape (nested rm
+    dimension object), not verbatim.  Before the fix the wire key survived;
+    after the fix only the core key is present.
+    """
+    from vultron.core.ports.datalayer import StorableRecord
+
+    wire_data = {
+        "id_": "urn:uuid:ps-wire-create-001",
+        "type_": "ParticipantStatus",
+        "rm_state": "RECEIVED",
+        "vfd_state": "vfd",
+        "case_engagement": True,
+        "embargo_adherence": True,
+        "context": "urn:uuid:test-case-01",
+    }
+    storable = StorableRecord(
+        id_="urn:uuid:ps-wire-create-001",
+        type_="ParticipantStatus",
+        data_=wire_data,
+    )
+
+    dl.create(storable)
+    stored = dl.get("ParticipantStatus", "urn:uuid:ps-wire-create-001")
+
+    assert stored is not None
+    assert (
+        "rm_state" not in stored["data_"]
+    ), "wire-spelled key must not survive create()"
+    assert (
+        "rm" in stored["data_"]
+    ), "core dimension key must be present after create()"
+
+
+def test_update_normalises_wire_shaped_storable_record(dl):
+    """update() must normalise flat rm_state → nested rm for ParticipantStatus.
+
+    Same class of defect as create() — the update path must also route through
+    _normalize_to_core so wire-shaped payloads do not overwrite a row's shape.
+    """
+    from vultron.core.ports.datalayer import StorableRecord
+
+    seed = Record(
+        id_="urn:uuid:ps-wire-update-001",
+        type_="ParticipantStatus",
+        data_={
+            "id_": "urn:uuid:ps-wire-update-001",
+            "context": "urn:uuid:test-case-02",
+        },
+    )
+    dl.create(seed)
+
+    wire_data = {
+        "id_": "urn:uuid:ps-wire-update-001",
+        "type_": "ParticipantStatus",
+        "rm_state": "RECEIVED",
+        "vfd_state": "vfd",
+        "case_engagement": True,
+        "embargo_adherence": True,
+        "context": "urn:uuid:test-case-02",
+    }
+    storable = StorableRecord(
+        id_="urn:uuid:ps-wire-update-001",
+        type_="ParticipantStatus",
+        data_=wire_data,
+    )
+
+    updated = dl.update("urn:uuid:ps-wire-update-001", storable)
+    assert updated
+
+    stored = dl.get("ParticipantStatus", "urn:uuid:ps-wire-update-001")
+    assert stored is not None
+    assert (
+        "rm_state" not in stored["data_"]
+    ), "wire-spelled key must not survive update()"
+    assert (
+        "rm" in stored["data_"]
+    ), "core dimension key must be present after update()"
+
+
 def test_save_inserts_new_object(dl):
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 

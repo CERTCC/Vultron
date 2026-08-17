@@ -114,6 +114,7 @@ No open entries.
 | `fv Demo Integration` | #2241 | 2026-08-13 |
 | `fvcv-handoff Demo Integration` | #2221 | 2026-08-13 |
 | `fvcv-handoff Invariant Harness` | #2221 | 2026-08-13 |
+| `fcvcv Demo Integration` | #2337 | 2026-08-17 |
 
 > `fv Demo Integration` is a different animal from the async-race rows above
 > it. It passed at `dc31b6c6` and failed at `0b607c11` — a docs-only diff —
