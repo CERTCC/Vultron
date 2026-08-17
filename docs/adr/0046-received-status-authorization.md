@@ -7,7 +7,7 @@ consulted: Claude Sonnet 4.6
 informed: []
 ---
 
-# Two-Seam Authorization Model for Received-Side CaseStatus Canonicalization
+# Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization
 
 ## Context and Problem Statement
 

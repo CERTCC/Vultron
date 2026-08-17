@@ -1,5 +1,5 @@
 ---
-title: "Received-Side Status Authorization: Two-Seam Design"
+title: "Received-Side Status Authorization: Two-Gate Design"
 status: active
 description: >
   Design notes for the two-gate authorization model that governs how a
