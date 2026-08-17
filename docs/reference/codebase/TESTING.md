@@ -58,6 +58,8 @@ uv run pytest -v --tb=short
   - Architecture ratchet tests have `KNOWN_VIOLATIONS: frozenset()` — boundary is fully clean; a new violation causes immediate CI failure
   - Case-ledger invariant tests require `devlogs/` JSONL artifacts (skipped when absent)
   - Demo CI integration tests run against Docker Compose — not run in standard `uv run pytest`
+  - **pytest-timeout 5 s per-test**: timeout fires per-test but pytest itself can abort the full suite if signal delivery is slow under load; the killed run looks like a passing run (no explicit failure reported) — run with `--timeout=0` to disable when diagnosing suite-level hangs
+  - `caplog` captures log records emitted during fixture setup phase (before test body), not just the test body — set `caplog.set_level()` inside the test, not in a fixture, to avoid capturing noise
 
 ### 6) Evidence
 

@@ -165,6 +165,46 @@ When a trigger use case needs the before-state, capture it in `_prepare()`
 **before** the BT mutates anything (see `SvcEngageCaseUseCase` and
 `current_participant_rm_state()`).
 
+### Checklist before adding a "log the reason" AC
+
+When an acceptance criterion asks for a new INFO line naming a failure reason or
+a state change, check the following before implementing it as a new log call:
+
+1. **Does an existing record already fire at that point?** `BTBridge.execute_tree`
+   already emits one INFO record for every terminal status. Folding `get_failure_reason()`
+   into that record avoids double-logging (two INFO lines per BT failure). The
+   BT-failure row in the table above is an example of this preference.
+2. **Is the discriminator available at the proposed call site?** An AC that scopes
+   a log line to "non-owner actors" or "non-CaseManager actors" requires that such
+   a predicate exists at the proposed emission point. Check how many call sites
+   the proposed function has (e.g. `execute_with_setup` has 52+) and whether they
+   all carry the needed context.
+3. **Is the `case_id` field available?** Verify with a grep; if no production call
+   site passes `case_id=`, the proposed field will be empty or missing in every
+   real log line. Find a frame that actually has the value.
+4. **Is the real defect the absence of information, or the absence of a line?** A
+   log line that reads `"BT FAILURE for case ''"` adds noise without signal.
+   Enriching an existing record with the missing reason is usually the better fix.
+
+### No-op and monotonicity guards for state-transition log lines
+
+Before emitting a state-transition narrative line:
+
+- **Guard the no-op.** Read the after-state back from storage rather than
+  hardcoding the intended target — BTs can succeed via idempotent paths. If
+  `before == after`, emit nothing. Re-asserting a state is bookkeeping, not a
+  protocol event. `log_cs_transition()` and `log_em_transition()` already do this;
+  any new helper MUST as well.
+- **Guard the monotonicity violation.** CS/RM/EM events are forward-only. If the
+  new state is earlier in the sequence than the current state, this is an anomaly,
+  not a milestone — log it at `WARNING` with a distinct label (e.g.
+  `"RM regression detected"`) rather than emitting a normal transition line. A
+  silent backwards transition is much harder to diagnose than a logged one.
+
+A cheap regression test: run the same BT write twice and assert the second call
+emits nothing (no-op path). This catches all three failure modes — missing no-op
+guard, missing monotonicity guard, and hardcoded target — in a single test.
+
 ### Third-party FSM noise
 
 The `transitions` library logs `Finished processing state X enter/exit

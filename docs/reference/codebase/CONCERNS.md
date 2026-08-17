@@ -9,7 +9,7 @@
 | Low | Architecture boundary tests fully passing | `test/architecture/test_core_no_adapter_imports.py` `KNOWN_VIOLATIONS: frozenset()` | Both `test_core_no_adapter_imports.py` and `test_core_no_wire_imports.py` have empty violation sets — boundary is clean | Maintain: new violations will fail the ratchet test immediately |
 | High | SQLite not suitable for multi-node/concurrent writes | `vultron/adapters/driven/datalayer_sqlite/` | Prototype-only scalability ceiling; federation requires a distributed or replicated store | Define migration plan to postgres or equivalent before production deployment |
 | Medium | No test coverage measurement | `pyproject.toml` `[dependency-groups].dev` (no `pytest-cov`) | Coverage gaps are invisible; regressions in untested code go undetected | Add `pytest-cov` and set a minimum coverage threshold in CI |
-| Medium | BT node `TODO` items: shared attributes vs subclass attributes | `vultron/bt/base/bt_node.py:267` | Shared mutable class attributes on `BtNode` could cause subtle state leakage across tree instances | Migrate to per-instance or subclass attributes |
+| Medium | BT blackboard is process-global across BT runs | `vultron/bt/base/bt_node.py`, py-trees blackboard | A fresh `BtNode` tree constructed per-test does not automatically clear the py-trees global blackboard; residual state from a prior run can silently affect the next tree instance | Explicitly clear the blackboard (`py_trees.blackboard.Blackboard.enable_activity_stream(); ...`) between runs, or construct a scoped blackboard namespace per run |
 | Medium | 11 outstanding TODO/FIXME markers in production code (GitHub #505) | `vultron/wire/as2/vocab/activities/case_participant.py:18-19`, `vultron/bt/base/bt_node.py:267`, others | Partially-finished refactors and deferred design decisions in wire layer and BT core | Triage each into a tracked issue or remove; prioritise `vultron/wire/` and `vultron/core/` items first |
 | Low | `pacman.py` demo uses pre-Pydantic idioms | `vultron/bt/base/demo/pacman.py:37` | Demo code mixing old and new patterns; misleading for new contributors | Convert to Pydantic idioms or annotate as legacy demo |
 
@@ -41,10 +41,12 @@
 
 | Area | Why fragile | Churn signal | Safe change strategy |
 |------|-------------|-------------|----------------------|
-| `vultron/demo/scenario/fv_demo.py` | Demo exercises many layers; any layer change can break it | 35 commits in 90 days (highest churn in production source) | Run `uv run pytest -m integration` before touching demo scenarios |
-| `vultron/core/use_cases/received/` | Received-side use cases are actively evolving | `status.py` 23, `embargo.py` 22, `case.py` 20, `actor.py` 18 commits in 90 days | Add tests for each received use case before modifying; verify with architecture tests |
-| `vultron/core/behaviors/case/nodes/` | BT node refactoring converted `nodes.py` to a package | 21 commits on package + 18 on `__init__.py` | Test BT execution before any node reorganization |
-| `vultron/adapters/driving/fastapi/inbox_handler.py` | Inbox pipeline evolves with use-case changes | 21 commits in 90 days | Integration-test the inbox flow end-to-end after changes |
+| `vultron/demo/scenario/fvcv_handoff_demo.py` | Demo exercises many layers; any layer change can break it | 36 commits in 90 days (highest churn in production source) | Run `uv run pytest -m integration` before touching demo scenarios |
+| `specs/multi-actor-demo.yaml` | Demo spec evolves with the demo implementation | 57 commits in 90 days | Cross-check spec requirements when modifying demo scenario code |
+| `specs/behavior-tree-integration.yaml` | BT integration spec tracks active BT refactoring | 36 commits in 90 days | Verify spec IDs in BT tests after any spec change |
+| `vultron/core/behaviors/case/nodes/` | BT node refactoring is ongoing | 26 commits in 90 days | Test BT execution before any node reorganization |
+| `vultron/core/ports/trigger_activity.py` | Trigger port evolves with use-case expansion | 26 commits in 90 days | Run integration tests after changes; check `USE_CASE_MAP` consistency |
+| `.github/workflows/demo-integration.yml` | CI workflow for multi-actor demo is actively tuned | 35 commits in 90 days | Validate any workflow change against actual demo run; YAML boolean coercion is a known footgun |
 
 ### 6) `[ASK USER]` Questions
 
@@ -56,9 +58,9 @@
 
 ### 7) Evidence
 
-- `.codebase-scan.txt` "HIGH-CHURN FILES" and "TODO / FIXME / HACK" sections
+- `.codebase-scan.txt` "HIGH-CHURN FILES" and "TODO / FIXME / HACK" sections (2026-08-14 scan)
 - `test/architecture/test_core_no_adapter_imports.py`
-- `vultron/bt/base/bt_node.py:267`
+- `vultron/bt/base/bt_node.py`
 - `vultron/wire/as2/vocab/activities/case_participant.py:18-19`
 - `vultron/adapters/driven/datalayer_sqlite/schema.py`
 - `pyproject.toml` `[dependency-groups].dev`
