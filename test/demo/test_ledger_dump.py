@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from _pytest.outcomes import Failed
@@ -29,8 +30,7 @@ from vultron.demo.helpers.ledger_dump import (
 )
 
 
-def _read_sentinel(manifest_path: Path) -> dict:
-    """Parse the manifest written at *manifest_path*."""
+def _read_sentinel(manifest_path: Path) -> Any:
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
