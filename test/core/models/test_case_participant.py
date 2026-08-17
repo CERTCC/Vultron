@@ -2,6 +2,7 @@
 
 import pytest
 
+from vultron.errors import VultronValidationError
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
@@ -205,6 +206,38 @@ class TestAppendRmState:
         with caplog.at_level(logging.WARNING):
             p.append_rm_state(RM.ACCEPTED, _ACTOR, _CONTEXT)
         assert "Invalid RM transition" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# add_participant_status
+# ---------------------------------------------------------------------------
+
+
+class TestAddParticipantStatus:
+    """add_participant_status validates shape and appends (PRM-03-003)."""
+
+    def test_valid_status_appended(self):
+        p = _make()
+        initial_len = len(p.participant_statuses)
+        status = ParticipantStatus(context=_CONTEXT, attributed_to=_ACTOR)
+        p.add_participant_status(status)
+        assert len(p.participant_statuses) == initial_len + 1
+        assert p.participant_statuses[-1] is status
+
+    def test_rejects_wire_shaped_status(self):
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_ParticipantStatus,
+        )
+
+        p = _make()
+        wire_status = as_ParticipantStatus(context=_CONTEXT)
+        with pytest.raises(VultronValidationError, match="ParticipantStatus"):
+            p.add_participant_status(wire_status)  # type: ignore[arg-type]
+
+    def test_rejects_non_status_object(self):
+        p = _make()
+        with pytest.raises(VultronValidationError):
+            p.add_participant_status("not-a-status")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
