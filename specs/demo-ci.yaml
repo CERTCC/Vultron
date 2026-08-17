@@ -435,8 +435,8 @@ groups:
           `test/ci/invariants/test_fv_invariants.py`) MUST include a
           per-scenario expected-event-types list that is comprehensive for that
           scenario: it MUST cover all protocol phases that the scenario is
-          designed to exercise, not only the five universal phases shared by
-          all scenarios.
+          designed to exercise, not only the universal phases (DEMOMA-16-001)
+          shared by all scenarios.
         rationale: >-
           A shared minimal list (validate_report,
           add_participant_status_to_participant, close_case, add_note_to_case,
@@ -575,12 +575,12 @@ groups:
         kind: project
         statement: >-
           The minimum PR validation scenario set is `fv`, `fvcv-handoff`,
-          `fcvcv`, and `fcv-reject`. Together these four scenarios cover all
+          `fcvcv`, and `fcv-reject`. Together these scenarios cover all
           distinct protocol event types exercised by the full scenario suite:
-          the five universal types plus `invite_actor_to_case`,
+          the universal types (DEMOMA-16-001) plus `invite_actor_to_case`,
           `offer_case_participant`, `accept_invite_actor_to_case`,
           `accept_actor_recommendation`, and `reject_invite_actor_to_case`.
-          The `demo-integration.yml` workflow MUST use this 4-scenario set as
+          The `demo-integration.yml` workflow MUST use this scenario set as
           the `pull_request` matrix and run only these scenarios on every PR
           commit.
         rationale: >-
@@ -602,11 +602,11 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The full 9-scenario suite MUST run on push events to main, regardless
+          The full scenario suite MUST run on push events to main, regardless
           of which subset runs for PR validation, so that all scenario variants
           continue to generate case-log invariant signals on the default branch.
           The `demo-integration.yml` workflow MUST include a `push: branches:
-          ["main"]` trigger that runs all 9 scenarios (`fv`, `fvv`,
+          ["main"]` trigger that runs all scenarios (`fv`, `fvv`,
           `fvcv-extension`, `fvcv-handoff`, `fccv-extension`, `fccv-handoff`,
           `fcvcv`, `fcv`, `fcv-reject`).
         rationale: >-

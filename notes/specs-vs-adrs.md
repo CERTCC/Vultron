@@ -159,6 +159,48 @@ Generated spec requirements: `datalayer.yaml` DL-01 through DL-03.
 
 ---
 
+## Never State Ephemeral Counts in Long-Lived Docs
+
+Long-lived documents — specs, notes files, AGENTS.md — **MUST NOT state
+counts that will drift independently of their authoritative source** (MS-16-001).
+
+### The problem
+
+When a spec requirement like DEMOMA-16-001 defines an enumeration ("the five
+universal event types"), sibling requirements and cross-file citations are
+tempted to copy the count: "the five universal types (DEMOMA-16-001)". The
+linter validates that `DEMOMA-16-001` resolves; it has no opinion about the
+prose next to it. When DEMOMA-16-001 is updated (e.g., a sixth type is added),
+every copied count drifts silently — a reader who encounters a stale count first
+gets a false picture of the system. The count adds no normative force.
+
+The same applies to any long-lived doc: writing "there are 4 unimplemented
+nodes" or "15 xfails" is a snapshot virtually guaranteed to be wrong when read
+later.
+
+### The fix
+
+**When cross-referencing another spec**, omit the count and cite the source by
+ID:
+
+| Instead of | Write |
+|---|---|
+| "the five universal types (DEMOMA-16-001)" | "the universal types (DEMOMA-16-001)" |
+| "these four scenarios cover all types" | "these scenarios cover all types" |
+| "the full 9-scenario suite" | "the full scenario suite" |
+
+**Counts are only appropriate in the authoritative source itself** — the spec
+entry that *defines* the enumeration (e.g., DEMOMA-16-001 listing its own
+members is the authority for that count; siblings that cross-reference it are
+not).
+
+**In notes and AGENTS.md**, avoid counting items that can change: replace
+"there are 4 unimplemented nodes" with "the unimplemented nodes are listed in
+[...]"; replace "15 xfails" with "known-flaky tests are tracked in
+`notes/flaky-tests.md`".
+
+---
+
 ## Where the Authoritative Rules Live
 
 | Artifact | Location |

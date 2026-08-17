@@ -33,9 +33,7 @@ event types it exercises. Event types are those recorded as `event_type` in
 
 **Notes:**
 
-- The five universal types (`validate_report`, `add_participant_status_to_participant`,
-  `close_case`, `add_note_to_case`, `engage_case`) appear in every scenario
-  (DEMOMA-16-001).
+- The universal types (DEMOMA-16-001) appear in every scenario.
 - `engage_case` is universal because emission lives in the shared demo helper
   layer, not at scenario call sites: `run_direct_path_rm_triage()` calls
   `receiver_engages_case()` for the direct receiver (all eight multi-actor
