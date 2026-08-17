@@ -35,4 +35,4 @@ defect was found. Someone should determine which of the two — the comment or t
 read-back — is the thing that is wrong, and delete it.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2321 (Concern: vestigial read-back contradicts ADR-0034).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

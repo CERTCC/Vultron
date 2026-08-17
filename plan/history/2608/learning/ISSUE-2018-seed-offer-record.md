@@ -19,4 +19,4 @@ the new behavior — the production shape of offer-record propagation is unresol
 scoped to demo use and will be superseded once the spec gap is addressed.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: invited actors advancing RM state — design context).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

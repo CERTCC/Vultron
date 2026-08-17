@@ -40,4 +40,4 @@ module. A shared BT-node wrapper (`read_rm_states`) went into
 Related: #2269 (that placement was also forced by the `append.py` line ceiling).
 
 **Promoted**: 2026-08-17 — captured in notes/domain-validation.md (canonical helper locations / circular import section).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

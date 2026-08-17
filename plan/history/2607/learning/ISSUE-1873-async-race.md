@@ -13,4 +13,4 @@ However, HTTP BackgroundTasks delivery is inherently unordered and the demo reli
 Candidate follow-up: review all `wait_for_*` polling loops in `fv_demo.py` for whether their timeouts are sized correctly relative to worst-case BackgroundTasks delivery latency, and whether additional per-step checkpoints would catch failures faster.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2325 (Concern: remaining fv-demo async race windows).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

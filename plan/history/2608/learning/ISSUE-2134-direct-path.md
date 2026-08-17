@@ -30,4 +30,4 @@ transfer, owner-handled). This note records that #2134's scope deliberately
 excludes them.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2169, #2178 (already tracked).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

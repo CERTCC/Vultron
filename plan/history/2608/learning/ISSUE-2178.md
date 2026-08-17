@@ -55,4 +55,4 @@ Related: issue #2181 (broader pattern: demos conflate sequential with causal ord
 Fix PR: <https://github.com/CERTCC/Vultron/pull/2182>
 
 **Promoted**: 2026-08-17 — captured in notes/ownership-transfer.md, notes/event-driven-control-flow.md (already present from prior session).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

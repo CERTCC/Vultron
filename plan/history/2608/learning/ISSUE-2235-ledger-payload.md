@@ -36,4 +36,4 @@ produce this key is effectively asserting canonical content and should be
 reviewed with that in mind.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2326 (Concern: ledger_payload_object_override seam).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

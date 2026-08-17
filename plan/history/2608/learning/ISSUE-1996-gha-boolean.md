@@ -32,4 +32,4 @@ fires after the workflow merges — if all 8 scenarios run on that PR instead of
 3, the coercion bug is confirmed and the condition needs updating.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2327 (Concern: GHA matrix boolean full_suite_only coercion).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

@@ -29,4 +29,4 @@ If the ADR-0041 CaseProposal round-trip is ever enabled in single-server mode
 drives the full `START → RECEIVED` transition automatically.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2267 (open — already tracked).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

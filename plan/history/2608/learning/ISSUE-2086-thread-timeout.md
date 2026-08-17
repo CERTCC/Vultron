@@ -45,4 +45,4 @@ thread-timeout firing under load. The recurring cost suggests either raising
 session.
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: pytest-timeout thread method; docs/reference/codebase/TESTING.md.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

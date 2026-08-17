@@ -40,4 +40,4 @@ current head and push-to-update rather than attempting a duplicate
 `gh pr create`.
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: create-pr cannot target integration branches.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

@@ -44,4 +44,4 @@ the merge-to-main task #2143). See
 [[20260810-clp-08-005-protocol-hardening-gap]].
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: designed self-healing recovery paths must not log at ERROR.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

@@ -52,4 +52,4 @@ A no-op or backward-transition test is the cheapest way to catch all of this:
 run the same write twice and assert the second emits nothing.
 
 **Promoted**: 2026-08-17 — captured in notes/structured-logging.md (No-op and monotonicity guards section).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

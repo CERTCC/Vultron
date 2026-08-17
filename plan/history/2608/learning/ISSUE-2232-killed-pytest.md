@@ -43,4 +43,4 @@ branch-owned failure.
   disproportionate failure mode, and 61%-of-budget is not headroom.
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: killed pytest run reports exit 0 under tail -5.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

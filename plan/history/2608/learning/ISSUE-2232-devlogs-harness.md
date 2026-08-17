@@ -40,4 +40,4 @@ byte-identically on a clean `origin/main` worktree and is genuinely
 pre-existing — see #2273 and the cross-reference on #2266.
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: delete devlogs/ before validating if integration suite ran.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

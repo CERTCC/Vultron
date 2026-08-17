@@ -47,4 +47,4 @@ create-pr skill hardcoding `--base main`); both had to be worked around in the
 same session.
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: git credential helper may point at nonexistent gh path.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

@@ -35,4 +35,4 @@ issue; the fix is mechanical but touches several files and is out of scope for
 a logging PR.
 
 **Promoted**: 2026-08-17 — captured in docs/reference/codebase/TESTING.md (pytest-timeout cluster — prior session update).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

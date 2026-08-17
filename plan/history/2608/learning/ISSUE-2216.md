@@ -23,4 +23,4 @@ The downstream fix was chosen because:
 The systemic fix (ISSUE-2223) should eventually remove the need for the fallback entirely by ensuring the participant object lands in the invitee's DL during bootstrap.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2223 (closed — bootstrap gap fixed).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

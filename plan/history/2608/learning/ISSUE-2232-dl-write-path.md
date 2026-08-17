@@ -35,4 +35,4 @@ in #2268, which is where the architecture test asserting set completeness
 belongs.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: wire-shape convergence design question).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

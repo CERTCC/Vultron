@@ -24,4 +24,4 @@ Isolated apps (`configure_globals=False`) avoid the second path by never setting
 Future developers adding new endpoints that schedule `outbox_handler` must explicitly decide which resolution path they use and ensure test fixtures cover it.
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: outbox BackgroundTasks emitter has two resolution paths.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

@@ -41,4 +41,4 @@ alternative (disjoint `type_` namespaces between the two vocabularies), which
 would delete both.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: wire-shape convergence — design rationale context).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

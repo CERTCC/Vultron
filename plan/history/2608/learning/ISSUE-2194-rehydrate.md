@@ -22,4 +22,4 @@ wrong semantics (`accept_case_manager_role`) were matched instead of
 `accept_case_ownership_transfer`, silently mis-routing the Accept.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2322 (Concern: OfferCaseManagerRolePattern silently mis-routes).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

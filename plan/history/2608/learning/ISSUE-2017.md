@@ -23,4 +23,4 @@ named constructor that calls `append_rm_state(RM.RECEIVED)` exactly once would
 encode the CM-11-001 invariant structurally. Tracked as Concern #2042.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2042 (open Concern — already tracked).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

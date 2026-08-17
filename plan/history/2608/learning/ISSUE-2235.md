@@ -33,4 +33,4 @@ a systemic fix: have `BTBridge` clear (or namespace per-execution) all keys it
 did not explicitly seed, rather than restoring a hardcoded pair.
 
 **Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: py_trees blackboard is process-global.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

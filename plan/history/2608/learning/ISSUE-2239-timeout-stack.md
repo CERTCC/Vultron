@@ -46,4 +46,4 @@ container away from aborting the session while `timeout_method = "thread"` is
 global, which is #2270's actual fix (parented to #2089).
 
 **Promoted**: 2026-08-17 — captured in docs/reference/codebase/TESTING.md (pytest-timeout cluster — prior session update).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

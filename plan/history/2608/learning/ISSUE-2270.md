@@ -87,4 +87,4 @@ the opposite direction.
 Related: [[20260812-cs-hypercube-premise-was-wrong]]
 
 **Promoted**: 2026-08-17 — captured in docs/reference/codebase/TESTING.md (integration timeout tier — prior session update).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

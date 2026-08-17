@@ -24,4 +24,4 @@ A Concern issue should be filed to track:
 - Spec update needed in CM-11-002 and/or the announce-case handler spec
 
 **Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: invited actors advancing RM state — design question).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

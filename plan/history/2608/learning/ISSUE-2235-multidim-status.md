@@ -32,4 +32,4 @@ as ISSUE-2256 — and `VulnerabilityCase` field updates on
 `Announce(VulnerabilityCase)`.
 
 **Promoted**: 2026-08-17 — captured in specs/ RSH-05 (already written in prior session).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

@@ -16,4 +16,4 @@ a spec entry. Consider adding a sub-requirement to DEMOCI-02-010 specifying the
 maximum stop timeout to bound wedge impact.
 
 **Promoted**: 2026-08-17 — captured in specs/demo-ci.yaml DEMOCI-02-012 (added in this session).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>0>0>
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>

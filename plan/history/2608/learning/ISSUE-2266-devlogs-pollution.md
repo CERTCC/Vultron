@@ -51,4 +51,4 @@ Filed as **#2274** (Bug, parent Epic #2230, `size:S`). Until it lands, run
 that worktree.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2274 (open — already tracked).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>0>
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>

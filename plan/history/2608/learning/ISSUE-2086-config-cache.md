@@ -47,4 +47,4 @@ autouse snapshot/restore guard in `test/demo/conftest.py`) contains the blast
 radius but does not remove the footgun.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2323 (Concern: test infra config management footguns).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

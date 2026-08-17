@@ -44,4 +44,4 @@ statements and the two DEMOCI statements remain unguarded prose — see
 `20260812-universal-event-type-ratchet-not-specified.md`.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2277 (open — already tracked).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

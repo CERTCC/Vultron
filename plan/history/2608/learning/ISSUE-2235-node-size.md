@@ -33,4 +33,4 @@ through the package. `test/core/behaviors/sync/nodes/test_effects.py` turned out
 to test only the one class being moved and was renamed to match.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2329 (Idea: soft-warning CI annotation at 90% of 500-line cap).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

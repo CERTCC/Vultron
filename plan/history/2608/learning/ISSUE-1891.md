@@ -22,4 +22,4 @@ instead of exercising the probabilistic path.
 factory is absent or points to a non-existent class. Create a Concern issue to track the gap.
 
 **Promoted**: 2026-08-17 — captured in GitHub #2328 (Concern: CallOutBundle fuzzer stubs not stochastically implemented).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

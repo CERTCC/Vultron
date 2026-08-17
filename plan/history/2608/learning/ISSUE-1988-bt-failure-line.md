@@ -40,4 +40,4 @@ behaviour to a subset of actors ("non-owner"), verify a discriminator for that
 subset actually exists at the proposed call site before designing around it.
 
 **Promoted**: 2026-08-17 — captured in notes/structured-logging.md (Checklist before adding a 'log the reason' AC).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

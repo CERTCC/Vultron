@@ -27,4 +27,4 @@ a verbose rendering. Until then, treat graph output as orientation only and
 verify counts with a direct search.
 
 **Promoted**: 2026-08-17 — captured in tooling note archived — graphify query truncates on large graphs; fallback to direct grep.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.

@@ -36,4 +36,4 @@ positive signal that the producer ran, and it must fail — not skip — when th
 signal is present and the data is not.
 
 **Promoted**: 2026-08-17 — captured in specs/demo-ci.yaml DEMOCI-10 (already written in prior session).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>0>
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>

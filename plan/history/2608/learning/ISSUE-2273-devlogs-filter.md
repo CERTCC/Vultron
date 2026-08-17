@@ -21,4 +21,4 @@ the invariant: "when a manifest is present with a non-null `caseId`, `load_devlo
 MUST restrict returned entries to that `caseId`."
 
 **Promoted**: 2026-08-17 — captured in specs/demo-ci.yaml DEMOCI-10-007 (added in this session).
-Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>0>0>0>0>0>0>0>0>0>.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2330>.
