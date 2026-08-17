@@ -26,6 +26,7 @@ import vultron.demo.utils as demo_utils
 from vultron.demo.exchange.initialize_case_demo import demo_check, demo_step
 from vultron.demo.utils import (
     assert_demo_success,
+    demo_gate,
     reset_demo_failures,
 )
 from vultron.errors import DemoFailureError
@@ -263,6 +264,134 @@ class TestDemoAccumulator:
         err = DemoFailureError("2 demo failure(s)", failures=failures)
         s = str(err)
         assert s.startswith("2 demo failure")
+
+
+class TestDemoGate:
+    """Tests for demo_gate — DEMOCI-01-007, EDF-06-005.
+
+    Every test exercises the real context manager; nullcontext is never used
+    here.  That is the explicit requirement: a test that patches demo_gate out
+    with nullcontext does not validate gating behaviour and would repeat the
+    oversight that let the advisory RM.VALID gate go unnoticed.
+    """
+
+    @pytest.mark.spec("DEMOCI-01-007")
+    @pytest.mark.spec("EDF-06-005")
+    def test_gate_passes_dependent_step_runs(self):
+        """When the gate check succeeds the full body executes (AC-4)."""
+        ran = []
+        with demo_gate("precondition"):
+            ran.append("check passed")
+            ran.append("dependent step ran")
+        assert ran == ["check passed", "dependent step ran"]
+
+    @pytest.mark.spec("DEMOCI-01-007")
+    @pytest.mark.spec("EDF-06-005")
+    def test_gate_fails_dependent_step_does_not_run(self):
+        """When the gate check fails, code after the failure inside the body is skipped (AC-4).
+
+        The failing assertion exits the ``with`` block immediately.  The
+        dependent step marker is placed *after* the failing assertion inside
+        the same block; it is never reached.
+        """
+        ran = []
+        with demo_gate("precondition"):
+            assert False, "gate fails here"  # noqa: B011
+            ran.append("dependent step ran")  # unreachable
+        assert ran == [], "dependent step must not have run when gate failed"
+
+    @pytest.mark.spec("DEMOCI-01-007")
+    def test_gate_failure_recorded_in_accumulator(self):
+        """A failed gate records 'GATE FAILED' in the accumulator (AC-4)."""
+        with demo_gate("failing gate"):
+            raise ValueError("precondition not met")
+        assert len(demo_utils._demo_failures) == 1
+        assert "GATE FAILED" in demo_utils._demo_failures[0]
+        assert "failing gate" in demo_utils._demo_failures[0]
+
+    @pytest.mark.spec("DEMOCI-01-007")
+    def test_assert_demo_success_raises_for_gate_only_failure(self):
+        """assert_demo_success() raises DemoFailureError when only a gate failed (AC-4)."""
+        with demo_gate("the only failure"):
+            raise AssertionError("state not ready")
+        with pytest.raises(DemoFailureError):
+            assert_demo_success()
+
+    def test_gate_does_not_reraise_to_outer_scope(self):
+        """The gate suppresses its exception — outer code always continues (DEMOCI-01-003)."""
+        outer_ran = []
+        with demo_gate("gate"):
+            raise RuntimeError("gate failure")
+        outer_ran.append("outer code ran")
+        assert outer_ran == ["outer code ran"]
+
+    def test_gate_logs_start_with_roadworks_on_entry(self, caplog):
+        with caplog.at_level(logging.INFO):
+            with demo_gate("check description"):
+                pass
+        assert any(
+            "🚧" in r.message and "check description" in r.message
+            for r in caplog.records
+        )
+
+    def test_gate_logs_open_on_pass(self, caplog):
+        with caplog.at_level(logging.INFO):
+            with demo_gate("check description"):
+                pass
+        assert any(
+            "🔓" in r.message and "check description" in r.message
+            for r in caplog.records
+        )
+
+    def test_gate_logs_locked_on_failure(self, caplog):
+        with caplog.at_level(logging.ERROR):
+            with demo_gate("failing gate"):
+                raise ValueError("nope")
+        assert any(
+            "🔒" in r.message and "failing gate" in r.message
+            for r in caplog.records
+        )
+
+    def test_gate_entry_log_is_info_level(self, caplog):
+        with caplog.at_level(logging.INFO):
+            with demo_gate("level check"):
+                pass
+        entry_records = [r for r in caplog.records if "🚧" in r.message]
+        assert entry_records
+        assert all(r.levelno == logging.INFO for r in entry_records)
+
+    def test_gate_pass_log_is_info_level(self, caplog):
+        with caplog.at_level(logging.INFO):
+            with demo_gate("level check"):
+                pass
+        pass_records = [r for r in caplog.records if "🔓" in r.message]
+        assert pass_records
+        assert all(r.levelno == logging.INFO for r in pass_records)
+
+    def test_gate_failure_log_is_error_level(self, caplog):
+        with caplog.at_level(logging.ERROR):
+            with demo_gate("level check"):
+                raise ValueError()
+        fail_records = [r for r in caplog.records if "🔒" in r.message]
+        assert fail_records
+        assert all(r.levelno == logging.ERROR for r in fail_records)
+
+    def test_no_failure_added_on_success(self):
+        with demo_gate("clean gate"):
+            pass
+        assert demo_utils._demo_failures == []
+
+    def test_no_open_log_on_failure(self, caplog):
+        with caplog.at_level(logging.DEBUG):
+            with demo_gate("failing gate"):
+                raise ValueError()
+        assert not any("🔓" in r.message for r in caplog.records)
+
+    def test_no_locked_log_on_success(self, caplog):
+        with caplog.at_level(logging.DEBUG):
+            with demo_gate("passing gate"):
+                pass
+        assert not any("🔒" in r.message for r in caplog.records)
 
 
 class TestUnboundLocalErrorRegression:
