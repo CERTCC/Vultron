@@ -49,12 +49,13 @@ groups:
     kind: protocol
     statement: A `Case` MUST guarantee at least one vulnerability report, the reporter and receiver participants (at least
       two parties), and a seeded `case_statuses` list.
-    rationale: ADR-0015 creates the case at report receipt, so these structural minimums always hold for any case that exists.
+    rationale: ADR-0041 (superseding ADR-0015) requires the CaseActor to author all initialization entries when accepting a
+      CaseProposal, so these structural minimums are guaranteed for any case that exists.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-10-001
     adr:
-    - ADR-0015
+    - ADR-0041
   - id: LST-02-003
     priority: MUST
     kind: protocol
