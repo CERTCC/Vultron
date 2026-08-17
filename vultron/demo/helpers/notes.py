@@ -80,6 +80,7 @@ def participant_adds_note_to_case(
     if in_reply_to is not None:
         body["in_reply_to"] = in_reply_to
 
+    result: dict = {}
     with demo_step(f"Participant adds note '{note_name}' to case"):
         result = post_to_trigger(
             client=posting_client,
