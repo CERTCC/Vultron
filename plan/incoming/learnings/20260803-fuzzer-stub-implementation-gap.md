@@ -20,3 +20,6 @@ instead of exercising the probabilistic path.
 
 **Suggested follow-up**: Audit all `CallOutBundle` dataclasses for fields whose stochastic bundle
 factory is absent or points to a non-existent class. Create a Concern issue to track the gap.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2328 (Concern: CallOutBundle fuzzer stubs not stochastically implemented).
+Docs PR: TBD.

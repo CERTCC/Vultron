@@ -21,3 +21,6 @@ The downstream fix was chosen because:
 **Trade-off**: The fallback advances only one step from RM.RECEIVED, so `RM.ACCEPTED` cannot be bootstrapped directly (RECEIVED → ACCEPTED is not a valid RM transition). The demo flow always calls validate-report before engage-case, so this is correct in practice. If that ordering invariant ever breaks, the error message will be a confusing "bootstrap RM transition to ACCEPTED blocked" warning rather than a clear indication that validate was skipped.
 
 The systemic fix (ISSUE-2223) should eventually remove the need for the fallback entirely by ensuring the participant object lands in the invitee's DL during bootstrap.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2223 (closed — bootstrap gap fixed).
+Docs PR: TBD.

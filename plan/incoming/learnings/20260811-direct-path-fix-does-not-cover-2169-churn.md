@@ -28,3 +28,6 @@ fix the other; they share the CLP-08-005 symptom but not the root cause.
 Already tracked — no new issue filed. See #2169 (open) and #2178 (ownership
 transfer, owner-handled). This note records that #2134's scope deliberately
 excludes them.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2169, #2178 (already tracked).
+Docs PR: TBD.

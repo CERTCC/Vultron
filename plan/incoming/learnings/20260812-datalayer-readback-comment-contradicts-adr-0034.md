@@ -33,3 +33,6 @@ Cost paid this session: the misleading comments sent the initial diagnosis towar
 a wire/core serialization theory before the actual all-or-nothing control-flow
 defect was found. Someone should determine which of the two — the comment or the
 read-back — is the thing that is wrong, and delete it.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2321 (Concern: vestigial read-back contradicts ADR-0034).
+Docs PR: TBD.

@@ -21,3 +21,6 @@ This is the root class of bug fixed in #2017: the node called
 **Suggested fix**: A `VultronParticipant.from_invite(case_id, invitee_id, roles)`
 named constructor that calls `append_rm_state(RM.RECEIVED)` exactly once would
 encode the CM-11-001 invariant structurally. Tracked as Concern #2042.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2042 (open Concern — already tracked).
+Docs PR: TBD.

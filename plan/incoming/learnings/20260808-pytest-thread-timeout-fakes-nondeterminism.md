@@ -43,3 +43,6 @@ thread-timeout firing under load. The recurring cost suggests either raising
 `timeout` for the integration/demo suites or switching to
 `timeout_method = "signal"` so a slow test fails alone instead of voiding the
 session.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: pytest-timeout thread method; docs/reference/codebase/TESTING.md.
+Docs PR: TBD.

@@ -45,3 +45,6 @@ e.g. an allowlist of known-fictional hosts (`vultron.example`) that keeps
 **Related**: the config-cache leak itself (`reload_config()` before
 `monkeypatch.undo()`) is fixed at the source in four demo modules plus an
 autouse guard in `test/demo/conftest.py`.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2323 (Concern: test infra config management footguns).
+Docs PR: TBD.

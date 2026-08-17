@@ -44,3 +44,6 @@ and applies to every `yaml.safe_load` of a large file in this repo. And the
 underlying fragility is untouched: any test doing real work is one slow
 container away from aborting the session while `timeout_method = "thread"` is
 global, which is #2270's actual fix (parented to #2089).
+
+**Promoted**: 2026-08-17 — captured in docs/reference/codebase/TESTING.md (pytest-timeout cluster — prior session update).
+Docs PR: TBD.

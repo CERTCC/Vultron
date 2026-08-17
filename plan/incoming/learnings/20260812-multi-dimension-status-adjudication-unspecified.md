@@ -30,3 +30,6 @@ Other composites in the codebase worth auditing for the same silent
 all-or-nothing default: `CaseStatus` (`em` + `pxa`) at Seam 2 — already tracked
 as ISSUE-2256 — and `VulnerabilityCase` field updates on
 `Announce(VulnerabilityCase)`.
+
+**Promoted**: 2026-08-17 — captured in specs/ RSH-05 (already written in prior session).
+Docs PR: TBD.

@@ -38,3 +38,6 @@ instead. Also check whether the *absence* of an explanation was the real defect
 (it was here) rather than the absence of a line. And when an AC scopes a
 behaviour to a subset of actors ("non-owner"), verify a discriminator for that
 subset actually exists at the proposed call site before designing around it.
+
+**Promoted**: 2026-08-17 — captured in notes/structured-logging.md (Checklist before adding a 'log the reason' AC).
+Docs PR: TBD.

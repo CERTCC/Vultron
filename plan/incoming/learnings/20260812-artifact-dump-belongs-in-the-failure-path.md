@@ -34,3 +34,6 @@ Generalisable check for any future skip-on-missing-input fixture: can the input
 be missing *because* the system under test broke? If yes, the fixture needs a
 positive signal that the producer ran, and it must fail — not skip — when that
 signal is present and the data is not.
+
+**Promoted**: 2026-08-17 — captured in specs/demo-ci.yaml DEMOCI-10 (already written in prior session).
+Docs PR: TBD.

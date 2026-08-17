@@ -38,3 +38,6 @@ thread it through both `freshen-branch.sh` (freshen onto `origin/<base>`) and
 `gh pr create --base <base>`. It should also detect an already-open PR for the
 current head and push-to-update rather than attempting a duplicate
 `gh pr create`.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: create-pr cannot target integration branches.
+Docs PR: TBD.

@@ -19,3 +19,6 @@ scenarios. Both should be fixed with the same reorder pattern applied in #2021.
 
 Suggested follow-up: create a GitHub issue (or sub-issues of Epic #1753) to fix
 the same ordering bug in the extension and fccv_handoff demos.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2324 (Bug: wrong case-closure ordering in fvcv_extension_demo and fccv_handoff_demo).
+Docs PR: TBD.

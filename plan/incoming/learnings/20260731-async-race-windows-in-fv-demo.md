@@ -11,3 +11,6 @@ ISSUE-1873 fixed the genesis-unavailable race (Announce arrives before Create/Vu
 However, HTTP BackgroundTasks delivery is inherently unordered and the demo relies on `time.sleep`-based polling loops (`wait_for_contiguous_ledger_coverage`, etc.) to absorb timing jitter.  Other orderings — e.g. multiple CaseLedgerEntry Announces arriving before a non-genesis predecessor is committed — can still trigger CLP-08-005 or hash-mismatch retries that exceed the polling timeout.
 
 Candidate follow-up: review all `wait_for_*` polling loops in `fv_demo.py` for whether their timeouts are sized correctly relative to worst-case BackgroundTasks delivery latency, and whether additional per-step checkpoints would catch failures faster.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2325 (Concern: remaining fv-demo async race windows).
+Docs PR: TBD.

@@ -41,3 +41,6 @@ the notes prohibit. Anyone extending this test should keep reading the matrix.
 
 Verified the ratchet fails on drift before finalizing it, rather than trusting that a
 passing new test is a working new test.
+
+**Promoted**: 2026-08-17 — captured in ratchet test implemented in PR #2266; tracked.
+Docs PR: TBD.

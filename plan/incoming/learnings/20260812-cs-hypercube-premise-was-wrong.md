@@ -60,3 +60,6 @@ which `spec-lint` does validate against ADR filenames.
   vanish without complaint.
 
 Related: [[20260812-integration-timeout-tier]]
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: references: key silently dropped by spec-dump; ISSUE-2290 comment.
+Docs PR: TBD.

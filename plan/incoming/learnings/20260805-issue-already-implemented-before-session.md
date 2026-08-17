@@ -23,3 +23,6 @@ after orient+deepen should include an explicit diff of what the issue requires
 vs. what is already at HEAD — not just what the stale PR branch contains.
 The `claim-issue.sh` guard (branch already exists) is a signal that prior
 work may have landed via other paths.
+
+**Promoted**: 2026-08-17 — captured in process note archived — guidance: diff HEAD vs. requirements before implementing.
+Docs PR: TBD.

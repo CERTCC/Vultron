@@ -85,3 +85,6 @@ the opposite direction.
   finding is not the symptom, it is that nobody fixed the cause.
 
 Related: [[20260812-cs-hypercube-premise-was-wrong]]
+
+**Promoted**: 2026-08-17 — captured in docs/reference/codebase/TESTING.md (integration timeout tier — prior session update).
+Docs PR: TBD.

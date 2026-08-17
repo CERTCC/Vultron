@@ -17,3 +17,6 @@ endpoint, but the production path is unspecified.
 
 A spec entry covering how `VultronOfferRecord` propagates (or is recreated) for invited actors
 is needed before CM-11-002 can be considered fully implemented in production.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: invited actors advancing RM state — design question).
+Docs PR: TBD.

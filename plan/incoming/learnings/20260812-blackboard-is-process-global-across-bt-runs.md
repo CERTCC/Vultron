@@ -31,3 +31,6 @@ the same hazard, and the failure mode is silent cross-activity contamination
 that unit tests running one tree per process will not reproduce. Candidates for
 a systemic fix: have `BTBridge` clear (or namespace per-execution) all keys it
 did not explicitly seed, rather than restoring a hardcoded pair.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: py_trees blackboard is process-global.
+Docs PR: TBD.

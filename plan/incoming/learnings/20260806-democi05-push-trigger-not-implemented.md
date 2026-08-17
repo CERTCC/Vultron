@@ -22,3 +22,6 @@ the push trigger before DEMOCI-06 was built on top of it.
 
 Action: consider whether DEMOCI-05 needs a follow-up spec verification step
 to confirm all DEMOCI-05-001 requirements are now satisfied in the merged workflow.
+
+**Promoted**: 2026-08-17 — captured in process note archived — DEMOCI-05-001 push trigger implemented in PR #2030.
+Docs PR: TBD.

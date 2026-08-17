@@ -45,3 +45,6 @@ override, or provide a `config_override()` context manager in
 so callers cannot get the order wrong. The current fix (source fixes plus an
 autouse snapshot/restore guard in `test/demo/conftest.py`) contains the blast
 radius but does not remove the footgun.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2323 (Concern: test infra config management footguns).
+Docs PR: TBD.

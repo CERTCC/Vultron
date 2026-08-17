@@ -34,3 +34,6 @@ mitigated by being ID-matched (the override is ignored unless it names the objec
 being committed) and by logging the substitution at INFO. Anything wired to
 produce this key is effectively asserting canonical content and should be
 reviewed with that in mind.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2326 (Concern: ledger_payload_object_override seam).
+Docs PR: TBD.

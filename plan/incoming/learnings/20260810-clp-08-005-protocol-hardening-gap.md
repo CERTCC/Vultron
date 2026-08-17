@@ -29,3 +29,6 @@ who receives `Announce(CaseLedgerEntry)` before their `Create(VulnerabilityCase)
 race completely without relying on demo-level polling guards.
 
 A GitHub Bug/Concern issue should be filed to track this.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2186 (closed — protocol hardening gap fixed).
+Docs PR: TBD.

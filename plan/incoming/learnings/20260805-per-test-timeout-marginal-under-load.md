@@ -33,3 +33,6 @@ mark them with a longer per-test timeout. As more ratchets accumulate — this P
 added one — the aggregate risk of a spurious CI failure grows. Worth a Concern
 issue; the fix is mechanical but touches several files and is out of scope for
 a logging PR.
+
+**Promoted**: 2026-08-17 — captured in docs/reference/codebase/TESTING.md (pytest-timeout cluster — prior session update).
+Docs PR: TBD.

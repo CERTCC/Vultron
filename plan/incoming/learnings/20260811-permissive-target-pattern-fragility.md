@@ -22,3 +22,6 @@ Consider: (a) adding a `target_strict` per-field flag to `ActivityPattern`
 so CASE_PARTICIPANT matching rejects strings, or (b) reordering registry
 entries so ownership-transfer appears before case-manager-role and does NOT
 require target discrimination.  File as a Concern issue.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2322 (Concern: OfferCaseManagerRolePattern silently mis-routes).
+Docs PR: TBD.

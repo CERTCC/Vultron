@@ -45,3 +45,6 @@ override on the push command. This is distinct from
 `20260811-create-pr-cannot-target-integration-branch.md` (which is about the
 create-pr skill hardcoding `--base main`); both had to be worked around in the
 same session.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: git credential helper may point at nonexistent gh path.
+Docs PR: TBD.

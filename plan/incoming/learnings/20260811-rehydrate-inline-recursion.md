@@ -20,3 +20,6 @@ Without this recursion, `target` remained a bare URI string.  Pattern
 matching in `OfferCaseManagerRolePattern` is permissive for strings, so the
 wrong semantics (`accept_case_manager_role`) were matched instead of
 `accept_case_ownership_transfer`, silently mis-routing the Accept.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2322 (Concern: OfferCaseManagerRolePattern silently mis-routes).
+Docs PR: TBD.

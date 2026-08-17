@@ -49,3 +49,6 @@ FV demo. No issue filed for it.
 Filed as **#2274** (Bug, parent Epic #2230, `size:S`). Until it lands, run
 `rm -rf devlogs` before validating a branch if the integration suite has run in
 that worktree.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2274 (open — already tracked).
+Docs PR: TBD.

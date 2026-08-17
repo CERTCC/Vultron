@@ -500,7 +500,10 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   This applies to production received-side use cases and to tests alike. In tests,
   use `actor_id=case_manager_actor_id`; in received-side use cases, use
   `actor_id=request.receiving_actor_id if request.receiving_actor_id is not None
-  else request.actor_id`. See BT-17-005. *Source: ISSUE-2300*
+  else request.actor_id`. BT nodes that also need the *sender* ID must store it as
+  a private attribute (e.g. `self._target_actor_id`); `DataLayerAction.setup()` will
+  overwrite the blackboard `actor_id` and a stored attribute is the only safe way to
+  keep it. See BT-17-005, BT-17-006. *Source: ISSUE-2300*
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
 - **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —
@@ -659,6 +662,96 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   every slot with `"X"`) but produces a dangling `"—"` in production. The
   allowlist test (SE-07-005 in `test/test_semantic_registry.py`) enforces this
   structurally. *Source: CONCERN-1898*
+- **`py_trees` Blackboard Is Process-Global — Clear Between Test BT Runs** —
+  `py_trees.blackboard.Blackboard.storage` is a module-level singleton.
+  Constructing a fresh `BtNode` tree per test does **not** clear it; keys set
+  by a previous `execute_with_setup` remain visible to the next run. Either use
+  a scoped namespace per run or clear the blackboard explicitly between executions.
+  In production, BT-17-003 already requires domain-specific output keys to be
+  reset on every tick; tests must also prevent cross-test contamination.
+  See CONCERNS.md § "BT blackboard is process-global across BT runs".
+  *Source: ISSUE-2232*
+- **`caplog` Captures Fixture-Setup-Phase Records** — `caplog.set_level()` set
+  in a fixture captures log records emitted during other fixtures' setup, not just
+  the test body. Set it inside the test function to scope capture to the test
+  body only, and call `caplog.clear()` at the start of the assertion block if
+  setup noise accumulates. See TESTING.md § "Known gaps/flaky areas". *Source: ISSUE-2086*
+- **Outbox `BackgroundTasks` Emitter Has Two Resolution Paths — Patch Both in Tests** —
+  `POST /actors/{id}/outbox/` schedules `outbox_handler` with no emitter argument
+  and resolves it via `get_default_emitter()` → patch with
+  `configure_default_emitter(router)`. `POST /actors/{id}/inbox/` schedules
+  `outbox_handler` with `emitter=getattr(request.app.state, "emitter", None)` and
+  bypasses `get_default_emitter()` when `app.state.emitter` is set. A test fixture
+  that patches only one path will miss deliveries from the other. Patch both:
+  `configure_default_emitter(router)` **and** `api_app.state.emitter = router`.
+  *Source: ISSUE-1780*
+- **Designed Self-Healing Recovery Paths MUST NOT Log at ERROR** — a BT node
+  whose failure is handled by a downstream fallback node (Selector sibling,
+  reject-and-replay loop) is logging a self-healing event. Log at `WARNING`
+  (recoverable) or `INFO`, not `ERROR`. `ERROR` is for conditions with no recovery
+  path. Ask: is there a wired fallback that guarantees convergence? If yes,
+  downgrade and name the recovery in the message. *Source: ISSUE-2169*
+- **`reload_config()` MUST Come After `monkeypatch.undo()`, Not Before** —
+  `vultron/config/app.py` holds a module-level `_config_cache`. `reload_config()`
+  re-reads the environment, but `monkeypatch` undoes env changes in fixture
+  teardown **after** its own fixture's body runs. Calling `reload_config()` in
+  the fixture teardown body re-caches the still-patched value; the undo then
+  runs too late. Result: a session-wide config leak that surfaces as flakiness
+  (test ordering matters). Fix: `monkeypatch.undo(); reload_config()`. The
+  autouse guard in `test/demo/conftest.py` contains this, but new demo fixtures
+  must follow the same order. *Source: ISSUE-2086*
+- **`claim-issue.sh` Requires the Current Branch to Be Up to Date with `origin/main`** —
+  the script checks that your branch is ancestor-or-equal to `origin/main`. If
+  `main` has moved since you last synced, the check fails with a confusing error.
+  Run `manage_worktree.sh ensure-synced` or `git fetch origin && git rebase
+  origin/main` first. The presence of an existing task branch for the same issue
+  may also indicate the issue was started (or completed) via another PR — check
+  `git log --oneline origin/main | grep -i "<issue title>"` before assuming
+  nothing was done. *Source: ISSUE-2017*
+- **`create-pr` Cannot Target Integration Branches** — the `create-pr` skill
+  always targets `origin/main`. When multiple related fix PRs share an integration
+  branch (see the integration-branch pitfall above), you must use
+  `gh pr create --base <integration-branch>` directly. *Source: ISSUE-2030*
+- **`references:` Key in Spec YAML Is Silently Dropped by `spec-dump`** — the
+  `StatementSpec` schema does not include a `references:` field; unknown YAML
+  keys are silently discarded. The correct field for linking a spec entry to an
+  ADR is `adr:`, which `spec-lint` validates against known ADR filenames. After
+  adding any new key to a spec YAML, verify it appears in `PYTHONPATH= uv run
+  spec-dump` output before treating it as persisted. *Source: ISSUE-2237*
+- **A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug** —
+  a test whose docstring says "falls back to X" or "defaults to X" for
+  *malformed* (not absent) input is asserting the ARCH-15 violation as intended
+  behavior. Absent input and unreadable input are different: `RM.START` is the
+  right answer when no statuses exist; it is never the right answer when a status
+  exists but cannot be read. A test that locks in the fallback turns the
+  regression suite against the fix. When writing a test for a defensive fallback,
+  distinguish "not present" from "present but invalid" and assert a
+  raise/`FAILURE` for the latter. *Source: ISSUE-2232, ISSUE-2264*
+- **Delete `devlogs/` Before Validating a Branch If the Integration Suite Ran** —
+  `test/demo/test_fv_demo.py` runs `run_fv_demo()` in-process and writes real
+  ledger files into repo-root `devlogs/fv/` (the default path). A subsequent
+  `uv run pytest test/ci/invariants/` then reads those local files instead of
+  skipping, and a second run accumulates two chains whose `prevLogHash` values
+  mismatch. `devlogs/` is gitignored so `git status` shows nothing. Fix:
+  `rm -rf devlogs/` after running the integration suite and before running the
+  invariant harness locally. Bug #2274. *Source: ISSUE-2266*
+- **Git Credential Helper May Point at a Nonexistent `gh` Path** — the git
+  config sets `credential.https://github.com.helper = !/usr/local/bin/gh auth
+  git-credential`, but in this devcontainer `gh` lives at `/usr/bin/gh`. If
+  `git push` fails with `/usr/local/bin/gh: not found`, do **not** try `gh auth
+  setup-git` — `~/.gitconfig` is bind-mounted read-only here. Instead pass a
+  one-shot override: `git -c
+  credential.https://github.com.helper='!/usr/bin/gh auth git-credential' push
+  -u origin <branch>`. *Source: ISSUE-2186*
+- **A Killed `pytest` Run Reports Exit 0 Under `tail -5`** — when
+  `pytest-timeout` kills a test that exceeds the budget, it dumps a stack trace
+  and exits non-zero, but the `uv run pytest ... 2>&1 | tail -5` pipeline
+  returns `tail`'s exit code (0) and shows dump frames where the `N passed`
+  summary line would be. Absence of a summary line from `tail -5` is the signal.
+  Redirect to a file and check pytest's own exit code: `uv run pytest --tb=short
+  > /tmp/unit.log 2>&1; echo $?`. The spec-lint test
+  (`test_real_specs_lint_no_hard_errors`) is particularly load-sensitive at ~3s
+  against the 5s budget. *Source: ISSUE-2232*
 
 ---
 

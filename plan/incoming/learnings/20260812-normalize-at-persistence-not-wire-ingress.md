@@ -39,3 +39,6 @@ exemption set to keep honest, alongside read-side `KNOWN_WIRE_ESCAPES`.  Two
 ratchets for one underlying problem is a smell; #2268 records the structural
 alternative (disjoint `type_` namespaces between the two vocabularies), which
 would delete both.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: wire-shape convergence — design rationale context).
+Docs PR: TBD.

@@ -33,3 +33,6 @@ MUST store the canonical core field shape for any `type_` present in
 `vultron/adapters/driven/db_record.py`); the remaining 13 types are tracked
 in #2268, which is where the architecture test asserting set completeness
 belongs.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: wire-shape convergence design question).
+Docs PR: TBD.

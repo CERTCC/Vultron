@@ -34,3 +34,6 @@ the assertion targets, whenever the arrange phase exercises the same logger.
 Corollary for tests asserting *absence* (`assert not records`): these are the
 most exposed, since any arrange-phase record makes them fail. Always clear
 first.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: caplog captures fixture-setup-phase records.
+Docs PR: TBD.

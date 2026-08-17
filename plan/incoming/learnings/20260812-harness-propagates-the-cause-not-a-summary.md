@@ -42,3 +42,6 @@ AGENTS.md, DEMOCI-01-007 and ADR-0058 all describe `demo_gate` as the primitive
 that stops dependent steps, and it still does not exist in code (#2201, #2203).
 The harness makes an escaping assertion survivable; it does not make the ~20
 unguarded `wait_for_case_participants` call sites causal.
+
+**Promoted**: 2026-08-17 — captured in specs/demo-multi-actor.yaml DEMOMA-23; GitHub #2201, #2203 (already tracked).
+Docs PR: TBD.

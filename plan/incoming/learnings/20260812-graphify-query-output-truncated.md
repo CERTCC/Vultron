@@ -25,3 +25,6 @@ not sufficient for the decision that mattered.
 listing when the full subgraph would exceed the budget, rather than truncating
 a verbose rendering. Until then, treat graph output as orientation only and
 verify counts with a direct search.
+
+**Promoted**: 2026-08-17 — captured in tooling note archived — graphify query truncates on large graphs; fallback to direct grep.
+Docs PR: TBD.

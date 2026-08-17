@@ -39,3 +39,6 @@ is asserting a bug.
 Note also that `test_resolve_participant_state_defaults_when_invalid_vfd_type`
 was left passing on purpose: the vfd dimension remains lenient because RM is
 read first, so a wire-shaped status raises before vfd is reached.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: test that says 'falls back to' for malformed input asserts a bug.
+Docs PR: TBD.

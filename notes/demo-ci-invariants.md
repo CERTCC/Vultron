@@ -374,3 +374,24 @@ combined) is only fully closed by a GitHub **merge queue**, which re-runs
 required checks against the actual merged result before landing. That is a
 larger branch-protection / required-checks decision tracked separately as a
 follow-up Idea; DEMOCI-05 only adds the post-merge baseline signal.
+
+---
+
+## Invariant Scoping: Per-Scenario Participant Set Audit
+
+Invariants in the harness are only invariant *within their scenario's protocol
+path*. Before copying an invariant check to a new scenario, audit it against
+that scenario's participant set and phase list.
+
+**Example**: `check_cs_state_transitions_observed()` with `check_fix_ready=True`
+(the default) requires a VFD `VFd` (fix ready) transition. This invariant holds
+for all vendor-inclusive scenarios where VFD advances, but is inapplicable for
+rejection flows where the Vendor rejects the invitation and VFd is structurally
+unreachable. Pass `check_fix_ready=False` for those scenarios (DEMOCI-06-001
+documents this class of copy-paste defect). *Source: ISSUE-2121*
+
+**Related**: DEMOCI-06-001 already tracks this class of error. The general
+pattern: any harness check that asserts "event X was observed" can become a
+false failure if scenario Y never produces event X by design. The harness parameter
+that enables/disables the check is the correct mechanism, not skipping the
+invariant entirely.

@@ -285,6 +285,25 @@ groups:
           to completion rather than collapsing to the newest, preserving
           per-commit failure attribution.
 
+      - id: DEMOCI-02-012
+        priority: MUST
+        kind: project
+        statement: >-
+          The `docker compose down` teardown step MUST specify a per-container
+          stop grace period of no more than 30 seconds (e.g. `--timeout 30`).
+          Docker's default 10-second SIGTERM window followed by unbounded SIGKILL
+          retries is not sufficient when a vendor container wedges; without an
+          explicit cap, `compose down` can consume the remaining CI job budget.
+        rationale: >-
+          Issue #2245 observed a wedged vendor container consuming the remaining
+          CI budget during teardown because no explicit `--timeout` was set.
+          A 30-second cap bounds the worst-case teardown cost per container to a
+          predictable budget while still giving well-behaved containers time to
+          flush state before SIGKILL.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-02-010
+
   - id: DEMOCI-03
     title: Extensibility for Additional Demo Scenarios
     specs:
@@ -991,3 +1010,27 @@ groups:
             spec_id: DEMOCI-10-002
           - rel_type: refines
             spec_id: DEMOCI-10-003
+
+      - id: DEMOCI-10-007
+        priority: MUST
+        kind: project
+        statement: >-
+          When a `dump-manifest.json` is present under the scenario's devlogs
+          directory and its `caseId` field is non-null,
+          `test/ci/invariants/common.py::load_devlogs()` MUST restrict the
+          returned ledger entries to those whose `case_id` matches the manifest's
+          `caseId`. It MUST NOT return entries from a different case that happen
+          to reside in the same `devlogs/` directory due to accumulated local
+          demo runs.
+        rationale: >-
+          Without case-scoped filtering, accumulated JSONL files from multiple
+          local demo runs that produced different case IDs are concatenated.
+          `test_invariant_1_local_hash_chain_consistent` then sees entries from
+          two chains interleaved, producing false `prevLogHash` mismatches.
+          DEMOCI-10-002 requires the manifest to record `caseId` precisely so
+          `load_devlogs()` can scope itself: a non-null `caseId` is the
+          discriminator that turns "all entries in the directory" into "all
+          entries for this run". Issue #2273.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-002

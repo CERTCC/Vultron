@@ -42,3 +42,6 @@ pre-genesis buffer for `Announce(CaseLedgerEntry)` arriving before
 `Create(VulnerabilityCase)` — is tracked as **#2186** (child of #2136, blocks
 the merge-to-main task #2143). See
 [[20260810-clp-08-005-protocol-hardening-gap]].
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: designed self-healing recovery paths must not log at ERROR.
+Docs PR: TBD.

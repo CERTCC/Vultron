@@ -22,3 +22,6 @@ A Concern issue should be filed to track:
 - Whether `SeedAnnouncedCaseNode` or the `Announce(VulnerabilityCase)` handler should
   synthesize a `VultronOfferRecord` when seeding from an invite path
 - Spec update needed in CM-11-002 and/or the announce-case handler spec
+
+**Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: invited actors advancing RM state — design question).
+Docs PR: TBD.

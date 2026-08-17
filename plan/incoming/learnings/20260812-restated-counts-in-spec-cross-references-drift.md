@@ -42,3 +42,6 @@ Partial coverage landed with #2266: `test/ci/invariants/test_universal_event_typ
 pins DEMOMA-16-001's enumeration against the nine harness constants. The ten sibling
 statements and the two DEMOCI statements remain unguarded prose — see
 `20260812-universal-event-type-ratchet-not-specified.md`.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2277 (open — already tracked).
+Docs PR: TBD.

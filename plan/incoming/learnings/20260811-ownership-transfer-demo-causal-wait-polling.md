@@ -53,3 +53,6 @@ copy with a new ID.
 
 Related: issue #2181 (broader pattern: demos conflate sequential with causal ordering).
 Fix PR: <https://github.com/CERTCC/Vultron/pull/2182>
+
+**Promoted**: 2026-08-17 — captured in notes/ownership-transfer.md, notes/event-driven-control-flow.md (already present from prior session).
+Docs PR: TBD.

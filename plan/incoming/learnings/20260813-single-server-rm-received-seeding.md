@@ -27,3 +27,6 @@ the minimum "fake" needed while still demonstrating the protocol correctly.
 If the ADR-0041 CaseProposal round-trip is ever enabled in single-server mode
 (issue #2267 context), this seeding should be removed entirely so the protocol
 drives the full `START → RECEIVED` transition automatically.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2267 (open — already tracked).
+Docs PR: TBD.

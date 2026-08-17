@@ -27,3 +27,6 @@ attribute (e.g. `_target_actor_id`) to prevent `DataLayerAction.setup()`
 from overwriting it with the blackboard's `actor_id`.
 
 Related: BT-17-005, BT-06-006, CLP-10-006, ISSUE-2300.
+
+**Promoted**: 2026-08-17 — captured in specs/behavior-tree-integration.yaml BT-17-006; AGENTS.md pitfall (both updated in this session).
+Docs PR: TBD.

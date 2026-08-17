@@ -41,3 +41,6 @@ branch-owned failure.
 - Either raise the global `timeout` or mark the spec-lint tests with a larger
   per-test budget. A single slow test taking the entire suite down is a
   disproportionate failure mode, and 61%-of-budget is not headroom.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: killed pytest run reports exit 0 under tail -5.
+Docs PR: TBD.

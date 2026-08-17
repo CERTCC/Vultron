@@ -23,3 +23,6 @@ audit each one against the scenario's participant set and phase list — a check
 that is universal for vendor-inclusive scenarios may be inapplicable for
 rejection or no-vendor flows.  This is the same class of copy-paste defect
 documented in DEMOCI-06-001.
+
+**Promoted**: 2026-08-17 — captured in notes/demo-ci-invariants.md (Invariant Scoping: Per-Scenario Participant Set Audit).
+Docs PR: TBD.

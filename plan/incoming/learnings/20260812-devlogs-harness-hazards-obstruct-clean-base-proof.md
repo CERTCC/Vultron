@@ -38,3 +38,6 @@ of the four failures vanished. The fourth,
 `test_invariant_5_expected_event_types_present[validate_report]`, reproduced
 byte-identically on a clean `origin/main` worktree and is genuinely
 pre-existing — see #2273 and the cross-reference on #2266.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: delete devlogs/ before validating if integration suite ran.
+Docs PR: TBD.

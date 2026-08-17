@@ -19,3 +19,6 @@ multi-run accumulation or per-case scoping.
 A spec entry is needed under DEMOCI-10 or a new DEMOCI-11 group to formalise
 the invariant: "when a manifest is present with a non-null `caseId`, `load_devlogs`
 MUST restrict returned entries to that `caseId`."
+
+**Promoted**: 2026-08-17 — captured in specs/demo-ci.yaml DEMOCI-10-007 (added in this session).
+Docs PR: TBD.

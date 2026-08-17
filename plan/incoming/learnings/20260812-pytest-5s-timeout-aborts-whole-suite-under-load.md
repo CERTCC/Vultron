@@ -38,3 +38,6 @@ Possible systemic fixes: raise the default `timeout`, mark the handful of
 genuinely slow tests with `@pytest.mark.timeout(N)` and lower the global value,
 or switch to `timeout_method = "signal"` so a single test fails instead of the
 process dying.
+
+**Promoted**: 2026-08-17 — captured in AGENTS.md pitfall: killed pytest run; docs/reference/codebase/TESTING.md.
+Docs PR: TBD.

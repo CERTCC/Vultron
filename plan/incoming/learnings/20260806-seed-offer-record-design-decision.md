@@ -17,3 +17,6 @@ Chose option 2 because option 1 would change production invite semantics without
 the new behavior — the production shape of offer-record propagation is unresolved (see
 `20260806-invited-actor-offer-record-spec-gap.md`). The PROTOTYPE-only endpoint is explicitly
 scoped to demo use and will be superseded once the spec gap is addressed.
+
+**Promoted**: 2026-08-17 — captured in GitHub #2320 (Concern: invited actors advancing RM state — design context).
+Docs PR: TBD.
