@@ -21,12 +21,15 @@ import from this module::
     from vultron.adapters.driven.datalayer import get_datalayer
 
 Switching the backend only requires updating the import below.
+
+There is deliberately no ``get_shared_dl``: every DataLayer belongs to exactly
+one actor (ADR-0066), so an unscoped/"admin" instance has no referent. Code that
+needs a node-wide picture enumerates hosted actors and fans out.
 """
 
 from vultron.adapters.driven.datalayer_sqlite import (  # noqa: F401
     SqliteDataLayer as DataLayerImpl,
     get_all_actor_datalayers,
     get_datalayer,
-    get_shared_dl,
     reset_datalayer,
 )
