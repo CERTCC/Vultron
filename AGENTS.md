@@ -504,13 +504,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
 - **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —
-  If `git cherry-pick --abort` fails (partially-written cherry-pick state),
-  the `|| true` swallows the error but the following `git checkout "$TASK_BRANCH"`
-  fails with "you need to resolve your current index first" and the script exits,
-  leaving the repo on a `temp-freshen-*` branch with conflict markers.
-  Recovery: `git branch --show-current` (confirm `temp-freshen-*`), resolve
-  conflict markers, `git add <file>`, `git cherry-pick --continue --no-edit`,
-  then `git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH"`.
+  *Fixed in #1784.* The script now runs cherry-pick with `core.hooksPath=/dev/null`
+  (preventing pre-commit hook interference) and guards the cleanup checkout with
+  `|| git checkout -` (preventing silent exit when `cherry-pick --abort` leaves
+  conflict markers). If both checkout attempts still fail (rare: genuine conflict
+  marker blocking every branch switch), manual recovery is required:
+  `git branch --show-current` (confirm `temp-freshen-*`), resolve conflict
+  markers, `git add <file>`, `git cherry-pick --continue --no-edit`, then
+  `git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH" && git branch -D "$TEMP"`.
   Use `manage_worktree.sh ensure-synced` in preference to the raw script.
 - **A Red CI Job Is Not Evidence That Its Assertions Ran** — a job that dies in
   an earlier step (artifact download, dependency setup, container build) never
@@ -541,7 +542,8 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   uncommitted work. See also: single large-commit branches with 70+ files trigger a
   sequencer duplicate-pick bug; the cherry-pick workaround resolves both variants.
   If `freshen-branch.sh` took this path and then hit a conflict, it can leave the
-  temp branch behind — delete it by hand (ISSUE-1784).
+  temp branch behind — delete it by hand. *Fixed in #1784: the script now guards
+  the cleanup checkout.*
   *Sources: ISSUE-1518, ISSUE-1504, ISSUE-1784*
 - **Verify Issue ACs Against Current Code Before Starting** — an issue may already
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
