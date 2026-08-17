@@ -135,6 +135,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0063 Render Core Objects to Wire JSON Through a Driven Port; Remove `alias_generator` From All Core-Branch Types](0063-wire-rendering-port-for-core-objects.md)
 - [ADR-0064 Enforce Post-Construction Type Safety on the Core Branch Only, in Three Ratcheted Steps](0064-core-branch-validate-assignment.md)
 - [ADR-0065 Carry the Embargo Invite RSVP Deadline on `Invite.end_time`](0065-embargo-invite-rsvp-deadline.md) *(provisional)*
+- [ADR-0066 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0066-per-actor-storage-isolation.md) — supersedes the DataLayer isolation strategy of 0012
 - [ADR-0066 Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store](0066-outbox-terminal-state.md)
 
 ## Proposed ADRs

@@ -24,12 +24,25 @@ from vultron.adapters.driven.datalayer_sqlite import (
     get_datalayer,
     reset_datalayer,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import StorableRecord
 
 
 def _record(id_: str, type_: str = "Note") -> StorableRecord:
     """Helper to build a minimal StorableRecord for testing."""
     return StorableRecord(id_=id_, type_=type_, data_={"id_": id_})
+
+
+def _record_obj(
+    id_: str, type_: str = "VulnerabilityCase", summary: str | None = None
+) -> VulnerabilityCase:
+    """Helper to build a typed domain object for ``save()``.
+
+    ``save()`` takes a ``PersistableModel``, not a ``StorableRecord``, so the
+    cross-actor tests need a real core object rather than ``_record``.
+    """
+    assert type_ == "VulnerabilityCase", f"unsupported test type {type_!r}"
+    return VulnerabilityCase(id_=id_, summary=summary)
 
 
 @pytest.fixture(autouse=True)
@@ -103,6 +116,85 @@ class TestRecordIsolation:
         dl_a.create(_record("https://example.org/r/003"))
         result = dl_a.read("https://example.org/r/003")
         assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# Inbox methods
+# ---------------------------------------------------------------------------
+
+
+class TestCrossActorReplicaIsolation:
+    """Two actors sharing one configured store each hold their own replica.
+
+    Regression coverage for issue #2238 / CM-01-001 ("each actor MUST have an
+    isolated protocol state domain").  ``create()`` decided "already exists"
+    with an **unscoped** primary-key lookup while ``read()`` was actor-scoped,
+    so the second actor's ``create()`` raised ``ValueError`` and left that
+    actor with no replica row it could read.  ``save()`` had the same unscoped
+    lookup but no error, so one actor's write silently landed in another
+    actor's row.
+
+    Both are deployed topologies, not hypotheticals: a single container hosts
+    an actor plus the CaseActors it self-hosts (CP-08-003), and single-server
+    demo mode runs every actor against one configured store.
+    """
+
+    ACTOR_A = "https://a.example/api/v2/actors/a"
+    ACTOR_B = "https://b.example/api/v2/actors/b"
+    CASE_ID = "urn:uuid:11111111-1111-1111-1111-111111111111"
+
+    @pytest.fixture
+    def db_url(self, tmp_path):
+        """One configured storage location shared by both actors."""
+        return f"sqlite:///{tmp_path / 'vultron.sqlite'}"
+
+    def test_both_actors_can_create_the_same_object_id(self, db_url):
+        """Neither actor's create() may be refused because of the other's."""
+        dl_a = SqliteDataLayer(db_url, actor_id=self.ACTOR_A)
+        dl_b = SqliteDataLayer(db_url, actor_id=self.ACTOR_B)
+
+        dl_a.create(_record(self.CASE_ID, "VulnerabilityCase"))
+        # Before #2238 this raised ValueError: the existence check was a bare
+        # primary-key get that saw actor A's row.
+        dl_b.create(_record(self.CASE_ID, "VulnerabilityCase"))
+
+        assert dl_a.read(self.CASE_ID) is not None
+        assert dl_b.read(self.CASE_ID) is not None
+
+    def test_second_actor_can_read_back_its_own_replica(self, db_url):
+        """A replica the actor created MUST be readable by that actor."""
+        dl_a = SqliteDataLayer(db_url, actor_id=self.ACTOR_A)
+        dl_b = SqliteDataLayer(db_url, actor_id=self.ACTOR_B)
+
+        dl_a.create(_record(self.CASE_ID, "VulnerabilityCase"))
+        dl_b.save(_record_obj(self.CASE_ID, "VulnerabilityCase"))
+
+        assert dl_b.read(self.CASE_ID) is not None, (
+            "actor B wrote its own replica and cannot read it back — the write"
+            " landed in another actor's row (#2238)"
+        )
+
+    def test_one_actors_write_cannot_change_what_another_reads(self, db_url):
+        """The core invariant: writes never cross the actor boundary."""
+        dl_a = SqliteDataLayer(db_url, actor_id=self.ACTOR_A)
+        dl_b = SqliteDataLayer(db_url, actor_id=self.ACTOR_B)
+
+        dl_a.create(
+            StorableRecord(
+                id_=self.CASE_ID,
+                type_="VulnerabilityCase",
+                data_={"id_": self.CASE_ID, "summary": "A's view"},
+            )
+        )
+        before = dl_a.read(self.CASE_ID)
+
+        dl_b.save(_record_obj(self.CASE_ID, "VulnerabilityCase", "B's view"))
+
+        after = dl_a.read(self.CASE_ID)
+        assert after is not None, "actor B's write deleted actor A's row"
+        assert getattr(after, "summary", None) == getattr(
+            before, "summary", None
+        ), "actor B's write mutated what actor A reads (CM-01-001)"
 
 
 # ---------------------------------------------------------------------------

@@ -51,12 +51,10 @@ def count_all(
         key with value ``0`` (SQLite has no default table concept).
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(
-                VultronObjectRecord.type_,
-                func.count(),  # type: ignore[call-overload]
-            ).group_by(VultronObjectRecord.type_)
-        )
+        stmt = select(
+            VultronObjectRecord.type_,
+            func.count(),  # type: ignore[call-overload]
+        ).group_by(VultronObjectRecord.type_)
         rows = session.exec(stmt).all()
     counts: dict[str, int] = {"_default": 0}
     for type_name, count in rows:
@@ -78,10 +76,8 @@ def by_type(
         Mapping of ``{id_: data_dict}`` for every record of that type.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == type_
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == type_
         )
         rows = session.exec(stmt).all()
     results: dict[str, dict[str, Any]] = {}
@@ -108,10 +104,8 @@ def all(
     """
     with Session(dl._engine) as session:
         if table is not None:
-            stmt = dl._scoped(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.type_ == table
-                )
+            stmt = select(VultronObjectRecord).where(
+                VultronObjectRecord.type_ == table
             )
             rows = session.exec(stmt).all()
             return [
@@ -119,7 +113,7 @@ def all(
                 for row in rows
             ]
 
-        stmt = dl._scoped(select(VultronObjectRecord))
+        stmt = select(VultronObjectRecord)
         rows = session.exec(stmt).all()
         results: dict[str, PersistableModel] = {}
         for row in rows:
@@ -145,11 +139,9 @@ def exists(
         ``True`` if found; ``False`` otherwise.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == table,
-                VultronObjectRecord.id_ == id_,
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == table,
+            VultronObjectRecord.id_ == id_,
         )
         row = session.exec(stmt).first()
         return row is not None
@@ -191,10 +183,8 @@ def list_objects(
         List of rehydrated domain objects of the requested type.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == type_key
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == type_key
         )
         rows = session.exec(stmt).all()
     results: list[PersistableModel] = []
@@ -232,8 +222,6 @@ def find_actor_by_short_id(
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_.in_(list(_ACTOR_TYPES))  # type: ignore[attr-defined]
         )
-        if dl._actor_id:
-            stmt = stmt.where(VultronObjectRecord.actor_id == dl._actor_id)
         rows = session.exec(stmt).all()
 
     matches: list[PersistableModel] = []
@@ -270,8 +258,6 @@ def find_case_by_short_id(
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
         )
-        if dl._actor_id:
-            stmt = stmt.where(VultronObjectRecord.actor_id == dl._actor_id)
         rows = session.exec(stmt).all()
 
     matches: list[PersistableModel] = []
@@ -317,10 +303,8 @@ def find_case_by_report_id(
 
     with Session(dl._engine) as session:
         rows = session.exec(
-            dl._scoped(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
-                )
+            select(VultronObjectRecord).where(
+                VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
             )
         ).all()
 

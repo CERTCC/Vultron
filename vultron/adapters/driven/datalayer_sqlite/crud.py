@@ -85,7 +85,6 @@ def create(
         row = VultronObjectRecord(
             id_=rec.id_,
             type_=rec.type_,
-            actor_id=dl._actor_id,
             data=rec.data_,
         )
         session.add(row)
@@ -118,20 +117,17 @@ def read(
 
     with Session(dl._engine) as session:
         for candidate in candidates:
-            stmt = dl._scoped(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.id_ == candidate
-                )
+            stmt = select(VultronObjectRecord).where(
+                VultronObjectRecord.id_ == candidate
             )
             row = session.exec(stmt).first()
             if row is not None:
                 if row.type_ == "CaseParticipant":
                     summary = participant_status_summary(row.data)
                     logger.debug(
-                        "DataLayer read CaseParticipant '%s' (row "
-                        "actor_id=%r dl_actor_id=%r): %s",
+                        "DataLayer read CaseParticipant '%s' from "
+                        "actor '%s' store: %s",
                         row.id_,
-                        row.actor_id,
                         dl._actor_id,
                         summary,
                     )
@@ -164,7 +160,6 @@ def save(
             row = VultronObjectRecord(
                 id_=rec.id_,
                 type_=rec.type_,
-                actor_id=dl._actor_id,
                 data=rec.data_,
             )
         else:
@@ -206,7 +201,6 @@ def save_many(
                 row = VultronObjectRecord(
                     id_=rec.id_,
                     type_=rec.type_,
-                    actor_id=dl._actor_id,
                     data=rec.data_,
                 )
             else:
@@ -234,11 +228,9 @@ def delete(
         ``True`` if deleted; ``False`` if not found.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == table,
-                VultronObjectRecord.id_ == id_,
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == table,
+            VultronObjectRecord.id_ == id_,
         )
         row = session.exec(stmt).first()
         if row is None:
@@ -259,10 +251,8 @@ def clear_table(
         table: Object type to clear.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == table
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == table
         )
         rows = session.exec(stmt).all()
         for row in rows:
@@ -273,28 +263,19 @@ def clear_table(
 def clear_all(
     dl: "Any",  # SqliteDataLayer
 ) -> None:
-    """Remove all object records (and queue entries) for this actor scope.
+    """Remove every object record and queue entry in this actor's store.
+
+    The store belongs to exactly one actor (ADR-0066), so this clears that
+    actor and cannot reach another's data.
 
     Args:
         dl: The SqliteDataLayer instance.
     """
     with Session(dl._engine) as session:
-        if dl._actor_id:
-            for row in session.exec(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.actor_id == dl._actor_id
-                )
-            ).all():
-                session.delete(row)
-            for entry in session.exec(
-                select(QueueEntry).where(QueueEntry.actor_id == dl._actor_id)
-            ).all():
-                session.delete(entry)
-        else:
-            for row in session.exec(select(VultronObjectRecord)).all():
-                session.delete(row)
-            for entry in session.exec(select(QueueEntry)).all():
-                session.delete(entry)
+        for row in session.exec(select(VultronObjectRecord)).all():
+            session.delete(row)
+        for entry in session.exec(select(QueueEntry)).all():
+            session.delete(entry)
         session.commit()
 
 
@@ -348,10 +329,8 @@ def get(
     """
     with Session(dl._engine) as session:
         if table is None and id_ is not None:
-            stmt = dl._scoped(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.id_ == id_
-                )
+            stmt = select(VultronObjectRecord).where(
+                VultronObjectRecord.id_ == id_
             )
             row = session.exec(stmt).first()
             if row is None:
@@ -366,11 +345,9 @@ def get(
                 "get requires either table and id_ or id_ as keyword"
             )
 
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == table,
-                VultronObjectRecord.id_ == id_,
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == table,
+            VultronObjectRecord.id_ == id_,
         )
         row = session.exec(stmt).first()
         if row is None:
@@ -392,10 +369,8 @@ def get_all(
         List of dicts, each with ``id_``, ``type_``, and ``data_`` keys.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == table
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == table
         )
         rows = session.exec(stmt).all()
         return [

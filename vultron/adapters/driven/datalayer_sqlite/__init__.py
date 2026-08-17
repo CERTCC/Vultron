@@ -27,6 +27,7 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 """
 
 from .datalayer import SqliteDataLayer
+from .engine import dispose_actor_engines
 from .schema import VultronObjectRecord, QueueEntry
 
 __all__ = [
@@ -34,73 +35,57 @@ __all__ = [
     "VultronObjectRecord",
     "QueueEntry",
     "get_datalayer",
-    "get_shared_dl",
     "get_all_actor_datalayers",
     "reset_datalayer",
 ]
 
 
 # ---------------------------------------------------------------------------
-# Module-level factory / singleton management
+# Module-level factory / instance management
 # ---------------------------------------------------------------------------
 
-_shared_instance: SqliteDataLayer | None = None
 _actor_instances: dict[str, SqliteDataLayer] = {}
 
 
 def get_datalayer(
-    actor_id: str | None = None, db_url: str | None = None
+    actor_id: str, db_url: str | None = None
 ) -> SqliteDataLayer:
-    """Factory that returns (or creates) a :class:`SqliteDataLayer` instance.
+    """Factory that returns (or creates) the DataLayer for *actor_id*.
 
-    When ``actor_id`` is provided, returns (or creates) an actor-scoped
-    instance whose rows are filtered by ``actor_id``.  Different actors get
-    fully isolated DataLayer views backed by the same SQLite file.
-
-    When ``actor_id`` is ``None``, returns (or creates) a shared/admin
-    instance with no actor filtering.  Admin endpoints and health checks use
-    this form.
+    Every actor gets its own store (ADR-0066).  There is no shared or
+    "admin" DataLayer: an unscoped view would be able to read across actors,
+    which CM-01-001 forbids.  Code that needs a node-wide picture must
+    enumerate hosted actors and fan out.
 
     In tests, use dependency injection to override this function, or pass an
     explicit ``db_url="sqlite:///:memory:"`` argument.
 
     Args:
-        actor_id: The actor whose scoped DataLayer to return.  ``None`` for
-            the shared/admin DataLayer.
-        db_url: SQLAlchemy connection URL.  Defaults to
+        actor_id: The canonical URI of the actor whose DataLayer to return.
+        db_url: SQLAlchemy connection URL **template**.  Defaults to
             ``get_config().database.db_url`` (``"sqlite:///vultron.db"``
             unless overridden via ``VULTRON_DATABASE__DB_URL`` or
-            ``config.yaml``).
+            ``config.yaml``).  The per-actor store is derived from it.
 
     Returns:
-        :class:`SqliteDataLayer` — actor-scoped or shared instance.
+        :class:`SqliteDataLayer` for *actor_id*.
+
+    Raises:
+        ValueError: If *actor_id* is empty.
     """
     from vultron.config import get_config
 
-    global _shared_instance
+    if not actor_id:
+        raise ValueError(
+            "get_datalayer requires a canonical actor URI; there is no "
+            "unscoped DataLayer (ADR-0066, CM-01-001)"
+        )
     _url = db_url if db_url is not None else get_config().database.db_url
-    if actor_id is None:
-        if _shared_instance is None:
-            _shared_instance = SqliteDataLayer(db_url=_url)
-        return _shared_instance
     if actor_id not in _actor_instances:
-        # Ensure the shared instance exists so we can clone from it.
-        # Cloning shares the underlying engine, which is critical for
-        # in-memory SQLite (each Engine gets its own isolated database).
-        if _shared_instance is None:
-            _shared_instance = SqliteDataLayer(db_url=_url)
-        _actor_instances[actor_id] = _shared_instance.clone_for_actor(actor_id)
+        _actor_instances[actor_id] = SqliteDataLayer(
+            db_url=_url, actor_id=actor_id
+        )
     return _actor_instances[actor_id]
-
-
-def get_shared_dl() -> "SqliteDataLayer":
-    """FastAPI dependency: always returns the shared (non-actor-scoped) DataLayer.
-
-    Use this function in ``Depends()`` instead of a local ``_shared_dl``
-    wrapper.  Override via ``app.dependency_overrides[get_shared_dl]`` in
-    tests to inject an isolated in-memory DataLayer per application instance.
-    """
-    return get_datalayer()
 
 
 def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
@@ -138,17 +123,14 @@ def reset_datalayer(actor_id: str | None = None) -> None:
 
     Args:
         actor_id: If provided, resets only the instance for that actor.
-            If ``None``, resets all instances (shared + all per-actor).
+            If ``None``, resets every per-actor instance.
     """
-    global _shared_instance, _actor_instances
+    global _actor_instances
 
     instances_to_close: list[SqliteDataLayer] = []
 
     if actor_id is None:
-        if _shared_instance is not None:
-            instances_to_close.append(_shared_instance)
         instances_to_close.extend(_actor_instances.values())
-        _shared_instance = None
         _actor_instances = {}
     else:
         if actor_id in _actor_instances:
@@ -156,3 +138,10 @@ def reset_datalayer(actor_id: str | None = None) -> None:
 
     for inst in instances_to_close:
         inst.close()
+
+    if actor_id is None:
+        # Engines are cached independently of the instance registry (a
+        # DataLayer built directly, not via get_datalayer, still caches one),
+        # so a full reset must clear the engine cache too or an in-memory
+        # store would survive into the next test.
+        dispose_actor_engines()

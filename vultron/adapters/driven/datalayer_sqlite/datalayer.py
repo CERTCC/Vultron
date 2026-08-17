@@ -40,7 +40,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 from .schema import VultronObjectRecord
-from .engine import make_engine
+from .engine import dispose_actor_engines, get_actor_engine
 from . import crud, queries, queues
 
 logger = logging.getLogger(__name__)
@@ -52,45 +52,60 @@ class SqliteDataLayer:
     def __init__(
         self,
         db_url: str = "sqlite:///:memory:",
-        actor_id: str | None = None,
+        *,
+        actor_id: str,
         enqueue_callback: Callable[[str], None] | None = None,
     ) -> None:
-        self._engine = make_engine(db_url)
+        """Open the store belonging to *actor_id*.
+
+        Args:
+            db_url: The configured SQLAlchemy URL **template**.  Each actor
+                gets its own store derived from it (ADR-0066), so this names a
+                family of stores rather than one location.
+            actor_id: The actor's canonical URI.  Required and keyword-only:
+                there is no unscoped DataLayer, so there is no such thing as a
+                store that is not some actor's own (CM-01-001).
+            enqueue_callback: Optional callback invoked with ``actor_id`` when
+                an item is appended to this actor's outbox.
+
+        Raises:
+            ValueError: If *actor_id* is empty or yields no usable slug.
+        """
+        self._db_url = db_url
         self._actor_id = actor_id
-        self._owns_engine: bool = True
+        self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
 
     def close(self) -> None:
-        """Dispose the underlying SQLAlchemy engine, releasing connections."""
-        if self._owns_engine:
-            self._engine.dispose()
+        """Dispose this actor's engine, releasing its SQLite connections.
+
+        Engines are cached per ``(db_url, actor_id)`` so that two instances for
+        the same actor share one store; disposal therefore goes through the
+        cache rather than the local reference.
+        """
+        dispose_actor_engines(self._db_url, self._actor_id)
 
     def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
-        """Return a new actor-scoped instance sharing this instance's engine.
+        """Return a DataLayer for *actor_id*, backed by that actor's own store.
 
-        The concrete return type is ``SqliteDataLayer``, which satisfies the
-        :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer` Protocol
-        structurally at both type-check and runtime (ARCH-13-003).
-
-        The returned instance borrows the underlying engine (it does not own
-        it) so its :meth:`close` / ``__del__`` will not dispose the engine.
-        The original instance remains responsible for engine lifecycle.
+        Under ADR-0066 this opens a **different** store rather than applying a
+        filter to a shared one, so nothing the returned instance writes can be
+        read through this instance, and vice versa.  Cloning for the actor this
+        instance already serves returns an equivalent instance sharing the same
+        cached engine.
 
         Args:
-            actor_id: The actor URI to scope the new instance to.
+            actor_id: The canonical URI of the actor whose store to open.
 
         Returns:
-            A :class:`SqliteDataLayer` scoped to *actor_id* (satisfies
-            :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer`)
-            that reads and writes to the same database as this instance.
+            A :class:`SqliteDataLayer` on *actor_id*'s own store.
         """
-        clone = SqliteDataLayer.__new__(SqliteDataLayer)
-        clone._engine = self._engine
-        clone._actor_id = actor_id
-        clone._owns_engine = False
-        clone._enqueue_callback = self._enqueue_callback
-        return clone
+        return SqliteDataLayer(
+            self._db_url,
+            actor_id=actor_id,
+            enqueue_callback=self._enqueue_callback,
+        )
 
     def set_enqueue_callback(
         self, callback: Callable[[str], None] | None
@@ -116,35 +131,28 @@ class SqliteDataLayer:
         self.close()
 
     def __del__(self) -> None:
-        """Dispose engine on garbage collection to avoid ResourceWarning.
+        """Do not dispose on garbage collection.
 
-        Only disposes if this instance created (owns) the engine.  Borrowed
-        engines (``_owns_engine = False``) must be disposed by their owner.
+        Engines are cached per ``(db_url, actor_id)`` and shared by every
+        instance serving that actor, so disposing here would close a store that
+        other live instances are still using.  Disposal is explicit, via
+        :meth:`close` or ``reset_datalayer``.
         """
-        if not getattr(self, "_owns_engine", True):
-            return
-        try:
-            self._engine.dispose()
-        except Exception:  # noqa: BLE001
-            pass
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _scoped(self, stmt: Any) -> Any:
-        """Apply actor-scoping WHERE clause when this DL has an actor_id."""
-        if self._actor_id:
-            return stmt.where(VultronObjectRecord.actor_id == self._actor_id)
-        return stmt
-
     def _to_row(self, obj: PersistableModel) -> VultronObjectRecord:
-        """Convert a domain object to a storage row."""
+        """Convert a domain object to a storage row.
+
+        No ``actor_id`` column is written: the store *is* the actor's, so
+        stamping ownership on each row would be redundant (ADR-0066).
+        """
         rec = Record.from_obj(obj)
         return VultronObjectRecord(
             id_=rec.id_,
             type_=rec.type_,
-            actor_id=self._actor_id,
             data=rec.data_,
         )
 
@@ -663,14 +671,6 @@ class SqliteDataLayer:
         """Return all activity IDs in this actor's outbox, in insertion order."""
         return queues.outbox_list(self)
 
-    def outbox_list_for_actor(self, actor_id: str) -> list[str]:
-        """Return all outbox activity IDs for *actor_id*, in insertion order."""
-        return queues.outbox_list_for_actor(self, actor_id)
-
     def outbox_pop(self) -> str | None:
         """Remove and return the oldest activity ID from the outbox."""
         return queues.outbox_pop(self)
-
-    def record_outbox_item(self, actor_id: str, activity_id: str) -> None:
-        """Queue an outbox item for *actor_id* regardless of this DL's scope."""
-        queues.record_outbox_item(self, actor_id, activity_id)

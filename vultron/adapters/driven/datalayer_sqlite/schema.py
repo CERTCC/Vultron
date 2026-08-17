@@ -25,25 +25,37 @@ from vultron.adapters.utils import strip_id_prefix
 
 
 class VultronObjectRecord(SQLModel, table=True):
-    """Persistent storage row for a single domain object."""
+    """Persistent storage row for a single domain object.
+
+    There is no ``actor_id`` column: under ADR-0066 each actor has its own
+    store, so every row in this table belongs to that store's actor by
+    construction.  The column used to exist as a *filter*, which partitioned
+    reads but not writes — one actor's ``save()`` could overwrite another's row
+    because ``id_`` is globally unique within a file (issue #2238).
+    """
 
     __tablename__ = "vultron_objects"  # type: ignore[assignment]
     __table_args__ = {"extend_existing": True}
 
     id_: str = Field(primary_key=True)
     type_: str = Field(index=True)
-    actor_id: str | None = Field(default=None, index=True)
     data: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
 
 class QueueEntry(SQLModel, table=True):
-    """A single inbox or outbox entry for an actor."""
+    """A single inbox or outbox entry.
+
+    Like :class:`VultronObjectRecord`, this carries no ``actor_id``: the queue
+    lives in its owning actor's store.  Dropping the column also removes the
+    class of bug where a queue was written under one actor-id spelling and read
+    under another (BUG-2026040901, and the ``outbox_list()`` /
+    ``clone_for_actor`` pitfall in ``notes/datalayer-design.md``).
+    """
 
     __tablename__ = "vultron_queue"  # type: ignore[assignment]
     __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
-    actor_id: str = Field(index=True)
     queue: str = Field(index=True)  # "inbox" or "outbox"
     activity_id: str
 

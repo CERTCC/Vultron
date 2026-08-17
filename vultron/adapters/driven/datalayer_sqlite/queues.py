@@ -13,7 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Inbox and outbox queue operations for the SQLite data layer."""
+"""Inbox and outbox queue operations for the SQLite data layer.
+
+Each queue lives in its owning actor's store (ADR-0066), so none of these
+functions takes or filters on an ``actor_id``.  That removes a whole class of
+defect in which a queue was written under one spelling of an actor id and read
+under another — the cause of BUG-2026040901 and of the ``outbox_list()``
+requires-``clone_for_actor`` pitfall.
+
+``record_outbox_item(actor_id, ...)`` and ``outbox_list_for_actor(actor_id)``
+used to exist so that an unscoped DataLayer could name the actor explicitly.
+Every one of their call sites passed the *executing* actor's own id, so with a
+mandatory actor scope they are exactly :func:`outbox_append` and
+:func:`outbox_list` and have been folded into them.
+"""
 
 import logging
 from typing import Any
@@ -23,6 +36,43 @@ from sqlmodel import Session, col, select
 from .schema import QueueEntry
 
 logger = logging.getLogger(__name__)
+
+
+def _queue_list(dl: "Any", queue: str) -> list[str]:
+    """Return every activity ID in *queue*, in insertion order."""
+    with Session(dl._engine) as session:
+        stmt = (
+            select(QueueEntry)
+            .where(QueueEntry.queue == queue)
+            .order_by(col(QueueEntry.id))
+        )
+        rows = session.exec(stmt).all()
+    return [row.activity_id for row in rows]
+
+
+def _queue_pop(dl: "Any", queue: str) -> str | None:
+    """Remove and return the oldest activity ID in *queue*."""
+    with Session(dl._engine) as session:
+        stmt = (
+            select(QueueEntry)
+            .where(QueueEntry.queue == queue)
+            .order_by(col(QueueEntry.id))
+            .limit(1)
+        )
+        row = session.exec(stmt).first()
+        if row is None:
+            return None
+        activity_id = row.activity_id
+        session.delete(row)
+        session.commit()
+    return activity_id
+
+
+def _queue_append(dl: "Any", queue: str, activity_id: str) -> None:
+    """Append *activity_id* to *queue*."""
+    with Session(dl._engine) as session:
+        session.add(QueueEntry(queue=queue, activity_id=activity_id))
+        session.commit()
 
 
 def inbox_append(
@@ -35,12 +85,7 @@ def inbox_append(
         dl: The SqliteDataLayer instance.
         activity_id: ID of the activity to enqueue.
     """
-    actor = dl._actor_id or ""
-    with Session(dl._engine) as session:
-        session.add(
-            QueueEntry(actor_id=actor, queue="inbox", activity_id=activity_id)
-        )
-        session.commit()
+    _queue_append(dl, "inbox", activity_id)
 
 
 def inbox_list(dl: "Any") -> list[str]:  # SqliteDataLayer
@@ -52,18 +97,7 @@ def inbox_list(dl: "Any") -> list[str]:  # SqliteDataLayer
     Returns:
         List of activity ID strings in insertion order.
     """
-    actor = dl._actor_id or ""
-    with Session(dl._engine) as session:
-        stmt = (
-            select(QueueEntry)
-            .where(
-                QueueEntry.actor_id == actor,
-                QueueEntry.queue == "inbox",
-            )
-            .order_by(col(QueueEntry.id))
-        )
-        rows = session.exec(stmt).all()
-    return [row.activity_id for row in rows]
+    return _queue_list(dl, "inbox")
 
 
 def inbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
@@ -75,24 +109,7 @@ def inbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
     Returns:
         The oldest activity ID string, or ``None`` if empty.
     """
-    actor = dl._actor_id or ""
-    with Session(dl._engine) as session:
-        stmt = (
-            select(QueueEntry)
-            .where(
-                QueueEntry.actor_id == actor,
-                QueueEntry.queue == "inbox",
-            )
-            .order_by(col(QueueEntry.id))
-            .limit(1)
-        )
-        row = session.exec(stmt).first()
-        if row is None:
-            return None
-        activity_id = row.activity_id
-        session.delete(row)
-        session.commit()
-    return activity_id
+    return _queue_pop(dl, "inbox")
 
 
 def outbox_append(
@@ -105,19 +122,14 @@ def outbox_append(
         dl: The SqliteDataLayer instance.
         activity_id: ID of the activity to enqueue.
     """
-    actor = dl._actor_id or ""
-    with Session(dl._engine) as session:
-        session.add(
-            QueueEntry(actor_id=actor, queue="outbox", activity_id=activity_id)
-        )
-        session.commit()
+    _queue_append(dl, "outbox", activity_id)
     if dl._enqueue_callback is not None:
         try:
-            dl._enqueue_callback(actor)
+            dl._enqueue_callback(dl._actor_id)
         except Exception:  # noqa: BLE001
             logger.warning(
                 "outbox_append: enqueue_callback raised for actor '%s'",
-                actor,
+                dl._actor_id,
             )
 
 
@@ -130,48 +142,7 @@ def outbox_list(dl: "Any") -> list[str]:  # SqliteDataLayer
     Returns:
         List of activity ID strings in insertion order.
     """
-    actor = dl._actor_id or ""
-    with Session(dl._engine) as session:
-        stmt = (
-            select(QueueEntry)
-            .where(
-                QueueEntry.actor_id == actor,
-                QueueEntry.queue == "outbox",
-            )
-            .order_by(col(QueueEntry.id))
-        )
-        rows = session.exec(stmt).all()
-    return [row.activity_id for row in rows]
-
-
-def outbox_list_for_actor(
-    dl: "Any",  # SqliteDataLayer
-    actor_id: str,
-) -> list[str]:
-    """Return all outbox activity IDs for *actor_id*, in insertion order.
-
-    Unlike :func:`outbox_list`, this bypasses ``self._actor_id`` and
-    reads the queue for the named actor directly — matching the write
-    semantics of :func:`record_outbox_item`.
-
-    Args:
-        dl: The SqliteDataLayer instance.
-        actor_id: Actor ID to query the outbox for.
-
-    Returns:
-        List of activity ID strings in insertion order.
-    """
-    with Session(dl._engine) as session:
-        stmt = (
-            select(QueueEntry)
-            .where(
-                QueueEntry.actor_id == actor_id,
-                QueueEntry.queue == "outbox",
-            )
-            .order_by(col(QueueEntry.id))
-        )
-        rows = session.exec(stmt).all()
-    return [row.activity_id for row in rows]
+    return _queue_list(dl, "outbox")
 
 
 def outbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
@@ -183,56 +154,4 @@ def outbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
     Returns:
         The oldest activity ID string, or ``None`` if empty.
     """
-    actor = dl._actor_id or ""
-    with Session(dl._engine) as session:
-        stmt = (
-            select(QueueEntry)
-            .where(
-                QueueEntry.actor_id == actor,
-                QueueEntry.queue == "outbox",
-            )
-            .order_by(col(QueueEntry.id))
-            .limit(1)
-        )
-        row = session.exec(stmt).first()
-        if row is None:
-            return None
-        activity_id = row.activity_id
-        session.delete(row)
-        session.commit()
-    return activity_id
-
-
-def record_outbox_item(
-    dl: "Any",  # SqliteDataLayer
-    actor_id: str,
-    activity_id: str,
-) -> None:
-    """Queue an outbox item for *actor_id* regardless of this DL's scope.
-
-    Bypasses ``self._actor_id`` to allow the shared or any actor-scoped
-    DataLayer to write directly to a named actor's outbox queue.
-
-    Args:
-        dl: The SqliteDataLayer instance.
-        actor_id: The actor whose outbox queue to append to.
-        activity_id: The activity ID to enqueue.
-    """
-    with Session(dl._engine) as session:
-        session.add(
-            QueueEntry(
-                actor_id=actor_id,
-                queue="outbox",
-                activity_id=activity_id,
-            )
-        )
-        session.commit()
-    if dl._enqueue_callback is not None:
-        try:
-            dl._enqueue_callback(actor_id)
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "record_outbox_item: enqueue_callback raised"
-                " for actor '%s'",
-                actor_id,
-            )
+    return _queue_pop(dl, "outbox")
