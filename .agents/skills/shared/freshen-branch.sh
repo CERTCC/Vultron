@@ -39,7 +39,10 @@ fi
 TEMP="temp-freshen-$$"
 git checkout -b "$TEMP" origin/main
 
-if git cherry-pick $COMMITS; then
+# Disable hooks during cherry-pick: pre-commit formatters (e.g. black) modify
+# staged files mid-operation, causing git to abort with "local changes would be
+# overwritten by merge". Hooks run at commit time when the PR is created.
+if git -c core.hooksPath=/dev/null cherry-pick $COMMITS; then
   git branch -f "$TASK_BRANCH" HEAD
   git checkout "$TASK_BRANCH"
   git branch -D "$TEMP"
@@ -48,7 +51,7 @@ if git cherry-pick $COMMITS; then
 else
   # Cherry-pick stopped on a conflict — clean up and signal the caller.
   git cherry-pick --abort 2>/dev/null || true
-  git checkout "$TASK_BRANCH"
+  git checkout "$TASK_BRANCH" 2>/dev/null || git checkout -
   git branch -D "$TEMP"
   echo "⚠ Cherry-pick conflict — push un-rebased branch and open a draft PR with needs-rebase label." >&2
   exit 1
