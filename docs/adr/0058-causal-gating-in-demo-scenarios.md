@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: accepted
 date: 2026-08-11
 deciders: Vultron maintainers
 consulted: CONCERN-2181, Epic #2136 bug triage history
@@ -123,11 +123,18 @@ states, independently of the implementation, *what the protocol is supposed to
 cause* — so it can disagree with the code. That is what makes it an oracle
 rather than a restatement.
 
-**Status is `accepted-provisional`, not `accepted`:** the direction is ratified
-but nothing here has been validated by implementation yet. The shape of the
-gating primitive and the causal-edge schema are expected to converge after the
-first two or three scenarios are migrated. Refine this ADR rather than working
-around it.
+**Resolved: nested-block scoping model** (PR #2348). The `demo_gate` context
+manager is implemented in `vultron/demo/utils.py` and validated by 14 unit
+tests in `TestDemoGate`. The scoping question the ADR left open — "whether by
+phase function, by nested block, or by an explicit sentinel" — is answered:
+**nested block**. Python's native exception unwinding exits the `with` body on
+failure; dependent steps follow the precondition assertion inside the same
+block. No sentinel variable, no return value, no modified calling convention.
+
+The causal-edge schema for scenario narratives (`docs/topics/scenarios/`) is
+still converging as scenarios are migrated (#2203, #2204). That work does not
+change this decision — it refines the oracle artifact — so the status is
+promoted to `accepted`.
 
 ### Consequences
 

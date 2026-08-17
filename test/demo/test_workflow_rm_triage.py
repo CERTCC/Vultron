@@ -47,6 +47,14 @@ def actors():
 
 
 def _nullcontext(_msg):
+    # Patched in place of demo_check: these tests verify call ordering and
+    # argument shapes using mocks, not context-manager control flow.
+    # demo_gate/demo_check behaviour is covered by test_demo_context_managers.py.
+    # Note: test_engage_not_called_when_rm_valid_never_commits additionally needs
+    # nullcontext because real demo_check suppresses the AssertionError that
+    # pytest.raises expects to catch.  This patch becomes removable once
+    # run_direct_path_rm_triage is migrated to demo_gate (dependent steps inside
+    # the gate block) — see blocking issues #2202/#2203/#2204.
     return contextlib.nullcontext()
 
 

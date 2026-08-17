@@ -1987,11 +1987,15 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
                 demo,
                 "demo_step",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -2022,6 +2026,8 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -2054,6 +2060,8 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -2098,6 +2106,8 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
