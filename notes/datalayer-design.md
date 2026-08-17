@@ -243,6 +243,18 @@ analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
 remaining 13 shadowing types differ only by key spelling today and are tracked
 in #2268; five of them (the actor types) have no `to_core()` at all yet.
 
+**`StorableRecord` inputs to `create()` and `update()` are also normalised.**
+`crud.create()` and `crud.update()` receive `StorableRecord` from core BT nodes
+(e.g. `CreateObject`, `UpdateObject` in `vultron/core/behaviors/helpers.py`).
+Before #2283 these bypassed the normalisation entirely. The fix routes them
+through `_storable_to_record()` (`vultron/adapters/driven/datalayer_sqlite/crud.py`),
+which gates the same `to_obj()` → `from_obj()` round-trip on `record.type_ in
+_NORMALIZE_WIRE_TO_CORE`, preserving other types verbatim to avoid data loss
+on polymorphic wire classes (e.g. `VultronPerson` stored under `type_="Actor"`
+would be silently truncated to the base class). If the round-trip fails for a
+type that is in `_NORMALIZE_WIRE_TO_CORE`, a `WARNING` is logged and the row is
+stored verbatim — a regressive fallback, but observable.
+
 **A projection failure raises `VultronValidationError`, not `ValueError`.**
 `crud.create()` raises `ValueError` for an already-existing row and callers
 legitimately swallow *that*; sharing the type meant an unprojectable object was

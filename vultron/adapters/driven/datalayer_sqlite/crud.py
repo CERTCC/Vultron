@@ -49,6 +49,10 @@ def _storable_to_record(record: StorableRecord) -> Record:
     try:
         return Record.from_obj(cast(PersistableModel, tmp.to_obj()))
     except (ValueError, KeyError):
+        logger.warning(
+            "DataLayer _storable_to_record: normalisation failed for %s, persisting verbatim",
+            record.type_,
+        )
         return tmp
 
 
