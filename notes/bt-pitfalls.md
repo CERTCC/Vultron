@@ -422,6 +422,17 @@ per-site breakdown and
 `test/architecture/test_single_bt_execution_received_side.py` for the
 migration ratchet.
 
+**Test-coverage gap (BT-17-006, #2338):** The ratchet above checks call
+*count* only — it does not verify that the actor_id argument is
+`receiving_actor_id` (the local receiver) rather than `request.actor_id`
+(the remote sender). Passing the wrong value silently attributes ledger
+entries and participant-status writes to the remote actor, breaking RM/CS
+state tracking. As of 2026-08, ten sites in `vultron/core/use_cases/received/`
+still pass `request.actor_id` to `execute_with_setup`; they are tracked by
+GitHub issue 2338. Until that issue is fixed and a complementary `ast`-based check is
+added to the ratchet file, every new received-side use case MUST be manually
+verified to pass `actor_id=request.receiving_actor_id`.
+
 ---
 
 ## Fan-out / SYNC Decomposition: Context Handoff Pattern
