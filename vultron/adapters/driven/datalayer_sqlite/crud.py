@@ -22,6 +22,7 @@ from sqlmodel import Session, select
 
 from vultron.adapters.driven.db_record import (
     Record,
+    _NORMALIZE_WIRE_TO_CORE,
     object_to_record,
 )
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
@@ -31,6 +32,24 @@ from vultron.core.ports.datalayer import StorableRecord
 from .schema import VultronObjectRecord, QueueEntry, participant_status_summary
 
 logger = logging.getLogger(__name__)
+
+
+def _storable_to_record(record: StorableRecord) -> Record:
+    """Normalise a StorableRecord through the full wire→core path.
+
+    Only types in :data:`_NORMALIZE_WIRE_TO_CORE` require a round-trip
+    (currently ``CaseParticipant`` and ``ParticipantStatus``).  For all other
+    types the ``data_`` is preserved verbatim — the vocabulary round-trip
+    would deserialise against the *base* wire class and silently lose
+    subtype-specific fields (e.g. ``embargo_policy`` on ``VultronPerson``).
+    """
+    tmp = Record(id_=record.id_, type_=record.type_, data_=record.data_)
+    if record.type_ not in _NORMALIZE_WIRE_TO_CORE:
+        return tmp
+    try:
+        return Record.from_obj(cast(PersistableModel, tmp.to_obj()))
+    except (ValueError, KeyError):
+        return tmp
 
 
 def create(
@@ -48,7 +67,7 @@ def create(
         ValueError: If a record with the same ``id_`` already exists.
     """
     if isinstance(record, StorableRecord):
-        rec = Record(id_=record.id_, type_=record.type_, data_=record.data_)
+        rec = _storable_to_record(record)
     else:
         rec = object_to_record(record)
 
@@ -290,15 +309,16 @@ def update(
     Returns:
         ``True`` if the record was updated; ``False`` if not found.
     """
+    normalized = _storable_to_record(record)
     with Session(dl._engine) as session:
         row = session.get(VultronObjectRecord, id_)
         if row is None:
             return False
-        row.type_ = record.type_
-        row.data = record.data_
+        row.type_ = normalized.type_
+        row.data = normalized.data_
         session.add(row)
         session.commit()
-        logger.debug("DataLayer updated %s '%s'", record.type_, id_)
+        logger.debug("DataLayer updated %s '%s'", normalized.type_, id_)
         return True
 
 
