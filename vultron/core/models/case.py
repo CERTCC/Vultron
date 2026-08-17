@@ -204,6 +204,28 @@ class VulnerabilityCase(CoreObject):
         for actor_id in actors_to_remove:
             del self.actor_participant_index[actor_id]
 
+    def add_case_status(self, status: "CaseStatus") -> None:
+        """Append a CaseStatus to this case's history.
+
+        Validates the appended item's shape and raises
+        :exc:`~vultron.errors.VultronValidationError` when a non-core
+        (wire-shaped) input is passed, closing the ``append`` door for
+        ``case_statuses`` (CM-27-003, ADR-0064).
+
+        Args:
+            status: A core :class:`CaseStatus` object.
+
+        Raises:
+            VultronValidationError: when *status* is not a
+                :class:`CaseStatus` instance.
+        """
+        if not isinstance(status, CaseStatus):
+            raise VultronValidationError(
+                f"add_case_status expects a CaseStatus; "
+                f"got {type(status).__name__}"
+            )
+        self.case_statuses.append(status)
+
     def set_embargo(self, embargo: str | None) -> None:
         """Set the active embargo reference for this case.
 

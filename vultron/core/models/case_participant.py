@@ -40,6 +40,7 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.errors import VultronValidationError
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -246,6 +247,28 @@ class CaseParticipant(CoreObject):
             )
         )
         return True
+
+    def add_participant_status(self, status: ParticipantStatus) -> None:
+        """Append a ParticipantStatus to this participant's history.
+
+        Validates the appended item's shape and raises
+        :exc:`~vultron.errors.VultronValidationError` when a non-core
+        (wire-shaped) input is passed, closing the ``append`` door for
+        ``participant_statuses`` (PRM-03-003, ADR-0064).
+
+        Args:
+            status: A core :class:`ParticipantStatus` object.
+
+        Raises:
+            VultronValidationError: when *status* is not a
+                :class:`ParticipantStatus` instance.
+        """
+        if not isinstance(status, ParticipantStatus):
+            raise VultronValidationError(
+                f"add_participant_status expects a ParticipantStatus; "
+                f"got {type(status).__name__}"
+            )
+        self.participant_statuses.append(status)
 
     def add_role(
         self, role: CVDRole, raise_when_present: bool = False

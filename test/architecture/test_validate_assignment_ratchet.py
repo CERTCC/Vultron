@@ -157,13 +157,7 @@ _LENIENT_SHARED_BASE = "VultronBase"
 #
 # This set may only SHRINK.
 # ---------------------------------------------------------------------------
-_COLLECTION_MUTATION_BACKLOG: frozenset[str] = frozenset(
-    {
-        "vultron/core/behaviors/status/nodes/append/actions.py",
-        "vultron/core/behaviors/status/nodes/case_status.py",
-        "vultron/core/behaviors/sync/nodes/participant_status_effect.py",
-    }
-)
+_COLLECTION_MUTATION_BACKLOG: frozenset[str] = frozenset()
 
 # Canonical mutator homes — permanently permitted, exactly as PRM-03-001 permits
 # ``vultron/core/models/participant.py`` to mutate ``case_roles``.  The mutators
@@ -409,13 +403,6 @@ def test_collection_mutation_backlog_is_exact():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Goal state for issue #2295 (#2261 step 3): no module outside the canonical"
-    " mutators mutates case_participants, case_statuses or participant_statuses"
-    " in place. 3 known modules remain. When the last is fixed this test XPASSes"
-    " and fails the build — delete the marker and the backlog then.",
-)
 def test_no_direct_shape_dual_collection_mutation_in_core():
     found = _find_collection_mutation_modules()
     assert not found, (
