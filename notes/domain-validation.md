@@ -226,7 +226,10 @@ doors.** `validate_assignment=True` closes the assignment door. It does
 *nothing* for `append` — an in-place list mutation is not an attribute
 assignment, so Pydantic never observes it. That door is closed by prohibition
 plus canonical mutators plus an architecture ratchet (CM-27-001, PRM-03-003),
-the same way PRM-03-001 closed it for `case_roles`.
+the same way PRM-03-001 closed it for `case_roles`. The established canonical
+mutators are `add_case_status()` (on `VulnerabilityCase`, CM-27-003) and
+`add_participant_status()` (on `CaseParticipant`, PRM-03-003), alongside the
+existing `add_participant()` / `remove_participant()` for `case_participants`.
 
 ### Where `validate_assignment` goes — and where it must not
 
