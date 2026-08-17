@@ -760,6 +760,7 @@ groups:
       spec_id: CM-12-001
     adr:
     - ADR-0015
+    - ADR-0041
 - id: CM-16
   title: Actor Suggestion Routing (Recommend-Actor Flow)
   specs:

@@ -27,15 +27,6 @@ The design question is: **What mechanism makes each call-out point backend
 swappable while remaining consistent with the existing py_trees Behaviour
 pattern, factory-function conventions, and blackboard contract model?**
 
-> **Design status — formed in sand, not concrete**: This ADR captures the
-> forward-looking intent after one planning session. The design will be
-> exercised in #1151 (one exemplar per agent shape) and is expected to
-> converge after two or three concrete implementations across different
-> domain areas. Implementers working on the shape-based follow-on issues
-> (FUZZ-08d through FUZZ-08g) SHOULD refine this ADR if the pattern proves
-> incorrect or incomplete. The ADR status will advance from `proposed` to
-> `accepted` once the exemplars validate the approach.
-
 ## Decision Drivers
 
 - Must be consistent with the existing BT factory-function pattern
