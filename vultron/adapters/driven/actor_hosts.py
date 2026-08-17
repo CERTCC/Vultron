@@ -151,6 +151,47 @@ def hosted_actor_slugs(db_url: str | None = None) -> set[str]:
     }
 
 
+def storage_ready(db_url: str | None = None) -> bool:
+    """Return ``True`` when the configured storage location is usable.
+
+    Readiness is a property of the storage *location*, not of any one actor's
+    store. Before ADR-0066 this was answered by ``ping()`` on the shared
+    DataLayer, which selected an arbitrary actor's rows; with per-actor stores
+    there is no such thing as "the" store to ping, and inventing a probe actor
+    would create a stray store that :func:`hosted_actor_slugs` would then report
+    as a hosted actor.
+
+    Args:
+        db_url: SQLAlchemy URL template. Defaults to ``DatabaseConfig.db_url``.
+
+    Returns:
+        ``True`` when a per-actor store could be created or opened here.
+    """
+    url = db_url if db_url is not None else get_config().database.db_url
+    if _is_memory_url(url):
+        return True
+
+    _, _, location = url.partition("///")
+    if not location:
+        logger.warning(
+            "storage_ready: cannot interpret database URL %r as a location",
+            url,
+        )
+        return False
+
+    directory = Path(location).parent
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        logger.warning(
+            "storage_ready: storage directory %s is unusable: %s",
+            directory,
+            exc,
+        )
+        return False
+    return os.access(directory, os.W_OK)
+
+
 def local_actor_id(base_url: str | None = None) -> str | None:
     """Return the configured local actor URI for this node, if any.
 
