@@ -202,7 +202,7 @@ scenario-specific phases to regress silently (e.g. `invite_actor_to_case`
 missing from a scenario that requires it).
 
 **Design**: Each scenario defines its own required event-type list that
-extends the five universal types with scenario-specific required phases.
+extends the universal types (DEMOMA-16-001) with scenario-specific required phases.
 The spec requirements in `specs/multi-actor-demo.yaml` DEMOMA-16-001 through
 DEMOMA-16-011 are the normative source; the test constants implement them.
 

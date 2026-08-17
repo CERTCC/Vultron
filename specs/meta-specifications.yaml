@@ -571,3 +571,39 @@ groups:
     tags:
     - documentation
     - tooling
+
+- id: MS-16
+  title: Long-Lived Docs Must Not State Ephemeral Counts
+  specs:
+  - id: MS-16-001
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec statement, notes file, or AGENTS.md entry MUST NOT restate a
+      count that will drift independently of the authoritative source.
+      When cross-referencing another spec item, omit the count and cite the
+      source by ID: write "the universal types (DEMOMA-16-001)" not "the five
+      universal types (DEMOMA-16-001)". Counts in enumerations that are the
+      authoritative source (e.g. DEMOMA-16-001 itself listing its own members)
+      are not subject to this rule.
+    rationale: >-
+      Counts restated in cross-references drift silently: when the authoritative
+      requirement is updated, its sibling references and cross-file citations
+      are not. The linter validates that a referenced spec ID resolves; it
+      has no opinion about the prose next to it. A reader who encounters the
+      stale count first gets a false picture of the system. The count adds no
+      normative force — "the universal types (DEMOMA-16-001)" is equally
+      specific because the ID is the authoritative pointer. This class of
+      drift required 12 coordinated edits when `engage_case` was promoted
+      to a fifth universal event type in ISSUE-2266 (CONCERN-2277).
+      The same principle extends beyond spec cross-references to any
+      long-lived document: notes files, AGENTS.md pitfall entries, and
+      architecture docs MUST NOT state counts such as "there are 4
+      unimplemented nodes" or "15 xfails" — these are snapshots guaranteed
+      to be wrong when read in the future.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-04-001
+      note: extends spec-authoring rules with a count-drift prohibition
+    tags:
+    - documentation
