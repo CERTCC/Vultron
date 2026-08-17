@@ -399,6 +399,46 @@ def dump_case_ledgers(
     return report
 
 
+_PRERUN_SENTINEL_REASON = "Pre-run sentinel: demo-runner had not yet started."
+"""Reason string written by :func:`write_prerun_sentinel`.
+
+Kept as a module constant so tests and the CI sentinel step can replicate the
+exact value without importing this module (DEMOCI-10-006).
+"""
+
+
+def write_prerun_sentinel(
+    demo_name: str,
+    output_root: pathlib.Path | None = None,
+) -> pathlib.Path:
+    """Write a pre-run sentinel manifest for *demo_name*.
+
+    Called immediately before the demo-runner container starts so the case-log
+    artifact is non-empty even when the runner exits before
+    ``scenario_harness()`` is entered (DEMOCI-10-006).
+
+    When the demo-runner subsequently reaches ``scenario_harness()``, the
+    harness overwrites this sentinel with the real dump manifest.  When the
+    runner exits early — container startup failure, import error, or
+    health-check gate — the sentinel survives and ``load_devlogs()`` reports a
+    real failure instead of a plumbing error.
+
+    Args:
+        demo_name: Scenario name; the devlogs sub-directory to create.
+        output_root: Devlogs root; defaults to ``DEVLOGS_DIR``.
+
+    Returns:
+        Path to the sentinel manifest written.
+    """
+    return write_dump_manifest(
+        LedgerDumpReport(
+            demo_name=demo_name,
+            reason=_PRERUN_SENTINEL_REASON,
+        ),
+        output_root=output_root,
+    )
+
+
 def _dump_one_target(
     target: LedgerDumpTarget,
     record: ActorLedgerRecord,

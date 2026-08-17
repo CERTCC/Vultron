@@ -515,7 +515,7 @@ def _phase_sync_verification(
     finder: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Verify SYNC-2 replication for all participant replicas."""
+    """Verify LedgerFanout replication for all participant replicas."""
     logger.info("─" * 80)
     logger.info("Phase 3: Replica synchronization verification (M1)")
     logger.info("─" * 80)
@@ -535,7 +535,7 @@ def _phase_sync_verification(
             (v1_client, "V1"),
             (c2_client, "C2"),
             # V2 is a late joiner that must catch up from genesis; allow extra
-            # time for the full history to be delivered (SYNC-2 late-joiner).
+            # time for the full history to be delivered (LedgerFanout late-joiner).
             (v2_client, "V2"),
         ]:
             # V2 joins after Phase 1 completes, so it has more entries to sync.
@@ -579,7 +579,7 @@ def _phase_sync_verification(
             reporter_actor_id=finder.id_,
         )
 
-    logger.info("✓ M1: All five replicas synchronized (SYNC-2 verified)")
+    logger.info("✓ M1: All five replicas synchronized (LedgerFanout verified)")
 
 
 def _phase_notes_exchange(

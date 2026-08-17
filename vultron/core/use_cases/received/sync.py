@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Received use cases for SYNC-2/SYNC-3: accept or reject inbound log-entry
+"""Received use cases for LedgerFanout/LedgerReconciliation: accept or reject inbound log-entry
 announcements, and handle hash-chain rejection replies.
 
 Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002.

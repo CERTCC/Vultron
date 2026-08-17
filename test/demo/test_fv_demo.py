@@ -620,7 +620,7 @@ class TestWaitForFinderCase:
 
 
 # ---------------------------------------------------------------------------
-# SYNC-2 log replication helper tests
+# LedgerFanout log replication helper tests
 # ---------------------------------------------------------------------------
 
 
@@ -1171,7 +1171,7 @@ class TestRunTwoActorDemo:
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
         # After issue #2273 (validate-report ordering fix), the in-process
-        # SYNC-2 gap (#2267) is also resolved: case-actor ledger entries now
+        # LedgerFanout gap (#2267) is also resolved: case-actor ledger entries now
         # exist (validate_report + engage_case are properly recorded), enabling
         # Finder replica replication to complete.  The demo should succeed
         # with no failures.

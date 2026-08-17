@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Trigger helper for SYNC-3: replay missing log entries on hash-chain rejection.
+"""Trigger helper for LedgerReconciliation: replay missing log entries on hash-chain rejection.
 
 Public entry point:
 

@@ -36,7 +36,7 @@ triggers/           (outbound message sent)
    validate a report). This emits an outbound ActivityStreams activity.
 2. **Received** (`received/`): Remote actors receive the inbound activity
    and update their local state to reflect the sender's assertion.
-3. **Sync** (future, `SYNC-1`/`SYNC-2`): The CaseActor replicates the
+3. **Sync** (future, `AppendOnlyLedger`/`LedgerFanout`): The CaseActor replicates the
    resulting case event log to all participants via AS2 Announce activities.
 
 ## Package Root

@@ -133,8 +133,8 @@ sequenceDiagram
     V->>F: replies to question
     note over F,V: ✅ M3 — Vendor holds authoritative final case state
 
-    V-->>F: case ledger entry replicated (SYNC-2)
-    note over F,V: ✓ M2 — Finder replica synchronized (SYNC-2 verified)
+    V-->>F: case ledger entry replicated (LedgerFanout)
+    note over F,V: ✓ M2 — Finder replica synchronized (LedgerFanout verified)
 
     note over F,V: Phase 3 — Fix Lifecycle
 
@@ -178,13 +178,13 @@ reply back.
 state after the notes exchange.
 
 Next, the demo runner triggers the Vendor to commit a `CaseLedgerEntry` and
-deliver it to the Finder via the outbox (SYNC-2 replication verification).
+deliver it to the Finder via the outbox (LedgerFanout replication verification).
 The Finder waits for the log entry to appear in its DataLayer.
 
 !!! note "Milestone order in the log output"
 
     M3 appears in the log **before** M2. The notes-exchange phase runs first,
-    then SYNC-2 verification runs immediately after.
+    then LedgerFanout verification runs immediately after.
 
 **M2 verified when:** Finder's DataLayer contains the replicated log entry.
 
@@ -231,7 +231,7 @@ milestone lines as anchor points when reading the output.
 |:-------|:--------------|
 | `✅ M1:` | Case active: required participants and EM.ACTIVE confirmed on both replicas |
 | `✅ M3:` | Vendor container holds the authoritative final case state |
-| `✓ M2:` | Finder DataLayer synchronized (SYNC-2 verified) |
+| `✓ M2:` | Finder DataLayer synchronized (LedgerFanout verified) |
 | `✅ M4:` | Both replicas show CS includes F (fix ready) |
 | `✅ M5:` | Both replicas show CS includes D (fix deployed) |
 | `✅ M6:` | Both replicas: CS.VFDPxa and EM.EXITED confirmed |
@@ -239,7 +239,7 @@ milestone lines as anchor points when reading the output.
 
 !!! note "M3 appears before M2"
 
-    The notes-exchange phase (M3) runs before the SYNC-2 verification phase
+    The notes-exchange phase (M3) runs before the LedgerFanout verification phase
     (M2) in the demo execution order, so `✅ M3:` will appear in the log
     before `✓ M2:`.
 
