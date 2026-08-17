@@ -12,7 +12,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Append-only canonical case ledger for SYNC-1.
+"""Append-only canonical case ledger for AppendOnlyLedger.
 
 This module provides:
 

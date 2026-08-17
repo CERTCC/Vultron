@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Persistable per-peer replication state for SYNC-3/4.
+"""Persistable per-peer replication state for LedgerReconciliation/PeerLedgerSync.
 
 Spec: SYNC-04-001, SYNC-04-002.
 """

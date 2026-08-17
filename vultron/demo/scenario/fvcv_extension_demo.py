@@ -444,7 +444,7 @@ def _phase_sync_verification(
     vendor2: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Verify SYNC-2 replication for Finder, Coordinator, and Vendor2 replicas."""
+    """Verify LedgerFanout replication for Finder, Coordinator, and Vendor2 replicas."""
     logger.info("─" * 80)
     logger.info("Phase 3: Replica synchronization verification")
     logger.info("─" * 80)
@@ -507,7 +507,7 @@ def _phase_sync_verification(
             reporter_actor_id=finder.id_,
         )
 
-    logger.info("✓ M4: All replicas synchronized (SYNC-2 verified)")
+    logger.info("✓ M4: All replicas synchronized (LedgerFanout verified)")
 
 
 def _phase_notes_exchange(

@@ -15,7 +15,7 @@
 
 """Sync protocol behavior trees.
 
-Provides BT nodes and tree factories for SYNC-2/SYNC-3 log-entry
+Provides BT nodes and tree factories for LedgerFanout/LedgerReconciliation log-entry
 replication flows:
 
 - :func:`~vultron.core.behaviors.sync.announce_tree.create_announce_log_entry_tree`

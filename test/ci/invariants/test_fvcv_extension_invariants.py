@@ -344,7 +344,7 @@ def test_fvcv_extension_vendor2_late_joiner_has_full_history(
     """Vendor2 replica contains all logIndex values present in vendor replica.
 
     Vendor2 is a late joiner and must receive the full ledger backfill.
-    Spec: DEMOMA-10-007 (SYNC-2 convergence).
+    Spec: DEMOMA-10-007 (LedgerFanout convergence).
     """
     if not fvcv_extension_replicas.get(
         "vendor"
@@ -366,7 +366,7 @@ def test_fvcv_extension_finder_late_joiner_has_full_history(
 
     Finder is seeded by the CaseActor's trust-bootstrap Announce; the
     CaseActor must backfill all prior entries to Finder.
-    Spec: DEMOMA-10-007 (SYNC-2 convergence).
+    Spec: DEMOMA-10-007 (LedgerFanout convergence).
     """
     if not fvcv_extension_replicas.get(
         "vendor"
@@ -388,7 +388,7 @@ def test_fvcv_extension_coordinator_late_joiner_has_full_history(
 
     Coordinator joins after case creation when Vendor1 invites them; the
     CaseActor must backfill all prior entries to Coordinator.
-    Spec: DEMOMA-10-007 (SYNC-2 convergence).
+    Spec: DEMOMA-10-007 (LedgerFanout convergence).
     """
     if not fvcv_extension_replicas.get(
         "vendor"

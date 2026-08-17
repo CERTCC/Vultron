@@ -367,7 +367,7 @@ def test_fvcv_handoff_vendor2_late_joiner_has_full_history(
     """Vendor2 replica contains all logIndex values present in vendor replica.
 
     Vendor2 is the last actor to join (after the ownership handoff) and must
-    receive the full ledger backfill (SYNC-2 convergence).
+    receive the full ledger backfill (LedgerFanout convergence).
     """
     if not fvcv_handoff_replicas.get(
         "vendor"

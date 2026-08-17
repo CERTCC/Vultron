@@ -270,7 +270,7 @@ scripts for verification — they are read-only assertions, not puppeteering.
 | Milestone | What to verify |
 |-----------|---------------|
 | M1 | Vendor: case exists, 3 participants, EM.ACTIVE, embargo present. Reporter: has case replica, matching `actor_participant_index`, matching `active_embargo`. |
-| M2 | Reporter DataLayer has case ID. Both sides: matching participant index, matching embargo, matching log tail hash (SYNC-2). |
+| M2 | Reporter DataLayer has case ID. Both sides: matching participant index, matching embargo, matching log tail hash (LedgerFanout). |
 | M4 | Both replicas: participant status includes CS.F. |
 | M5 | Both replicas: participant status includes CS.D. |
 | M6 | Both replicas: CS.VFDPxa; EM state terminated/exited. |

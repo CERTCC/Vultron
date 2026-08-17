@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Wire-layer AS2 activity classes for SYNC-2/SYNC-3 log replication.
+"""Wire-layer AS2 activity classes for LedgerFanout/LedgerReconciliation log replication.
 
 Provides :class:`_AnnounceLogEntryActivity` used by the CaseActor to fan
 out canonical log entries to participant actors, and

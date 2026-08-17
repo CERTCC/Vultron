@@ -5,7 +5,7 @@ The **FVV demo** exercises the three-actor CVD workflow:
 
 Vendor1 creates the case, invites the Finder and Vendor2, and each vendor
 advances through an independent fix path (`CS_vfd`).
-Both Finder and Vendor2 DataLayers are verified as SYNC-2 replicas of the
+Both Finder and Vendor2 DataLayers are verified as LedgerFanout replicas of the
 authoritative Vendor1 state.
 
 ---
@@ -83,9 +83,9 @@ sequenceDiagram
 
     note over F,V2: Phase 2 — Replica Synchronization Verification
 
-    V1-->>F: ledger tail replicated (SYNC-2)
-    V1-->>V2: ledger tail replicated (SYNC-2)
-    note over F,V2: ✓ M2 — Finder and Vendor2 DataLayers synchronized (SYNC-2 verified)
+    V1-->>F: ledger tail replicated (LedgerFanout)
+    V1-->>V2: ledger tail replicated (LedgerFanout)
+    note over F,V2: ✓ M2 — Finder and Vendor2 DataLayers synchronized (LedgerFanout verified)
 
     note over F,V2: Phase 3 — Notes Exchange
 
@@ -136,7 +136,7 @@ and Vendor2 have a local case record.
 ### Phase 2 — Replica synchronization verification (M2)
 
 The demo runner waits for both Finder and Vendor2 to receive the Vendor1
-ledger tail entry (SYNC-2 replication), then calls `verify_replica_state`
+ledger tail entry (LedgerFanout replication), then calls `verify_replica_state`
 for each — asserting that the `actor_participant_index`, active embargo ID,
 and log tail hash all match the authoritative Vendor1 state.
 
@@ -184,7 +184,7 @@ The Case Actor auto-closes when all participants are closed.
 | Marker | What it means |
 |:-------|:--------------|
 | `✅ M1:` | ≥4 participants, EM.ACTIVE, Finder and Vendor2 have replicas |
-| `✓ M2:` | Finder and Vendor2 DataLayers synchronized (SYNC-2 verified) |
+| `✓ M2:` | Finder and Vendor2 DataLayers synchronized (LedgerFanout verified) |
 | `✓ Phase 3:` | Notes exchange complete (question + reply committed to case ledger) |
 | `✅ M4:` | All replicas: both vendors CS includes F (fix ready) |
 | `✅ M5:` | All replicas: both vendors CS includes D (fix deployed) |

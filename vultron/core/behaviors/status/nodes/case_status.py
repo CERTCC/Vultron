@@ -264,7 +264,7 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
                 "AppendCaseStatusToCase: %s", self.feedback_message
             )
             return Status.FAILURE
-        case.case_statuses.append(status_obj)
+        case.add_case_status(status_obj)
         self.datalayer.save(case)
         self.logger.info(
             "AppendCaseStatusToCase: added status '%s' to case '%s'",

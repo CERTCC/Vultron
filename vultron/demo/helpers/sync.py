@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""SYNC-2 log-replication helpers for demo workflows.
+"""LedgerFanout log-replication helpers for demo workflows.
 
 Provides :func:`trigger_log_commit` to commit a log entry and fan it out to
 all case participants, and :func:`verify_replica_state` to assert that a
@@ -73,7 +73,7 @@ def _get_log_entries_for_case(
 
 
 # ---------------------------------------------------------------------------
-# Public SYNC-2 helpers
+# Public LedgerFanout helpers
 # ---------------------------------------------------------------------------
 
 
@@ -201,7 +201,7 @@ def verify_replica_state(
     replica_entries = _get_log_entries_for_case(replica_client, case_id)
     assert len(replica_entries) > 0, (
         "Replica has no CaseLedgerEntry records for the case — "
-        "SYNC-2 replication did not complete"
+        "LedgerFanout replication did not complete"
     )
     auth_tail = max(auth_entries, key=lambda e: e["log_index"])
     replica_tail = max(replica_entries, key=lambda e: e["log_index"])
