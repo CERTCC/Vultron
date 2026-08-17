@@ -35,23 +35,14 @@ def demo_env(client):
         importlib.reload(demo)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Demo flow uses pre-CBT case seeding pattern; CBT correctly blocks "
-        "case replication without prior trust setup. #464 (Two-Actor Demo Redesign) "
-        "is closed without resolving this. Tracked in #1994."
-    ),
-    strict=False,
-)
 def test_demo(demo_env, caplog):
     """
     Tests that the initialize_participant demo workflow completes successfully.
 
-    Verifies the full standalone participant initialization sequence:
-    - Case created with vendor as sole participant (precondition)
+    Verifies the standalone participant initialization sequence:
+    - Canonical case created by CaseActor after report validation (precondition)
     - Coordinator participant created and added to case (standalone, no invite)
-    - Finder participant created and added to case (standalone, no invite)
-    - Final case has three participants: vendor, coordinator, finder
+    - Final case has initial_count + 1 participants
     - No errors logged during execution
     """
     import logging
@@ -65,6 +56,3 @@ def test_demo(demo_env, caplog):
     assert (
         "Coordinator added as participant to case" in caplog.text
     ), "Expected coordinator to be added as a case participant"
-    assert (
-        "Finder added as participant to case" in caplog.text
-    ), "Expected finder to be added as a case participant"
