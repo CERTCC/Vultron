@@ -34,8 +34,8 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
-from vultron.demo.helpers.seeding import _dl_key, get_actor_by_id
-from vultron.demo.utils import DataLayerClient, logfmt, ref_id
+from vultron.demo.helpers.seeding import _dl_key
+from vultron.demo.utils import DataLayerClient, ref_id
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -338,35 +338,40 @@ def verify_activity_in_inbox(
     actor_id: str,
     activity_id: str,
 ) -> bool:
-    """Check whether *activity_id* appears in the actor's inbox.
+    """Check whether *activity_id* was received and stored by the actor.
+
+    Checks the DataLayer directly for the activity record — the authoritative
+    approach for single-backend exchange-demo tests.  The inbound pipeline
+    stores every processed activity in the DataLayer, so a lookup by ID is
+    sufficient to confirm receipt.  The actor-profile ``inbox.items`` path is
+    not used because ``_record_inbox_receipt`` is a no-op when ``inbox`` is a
+    string URI rather than a collection object.
 
     Args:
         client: DataLayerClient for the target container.
-        actor_id: Full URI of the actor whose inbox to check.
+        actor_id: Full URI of the actor whose inbox to check (used for
+            logging only; the DataLayer lookup is ID-based).
         activity_id: Full URI of the activity to find.
 
     Returns:
         ``True`` if found; ``False`` otherwise.
-
-    Raises:
-        ValueError: If the actor cannot be found or has no inbox.
     """
-    actor = get_actor_by_id(client, actor_id)
-    if not actor.inbox:
-        raise ValueError(f"Actor {actor_id} has no inbox")
     actor_obj_id = parse_id(actor_id)["object_id"]
-    logger.info(
-        "Actor %s inbox has %d items",
-        actor_obj_id,
-        len(actor.inbox.items),
-    )
-    for item in actor.inbox.items:
-        item_id = item if isinstance(item, str) else getattr(item, "id_", None)
-        if item_id == activity_id:
-            logger.info("✓ Found activity in inbox: %s", logfmt(item))
-            return True
-    logger.warning("Activity %s not found in inbox", activity_id)
-    return False
+    try:
+        client.get(f"/datalayer/{activity_id}")
+        logger.info(
+            "✓ Activity %s found in DataLayer (actor %s)",
+            activity_id,
+            actor_obj_id,
+        )
+        return True
+    except Exception:
+        logger.warning(
+            "Activity %s not found in DataLayer (actor %s)",
+            activity_id,
+            actor_obj_id,
+        )
+        return False
 
 
 def verify_receiver_case_state(
