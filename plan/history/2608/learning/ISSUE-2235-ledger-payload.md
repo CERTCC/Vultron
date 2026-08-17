@@ -22,7 +22,7 @@ to its (currently sole) producer — so the import direction stays status → ca
 matching the pre-existing edge, and no cycle is introduced.
 
 This was a decision beyond what the issue asked for. Rationale: the same need
-recurs for every seam that adjudicates before committing (Seam 2 `em`,
+recurs for every gate that adjudicates before committing (EmbargoTeardownAuthorizationGate `em`,
 ISSUE-2256, is the immediate next case), and a per-concern hook on the commit
 node would accumulate one branch per concern inside the single writer of the
 hash chain.

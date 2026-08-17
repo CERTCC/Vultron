@@ -19,13 +19,13 @@ AddParticipantStatus behavior tree composition.
 Composes the DEMOMA-07-003 workflow as a Sequence BT
 (step 3 raw peer re-broadcast removed per DEMOMA-07-005).
 
-Seam 1 of the two-seam authorization model (ADR-0046, RSH-01-001 to RSH-01-004):
+StatusAdoptionGate of the two-seam authorization model (ADR-0046, RSH-01-001 to RSH-01-004):
 after ``AppendParticipantStatusNode`` records the raw peer update, a
-``StatusUpdateGuard`` (Selector/Fallback) decides whether the CaseActor
+``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
 should adopt the status, then ``EmitAddCaseStatusToSelfNode`` emits a
-self-addressed ``Add(CaseStatus)`` to trigger Seam 2 in
+self-addressed ``Add(CaseStatus)`` to trigger EmbargoTeardownAuthorizationGate in
 ``add_case_status_tree``.  Embargo teardown and other side-effects belong in
-Seam 2; ``add_participant_status_tree`` does not execute them directly
+EmbargoTeardownAuthorizationGate; ``add_participant_status_tree`` does not execute them directly
 (RSH-01-004).
 
     AddParticipantStatusBT (Sequence)
@@ -36,15 +36,15 @@ Seam 2; ``add_participant_status_tree`` does not execute them directly
     │   │   └─ Inverter(CheckIsCaseManagerNode)
     │   └─ CommitCaseLedgerEntryNode
     ├─ AppendParticipantStatusNode            # Step 2: append status to participant record
-    ├─ StatusUpdateGuard (Selector)           # Seam 1 authorization (RSH-01-002)
+    ├─ StatusAdoptionGate (Selector)           # StatusAdoptionGate authorization (RSH-01-002)
     │   ├─ CheckIsCaseOwnerNode               # Hard bypass: CASE_OWNER gospel (RSH-01-002)
     │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
-    └─ EmitAddCaseStatusToSelfNode            # Seam 1 emit → triggers Seam 2 (RSH-01-003)
+    └─ EmitAddCaseStatusToSelfNode            # StatusAdoptionGate emit → triggers EmbargoTeardownAuthorizationGate (RSH-01-003)
 
 ``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
 ``pxa`` independently before the commit, so an unacceptable value in one
 dimension no longer discards the accepted dimensions or aborts the Sequence
-before the Seam 1 emit (RSH-05, ISSUE-2235).  It replaces the former
+before the StatusAdoptionGate emit (RSH-05, ISSUE-2235).  It replaces the former
 ``CheckParticipantRMNotClosedNode`` guard, subsuming the terminal-``RM.CLOSED``
 check: a wholly refused assertion still returns FAILURE here, before any
 canonical ledger entry is committed.
@@ -92,7 +92,7 @@ def add_participant_status_tree(
     """Create the behavior tree for the AddParticipantStatus workflow.
 
     Handles receipt of an ``Add(ParticipantStatus, CaseParticipant)``
-    activity.  Implements the DEMOMA-07-003 workflow with Seam 1
+    activity.  Implements the DEMOMA-07-003 workflow with StatusAdoptionGate
     authorization (ADR-0046, RSH-01-001 to RSH-01-004).
 
     When ``case_id`` is provided (or derived from the inline status object),
@@ -109,16 +109,16 @@ def add_participant_status_tree(
     ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
-    ``StatusUpdateGuard`` (Selector/Fallback) decides whether the CaseActor
+    ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
     should adopt the status:
 
     - ``CheckIsCaseOwnerNode`` — hard bypass for CASE_OWNER gospel (RSH-01-002)
     - ``CaseOwnerApprovesStatusUpdate`` — call-out backed by
-      ``call_out.status_update_guard_factory``; default is ``AlwaysSucceed``
+      ``call_out.status_adoption_gate_factory``; default is ``AlwaysSucceed``
 
-    When the guard passes, ``EmitAddCaseStatusToSelfNode`` emits a
+    When the gate passes, ``EmitAddCaseStatusToSelfNode`` emits a
     self-addressed ``Add(CaseStatus)`` to the executing CaseActor, decoupling
-    Seam 2 (side-effects, embargo teardown) in ``add_case_status_tree``
+    EmbargoTeardownAuthorizationGate (side-effects, embargo teardown) in ``add_case_status_tree``
     (RSH-01-003).  This tree does NOT execute embargo teardown directly
     (RSH-01-004).
 
@@ -129,7 +129,7 @@ def add_participant_status_tree(
             inserted after precondition guards so the receiving CaseActor
             writes a canonical ledger entry (CLP-10-005).  Pass ``None``
             (with no derivable context) to skip the commit.
-        call_out: Call-out backend bundle for ``StatusUpdateGuard``.
+        call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all non-CASE_OWNER updates (historical behavior).
 
@@ -149,10 +149,10 @@ def add_participant_status_tree(
         if context_field:
             tree_case_id = str(context_field)
 
-    # Seam 1 authorization (RSH-01-002): CASE_OWNER gospel bypass first; all
+    # StatusAdoptionGate (RSH-01-002): CASE_OWNER gospel bypass first; all
     # others route through the CaseOwnerApprovesStatusUpdate call-out.
-    status_update_guard = py_trees.composites.Selector(
-        name="StatusUpdateGuard",
+    status_adoption_gate = py_trees.composites.Selector(
+        name="StatusAdoptionGate",
         memory=False,
         children=[
             CheckIsCaseOwnerNode(
@@ -160,7 +160,7 @@ def add_participant_status_tree(
                 case_id=tree_case_id,
                 name="CheckIsCaseOwner",
             ),
-            call_out.status_update_guard_factory(
+            call_out.status_adoption_gate_factory(
                 "CaseOwnerApprovesStatusUpdate"
             ),
         ],
@@ -187,7 +187,7 @@ def add_participant_status_tree(
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,
             ),
-            status_update_guard,
+            status_adoption_gate,
             EmitAddCaseStatusToSelfNode(
                 participant_status_id=status_id,
                 case_id=tree_case_id,
@@ -197,7 +197,7 @@ def add_participant_status_tree(
     )
     logger.debug(
         "Created AddParticipantStatusBT for status=%s participant=%s"
-        " actor=%s case=%s (Seam 1 authorization: %s)",
+        " actor=%s case=%s (StatusAdoptionGate: %s)",
         status_id,
         participant_id,
         actor_id,

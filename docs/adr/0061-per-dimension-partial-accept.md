@@ -22,7 +22,7 @@ refused any backwards `rm` step and any status for a participant already at
 terminal `RM.CLOSED`, and its FAILURE inside the `AppendParticipantStatusBT`
 Sequence discarded the entire snapshot — including dimensions the receiver had
 no grounds to refuse. Worse, the FAILURE aborted the enclosing Sequence before
-`StatusUpdateGuard` and `EmitAddCaseStatusToSelfNode`, so the Seam 1 → Seam 2
+`StatusAdoptionGate` and `EmitAddCaseStatusToSelfNode`, so the StatusAdoptionGate → EmbargoTeardownAuthorizationGate
 emit never happened and embargo teardown silently did not run (ADR-0046,
 RSH-01-003, RSH-01-004). A vendor that had closed its report management
 workflow could not report deploying its fix at all.
@@ -45,7 +45,7 @@ maxim: be conservative in what you send, liberal in what you accept).
 ## Considered Options
 
 - **Keep all-or-nothing, but return SUCCESS on refusal.** Fixes the aborted
-  Seam 2 emit only.
+  EmbargoTeardownAuthorizationGate emit only.
 - **Per-dimension adjudication with a filtered snapshot.** Refuse each
   dimension independently; carry the participant's current value forward for
   the refused ones; record the resulting filtered `ParticipantStatus`.
@@ -74,9 +74,9 @@ Per-dimension rules:
 - `vfd` and `pxa` — each is a triple of independent one-way latches
   (`v→V`, `f→F`, `d→D`; `p→P`, `x→X`, `a→A`). Accepted when no component
   regresses from uppercase back to lowercase.
-- `em` — not adjudicated here. Embargo state is Seam 2's (`add_case_status_tree`,
-  RSH-02-001); Seam 1 adjudicating it would duplicate and could contradict
-  Seam 2's decision. Tracked in ISSUE-2256.
+- `em` — not adjudicated here. Embargo state is EmbargoTeardownAuthorizationGate's (`add_case_status_tree`,
+  RSH-02-001); StatusAdoptionGate adjudicating it would duplicate and could contradict
+  EmbargoTeardownAuthorizationGate's decision. Tracked in ISSUE-2256.
 
 The refusal is made visible through the canonical ledger rather than a new wire
 message: the committed entry snapshots the accepted portion, so it differs from
@@ -102,7 +102,7 @@ Actor re-adjudicating, not a regression, and are applied unchanged.
 ### Consequences
 
 - Good, because a refused dimension no longer destroys accepted state, and no
-  longer kills the Seam 1 → Seam 2 emit or embargo teardown.
+  longer kills the StatusAdoptionGate → EmbargoTeardownAuthorizationGate emit or embargo teardown.
 - Good, because the canonical ledger — the thing that actually replicates — now
   records what the receiver believes rather than what the sender claimed.
 - Good, because the guard is read-only with respect to the DataLayer, so it
@@ -122,7 +122,7 @@ Actor re-adjudicating, not a regression, and are applied unchanged.
 ## Validation
 
 `test/core/behaviors/status/test_partial_accept_participant_status.py` covers
-each rule: a refused `rm` with accepted `vfd`/`pxa`, survival of the Seam 2
+each rule: a refused `rm` with accepted `vfd`/`pxa`, survival of the EmbargoTeardownAuthorizationGate
 emit, the ledger snapshot carrying the accepted `rm`, a `RM.CLOSED` participant
 advancing `vfd`, whole-update refusal committing no entry, and the replica-side
 RM ratchet.
@@ -158,8 +158,8 @@ RM ratchet.
 - ISSUE-2235 — the bug this decision resolves.
 - ISSUE-2229 — liberal-accept epic (Postel's maxim).
 - ISSUE-2255 — receive path returns `202 Accepted` regardless of BT outcome.
-- ISSUE-2256 — Seam 2 `em` adjudication.
-- ADR-0046 — two-seam authorization model.
+- ISSUE-2256 — EmbargoTeardownAuthorizationGate `em` adjudication.
+- ADR-0046 — two-gate authorization model.
 - `notes/sync-ledger-replication.md` — monotonic visibility and the
   reject-on-divergence invariants.
 

@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Seam 2 threat-termination BT node for add_case_status_tree.
+"""EmbargoTeardownAuthorizationGate threat-termination BT node for add_case_status_tree.
 
 Provides :class:`ThreatTerminationBranchNode` which fires embargo teardown
 when a CaseStatus signals a threat (CS.P, CS.X, or CS.A set).
@@ -100,14 +100,14 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
 
 class ThreatTerminationBranchNode(py_trees.composites.Selector):
-    """Seam 2: Trigger embargo teardown when CaseStatus signals a threat.
+    """EmbargoTeardownAuthorizationGate: Trigger embargo teardown when CaseStatus signals a threat.
 
     Fires when the CaseStatus has at least one of P=True, X=True, or A=True
     (any ``CS_pxa`` state other than ``pxa``) AND the case has an active
     embargo.
 
     Does NOT gate on sender role (RSH-03-002) — authorization was
-    already verified at Seam 1.  The self-addressed ``Add(CaseStatus)``
+    already verified at StatusAdoptionGate.  The self-addressed ``Add(CaseStatus)``
     arrives with the CaseActor as sender, not the original peer.
 
     Delegates to ``terminate_embargo_bt`` (BT-19-002).  Skips silently

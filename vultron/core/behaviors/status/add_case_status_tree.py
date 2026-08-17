@@ -16,8 +16,8 @@
 """
 AddCaseStatus behavior tree composition.
 
-Seam 2 of the two-seam authorization model (ADR-0046, RSH-02-001 to
-RSH-03-003): after the canonical CaseStatus write, a ``SideEffectsGuard``
+EmbargoTeardownAuthorizationGate of the two-seam authorization model (ADR-0046, RSH-02-001 to
+RSH-03-003): after the canonical CaseStatus write, a ``EmbargoTeardownAuthorizationGate``
 (Selector/Fallback) gates side-effect execution, and
 ``ThreatTerminationBranchNode`` fires embargo teardown when the CaseStatus
 signals a threat (P=True OR X=True OR A=True).
@@ -26,7 +26,7 @@ signals a threat (P=True OR X=True OR A=True).
     ├─ CheckCaseStatusIdempotencyNode   # AC-1: status not already present
     ├─ ValidateCaseStatusTransitionNode # AC-2: EM/PXA transitions are valid
     ├─ AppendCaseStatusToCaseNode       # AC-1: append status and persist
-    ├─ SideEffectsGuard (Selector)      # Seam 2 gate (RSH-02-001)
+    ├─ EmbargoTeardownAuthorizationGate (Selector)      # EmbargoTeardownAuthorizationGate (RSH-02-001)
     │   └─ SideEffectsApproved         # call-out; default AlwaysSucceed
     └─ ThreatTerminationBranchNode      # Embargo teardown (RSH-03-001)
 
@@ -67,8 +67,8 @@ def add_case_status_tree(
     1. Idempotency check — fail fast if the status is already present.
     2. Transition validation — reject invalid EM or PXA state transitions.
     3. Append and persist — write the new CaseStatus to the case record.
-    4. ``SideEffectsGuard`` (Selector) — Seam 2 call-out gate (RSH-02-001).
-       Default is ``AlwaysSucceed``; production adapters may inject a guard
+    4. ``EmbargoTeardownAuthorizationGate`` (Selector) — EmbargoTeardownAuthorizationGate call-out gate (RSH-02-001).
+       Default is ``AlwaysSucceed``; production adapters may inject a gate
        that blocks side-effects for certain actors or scenarios.
     5. ``ThreatTerminationBranchNode`` — fires embargo teardown when the
        CaseStatus has at least one of P=True, X=True, or A=True and the case
@@ -76,7 +76,7 @@ def add_case_status_tree(
 
     Args:
         request: The parsed inbound domain event.
-        call_out: Call-out backend bundle for the ``SideEffectsGuard``.
+        call_out: Call-out backend bundle for the ``EmbargoTeardownAuthorizationGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all side-effects (historical behavior).
 
@@ -105,7 +105,9 @@ def add_case_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
-            call_out.side_effects_guard_factory("SideEffectsGuard"),
+            call_out.embargo_teardown_authorization_gate_factory(
+                "EmbargoTeardownAuthorizationGate"
+            ),
             ThreatTerminationBranchNode(
                 status_obj=status_obj,
                 case_id=case_id or None,
@@ -115,7 +117,7 @@ def add_case_status_tree(
     )
     logger.debug(
         "Created AddCaseStatusToCaseBT for status=%s case=%s actor=%s"
-        " (Seam 2 call-out: %s)",
+        " (EmbargoTeardownAuthorizationGate call-out: %s)",
         status_id,
         case_id,
         request.actor_id,

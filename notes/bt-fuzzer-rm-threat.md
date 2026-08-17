@@ -23,8 +23,8 @@ relevant_packages:
 > a threat signal and posts `Add(ParticipantStatus, CaseParticipant)` to the CaseActor
 > with the appropriate PXA state change (X=True for exploit, A=True for attacks,
 > P=True for public disclosure). The CaseActor's received-side BT
-> (`add_participant_status_tree` → StatusUpdateGuard → self `Add(CaseStatus)` →
-> `add_case_status_tree` → SideEffectsGuard → ThreatTerminationBranchNode) handles
+> (`add_participant_status_tree` → StatusAdoptionGate → self `Add(CaseStatus)` →
+> `add_case_status_tree` → EmbargoTeardownAuthorizationGate → ThreatTerminationBranchNode) handles
 > state canonicalization and embargo teardown.
 >
 > The four nodes catalogued below are valid fuzzer stubs for the **sentinel actor's

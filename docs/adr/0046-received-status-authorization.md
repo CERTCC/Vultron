@@ -7,7 +7,7 @@ consulted: Claude Sonnet 4.6
 informed: []
 ---
 
-# Two-Seam Authorization Model for Received-Side CaseStatus Canonicalization
+# Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization
 
 ## Context and Problem Statement
 
@@ -54,14 +54,14 @@ single-responsibility principle across the two trees, preserves the
 existing CASE_MANAGER-only gate on `add_case_status_tree`, and provides
 independent extension points for authorization and side-effect policy.
 
-The self-addressed `Add(CaseStatus)` pattern threads the two seams together
-without coupling the trees directly: when Seam 1 passes, the CaseActor emits
+The self-addressed `Add(CaseStatus)` pattern threads the two gates together
+without coupling the trees directly: when StatusAdoptionGate passes, the CaseActor emits
 `Add(CaseStatus)` to itself as CASE_MANAGER, which routes through
-`add_case_status_tree` naturally and triggers Seam 2.
+`add_case_status_tree` naturally and triggers EmbargoTeardownAuthorizationGate.
 
 ### Consequences
 
-- Good: each seam has a single responsibility and a named call-out point
+- Good: each gate has a single responsibility and a named call-out point
 - Good: CASE_OWNER bypass is a hard structural skip (BT Fallback), not a
   policy decision that could be misconfigured
 - Good: side-effects (teardown) only execute after canonical state is written,
@@ -69,33 +69,33 @@ without coupling the trees directly: when Seam 1 passes, the CaseActor emits
 - Good: both seams default to `AlwaysSucceed`, so existing behavior is
   unchanged until real backends are wired in
 - Neutral: two new call-out fields add bundle surface area; addressed by a
-  single `StatusAuthorizationCallOutBundle`
+  single `StatusAuthorizationCallOutBundle` (StatusAdoptionGate and EmbargoTeardownAuthorizationGate)
 - Bad: the self-addressed `Add(CaseStatus)` introduces an internal loopback;
   implementations must ensure the CASE_MANAGER role check on
   `add_case_status_tree` is satisfied by the CaseActor's own identity
 
-## Seam Definitions
+## Gate Definitions
 
-### Seam 1 — StatusUpdateGuard (`add_participant_status_tree`)
+### StatusAdoptionGate (`add_participant_status_tree`)
 
 Positioned after `AppendParticipantStatusNode` (which records the participant's
 claim), before any canonicalization.
 
 ```text
-StatusUpdateGuard (Fallback)
+StatusAdoptionGate (Fallback)
 ├─ CheckIsCaseOwnerNode            ← hard bypass: CASE_OWNER = gospel
 └─ CaseOwnerApprovesStatusUpdate   ← Evaluator call-out (AlwaysSucceed default)
 ```
 
-If the guard passes, `EmitAddCaseStatusToSelfNode` emits a self-addressed
+If the gate passes, `EmitAddCaseStatusToSelfNode` emits a self-addressed
 `Add(CaseStatus)` to the CaseActor (as CASE_MANAGER).
 
-### Seam 2 — SideEffectsGuard + ThreatTerminationBranchNode (`add_case_status_tree`)
+### EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (`add_case_status_tree`)
 
 Positioned after `AppendCaseStatusToCaseNode`.
 
 ```text
-SideEffectsGuard (Evaluator call-out, AlwaysSucceed default)
+EmbargoTeardownAuthorizationGate (Evaluator call-out, AlwaysSucceed default)
 ThreatTerminationBranchNode    ← fires teardown on CS.P OR CS.X OR CS.A
 ```
 
@@ -106,7 +106,7 @@ which is removed from `add_participant_status_tree`.
 
 - Architecture boundary test (`test_core_no_demo_imports.py`) must continue to
   pass after new call-out bundles are added
-- Unit tests: StatusUpdateGuard bypassed when sender is CASE_OWNER
+- Unit tests: StatusAdoptionGate bypassed when sender is CASE_OWNER
 - Unit tests: CaseOwnerApprovesStatusUpdate (AlwaysSucceed) passes for non-owner
 - Unit tests: ThreatTerminationBranchNode fires teardown on CS.P, CS.X, CS.A
 - Unit tests: CS states outside {P, X, A} do not trigger teardown

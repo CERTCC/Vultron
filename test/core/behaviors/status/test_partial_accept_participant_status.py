@@ -23,7 +23,7 @@ several independent state machines (``rm``, ``vfd``, ``em``, ``pxa``,
 ``consent``).  Before this fix, a single refused dimension — a regressive
 ``rm`` or a status for a participant already at terminal ``RM.CLOSED`` —
 caused the receiving Case Actor to discard the entire snapshot and abort the
-``AddParticipantStatusBT`` Sequence, which also killed the Seam 1 → Seam 2
+``AddParticipantStatusBT`` Sequence, which also killed the StatusAdoptionGate → EmbargoTeardownAuthorizationGate
 emit (``EmitAddCaseStatusToSelfNode``) and therefore embargo teardown
 (ADR-0046, RSH-01-003).
 
@@ -363,14 +363,14 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         ), "accepted pxa must be recorded"
         assert (
             _em_of(latest) == EM.NONE.name
-        ), "em is Seam 2's business (#2256)"
+        ), "em is EmbargoTeardownAuthorizationGate's business (#2256)"
 
     def test_regressive_rm_still_reaches_seam_2_emit(self, dl, make_payload):
-        """The Seam 1 → Seam 2 emit must survive a refused dimension.
+        """The StatusAdoptionGate → EmbargoTeardownAuthorizationGate emit must survive a refused dimension.
 
         This is the concrete failure reported in #2235: aborting the Sequence
         at RM validation skipped ``EmitAddCaseStatusToSelfNode``, so embargo
-        teardown in Seam 2 never ran (RSH-01-003, RSH-01-004).
+        teardown in EmbargoTeardownAuthorizationGate never ran (RSH-01-003, RSH-01-004).
         """
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)

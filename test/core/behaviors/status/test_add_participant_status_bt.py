@@ -16,13 +16,13 @@
 """Tests for AddParticipantStatus BT nodes and tree factory.
 
 Covers the DEMOMA-07-003 steps (step 3 raw re-broadcast removed per DEMOMA-07-005)
-and Seam 1 authorization (ADR-0046, RSH-01-001 to RSH-01-004):
+and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
 
   1. VerifySenderIsParticipantNode             — unknown sender is rejected
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
-  Seam 1: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
-  Seam 1: StatusUpdateGuard                   — Fallback: bypass or call-out (RSH-01-002)
-  Seam 1: EmitAddCaseStatusToSelfNode         — self-addressed Add(CaseStatus) (RSH-01-003)
+  StatusAdoptionGate: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
+  StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
+  StatusAdoptionGate: EmitAddCaseStatusToSelfNode         — self-addressed Add(CaseStatus) (RSH-01-003)
 
 AutoCloseSequence was removed per ADR-0050: canonical RM closure is routed
 through the Leave(VulnerabilityCase) receive path in receive_close_case_tree.
@@ -918,7 +918,7 @@ class TestAddParticipantStatusTree:
         populated_dl,
         make_payload,
     ):
-        """End-to-end: CASE_OWNER sender bypasses StatusUpdateGuard → status
+        """End-to-end: CASE_OWNER sender bypasses StatusAdoptionGate → status
         appended, self-addressed Add(CaseStatus) queued (RSH-01-001 to RSH-01-003).
 
         Uses a ParticipantStatus with an embedded CaseStatus so
@@ -993,8 +993,8 @@ class TestAddParticipantStatusTree:
         populated_dl,
         make_payload,
     ):
-        """Non-CASE_OWNER sender with AlwaysFail call-out → blocked at guard
-        (RSH-01-002): StatusUpdateGuard denied — Add(CaseStatus) NOT emitted to outbox.
+        """Non-CASE_OWNER sender with AlwaysFail call-out → blocked at gate
+        (RSH-01-002): StatusAdoptionGate denied — Add(CaseStatus) NOT emitted to outbox.
 
         Uses CASE_MANAGER_ID as the sender (not CASE_OWNER) so CheckIsCaseOwnerNode
         returns FAILURE, routing to the AlwaysFail call-out which also fails.
@@ -1002,7 +1002,7 @@ class TestAddParticipantStatusTree:
         """
         bridge = self._bridge_with_factory(populated_dl)
         reject_bundle = StatusAuthorizationCallOutBundle(
-            status_update_guard_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
         )
         cm_status_id = f"{STATUS_ID}/cm"
         cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
@@ -1031,7 +1031,7 @@ class TestAddParticipantStatusTree:
         outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
         assert (
             len(outbox) == 0
-        ), "Guard denied — no Add(CaseStatus) must be in outbox"
+        ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
 
     def test_no_side_effects_execute_directly_rsh_01_004(
         self,
@@ -1071,7 +1071,7 @@ class TestAddParticipantStatusTree:
         populated_dl,
         make_payload,
     ):
-        """EmitAddCaseStatusToSelfNode and StatusUpdateGuard must be present
+        """EmitAddCaseStatusToSelfNode and StatusAdoptionGate must be present
         in the tree (RSH-01-001)."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
@@ -1097,11 +1097,11 @@ class TestAddParticipantStatusTree:
             "EmitAddCaseStatusToSelf" in node_names
         ), "EmitAddCaseStatusToSelfNode must be present (RSH-01-001)"
         assert (
-            "StatusUpdateGuard" in node_names
-        ), "StatusUpdateGuard must be present (RSH-01-001)"
+            "StatusAdoptionGate" in node_names
+        ), "StatusAdoptionGate must be present (RSH-01-001)"
         assert (
             "CheckIsCaseOwner" in node_names
-        ), "CheckIsCaseOwnerNode must be present inside StatusUpdateGuard (RSH-01-002)"
+        ), "CheckIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
 
 
 # ---------------------------------------------------------------------------
@@ -1168,7 +1168,7 @@ class TestNoAutoCloseSequenceInTree:
 
 
 # ---------------------------------------------------------------------------
-# Seam 1: CheckIsCaseOwnerNode (RSH-01-002)
+# StatusAdoptionGate: CheckIsCaseOwnerNode (RSH-01-002)
 # ---------------------------------------------------------------------------
 
 
@@ -1226,7 +1226,7 @@ class TestCheckIsCaseOwnerNode:
 
 
 # ---------------------------------------------------------------------------
-# Seam 1: EmitAddCaseStatusToSelfNode (RSH-01-003)
+# StatusAdoptionGate: EmitAddCaseStatusToSelfNode (RSH-01-003)
 # ---------------------------------------------------------------------------
 
 
@@ -1310,7 +1310,7 @@ class TestEmitAddCaseStatusToSelfNode:
 
 
 # ---------------------------------------------------------------------------
-# Seam 1: StatusAuthorizationCallOutBundle (RSH-01-002)
+# StatusAdoptionGate: StatusAuthorizationCallOutBundle (RSH-01-002)
 # ---------------------------------------------------------------------------
 
 
@@ -1319,7 +1319,7 @@ class TestStatusAuthorizationCallOutBundle:
         self, populated_bridge
     ):
         """STATUS_AUTHORIZATION_DETERMINISTIC has AlwaysSucceed factory."""
-        node = STATUS_AUTHORIZATION_DETERMINISTIC.status_update_guard_factory(
+        node = STATUS_AUTHORIZATION_DETERMINISTIC.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"
         )
         result = populated_bridge.execute_with_setup(
@@ -1330,9 +1330,9 @@ class TestStatusAuthorizationCallOutBundle:
     def test_custom_bundle_with_always_fail(self, populated_bridge):
         """Custom bundle with AlwaysFail factory → call-out denies approval."""
         bundle = StatusAuthorizationCallOutBundle(
-            status_update_guard_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
         )
-        node = bundle.status_update_guard_factory(
+        node = bundle.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"
         )
         result = populated_bridge.execute_with_setup(
@@ -1347,4 +1347,4 @@ class TestStatusAuthorizationCallOutBundle:
         assert dataclasses.is_dataclass(StatusAuthorizationCallOutBundle)
         bundle = StatusAuthorizationCallOutBundle()
         with pytest.raises((AttributeError, dataclasses.FrozenInstanceError)):
-            bundle.status_update_guard_factory = lambda name: None  # type: ignore[method-assign]
+            bundle.status_adoption_gate_factory = lambda name: None  # type: ignore[method-assign]

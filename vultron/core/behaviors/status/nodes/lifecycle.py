@@ -21,7 +21,7 @@ auto-close emit node (step 5).  The auto-close precondition and idempotency
 guards are in ``conditions.py``; the routing guard is
 :class:`~vultron.core.behaviors.sender.nodes.actions.ResolveCaseManagerNode`.
 
-Seam 2 nodes (``ThreatTerminationBranchNode``) live in
+EmbargoTeardownAuthorizationGate nodes (``ThreatTerminationBranchNode``) live in
 :mod:`~vultron.core.behaviors.status.nodes.threat_termination` and are
 re-exported from here for backward-compatible import paths.
 """
@@ -230,7 +230,7 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
 class EmitAddCaseStatusToSelfNode(DataLayerActionWithPorts):
     """Emit a self-addressed ``Add(CaseStatus, VulnerabilityCase)`` to the CaseActor.
 
-    When ``StatusUpdateGuard`` passes (RSH-01-003), this node:
+    When ``StatusAdoptionGate`` passes (RSH-01-003), this node:
 
     1. Reads the ``ParticipantStatus`` from the DataLayer by ``participant_status_id``.
     2. Extracts its embedded ``case_status`` field (an ``as_CaseStatus`` or
@@ -242,8 +242,8 @@ class EmitAddCaseStatusToSelfNode(DataLayerActionWithPorts):
 
     The self-addressed activity routes through
     ``AddCaseStatusToCaseReceivedUseCase`` → ``add_case_status_tree``, where
-    the canonical write and side-effects (Seam 2) execute.  This pattern
-    decouples Seam 1 (adoption authorization) from Seam 2 (side-effects).
+    the canonical write and side-effects (EmbargoTeardownAuthorizationGate) execute.  This pattern
+    decouples StatusAdoptionGate (adoption authorization) from EmbargoTeardownAuthorizationGate (side-effects).
 
     Returns ``FAILURE`` when:
     - ``trigger_activity_factory`` is absent (BT-14-001).

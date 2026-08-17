@@ -22,7 +22,7 @@ Nodes enforce CVD protocol correctness for self-reported VFD transitions
   ``CVDRole.VENDOR``
 - :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
   ``CVDRole.DEPLOYER``
-- :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusUpdateGuard``:
+- :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
   sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
 """
 
@@ -194,7 +194,7 @@ class CheckDeployerRoleNode(DataLayerConditionWithPorts):
 class CheckIsCaseOwnerNode(DataLayerCondition):
     """Check whether the *sender* actor is a CASE_OWNER participant.
 
-    Used as the hard-bypass child of ``StatusUpdateGuard`` (RSH-01-002):
+    Used as the hard-bypass child of ``StatusAdoptionGate`` (RSH-01-002):
     a CASE_OWNER's status reports are authoritative ("gospel") and do not
     require approval by the CaseOwnerApprovesStatusUpdate call-out.
 

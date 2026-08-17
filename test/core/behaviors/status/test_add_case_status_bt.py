@@ -517,7 +517,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 
 
 # ---------------------------------------------------------------------------
-# ThreatTerminationBranchNode (Seam 2, RSH-03-001 to RSH-03-003)
+# ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate, RSH-03-001 to RSH-03-003)
 # ---------------------------------------------------------------------------
 
 
@@ -636,7 +636,7 @@ class TestThreatTerminationBranchNode:
         """RSH-03-002: teardown fires regardless of sender role (no CASE_OWNER check).
 
         Unlike PublicDisclosureBranchNode, any actor_id triggers teardown when
-        pxa conditions are met — sender authorization was handled at Seam 1.
+        pxa conditions are met — sender authorization was handled at StatusAdoptionGate.
         """
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
@@ -656,12 +656,12 @@ class TestThreatTerminationBranchNode:
 
 
 # ---------------------------------------------------------------------------
-# SideEffectsGuard (Seam 2, RSH-02-001)
+# EmbargoTeardownAuthorizationGate (RSH-02-001)
 # ---------------------------------------------------------------------------
 
 
 class TestAddCaseStatusTreeSeam2:
-    """Seam 2 call-out wiring tests (RSH-02-001, RSH-02-002)."""
+    """EmbargoTeardownAuthorizationGate call-out wiring tests (RSH-02-001, RSH-02-002)."""
 
     def _make_event(self, dl, pxa_state: CS_pxa = CS_pxa.pxa):
         from vultron.semantic_registry import extract_event
@@ -679,7 +679,7 @@ class TestAddCaseStatusTreeSeam2:
         return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
     def test_side_effects_guard_always_fail_blocks_threat_termination(self):
-        """SideEffectsGuard=AlwaysFail → ThreatTerminationBranch never runs.
+        """EmbargoTeardownAuthorizationGate=AlwaysFail → ThreatTerminationBranch never runs.
 
         Even with CS.P set and an active embargo, the Sequence fails at the
         guard node and the BT returns FAILURE without touching the EM state.
@@ -722,7 +722,7 @@ class TestAddCaseStatusTreeSeam2:
             return AlwaysFail(name)
 
         call_out = StatusAuthorizationCallOutBundle(
-            side_effects_guard_factory=_always_fail
+            embargo_teardown_authorization_gate_factory=_always_fail
         )
 
         from vultron.core.behaviors.status.add_case_status_tree import (
@@ -762,7 +762,7 @@ class TestAddCaseStatusTreeSeam2:
 
 
 class TestRegressionCSPTeardownPath:
-    """Regression: Seam 2 ThreatTerminationBranchNode produces the same
+    """Regression: EmbargoTeardownAuthorizationGate ThreatTerminationBranchNode produces the same
     end-state as the legacy PublicDisclosureBranchNode for a CS.P update
     sent by a CASE_OWNER.
 
@@ -770,7 +770,7 @@ class TestRegressionCSPTeardownPath:
     means FAILURE when no broadcast factory, but the state transition is
     committed before broadcast in both paths).
 
-    The new pipeline uses ThreatTerminationBranchNode directly (Seam 2).
+    The new pipeline uses ThreatTerminationBranchNode directly (EmbargoTeardownAuthorizationGate).
     ValidateCaseStatusTransitionNode is tested separately; this regression
     focuses on teardown outcome parity.
 
@@ -801,7 +801,7 @@ class TestRegressionCSPTeardownPath:
         return dl
 
     def test_new_pipeline_csp_teardown_matches_old_path_end_state(self):
-        """Seam 2 (ThreatTerminationBranchNode, new pipeline) produces the
+        """EmbargoTeardownAuthorizationGate (ThreatTerminationBranchNode, new pipeline) produces the
         same end-state as legacy PublicDisclosureBranchNode for CS.P with a
         CASE_OWNER sender: EM=EXITED and active_embargo=None.
 
@@ -824,7 +824,7 @@ class TestRegressionCSPTeardownPath:
             as_ParticipantStatus,
         )
 
-        # — New pipeline: ThreatTerminationBranchNode (Seam 2) —
+        # — New pipeline: ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate) —
         dl_new = self._build_dl_with_active_embargo()
         new_status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.Pxa

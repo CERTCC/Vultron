@@ -24,7 +24,7 @@ unacceptable in one dimension says nothing about the others.
 Before RSH-05, one refused dimension discarded the entire snapshot: the
 receiving Case Actor dropped the accepted dimensions along with the refused
 one and aborted the enclosing ``AddParticipantStatusBT`` Sequence, which also
-skipped the Seam 1 → Seam 2 emit and therefore embargo teardown
+skipped the StatusAdoptionGate → EmbargoTeardownAuthorizationGate emit and therefore embargo teardown
 (ISSUE-2235, RSH-01-003, RSH-01-004).
 
 :class:`FilterParticipantStatusDimensionsNode` adjudicates each dimension on
@@ -202,7 +202,7 @@ def _adjudicate_dimensions(
     that carries the current value forward for each of them.  ``em``,
     ``consent``, ``case_engagement``, ``embargo_adherence``, ``cvd_role`` and
     ``tracking_id`` are not adjudicated here — ``em`` in particular belongs to
-    Seam 2 (ADR-0046, ISSUE-2256).
+    EmbargoTeardownAuthorizationGate (ADR-0046, ISSUE-2256).
 
     The two return values are deliberately not the same set.  ``refused`` names
     the dimensions whose *asserted* value was rejected; ``update_fields`` also
@@ -260,7 +260,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
     nodes and, as a serialized ``object`` override, for the canonical ledger
     commit.  ``em``, ``consent``, ``case_engagement``, ``embargo_adherence``,
     ``cvd_role`` and ``tracking_id`` pass through untouched — ``em`` in
-    particular is Seam 2's to adjudicate (ADR-0046, ISSUE-2256).
+    particular is EmbargoTeardownAuthorizationGate's to adjudicate (ADR-0046, ISSUE-2256).
 
     Returns:
         SUCCESS when there is nothing to filter (no participant, no current

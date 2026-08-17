@@ -1,10 +1,10 @@
 ---
-title: "Received-Side Status Authorization: Two-Seam Design"
+title: "Received-Side Status Authorization: Two-Gate Design"
 status: active
 description: >
-  Design notes for the two-seam authorization model that governs how a
+  Design notes for the two-gate authorization model that governs how a
   CaseActor adopts an inbound participant's reported CaseStatus as canonical
-  (Seam 1) and whether to execute embargo teardown side-effects (Seam 2).
+  (StatusAdoptionGate) and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
   Derived from the IDEA-1836 planning session.
 related_specs:
   - specs/received-status-handling.yaml
@@ -18,7 +18,7 @@ relevant_packages:
   - vultron/core/use_cases/received
 ---
 
-# Received-Side Status Authorization: Two-Seam Design
+# Received-Side Status Authorization: Two-Gate Design
 
 ## Background
 
@@ -57,7 +57,7 @@ not wired into the CaseActor's received-side pipeline.
 
 ---
 
-## Seam 1 — StatusUpdateGuard
+## StatusAdoptionGate
 
 **Location**: `add_participant_status_tree`, after `AppendParticipantStatusNode`
 
@@ -69,7 +69,7 @@ AddParticipantStatusBT (Sequence)
 ├─ FilterParticipantStatusDimensionsNode ← per-dimension adjudication (RSH-05)
 ├─ GuardedCommitOrSkip                  ← unchanged (CLP-10-006)
 ├─ AppendParticipantStatusNode          ← records the accepted portion
-├─ StatusUpdateGuard (Fallback)         ← NEW
+├─ StatusAdoptionGate (Fallback)         ← NEW
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
 │   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (AlwaysSucceed)
 ├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
@@ -83,7 +83,7 @@ AddParticipantStatusBT (Sequence)
 `ValidateRMTransitionNode` inside the append subtree — refused a whole
 `ParticipantStatus` snapshot when its `rm` dimension was unacceptable, which
 discarded the accepted `vfd`/`pxa` values *and* aborted this Sequence before
-the Seam 1 emit, silently skipping embargo teardown (ISSUE-2235).
+the StatusAdoptionGate emit, silently skipping embargo teardown (ISSUE-2235).
 
 The guard now adjudicates `rm`, `vfd` and `pxa` independently and publishes a
 *filtered* `ParticipantStatus` in which each refused dimension carries the
@@ -91,7 +91,7 @@ participant's current value forward. It is read-only with respect to the
 DataLayer (CLP-10-006), so it can run before `GuardedCommitOrSkip` and the
 canonical entry snapshots the accepted portion rather than the raw claim.
 
-`em` is deliberately **not** adjudicated here — embargo state belongs to Seam 2
+`em` is deliberately **not** adjudicated here — embargo state belongs to EmbargoTeardownAuthorizationGate
 (ISSUE-2256).
 
 Two blackboard keys carry the handoff. Both are written on *every* tick (with
@@ -169,19 +169,19 @@ this with a real policy engine or human-in-the-loop step.
 
 ### Self-addressed `Add(CaseStatus)` pattern
 
-When `StatusUpdateGuard` passes, `EmitAddCaseStatusToSelfNode` emits
+When `StatusAdoptionGate` passes, `EmitAddCaseStatusToSelfNode` emits
 `Add(CaseStatus, VulnerabilityCase)` addressed to the CaseActor itself (acting
 as CASE_MANAGER). This activity is routed through
 `AddCaseStatusToCaseReceivedUseCase` → `add_case_status_tree`, where the
 CASE_MANAGER-only gate passes naturally because the CaseActor is the sender.
 
-This pattern decouples the two seams: `add_participant_status_tree` does not
+This pattern decouples the two gates: `add_participant_status_tree` does not
 know or care about teardown; `add_case_status_tree` does not know whether the
 canonical write came from an external message or an internal self-emit.
 
 ---
 
-## Seam 2 — SideEffectsGuard + ThreatTerminationBranchNode
+## EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode
 
 **Location**: `add_case_status_tree`, after `AppendCaseStatusToCaseNode`
 
@@ -192,11 +192,11 @@ AddCaseStatusToCaseBT (Sequence)
 ├─ CheckCaseStatusIdempotencyNode       ← unchanged
 ├─ ValidateCaseStatusTransitionNode     ← unchanged
 ├─ AppendCaseStatusToCaseNode           ← unchanged (canonical write)
-├─ SideEffectsGuard (Evaluator)         ← NEW call-out (AlwaysSucceed default)
+├─ EmbargoTeardownAuthorizationGate (Evaluator)         ← NEW call-out (AlwaysSucceed default)
 └─ ThreatTerminationBranchNode          ← NEW: fires teardown on CS.P, CS.X, CS.A
 ```
 
-### SideEffectsGuard
+### EmbargoTeardownAuthorizationGate
 
 An Evaluator call-out that gates the entire side-effects block. Default:
 `AlwaysSucceed`. A production implementation can replace this with a policy
@@ -204,9 +204,9 @@ check (e.g., require CASE_OWNER confirmation before executing teardown even
 when the canonical write was authorized).
 
 Note: the self-addressed `Add(CaseStatus)` path arrives with the CaseActor as
-sender (CASE_MANAGER role). This means even when `SideEffectsGuard` requires
+sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires
 CASE_OWNER approval, the CaseActor has already obtained that approval via
-Seam 1 before emitting the self-message. The two seams compose correctly.
+StatusAdoptionGate before emitting the self-message. The two gates compose correctly.
 
 ### ThreatTerminationBranchNode
 
@@ -219,7 +219,7 @@ CaseStatus carries any of:
 - **CS.A** — attacks observed (newly covered)
 
 The CASE_OWNER sender gate that was part of `PublicDisclosureBranchNode`
-is dropped: authorization already occurred at Seam 1. By the time
+is dropped: authorization already occurred at StatusAdoptionGate. By the time
 `ThreatTerminationBranchNode` runs, the canonical state write has been
 authorized.
 
@@ -227,13 +227,13 @@ authorized.
 
 ## Call-Out Bundle
 
-A new `StatusAuthorizationCallOutBundle` covers both seams:
+A new `StatusAuthorizationCallOutBundle` covers both gates:
 
 ```python
 @dataclass(frozen=True)
 class StatusAuthorizationCallOutBundle:
-    status_update_guard_factory: CallOutBackendFactory = ...  # AlwaysSucceed
-    side_effects_guard_factory: CallOutBackendFactory = ...   # AlwaysSucceed
+    status_adoption_gate_factory: CallOutBackendFactory = ...  # AlwaysSucceed
+    embargo_teardown_authorization_gate_factory: CallOutBackendFactory = ...   # AlwaysSucceed
 ```
 
 Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
@@ -300,7 +300,7 @@ currently uses:
 [kludge] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
 ```
 
-The inbox seam (Seam 1 → Seam 2) exists for evaluating **external participant
+The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating **external participant
 suggestions**, not for the CaseActor recording its own authoritative state
 changes. `EmitAddCaseStatusToSelfNode` is a recognized kludge; a follow-on
 issue will refactor the inbound path to use direct ledger writes as well
