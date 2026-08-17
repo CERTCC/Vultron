@@ -205,15 +205,11 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
 
         participant_obj = dl.read(participant_id)
         wire_status = dl.read(status.id_)
-        participant_statuses = (
-            getattr(participant_obj, "participant_statuses", None)
-            if participant_obj is not None
-            else None
-        )
-        if participant_statuses is not None and wire_status is not None:
-            participant_statuses.append(wire_status)
-            if participant_obj is not None:
-                dl.save(participant_obj)
+        if isinstance(participant_obj, CaseParticipant) and isinstance(
+            wire_status, ParticipantStatus
+        ):
+            participant_obj.add_participant_status(wire_status)
+            dl.save(participant_obj)
 
         self._result_out["status_id"] = status.id_
         self._result_out["participant_id"] = participant_id

@@ -180,7 +180,10 @@ _SHAPE_DUAL_COLLECTIONS = (
 
 _MUTATION_RE = {
     field: re.compile(
-        rf"\.{field}\s*(?:=(?!=)|\.\s*(?:append|extend|insert|remove|pop|clear))"
+        # Direct attribute access:  obj.field.append(...)  or  obj.field = ...
+        rf"(?:\.{field}\s*(?:=(?!=)|\.\s*(?:append|extend|insert|remove|pop|clear))"
+        # Aliased local variable named after the field:  field.append(...)
+        rf"|\b{field}\s*\.\s*(?:append|extend|insert|remove|pop|clear))"
     )
     for field in _SHAPE_DUAL_COLLECTIONS
 }
