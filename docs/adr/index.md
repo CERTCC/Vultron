@@ -127,7 +127,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0055 CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows](0055-ci-failure-alerting-via-github-issues.md)
 - [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](0056-embargo-adherence-computed-field.md)
 - [ADR-0057 Rename `CVDRole.OTHER` to `CVDRole.OBSERVER` and Define Observer Participant Semantics](0057-observer-participant-role.md)
-- [ADR-0058 Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order](0058-causal-gating-in-demo-scenarios.md) *(provisional)*
+- [ADR-0058 Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order](0058-causal-gating-in-demo-scenarios.md)
 - [ADR-0059 Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed](0059-buffer-pre-genesis-ledger-entries.md)
 - [ADR-0060 Re-express the Legacy Case-State Invariants and Keep the Hypercube as Reference](0060-re-express-legacy-cs-invariants.md)
 - [ADR-0061 Adjudicate Received `ParticipantStatus` Per Dimension, Not as a Unit](0061-per-dimension-partial-accept.md)

@@ -133,6 +133,48 @@ def demo_check(description: str) -> Generator[None, None, None]:
         _demo_failures.append(f"CHECK FAILED: {description} — {exc}")
 
 
+@contextmanager
+def demo_gate(description: str) -> Generator[None, None, None]:
+    """Context manager for causal preconditions in demo scripts.
+
+    Place the precondition check **and the steps that depend on it** inside
+    this block.  If the precondition raises, Python immediately exits the
+    ``with`` body — the remaining dependent steps are skipped.  The failure
+    is recorded in the accumulator exactly as ``demo_check`` does
+    (DEMOCI-01-003 is preserved), and the exception is suppressed so that
+    execution continues *after* the block.
+
+    **Scoping model — nested block**:
+
+    Put the gating assertion at the top of the body, followed directly by
+    the dependent steps:
+
+    ```python
+    with demo_gate("vendor has reached RM.VALID"):
+        assert vendor_rm_state == "VALID"    # precondition: raises on fail
+        with demo_step("5. Engage case"):    # skipped when gate fails
+            engage_case(...)
+        with demo_step("6. Do next thing"):  # also skipped when gate fails
+            do_next(...)
+    # code here always runs — gate accumulates and suppresses the failure
+    ```
+
+    Use ``demo_check`` for a standalone verification assertion that should
+    *not* block subsequent steps.  Use ``demo_gate`` when continuing after a
+    failed precondition would produce meaningless secondary failures that bury
+    the real cause.
+
+    See DEMOCI-01-007, EDF-06-005, ADR-0058.
+    """
+    logger.info(f"🚧 {description}")
+    try:
+        yield
+        logger.info(f"🔓 {description}")
+    except Exception as exc:
+        logger.error(f"🔒 {description}: {exc}", exc_info=True)
+        _demo_failures.append(f"GATE FAILED: {description} — {exc}")
+
+
 def logfmt(obj: object) -> str:
     """Format object for logging. Handles both Pydantic models and strings."""
     if isinstance(obj, str):
