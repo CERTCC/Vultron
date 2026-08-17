@@ -46,12 +46,12 @@ def test_bundle_is_frozen_dataclass_with_two_seam_fields():
         f.name for f in dataclasses.fields(StatusAuthorizationCallOutBundle)
     }
     assert field_names == {
-        "status_update_guard_factory",
-        "side_effects_guard_factory",
+        "status_adoption_gate_factory",
+        "embargo_teardown_authorization_gate_factory",
     }
     # frozen=True → mutating a field raises FrozenInstanceError.
     with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
-        STATUS_AUTHORIZATION_DETERMINISTIC.status_update_guard_factory = None  # type: ignore[misc]
+        STATUS_AUTHORIZATION_DETERMINISTIC.status_adoption_gate_factory = None  # type: ignore[misc]
 
 
 def test_deterministic_is_instance_of_bundle():

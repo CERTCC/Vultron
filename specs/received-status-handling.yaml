@@ -1,9 +1,9 @@
 id: RSH
 title: Received-Side Status Authorization
 description: >
-  Requirements for the two-seam authorization model governing how a CaseActor
-  adopts an inbound participant's reported CaseStatus as canonical (Seam 1)
-  and whether to execute embargo teardown side-effects (Seam 2).
+  Requirements for the two-gate authorization model governing how a CaseActor
+  adopts an inbound participant's reported CaseStatus as canonical (StatusAdoptionGate)
+  and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
   Derived from ADR-0046 and IDEA-1836 planning session.
 version: 0.1.0
 scope:
@@ -15,7 +15,7 @@ tags:
 - state-machine
 groups:
 - id: RSH-01
-  title: StatusUpdateGuard (Seam 1)
+  title: StatusAdoptionGate
   description: >
     Controls whether a participant's reported CaseStatus is adopted as
     canonical by the CaseActor.
@@ -24,31 +24,31 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      `add_participant_status_tree` MUST include a StatusUpdateGuard node
+      `add_participant_status_tree` MUST include a StatusAdoptionGate node
       positioned after `AppendParticipantStatusNode` and before any
       canonicalization step.
     rationale: >
-      Seam 1 of ADR-0046 — separates the "record the claim" step from the
+      StatusAdoptionGate of ADR-0046 — separates the "record the claim" step from the
       "adopt the claim as canonical" decision.
   - id: RSH-01-002
     priority: MUST
     kind: protocol
     statement: >
-      StatusUpdateGuard MUST be implemented as a Fallback with two children:
+      StatusAdoptionGate MUST be implemented as a Fallback with two children:
       (1) `CheckIsCaseOwnerNode` as a hard bypass and (2) a
       `CaseOwnerApprovesStatusUpdate` Evaluator call-out point.
     rationale: >
       CASE_OWNER reports are authoritative by definition (gospel bypass).
-      Non-owner reports pass through a configurable approval seam per ADR-0046.
+      Non-owner reports pass through a configurable approval gate per ADR-0046.
   - id: RSH-01-003
     priority: MUST
     kind: protocol
     statement: >
-      When StatusUpdateGuard passes, `add_participant_status_tree` MUST emit
+      When StatusAdoptionGate passes, `add_participant_status_tree` MUST emit
       a self-addressed `Add(CaseStatus, VulnerabilityCase)` activity to the
       CaseActor acting as CASE_MANAGER.
     rationale: >
-      The self-addressed Add(CaseStatus) threads the two seams together without
+      The self-addressed Add(CaseStatus) threads the two gates together without
       coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
     notes: >
       Implementation pattern for obtaining the `CaseStatus` ID: read the
@@ -71,7 +71,7 @@ groups:
       would violate write-before-side-effect ordering.
 
 - id: RSH-02
-  title: SideEffectsGuard (Seam 2)
+  title: EmbargoTeardownAuthorizationGate
   description: >
     Controls whether embargo teardown or other side-effects execute after a
     canonical CaseStatus write.
@@ -80,17 +80,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      `add_case_status_tree` MUST include a `SideEffectsGuard` Evaluator
+      `add_case_status_tree` MUST include a `EmbargoTeardownAuthorizationGate` Evaluator
       call-out node positioned after `AppendCaseStatusToCaseNode` and before
       `ThreatTerminationBranchNode`.
     rationale: >
-      Seam 2 of ADR-0046 — provides a hook to gate side-effect execution
+      EmbargoTeardownAuthorizationGate of ADR-0046 — provides a hook to gate side-effect execution
       independently of the canonical write authorization.
   - id: RSH-02-002
     priority: MUST
     kind: protocol
     statement: >
-      The default backend for `SideEffectsGuard` MUST be `AlwaysSucceed`,
+      The default backend for `EmbargoTeardownAuthorizationGate` MUST be `AlwaysSucceed`,
       preserving existing behavior until a real policy engine is wired in.
     rationale: >
       Prototype-stage default per ADR-0025 ceiling/floor rule. Changing the
@@ -118,7 +118,7 @@ groups:
     kind: protocol
     statement: >
       `ThreatTerminationBranchNode` MUST NOT gate teardown on sender role
-      (e.g., CASE_OWNER). Authorization is the responsibility of Seam 1;
+      (e.g., CASE_OWNER). Authorization is the responsibility of StatusAdoptionGate;
       by the time this node runs, the canonical write is already authorized.
     rationale: >
       Duplicating a CASE_OWNER gate here would prevent teardown when the
@@ -194,7 +194,7 @@ groups:
       authorization seam (`add_case_status_tree`) — the CaseActor is always the
       authority for its own outbound state changes.
     rationale: >
-      The inbox seam (Seam 1 → Seam 2) exists for evaluating external
+      The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating external
       participant suggestions. The CaseActor writing its own EM/PXA transition
       is not a suggestion — it is an authoritative state change. Routing through
       the inbox loopback (as `EmitAddCaseStatusToSelfNode` does) inverts
@@ -255,11 +255,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A refused dimension MUST NOT prevent the Seam 1 emit (RSH-01-003) from
+      A refused dimension MUST NOT prevent the StatusAdoptionGate emit (RSH-01-003) from
       running. The self-addressed `Add(CaseStatus)` MUST still be emitted
       whenever any dimension of the update was accepted.
     rationale: >
-      Seam 2 owns embargo teardown (RSH-01-004). Aborting the Seam 1 sequence
+      EmbargoTeardownAuthorizationGate owns embargo teardown (RSH-01-004). Aborting the StatusAdoptionGate sequence
       on a refused dimension silently skipped teardown — the concrete failure
       reported in ISSUE-2235.
   - id: RSH-05-004
@@ -326,14 +326,14 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >
-      The `em` dimension SHOULD NOT be adjudicated at Seam 1; embargo state
-      belongs to Seam 2 (`add_case_status_tree`).
+      The `em` dimension SHOULD NOT be adjudicated at StatusAdoptionGate; embargo state
+      belongs to EmbargoTeardownAuthorizationGate (`add_case_status_tree`).
     rationale: >
-      EM is per-case rather than per-participant and its authorization seam is
-      the SideEffectsGuard (RSH-02-001). Adjudicating it in the Seam 1 guard
-      would duplicate — and could contradict — Seam 2's decision.
+      EM is per-case rather than per-participant and its authorization gate is
+      the EmbargoTeardownAuthorizationGate (RSH-02-001). Adjudicating it in the StatusAdoptionGate guard
+      would duplicate — and could contradict — EmbargoTeardownAuthorizationGate's decision.
     notes: >
-      Seam 2 EM adjudication is tracked in ISSUE-2256.
+      EmbargoTeardownAuthorizationGate EM adjudication is tracked in ISSUE-2256.
   - id: RSH-05-009
     priority: MUST
     kind: protocol

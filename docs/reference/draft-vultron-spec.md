@@ -872,7 +872,7 @@ Key cascades:
   `NO_EMBARGO`.
 - **PXA observation adopted → embargo teardown**: canonical adoption of any
   status carrying `CS.P`, `CS.X`, or `CS.A` MUST trigger embargo teardown
-  evaluation (§6.5.1, Seam 2).
+  evaluation (§6.5.1, EmbargoTeardownAuthorizationGate).
 - **Embargo teardown → state replication**: termination of an active embargo
   SHOULD produce a fresh `Announce(CaseLedgerEntry)` to all participants.
 
@@ -883,7 +883,7 @@ authorization seams. This structure exists because "record what a participant
 claimed" and "act on that claim as truth" are separate decisions with separate
 authority.
 
-**Seam 1 — Adoption.** A participant reports an observation via
+**StatusAdoptionGate — Adoption.** A participant reports an observation via
 `Add(ParticipantStatus)`. The receiving Case Actor records the claim, then
 decides whether to treat it as canonical:
 
@@ -895,7 +895,7 @@ decides whether to treat it as canonical:
   acting as Case Manager, which performs the canonical write.
 - The tree that records the claim MUST NOT execute side-effects directly.
 
-**Seam 2 — Side-effects.** After the canonical write, the Case Actor evaluates
+**EmbargoTeardownAuthorizationGate — Side-effects.** After the canonical write, the Case Actor evaluates
 side-effects:
 
 - It MUST check whether the canonical status carries `CS.P`, `CS.X`, or `CS.A`.
@@ -909,8 +909,8 @@ teardown, and the side-effects decision cannot tell whether the canonical write
 originated in an external message or an internal self-emit. That independence is
 what lets either be re-policied without touching the other.
 
-!!! note "Where the seam model applies"
-    Seam 1 governs *any* reported status, but its authorization question is most
+!!! note "Where the gate model applies"
+    StatusAdoptionGate governs *any* reported status, but its authorization question is most
     consequential for participant-agnostic (PXA) observations, where any
     participant may report (§7.4.2) — including reports about *other*
     participants. The default auto-adopt policy means an unapproved third-party
@@ -1197,7 +1197,7 @@ does with a report*.
     The sentinel is currently a *design pattern* rather than a specified protocol
     role: no spec group defines a sentinel's trust relationship to a case, and
     nothing distinguishes a sentinel's observations from any other participant's.
-    Given that Seam 1's default policy is to auto-adopt non-owner reports, an
+    Given that StatusAdoptionGate's default policy is to auto-adopt non-owner reports, an
     unspecified external reporter is a trust-model question and not merely a
     naming one. Treat this note as informative.
 
@@ -1351,8 +1351,8 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
 6. ~~**Observer rename ADR**~~ — Resolved. ADR-0057
    (`docs/adr/0057-observer-participant-role.md`) decided the rename and Observer
    semantics (CM-25, CM-26). Implementation (code rename) tracked separately.
-7. ~~**PXA adoption policy**~~ — Resolved. Two-seam model specified in §6.5.1:
-   Seam 1 (adoption) and Seam 2 (side-effects), with the
+7. ~~**PXA adoption policy**~~ — Resolved. Two-gate model specified in §6.5.1:
+   StatusAdoptionGate (adoption) and EmbargoTeardownAuthorizationGate (side-effects), with the
    canonical-write-before-side-effects ordering normative. Source:
    `specs/received-status-handling.yaml`, `notes/received-status-authorization.md`,
    ADR-0046.
@@ -1393,5 +1393,5 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
     with no sender notification. Whether the protocol needs an error-reply facet
     is open.
 16. **Sentinel as a specified role** — §7.4.2. Currently a design pattern with no
-    spec group defining its trust relationship to a case. Given Seam 1's
+    spec group defining its trust relationship to a case. Given StatusAdoptionGate's
     auto-adopt default, this is a trust-model question.

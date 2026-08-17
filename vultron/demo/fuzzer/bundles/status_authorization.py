@@ -38,7 +38,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (  # no
 )
 
 
-def _stochastic_status_update_guard(
+def _stochastic_status_adoption_gate(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
     from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
@@ -46,7 +46,7 @@ def _stochastic_status_update_guard(
     return AlmostAlwaysSucceed(name)
 
 
-def _stochastic_side_effects_guard(
+def _stochastic_embargo_teardown_authorization_gate(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
     from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
@@ -55,10 +55,10 @@ def _stochastic_side_effects_guard(
 
 
 STATUS_AUTHORIZATION_STOCHASTIC = StatusAuthorizationCallOutBundle(
-    status_update_guard_factory=_stochastic_status_update_guard,  # type: ignore[arg-type]
-    side_effects_guard_factory=_stochastic_side_effects_guard,  # type: ignore[arg-type]
+    status_adoption_gate_factory=_stochastic_status_adoption_gate,  # type: ignore[arg-type]
+    embargo_teardown_authorization_gate_factory=_stochastic_embargo_teardown_authorization_gate,  # type: ignore[arg-type]
 )
-"""Stochastic bundle: both seams use AlmostAlwaysSucceed (p=0.90)."""
+"""Stochastic bundle: both gates use AlmostAlwaysSucceed (p=0.90)."""
 
 __all__ = [
     "StatusAuthorizationCallOutBundle",

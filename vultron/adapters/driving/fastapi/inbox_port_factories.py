@@ -152,7 +152,7 @@ _SYNC_PORT_SEMANTICS = frozenset(
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         # ADD_CASE_STATUS_TO_CASE needs trigger_activity so that
-        # ThreatTerminationBranchNode (Seam 2) can dispatch TerminateEmbargo
+        # ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate) can dispatch TerminateEmbargo
         # activities when P/X/A is set (RSH-03-001, ADR-0046).
         MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,

@@ -414,7 +414,7 @@ groups:
         If the new CaseStatus (derived from the participant status update) indicates
         at least one of CS.P, CS.X, or CS.A and an active embargo exists, trigger
         embargo teardown automatically via ThreatTerminationBranchNode (RSH-03-001).
-        A SideEffectsGuard call-out seam (RSH-02-001) precedes the teardown node;
+        An EmbargoTeardownAuthorizationGate call-out (RSH-02-001) precedes the teardown node;
         it defaults to AlwaysSucceed (auto-approve) but is designed to accommodate
         a future "ask CASE_OWNER to confirm" policy. The CASE_OWNER gate previously
         stated here is incorrect — the code fires teardown for any participant's
