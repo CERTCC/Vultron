@@ -34,8 +34,10 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
+from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
@@ -87,21 +89,26 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
     description="Returns a list of Actor examples.",
     operation_id="actors_list",
 )
-def get_actors(
-    datalayer: DataLayer = Depends(get_shared_dl),
-):
-    """Returns a list of Actor examples."""
-    results = []
-    for t in _ACTOR_RECORD_TYPES:
-        results.extend(datalayer.get_all(t))
+def get_actors():
+    """Returns the actors this node hosts.
 
-    logger.debug(f"get_actors: found {len(results)} actor records")
-
+    Under ADR-0066 this enumerates hosted actors and reads each one's record
+    from its own store.  It previously scanned a shared pool for every
+    actor-typed row, which also returned the node's *peers* — actors it merely
+    holds an address for.  A peer is not hosted here, so peers are no longer
+    listed (ADR-0066 decision 4).
+    """
     objects: list[AnyActor] = []
-    for rec in results:
-        cls = _actor_class_for_record(rec)
-        obj = cls.model_validate(rec.get("data_", {}))
-        objects.append(obj)
+    for actor_id in actor_hosts.hosted_actor_ids():
+        actor_dl = get_datalayer(actor_id)
+        for t in _ACTOR_RECORD_TYPES:
+            rec = actor_dl.get(t, actor_id)
+            if isinstance(rec, dict):
+                cls = _actor_class_for_record(rec)
+                objects.append(cls.model_validate(rec.get("data_", {})))
+                break
+
+    logger.debug("get_actors: found %d hosted actor(s)", len(objects))
 
     return AS2JSONResponse(
         [
@@ -114,7 +121,7 @@ def get_actors(
 class ActorCreateRequest(BaseModel):
     """Request body for ``POST /actors/`` (D5-1-G2).
 
-    Creates a new actor record in the shared DataLayer.  The operation is
+    Creates a new actor record in that actor's own store.  The operation is
     idempotent: if ``id`` is supplied and an actor with that URI already
     exists, the existing record is returned with HTTP 200.
     """
@@ -143,18 +150,16 @@ class ActorCreateRequest(BaseModel):
     status_code=status.HTTP_201_CREATED,
     summary="Create Actor",
     description=(
-        "Creates a new actor record in the shared DataLayer. "
+        "Creates a new actor record in that actor's own store. "
         "Idempotent: if an actor with the same ``id`` already exists the "
         "existing record is returned with HTTP 200."
     ),
     operation_id="actors_create",
 )
-def create_actor(
-    request: ActorCreateRequest,
-    datalayer: DataLayer = Depends(get_shared_dl),
-):
-    """Create (or return existing) actor record."""
+def create_actor(request: ActorCreateRequest):
+    """Create (or return existing) actor record in that actor's own store."""
     actor_id = request.id_ or make_id("actors")
+    datalayer = get_datalayer(actor_hosts.canonical_actor_uri(actor_id))
 
     # Idempotency: return existing record unchanged.
     existing = _find_actor_record(datalayer, actor_id)
@@ -188,7 +193,7 @@ def create_actor(
     operation_id="actors_get_profile",
 )
 def get_actor_profile(
-    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
+    actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ):
     """Returns an actor's discovery profile.
 
@@ -247,17 +252,18 @@ def get_actor_profile(
 def get_action_rules(
     actor_id: str,
     case_id: str,
-    dl: DataLayer = Depends(get_shared_dl),
+    dl: DataLayer = Depends(get_actor_dl),
 ) -> dict:
     """Return valid CVD actions for an actor in a specific case."""
     try:
-        actor_obj = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+        canonical = actor_hosts.canonical_actor_uri(actor_id)
+        actor_obj = dl.read(canonical) or dl.read(actor_id)
         case_obj = dl.read(case_id)
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             case_obj = dl.find_case_by_short_id(case_id)
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
-        canonical_actor_id = actor_id
+        canonical_actor_id = canonical
         if actor_obj is not None and hasattr(actor_obj, "id_"):
             canonical_actor_id = actor_obj.id_
         else:
@@ -295,28 +301,17 @@ def get_action_rules(
     operation_id="actors_get_inbox",
 )
 def get_actor_inbox(
-    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
+    actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     """Returns the Actor's Inbox."""
-
-    actor_record = datalayer.read(actor_id)
-
-    if not actor_record:
-        actor_record = datalayer.find_actor_by_short_id(actor_id)
-
-    if not actor_record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Actor not found.",
-        )
-
     from vultron.core.models.base import CoreObject as _CoreObject
 
-    actor = actor_record
-    actor_dl = datalayer.clone_for_actor(cast(Any, actor).id_)
+    # 404 if this node does not host the addressed actor.  No clone is needed:
+    # the injected DataLayer already *is* this actor's store (ADR-0066).
+    _resolve_actor_or_404(actor_id, datalayer)
     items = cast(
         list[as_Object | as_Link | str | _CoreObject | None],
-        list(actor_dl.inbox_list()),
+        list(cast(Any, datalayer).inbox_list()),
     )
     return AS2JSONResponse(as_OrderedCollection(items=items))
 
@@ -336,7 +331,7 @@ def post_actor_inbox(
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
     body: dict[str, Any] = Depends(_get_body),
-    dl: DataLayer = Depends(get_shared_dl),
+    dl: DataLayer = Depends(get_actor_dl),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
@@ -376,13 +371,11 @@ def post_actor_inbox(
     emitter = getattr(request.app.state, "emitter", None)
     dispatcher = getattr(request.app.state, "dispatcher", None)
 
-    actor_dl = dl.clone_for_actor(canonical_actor_id)
     background_tasks.add_task(
         run_inbox_pipeline,
         activity,
         body,
         dl,
-        actor_dl,
         canonical_actor_id,
         dispatcher,
         emitter,
@@ -402,7 +395,7 @@ def post_actor_outbox(
     activity: as_Activity,
     request: Request,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(get_shared_dl),
+    dl: DataLayer = Depends(get_actor_dl),
 ) -> None:
     """Adds an item to the Actor's Outbox.
     Args:
@@ -415,16 +408,7 @@ def post_actor_outbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    actor_record = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    actor = actor_record
-
-    if not actor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    # Normalise to the canonical actor URI so that short-ID and full-ID
-    # callers always scope to the same DataLayer namespace.
+    actor = _resolve_actor_or_404(actor_id, dl)
     canonical_actor_id = actor.id_
 
     # actor.id_ must match activity.actor or activity.actor.id_
@@ -445,14 +429,14 @@ def post_actor_outbox(
         f"Posting activity to actor {canonical_actor_id} outbox: {activity}"
     )
 
-    # Use the actor-scoped DataLayer for operational data
-    actor_dl = dl.clone_for_actor(canonical_actor_id)
+    # No clone: the injected DataLayer already is this actor's store.
+    actor_dl = cast(Any, dl)
     actor_dl.create(object_to_record(activity))
     actor_dl.outbox_append(activity.id_)
 
     emitter = getattr(request.app.state, "emitter", None)
     background_tasks.add_task(
-        outbox_handler, canonical_actor_id, actor_dl, dl, emitter
+        outbox_handler, canonical_actor_id, actor_dl, emitter
     )
 
     return None
@@ -463,7 +447,7 @@ def post_actor_outbox(
     description="Returns an Actor by surrogate key or canonical ID.",
     operation_id="actors_get",
 )
-def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)):
+def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)):
     """Returns an Actor by actor_id.
 
     Accepts either a canonical actor ID or the actor's surrogate key.

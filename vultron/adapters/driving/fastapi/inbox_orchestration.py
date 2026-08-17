@@ -320,7 +320,6 @@ class FastAPIQueuePort:
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     body: dict[str, Any] | None,
-    dl: DataLayer,
     actor_dl: ActorScopedDataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
@@ -341,8 +340,10 @@ async def run_inbox_pipeline(
         payload: Raw inbox payload (JSON body dict or as_Activity).
         body: Raw JSON request body dict, forwarded from the endpoint for
             nested-object re-parsing (preserves domain-specific fields).
-        dl: Shared DataLayer.
-        actor_dl: Actor-scoped DataLayer for inbox/outbox queues.
+        actor_dl: The receiving actor's DataLayer — ingress, dispatch, queues
+            and stored activities alike.  Before ADR-0066 a separate shared
+            DataLayer was threaded alongside it; the two only differed because
+            the shared pool could see every actor's rows.
         actor_id: Canonical URI of the receiving actor.
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
@@ -350,12 +351,12 @@ async def run_inbox_pipeline(
     from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
     from vultron.core.behaviors.inbox import process_payload
 
-    ingress = FastAPIIngressAdapter(dl=dl, body=body)
+    ingress = FastAPIIngressAdapter(dl=actor_dl, body=body)
     dispatch_adp = FastAPIDispatchAdapter(
-        dl=dl, actor_id=actor_id, dispatcher=dispatcher
+        dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
     )
     queue = FastAPIQueuePort(
-        dl=dl,
+        dl=actor_dl,
         actor_dl=cast(ActorScopedDataLayer, actor_dl),
         actor_id=actor_id,
     )
@@ -375,7 +376,7 @@ async def run_inbox_pipeline(
 
         # Process any replayed activities (pushed back to the queue by
         # DeferCheckNode/DispatchNode replay after bootstrap).
-        stored_ingress = StoredActivityIngressAdapter(dl=dl)
+        stored_ingress = StoredActivityIngressAdapter(dl=actor_dl)
         while actor_dl.inbox_list():
             item_id = actor_dl.inbox_pop()
             if item_id is None:
@@ -389,4 +390,4 @@ async def run_inbox_pipeline(
                 replay_outcome.context_id,
             )
 
-    await outbox_handler(actor_id, actor_dl, shared_dl=dl, emitter=emitter)
+    await outbox_handler(actor_id, actor_dl, emitter=emitter)

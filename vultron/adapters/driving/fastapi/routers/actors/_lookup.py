@@ -2,8 +2,14 @@
 """
 Actor lookup helpers for the Vultron FastAPI actors router.
 
-Provides pure helper functions for finding actor records in the DataLayer
-by canonical ID, short-ID, or record type. No route handlers here.
+Provides pure helper functions for finding actor records in an actor's own
+DataLayer. No route handlers here.
+
+Under ADR-0066 the URL path segment is resolved to a canonical actor URI by
+**computation** (``{base_url}actors/{segment}``), not by scanning actor rows.
+The old scan required a view across every actor's rows, and with per-actor
+stores it could not work at all: choosing which store to open required the
+canonical URI that the scan was being used to discover.
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -31,6 +37,7 @@ from vultron.core.models.actor import (
     VultronPerson,
     VultronService,
 )
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.core.ports.datalayer import DataLayer
 
 _ACTOR_RECORD_TYPES = [
@@ -83,34 +90,42 @@ def _actor_class_for_record(
 def _find_actor_record(
     datalayer: DataLayer, actor_id: str
 ) -> dict[str, object] | None:
-    """Return raw actor record for full-ID or short-ID lookup."""
-    rec = _find_actor_record_by_id(datalayer, actor_id)
+    """Return the raw actor record for *actor_id* from this actor's own store.
+
+    *actor_id* may be a URL path segment or an already-canonical URI; both
+    resolve to the same canonical URI by computation.
+
+    The trailing "scan every actor row for one whose id ends in /segment"
+    fallback is gone. It was a cross-actor read, and it also silently accepted
+    a *peer's* record when the segment happened to match one — returning an
+    actor this node does not host.
+    """
+    canonical = canonical_actor_uri(actor_id)
+
+    rec = _find_actor_record_by_id(datalayer, canonical)
     if rec is not None:
         return rec
 
     # Preserve DataLayer.read() fallback behavior (e.g., bare UUID -> urn:uuid:).
-    resolved = datalayer.read(actor_id)
+    resolved = datalayer.read(canonical) or datalayer.read(actor_id)
     if resolved is not None:
         resolved_id = getattr(resolved, "id_", None)
         if isinstance(resolved_id, str):
             rec = _find_actor_record_by_id(datalayer, resolved_id)
             if rec is not None:
                 return rec
-
-    for actor_type in _ACTOR_RECORD_TYPES:
-        for candidate in datalayer.get_all(actor_type):
-            rec_id = candidate.get("id_")
-            if isinstance(rec_id, str) and (
-                rec_id == actor_id or rec_id.endswith(f"/{actor_id}")
-            ):
-                return candidate
     return None
 
 
 def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> CoreActor:
-    actor_record = dl.read(actor_id)
-    if actor_record is None:
-        actor_record = dl.find_actor_by_short_id(actor_id)
+    """Return the actor named by *actor_id*, or raise 404.
+
+    *dl* MUST already be that actor's own DataLayer — see
+    ``deps.get_actor_dl``, which computes the canonical URI from the path
+    segment and opens the corresponding store.
+    """
+    canonical = canonical_actor_uri(actor_id)
+    actor_record = dl.read(canonical) or dl.read(actor_id)
     if actor_record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."

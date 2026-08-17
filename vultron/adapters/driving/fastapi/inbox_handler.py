@@ -420,4 +420,4 @@ async def inbox_handler(
                 break
 
     # OX-1.2 / OX-03-002: trigger outbox delivery after inbox processing completes
-    await outbox_handler(actor_id, queue_dl, shared_dl=dl, emitter=emitter)
+    await outbox_handler(actor_id, queue_dl, emitter=emitter)

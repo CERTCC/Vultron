@@ -161,7 +161,6 @@ class OutboxMonitor:
                 await outbox_handler(
                     actor_id,
                     dl,
-                    shared_dl=shared_dl,
                     emitter=self._emitter,
                 )
             except Exception as exc:
