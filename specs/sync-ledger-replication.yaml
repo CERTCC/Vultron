@@ -12,6 +12,41 @@ tags:
 - protocol
 - persistence
 groups:
+- id: SYNC-00
+  title: Ledger Sync Phase Concepts
+  specs:
+  - id: SYNC-00-001
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The **AppendOnlyLedger** phase establishes the local append-only case ledger with
+      hash-chain indexing. Each entry is immutable once committed and cryptographically
+      linked to its predecessor, providing the integrity foundation for all subsequent
+      replication phases.
+  - id: SYNC-00-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The **LedgerFanout** phase implements one-way replication from the authoritative
+      CaseActor to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
+      A participant replica is considered synchronized when its log tail hash matches
+      the CaseActor's authoritative tail.
+  - id: SYNC-00-003
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The **LedgerReconciliation** phase extends LedgerFanout with a full sync loop,
+      retry, and backoff. When a participant's replica falls behind, reconciliation
+      detects the gap and retries delivery until convergence is achieved.
+      LedgerReconciliation is how the system recovers; LedgerFanout is how it stays current.
+  - id: SYNC-00-004
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      The **PeerLedgerSync** phase enables multi-peer synchronization between actors
+      with equal standing. Where LedgerFanout assumes one CaseActor holds authority,
+      PeerLedgerSync allows two or more actors to reconcile their ledgers with each
+      other, supporting federated and ownership-transfer scenarios.
 - id: SYNC-01
   title: Append-Only Log
   specs:
@@ -147,7 +182,7 @@ groups:
   - id: SYNC-06-003
     priority: MUST
     kind: protocol
-    statement: The SYNC-1 through SYNC-4 phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
+    statement: The AppendOnlyLedger through PeerLedgerSync phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
       of one. A single-node CaseActor is always the leader and always has write authority; no election is needed.
   - id: SYNC-06-004
     priority: SHOULD
@@ -155,7 +190,7 @@ groups:
     statement: >-
       A future multi-node CaseActor cluster (Phase 3) provides high-availability write authority
       via Raft consensus. This is a distinct replication tier from participant replication:
-      participant replication (SYNC-2) is pull-based fan-out via `Announce(CaseLedgerEntry)`,
+      participant replication (LedgerFanout) is pull-based fan-out via `Announce(CaseLedgerEntry)`,
       whereas the multi-node CaseActor cluster uses Raft consensus to elect a single write
       authority among the CaseActor nodes. The two tiers operate independently and SHOULD NOT
       be conflated.

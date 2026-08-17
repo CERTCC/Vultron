@@ -597,7 +597,7 @@ def _phase_sync_verification(
     case: as_VulnerabilityCase,
     case_actor_client: DataLayerClient | None,
 ) -> None:
-    """Verify SYNC-2 replication and confirm the dedicated case actor is unused."""
+    """Verify LedgerFanout replication and confirm the dedicated case actor is unused."""
     logger.info("─" * 80)
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
@@ -648,7 +648,7 @@ def _phase_sync_verification(
             )
 
     logger.info(
-        "Verifying SYNC-2 replication by comparing vendor ↔ finder replica"
+        "Verifying LedgerFanout replication by comparing vendor ↔ finder replica"
         " state (ADR-0019: synthetic entries omitted from canonical ledger)"
     )
 
@@ -664,7 +664,7 @@ def _phase_sync_verification(
     with demo_check("Dedicated CaseActor container remains unused for D5-2"):
         verify_case_actor_unused(case_actor_client, case.id_)
 
-    logger.info("✓ M2: Finder DataLayer synchronized (SYNC-2 verified)")
+    logger.info("✓ M2: Finder DataLayer synchronized (LedgerFanout verified)")
 
 
 def _phase_fix_lifecycle(

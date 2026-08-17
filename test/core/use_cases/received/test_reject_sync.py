@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for SYNC-3: RejectLedgerEntryReceivedUseCase and replay trigger.
+"""Tests for LedgerReconciliation: RejectLedgerEntryReceivedUseCase and replay trigger.
 
 Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
 """

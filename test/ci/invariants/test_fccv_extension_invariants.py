@@ -19,7 +19,7 @@ FCCV-extension-specific invariants:
 - ``offer_case_participant`` appears at least once (C2 suggests Vendor via
   ADR-0026).
 - Vendor (``vendor2``) is a late joiner — its replica holds the complete log
-  from genesis (SYNC-2 backfill).
+  from genesis (LedgerFanout backfill).
 - CS transitions VFd and VFD observed in Vendor actor-status entries.
 - CS transition P (public-aware) observed in C1 (``vendor``) actor-status
   entries (C1 triggers CS.P as CASE_OWNER).
@@ -355,8 +355,8 @@ def test_fccv_extension_vendor_late_joiner_has_full_history(
     """Vendor (vendor2) replica contains all logIndex values present in C1 (vendor) replica.
 
     Vendor is a late joiner and must receive the full ledger backfill from
-    CaseActor (SYNC-2).
-    Spec: DEMOMA-13-007 (SYNC-2 convergence).
+    CaseActor (LedgerFanout).
+    Spec: DEMOMA-13-007 (LedgerFanout convergence).
     """
     if not fccv_extension_replicas.get(
         "vendor"
@@ -379,7 +379,7 @@ def test_fccv_extension_c2_late_joiner_has_full_history(
 
     C2 joins after initial case creation when C1 invites them; CaseActor must
     backfill all prior entries to C2.
-    Spec: DEMOMA-13-007 (SYNC-2 convergence).
+    Spec: DEMOMA-13-007 (LedgerFanout convergence).
     """
     if not fccv_extension_replicas.get(
         "vendor"

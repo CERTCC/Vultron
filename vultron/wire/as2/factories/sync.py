@@ -15,7 +15,7 @@
 """
 Factory functions for outbound Vultron case-ledger synchronization activities.
 
-These are the sole public construction API for SYNC-2/SYNC-3 log
+These are the sole public construction API for LedgerFanout/LedgerReconciliation log
 replication activities. Internal activity subclasses are imported here
 and MUST NOT be imported by callers.
 

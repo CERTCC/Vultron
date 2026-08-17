@@ -150,7 +150,7 @@ class TestClaimReplayPosition:
 
         Regression guard: a full-length cooldown at genesis suppressed the
         replay that ``AnnounceCaseOnGenesisRejectNode`` depends on, leaving the
-        peer with an empty replica ("SYNC-2 replication did not complete").
+        peer with an empty replica ("LedgerFanout replication did not complete").
         Genesis still gets *a* cooldown, so the storm stays bounded.
         """
         assert GENESIS_REPLAY_COOLDOWN_SECONDS < REPLAY_COOLDOWN_SECONDS
