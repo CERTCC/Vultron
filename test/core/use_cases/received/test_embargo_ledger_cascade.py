@@ -120,7 +120,7 @@ class TestEmbargoLogEntryCascade:
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_add"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, author_id, case_manager_actor_id=author_id
+            case_id, author_id
         )
         case_read = cast(VulnerabilityCase, dl.read(case.id_))
         assert case_read is not None
@@ -329,7 +329,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_reject"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, coordinator_id, case_manager_actor_id=coordinator_id
+            case_id, coordinator_id
         )
 
         proposal = em_propose_embargo_activity(
