@@ -144,13 +144,28 @@ Use the guarded-commit pattern: only runs when `receiving_actor_id == case_actor
 
 ### AcceptCaseOwnershipTransferReceivedUseCase / ownership_transfer_tree.py
 
-Extend `create_accept_ownership_transfer_tree()` to append a
-`CommitCaseLedgerEntryNode` (and fan-out) after `AcceptCaseOwnershipTransferNode`.
+`create_accept_ownership_transfer_tree()` MUST pass `case_id` to
+`create_receive_activity_tree` and include ONLY `AcceptCaseOwnershipTransferNode`
+in `effect_nodes`:
 
-Use the guarded-commit pattern: the `BTBridge` call already runs in the
-CaseActor's context; add a `CheckIsCaseManagerNode` guard as the first
-child of the root Sequence so that the tree is a no-op on non-CaseActor
-replicas that happen to receive the same Accept activity.
+```python
+tree = create_receive_activity_tree(
+    name="AcceptOwnershipTransferBT",
+    case_id=case_id,
+    precondition_guards=[],
+    effect_nodes=[
+        AcceptCaseOwnershipTransferNode(case_id=case_id, new_owner_id=new_owner_id),
+    ],
+)
+```
+
+`create_receive_activity_tree` already injects `GuardedCommitCaseLedgerEntryBT`
+(with `CheckIsCaseManagerNode`) as the canonical single-writer commit step.
+Adding a second `CommitCaseLedgerEntryNode` to `effect_nodes` is a
+**double-write bug**: the guarded commit fires for CaseActor at log_index=N;
+the extra unguarded node fires for all actors, including the transferee, also
+at log_index=N but with a different `received_at` and `payload_snapshot` —
+producing an unrecoverable hash-chain fork (ISSUE-2252).
 
 ### fvcv_handoff_demo.py
 

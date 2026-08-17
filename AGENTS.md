@@ -374,6 +374,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Canonical Ledger Commits Must Be Role-Gated** — `CommitCaseLedgerEntryNode`
   MUST be wrapped in a role-gated composite. See CLP-09,
   [notes/case-ledger-authority.md](notes/case-ledger-authority.md).
+- **`create_receive_activity_tree` Already Injects the Guarded Commit — Do Not
+  Add a Second One to `effect_nodes`** — `create_receive_activity_tree` calls
+  `create_guarded_commit_case_ledger_entry_tree` as its first committed step.
+  Placing a bare `CommitCaseLedgerEntryNode` in `effect_nodes` creates an
+  unguarded second write that fires for ALL receiving actors, not just the
+  CaseActor. Both writers target the same `log_index` but produce different
+  `entry_hash` values (different `received_at`, different `payload_snapshot`
+  state), forking the hash chain irrecoverably (ISSUE-2252, CLP-09-001).
+  `effect_nodes` is for protocol state mutations only; ledger commit belongs
+  exclusively in `create_receive_activity_tree`'s own guarded slot.
+  See [notes/ownership-transfer.md](notes/ownership-transfer.md).
 - **Use-Case Subpackage Splits Must Re-Export Both Classes and Request Models** —
   `__init__.py` must re-export both; mirror split in test layout.
 - **Transport-Role Naming Must Stay Explicit** — update core ports docs, adapter
