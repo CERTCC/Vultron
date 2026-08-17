@@ -224,7 +224,7 @@ def wait_for_finder_log_entry(
 
     Proves that the vendor's ``Announce(CaseLedgerEntry)`` outbox activity was
     delivered to the finder's inbox and processed by
-    ``AnnounceLedgerEntryReceivedUseCase`` (SYNC-2 receive side).
+    ``AnnounceLedgerEntryReceivedUseCase`` (LedgerFanout receive side).
 
     Args:
         finder_client: DataLayerClient connected to the Finder container.

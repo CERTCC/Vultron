@@ -132,6 +132,10 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Participant Case Replica** | A local copy of **VulnerabilityCase** state maintained by a **Participant** node; must satisfy PCR safety rules (proper seeding, no out-of-order mutations) and convergence to the **CaseActor**'s authoritative state | Case replica, local case copy |
 | **Trust Bootstrap** | The first-time establishment of trust between the **CaseActor** and a new **Participant** via an **Accept** activity in response to an **Offer**; includes sending a `Create(VulnerabilityCase)` activity to seed the **Participant Case Replica** | Trust handoff, initial trust |
 | **Case Replica Seeding** | The process of initializing a **Participant Case Replica** by receiving an `Announce(VulnerabilityCase)` or `Create(VulnerabilityCase)` activity from the **CaseActor**; must occur before case-context activities can be processed | Replica initialization, case sync |
+| **Append-Only Ledger** | The first ledger synchronization phase: establishes the local append-only case ledger with hash-chain indexing, providing the cryptographic integrity foundation for all subsequent replication phases. Each entry is immutable once committed and uniquely identified by its content hash. | SYNC-1, phase 1 |
+| **Ledger Fanout** | The second ledger synchronization phase: one-way replication from the authoritative **CaseActor** to all **Participant Actors** via `Announce(CaseLedgerEntry)` messages. A participant's replica is considered synchronized when its log tail hash matches the **CaseActor**'s. | SYNC-2, phase 2 |
+| **Ledger Reconciliation** | The third ledger synchronization phase: a full sync loop with retry and backoff that detects and repairs gaps in participant replicas, ensuring eventual convergence even after missed or delayed deliveries. | SYNC-3, phase 3 |
+| **Peer Ledger Sync** | The fourth ledger synchronization phase: multi-peer synchronization enabling actors with equal standing to reconcile their ledgers with each other, supporting federated and ownership-transfer scenarios where no single actor is permanently authoritative. | SYNC-4, phase 4 |
 
 ## Activity & Wire Format
 
@@ -180,6 +184,8 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Retriever** | A **Coordination Agent** subtype that fetches external data needed by the BT (e.g., CVE ID lookup, SSVC scoring) | Fetch agent, lookup agent |
 | **Composer** | A **Coordination Agent** subtype that assembles content from domain state (e.g., drafting advisory text) | Generator agent, authoring agent |
 | **Actuator** | A **Coordination Agent** subtype that invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise; produces no content artifact | Side-effect agent, executor |
+| **StatusAdoptionGate** | A BT authorization gate that determines whether a received **CaseStatus** update should be adopted by the receiving actor; guards the `add_participant_status_tree` path for received-side status canonicalization (ADR-0046). | Seam 1, StatusUpdateGuard |
+| **EmbargoTeardownAuthorizationGate** | A BT authorization gate that determines whether an incoming status update should trigger **Embargo** teardown; guards the `add_case_status_tree` path alongside `ThreatTerminationBranchNode` for received-side CaseStatus canonicalization (ADR-0046). | Seam 2, SideEffectsGuard |
 
 ## Domain Model — CVD Coordination
 

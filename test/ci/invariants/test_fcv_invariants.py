@@ -334,7 +334,7 @@ def test_fcv_vendor_late_joiner_has_full_history(
     """Vendor replica contains all logIndex values present in coordinator replica.
 
     Vendor is a late joiner (invited after case creation) and must receive the
-    full ledger backfill.  Spec: DEMOMA-12-004 (SYNC-2 convergence).
+    full ledger backfill.  Spec: DEMOMA-12-004 (LedgerFanout convergence).
     """
     if not fcv_replicas.get("coordinator") or not fcv_replicas.get("vendor"):
         pytest.skip(

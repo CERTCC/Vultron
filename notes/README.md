@@ -520,18 +520,18 @@ implementing `payloadSnapshot` parsers.
 
 **`sync-ledger-replication.md`**
 Log-centric architecture overview: hash-chain design rationale, log position
-in activity `context`, implementation phases (SYNC-1–4), system invariants,
+in activity `context`, implementation phases (AppendOnlyLedger–PeerLedgerSync), system invariants,
 open questions for the replicated case event log, SYNC-13 ledger write-ownership
 boundary, and pre-SYNC-13 upgrade path.
 **Load when**: designing multi-actor case synchronization, evaluating the
-hash-chain log approach, scoping the SYNC-1–4 implementation phases, or
+hash-chain log approach, scoping the AppendOnlyLedger–PeerLedgerSync implementation phases, or
 investigating the SYNC-12/SYNC-13 effects-before-persist and write-ownership
 invariants.
 
 **`participant-case-replica.md`**
 Design notes for participant case replicas: per-actor case copies, the
 synchronisation model between `CaseActor` and participant actors, and the
-relationship to SYNC-1/SYNC-2 implementation phases.
+relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 **Load when**: implementing participant-side case replica handling, working on
 `specs/participant-case-replica.yaml` (PCR) requirements, or designing the
 `Announce(CaseLedgerEntry)` inbound handler.

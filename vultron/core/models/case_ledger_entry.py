@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Core domain model for a canonical case ledger entry (SYNC-2).
+"""Core domain model for a canonical case ledger entry (LedgerFanout).
 
 :class:`CaseLedgerEntry` is the authoritative domain representation of a
 single hash-chained log entry used for replication via

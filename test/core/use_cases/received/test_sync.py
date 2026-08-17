@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for SYNC-2/SYNC-3 received use cases."""
+"""Tests for LedgerFanout/LedgerReconciliation received use cases."""
 
 import pytest
 from unittest.mock import MagicMock

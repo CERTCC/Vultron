@@ -636,7 +636,7 @@ groups:
     statement: >-
       The FVV scenario MUST run deterministically end-to-end via a single
       `docker compose` command using the existing multi-actor Compose stack; the
-      scenario script MUST verify SYNC-2 replica convergence (both Finder and Vendor2
+      scenario script MUST verify LedgerFanout replica convergence (both Finder and Vendor2
       replicas match the authoritative Vendor1 state) after each major protocol event
   - id: DEMOMA-09-005
     priority: MUST
@@ -786,7 +786,7 @@ groups:
     kind: project
     statement: >-
       The FVCV-extension scenario MUST run deterministically end-to-end; the scenario
-      script MUST verify SYNC-2 replica convergence for Finder, Coordinator, and Vendor2
+      script MUST verify LedgerFanout replica convergence for Finder, Coordinator, and Vendor2
       replicas against the authoritative Vendor1 state after each major protocol event.
     relationships:
     - rel_type: refines
@@ -952,7 +952,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The FVCV-handoff scenario MUST run deterministically and MUST verify SYNC-2
+      The FVCV-handoff scenario MUST run deterministically and MUST verify LedgerFanout
       replica convergence for all non-owning participants after each major protocol
       event, as required by DEMOMA-10-007.
     relationships:
@@ -1225,7 +1225,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The FCV scenario MUST run deterministically end-to-end and MUST verify SYNC-2
+      The FCV scenario MUST run deterministically end-to-end and MUST verify LedgerFanout
       replica convergence for Finder and Vendor replicas against the authoritative
       Coordinator/CaseActor state after each major protocol event.
     relationships:
@@ -1516,7 +1516,7 @@ groups:
     kind: project
     statement: >-
       The FCCV-extension scenario MUST run deterministically end-to-end and MUST
-      verify SYNC-2 replica convergence for Finder, C2, and Vendor replicas against
+      verify LedgerFanout replica convergence for Finder, C2, and Vendor replicas against
       the authoritative C1/CaseActor state after each major protocol event.
     relationships:
     - rel_type: refines
@@ -1721,12 +1721,12 @@ groups:
     kind: project
     statement: >-
       After Vendor joins, all four actor containers (Finder, C1, C2, Vendor)
-      MUST converge to the same case ledger state (SYNC-2 invariant).  Vendor
+      MUST converge to the same case ledger state (LedgerFanout invariant).  Vendor
       MUST receive the complete ledger backfill from genesis.
     rationale: >-
       Late-joiner backfill is a shared invariant across FVCV-extension,
       FVCV-handoff, and FCCV-handoff.  Verifying it here ensures the
-      ownership-transfer workflow does not break SYNC-2 convergence.
+      ownership-transfer workflow does not break LedgerFanout convergence.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007

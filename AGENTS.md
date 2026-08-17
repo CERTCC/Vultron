@@ -366,7 +366,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `test_trignotify.py` is insufficient. See
   [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
 - **Hash-Chain Ledger Record vs. Domain Model** — `HashChainLedgerRecord` (in-memory
-  SYNC-1) vs. `CaseLedgerEntry` (wire-serializable). Import by full module path.
+  AppendOnlyLedger) vs. `CaseLedgerEntry` (wire-serializable). Import by full module path.
   See ARCH-12-007.
 - **Case Ledger Is Not a Process Log** — only CaseActor-accepted protocol-significant
   assertions; `payloadSnapshot` MUST NOT be empty. See ADR-0019, CLP-07,
