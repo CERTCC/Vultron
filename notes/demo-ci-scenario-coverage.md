@@ -154,7 +154,7 @@ the minimum set's event-type and protocol-path coverage. (`fcv-reject` is the
 
 | Scenario | Covered by minimum set | Rationale |
 |---|:---:|---|
-| fv | ✓ (member) | 2-actor baseline; covers all 5 universal event types with no invitation phases |
+| fv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
 | fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
 | fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, case))` (invitation-layer rejection) |

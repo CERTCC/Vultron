@@ -550,7 +550,7 @@ groups:
         kind: project
         statement: >-
           A scenario coverage analysis MUST be performed that maps each of the
-          8 demo scenarios to the distinct Vultron protocol phases and
+          demo scenarios to the distinct Vultron protocol phases and
           message-type milestones it exercises, producing a coverage matrix.
           The analysis MUST inspect the actual milestone sets defined in each
           scenario script (not assume they are complete), and MAY update
@@ -558,7 +558,7 @@ groups:
           left them incomplete. The validated coverage matrix MUST be recorded
           in `notes/demo-ci-scenario-coverage.md`.
         rationale: >-
-          The 8 scenarios share common helper phases but each exercises a
+          The scenarios share common helper phases but each exercises a
           distinct set of protocol phases (e.g. invite_actor_to_case,
           offer_case_participant, accept_invite_actor_to_case). Milestone sets
           were often copied from simpler scenarios and may under-report what a
@@ -653,7 +653,7 @@ groups:
           signal read as noise rather than a real regression.
 
           Deriving both matrices from one JSON file also removes the verbatim
-          9-entry matrix duplication between the `demo` and `invariant-harness`
+          matrix duplication between the `demo` and `invariant-harness`
           jobs, where the two copies could silently drift apart.
 
           Detection is delegated to `actionlint` in CI and pre-commit
@@ -729,7 +729,7 @@ groups:
         statement: >-
           A follow-up coverage analysis SHOULD be performed after `rcv-embargo`
           and `rcvv-embargo` are implemented and passing in CI. The analysis
-          MUST evaluate whether the 3-scenario minimum PR set defined in
+          MUST evaluate whether the minimum PR set defined in
           DEMOCI-06-002 requires expansion to preserve full embargo lifecycle
           protocol coverage, and MUST update `notes/demo-ci-scenario-coverage.md`,
           DEMOCI-06-002, and DEMOCI-06-003 accordingly. If the embargo scenarios
@@ -741,10 +741,9 @@ groups:
           DEMOCI-06-002 defined the minimum PR set before embargo-lifecycle
           scenarios existed. The embargo protocol messages (EP, EA, EV, EJ, ET)
           are not exercised by any scenario in the current minimum set.
-          DEMOCI-06-003 was updated in this PR to list exactly 8 scenarios by
-          name; after #2073 adds rcv-embargo and rcvv-embargo to the CI matrix
-          that count becomes 10, so DEMOCI-06-003 must be updated in the same
-          pass. This SHOULD-priority spec creates an explicit obligation to
+          DEMOCI-06-003 lists the full scenario suite by name; after #2073
+          adds rcv-embargo and rcvv-embargo to the CI matrix, DEMOCI-06-003
+          must be updated in the same pass. This SHOULD-priority spec creates an explicit obligation to
           revisit both coverage specs rather than letting either gap go unnoticed.
         relationships:
           - rel_type: refines
