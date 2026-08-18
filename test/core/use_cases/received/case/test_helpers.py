@@ -43,6 +43,7 @@ from vultron.core.use_cases.received.case.create import (
 )
 from vultron.wire.as2.factories import create_case_activity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from test.conftest import TEST_ACTOR_ID
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -78,7 +79,9 @@ class TestBootstrapCreateReporterParticipant:
     def dl(self):
         return SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._FINDER_ID,
         )
 
     @pytest.fixture()
@@ -133,7 +136,7 @@ class TestBootstrapCreateReporterParticipant:
         activity = create_case_activity(
             case_with_string_participants, actor=self._VENDOR_ID
         )
-        return make_payload(activity)
+        return make_payload(activity, receiving_actor_id=self._FINDER_ID)
 
     def test_reporter_participant_created_after_bootstrap(
         self, seeded_dl, create_event
@@ -207,7 +210,9 @@ class TestBootstrapReporterUpgradesFromStart:
     def dl(self):
         return SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._FINDER_ID,
         )
 
     @pytest.fixture()
@@ -252,7 +257,7 @@ class TestBootstrapReporterUpgradesFromStart:
 
     def _create_event(self, make_payload, case):
         activity = create_case_activity(case, actor=self._VENDOR_ID)
-        return make_payload(activity)
+        return make_payload(activity, receiving_actor_id=self._FINDER_ID)
 
     def _pre_seed_participant(self, dl, rm_state: RM) -> VultronParticipant:
         """Store a finder participant at the given rm_state before bootstrap."""
@@ -421,7 +426,9 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
     def dl(self):
         return SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._ACTOR_ID,
         )
 
     def _wire_case(self, rm_state: RM) -> as_VulnerabilityCase:

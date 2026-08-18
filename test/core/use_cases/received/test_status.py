@@ -252,7 +252,7 @@ class TestStatusUseCases:
         """add_participant_status_to_participant appends status to participant."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/vendor",
         )
         participant = as_CaseParticipant(
             id_="https://example.org/cases/case_ps2/participants/p2",
@@ -309,11 +309,10 @@ class TestParticipantStatusLogEntryCascade:
     def _make_dl(self, case_id: str, actor_id: str) -> tuple:
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # These tests run the received-side tree as the CaseActor (it is the
+        # receiving_actor_id they pass), so this is the CaseActor's own store.
         case_actor_id = f"{case_id}/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_actor = VultronCaseActor(
             id_=case_actor_id,
             name=f"CaseActor for {case_id}",

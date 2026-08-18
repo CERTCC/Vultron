@@ -26,6 +26,7 @@ from vultron.core.use_cases.received.actor.suggest import (
 )
 from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from test.conftest import TEST_ACTOR_ID
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -47,7 +48,7 @@ class TestOfferActorToCaseReceivedUseCase:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=TEST_ACTOR_ID,
         )
         local_actor_id = "https://example.org/actors/case-actor"
         local_actor = as_Service(id_=local_actor_id)
@@ -84,7 +85,7 @@ class TestOfferActorToCaseReceivedUseCase:
             actor=recommender_id,
             to=[local_actor_id],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
         assert isinstance(
             event, OfferActorToCaseReceivedEvent
         ), f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
@@ -98,15 +99,28 @@ class TestOfferActorToCaseReceivedUseCase:
             len(outbox) >= 1
         ), f"Expected at least 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
 
-    def test_offer_actor_to_case_skips_when_no_local_actor(
+    def test_offer_actor_to_case_runs_as_the_store_owner_without_a_request_actor(
         self, make_payload, caplog
     ):
-        """Skips gracefully when no local actor is found in DataLayer."""
+        """With no receiving_actor_id on the request, the store's actor is used.
+
+        Replaces a test that asserted a "no local actor" skip. That condition is
+        unreachable under ADR-0066: a DataLayer always belongs to exactly one
+        actor, so "who am I?" always has an answer and there is nothing to skip
+        for. The old version resolved the answer by scanning the store for the
+        first actor object, which since peer records live in each actor's own
+        address book could return a *peer* — so the skip branch was both
+        unreachable-by-design and wrong when it did fire.
+
+        What is worth asserting is that the fallback is the store's own actor and
+        that it is not fabricated: the use case proceeds, and any failure comes
+        from the missing case rather than from an unresolved identity.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=TEST_ACTOR_ID,
         )
         recommended = as_Actor(id_="https://example.org/actors/vendor-new")
         activity = recommend_actor_activity(
@@ -115,14 +129,20 @@ class TestOfferActorToCaseReceivedUseCase:
             actor="https://example.org/actors/finder",
             id_="https://example.org/activities/offer-actor-002",
         )
+        # Deliberately no receiving_actor_id — exercise the fallback.
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
             OfferActorToCaseReceivedUseCase(dl, event).execute()
 
-        assert any(
-            "no local actor" in r.message.lower() for r in caplog.records
+        messages = " ".join(r.message.lower() for r in caplog.records)
+        assert "no local actor" not in messages, (
+            "the no-local-actor branch is unreachable under ADR-0066 and must"
+            " not be reintroduced"
         )
+        assert (
+            "unknown" not in messages
+        ), "the actor identity must never be fabricated (ARCH-15-001)"
 
     def test_offer_actor_to_case_skips_missing_recommended_id(self, caplog):
         """Skips gracefully when recommended_id is missing from the event."""
@@ -130,7 +150,7 @@ class TestOfferActorToCaseReceivedUseCase:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=TEST_ACTOR_ID,
         )
         # Build an activity with no object (can't in wire layer, so mock the event)
         mock_event = MagicMock()
@@ -170,7 +190,7 @@ class TestOfferActorToCaseReceivedUseCase:
             actor=recommender_id,
             to=[local_actor_id],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
         activity_id = activity.id_
 
         OfferActorToCaseReceivedUseCase(
