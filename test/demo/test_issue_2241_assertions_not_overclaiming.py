@@ -316,3 +316,86 @@ def test_verify_fix_ready_fails_if_rm_not_engaged(monkeypatch):
             case_id=_CASE_ID,
             receiver_actor_id=_RECEIVER_ID,
         )
+
+
+# ===========================================================================
+# Defect 6 — run_invite_path_rm_triage polls only auth_client for RM state
+# ===========================================================================
+
+
+def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
+    monkeypatch,
+):
+    """run_invite_path_rm_triage must poll invited_client, not only auth_client.
+
+    Before the fix, both RM state checks used ``auth_client`` (the
+    authoritative coordinator view).  The invitee's own container — where the
+    divergence in #2233/#2234 lives — was never queried.  After the fix, two
+    additional ``wait_for_participant_rm_state`` calls explicitly use
+    ``invited_client``: once for RM.VALID and once for RM.ACCEPTED.
+    """
+    import vultron.demo.helpers.workflow as workflow_module
+    from vultron.demo.helpers.workflow import run_invite_path_rm_triage
+
+    auth_client_ids = []
+    invited_client_ids = []
+
+    invited_client = MagicMock()
+    invited_client.base_url = "http://vendor2:7999"
+    auth_client = MagicMock()
+    auth_client.base_url = "http://coordinator:7999"
+
+    def _track_rm_state(client, case_id, actor_id, expected_states, **kw):
+        if client is invited_client:
+            invited_client_ids.append(frozenset(expected_states))
+        elif client is auth_client:
+            auth_client_ids.append(frozenset(expected_states))
+
+    monkeypatch.setattr(
+        workflow_module, "wait_for_participant_rm_state", _track_rm_state
+    )
+    monkeypatch.setattr(
+        workflow_module,
+        "wait_for_event_type_in_ledger",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        workflow_module,
+        "receiver_validates_report",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        workflow_module,
+        "receiver_engages_case",
+        lambda *a, **kw: None,
+    )
+
+    invited_obj = MagicMock()
+    invited_obj.id_ = "http://vendor2:7999/api/v2/actors/vendor2"
+
+    case = MagicMock()
+    case.id_ = _CASE_ID
+
+    run_invite_path_rm_triage(
+        invited_client=cast(DataLayerClient, invited_client),
+        invited_actor=MagicMock(),
+        offer=MagicMock(),
+        report=MagicMock(),
+        finder=MagicMock(),
+        auth_client=cast(DataLayerClient, auth_client),
+        case=case,
+        invited_obj=invited_obj,
+    )
+
+    assert len(invited_client_ids) >= 2, (
+        "run_invite_path_rm_triage must poll invited_client for RM state at "
+        "least twice (RM.VALID and RM.ACCEPTED); before the fix only "
+        "auth_client was polled, so failures on the invitee's container "
+        "went undetected (#2241 defect 6)"
+    )
+    valid_calls = [s for s in invited_client_ids if RM.VALID in s]
+    accepted_calls = [s for s in invited_client_ids if RM.ACCEPTED in s]
+    assert (
+        valid_calls
+    ), "invited_client must be polled for RM.VALID (or {VALID,ACCEPTED})"
+    assert accepted_calls, "invited_client must be polled for RM.ACCEPTED"
