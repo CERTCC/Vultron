@@ -60,13 +60,13 @@ Issue: #1139.
 
 import logging
 from collections.abc import Callable
-from typing import cast
+
+from py_trees.common import Status
 
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
@@ -159,69 +159,40 @@ def _enqueue_and_clear(
     marker: PendingCreateCaseActivity,
     activity: VultronCreateCaseActivity,
 ) -> bool:
-    """Enqueue *activity* to the outbox and delete *marker*.
+    """Re-queue *activity* and clear *marker*, via the BT.
 
-    Returns ``True`` when the activity is in the outbox (whether it was
-    already there or was just added). Marker cleanup failures are logged
-    as warnings but do not affect the return value — the obligation is
-    considered satisfied once the activity is in the outbox.
+    Returns ``True`` when the activity is in the outbox (whether it was already
+    there or was just added).  Marker cleanup failures are logged as warnings
+    but do not affect the return value — the obligation is discharged once the
+    activity is queued.
 
-    The enqueue step is idempotent: if *activity* is already in the
-    outbox (e.g. from a previous partial run where the marker deletion
-    failed), no duplicate entry is inserted (AC-4).
+    Enqueueing an outbound activity is protocol-significant behaviour, so the
+    work lives in ``RequeuePendingCreateCaseActivityNode`` rather than here
+    (BT-15-001).  This adapter function only schedules it: the BT bridge gives
+    the operation the same audit trail as every other protocol effect, which is
+    exactly what a crash-recovery path should have.
     """
-    enqueue_actor_id = marker.case_actor_id
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.nodes.proposal import (
+        RequeuePendingCreateCaseActivityNode,
+    )
 
-    # Idempotency guard: skip the insert if this activity is already
-    # queued. outbox_append does not enforce uniqueness; calling it
-    # twice would create two outbox entries and cause double delivery.
-    try:
-        existing_outbox = cast(CaseOutboxPersistence, dl).outbox_list()
-    except Exception as exc:
+    tree = RequeuePendingCreateCaseActivityNode(
+        marker=marker, activity_id=activity.id_
+    )
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree=tree,
+        actor_id=marker.case_actor_id,
+    )
+    if result.status != Status.SUCCESS:
         logger.error(
-            "retry_pending: could not read outbox for actor '%s': %s",
-            enqueue_actor_id,
-            exc,
+            "retry_pending: re-queue BT did not succeed for actor '%s'"
+            " marker '%s': %s",
+            marker.case_actor_id,
+            marker.id_,
+            BTBridge.get_failure_reason(tree),
         )
         return False
-
-    if activity.id_ not in existing_outbox:
-        try:
-            cast(CaseOutboxPersistence, dl).outbox_append(activity.id_)
-        except Exception as exc:
-            logger.error(
-                "retry_pending: could not enqueue Create(VulnerabilityCase)"
-                " '%s' to outbox for actor '%s': %s",
-                activity.id_,
-                enqueue_actor_id,
-                exc,
-            )
-            return False
-    else:
-        logger.debug(
-            "retry_pending: Create(VulnerabilityCase) '%s' already in"
-            " outbox for actor '%s'; skipping duplicate enqueue.",
-            activity.id_,
-            enqueue_actor_id,
-        )
-
-    deleted = dl.delete("PendingCreateCaseActivity", marker.id_)
-    if not deleted:
-        logger.warning(
-            "retry_pending: marker '%s' could not be deleted after"
-            " successful re-queue for actor '%s'. On the next startup"
-            " scan the activity will be found in the outbox and skipped.",
-            marker.id_,
-            enqueue_actor_id,
-        )
-
-    logger.info(
-        "retry_pending: re-queued Create(VulnerabilityCase) '%s'"
-        " for actor '%s' (marker '%s').",
-        activity.id_,
-        enqueue_actor_id,
-        marker.id_,
-    )
     return True
 
 
