@@ -231,7 +231,7 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
         context=_CASE_ID, rm_state=RM.RECEIVED, vfd_state=CS_vfd.vfd
     )
     participant = as_CaseParticipant(
-        id=_PARTICIPANT_ID,
+        id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[ps],
     )
@@ -270,7 +270,7 @@ def _make_participant(vfd: CS_vfd, rm: RM) -> as_CaseParticipant:
     """Build a minimal CaseParticipant with given vfd and rm state."""
     ps = as_ParticipantStatus(context=_CASE_ID, vfd_state=vfd, rm_state=rm)
     return as_CaseParticipant(
-        id=_PARTICIPANT_ID,
+        id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[ps],
     )
