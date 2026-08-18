@@ -274,6 +274,63 @@ class TestDeliveryRetry:
                 with pytest.raises(Exception):
                     asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
+    def test_4xx_raises_delivery_error_immediately_without_retry(self):
+        """HTTP 4xx is terminal: DeliveryError raised on first attempt, no retries, no sleep (OX-13-005 AC-2/AC-4)."""
+        import pytest
+
+        adapter = HttpDeliveryAdapter(max_retries=3, initial_delay=0.0)
+        activity = _make_activity()
+        call_count = 0
+
+        async def four_xx(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            mock_resp = MagicMock()
+            mock_resp.status_code = 422
+            mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "422 Unprocessable Entity",
+                request=MagicMock(),
+                response=mock_resp,
+            )
+            return mock_resp
+
+        with patch("httpx2.AsyncClient.post", side_effect=four_xx):
+            with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+                with pytest.raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        assert call_count == 1, "4xx must not consume retry slots"
+        mock_sleep.assert_not_called()
+
+    def test_5xx_retries_up_to_max_retries(self):
+        """HTTP 5xx is retryable: exhausts all retry slots (OX-13-005 AC-4)."""
+        import pytest
+
+        adapter = HttpDeliveryAdapter(
+            max_retries=2, initial_delay=0.0, backoff_multiplier=1.0
+        )
+        activity = _make_activity()
+        call_count = 0
+
+        async def five_xx(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            mock_resp = MagicMock()
+            mock_resp.status_code = 503
+            mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "503 Service Unavailable",
+                request=MagicMock(),
+                response=mock_resp,
+            )
+            return mock_resp
+
+        with patch("httpx2.AsyncClient.post", side_effect=five_xx):
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                with pytest.raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        assert call_count == 3, "5xx must exhaust max_retries + 1 = 3 attempts"
+
     def test_zero_retries_attempts_once_only(self):
         adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
         activity = _make_activity()

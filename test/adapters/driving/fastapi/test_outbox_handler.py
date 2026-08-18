@@ -184,6 +184,45 @@ def test_outbox_handler_continues_after_one_error(monkeypatch):
     assert "urn:test:good" in processed
 
 
+def test_failing_activity_does_not_block_healthy_activity_in_same_pass(
+    monkeypatch,
+):
+    """Multiple distinct failing activities must not exhaust a shared error counter
+    and block healthy activities that follow in the same drain pass (OX-13-006 AC-3).
+
+    With the old shared err_count, 4 different bad items each fail once and the
+    shared counter hits 4 before the good item is ever reached.  With the fix
+    (per-activity counter), each bad item has its own count; the good item is
+    always delivered.
+    """
+    queue = _make_queue(
+        "urn:test:bad-1",
+        "urn:test:bad-2",
+        "urn:test:bad-3",
+        "urn:test:bad-4",
+        "urn:test:good",
+    )
+    mock_dl = _mock_dl_with_queue(queue)
+
+    processed = []
+
+    async def sometimes_raise(actor_id, activity_id, dl, emitter):
+        if "bad" in activity_id:
+            raise RuntimeError("permanent failure")
+        processed.append(activity_id)
+
+    monkeypatch.setattr(oh, "handle_outbox_item", sometimes_raise)
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    assert "urn:test:good" in processed
+
+
 def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
     """outbox_handler falls back to find_actor_by_short_id when full ID lookup fails."""
     queue: list[str] = []
