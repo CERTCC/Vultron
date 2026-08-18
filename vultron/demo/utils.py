@@ -155,15 +155,61 @@ class DataLayerClient(BaseModel):
 
     Wraps ``httpx`` with convenience methods for GET, PUT, POST, and DELETE
     calls to the DataLayer endpoint, with automatic JSON parsing and error logging.
+
+    ``base_url`` addresses a *container*; ``actor_id`` names which of the actors
+    that container hosts a DataLayer read is about.  Both are needed under
+    ADR-0066: a container hosts an actor plus the CaseActors it self-hosts
+    (CP-08-003), so ``/datalayer/{case_id}`` alone no longer says whose replica
+    to read.  Use :meth:`dl_path` to build inspection paths rather than
+    hand-writing ``/datalayer/...``.
     """
 
     base_url: str = BASE_URL
+    #: Canonical URI of the actor whose store this client inspects.  Optional so
+    #: that clients used only for non-DataLayer endpoints (health, info, inbox)
+    #: keep working unchanged; :meth:`dl_path` raises when it is needed and
+    #: absent, rather than silently reading some other actor's replica.
+    actor_id: str | None = None
     #: Per-request HTTP timeout (seconds).  Generous relative to httpx's 5s
     #: default so a single GET against a container that is busy draining its
     #: outbox (delivery retry/backoff can add several seconds under CI load)
     #: does not fail with a bare read timeout.  Callers may override per-call
     #: by passing ``timeout=`` in kwargs.
     timeout: float = 30.0
+
+    def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
+        """Return the actor-scoped DataLayer inspection path for *key*.
+
+        Args:
+            key: Path suffix after ``/datalayer/`` — an object id, a
+                ``VulnerabilityCases/`` style collection, or ``""`` for the
+                whole-store view.
+            actor_id: Override the client's own ``actor_id``.  Needed when a
+                container hosts more than one actor and the read is about a
+                non-primary one — typically a self-hosted CaseActor.
+
+        Returns:
+            ``/actors/{segment}/datalayer/{key}``, where *segment* is the
+            actor's final URI path segment.  The server recomputes the canonical
+            URI from its own base URL (ADR-0066), which is why the short segment
+            is what travels — the same convention already used for inbox and
+            trigger paths.
+
+        Raises:
+            ValueError: When no actor is available.  Failing here is deliberate:
+                defaulting to *some* actor would silently report another
+                replica's state and could let an ADR-0058 causal gate pass on
+                the wrong actor's committed state.
+        """
+        actor = actor_id or self.actor_id
+        if not actor:
+            raise ValueError(
+                "DataLayerClient.dl_path requires an actor_id: DataLayer reads "
+                "are per-actor (ADR-0066). Set actor_id on the client or pass "
+                "it explicitly."
+            )
+        segment = parse_id(actor)["object_id"]
+        return f"/actors/{segment}/datalayer/{key}"
 
     def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> Any:
         """Make an HTTP request to the DataLayer API.
