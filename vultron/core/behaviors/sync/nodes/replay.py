@@ -323,9 +323,10 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
 
         activity = self.blackboard.activity
         if activity.last_accepted_hash != "":
@@ -346,7 +347,13 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
 
         entry = _require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
-        case_actor_id = self.blackboard.case_actor_id
+        # Authored as the executing actor, which the enclosing
+        # CheckIsCaseManagerNode gate has established is the case's
+        # CASE_MANAGER.  Previously this used the blackboard's case_actor_id,
+        # resolved by entity lookup, and enqueued under that id — so the
+        # activity was written to one store and queued under another.  A shared
+        # pool masked the mismatch; per-actor stores do not (ADR-0066).
+        case_actor_id = self.actor_id
 
         try:
             activity_id = factory.announce_vulnerability_case(

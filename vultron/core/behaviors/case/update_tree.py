@@ -21,6 +21,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -37,7 +40,34 @@ def create_update_case_received_tree(
     actor_id: str,
     request: UpdateCaseReceivedEvent,
 ) -> py_trees.behaviour.Behaviour:
-    """Create the BT for UpdateCaseReceivedUseCase."""
+    """Create the BT for UpdateCaseReceivedUseCase.
+
+    Structure::
+
+        UpdateCaseBT (Sequence)
+        ├── CheckCaseUpdateOwnerNode
+        ├── CaptureCaseUpdateBroadcastExclusionsNode
+        ├── ApplyCaseUpdateNode
+        └── GuardedBroadcastCaseUpdateBT (Selector)
+            ├── BroadcastIfCaseManager (Sequence)
+            │   ├── CheckIsCaseManagerNode
+            │   └── BroadcastCaseUpdateNode
+            └── Success("BroadcastSkippedNotCaseManager")
+
+    Every actor applies the update to its own replica; only the case's
+    ``CASE_MANAGER`` announces it (CM-06-001).  The gate is on the **role**
+    resolved from the case — not on a comparison against a separately computed
+    CaseActor id — because the authority is a role held in the case and its
+    holder may be any Actor type.  This mirrors CLP-09, which already role-gates
+    canonical ledger commits: appending to the log and announcing the append are
+    one privilege.
+
+    Ungated, any actor processing an ``Update(VulnerabilityCase)`` would emit an
+    ``Announce`` authored as itself to every participant, which for a
+    non-authoritative actor is identity spoofing.  A non-manager therefore
+    *skips* the broadcast (Success) rather than failing: applying the update
+    locally is correct and expected.
+    """
     root = py_trees.composites.Sequence(
         name="UpdateCaseBT",
         memory=False,
@@ -45,7 +75,23 @@ def create_update_case_received_tree(
             CheckCaseUpdateOwnerNode(case_id=case_id),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             ApplyCaseUpdateNode(case_id=case_id, request=request),
-            BroadcastCaseUpdateNode(case_id=case_id),
+            py_trees.composites.Selector(
+                name="GuardedBroadcastCaseUpdateBT",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="BroadcastIfCaseManager",
+                        memory=False,
+                        children=[
+                            CheckIsCaseManagerNode(case_id=case_id),
+                            BroadcastCaseUpdateNode(case_id=case_id),
+                        ],
+                    ),
+                    py_trees.behaviours.Success(
+                        name="BroadcastSkippedNotCaseManager"
+                    ),
+                ],
+            ),
         ],
     )
     logger.info(

@@ -173,7 +173,7 @@ def _enqueue_and_clear(
     enqueue_actor_id = marker.case_actor_id
 
     # Idempotency guard: skip the insert if this activity is already
-    # queued. record_outbox_item does not enforce uniqueness; calling it
+    # queued. outbox_append does not enforce uniqueness; calling it
     # twice would create two outbox entries and cause double delivery.
     try:
         existing_outbox = cast(CaseOutboxPersistence, dl).outbox_list()

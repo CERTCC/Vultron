@@ -2,9 +2,7 @@
 
 import logging
 
-from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
@@ -34,34 +32,26 @@ class UpdateCaseReceivedUseCase:
 
         tree = create_update_case_received_tree(
             case_id=case_id,
-            actor_id=actor_id,
+            actor_id=request.receiving_actor_id or actor_id,
             request=request,
         )
+        # The tree now contains a CheckIsCaseManagerNode gate, so it MUST run
+        # under the *receiving* actor's identity, not the sender's (BT-17-005).
+        # Passing request.actor_id would compare the sender against the case's
+        # CASE_MANAGER: on the normal path a participant sends the update to the
+        # CaseActor, so the gate would never match and the CM-06-001 broadcast
+        # would silently never fire.
+        executing_actor_id = request.receiving_actor_id or actor_id
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=actor_id,
+            actor_id=executing_actor_id,
             activity=request,
         )
         if result.status != Status.SUCCESS:
             logger.warning(
                 "UpdateCaseBT did not succeed for actor '%s' / case '%s': %s",
-                actor_id,
+                executing_actor_id,
                 case_id,
                 BTBridge.get_failure_reason(tree),
             )
-
-    def _broadcast_case_update(
-        self,
-        case_id: str,
-        case: VulnerabilityCase,
-        excluded_actor_ids: set[str] | None = None,
-    ) -> None:
-        """Broadcast an Announce activity for the updated case to participants.
-
-        Implements CM-06-001/CM-06-002: after a case update, the CaseActor MUST
-        send an ActivityStreams Announce to each active case participant's inbox.
-        Per CM-10-004, participants who have not accepted the active embargo are
-        excluded from the broadcast.
-        """
-        broadcast_case_update(self._dl, case_id, case, excluded_actor_ids)

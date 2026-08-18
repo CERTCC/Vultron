@@ -89,9 +89,10 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -155,7 +156,13 @@ class ApplyCaseUpdateNode(DataLayerActionWithPorts):
 
 
 class BroadcastCaseUpdateNode(DataLayerAction):
-    """Broadcast the updated case to eligible participants."""
+    """Broadcast the updated case to eligible participants (CM-06-001).
+
+    MUST be wrapped in a ``CheckIsCaseManagerNode`` gate: only the case's
+    ``CASE_MANAGER`` may announce canonical case state, and this node authors
+    the ``Announce`` as the executing actor. See
+    ``create_update_case_received_tree``.
+    """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -168,9 +175,10 @@ class BroadcastCaseUpdateNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -202,6 +210,7 @@ class BroadcastCaseUpdateNode(DataLayerAction):
             self.datalayer,
             self.case_id,
             case,
+            self.actor_id,
             excluded_actor_ids=excluded_actor_ids,
         )
         return Status.SUCCESS

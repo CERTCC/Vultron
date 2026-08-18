@@ -22,6 +22,11 @@ from vultron.core.behaviors.case.nodes.update import (
     CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.update_support import broadcast_case_update
+from vultron.core.models.participant import CaseParticipant
+from vultron.enums.roles import CVDRole
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
 from vultron.core.behaviors.case.update_tree import (
     create_update_case_received_tree,
 )
@@ -57,19 +62,32 @@ class TestUpdateCaseBTStructure:
         )
 
         assert tree.name == "UpdateCaseBT"
-        assert [child.__class__ for child in tree.children] == [
+        assert [child.__class__ for child in tree.children[:3]] == [
             CheckCaseUpdateOwnerNode,
             CaptureCaseUpdateBroadcastExclusionsNode,
             ApplyCaseUpdateNode,
+        ]
+
+        # The broadcast is role-gated: only the case's CASE_MANAGER may announce
+        # canonical case state (CM-06-001), mirroring CLP-09 for ledger commits.
+        # A non-manager skips rather than fails — applying the update to its own
+        # replica is correct.
+        guard = tree.children[3]
+        assert guard.name == "GuardedBroadcastCaseUpdateBT"
+        gated = guard.children[0]
+        assert gated.name == "BroadcastIfCaseManager"
+        assert [child.__class__ for child in gated.children] == [
+            CheckIsCaseManagerNode,
             BroadcastCaseUpdateNode,
         ]
+        assert guard.children[1].name == "BroadcastSkippedNotCaseManager"
 
     def test_update_case_bt_executes_without_post_bt_broadcast(
         self, make_payload, monkeypatch
     ):
         """UpdateCaseBT handles the broadcast internally instead of after execute()."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
         participant_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/bt2"
 
@@ -81,6 +99,19 @@ class TestUpdateCaseBTStructure:
         )
         dl.create(case_actor)
 
+        # BT-17-005: the broadcast gate resolves CASE_MANAGER from the case's
+        # participants, not from the VultronCaseActor *service* entity.  A
+        # fixture that models only the Service leaves the case with no role
+        # holder, so the gate correctly skips and nothing is announced.
+        manager_participant_id = "https://example.org/participants/p-mgr-bt2"
+        dl.create(
+            CaseParticipant(
+                id_=manager_participant_id,
+                attributed_to=owner_id,
+                case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+            )
+        )
+
         case = as_VulnerabilityCase(
             id_=case_id,
             name="Original",
@@ -89,6 +120,7 @@ class TestUpdateCaseBTStructure:
         case.actor_participant_index[participant_id] = (
             "https://example.org/participants/p-bt2"
         )
+        case.actor_participant_index[owner_id] = manager_participant_id
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -98,19 +130,16 @@ class TestUpdateCaseBTStructure:
         )
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
+        # The gated tree runs under the *receiving* actor (BT-17-005).
+        event.receiving_actor_id = owner_id
 
-        def _should_not_be_called(*args, **kwargs):
-            raise AssertionError("post-BT broadcast helper should not run")
-
-        monkeypatch.setattr(
-            UpdateCaseReceivedUseCase,
-            "_broadcast_case_update",
-            _should_not_be_called,
-        )
-
+        # The post-BT broadcast helper no longer exists — the BT node owns the
+        # broadcast, behind a CASE_MANAGER role gate.  The assertion that made
+        # the old monkeypatch guard meaningful is the one that matters: exactly
+        # one Announce is queued, not two.
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        outbox_items = dl.outbox_list()
         assert len(outbox_items) == 1
 
 
@@ -126,7 +155,9 @@ class TestCollectionDefaultsCS21:
         case = MagicMock()
         case.actor_participant_index = {}
         # Call without excluded_actor_ids; should not raise.
-        broadcast_case_update(dl, "urn:uuid:case-1", case)
+        broadcast_case_update(
+            dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
+        )
 
     def test_broadcast_case_update_excludes_no_actors_by_default(self):
         """broadcast_case_update: all participants are eligible when no exclusions given."""
@@ -137,15 +168,7 @@ class TestCollectionDefaultsCS21:
         case.actor_participant_index = {actor_id: MagicMock()}
         # No exclusions — the function should reach the participant-list
         # check (short-circuits only on missing CaseActor, not on empty list).
-        broadcast_case_update(dl, "urn:uuid:case-1", case)
+        broadcast_case_update(
+            dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
+        )
 
-    def test_broadcast_case_update_private_omitting_excluded_actor_ids_does_not_raise(
-        self,
-    ):
-        """_broadcast_case_update: omitting excluded_actor_ids does not raise."""
-        use_case = UpdateCaseReceivedUseCase.__new__(UpdateCaseReceivedUseCase)
-        use_case._dl = MagicMock()
-        use_case._dl.read.return_value = None
-        case = MagicMock()
-        case.actor_participant_index = {}
-        use_case._broadcast_case_update("urn:uuid:case-1", case)
