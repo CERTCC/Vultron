@@ -35,9 +35,49 @@ _SLUG_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _RESERVED_SLUGS = frozenset({"", ".", ".."})
 
 
+#: Matches the ``file:NAME`` portion of a named in-memory SQLite URL.
+_MEMORY_NAME_RE = re.compile(r"file:([^?]+)")
+
+#: Default base name for in-memory stores when the template does not supply one.
+_DEFAULT_MEMORY_BASE = "vultron"
+
+
 def _is_memory_url(db_url: str) -> bool:
-    """Return ``True`` when *db_url* names an in-memory SQLite database."""
-    return ":memory:" in db_url
+    """Return ``True`` when *db_url* names an in-memory SQLite database.
+
+    Covers both the anonymous form (``sqlite:///:memory:``) and the named
+    shared-cache form this module derives from it (``mode=memory``).
+    """
+    return ":memory:" in db_url or "mode=memory" in db_url
+
+
+def _memory_base_name(db_url: str) -> str:
+    """Return the base name a named in-memory URL is built around.
+
+    A caller that needs several independent in-memory deployments in one
+    process (notably ``create_app()``, which gives each application its own
+    isolated storage per issue #534) distinguishes them by passing a *named*
+    template such as ``sqlite:///file:app7?mode=memory&cache=shared&uri=true``.
+    The name is carried through to each per-actor store, so two applications
+    never collide even when they host the same actor.
+
+    Note that :func:`actor_db_url` is **not** idempotent: applying it to an
+    already-resolved URL appends a second slug.  Stripping one cannot be done
+    unambiguously — base ``app7-vendor`` is indistinguishable from base
+    ``app7`` plus slug ``vendor`` — so callers must pass the configured
+    *template*, which is what ``SqliteDataLayer`` stores and what
+    ``clone_for_actor`` forwards.
+
+    Args:
+        db_url: An in-memory SQLAlchemy URL, named or anonymous.
+
+    Returns:
+        The base name, or ``"vultron"`` for the anonymous form.
+    """
+    match = _MEMORY_NAME_RE.search(db_url)
+    if match is None:
+        return _DEFAULT_MEMORY_BASE
+    return match.group(1)
 
 
 def actor_slug(actor_id: str) -> str:
@@ -88,9 +128,14 @@ def actor_db_url(db_url: str, actor_id: str) -> str:
 
     - ``sqlite:////app/data/mydb.sqlite`` becomes
       ``sqlite:////app/data/mydb-vendor.sqlite``
-    - ``sqlite:///:memory:`` is returned unchanged; in-memory isolation comes
-      from each actor getting its own :class:`~sqlalchemy.engine.Engine`, since
-      two engines on ``:memory:`` never share a database.
+    - ``sqlite:///:memory:`` becomes a **named** shared-cache in-memory
+      database, ``sqlite:///file:vultron-vendor?mode=memory&cache=shared&uri=true``
+
+    Naming the in-memory database matters: it makes the URL the single source
+    of store identity in *both* modes.  Returning ``:memory:`` unchanged left
+    identity carried by the Python :class:`~sqlalchemy.engine.Engine` object
+    instead, recovered via a cache — which meant two independent applications
+    in one process, both hosting the same actor, silently shared one store.
 
     Args:
         db_url: The configured SQLAlchemy URL template.
@@ -99,8 +144,14 @@ def actor_db_url(db_url: str, actor_id: str) -> str:
     Returns:
         A SQLAlchemy URL naming that actor's own store.
     """
+    slug = actor_slug(actor_id)
+
     if _is_memory_url(db_url):
-        return db_url
+        base = _memory_base_name(db_url)
+        return (
+            f"sqlite:///file:{base}-{slug}"
+            "?mode=memory&cache=shared&uri=true"
+        )
 
     scheme, _, location = db_url.partition("///")
     if not location:
@@ -111,7 +162,6 @@ def actor_db_url(db_url: str, actor_id: str) -> str:
             "expected a sqlite:/// URL or an in-memory URL"
         )
 
-    slug = actor_slug(actor_id)
     path = Path(location)
     stem = path.stem or "vultron"
     suffix = path.suffix or ".sqlite"
@@ -132,14 +182,14 @@ def json_serializer(value: Any) -> str:
     return json.dumps(value, default=json_default)
 
 
-#: Process-level engine cache keyed by ``(db_url_template, actor_id)``.
+#: Process-level engine cache keyed by the **resolved per-actor URL**.
 #:
-#: Two DataLayer instances for the **same** actor must share one engine, or an
-#: in-memory store would silently split in two: :func:`actor_db_url` returns
-#: ``sqlite:///:memory:`` unchanged, and two engines on ``:memory:`` never share
-#: a database.  Two *different* actors must never share an engine — that is
-#: exactly the isolation ADR-0066 requires — so the actor id is part of the key.
-_ENGINES: dict[tuple[str, str], Engine] = {}
+#: Because :func:`actor_db_url` names the in-memory database, the resolved URL
+#: identifies a store completely in both file and memory modes — so it is the
+#: whole key.  Two instances for the same actor share one engine (an actor's
+#: store must not split in two); two different actors, or two differently-named
+#: in-memory deployments, never do.
+_ENGINES: dict[str, Engine] = {}
 
 
 def get_actor_engine(db_url: str, actor_id: str) -> Engine:
@@ -152,10 +202,10 @@ def get_actor_engine(db_url: str, actor_id: str) -> Engine:
     Returns:
         The :class:`~sqlalchemy.engine.Engine` backing that actor's own store.
     """
-    key = (db_url, actor_id)
+    key = actor_db_url(db_url, actor_id)
     engine = _ENGINES.get(key)
     if engine is None:
-        engine = make_engine(actor_db_url(db_url, actor_id))
+        engine = make_engine(key)
         _ENGINES[key] = engine
     return engine
 
@@ -173,13 +223,21 @@ def dispose_actor_engines(
         db_url: Restrict disposal to this URL template, or ``None`` for any.
         actor_id: Restrict disposal to this actor, or ``None`` for all actors.
     """
-    for key in [
-        k
-        for k in _ENGINES
-        if (db_url is None or k[0] == db_url)
-        and (actor_id is None or k[1] == actor_id)
-    ]:
-        _ENGINES.pop(key).dispose()
+    if actor_id is not None and db_url is not None:
+        targets = [actor_db_url(db_url, actor_id)]
+    elif db_url is not None and _is_memory_url(db_url):
+        prefix = f"sqlite:///file:{_memory_base_name(db_url)}-"
+        targets = [k for k in _ENGINES if k.startswith(prefix)]
+    elif db_url is not None:
+        stem = Path(db_url.partition("///")[2]).stem
+        targets = [k for k in _ENGINES if f"/{stem}-" in k or stem in k]
+    else:
+        targets = list(_ENGINES)
+
+    for key in targets:
+        engine = _ENGINES.pop(key, None)
+        if engine is not None:
+            engine.dispose()
 
 
 def make_engine(db_url: str) -> Engine:
