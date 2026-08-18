@@ -45,7 +45,7 @@ def create_update_case_received_tree(
     Structure::
 
         UpdateCaseBT (Sequence)
-        ├── CheckCaseUpdateOwnerNode
+        ├── CheckCaseUpdateOwnerNode        (gates on the *sender*)
         ├── CaptureCaseUpdateBroadcastExclusionsNode
         ├── ApplyCaseUpdateNode
         └── GuardedBroadcastCaseUpdateBT (Selector)
@@ -72,7 +72,9 @@ def create_update_case_received_tree(
         name="UpdateCaseBT",
         memory=False,
         children=[
-            CheckCaseUpdateOwnerNode(case_id=case_id),
+            CheckCaseUpdateOwnerNode(
+                case_id=case_id, sender_actor_id=request.actor_id
+            ),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             ApplyCaseUpdateNode(case_id=case_id, request=request),
             py_trees.composites.Selector(
