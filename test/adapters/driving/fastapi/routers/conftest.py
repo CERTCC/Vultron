@@ -92,14 +92,38 @@ def dl(actor_and_dl):
 
 
 # TestClient for datalayer router
+
+
+def _in_memory_actor_dl_override():
+    """A ``get_actor_dl`` override that still routes per actor.
+
+    Overriding with one fixed DataLayer defeats the routing these tests exercise:
+    ``get_actor_dl`` resolves the path segment to a canonical URI and opens *that*
+    actor's store (ADR-0066), so a single-store override makes every actor id
+    resolve to the same rows.  Only the backing URL needs replacing — the
+    configured ``db_url`` is a file and tests must stay in memory.
+    """
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    def _override(actor_id: str = FastAPIPath(...)):
+        return get_datalayer(
+            canonical_actor_uri(actor_id), db_url="sqlite:///:memory:"
+        )
+
+    return _override
+
+
 @pytest.fixture
 def client_datalayer(datalayer):
-    from vultron.adapters.driven.datalayer import get_datalayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     app = FastAPI()
     app.include_router(datalayer_router.router)
-    # Override get_datalayer dependency to use test's datalayer instance
-    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    app.include_router(datalayer_router.admin_router)
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl_override()
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -108,12 +132,11 @@ def client_datalayer(datalayer):
 # TestClient for actors router
 @pytest.fixture
 def client_actors(datalayer):
-    from vultron.adapters.driven.datalayer import get_datalayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     app = FastAPI()
     app.include_router(actors_router.router)
-    # Override get_datalayer dependency to use test's datalayer instance
-    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl_override()
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}

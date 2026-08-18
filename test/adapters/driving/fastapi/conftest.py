@@ -40,7 +40,28 @@ def client(datalayer):
 
 
 @pytest.fixture
-def datalayer():
+def dl_actor_id():
+    """The actor whose store the ``datalayer`` fixture is.
+
+    Canonical under the node's own ``base_url``, because the actor routes resolve
+    a URL path segment to an actor URI by *computation* (ADR-0066).  An id under
+    some other authority cannot be addressed on this node at all — it names an
+    actor this node does not host — so a non-canonical id makes every
+    ``/actors/{segment}/...`` request 404 regardless of what is in the store.
+    """
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+    return canonical_actor_uri("test-actor")
+
+
+@pytest.fixture
+def dl_route_key(dl_actor_id):
+    """The URL path segment addressing ``dl_actor_id``."""
+    return dl_actor_id.rstrip("/").rsplit("/", 1)[-1]
+
+
+@pytest.fixture
+def datalayer(dl_actor_id):
     from vultron.adapters.driven.datalayer import (
         get_datalayer,
         reset_datalayer,
@@ -48,11 +69,11 @@ def datalayer():
 
     # Reset the singleton to avoid stale instances
     reset_datalayer()
-    # Use in-memory storage for tests
-    datalayer = get_datalayer(
-        "https://test.example/api/v2/actors/test-actor",
-        db_url="sqlite:///:memory:",
-    )
+    # Use in-memory storage for tests.  get_datalayer(), not a bare
+    # SqliteDataLayer(): only the cached factory registers the instance, and for
+    # an in-memory URL that registry is what makes the node a *host* of this
+    # actor, which GET /actors/ and the outbox monitor enumerate.
+    datalayer = get_datalayer(dl_actor_id, db_url="sqlite:///:memory:")
     # Clear the datalayer before each test
     datalayer.clear_all()
     yield datalayer

@@ -265,7 +265,12 @@ def get_actors(
 def get_actor_outbox(
     actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
-    actor_obj = datalayer.read(actor_id)
+    # ``actor_id`` is the raw URL path segment, not an object id.  Resolve it the
+    # same way ``get_actor_dl`` just did (ADR-0066) — reading the store with the
+    # bare segment always misses, and the endpoint would 404 for an actor whose
+    # store it is holding open.
+    canonical_id = actor_hosts.canonical_actor_uri(actor_id)
+    actor_obj = datalayer.read(canonical_id)
 
     if not actor_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -276,7 +281,7 @@ def get_actor_outbox(
     # Instead, query the DataLayer queue directly for the actor's outbox IDs.
     activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list()
 
-    outbox = as_OrderedCollection(id_=f"{actor_id}/outbox")
+    outbox = as_OrderedCollection(id_=f"{canonical_id}/outbox")
     outbox.items = [
         rehydrate(activity_id, dl=datalayer) for activity_id in activity_ids
     ]
