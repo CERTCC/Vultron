@@ -49,8 +49,13 @@ set -g set-clipboard on
 set -g default-shell /bin/zsh
 EOF
 
-# ~/.claude is a bind-mount of the host's ~/.claude — the host manages its own
-# skills symlink. Nothing to do here.
+# Wire user-level skills into Claude Code's discovery path.
+# start-dev.sh mounts the host's ~/.agents/skills into the container at
+# ~/.agents/skills. Claude Code looks for skills under ~/.claude/skills, so
+# create the symlink if the mount landed and the link doesn't already exist.
+if [ -d "$HOME/.agents/skills" ] && [ ! -e "$HOME/.claude/skills" ]; then
+    ln -s "$HOME/.agents/skills" "$HOME/.claude/skills"
+fi
 
 echo ""
 echo "Post-create complete. Run 'claude' to start Claude Code."
