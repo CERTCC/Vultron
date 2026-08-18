@@ -21,8 +21,10 @@ from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.db_record import Record, record_to_object
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -45,7 +47,19 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/datalayer", tags=["datalayer"])
+# Debug/inspection views are actor-scoped: under ADR-0066 there is no "the"
+# store to inspect, and a node may host several actors (a vendor plus the
+# CaseActors it self-hosts under CP-08-003).  Naming the actor in the path keeps
+# ADR-0058 causal gates honest — a gate must assert that *a named actor* has
+# committed some state, not merely that some actor in the container has.
+router = APIRouter(
+    prefix="/actors/{actor_id}/datalayer", tags=["datalayer"]
+)
+
+#: Node-level operations that legitimately span every hosted actor.  These are
+#: operator actions on the process (like a restart), not one actor reading
+#: another's data through the protocol.
+admin_router = APIRouter(prefix="/admin/datalayer", tags=["datalayer"])
 
 
 @router.get(
@@ -56,7 +70,7 @@ router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 def get_object(
     object_type: str,
     object_id: str,
-    datalayer: DataLayer = Depends(get_shared_dl),
+    datalayer: DataLayer = Depends(get_actor_dl),
 ):
     obj = datalayer.read(object_id)
 
@@ -85,7 +99,7 @@ def get_object(
     operation_id="datalayer_get_offer",
 )
 def get_offer(
-    object_id: str, datalayer: DataLayer = Depends(get_shared_dl)
+    object_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     obj = datalayer.read(object_id)
     if not obj:
@@ -103,7 +117,7 @@ def get_offer(
     operation_id="datalayer_get_report",
 )
 def get_report(
-    id: str, datalayer: DataLayer = Depends(get_shared_dl)
+    id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     obj = datalayer.read(id)
     if not obj:
@@ -121,7 +135,7 @@ def get_report(
     operation_id="datalayer_list",
 )
 def get_datalayer_contents(
-    datalayer: DataLayer = Depends(get_shared_dl),
+    datalayer: DataLayer = Depends(get_actor_dl),
 ) -> AS2JSONResponse:
     data = datalayer.all()
     if not isinstance(data, dict):
@@ -136,13 +150,13 @@ def get_datalayer_contents(
 
 
 @router.get(
-    "/Actors/{actor_id}/Offers/{offer_id}",
+    "/Offers/{offer_id}",
     response_model=as_Offer,
     description="Returns a specific object by actor id and offer id.",
     operation_id="datalayer_get_actor_offer",
 )
 def get_actor_offer(
-    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_shared_dl)
+    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     obj = datalayer.read(offer_id)
 
@@ -172,7 +186,7 @@ def get_actor_offer(
     operation_id="datalayer_list_offers",
 )
 def get_offers(
-    datalayer: DataLayer = Depends(get_shared_dl),
+    datalayer: DataLayer = Depends(get_actor_dl),
 ) -> AS2JSONResponse:
     results = datalayer.by_type("Offer")
 
@@ -192,7 +206,7 @@ def get_offers(
     operation_id="datalayer_list_reports",
 )
 def get_reports(
-    datalayer: DataLayer = Depends(get_shared_dl),
+    datalayer: DataLayer = Depends(get_actor_dl),
 ) -> AS2JSONResponse:
     results = datalayer.by_type("VulnerabilityReport")
 
@@ -230,7 +244,7 @@ def _actor_class_for_payload(
     operation_id="datalayer_list_actors",
 )
 def get_actors(
-    datalayer: DataLayer = Depends(get_shared_dl),
+    datalayer: DataLayer = Depends(get_actor_dl),
 ):
     results = datalayer.by_type("Actor")
 
@@ -245,13 +259,13 @@ def get_actors(
 
 
 @router.get(
-    "/Actors/{actor_id}/outbox/",
+    "/outbox/",
     description="Returns the outbox of a specific Actor.",
     response_model=as_OrderedCollection,
     operation_id="datalayer_get_actor_outbox",
 )
 def get_actor_outbox(
-    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
+    actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     actor_obj = datalayer.read(actor_id)
 
@@ -262,9 +276,7 @@ def get_actor_outbox(
     # string (ADR-0034 / PR #1512).  The old as_Actor.model_validate() path
     # converted that URI to an empty as_OrderedCollection with no items.
     # Instead, query the DataLayer queue directly for the actor's outbox IDs.
-    activity_ids = cast(
-        CaseOutboxPersistence, datalayer
-    ).outbox_list_for_actor(actor_id)
+    activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list()
 
     outbox = as_OrderedCollection(id_=f"{actor_id}/outbox")
     outbox.items = [
@@ -280,31 +292,42 @@ def get_actor_outbox(
     operation_id="datalayer_list_by_type",
 )
 def get_objects(
-    object_type: str, datalayer: DataLayer = Depends(get_shared_dl)
+    object_type: str, datalayer: DataLayer = Depends(get_actor_dl)
 ):
     results = datalayer.by_type(object_type)
 
     return results
 
 
-@router.delete(
+@admin_router.delete(
     "/reset/",
-    description="Resets the datalayer by clearing all stored objects.",
+    description=(
+        "Resets this node by clearing the store of every actor it hosts."
+    ),
     operation_id="datalayer_reset",
 )
-def reset_datalayer(
-    init: bool = False, datalayer: DataLayer = Depends(get_shared_dl)
-) -> dict:
-    """Resets the datalayer by clearing all stored objects."""
-    datalayer.clear_all()
-    if init:
-        from vultron.wire.as2.vocab.examples._base import initialize_examples
+def reset_datalayer(init: bool = False) -> dict:
+    """Clear every hosted actor's store.
 
-        initialize_examples(datalayer=datalayer)
+    A node-level operation: there is no single store to clear under ADR-0066,
+    and demo scenarios reset a whole container between runs.  Kept off the
+    actor-scoped router so that it cannot be mistaken for one actor reaching
+    into another's data.
+    """
+    from vultron.wire.as2.vocab.examples._base import initialize_examples
+
+    counts: dict[str, dict[str, int]] = {}
+    for actor_id in actor_hosts.hosted_actor_ids():
+        actor_dl = get_datalayer(actor_id)
+        actor_dl.clear_all()
+        if init:
+            initialize_examples(datalayer=actor_dl)
+        counts[actor_id] = actor_dl.count_all()
 
     return {
         "status": "datalayer reset successfully",
-        "n_items": datalayer.count_all(),
+        "actors": len(counts),
+        "n_items": counts,
     }
 
 
@@ -314,7 +337,7 @@ def reset_datalayer(
     "HTTP URL keys with percent-encoded slashes.",
     operation_id="datalayer_get_by_key",
 )
-def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_shared_dl)):
+def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_actor_dl)):
     obj = datalayer.read(key)
 
     if not obj:

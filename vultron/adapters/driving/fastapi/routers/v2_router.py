@@ -42,6 +42,7 @@ def get_version(request: Request):
 router.include_router(actors.router)
 
 router.include_router(datalayer.router)
+router.include_router(datalayer.admin_router)
 
 router.include_router(examples.router)
 
