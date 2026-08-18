@@ -10,7 +10,7 @@
 | Peer Vultron actors (HTTP/AS2) | Outbound HTTP API | ActivityStreams 2.0 message delivery to other Vultron nodes | [ASK USER] — not observed in source | High | `vultron/adapters/driven/prod_http_delivery.py` |
 | ASGIEmitter (in-process delivery) | Driven adapter | Routes deliveries to co-located actors via ASGI without HTTP round-trip | None (in-process) | High | `vultron/adapters/driven/asgi_emitter.py` |
 | ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities from other actors; POST to actor inbox endpoint | [ASK USER] — HTTP auth mechanism not confirmed | High | `vultron/adapters/driving/fastapi/routers/actors/_routes.py` |
-| MCP server (Model Context Protocol) | Local driving adapter | Expose trigger use cases as AI agent tools | None (local) | Medium | `vultron/adapters/driving/mcp_server.py` |
+| MCP server (Model Context Protocol) | Local driving adapter | *Aspiration only* — would expose trigger use cases as AI agent tools | n/a — nothing implemented | None (unimplemented stub; raises `NotImplementedError`) | `vultron/adapters/driving/mcp_server.py` |
 | Third-party trackers (Jira, VINCE) | Connector adapter | Translate external tracker events to/from Vultron domain | [ASK USER] — example only, not production-wired | Low | `vultron/adapters/connectors/example/` |
 
 ### 2) Data Stores
@@ -46,7 +46,7 @@
 - `vultron/adapters/driven/asgi_emitter.py`
 - `vultron/adapters/driving/fastapi/routers/actors/_routes.py`
 - `vultron/adapters/driving/fastapi/inbox_handler.py`
-- `vultron/adapters/driving/mcp_server.py`
+- `vultron/adapters/driving/mcp_server.py` (stub — not yet implemented; see issue #426)
 - `vultron/adapters/connectors/example/`
 - `vultron/adapters/driving/fastapi/responses.py` (AS2JSONResponse)
 - `.env.example`
