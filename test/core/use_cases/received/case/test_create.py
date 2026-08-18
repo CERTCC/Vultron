@@ -116,7 +116,7 @@ def _build_link(
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=_REPORTER_ID,  # the *receiving* actor: this is its own store
     )
 
 
