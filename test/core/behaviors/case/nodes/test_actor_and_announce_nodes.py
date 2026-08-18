@@ -51,16 +51,33 @@ CASE_ID2 = "https://example.org/cases/case-announce-01"
 
 
 @pytest.fixture
-def dl():
-    # Explicitly closed: an unclosed sqlite3 connection is collected at an
-    # unpredictable moment and pytest promotes the resulting ResourceWarning
-    # to a failure via PytestUnraisableExceptionWarning.
-    datalayer = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    yield datalayer
-    datalayer.close()
+def store_for():
+    """Factory: the store belonging to a given actor.
+
+    Each test class here executes as a different actor, and a BT's store follows
+    its executing actor (ADR-0066), so the store cannot be a single module-wide
+    fixture. Classes override ``dl`` with the actor they run as.
+
+    Explicitly closed: an unclosed sqlite3 connection is collected at an
+    unpredictable moment and pytest promotes the resulting ResourceWarning to a
+    failure via PytestUnraisableExceptionWarning.
+    """
+    created: list[SqliteDataLayer] = []
+
+    def _make(actor_id: str) -> SqliteDataLayer:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        created.append(dl)
+        return dl
+
+    yield _make
+    for dl in created:
+        dl.close()
+
+
+@pytest.fixture
+def dl(store_for):
+    """Default store: the new owner, whom most trees in this file execute as."""
+    return store_for(NEW_OWNER_ID)
 
 
 @pytest.fixture
@@ -304,6 +321,11 @@ def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
 class TestSeedAnnouncedCaseNode:
     """Unit tests for SeedAnnouncedCaseNode."""
 
+    @pytest.fixture
+    def dl(self, store_for):
+        """This class executes as ACTOR_ID, so that is its store."""
+        return store_for(ACTOR_ID)
+
     def test_saves_case_when_absent(
         self, bridge, dl, case, announce_event
     ) -> None:
@@ -447,6 +469,11 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
     (ADR-0032, BT-HELPER-01).
     """
 
+    @pytest.fixture
+    def dl(self, store_for):
+        """This class executes as ACTOR_ID, so that is its store."""
+        return store_for(ACTOR_ID)
+
     @pytest.fixture(autouse=True)
     def clear_blackboard(self):
         py_trees.blackboard.Blackboard.storage.clear()
@@ -532,6 +559,11 @@ def _make_add_node_fixture(dl):
 
 class TestEmitAddCaseParticipantNode:
     """Unit tests for EmitAddCaseParticipantNode."""
+
+    @pytest.fixture
+    def dl(self, store_for):
+        """This class executes as EMIT_ADD_ACTOR_ID, so that is its store."""
+        return store_for(EMIT_ADD_ACTOR_ID)
 
     def test_emits_add_activity_and_commits_ledger_entry(self, dl):
         """Happy path: emits Add(CaseParticipant) and commits ledger entry."""
@@ -864,10 +896,17 @@ def _make_ot_case(dl: SqliteDataLayer) -> None:
 
 
 class TestEmitOwnershipTransferNodes:
-    """AC-5a / AC-5b: Emit nodes address activities to the CaseActor (ADR-0053)."""
+    """AC-5a / AC-5b: Emit nodes address activities to the CaseActor (ADR-0053).
 
-    def test_emit_offer_to_is_case_actor_id(self, dl):
-        """AC-5a: EmitOfferCaseOwnershipTransferNode sets to=[case_actor_id]."""
+    The two tests execute as *different* actors — the offering owner and the
+    accepting transferee — so each builds its own store rather than sharing one.
+    Each seeds the case into its own replica, which is what actually holds in
+    production: both parties have a replica naming the same CaseActor.
+    """
+
+    def test_emit_offer_to_is_case_actor_id(self, store_for):
+        dl = store_for(_OT_OWNER_ID)
+        # AC-5a: EmitOfferCaseOwnershipTransferNode sets to=[case_actor_id].
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
@@ -904,7 +943,7 @@ class TestEmitOwnershipTransferNodes:
             f"got target={activity.get('target')!r}"
         )
 
-    def test_emit_accept_to_is_case_actor_id(self, dl):
+    def test_emit_accept_to_is_case_actor_id(self, store_for):
         """AC-5b: EmitAcceptCaseOwnershipTransferNode sets to=[case_actor_id].
 
         Uses a mock TriggerActivityAdapter to capture the ``to`` kwarg that
@@ -913,6 +952,7 @@ class TestEmitOwnershipTransferNodes:
         calling the factory, so the mock's call_args faithfully records the
         routing decision (ADR-0053 / CM-21-006).
         """
+        dl = store_for(_OT_TRANSFEREE_ID)
         from unittest.mock import MagicMock
 
         from vultron.adapters.driven.trigger_activity_adapter import (
