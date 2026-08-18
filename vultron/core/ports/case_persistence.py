@@ -92,20 +92,21 @@ class CasePersistence(Protocol):
 class CaseOutboxPersistence(CasePersistence, Protocol):
     """CasePersistence extended for use cases that enqueue outbound activities.
 
-    Only use cases and BT nodes that call ``record_outbox_item`` or
-    ``outbox_append`` declare this type. If a ``ReceivedUseCase`` declares
-    ``CaseOutboxPersistence``, that is a signal that it mixes received-message
-    handling with outbound broadcast — an architectural smell worth
-    investigating.
+    Only use cases and BT nodes that call ``outbox_append`` declare this type.
+    If a ``ReceivedUseCase`` declares ``CaseOutboxPersistence``, that is a
+    signal that it mixes received-message handling with outbound broadcast — an
+    architectural smell worth investigating.
+
+    The explicit-actor forms ``record_outbox_item(actor_id, activity_id)`` and
+    ``outbox_list_for_actor(actor_id)`` are gone. They existed so that an
+    *unscoped* DataLayer could name the actor whose queue to touch; every call
+    site passed the executing actor's own id, so with a mandatory actor scope
+    they are exactly ``outbox_append`` and ``outbox_list`` (ADR-0066).
 
     ``SqliteDataLayer`` satisfies this Protocol structurally — no declaration
     needed.
     """
 
-    def record_outbox_item(self, actor_id: str, activity_id: str) -> None: ...
-
     def outbox_append(self, activity_id: str) -> None: ...
 
     def outbox_list(self) -> list[str]: ...
-
-    def outbox_list_for_actor(self, actor_id: str) -> list[str]: ...

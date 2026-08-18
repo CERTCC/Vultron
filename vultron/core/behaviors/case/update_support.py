@@ -134,9 +134,7 @@ def broadcast_case_update(
         )
         return
 
-    cast(CaseOutboxPersistence, dl).record_outbox_item(
-        case_actor_id, broadcast.id_
-    )
+    cast(CaseOutboxPersistence, dl).outbox_append(broadcast.id_)
     logger.info(
         "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
         case_actor_id,

@@ -49,14 +49,14 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 from vultron.core.use_cases.triggers.service import TriggerService
 
 
 def get_actor_dl(
     actor_id: str = Path(...),
-) -> ActorScopedDataLayer:
+) -> DataLayer:
     """FastAPI dependency: the DataLayer belonging to the addressed actor.
 
     Resolves the ``{actor_id}`` path segment to a canonical actor URI by
@@ -69,9 +69,7 @@ def get_actor_dl(
     one store for an actor, so a queue can no longer be written under one
     spelling of its id and read under another.
     """
-    return cast(
-        ActorScopedDataLayer, get_datalayer(canonical_actor_uri(actor_id))
-    )
+    return cast(DataLayer, get_datalayer(canonical_actor_uri(actor_id)))
 
 
 def get_trigger_dl(
@@ -88,7 +86,7 @@ def get_trigger_dl(
 
 def get_canonical_actor_dl(
     actor_id: str = Path(...),
-) -> ActorScopedDataLayer:
+) -> DataLayer:
     """FastAPI dependency: alias of :func:`get_actor_dl`.
 
     Retained so existing trigger routes and their test overrides keep working;

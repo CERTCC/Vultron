@@ -124,8 +124,8 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
             if not addressees:
                 return Status.FAILURE
             activity_id, activity_dict = self._call_factory(self.actor_id, addressees)  # type: ignore[arg-type]
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
@@ -145,7 +145,7 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmValidateReportActivity to the Case Actor's inbox.
 
     Calls ``trigger_activity_factory.validate_report()`` and queues the
-    resulting activity ID via ``record_outbox_item``. Routes the activity
+    resulting activity ID via ``outbox_append``. Routes the activity
     to the Case Actor (CASE_MANAGER participant) using ``_compute_report_addressees``.
 
     Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
@@ -226,7 +226,7 @@ class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmInvalidateReportActivity (TentativeReject) to the actor outbox.
 
     Calls ``trigger_activity_factory.invalidate_report()`` and queues the
-    resulting activity ID via ``record_outbox_item``.
+    resulting activity ID via ``outbox_append``.
 
     Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
     procedural calls in ``execute()``.
@@ -262,7 +262,7 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmCloseReportActivity (Reject) to the actor outbox.
 
     Calls ``trigger_activity_factory.close_report()`` and queues the
-    resulting activity ID via ``record_outbox_item``.
+    resulting activity ID via ``outbox_append``.
 
     Used by both the reject-report and close-report trigger workflows.
 
@@ -335,7 +335,7 @@ class EmitSubmitReportActivity(DataLayerAction):
     """Create Offer(VulnerabilityReport) and queue in actor outbox.
 
     Calls ``trigger_activity_factory.submit_report()`` and queues the
-    offer ID via ``record_outbox_item``.  Stores the offer dict in
+    offer ID via ``outbox_append``.  Stores the offer dict in
     ``captured["offer"]`` if *captured* is provided.
 
     Per BT-15-001: outbound activity construction and queueing must be
@@ -384,9 +384,7 @@ class EmitSubmitReportActivity(DataLayerAction):
             return f
         try:
             offer_id, offer_dict = self._call_factory()
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, offer_id  # type: ignore[arg-type]
-            )
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(offer_id)
             if self._captured is not None:
                 self._captured["offer"] = offer_dict
             self.logger.info(

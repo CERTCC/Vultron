@@ -63,7 +63,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
@@ -104,7 +104,7 @@ def demo_add_note_to_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Create a Note and add it to a case (demo scaffold).
 
@@ -144,7 +144,7 @@ def demo_notify_fix_ready(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the actor has a fix ready (demo scaffold).
 
@@ -189,7 +189,7 @@ def demo_notify_fix_deployed(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the actor has deployed a fix (demo scaffold).
 
@@ -226,7 +226,7 @@ def demo_notify_published(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the vulnerability is publicly disclosed (demo scaffold).
 
@@ -263,7 +263,7 @@ def demo_close_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Trigger Leave(VulnerabilityCase) for the given actor and case.
 
@@ -353,7 +353,7 @@ def demo_sync_log_entry(
     body: SyncLogEntryRequest,
     background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> JSONResponse:
     """Commit a case ledger entry and fan it out (demo scaffold, BT-06-006 compliant).
 

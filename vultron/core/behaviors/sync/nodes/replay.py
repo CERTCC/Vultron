@@ -355,8 +355,8 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
                 context_id=entry.case_id,
                 to=[peer_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                case_actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: queued AnnounceVulnerabilityCase '%s' to peer '%s'"

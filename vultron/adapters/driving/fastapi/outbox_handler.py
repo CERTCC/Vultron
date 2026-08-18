@@ -70,7 +70,7 @@ from vultron.adapters.driving.fastapi.outbox_delivery import (  # noqa: F401
     _warn_secondary_addressing,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 
 logger = logging.getLogger(__name__)
@@ -195,7 +195,7 @@ async def handle_outbox_item(
 
 async def outbox_handler(
     actor_id: str,
-    dl: ActorScopedDataLayer,
+    dl: DataLayer,
     emitter: ActivityEmitter | None = None,
 ) -> None:
     """Process the outbox for the given actor.

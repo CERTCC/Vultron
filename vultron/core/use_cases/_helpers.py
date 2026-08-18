@@ -619,19 +619,20 @@ def _log_label(uri: str) -> str:
 def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
     """Return the set of string activity IDs in the actor's outbox queue.
 
-    Uses ``outbox_list_for_actor`` when available (explicit actor scope),
-    otherwise falls back to the actor-scoped ``outbox_list()``.
+    *actor_id* is retained for call-site readability and logging symmetry only;
+    *dl* is already that actor's store, so it does not select the queue.  The
+    former ``hasattr(dl, "outbox_list_for_actor")`` branch is gone: both arms
+    now resolve to the same call (ADR-0066).
 
     Args:
-        actor_id: The actor whose outbox should be queried.
-        dl: The DataLayer to use for persistence.
+        actor_id: The actor whose outbox is being queried. Not used to select
+            the queue — *dl* determines that.
+        dl: That actor's DataLayer.
 
     Returns:
         Set of activity IDs queued for delivery.
     """
-    if hasattr(dl, "outbox_list_for_actor"):
-        items: list[str] = dl.outbox_list_for_actor(actor_id)  # type: ignore[attr-defined]
-        return set(items)
+    del actor_id  # documented above: *dl* selects the queue
     return set(dl.outbox_list())
 
 
@@ -640,16 +641,18 @@ def add_activity_to_outbox(
 ) -> None:
     """Append an activity ID to an actor's outbox and queue it for delivery.
 
-    Uses ``record_outbox_item`` to explicitly enqueue against *actor_id*,
-    bypassing any actor-scope on *dl* itself.  This ensures correct delivery
-    even when *dl* is a shared (unscoped) DataLayer instance.
+    Appends to *dl*'s own outbox.  This previously used
+    ``record_outbox_item(actor_id, …)`` to enqueue against *actor_id*
+    explicitly, bypassing any actor-scope on *dl* — necessary when *dl* could
+    be a shared, unscoped instance.  Under ADR-0066 it cannot be.
 
     Args:
-        actor_id: The actor whose outbox should receive the activity.
+        actor_id: The actor whose outbox receives the activity. Used only for
+            the debug log; *dl* determines the queue.
         activity_id: The ID of the activity to queue for delivery.
         dl: The DataLayer to use for persistence.
     """
-    dl.record_outbox_item(actor_id, activity_id)
+    dl.outbox_append(activity_id)
     logger.debug(
         "Queued activity '%s' in delivery queue for actor '%s'",
         _log_label(activity_id),

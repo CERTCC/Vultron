@@ -91,9 +91,43 @@ Concretely:
   CaseActors, whose IDs are already
   `{case_actor_service_url}/actors/case-actor-{slug}`.
 - `record_outbox_item(actor_id, …)` and `outbox_list_for_actor(actor_id)`
-  collapse into `outbox_append()` / `outbox_list()`. Every one of their call
-  sites passes the executing actor's own ID; the explicit-actor form existed
-  only because the injected DataLayer might be unscoped.
+  collapse into `outbox_append()` / `outbox_list()` at **all** call sites. The
+  explicit-actor form existed because the injected DataLayer might be unscoped,
+  not because any site wrote to a genuinely foreign queue.
+
+  Four sites make that non-obvious, because they name the actor via a variable
+  (`case_actor_id`, `sender_actor_id`, `enqueue_actor_id`) rather than
+  `self.actor_id`. Traced through, all four are self-directed: two author as the
+  executing actor or merely re-queue an activity authored earlier
+  (`case/nodes/participant/common.py`, `fastapi/pending_retry.py`), and two —
+  `case/update_support.py` and `sync/nodes/replay.py` — emit activities whose
+  `actor` is the CaseActor while *running as* the CaseActor.
+
+  Those last two conflate three separate ideas that CM-24 keeps apart on the
+  wire and then muddles in storage: the activity's `actor` (CM-24-001), its
+  `attributed_to` (CM-24-002), and **whose store this is**. The first two are
+  wire authorship; the third is infrastructure. Spelling the first and third
+  with one variable made a local write look like a foreign one.
+
+  Resolution: **gate on the role, not on an identity comparison.** A CaseActor-
+  authored emit MUST sit inside a role-gated composite that verifies the
+  executing actor holds `CVDRole.CASE_MANAGER` for the case
+  (`CheckIsCaseManagerNode`), exactly as CLP-09 already requires for canonical
+  ledger commits — appending to the log and announcing the append are one
+  privilege. Code MUST NOT instead compare `actor_id` against a computed
+  `case_actor_id`; the authority is a role held in the case, and the holder may
+  be any Actor type. Once gated, the executing actor *is* the case manager, so
+  `outbox_append()` is correct by construction.
+
+  This also fixes a latent defect the isolation exposes. Those sites `create()`
+  the activity in the executing actor's store and enqueue its id under the
+  named actor. A shared pool made that work by accident; with per-actor stores
+  the reader would find no activity for the id. Gating makes both halves land in
+  one store.
+
+  Ungated, this is identity spoofing — any actor reaching the helper could emit
+  an `Announce` authored as the CaseActor to every participant — which
+  `AGENTS.md` already forbids for received-side use cases.
 - `ActorScopedDataLayer` merges back into `DataLayer`: with no unscoped mode,
   the distinction has no referent.
 - Peer actor records live in the address book of each hosted actor that needs

@@ -712,7 +712,7 @@ class UpdateActorOutbox(DataLayerAction):
     Reads ``activity_id`` and ``case_id`` from the blackboard (set by the
     preceding activity-creation node) and appends the activity ID to the
     actor's outbox.  Also queues the activity for delivery via
-    ``record_outbox_item``.
+    ``outbox_append``.
 
     Per BTND-04-001: defined here as shared logic used by both
     ``vultron/core/behaviors/report/nodes.py`` and
@@ -760,8 +760,8 @@ class UpdateActorOutbox(DataLayerAction):
 
             case_id = self.blackboard.get("case_id")
 
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"

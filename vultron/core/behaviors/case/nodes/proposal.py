@@ -94,8 +94,8 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
                     case_actor_id=case_actor_id,
                 )
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
         except Exception as exc:
             self.feedback_message = f"create_case_proposal failed: {exc}"

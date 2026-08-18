@@ -214,8 +214,8 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
                     f"ledger commit failed for "
                     f"offer_case_participant/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
@@ -296,8 +296,8 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                     f"ledger commit failed for "
                     f"accept_actor_recommendation/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: queued AcceptActorRecommendation to '%s' for case '%s'",
@@ -374,8 +374,8 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                     f"ledger commit failed for "
                     f"reject_actor_recommendation/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: queued RejectActorRecommendation to '%s' for case '%s'",
@@ -471,8 +471,8 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
                 actor=self.actor_id,
                 to=[owner_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: sent duplicate-recommendation Note to Case Owner '%s'"

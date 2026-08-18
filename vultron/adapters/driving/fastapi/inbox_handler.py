@@ -34,7 +34,7 @@ from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.semantic_registry import (
@@ -231,7 +231,7 @@ def _dispatch_or_defer_inbox_item(
     actor_id: str,
     obj: as_Activity,
     dl: DataLayer,
-    queue_dl: ActorScopedDataLayer,
+    queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
@@ -305,7 +305,7 @@ def _process_inbox_item(
     item_id: str,
     item: as_Activity,
     dl: DataLayer,
-    queue_dl: ActorScopedDataLayer,
+    queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success."""
@@ -341,7 +341,7 @@ def _process_inbox_item(
 async def inbox_handler(
     actor_id: str,
     dl: DataLayer,
-    actor_dl: ActorScopedDataLayer | None = None,
+    actor_dl: DataLayer | None = None,
     emitter: ActivityEmitter | None = None,
     dispatcher: ActivityDispatcher | None = None,
 ) -> None:
@@ -371,8 +371,8 @@ async def inbox_handler(
             ``_DISPATCHER``, giving each :func:`create_app` instance its
             own fully isolated routing table (issue #534).
     """
-    queue_dl: ActorScopedDataLayer = cast(
-        ActorScopedDataLayer, actor_dl if actor_dl is not None else dl
+    queue_dl: DataLayer = cast(
+        DataLayer, actor_dl if actor_dl is not None else dl
     )
     actor = dl.read(actor_id)
     if actor is None:

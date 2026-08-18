@@ -176,9 +176,7 @@ def _enqueue_and_clear(
     # queued. record_outbox_item does not enforce uniqueness; calling it
     # twice would create two outbox entries and cause double delivery.
     try:
-        existing_outbox = cast(
-            CaseOutboxPersistence, dl
-        ).outbox_list_for_actor(enqueue_actor_id)
+        existing_outbox = cast(CaseOutboxPersistence, dl).outbox_list()
     except Exception as exc:
         logger.error(
             "retry_pending: could not read outbox for actor '%s': %s",
@@ -189,9 +187,7 @@ def _enqueue_and_clear(
 
     if activity.id_ not in existing_outbox:
         try:
-            cast(CaseOutboxPersistence, dl).record_outbox_item(
-                enqueue_actor_id, activity.id_
-            )
+            cast(CaseOutboxPersistence, dl).outbox_append(activity.id_)
         except Exception as exc:
             logger.error(
                 "retry_pending: could not enqueue Create(VulnerabilityCase)"

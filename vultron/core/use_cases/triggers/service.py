@@ -120,7 +120,7 @@ class TriggerService:
     callers.
 
     ``SqliteDataLayer`` (and any
-    :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer`) satisfies
+    :class:`~vultron.core.ports.datalayer.DataLayer`) satisfies
     ``CaseOutboxPersistence`` structurally.
 
     Raises bare ``VultronError`` subclasses — HTTP adapters translate these

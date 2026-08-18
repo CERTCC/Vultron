@@ -1229,9 +1229,7 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity.id_
-        )
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity.id_)
         self.blackboard.accept_activity_id = activity.id_
         logger.info(
             "%s: Queued Accept(CaseProposal) '%s' to outbox for vendor '%s'",
@@ -1315,8 +1313,8 @@ class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
             return Status.FAILURE
 
         try:
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity.id_
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity.id_
             )
         except Exception as exc:
             self.feedback_message = (

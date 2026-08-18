@@ -44,7 +44,7 @@ from vultron.adapters.driving.fastapi.routers.actors._inbox import (
 )
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
@@ -273,11 +273,11 @@ class FastAPIQueuePort:
     def __init__(
         self,
         dl: DataLayer,
-        actor_dl: ActorScopedDataLayer,
+        actor_dl: DataLayer,
         actor_id: str,
     ) -> None:
         self._dl = dl
-        self._actor_dl = cast(ActorScopedDataLayer, actor_dl)
+        self._actor_dl = cast(DataLayer, actor_dl)
         self._actor_id = actor_id
 
     def is_case_known(self, case_id: str) -> bool:
@@ -320,7 +320,7 @@ class FastAPIQueuePort:
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     body: dict[str, Any] | None,
-    actor_dl: ActorScopedDataLayer,
+    actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
     emitter: Any,
@@ -357,7 +357,7 @@ async def run_inbox_pipeline(
     )
     queue = FastAPIQueuePort(
         dl=actor_dl,
-        actor_dl=cast(ActorScopedDataLayer, actor_dl),
+        actor_dl=cast(DataLayer, actor_dl),
         actor_id=actor_id,
     )
 

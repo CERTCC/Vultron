@@ -182,8 +182,8 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             activity_id, activity_dict = self._emit(
                 self.trigger_activity_factory
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
@@ -313,9 +313,7 @@ class ProposeCaseToActorNode(DataLayerAction):
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity_id
-        )
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
         return activity_id
 
     def update(self) -> Status:
