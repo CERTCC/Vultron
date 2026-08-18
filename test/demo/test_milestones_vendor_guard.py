@@ -111,6 +111,8 @@ class TestVerifyFixReadyVendorGuard:
             return_value=participant,
         ), patch(
             "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_rm_state_in"
         ):
             # Should not raise
             verify_fix_ready(
@@ -167,6 +169,8 @@ class TestVerifyFixReadyVendorGuard:
             return_value=participant,
         ), patch(
             "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_rm_state_in"
         ):
             verify_fix_ready(
                 MagicMock(),

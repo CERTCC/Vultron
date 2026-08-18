@@ -200,6 +200,46 @@ def _assert_case_notes(
         )
 
 
+def _check_participant_rm_state_in(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set[RM]",
+    label: str,
+) -> None:
+    """Assert actor's latest participant rm_state is in *expected_states*.
+
+    Used to enforce cross-state protocol invariants such as
+    "CS.F entails RM in {ACCEPTED, DEFERRED, CLOSED}" — i.e. a participant
+    that has a fix-ready or fix-deployed CS state must also have engaged with
+    the case at the RM level.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of acceptable ``RM`` values.
+        label: Human-readable label for ``AssertionError`` messages.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' not found"
+        )
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' has no participant"
+            " statuses"
+        )
+    latest_rm = latest.rm_state
+    if latest_rm not in expected_states:
+        raise AssertionError(
+            f"{label}: expected rm_state in {expected_states!r}, "
+            f"found {latest_rm!r}"
+        )
+
+
 def _check_participant_vfd_state_in(
     client: DataLayerClient,
     case_id: str,
@@ -330,6 +370,9 @@ def _all_fetchable_participants_rm_closed(
         if not p_data:
             return False
         core_participants.append(as_CaseParticipant(**p_data).to_core())
+    if not core_participants:
+        # No locally-fetchable participants — cannot confirm closure.
+        return False
     return all_participants_rm_closed(core_participants)
 
 
