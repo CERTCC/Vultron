@@ -133,7 +133,12 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            # The *receiving* actor, not the sender (BT-17-005): an
+            # inbound activity is applied to the receiver's own replica,
+            # so the tree must execute in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
             activity=request,
         )
         if result.status != Status.SUCCESS:
