@@ -267,7 +267,10 @@ def test_record_rejects_missing_or_empty_case_id(bad_case_id):
 
 def test_record_round_trips_through_datalayer():
     """case_id survives save/read — the fact _prepare depends on."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     try:
         offer_id = f"urn:uuid:{uuid.uuid4()}"
         dl.save(

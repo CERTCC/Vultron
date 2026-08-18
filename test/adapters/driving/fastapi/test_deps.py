@@ -27,7 +27,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import get_canonical_actor_dl
-from vultron.core.ports.datalayer import ActorScopedDataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 CANONICAL_URI = "https://example.org/actors/myactor"
@@ -37,7 +37,10 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 
 @pytest.fixture()
 def shared_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -56,9 +59,7 @@ def test_get_canonical_actor_dl_actor_found_via_read(
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
     shared_dl.save(actor)
 
-    result: ActorScopedDataLayer = get_canonical_actor_dl(
-        actor_id=CANONICAL_URI, dl=shared_dl
-    )
+    result: DataLayer = get_canonical_actor_dl(actor_id=CANONICAL_URI)
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == CANONICAL_URI
@@ -77,9 +78,7 @@ def test_get_canonical_actor_dl_actor_found_via_short_id(
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
     shared_dl.save(actor)
 
-    result: ActorScopedDataLayer = get_canonical_actor_dl(
-        actor_id=SHORT_ID, dl=shared_dl
-    )
+    result: DataLayer = get_canonical_actor_dl(actor_id=SHORT_ID)
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == CANONICAL_URI, (
@@ -99,9 +98,7 @@ def test_get_canonical_actor_dl_actor_not_found_falls_back_to_raw_param(
     """
     unknown_id = "https://example.org/actors/unknown"
 
-    result: ActorScopedDataLayer = get_canonical_actor_dl(
-        actor_id=unknown_id, dl=shared_dl
-    )
+    result: DataLayer = get_canonical_actor_dl(actor_id=unknown_id)
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == unknown_id
@@ -130,21 +127,17 @@ def test_short_id_dl_cannot_read_queue_written_by_canonical_uri(
     shared_dl.save(actor)
 
     # Use-case writes to the canonical-URI-keyed outbox (normal runtime path)
-    shared_dl.record_outbox_item(
-        actor_id=CANONICAL_URI, activity_id=ACTIVITY_ID
-    )
+    shared_dl.outbox_append(activity_id=ACTIVITY_ID)
 
     # A DL scoped to the short ID reads a *different* queue bucket → empty
-    short_id_dl: ActorScopedDataLayer = shared_dl.clone_for_actor(SHORT_ID)
+    short_id_dl: DataLayer = shared_dl.clone_for_actor(SHORT_ID)
     assert short_id_dl.outbox_list() == [], (
         "Short-ID-scoped DL must NOT see entries written by the canonical-URI "
         "key (documents the BUG-2026040901 queue-key mismatch scenario)"
     )
 
     # A DL scoped to the canonical URI reads the correct bucket
-    canonical_dl: ActorScopedDataLayer = shared_dl.clone_for_actor(
-        CANONICAL_URI
-    )
+    canonical_dl: DataLayer = shared_dl.clone_for_actor(CANONICAL_URI)
     assert ACTIVITY_ID in canonical_dl.outbox_list(), (
         "Canonical-URI-scoped DL must read the entry written by "
         "record_outbox_item(actor_id=CANONICAL_URI, ...)"
@@ -164,13 +157,9 @@ def test_get_canonical_actor_dl_resolves_canonical_uri_for_queue_reads(
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
     shared_dl.save(actor)
 
-    shared_dl.record_outbox_item(
-        actor_id=CANONICAL_URI, activity_id=ACTIVITY_ID
-    )
+    shared_dl.outbox_append(activity_id=ACTIVITY_ID)
 
-    actor_dl: ActorScopedDataLayer = get_canonical_actor_dl(
-        actor_id=SHORT_ID, dl=shared_dl
-    )
+    actor_dl: DataLayer = get_canonical_actor_dl(actor_id=SHORT_ID)
 
     assert ACTIVITY_ID in actor_dl.outbox_list(), (
         "get_canonical_actor_dl must resolve the short UUID to the canonical "

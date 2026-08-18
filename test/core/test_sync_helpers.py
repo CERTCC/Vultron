@@ -40,7 +40,10 @@ _ZERO_HASH: str = "0" * 64  # arbitrary hash for non-genesis test chains
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 def _make_case(

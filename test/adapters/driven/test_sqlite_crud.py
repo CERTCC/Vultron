@@ -33,7 +33,9 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 @pytest.mark.integration
 def test_database_initialization_creates_db_file(tmp_db_url):
     """Creating a file-backed SqliteDataLayer creates the SQLite file."""
-    instance = SqliteDataLayer(tmp_db_url)
+    instance = SqliteDataLayer(
+        tmp_db_url, actor_id="https://test.example/api/v2/actors/test-actor"
+    )
     db_path = tmp_db_url.replace("sqlite:///", "")
     assert os.path.exists(db_path)
     instance.close()
@@ -41,7 +43,10 @@ def test_database_initialization_creates_db_file(tmp_db_url):
 
 def test_database_initialization_in_memory():
     """In-memory DataLayer can be created and is operational."""
-    instance = SqliteDataLayer("sqlite:///:memory:")
+    instance = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     assert instance.ping()
     instance.close()
 
@@ -385,7 +390,10 @@ class TestPersistenceLogLevels:
     def test_create_logs_stored_at_debug(self, caplog):
         import logging
 
-        instance = SqliteDataLayer("sqlite:///:memory:")
+        instance = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         try:
             with caplog.at_level(logging.DEBUG, logger=self._CRUD_LOGGER):
                 instance.create(Record(id_="urn:x:1", type_="Note", data_={}))
@@ -399,7 +407,10 @@ class TestPersistenceLogLevels:
     def test_save_logs_saved_at_debug(self, caplog):
         import logging
 
-        instance = SqliteDataLayer("sqlite:///:memory:")
+        instance = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         try:
             with caplog.at_level(logging.DEBUG, logger=self._CRUD_LOGGER):
                 instance.save(Record(id_="urn:x:2", type_="Note", data_={}))
@@ -413,7 +424,10 @@ class TestPersistenceLogLevels:
     def test_no_datalayer_lines_reach_info(self, caplog):
         import logging
 
-        instance = SqliteDataLayer("sqlite:///:memory:")
+        instance = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         try:
             with caplog.at_level(logging.INFO, logger=self._CRUD_LOGGER):
                 instance.create(Record(id_="urn:x:3", type_="Note", data_={}))

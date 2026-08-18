@@ -45,7 +45,10 @@ class TestOfferActorToCaseReceivedUseCase:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         local_actor_id = "https://example.org/actors/case-actor"
         local_actor = as_Service(id_=local_actor_id)
         case_id = "https://example.org/cases/offer-actor-test-case"
@@ -90,7 +93,7 @@ class TestOfferActorToCaseReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(local_actor_id)
+        outbox = dl.outbox_list()
         assert (
             len(outbox) >= 1
         ), f"Expected at least 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
@@ -101,7 +104,10 @@ class TestOfferActorToCaseReceivedUseCase:
         """Skips gracefully when no local actor is found in DataLayer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         recommended = as_Actor(id_="https://example.org/actors/vendor-new")
         activity = recommend_actor_activity(
             recommended,
@@ -122,7 +128,10 @@ class TestOfferActorToCaseReceivedUseCase:
         """Skips gracefully when recommended_id is missing from the event."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Build an activity with no object (can't in wire layer, so mock the event)
         mock_event = MagicMock()
         mock_event.activity_id = "https://example.org/activities/bad-offer"

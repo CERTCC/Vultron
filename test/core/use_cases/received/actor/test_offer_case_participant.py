@@ -70,7 +70,10 @@ def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
     The Case Owner is the local actor that receives Offer(CaseParticipant)
     from the CaseActor.
     """
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     owner_actor = as_Actor(id_=CASE_OWNER_ID)
     case = as_VulnerabilityCase(
         id_=CASE_ID,
@@ -88,7 +91,10 @@ def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
     The CaseActor is the local actor that receives Accept/Reject from the
     Case Owner.
     """
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     case_actor = as_Service(id_=CASE_ACTOR_ID)
     case = as_VulnerabilityCase(
         id_=CASE_ID,
@@ -139,7 +145,10 @@ class TestOfferCaseParticipantReceivedUseCase:
         ).execute()
 
     def test_skips_when_no_local_actor(self, caplog):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = self._event()
         with caplog.at_level(logging.WARNING):
             OfferCaseParticipantReceivedUseCase(dl, event).execute()
@@ -190,7 +199,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         ).execute()
 
     def test_skips_when_no_local_actor(self, caplog):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = self._event()
         with caplog.at_level(logging.WARNING):
             AcceptOfferCaseParticipantReceivedUseCase(dl, event).execute()
@@ -251,7 +263,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(actor_id)
+        outbox = dl.outbox_list()
         assert len(outbox) >= 2, (
             "Expected at least two outbox activities (Accept notification to "
             f"recommender + Invite to invitee); got {len(outbox)}"
@@ -300,7 +312,10 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         ).execute()
 
     def test_skips_when_no_local_actor(self, caplog):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = self._event()
         with caplog.at_level(logging.WARNING):
             RejectOfferCaseParticipantReceivedUseCase(dl, event).execute()
@@ -342,7 +357,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(actor_id)
+        outbox = dl.outbox_list()
         assert len(outbox) >= 1, (
             "Expected at least one outbox activity (RejectActorRecommendation "
             f"to recommender); got {len(outbox)}"
@@ -377,7 +392,10 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
     """
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     case_actor = as_Service(id_=AC1_CASE_ACTOR_ID, context=AC1_CASE_ID)
     case = as_VulnerabilityCase(
         id_=AC1_CASE_ID,
@@ -461,7 +479,7 @@ class TestRolesFromStoredOffer:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)
@@ -497,7 +515,7 @@ class TestRolesFromStoredOffer:
         ).execute()
 
         # Step 2: find the stored Invite
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)
@@ -600,7 +618,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)
@@ -636,7 +654,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         ).execute()
 
         # Step 2: find the stored Invite
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)

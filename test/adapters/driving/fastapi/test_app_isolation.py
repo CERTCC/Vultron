@@ -38,19 +38,19 @@ def app2():
 
 def test_create_app_auto_injects_datalayer(app1):
     """create_app() lifespan should auto-inject a DataLayer override."""
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     with TestClient(app1):
-        assert get_shared_dl in app1.dependency_overrides
+        assert get_actor_dl in app1.dependency_overrides
 
 
 def test_create_app_datalayers_are_distinct(app1, app2):
     """Two create_app() instances must not share the same DataLayer."""
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     with TestClient(app1), TestClient(app2):
-        dl1 = app1.dependency_overrides[get_shared_dl]()
-        dl2 = app2.dependency_overrides[get_shared_dl]()
+        dl1 = app1.dependency_overrides[get_actor_dl]()
+        dl2 = app2.dependency_overrides[get_actor_dl]()
         assert dl1 is not dl2
 
 
@@ -62,10 +62,10 @@ def test_create_app_datalayers_are_isolated(app1, app2):
     actor = as_Service(id_=actor_id, name="IsolatedTestActor")
 
     with TestClient(app1), TestClient(app2):
-        from vultron.adapters.driven.datalayer import get_shared_dl
+        from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
-        dl1 = app1.dependency_overrides[get_shared_dl]()
-        dl2 = app2.dependency_overrides[get_shared_dl]()
+        dl1 = app1.dependency_overrides[get_actor_dl]()
+        dl2 = app2.dependency_overrides[get_actor_dl]()
 
         dl1.save(actor)
 
@@ -75,14 +75,17 @@ def test_create_app_datalayers_are_isolated(app1, app2):
 
 def test_create_app_datalayer_override_not_clobbered(app1):
     """A pre-registered dependency_overrides entry is not overwritten."""
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    custom_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
-    app1.dependency_overrides[get_shared_dl] = lambda: custom_dl
+    custom_dl = SqliteDataLayer(
+        db_url="sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    app1.dependency_overrides[get_actor_dl] = lambda: custom_dl
 
     with TestClient(app1):
-        resolved = app1.dependency_overrides[get_shared_dl]()
+        resolved = app1.dependency_overrides[get_actor_dl]()
         assert resolved is custom_dl
 
 
@@ -114,7 +117,7 @@ def test_create_app_dispatchers_are_distinct(app1, app2):
 
 def test_create_app_lifespan_cleanup(app1):
     """After TestClient exits the lifespan, per-app state is cleared."""
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     with TestClient(app1):
         pass
@@ -122,4 +125,4 @@ def test_create_app_lifespan_cleanup(app1):
     assert not hasattr(app1.state, "emitter")
     assert app1.state.dispatcher is None
     assert getattr(app1.state, "shared_dl", None) is None
-    assert get_shared_dl not in app1.dependency_overrides
+    assert get_actor_dl not in app1.dependency_overrides

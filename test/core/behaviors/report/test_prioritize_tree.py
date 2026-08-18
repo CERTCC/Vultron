@@ -114,7 +114,10 @@ def _make_defer_request(
 
 @pytest.fixture
 def datalayer():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture

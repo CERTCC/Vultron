@@ -58,7 +58,10 @@ OFFER_ID = "https://example.org/activities/offer-123"
 
 
 def _fresh_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 def _write_btbridge_keys(

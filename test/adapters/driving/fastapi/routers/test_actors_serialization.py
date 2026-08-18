@@ -46,11 +46,11 @@ def _route_key(object_id: str) -> str:
 
 @pytest.fixture
 def client_actors(datalayer):
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     app = FastAPI()
     app.include_router(actors_router.router)
-    app.dependency_overrides[get_shared_dl] = lambda: datalayer
+    app.dependency_overrides[get_actor_dl] = lambda: datalayer
     with TestClient(app) as c:
         yield c
     app.dependency_overrides = {}
@@ -58,11 +58,11 @@ def client_actors(datalayer):
 
 @pytest.fixture
 def client_datalayer(datalayer):
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     app = FastAPI()
     app.include_router(datalayer_router.router)
-    app.dependency_overrides[get_shared_dl] = lambda: datalayer
+    app.dependency_overrides[get_actor_dl] = lambda: datalayer
     with TestClient(app) as c:
         yield c
     app.dependency_overrides = {}

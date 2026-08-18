@@ -39,13 +39,16 @@ def reset_singleton():
 
 
 def test_get_datalayer_returns_sqlite_instance():
-    dl = get_datalayer(db_url="sqlite:///:memory:")
+    dl = get_datalayer(
+        "https://test.example/api/v2/actors/test-actor",
+        db_url="sqlite:///:memory:",
+    )
     assert isinstance(dl, SqliteDataLayer)
 
 
 def test_get_datalayer_in_memory_by_default():
     """Default db_url should use in-memory SQLite during tests."""
-    dl = get_datalayer()
+    dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
     assert dl.ping()
 
 
@@ -81,7 +84,7 @@ def test_default_db_url_uses_vultron_database_db_url_env_var(
     monkeypatch.setenv("VULTRON_DATABASE__DB_URL", db_url)
     reload_config()
 
-    dl = get_datalayer()
+    dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
     assert dl.ping()
     # The URL used should be the one from the env var — verify by checking
     # that the backing engine URL matches.

@@ -171,4 +171,3 @@ class TestCollectionDefaultsCS21:
         broadcast_case_update(
             dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
         )
-

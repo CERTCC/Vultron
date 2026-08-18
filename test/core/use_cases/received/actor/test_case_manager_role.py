@@ -64,7 +64,10 @@ class TestCaseManagerRoleDelegationUseCases:
         """OfferCaseManagerRoleReceivedUseCase persists the offer activity."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -77,7 +80,10 @@ class TestCaseManagerRoleDelegationUseCases:
         """Repeated execution of OfferCaseManagerRoleReceivedUseCase is a no-op."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -91,7 +97,10 @@ class TestCaseManagerRoleDelegationUseCases:
         """AcceptCaseManagerRoleReceivedUseCase persists the acceptance activity."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         accept = accept_case_manager_role_activity(
             offer, actor=self._CASE_ACTOR_URI
@@ -109,7 +118,10 @@ class TestCaseManagerRoleDelegationUseCases:
         """AcceptCaseManagerRoleReceivedUseCase logs acceptance without raising."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         accept = accept_case_manager_role_activity(
             offer, actor=self._CASE_ACTOR_URI
@@ -141,7 +153,10 @@ class TestCaseManagerRoleDelegationUseCases:
         from unittest.mock import MagicMock
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
@@ -167,7 +182,10 @@ class TestCaseManagerRoleDelegationUseCases:
         """OfferCaseManagerRoleReceivedUseCase skips auto-accept when trigger_activity is None."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -190,7 +208,10 @@ class TestCaseManagerRoleDelegationUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         vendor = as_Organization(id_=self._VENDOR_URI)
         reporter_id = "https://example.org/actors/reporter"
         reporter_participant_id = f"{self._CASE_URI}/participants/reporter"
@@ -242,7 +263,10 @@ class TestCaseManagerRoleDelegationUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         reporter_id = "https://example.org/actors/reporter"
         reporter_participant_id = f"{self._CASE_URI}/participants/reporter"
         reporter_participant = VultronParticipant(
@@ -288,7 +312,10 @@ class TestCaseManagerRoleDelegationUseCases:
         """AcceptCaseManagerRoleReceivedUseCase skips bootstrap when trigger_activity is None."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         accept = accept_case_manager_role_activity(
             offer, actor=self._CASE_ACTOR_URI
@@ -314,7 +341,10 @@ class TestCaseManagerRoleDelegationUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         # Seed DL so EmitRejectCaseManagerRoleNode can reconstruct the offer
         case = as_VulnerabilityCase(id_=self._CASE_URI, name="REJECT-TEST")
@@ -369,7 +399,10 @@ class TestCaseManagerRoleDelegationUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # attributed_to triggers genesis_hash computation (CLP-08-001); required
         # for the ledger commit that precedes the outbox enqueue.
         case = as_VulnerabilityCase(
@@ -440,7 +473,10 @@ class TestCaseManagerRoleDelegationUseCases:
             TriggerActivityAdapter,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(id_=self._CASE_URI, name="ADAPTER-REJECT")
         participant = as_CaseParticipant(
             id_=self._PARTICIPANT_URI,

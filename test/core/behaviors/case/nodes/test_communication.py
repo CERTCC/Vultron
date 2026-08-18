@@ -326,7 +326,10 @@ class TestEmitRejectCaseManagerRoleNode:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         bridge = BTBridge(
             datalayer=dl,
             is_leader=lambda: True,
@@ -346,7 +349,10 @@ class TestEmitRejectCaseManagerRoleNode:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         bridge = BTBridge(
             datalayer=dl,
             is_leader=lambda: True,
@@ -520,7 +526,7 @@ class TestAutoAcceptCaseManagerRoleNode:
             actor_id=self._CASE_ACTOR_ID,
         )
         bt_scenario.assert_success(result)
-        outbox = bt_scenario.dl.outbox_list_for_actor(self._CASE_ACTOR_ID)
+        outbox = bt_scenario.dl.outbox_list()
         assert (
             len(outbox) >= 1
         ), "Expected at least one outbox item after auto-accept"
@@ -598,7 +604,10 @@ class TestAutoAcceptCaseManagerRoleNode:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         bridge = BTBridge(
             datalayer=dl,
             is_leader=lambda: True,

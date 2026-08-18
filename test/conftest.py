@@ -123,3 +123,30 @@ def cleanup_test_datalayer():
     reset_datalayer()
     yield
     reset_datalayer()
+
+
+@pytest.fixture(autouse=True)
+def _dispose_actor_stores_between_tests():
+    """Drop every per-actor store after each test (ADR-0066).
+
+    In-memory stores are **named** — ``actor_db_url`` maps an actor to
+    ``sqlite:///file:{base}-{slug}?mode=memory&cache=shared&uri=true`` — so the
+    engine cache is keyed by that URL rather than by engine-object identity.
+    Two tests using the same actor id therefore reach the *same* in-memory
+    database, and without disposal the first test's rows leak into the second
+    (seen as ``ValueError: record with id_=... already exists``).
+
+    Naming the database is what makes store identity live entirely in the URL
+    (the property that stops two in-process applications sharing a store), so
+    the disposal duty is the price of that guarantee rather than an accident.
+    Disposing closes the last connection, which is what actually destroys an
+    in-memory database.
+
+    Autouse and session-wide: individual tests should not have to remember, and
+    forgetting produces cross-test contamination that presents as a confusing
+    duplicate-id error far from its cause.
+    """
+    yield
+    from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+
+    reset_datalayer()

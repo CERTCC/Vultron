@@ -80,7 +80,10 @@ def clear_actor_locks():
 
 @pytest.fixture
 def dl():
-    db = SqliteDataLayer("sqlite:///:memory:")
+    db = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield db
     db.close()
 

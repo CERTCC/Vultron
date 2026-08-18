@@ -60,7 +60,10 @@ class TestEmbargoProposalLifecycle:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cem1",
@@ -96,7 +99,10 @@ class TestEmbargoProposalLifecycle:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cem2",
@@ -130,7 +136,10 @@ class TestEmbargoProposalLifecycle:
             as_EmbargoEvent,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em2/embargo_events/e2",
@@ -164,7 +173,10 @@ class TestEmbargoProposalLifecycle:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em3",
@@ -215,7 +227,10 @@ class TestEmbargoProposalLifecycle:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em3_warn",
@@ -268,7 +283,10 @@ class TestEmbargoProposalLifecycle:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em5",
@@ -327,7 +345,10 @@ class TestEmbargoProposalLifecycle:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em6",
@@ -412,7 +433,10 @@ class TestEmbargoProposalLifecycle:
             as_Service,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         actor = Actor(id_="https://example.org/users/vendor", name="Vendor")
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_eval_invalid",
@@ -536,7 +560,10 @@ class TestInviteToEmbargoReceivedPxaGuard:
         """invite_to_embargo_on_case does not run BT when P/X/A is set (EMB-01-002)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
         case, embargo, proposal = _make_pxa_case(
@@ -563,7 +590,10 @@ class TestInviteToEmbargoReceivedPxaGuard:
         """invite_to_embargo_on_case emits ER when trigger_activity is available and P/X/A set (EMB-01-002)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"
         case, embargo, proposal = _make_pxa_case(
@@ -582,7 +612,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         ).execute()
 
         # ER activity must be in the outbox
-        outbox = dl.outbox_list_for_actor(self.COORD_ID)
+        outbox = dl.outbox_list()
         assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
 
     def test_pxa_clear_allows_ep_processing(self, make_payload):
@@ -595,7 +625,10 @@ class TestInviteToEmbargoReceivedPxaGuard:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = f"{self.CASE_ID}/clear"
         coordinator_id = self.COORD_ID
 
@@ -634,7 +667,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         """accept_invite_to_embargo_on_case does not activate embargo when P/X/A set (EMB-02-002)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
         case, embargo, proposal = _make_pxa_case(
@@ -664,7 +700,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         """accept_invite_to_embargo_on_case emits ER when trigger_activity available and P/X/A set (EMB-02-002)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"
         case, embargo, proposal = _make_pxa_case(
@@ -686,7 +725,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         ).execute()
 
         # ER activity must be in the outbox
-        outbox = dl.outbox_list_for_actor(self.COORD_ID)
+        outbox = dl.outbox_list()
         assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
 
     def test_pxa_clear_allows_ea_processing(self, make_payload):
@@ -699,7 +738,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = f"{self.CASE_ID}/clear"
         coordinator_id = self.COORD_ID
 

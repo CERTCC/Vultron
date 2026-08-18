@@ -92,7 +92,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ACTOR],
         )
-        outbox = dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = dl.outbox_list()
         assert "https://example.org/activities/ann1" in outbox
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
@@ -126,7 +126,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
 
         assert result.status == py_trees.common.Status.SUCCESS
         factory.announce_embargo.assert_not_called()
-        assert dl.outbox_list_for_actor(ACTOR_ID) == []
+        assert dl.outbox_list() == []
 
     def test_announce_skipped_gracefully_when_no_factory(self):
         """Tree succeeds when factory is absent (no announce emitted)."""

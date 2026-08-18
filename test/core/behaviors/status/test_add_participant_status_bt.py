@@ -101,7 +101,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture
@@ -874,7 +877,7 @@ class TestCloseNotYetEmittedConditionNode:
             object_=CASE_ID,
         )
         populated_dl.create(leave_activity)
-        populated_dl.record_outbox_item(CASE_MANAGER_ID, leave_activity.id_)
+        populated_dl.outbox_append(leave_activity.id_)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
@@ -893,7 +896,7 @@ class TestCloseNotYetEmittedConditionNode:
             object_=other_case_id,
         )
         populated_dl.create(leave_activity)
-        populated_dl.record_outbox_item(CASE_MANAGER_ID, leave_activity.id_)
+        populated_dl.outbox_append(leave_activity.id_)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
@@ -957,7 +960,7 @@ class TestAddParticipantStatusTree:
         assert STATUS_ID in status_ids
 
         # RSH-01-003: self-addressed Add(CaseStatus) must be queued in outbox
-        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = populated_dl.outbox_list()
         assert (
             len(outbox) > 0
         ), "EmitAddCaseStatusToSelfNode must queue Add(CaseStatus)"
@@ -1028,7 +1031,7 @@ class TestAddParticipantStatusTree:
         result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         # Outbox must be empty: guard blocked before EmitAddCaseStatusToSelfNode
-        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = populated_dl.outbox_list()
         assert (
             len(outbox) == 0
         ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
@@ -1259,7 +1262,7 @@ class TestEmitAddCaseStatusToSelfNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-        outbox = dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        outbox = dl.outbox_list()
         assert len(outbox) > 0, "Activity should be queued in outbox"
 
     def test_fails_without_factory(self, populated_bridge):

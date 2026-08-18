@@ -734,7 +734,7 @@ def test_stay_deferred_short_circuits(
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
     assert len(participant.participant_statuses) == before
-    assert bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID) == []
+    assert bt_scenario.dl.outbox_list() == []
 
 
 def test_full_deploy_arm_completes_and_emits_cd(
@@ -777,7 +777,7 @@ def test_full_deploy_arm_completes_and_emits_cd(
     assert participant.participant_statuses[-1].vfd.state == CS_vfd.VFD
 
     # EmitCDActivity queued a CD activity to the deployer's outbox.
-    outbox = bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID)
+    outbox = bt_scenario.dl.outbox_list()
     assert len(outbox) == 1
 
 
@@ -807,4 +807,4 @@ def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
     assert len(participant.participant_statuses) == before
-    assert bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID) == []
+    assert bt_scenario.dl.outbox_list() == []

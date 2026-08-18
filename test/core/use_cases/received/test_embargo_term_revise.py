@@ -41,7 +41,10 @@ class TestEmbargoTermRevise:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em1",
             name="EM Test Case",
@@ -83,7 +86,10 @@ class TestEmbargoTermRevise:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em1_warn",
             name="EM Warn Test Case",
@@ -125,7 +131,10 @@ class TestEmbargoTermRevise:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem1",
             name="Remove Embargo Proposed",
@@ -173,7 +182,10 @@ class TestEmbargoTermRevise:
         py_trees.blackboard.Blackboard.enable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem2",
             name="Remove Embargo ACTIVE→EXITED",
@@ -219,7 +231,10 @@ class TestEmbargoTermRevise:
         py_trees.blackboard.Blackboard.enable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem3",
             name="Remove Embargo unusual state override",

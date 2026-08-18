@@ -311,6 +311,11 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
 
     Returns SUCCESS unconditionally (missing trigger port is only a WARNING so
     that the replay still runs in environments without a trigger port).
+
+    The ``Announce`` is authored as the **executing** actor, which the enclosing
+    ``CheckIsCaseManagerNode`` gate has established holds ``CASE_MANAGER``
+    (ADR-0066: it previously used an entity-resolved ``case_actor_id`` and
+    enqueued under that id, writing to one store while queueing under another).
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -347,12 +352,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
 
         entry = _require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
-        # Authored as the executing actor, which the enclosing
-        # CheckIsCaseManagerNode gate has established is the case's
-        # CASE_MANAGER.  Previously this used the blackboard's case_actor_id,
-        # resolved by entity lookup, and enqueued under that id — so the
-        # activity was written to one store and queued under another.  A shared
-        # pool masked the mismatch; per-actor stores do not (ADR-0066).
+        # Authored as the executing actor; see the class docstring.
         case_actor_id = self.actor_id
 
         try:

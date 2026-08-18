@@ -48,7 +48,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """OfferCaseParticipantRoleReceivedUseCase persists the offer activity."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -61,7 +64,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """Repeated execution of OfferCaseParticipantRoleReceivedUseCase is a no-op."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -77,7 +83,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """OfferCaseParticipantRoleReceivedUseCase skips when receiving_actor_id is None."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=None)
 
@@ -92,7 +101,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """OfferCaseParticipantRoleReceivedUseCase works for any CVDRole, not just CASE_MANAGER."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer(role=CVDRole.COORDINATOR)
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -108,7 +120,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         from unittest.mock import MagicMock
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 

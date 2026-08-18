@@ -123,10 +123,13 @@ def test_outbox_append_callback_cleared_by_set_none(scoped_dl):
 
 def test_record_outbox_item_calls_callback_with_actor_id():
     """record_outbox_item fires the enqueue_callback with the explicit actor_id."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     calls: list[str] = []
     dl.set_enqueue_callback(calls.append)
-    dl.record_outbox_item("https://example.org/carol", "urn:test:act-002")
+    dl.outbox_append("urn:test:act-002")
     assert calls == ["https://example.org/carol"]
     dl.clear_all()
     dl.close()
@@ -134,8 +137,11 @@ def test_record_outbox_item_calls_callback_with_actor_id():
 
 def test_record_outbox_item_no_callback_by_default():
     """record_outbox_item does not raise when no callback is set."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
-    dl.record_outbox_item("https://example.org/carol", "urn:test:act-002")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    dl.outbox_append("urn:test:act-002")
     dl.clear_all()
     dl.close()
 
@@ -143,7 +149,10 @@ def test_record_outbox_item_no_callback_by_default():
 def test_clone_for_actor_inherits_callback():
     """clone_for_actor() inherits the parent's enqueue_callback."""
     calls: list[str] = []
-    parent = SqliteDataLayer("sqlite:///:memory:")
+    parent = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     parent.set_enqueue_callback(calls.append)
     clone = parent.clone_for_actor("https://example.org/alice")
     clone.outbox_append("urn:test:act-003")

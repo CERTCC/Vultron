@@ -89,7 +89,10 @@ def _build_link(
 
 @pytest.fixture()
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture()

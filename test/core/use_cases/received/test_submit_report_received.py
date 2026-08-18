@@ -80,7 +80,10 @@ class TestSubmitReportLogMessages:
             receiving_actor_id="https://example.org/actors/vendor",
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
 
@@ -135,7 +138,10 @@ class TestSubmitReportCreatesCase:
             activity=activity,
             receiving_actor_id=vendor_id,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         dl.save(report)
         vendor_actor = VultronCaseActor(id_=vendor_id)
         dl.save(vendor_actor)
@@ -243,7 +249,10 @@ class TestSubmitReportCreatesCase:
             activity=activity,
             receiving_actor_id=self.VENDOR_ID,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
@@ -281,7 +290,10 @@ class TestSubmitReportAutoCreateCasePolicy:
             activity=activity,
             receiving_actor_id=self.VENDOR_ID,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return event, dl
 
@@ -383,7 +395,10 @@ class TestOfferAddressingSemantics:
     def _make_dl(self) -> SqliteDataLayer:
         from vultron.core.models.case_actor import VultronCaseActor
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         dl.save(VultronReport(id_=self.REPORT_ID))
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return dl
@@ -533,7 +548,10 @@ class TestSubmitReportStoresOfferRecord:
             activity=activity,
             receiving_actor_id=self.VENDOR_ID,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return event, dl
 

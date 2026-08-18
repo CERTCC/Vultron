@@ -70,7 +70,10 @@ class BTTestScenario:
         is_leader: bool = True,
     ) -> None:
         self.actor_id = actor_id
-        self.dl = dl or SqliteDataLayer("sqlite:///:memory:")
+        self.dl = dl or SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         self.bridge = BTBridge(
             datalayer=self.dl,
             is_leader=lambda: is_leader,
@@ -344,7 +347,10 @@ def shared_dl_actors() -> tuple[BTTestScenario, BTTestScenario]:
     """
     from vultron.core.models.case_actor import VultronCaseActor
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     vendor_id = "https://example.org/actors/vendor"
     reporter_id = "https://example.org/actors/reporter"
 

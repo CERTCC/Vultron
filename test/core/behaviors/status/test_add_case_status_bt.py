@@ -86,7 +86,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture
@@ -392,7 +395,10 @@ class TestAddCaseStatusTree:
 class TestAddCaseStatusToCaseReceivedUseCase:
     def test_use_case_appends_status(self, make_payload):
         """Use case succeeds: status is appended to case."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="UC Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         dl.create(case)
@@ -413,7 +419,10 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """Duplicate status → no append; use case ledgers at INFO not WARNING."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         case.case_statuses.append(status_obj)
@@ -446,7 +455,10 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """Invalid EM transition → no append; use case ledgers at WARNING."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard Case")
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
@@ -487,7 +499,10 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """Missing status_id in event → WARNING; no BT executed."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="Missing ID Case")
         dl.create(case)
 
@@ -690,7 +705,10 @@ class TestAddCaseStatusTreeSeam2:
         from vultron.enums.roles import CVDRole
         from vultron.semantic_registry import extract_event
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
@@ -781,7 +799,10 @@ class TestRegressionCSPTeardownPath:
         """Return a fresh DataLayer with a case in ACTIVE embargo."""
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         cm_participant = as_CaseParticipant(
             id_=f"{CASE_ID}/participants/cm",
             context=CASE_ID,

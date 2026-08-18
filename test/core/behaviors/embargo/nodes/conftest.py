@@ -59,7 +59,10 @@ def make_case_with_manager(
     case_manager_actor: str = CASE_MANAGER_ACTOR,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a DataLayer with a case + CASE_MANAGER participant."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     case, _ = make_case_and_embargo(suffix, em_state=em_state)
     cm_participant = as_CaseParticipant(
         id_=f"{case.id_}/participants/cm",
@@ -93,4 +96,7 @@ def setup_blackboard(
 @pytest.fixture
 def dl() -> SqliteDataLayer:
     """Return a fresh in-memory SQLite DataLayer."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )

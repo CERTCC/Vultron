@@ -34,7 +34,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 @pytest.fixture
 def datalayer():
     """In-memory SQLite data layer for testing."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture

@@ -483,7 +483,10 @@ class TestRolesThreadingIntegration:
 
         # Shared DataLayer: both trigger and receive sides use it so the
         # persisted Invite is visible when Accept is processed.
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _CREATED_DLS.append(dl)
 
         owner = as_Service(name="CaseOwner")

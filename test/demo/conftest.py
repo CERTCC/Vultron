@@ -27,7 +27,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -179,9 +179,12 @@ def create_isolated_actor_app(
         An :class:`IsolatedActorApp` whose ``client`` context manager has
         *not* been entered yet — callers must use it as a context manager.
     """
-    isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
+    isolated_dl = SqliteDataLayer(
+        db_url="sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     app = create_app(docs_url=None, openapi_url=None)
-    app.dependency_overrides[get_shared_dl] = lambda: isolated_dl
+    app.dependency_overrides[get_actor_dl] = lambda: isolated_dl
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
     router.register(base_url, client)

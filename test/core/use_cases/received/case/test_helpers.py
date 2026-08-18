@@ -76,7 +76,10 @@ class TestBootstrapCreateReporterParticipant:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
     @pytest.fixture()
     def seeded_dl(self, dl):
@@ -202,7 +205,10 @@ class TestBootstrapReporterUpgradesFromStart:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
     @pytest.fixture()
     def base_dl(self, dl):
@@ -413,7 +419,10 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
     def _wire_case(self, rm_state: RM) -> as_VulnerabilityCase:
         """A received-shaped case carrying one wire participant at *rm_state*."""

@@ -69,7 +69,10 @@ class NoOpAction(DataLayerAction):
 @pytest.fixture
 def datalayer():
     """Create in-memory DataLayer for testing."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture

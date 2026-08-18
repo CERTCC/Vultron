@@ -44,7 +44,6 @@ def _mock_dl(has_items: bool = False) -> MagicMock:
 
 def _make_monitor(
     actor_dls: dict | None = None,
-    shared_dl: MagicMock | None = None,
     emitter: AsyncMock | None = None,
 ) -> OutboxMonitor:
     """Build an OutboxMonitor with injected test doubles."""
@@ -52,7 +51,6 @@ def _make_monitor(
     return OutboxMonitor(
         poll_interval=0.01,
         actor_datalayers_factory=factory,
-        shared_dl=shared_dl or MagicMock(),
         emitter=emitter,
     )
 
@@ -79,8 +77,7 @@ def test_drain_all_skips_empty_outbox():
 def test_drain_all_calls_outbox_handler_for_actor_with_items():
     """drain_all calls outbox_handler for actors whose outbox is non-empty."""
     dl = _mock_dl(has_items=True)
-    shared = MagicMock()
-    monitor = _make_monitor(actor_dls={"alice": dl}, shared_dl=shared)
+    monitor = _make_monitor(actor_dls={"alice": dl})
 
     with patch(
         "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
@@ -88,19 +85,14 @@ def test_drain_all_calls_outbox_handler_for_actor_with_items():
     ) as mock_handler:
         asyncio.run(monitor.drain_all())
 
-    mock_handler.assert_called_once_with(
-        "alice", dl, shared_dl=shared, emitter=None
-    )
+    mock_handler.assert_called_once_with("alice", dl, emitter=None)
 
 
 def test_drain_all_skips_empty_and_processes_non_empty():
     """drain_all processes only actors with pending items."""
     alice_dl = _mock_dl(has_items=False)
     bob_dl = _mock_dl(has_items=True)
-    shared = MagicMock()
-    monitor = _make_monitor(
-        actor_dls={"alice": alice_dl, "bob": bob_dl}, shared_dl=shared
-    )
+    monitor = _make_monitor(actor_dls={"alice": alice_dl, "bob": bob_dl})
 
     with patch(
         "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
@@ -108,16 +100,13 @@ def test_drain_all_skips_empty_and_processes_non_empty():
     ) as mock_handler:
         asyncio.run(monitor.drain_all())
 
-    mock_handler.assert_called_once_with(
-        "bob", bob_dl, shared_dl=shared, emitter=None
-    )
+    mock_handler.assert_called_once_with("bob", bob_dl, emitter=None)
 
 
 def test_drain_all_calls_handler_for_multiple_actors():
     """drain_all calls outbox_handler once per actor that has pending items."""
     dls = {f"actor-{i}": _mock_dl(has_items=True) for i in range(3)}
-    shared = MagicMock()
-    monitor = _make_monitor(actor_dls=dls, shared_dl=shared)
+    monitor = _make_monitor(actor_dls=dls)
 
     with patch(
         "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
@@ -137,14 +126,11 @@ def test_drain_all_continues_after_error_for_one_actor(caplog):
     """drain_all logs errors and continues processing remaining actors."""
     alice_dl = _mock_dl(has_items=True)
     bob_dl = _mock_dl(has_items=True)
-    shared = MagicMock()
-    monitor = _make_monitor(
-        actor_dls={"alice": alice_dl, "bob": bob_dl}, shared_dl=shared
-    )
+    monitor = _make_monitor(actor_dls={"alice": alice_dl, "bob": bob_dl})
 
     call_count = [0]
 
-    async def sometimes_raises(actor_id, dl, shared_dl, emitter):
+    async def sometimes_raises(actor_id, dl, emitter):
         call_count[0] += 1
         if actor_id == "alice":
             raise RuntimeError("delivery failed")
@@ -165,7 +151,7 @@ def test_drain_all_logs_error_on_exception(caplog):
     dl = _mock_dl(has_items=True)
     monitor = _make_monitor(actor_dls={"bad-actor": dl})
 
-    async def always_raises(actor_id, dl, shared_dl, emitter):
+    async def always_raises(actor_id, dl, emitter):
         raise RuntimeError("boom")
 
     with patch(
@@ -275,12 +261,11 @@ def test_start_after_stop_creates_new_task():
 
 
 def test_drain_all_uses_get_datalayer_as_default_shared_dl():
-    """drain_all falls back to get_datalayer() when shared_dl is not set."""
+    """drain_all falls back to get_datalayer("https://test.example/api/v2/actors/test-actor") when shared_dl is not set."""
     dl = _mock_dl(has_items=True)
     monitor = OutboxMonitor(
         poll_interval=0.01,
         actor_datalayers_factory=lambda: {"actor-x": dl},
-        shared_dl=None,
     )
     fake_shared = MagicMock()
 
@@ -294,9 +279,7 @@ def test_drain_all_uses_get_datalayer_as_default_shared_dl():
         ) as mock_handler:
             asyncio.run(monitor.drain_all())
 
-    mock_handler.assert_called_once_with(
-        "actor-x", dl, shared_dl=fake_shared, emitter=None
-    )
+    mock_handler.assert_called_once_with("actor-x", dl, emitter=None)
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +293,6 @@ def test_drain_all_uses_get_all_actor_datalayers_by_default():
     monitor = OutboxMonitor(
         poll_interval=0.01,
         actor_datalayers_factory=None,
-        shared_dl=MagicMock(),
     )
 
     with patch(
@@ -448,7 +430,6 @@ def test_monitor_wakes_on_enqueue_not_on_poll_timeout():
     """
     sqlite_dl = MagicMock(spec=SqliteDataLayer)
     sqlite_dl.outbox_list.return_value = []
-    shared = MagicMock()
 
     drain_times: list[float] = []
 
@@ -457,7 +438,6 @@ def test_monitor_wakes_on_enqueue_not_on_poll_timeout():
         monitor = OutboxMonitor(
             poll_interval=5.0,
             actor_datalayers_factory=lambda: {"alice": sqlite_dl},
-            shared_dl=shared,
         )
         with patch(
             "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
@@ -502,7 +482,6 @@ def test_safety_net_poll_fires_without_enqueue():
         monitor = OutboxMonitor(
             poll_interval=0.05,
             actor_datalayers_factory=lambda: {},
-            shared_dl=MagicMock(),
         )
         with patch(
             "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
@@ -647,7 +626,6 @@ def test_drain_all_warns_when_depth_exceeds_threshold(caplog):
     monitor = OutboxMonitor(
         poll_interval=0.01,
         actor_datalayers_factory=lambda: {"alice": _mock_dl_with_depth(5)},
-        shared_dl=MagicMock(),
         depth_warn_threshold=3,
     )
     with patch(
@@ -666,7 +644,6 @@ def test_drain_all_no_warning_when_depth_equals_threshold(caplog):
     monitor = OutboxMonitor(
         poll_interval=0.01,
         actor_datalayers_factory=lambda: {"alice": _mock_dl_with_depth(3)},
-        shared_dl=MagicMock(),
         depth_warn_threshold=3,
     )
     with patch(
@@ -688,7 +665,6 @@ def test_drain_all_warns_only_for_actors_exceeding_threshold(caplog):
             "alice": _mock_dl_with_depth(10),
             "bob": _mock_dl_with_depth(2),
         },
-        shared_dl=MagicMock(),
         depth_warn_threshold=5,
     )
     with patch(

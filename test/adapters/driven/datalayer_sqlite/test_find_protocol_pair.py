@@ -89,7 +89,10 @@ def reset_counter():
 
 @pytest.fixture
 def dl():
-    layer = SqliteDataLayer("sqlite:///:memory:")
+    layer = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     case = as_VulnerabilityCase(id_=CASE_ID, name="CLP11Test")
     layer.create(case)
     return layer

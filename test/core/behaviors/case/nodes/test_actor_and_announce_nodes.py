@@ -55,7 +55,10 @@ def dl():
     # Explicitly closed: an unclosed sqlite3 connection is collected at an
     # unpredictable moment and pytest promotes the resulting ResourceWarning
     # to a failure via PytestUnraisableExceptionWarning.
-    datalayer = SqliteDataLayer("sqlite:///:memory:")
+    datalayer = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield datalayer
     datalayer.close()
 

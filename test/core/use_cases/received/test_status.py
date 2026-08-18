@@ -49,7 +49,10 @@ class TestStatusUseCases:
     def test_create_case_status_stores_status(self, monkeypatch, make_payload):
         """create_case_status persists the as_CaseStatus to the DataLayer."""
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs1",
@@ -72,7 +75,10 @@ class TestStatusUseCases:
 
     def test_create_case_status_idempotent(self, monkeypatch, make_payload):
         """create_case_status skips storing a duplicate as_CaseStatus."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs2",
@@ -98,7 +104,10 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """add_case_status_to_case appends status ID to case.case_statuses."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs3",
             name="Add Status Case",
@@ -127,7 +136,10 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """Invalid EM transition is blocked; status is not appended."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
@@ -169,7 +181,10 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """Valid EM transition is permitted; status is appended."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
@@ -207,7 +222,10 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """create_participant_status persists the as_ParticipantStatus."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         pstatus = as_ParticipantStatus(
             id_="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
@@ -232,7 +250,10 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """add_participant_status_to_participant appends status to participant."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         participant = as_CaseParticipant(
             id_="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",
@@ -288,7 +309,10 @@ class TestParticipantStatusLogEntryCascade:
     def _make_dl(self, case_id: str, actor_id: str) -> tuple:
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_actor_id = f"{case_id}/actor"
         case_actor = VultronCaseActor(
             id_=case_actor_id,
@@ -632,7 +656,7 @@ class TestParticipantStatusLogEntryCascade:
         announce_ids = []
         announce_payloads = []
         announce_actors = []
-        for activity_id in dl.outbox_list_for_actor(case_actor_id):
+        for activity_id in dl.outbox_list():
             queued = dl.read(activity_id)
             if (
                 queued is None

@@ -65,7 +65,10 @@ def _fresh_datalayer():
     """In-memory SQLite DataLayer with NO pre-seeded vocabulary imports."""
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture

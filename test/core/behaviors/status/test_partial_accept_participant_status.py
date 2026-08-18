@@ -204,7 +204,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 def _current_status(
@@ -379,7 +382,7 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
         assert result.status == Status.SUCCESS
 
-        outbox = dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = dl.outbox_list()
         assert len(outbox) > 0, (
             "EmitAddCaseStatusToSelfNode must still queue Add(CaseStatus)"
             " when one dimension was refused"

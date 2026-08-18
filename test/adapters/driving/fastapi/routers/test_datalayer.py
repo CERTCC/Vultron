@@ -203,7 +203,7 @@ def test_get_actor_outbox_returns_queued_activity_ids(
 
     # Persist the activity and record it in the actor's outbox queue.
     datalayer.create(object_to_record(offer))
-    datalayer.record_outbox_item(actor.id_, offer.id_)
+    datalayer.outbox_append(offer.id_)
 
     response = client_datalayer.get(f"/datalayer/Actors/{actor.id_}/outbox/")
     assert response.status_code == status.HTTP_200_OK

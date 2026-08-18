@@ -74,7 +74,10 @@ def _make_instance(core_cls):
 
 @pytest.fixture
 def dl():
-    instance = SqliteDataLayer("sqlite:///:memory:")
+    instance = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield instance
     instance.clear_all()
     instance.close()

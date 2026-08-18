@@ -46,7 +46,10 @@ class TestEngageDeferCaseBTFailureReason:
 
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
     @pytest.fixture
     def actor_id(self):
@@ -142,7 +145,10 @@ class TestEngageCaseStoresEmbeddedParticipants:
 
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
     @pytest.fixture
     def case_with_inline_participant(self):
@@ -227,7 +233,10 @@ class TestEngageCaseLedgerCommit:
 
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
     @pytest.fixture
     def seeded_dl(self, dl):
@@ -356,7 +365,10 @@ class TestDeferCaseLedgerCommit:
 
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
     @pytest.fixture
     def seeded_dl(self, dl):

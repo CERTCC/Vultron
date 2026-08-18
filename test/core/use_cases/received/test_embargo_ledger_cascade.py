@@ -58,7 +58,10 @@ def _make_embargo_case_with_actor(
         as_CaseParticipant,
     )
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     case_actor_id = f"{case_id}/actor"
 
     case_actor = VultronCaseActor(

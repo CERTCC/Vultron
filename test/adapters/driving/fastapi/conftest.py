@@ -49,7 +49,10 @@ def datalayer():
     # Reset the singleton to avoid stale instances
     reset_datalayer()
     # Use in-memory storage for tests
-    datalayer = get_datalayer(db_url="sqlite:///:memory:")
+    datalayer = get_datalayer(
+        "https://test.example/api/v2/actors/test-actor",
+        db_url="sqlite:///:memory:",
+    )
     # Clear the datalayer before each test
     datalayer.clear_all()
     yield datalayer
@@ -63,7 +66,10 @@ def datalayer():
 def test_pipeline() -> (
     Generator[tuple[InboxPipeline, SqliteDataLayer], None, None]
 ):
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     try:
         yield build_test_pipeline(dl), dl
     finally:

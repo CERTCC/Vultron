@@ -62,7 +62,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture
@@ -126,7 +129,10 @@ def _make_dl_with_em_state(
     with_active_embargo: bool = False,
 ) -> SqliteDataLayer:
     """Return a populated SqliteDataLayer for skip-condition unit tests."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     case.current_status.em_state = em_state
 
@@ -260,7 +266,10 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         *,
         reject_activity_id: str = "https://example.org/activities/reject-01",
     ) -> tuple[SqliteDataLayer, BTBridge, PublicDisclosureBranchNode]:
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
         case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
@@ -337,7 +346,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         )
         bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
-        outbox = dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = dl.outbox_list()
         assert reject_id in outbox
 
 
@@ -428,7 +437,7 @@ class TestEmitCloseCaseNode:
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
         )
-        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = populated_dl.outbox_list()
         assert activity_id in outbox
 
     def test_fails_on_factory_exception(self, populated_dl):

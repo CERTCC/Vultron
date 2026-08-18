@@ -126,7 +126,10 @@ class ExceptionNode(py_trees.behaviour.Behaviour):
 @pytest.fixture
 def datalayer():
     """Provide in-memory TinyDB data layer."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture

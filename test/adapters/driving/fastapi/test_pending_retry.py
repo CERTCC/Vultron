@@ -64,7 +64,10 @@ _ACCEPT_ID = "https://case-actor.test/activities/accept-001"
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
     """Fresh in-memory DataLayer for each test."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 def _build_activity() -> VultronCreateCaseActivity:
@@ -158,7 +161,7 @@ class TestRetryHappyPath:
             actor_datalayers_factory=lambda: {_CASE_ACTOR_ID: dl}
         )
 
-        outbox = dl.outbox_list_for_actor(_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         assert (
             activity.id_ in outbox
         ), "Activity id should appear in the case-actor's outbox"
@@ -244,13 +247,13 @@ class TestRetryIdempotency:
         retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {_CASE_ACTOR_ID: dl}
         )
-        outbox_after_first = list(dl.outbox_list_for_actor(_CASE_ACTOR_ID))
+        outbox_after_first = list(dl.outbox_list())
 
         # Second run — marker is gone so nothing should change.
         retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {_CASE_ACTOR_ID: dl}
         )
-        outbox_after_second = list(dl.outbox_list_for_actor(_CASE_ACTOR_ID))
+        outbox_after_second = list(dl.outbox_list())
 
         assert outbox_after_first == outbox_after_second
 
@@ -284,7 +287,7 @@ class TestRetryIdempotency:
         )
         assert first == 1
         assert dl.read(marker.id_) is not None, "Marker should still exist"
-        outbox_after_first = list(dl.outbox_list_for_actor(_CASE_ACTOR_ID))
+        outbox_after_first = list(dl.outbox_list())
         assert activity.id_ in outbox_after_first
 
         # Second run: marker is still present but activity is already in outbox.
@@ -294,7 +297,7 @@ class TestRetryIdempotency:
         assert (
             second == 1
         )  # marker found → processed (enqueue skipped, clear fails)
-        outbox_after_second = list(dl.outbox_list_for_actor(_CASE_ACTOR_ID))
+        outbox_after_second = list(dl.outbox_list())
 
         # The critical AC-4 assertion: exactly one entry, not two.
         assert (
@@ -341,8 +344,14 @@ class TestRetryMultipleMarkers:
 
     def test_markers_across_two_actor_dls(self):
         """Markers in distinct DataLayers are both processed."""
-        dl_a = SqliteDataLayer("sqlite:///:memory:")
-        dl_b = SqliteDataLayer("sqlite:///:memory:")
+        dl_a = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        dl_b = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         actor_b = "https://case-actor-b.test/actors/svc-002"
 
         activity_a = _build_activity()
@@ -404,9 +413,7 @@ class TestRetryFullScenario:
         assert (
             dl.read(marker.id_) is not None
         ), "Marker should exist before retry"
-        assert not dl.outbox_list_for_actor(
-            _CASE_ACTOR_ID
-        ), "Outbox should be empty before retry"
+        assert not dl.outbox_list(), "Outbox should be empty before retry"
 
         # 3. Retry runner fires (e.g., on next startup).
         count = retry_pending_create_case_activities(
@@ -419,7 +426,7 @@ class TestRetryFullScenario:
         assert (
             retrieved is not None
         ), "Activity should be persisted after retry"
-        outbox = dl.outbox_list_for_actor(_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         assert (
             activity.id_ in outbox
         ), "Activity should be in outbox after retry"
@@ -487,7 +494,10 @@ class TestStartupRecovery:
     @staticmethod
     def _make_shared_and_actor_dl():
         """Return (shared_dl, actor_dl) backed by the same in-memory SQLite DB."""
-        shared_dl = SqliteDataLayer("sqlite:///:memory:")
+        shared_dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         actor_dl = shared_dl.clone_for_actor(_CASE_ACTOR_ID)
         return shared_dl, actor_dl
 
@@ -504,7 +514,7 @@ class TestStartupRecovery:
 
         count = retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {},  # empty cache (post-restart)
-            shared_datalayer_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: shared_dl,
         )
 
         assert count == 1, "Marker should be processed via shared-DL discovery"
@@ -518,10 +528,10 @@ class TestStartupRecovery:
 
         retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {},
-            shared_datalayer_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: shared_dl,
         )
 
-        outbox = actor_dl.outbox_list_for_actor(_CASE_ACTOR_ID)
+        outbox = actor_dl.outbox_list()
         assert (
             activity.id_ in outbox
         ), "Activity should be in the outbox after startup recovery"
@@ -534,7 +544,7 @@ class TestStartupRecovery:
 
         retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {},
-            shared_datalayer_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: shared_dl,
         )
 
         assert (
@@ -548,14 +558,14 @@ class TestStartupRecovery:
         marker = _build_marker(activity)
         actor_dl.save(marker)
 
-        # Actor is in the cache AND shared_datalayer_factory is injected.
+        # Actor is in the cache AND marker_scan_factory is injected.
         count = retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {_CASE_ACTOR_ID: actor_dl},
-            shared_datalayer_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: shared_dl,
         )
 
         assert count == 1, "Marker should be processed exactly once"
-        outbox = actor_dl.outbox_list_for_actor(_CASE_ACTOR_ID)
+        outbox = actor_dl.outbox_list()
         assert (
             outbox.count(activity.id_) == 1
         ), "Activity should appear exactly once in the outbox"

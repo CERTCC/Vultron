@@ -111,7 +111,10 @@ class TestPendingCreateCaseActivityModel:
 
     def test_roundtrip_through_datalayer(self):
         """Marker survives a DataLayer save/read round-trip."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
@@ -173,7 +176,10 @@ class TestWriteCreateCaseMarkerNode:
 
     def test_writes_marker_to_datalayer(self):
         """Marker is persisted after node executes (AC-2)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         status = self._run_node(
             dl,
             actor_id=_CASE_ACTOR_URI,
@@ -192,7 +198,10 @@ class TestWriteCreateCaseMarkerNode:
 
     def test_marker_contains_create_payload(self):
         """Marker create_activity_payload is non-empty and contains actor (AC-1)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = "https://example.org/cases/c-001"
         accept_id = "https://example.org/activities/a-001"
         self._run_node(
@@ -218,7 +227,10 @@ class TestWriteCreateCaseMarkerNode:
         CP-05-003 requires context = case URI for inbox deferral routing.  The
         old assignment (context = Accept URI) caused a bootstrap deadlock.
         """
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case_id = "https://example.org/cases/c-field-test"
         accept_id = "https://example.org/activities/accept-field-test"
         self._run_node(
@@ -242,7 +254,10 @@ class TestWriteCreateCaseMarkerNode:
 
     def test_fails_when_case_id_missing(self):
         """FAILURE returned when case_id is absent from blackboard."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         node = _WriteCreateCaseMarkerNode(
             proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
         )
@@ -263,7 +278,10 @@ class TestWriteCreateCaseMarkerNode:
 
     def test_fails_when_accept_activity_id_missing(self):
         """FAILURE returned when accept_activity_id is absent from blackboard."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         node = _WriteCreateCaseMarkerNode(
             proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
         )
@@ -282,7 +300,10 @@ class TestWriteCreateCaseMarkerNode:
 
     def test_fails_when_datalayer_save_raises(self):
         """FAILURE returned when DataLayer.save raises; no subsequent write occurs."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         self._seed_case(dl, _CASE_URI)
 
         with patch.object(dl, "save", side_effect=RuntimeError("disk full")):
@@ -319,7 +340,10 @@ class TestClearCreateCaseMarkerNode:
 
     def test_removes_existing_marker(self):
         """Marker is absent after _ClearCreateCaseMarkerNode runs (AC-3)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
@@ -337,14 +361,20 @@ class TestClearCreateCaseMarkerNode:
 
     def test_succeeds_when_marker_already_absent(self, caplog):
         """SUCCESS returned even if the marker was already removed (idempotent)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         with caplog.at_level(logging.WARNING, logger="vultron"):
             status = self._run_clear_node(dl, actor_id=_CASE_ACTOR_URI)
         assert status == py_trees.common.Status.SUCCESS
 
     def test_always_returns_success(self):
         """_ClearCreateCaseMarkerNode always returns SUCCESS regardless of delete result."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Run without pre-seeding a marker — delete returns False.
         status = self._run_clear_node(dl, actor_id=_CASE_ACTOR_URI)
         assert status == py_trees.common.Status.SUCCESS
@@ -374,7 +404,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             CreateCaseProposalReceivedUseCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = self._make_event(make_payload)
 
         CreateCaseProposalReceivedUseCase(dl, event).execute()
@@ -393,7 +426,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             CreateCaseProposalReceivedUseCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = self._make_event(make_payload)
 
         # Patch the Create-emit node so it fails after Accept and marker write.
@@ -422,7 +458,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             CreateCaseProposalReceivedUseCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = self._make_event(make_payload)
 
         with patch.object(
@@ -462,7 +501,10 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             CreateCaseProposalReceivedUseCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = self._make_event(make_payload)
 
         # Patch the clear node to skip deletion so the marker stays in the DL.
@@ -485,7 +527,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         )
         marker_activity_id = stored_activity.id_
 
-        outbox = dl.outbox_list_for_actor(_CASE_ACTOR_URI)
+        outbox = dl.outbox_list()
         assert marker_activity_id in outbox, (
             "Activity id_ in the marker's payload must match the id_ in the"
             " outbox. A mismatch causes the retry runner to enqueue a"
@@ -567,7 +609,10 @@ class TestADR0041VendorParticipant:
     def test_vendor_participant_created(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -584,7 +629,10 @@ class TestADR0041VendorParticipant:
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.rm import RM
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -608,7 +656,10 @@ class TestADR0041VendorParticipant:
         from vultron.core.models.case import VulnerabilityCase
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -640,7 +691,10 @@ class TestOwnerRolesComeFromActorConfig:
         from vultron.config.actor import ActorConfig
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(
             make_payload,
@@ -656,7 +710,10 @@ class TestOwnerRolesComeFromActorConfig:
         from vultron.config.actor import ActorConfig
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(
             make_payload,
@@ -674,7 +731,10 @@ class TestOwnerRolesComeFromActorConfig:
     def test_no_actor_config_yields_case_owner_only(self, make_payload):
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl, actor_config=None)
 
@@ -688,7 +748,10 @@ class TestADR0041ReporterParticipant:
     def test_reporter_participant_created(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -704,7 +767,10 @@ class TestADR0041ReporterParticipant:
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.rm import RM
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -728,7 +794,10 @@ class TestADR0041ReporterParticipant:
         """AC-2 graceful degradation: no reporter if report not in DataLayer."""
         from vultron.core.models.case import VulnerabilityCase
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Deliberately NOT seeding the report
         _run_full_bt(make_payload, dl)
 
@@ -746,7 +815,10 @@ class TestADR0041EmbargoInit:
     def test_active_embargo_set(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -762,7 +834,10 @@ class TestADR0041EmbargoInit:
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.embargo_event import EmbargoEvent
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -790,7 +865,10 @@ class TestADR0041EmbargoInit:
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.participant_embargo_consent import PEC
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -835,7 +913,10 @@ class TestCM14005ReporterSignatory:
         """AC-1: reporter is SIGNATORY after initialization."""
         from vultron.core.states.participant_embargo_consent import PEC
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -849,7 +930,10 @@ class TestCM14005ReporterSignatory:
 
     def test_reporter_accepted_embargo_ids_populated(self, make_payload):
         """AC-2: reporter's accepted_embargo_ids includes the active embargo."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -871,7 +955,10 @@ class TestCM14005ReporterSignatory:
         from vultron.core.models.report import VulnerabilityReport
         from vultron.core.states.participant_embargo_consent import PEC
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Build a minimal case with no active embargo and a reporter participant
         case = VulnerabilityCase(id_=_CASE_URI)
         reporter_participant = CaseParticipant(
@@ -920,7 +1007,10 @@ class TestCM14005ReporterSignatory:
         must already carry ``emConsentState=SIGNATORY`` and
         ``embargoAdherence=True`` — no contradictory pair.
         """
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -981,7 +1071,10 @@ class TestCM14005ReporterSignatory:
         """AC-5: embargo_adherence is True in reporter's latest ParticipantStatus."""
         from vultron.core.states.participant_embargo_consent import PEC
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1007,7 +1100,10 @@ class TestCM14005ReporterSignatory:
         """Reporter seeding skips gracefully when report is absent."""
         from vultron.core.models.case import VulnerabilityCase
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Deliberately NOT seeding the report
         _run_full_bt(make_payload, dl)
 
@@ -1025,7 +1121,10 @@ class TestADR0041LedgerEntries:
     def test_create_case_ledger_entry_present(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1057,7 +1156,10 @@ class TestADR0041LedgerEntries:
 
     def test_add_report_to_case_entry_present(self, make_payload):
         """add_report_to_case ledger entry must be committed with actor=CaseActor (AC-4)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1082,7 +1184,10 @@ class TestADR0041LedgerEntries:
             ), f"add_report_to_case actor must be CaseActor, got {snapshot.get('actor')}"
 
     def test_add_participant_status_entries_present(self, make_payload):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1094,7 +1199,10 @@ class TestADR0041LedgerEntries:
 
     def test_add_case_status_uses_vendor_actor(self, make_payload):
         """add_case_status_to_case must use vendor URI as actor (not CaseActor)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1133,7 +1241,10 @@ class TestCM18007InitLedgerEntries:
         """
         from vultron.core.models.case import VulnerabilityCase
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1164,7 +1275,10 @@ class TestCM18007InitLedgerEntries:
     ):
         """Vendor (CASE_OWNER) init ledger entry must show SIGNATORY consent
         (CM-14-003 AC-4)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1205,7 +1319,10 @@ class TestADR0041InlineParticipantsPayload:
             CreateCaseProposalReceivedUseCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         event = _make_full_event(make_payload)
 
@@ -1246,7 +1363,10 @@ class TestADR0041InlineParticipantsPayload:
             CreateCaseProposalReceivedUseCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         event = _make_full_event(make_payload)
 
@@ -1288,7 +1408,10 @@ class TestADR0041Idempotency:
     def test_duplicate_proposal_no_duplicate_participants_or_entries(
         self, make_payload
     ):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
 
         # First delivery — creates the case, participants, ledger entries,
@@ -1358,7 +1481,10 @@ class TestADR0041GenesisCommitFailure:
             vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         # Build a real case so the node reaches the commit step.
         _run_full_bt(make_payload, dl)
@@ -1398,7 +1524,10 @@ class TestADR0041GenesisCommitFailure:
         node = _CommitNativeLedgerEntriesNode(
             vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
 
@@ -1435,7 +1564,10 @@ class TestCaseActorRMLifecycleBootstrap:
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1485,7 +1617,10 @@ class TestCaseActorRMLifecycleBootstrap:
         """
         from vultron.core.states.rm import RM
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1541,7 +1676,10 @@ class TestCaseActorRMLifecycleBootstrap:
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.models.participant_status import ParticipantStatus
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
@@ -1645,7 +1783,10 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             AllParticipantsRMClosedConditionNode,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         self._make_case_with_participants(dl)
         # CaseActor is at RM.ACCEPTED (not RM.CLOSED) — should block.
 
@@ -1673,7 +1814,10 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = self._make_case_with_participants(dl)
 
         # Advance CaseActor to RM.CLOSED
@@ -1710,7 +1854,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
 # global singleton.  Verifies the AC-2/AC-1 isolation invariant from
 # issue #1749.
 #
-# The regression this guards against: a BT node that calls get_datalayer()
+# The regression this guards against: a BT node that calls get_datalayer("https://test.example/api/v2/actors/test-actor")
 # (the process-global singleton) instead of self.datalayer would write records
 # to the singleton rather than to the DataLayer passed into the use case.
 # Each test resets the singleton before running (via the _reset_singleton
@@ -1725,10 +1869,10 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
     The CreateCaseProposalReceivedUseCase receives a single DataLayer
     (``case_actor_dl``).  All writes (VulnerabilityCase, CaseParticipant,
     CaseLedgerEntry, …) must appear in ``case_actor_dl``; the global
-    singleton returned by ``get_datalayer()`` must remain empty for those
+    singleton returned by ``get_datalayer("https://test.example/api/v2/actors/test-actor")`` must remain empty for those
     types.
 
-    Without this test, a BT node that accidentally calls ``get_datalayer()``
+    Without this test, a BT node that accidentally calls ``get_datalayer("https://test.example/api/v2/actors/test-actor")``
     instead of ``self.datalayer`` would write records to the singleton and
     the existing single-DL tests would still pass.
     """
@@ -1751,19 +1895,24 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
     ):
         """VulnerabilityCase is written to case_actor_dl only (AC-1).
 
-        If any node leaks to the singleton via get_datalayer(), the singleton
+        If any node leaks to the singleton via get_datalayer("https://test.example/api/v2/actors/test-actor"), the singleton
         would be non-empty after the run.
         """
         from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 
-        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         self._run(make_payload, case_actor_dl)
 
         cases_on_injected = list(
             case_actor_dl.list_objects("VulnerabilityCase")
         )
         cases_on_singleton = list(
-            get_datalayer().list_objects("VulnerabilityCase")
+            get_datalayer(
+                "https://test.example/api/v2/actors/test-actor"
+            ).list_objects("VulnerabilityCase")
         )
 
         assert (
@@ -1780,14 +1929,19 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
         """CaseParticipant records land on case_actor_dl, not the singleton."""
         from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 
-        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         self._run(make_payload, case_actor_dl)
 
         participants_on_injected = list(
             case_actor_dl.list_objects("CaseParticipant")
         )
         participants_on_singleton = list(
-            get_datalayer().list_objects("CaseParticipant")
+            get_datalayer(
+                "https://test.example/api/v2/actors/test-actor"
+            ).list_objects("CaseParticipant")
         )
 
         assert (
@@ -1801,14 +1955,19 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
         """CaseLedgerEntry records land on case_actor_dl, not the singleton."""
         from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 
-        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         self._run(make_payload, case_actor_dl)
 
         entries_on_injected = list(
             case_actor_dl.list_objects("CaseLedgerEntry")
         )
         entries_on_singleton = list(
-            get_datalayer().list_objects("CaseLedgerEntry")
+            get_datalayer(
+                "https://test.example/api/v2/actors/test-actor"
+            ).list_objects("CaseLedgerEntry")
         )
 
         assert entries_on_injected, (
@@ -1823,13 +1982,16 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
         """Vendor appears in case_actor_dl's actor_participant_index, not in the singleton.
 
         This is the sharpest regression guard: a node that accidentally routes
-        the VulnerabilityCase write through get_datalayer() would put the
+        the VulnerabilityCase write through get_datalayer("https://test.example/api/v2/actors/test-actor") would put the
         vendor in the singleton's case index and leave case_actor_dl empty.
         """
         from vultron.adapters.driven.datalayer_sqlite import get_datalayer
         from vultron.core.models.case import VulnerabilityCase
 
-        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         self._run(make_payload, case_actor_dl)
 
         cases_on_injected = list(
@@ -1844,7 +2006,11 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
             _VENDOR_URI in case.actor_participant_index
         ), "Vendor must be in actor_participant_index on the injected DL"
 
-        assert not list(get_datalayer().list_objects("VulnerabilityCase")), (
+        assert not list(
+            get_datalayer(
+                "https://test.example/api/v2/actors/test-actor"
+            ).list_objects("VulnerabilityCase")
+        ), (
             "VulnerabilityCase must not appear on the global singleton — the"
             " case-actor creates the case on the injected DL only (AC-1)"
         )

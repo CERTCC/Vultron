@@ -57,7 +57,10 @@ class TestPersistEmbargoEventNode:
 
     def test_persists_embargo_event_on_success(self):
         """Node persists a new EmbargoEvent and returns SUCCESS."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         embargo = _make_core_embargo("pen1")
 
         setup_blackboard(dl)
@@ -73,7 +76,10 @@ class TestPersistEmbargoEventNode:
 
     def test_idempotent_when_already_exists(self, caplog):
         """Node returns SUCCESS and logs WARNING when event already persisted."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         embargo = _make_core_embargo("pen2")
         dl.create(embargo)  # pre-persist
 

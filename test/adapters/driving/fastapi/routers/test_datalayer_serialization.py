@@ -39,7 +39,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 def datalayer():
     """In-memory datalayer fixture; resets the singleton before and after each test."""
     _reset_datalayer()
-    dl = get_datalayer(db_url="sqlite:///:memory:")
+    dl = get_datalayer(
+        "https://test.example/api/v2/actors/test-actor",
+        db_url="sqlite:///:memory:",
+    )
     dl.clear_all()
     yield dl
     dl.clear_all()
@@ -176,7 +179,7 @@ def test_test_datalayer_uses_in_memory_storage():
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    dl = get_datalayer()
+    dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
     assert isinstance(dl, SqliteDataLayer), (
         "Test datalayer must be a SqliteDataLayer. "
         "Fix the autouse fixture to use get_datalayer(db_url='sqlite:///:memory:')."

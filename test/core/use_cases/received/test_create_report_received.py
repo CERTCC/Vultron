@@ -72,7 +72,10 @@ class TestUseCaseExecution:
 
     def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         report = as_VulnerabilityReport(
             name="TEST-003", content="Test report for shim delegation"
         )
@@ -107,7 +110,10 @@ class TestCreateReportNoStandaloneParticipantStatus:
             activity=activity,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         CreateReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
@@ -132,7 +138,10 @@ class TestCreateReportNoStandaloneParticipantStatus:
             activity=activity,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         CreateReportReceivedUseCase(dl, event).execute()
 
         stored_report = dl.read("https://example.org/reports/r-store-1")
@@ -197,7 +206,10 @@ class TestDuplicateReportHandling:
             "https://example.org/reports/r-dup-1",
             "https://example.org/activities/offer-dup-1",
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
@@ -238,7 +250,10 @@ class TestDuplicateReportHandling:
             object_=report,
             activity=activity,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Simulate inbox pre-storage of the nested object.
         dl.save(report)
 
