@@ -240,7 +240,7 @@ async def outbox_handler(
         return
 
     logger.debug("Processing outbox for actor %s", actor_id)
-    err_count = 0
+    activity_err_counts: dict[str, int] = {}
     while dl.outbox_list():
         activity_id = dl.outbox_pop()
         if activity_id is None:
@@ -253,14 +253,23 @@ async def outbox_handler(
                 "Error processing outbox item for actor %s: %s", actor_id, e
             )
             dl.outbox_append(activity_id)
-            err_count += 1
-            if err_count > 3:
+            activity_err_counts[activity_id] = (
+                activity_err_counts.get(activity_id, 0) + 1
+            )
+            per_err = activity_err_counts[activity_id]
+            if per_err > 3:
                 logger.error(
-                    "Too many errors processing outbox for actor %s,"
-                    " aborting.",
+                    "Too many errors for outbox item %s (actor %s),"
+                    " skipping for this pass (OX-13-006).",
+                    activity_id,
                     actor_id,
                 )
-                break
+                # Stop when every remaining item has already hit its cap.
+                if all(
+                    activity_err_counts.get(i, 0) > 3 for i in dl.outbox_list()
+                ):
+                    break
+                continue
             # Back off before retrying to avoid hammering a busy recipient.
-            backoff = (2 ** (err_count - 1)) + random.uniform(0, 0.5)
+            backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)
             await asyncio.sleep(backoff)

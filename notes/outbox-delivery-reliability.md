@@ -56,21 +56,27 @@ while dl.outbox_list():
             break
 
 # AFTER
+activity_err_counts: dict[str, int] = {}  # declared OUTSIDE the while loop
 while dl.outbox_list():
     activity_id = dl.outbox_pop()
-    per_activity_err = 0
     ...
     except Exception as e:
         dl.outbox_append(activity_id)
-        per_activity_err += 1
-        if per_activity_err > 3:
+        activity_err_counts[activity_id] = activity_err_counts.get(activity_id, 0) + 1
+        per_err = activity_err_counts[activity_id]
+        if per_err > 3:
+            # Break only when every remaining item is also capped.
+            if all(activity_err_counts.get(i, 0) > 3 for i in dl.outbox_list()):
+                break
             continue  # skip this activity for this pass, process others
-        backoff = (2 ** (per_activity_err - 1)) + random.uniform(0, 0.5)
+        backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)
         await asyncio.sleep(backoff)
 ```
 
-The per-pass cap (skip after 4 per-activity failures) is retained as a backstop;
-`continue` replaces `break` so other activities in the queue are unaffected.
+The per-activity dict is declared **outside** the while loop so error counts
+persist across queue iterations within a drain pass. `continue` replaces `break`
+so other activities in the queue are unaffected. Break fires only when every
+remaining item in the queue has also hit its per-pass cap (OX-13-006).
 
 **Spec:** OX-13-006.
 
