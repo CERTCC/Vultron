@@ -60,8 +60,13 @@ from test.core.behaviors.bt_harness import BTTestScenario
 
 @pytest.fixture
 def actor(bt_scenario: BTTestScenario) -> VultronCaseActor:
-    """Create a test actor and persist it in the scenario DataLayer."""
-    obj = VultronCaseActor(name="Test Actor")
+    """Create a test actor and persist it in the scenario DataLayer.
+
+    Its id *is* the scenario's actor: every node here executes as ``actor.id_``,
+    and a BT's store follows its executing actor (ADR-0066), so a generated id
+    would run each node against an empty store.
+    """
+    obj = VultronCaseActor(id_=bt_scenario.actor_id, name="Test Actor")
     bt_scenario.dl.create(obj)
     return obj
 

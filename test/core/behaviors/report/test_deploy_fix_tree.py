@@ -68,6 +68,16 @@ VENDOR_ACTOR_ID = "https://example.org/actors/vendor-001"
 CASE_MANAGER_ACTOR_ID = "https://example.org/actors/case-manager-001"
 
 
+@pytest.fixture
+def bt_scenario():
+    """Scenario scoped to DEPLOYER_ACTOR_ID — the deployer, who deploys the fix.
+
+    Shadows the harness default so the store belongs to the actor these trees
+    execute as: a BT's store follows its executing actor (ADR-0066).
+    """
+    return BTTestScenario(DEPLOYER_ACTOR_ID)
+
+
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------

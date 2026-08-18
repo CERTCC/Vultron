@@ -71,7 +71,7 @@ def datalayer():
     """Create in-memory DataLayer for testing."""
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id="actor-1",
     )
 
 
@@ -199,17 +199,17 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
     bridge, datalayer
 ):
     """FindParticipantByActorIdNode stores the matched participant."""
-    actor_id = "https://example.org/actors/vendor-1"
+    target_actor_id = "https://example.org/actors/vendor-1"
     participant = VultronParticipant(
         id_="https://example.org/participants/vendor-1",
-        attributed_to=actor_id,
+        attributed_to=target_actor_id,
         context="https://example.org/cases/case-1",
     )
     case = VultronCase(
         id_="https://example.org/cases/case-1",
         name="Case 1",
         case_participants=[participant.id_],
-        actor_participant_index={actor_id: participant.id_},
+        actor_participant_index={target_actor_id: participant.id_},
         attributed_to="https://example.org/actors/case-manager",
     )
     datalayer.save(participant)
@@ -236,7 +236,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
         children=[
             FindParticipantByActorIdNode(
                 case_id=case.id_,
-                target_actor_id=actor_id,
+                target_actor_id=target_actor_id,
                 participant_key="found_participant",
             ),
             AssertParticipantOnBlackboard(
@@ -245,7 +245,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
         ],
     )
 
-    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(tree, actor_id="actor-1")
     assert result.status == Status.SUCCESS
 
 
@@ -255,9 +255,10 @@ def test_find_participant_by_actor_id_fails_when_case_missing(bridge):
         case_id="https://example.org/cases/missing",
         target_actor_id="https://example.org/actors/vendor-1",
     )
-    result = bridge.execute_with_setup(
-        node, actor_id="https://example.org/actors/vendor-1"
-    )
+    # Runs as the store's own actor. vendor-1 is the participant being looked
+    # *up* (target_actor_id), not the actor doing the looking — conflating the
+    # two is what per-actor storage now makes visible.
+    result = bridge.execute_with_setup(node, actor_id="actor-1")
     assert result.status == Status.FAILURE
 
 
@@ -283,9 +284,10 @@ def test_find_participant_by_actor_id_fails_when_actor_not_participant(
         case_id=case.id_,
         target_actor_id="https://example.org/actors/vendor-1",
     )
-    result = bridge.execute_with_setup(
-        node, actor_id="https://example.org/actors/vendor-1"
-    )
+    # Runs as the store's own actor. vendor-1 is the participant being looked
+    # *up* (target_actor_id), not the actor doing the looking — conflating the
+    # two is what per-actor storage now makes visible.
+    result = bridge.execute_with_setup(node, actor_id="actor-1")
     assert result.status == Status.FAILURE
 
 
@@ -293,13 +295,13 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
     bridge, datalayer
 ):
     """FindParticipantByActorIdNode fails fast on participant/index mismatch."""
-    actor_id = "https://example.org/actors/vendor-1"
+    target_actor_id = "https://example.org/actors/vendor-1"
     case = VultronCase(
         id_="https://example.org/cases/case-diverge",
         name="Case Divergence",
         case_participants=[],
         actor_participant_index={
-            actor_id: "https://example.org/participants/p1"
+            target_actor_id: "https://example.org/participants/p1"
         },
         attributed_to="https://example.org/actors/case-manager",
     )
@@ -307,9 +309,9 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
 
     node = FindParticipantByActorIdNode(
         case_id=case.id_,
-        target_actor_id=actor_id,
+        target_actor_id=target_actor_id,
     )
-    result = bridge.execute_with_setup(node, actor_id=actor_id)
+    result = bridge.execute_with_setup(node, actor_id="actor-1")
     assert result.status == Status.FAILURE
     assert "divergence" in result.feedback_message
 
@@ -325,7 +327,7 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     stale RM state.  Fix: for non-string refs, do dl.read(id_) to get the live
     record; fall back to the inline only when the DL record is absent.
     """
-    actor_id = "https://example.org/actors/vendor-live"
+    target_actor_id = "https://example.org/actors/vendor-live"
     participant_id = "https://example.org/participants/vendor-live"
     case_id = "https://example.org/cases/case-live"
 
@@ -334,26 +336,28 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     # Live DL record at VALID (simulates what validate-report produces)
     live = CaseParticipant(
         id_=participant_id,
-        attributed_to=actor_id,
+        attributed_to=target_actor_id,
         context=case_id,
     )
-    live.append_rm_state(RM.RECEIVED, actor=actor_id, context=case_id)
-    live.append_rm_state(RM.VALID, actor=actor_id, context=case_id)
+    live.append_rm_state(RM.RECEIVED, actor=target_actor_id, context=case_id)
+    live.append_rm_state(RM.VALID, actor=target_actor_id, context=case_id)
     datalayer.save(live)
 
     # Case has an inline CaseParticipant at RECEIVED (stale snapshot)
     stale_inline = CaseParticipant(
         id_=participant_id,
-        attributed_to=actor_id,
+        attributed_to=target_actor_id,
         context=case_id,
     )
-    stale_inline.append_rm_state(RM.RECEIVED, actor=actor_id, context=case_id)
+    stale_inline.append_rm_state(
+        RM.RECEIVED, actor=target_actor_id, context=case_id
+    )
 
     case = VultronCase(
         id_=case_id,
         name="Case Live",
         case_participants=[stale_inline],  # inline, not string ID
-        actor_participant_index={actor_id: participant_id},
+        actor_participant_index={target_actor_id: participant_id},
         attributed_to="https://example.org/actors/case-manager",
     )
     datalayer.save(case)
@@ -379,14 +383,14 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
         children=[
             FindParticipantByActorIdNode(
                 case_id=case_id,
-                target_actor_id=actor_id,
+                target_actor_id=target_actor_id,
                 participant_key="found_live",
             ),
             CaptureBBParticipant(name="Capture"),
         ],
     )
 
-    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(tree, actor_id="actor-1")
     assert result.status == Status.SUCCESS
     assert len(captured) == 1
     found_participant = captured[0]
@@ -626,25 +630,32 @@ def test_full_crud_workflow(bridge, datalayer):
 
 
 def test_actor_isolation(bridge, datalayer, sample_record):
-    """Verify actors have isolated BT execution contexts."""
-    # Execute for actor-1
-    tree1 = ReadObject(
-        table="VulnerabilityReport",
-        object_id="https://example.org/objects/test-123",
+    """One actor's BT cannot read another actor's record (CM-01-001).
+
+    Previously this asserted that *both* actors read the record successfully and
+    then closed with ``assert ... or True`` — a tautology, so the isolation it
+    named was never checked and the shared pool it depended on made the real
+    property untestable. Under ADR-0066 the store follows the executing actor,
+    so actor-2 legitimately finds nothing: that absence is the invariant.
+    """
+    object_id = "https://example.org/objects/test-123"
+
+    # actor-1 owns the store the record was seeded in, so it reads it back.
+    result1 = bridge.execute_with_setup(
+        ReadObject(table="VulnerabilityReport", object_id=object_id),
+        actor_id="actor-1",
     )
-    result1 = bridge.execute_with_setup(tree1, actor_id="actor-1")
     assert result1.status == Status.SUCCESS
 
-    # Execute for actor-2 (separate context)
-    tree2 = ReadObject(
-        table="VulnerabilityReport",
-        object_id="https://example.org/objects/test-123",
+    # actor-2 runs against its own store, which has never seen the record.
+    result2 = bridge.execute_with_setup(
+        ReadObject(table="VulnerabilityReport", object_id=object_id),
+        actor_id="actor-2",
     )
-    result2 = bridge.execute_with_setup(tree2, actor_id="actor-2")
-    assert result2.status == Status.SUCCESS
-
-    # Both should succeed independently
-    assert result1.feedback_message != result2.feedback_message or True
+    assert result2.status == Status.FAILURE, (
+        "actor-2 must not be able to read a record held only in actor-1's"
+        " store — that is the CM-01-001 violation #2238 was filed about"
+    )
 
 
 def test_error_propagation(bridge, datalayer):
