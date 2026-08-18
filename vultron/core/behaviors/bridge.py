@@ -135,6 +135,44 @@ class BTBridge:
             f"{__name__}.{self.__class__.__name__}"
         )
 
+    def _store_for_actor(self, actor_id: str) -> CasePersistence:
+        """Return the store belonging to *actor_id* (ADR-0066, BT-05-005).
+
+        BT-05-002 and BT-05-003 put ``datalayer`` and ``actor_id`` on the
+        blackboard as two independent facts.  Under per-actor storage they are
+        one fact: a store is always some actor's own, so the executing actor's
+        identity *determines* which store the tree operates on.  Reconciling
+        them here makes every write a node performs — ``outbox_append()`` above
+        all — correct by construction, rather than correct only when the caller
+        remembered to inject a matching DataLayer.
+
+        The delegated-emit pattern is what makes this load-bearing.  A trigger
+        that emits on the CaseActor's behalf runs with ``actor_id`` set to the
+        CaseActor (CM-24-001) while the injected DataLayer belongs to the
+        *requesting* actor.  Without reconciliation the activity is created in
+        one store and queued in the other's outbox, so the CaseActor never
+        delivers it and the outbox entry names an activity its own store does
+        not hold (PCR-08-007, CM-24-004).
+
+        Scoping is skipped unless the DataLayer reports a concrete ``actor_id``
+        that differs, which leaves test doubles and any non-actor-scoped
+        implementation untouched.
+        """
+        if not actor_id:
+            return self.datalayer
+        own_actor_id = getattr(self.datalayer, "actor_id", None)
+        if not isinstance(own_actor_id, str) or own_actor_id == actor_id:
+            return self.datalayer
+        clone_for_actor = getattr(self.datalayer, "clone_for_actor", None)
+        if not callable(clone_for_actor):
+            return self.datalayer
+        self.logger.debug(
+            "Scoping DataLayer from actor '%s' to executing actor '%s'",
+            own_actor_id,
+            actor_id,
+        )
+        return clone_for_actor(actor_id)
+
     def setup_tree(
         self,
         tree: py_trees.behaviour.Behaviour,
@@ -172,7 +210,7 @@ class BTBridge:
             key="actor_id", access=py_trees.common.Access.WRITE
         )
 
-        blackboard.datalayer = self.datalayer
+        blackboard.datalayer = self._store_for_actor(actor_id)
         blackboard.actor_id = actor_id
 
         if self.trigger_activity is not None:

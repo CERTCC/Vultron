@@ -26,6 +26,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     add_activity_to_outbox,
+    resolve_receiving_actor_id,
 )
 
 if TYPE_CHECKING:
@@ -158,8 +159,6 @@ class AcceptCaseManagerRoleReceivedUseCase:
         return None
 
     def execute(self) -> None:
-        from vultron.core.use_cases.received.sync import _find_local_actor_id
-
         request = self._request
         _idempotent_create(
             self._dl,
@@ -202,16 +201,9 @@ class AcceptCaseManagerRoleReceivedUseCase:
             )
             return
 
-        local_actor_id = request.receiving_actor_id or _find_local_actor_id(
-            self._dl
+        local_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
         )
-        if local_actor_id is None:
-            logger.warning(
-                "AcceptCaseManagerRoleReceived: no local actor found"
-                " — skipping trust bootstrap for case '%s'",
-                case_id,
-            )
-            return
 
         reporter_id = self._find_reporter_id(case)
         if not reporter_id:

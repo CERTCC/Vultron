@@ -27,8 +27,8 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _idempotent_create,
+    resolve_receiving_actor_id,
 )
-from vultron.core.use_cases.received.sync import _find_local_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -178,12 +178,17 @@ class AcceptInviteActorToCaseReceivedUseCase:
             self._dl, case_id
         )
         if actor_id is None:
-            logger.warning(
-                "accept_invite_actor_to_case: no CaseActor ID for case '%s'"
-                " — BT will run without a named actor context",
-                case_id,
+            # Not a failure: no dedicated CaseActor is a legitimate topology
+            # (ADR-0021), and the store we hold is the receiving actor's own.
+            actor_id = resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             )
-            actor_id = "unknown"
+            logger.debug(
+                "accept_invite_actor_to_case: no CaseActor for case '%s' —"
+                " running as the store's own actor '%s'",
+                case_id,
+                actor_id,
+            )
 
         result = BTBridge(
             datalayer=self._dl,
@@ -244,14 +249,11 @@ class RejectInviteActorToCaseReceivedUseCase:
             )
             return
 
-        actor_id = request.receiving_actor_id or _find_local_actor_id(self._dl)
-        if actor_id is None:
-            logger.warning(
-                "RejectInviteActorToCase: no local actor for case '%s'"
-                " — skipping ledger commit",
-                case_id,
-            )
-            return
+        # The store we hold *is* the receiving actor's, so this resolves
+        # without scanning for an actor object (ADR-0066).
+        actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         tree = create_reject_invite_actor_to_case_received_tree(
             case_id=case_id,

@@ -77,6 +77,18 @@ class SqliteDataLayer:
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
 
+    @property
+    def actor_id(self) -> str:
+        """The canonical URI of the actor whose store this is.
+
+        Public because callers legitimately need to ask *whose* store they
+        hold: under ADR-0066 a store is never anonymous, so "which actor" is
+        part of a DataLayer's identity rather than an implementation detail.
+        :class:`~vultron.core.behaviors.bridge.BTBridge` uses it to keep the
+        blackboard's ``datalayer`` and ``actor_id`` in agreement.
+        """
+        return self._actor_id
+
     def close(self) -> None:
         """Dispose this actor's engine, releasing its SQLite connections.
 

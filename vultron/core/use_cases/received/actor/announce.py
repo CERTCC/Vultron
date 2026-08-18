@@ -24,7 +24,10 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.models._helpers import _as_id
-from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    resolve_receiving_actor_id,
+)
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
@@ -154,7 +157,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             drain_gap_buffer(
                 cast(CaseOutboxPersistence, self._dl),
                 case_id,
-                request.receiving_actor_id or "unknown",
+                resolve_receiving_actor_id(
+                    self._dl, request.receiving_actor_id
+                ),
                 gap_buffer,
                 self._sync_port,
             )

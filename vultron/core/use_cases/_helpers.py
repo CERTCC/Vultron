@@ -217,6 +217,41 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
     return None
 
 
+def resolve_receiving_actor_id(
+    dl: CasePersistence, receiving_actor_id: str | None
+) -> str:
+    """Return the actor whose replica a received message is being applied to.
+
+    Received-side use cases need an executing actor identity to run their BT
+    under (BT-17-005).  ``receiving_actor_id`` is set by the inbox adapter and
+    is authoritative when present.  When it is absent — CLI dispatch, replay,
+    tests — the answer is *the actor whose store we were handed*: under
+    ADR-0066 a DataLayer is always some specific actor's own, and a received-
+    side use case is by construction invoked with the receiving actor's store
+    (CM-01-001).
+
+    This replaces an ``or "unknown"`` fabrication that predated per-actor
+    storage.  A synthetic identity used to be merely a mislabelled log line
+    over a shared pool; now ``actor_id`` *selects the store*, so inventing one
+    silently routes every read and write into an empty scratch store and the
+    work is lost without an error (ARCH-15-001).
+
+    Raises:
+        VultronValidationError: If neither source yields an identity, since
+            there is then no defensible answer to "whose replica is this?".
+    """
+    if receiving_actor_id:
+        return receiving_actor_id
+    own_actor_id = getattr(dl, "actor_id", None)
+    if isinstance(own_actor_id, str) and own_actor_id:
+        return own_actor_id
+    raise VultronValidationError(
+        "cannot resolve the receiving actor: the request carries no"
+        " receiving_actor_id and the DataLayer reports no actor of its own,"
+        " so there is no store this message could be applied to (CM-01-001)"
+    )
+
+
 def _idempotent_create(
     dl: CasePersistence,
     type_key: str | None,

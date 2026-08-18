@@ -54,6 +54,20 @@ class CasePersistence(Protocol):
     needed.
     """
 
+    @property
+    def actor_id(self) -> str:
+        """The canonical URI of the actor whose store this is (ADR-0066)."""
+        ...
+
+    def clone_for_actor(self, actor_id: str) -> "CasePersistence":
+        """Return the store belonging to *actor_id*.
+
+        The only way to reach a store other than this one, and deliberately
+        explicit: ADR-0066 makes cross-actor access something a caller must
+        name rather than something a forgotten filter grants by accident.
+        """
+        ...
+
     def create(self, record: "StorableRecord | PersistableModel") -> None: ...
 
     def read(
