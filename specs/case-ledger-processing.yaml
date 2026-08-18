@@ -118,7 +118,7 @@ groups:
   - id: CLP-04-006
     priority: MUST
     kind: protocol
-    statement: The canonical recorded log is the authoritative source of truth for case participant membership and case state
+    statement: 'The canonical recorded log MUST be the authoritative source of truth for case participant membership and case state; implementations MUST NOT derive participant membership or case state from any other source.'
 - id: CLP-05
   title: Rejection Handling
   specs:

@@ -93,4 +93,4 @@ groups:
   - id: ID-05-003
     priority: SHOULD
     kind: architecture
-    statement: Handlers provide final idempotency guarantee via state checks
+    statement: 'Handlers SHOULD provide the final idempotency guarantee via state checks.'

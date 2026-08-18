@@ -18,35 +18,19 @@ groups:
   - id: SYNC-00-001
     priority: MUST
     kind: architecture
-    statement: >-
-      The **AppendOnlyLedger** phase establishes the local append-only case ledger with
-      hash-chain indexing. Each entry is immutable once committed and cryptographically
-      linked to its predecessor, providing the integrity foundation for all subsequent
-      replication phases.
+    statement: 'The AppendOnlyLedger phase MUST establish the local append-only case ledger with hash-chain indexing. Each entry MUST be immutable once committed and MUST be cryptographically linked to its predecessor via a content hash, providing the integrity foundation for all subsequent replication phases.'
   - id: SYNC-00-002
     priority: MUST
     kind: architecture
-    statement: >-
-      The **LedgerFanout** phase implements one-way replication from the authoritative
-      CaseActor to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
-      A participant replica is considered synchronized when its log tail hash matches
-      the CaseActor's authoritative tail.
+    statement: 'The LedgerFanout phase MUST implement one-way replication from the authoritative CaseActor to all Participant Actors via `Announce(CaseLedgerEntry)` messages. A participant replica MUST be treated as synchronized when and only when its log tail hash matches the CaseActor''s authoritative tail hash.'
   - id: SYNC-00-003
     priority: MUST
     kind: architecture
-    statement: >-
-      The **LedgerReconciliation** phase extends LedgerFanout with a full sync loop,
-      retry, and backoff. When a participant's replica falls behind, reconciliation
-      detects the gap and retries delivery until convergence is achieved.
-      LedgerReconciliation is how the system recovers; LedgerFanout is how it stays current.
+    statement: 'The LedgerReconciliation phase MUST extend LedgerFanout with a full synchronisation loop, retry, and backoff. When a participant''s replica falls behind, the reconciliation mechanism MUST detect the gap and MUST retry entry delivery until the participant''s tail hash converges to the CaseActor''s tail hash.'
   - id: SYNC-00-004
     priority: SHOULD
     kind: architecture
-    statement: >-
-      The **PeerLedgerSync** phase enables multi-peer synchronization between actors
-      with equal standing. Where LedgerFanout assumes one CaseActor holds authority,
-      PeerLedgerSync allows two or more actors to reconcile their ledgers with each
-      other, supporting federated and ownership-transfer scenarios.
+    statement: 'The PeerLedgerSync phase SHOULD enable multi-peer synchronisation between actors with equal standing. Where LedgerFanout assumes one CaseActor holds authority, PeerLedgerSync SHOULD allow two or more actors to reconcile their ledgers with each other to support federated and ownership-transfer scenarios.'
 - id: SYNC-01
   title: Append-Only Log
   specs:
@@ -182,8 +166,7 @@ groups:
   - id: SYNC-06-003
     priority: MUST
     kind: protocol
-    statement: The AppendOnlyLedger through PeerLedgerSync phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
-      of one. A single-node CaseActor is always the leader and always has write authority; no election is needed.
+    statement: 'In a single-node deployment, the CaseActor MUST be treated as the permanent replication leader with exclusive write authority for its cases; no leader-election procedure MUST be executed. The descriptive material (''degenerate Raft cluster of one'') SHOULD be moved to rationale or an ADR.'
   - id: SYNC-06-004
     priority: SHOULD
     kind: protocol
@@ -200,8 +183,7 @@ groups:
   - id: SYNC-09-001
     priority: MUST
     kind: protocol
-    statement: A log entry is **committed** when it has been durably appended to the authoritative log and is safe to apply
-      to the case state machine
+    statement: 'Move this definition to the project glossary. If a normative requirement is intended, rewrite as: ''An implementation MUST treat a log entry as **committed** only after it has been durably written to the authoritative log and its content hash has been recorded; an entry that has not met these conditions MUST NOT be applied to the case state machine.'''
   - id: SYNC-09-002
     priority: MUST
     kind: protocol

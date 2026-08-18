@@ -110,8 +110,8 @@ groups:
   - id: LST-05-002
     priority: MUST_NOT
     kind: protocol
-    statement: The lifecycle stage MUST NOT be stored as a persisted field; the staged type MUST always be re-derived from
-      the case data, which is the single source of truth.
+    statement: 'LST-05-002: The lifecycle stage MUST NOT be stored as a persisted field on any domain object.
+LST-05-002b: The staged type MUST always be re-derived from the base case data at read time; the base case data is the single source of truth for stage determination.'
     rationale: A stored stage can drift from the underlying invariants, creating two sources of truth. See ADR-0033 transition
       model.
     adr:

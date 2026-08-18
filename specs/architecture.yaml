@@ -219,9 +219,7 @@ groups:
   - id: ARCH-12-005
     priority: MUST
     kind: project
-    statement: For types where both branches share field names and compatible types, translation from a core object to its
-      wire counterpart MUST use `WireType.model_validate(core_obj.model_dump(mode="json"))`. No explicit `from_core()` / `to_core()`
-      classmethods are required.
+    statement: 'For types where both branches share field names and compatible types and no `from_core()` classmethod is defined, translation from a core object to its wire counterpart MUST use `WireType.model_validate(core_obj.model_dump(mode="json"))`. When a `from_core()` classmethod is present on the wire type, the rendering port adapter MUST use it (per ARCH-20-002) instead of the model_validate path. Explicit `from_core()` / `to_core()` classmethods are not required for structurally-compatible types.'
     rationale: Eliminating the explicit translation protocol removes per-type boilerplate and the _field_map escape hatch.
       The shared-base alignment ensures the round-trip is correct by construction.
   - id: ARCH-12-006

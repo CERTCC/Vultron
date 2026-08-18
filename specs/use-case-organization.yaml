@@ -65,7 +65,7 @@ groups:
   - id: UCORG-03-001
     priority: MUST
     kind: project
-    statement: 'Tests MUST mirror the source layout:'
+    statement: 'Tests MUST mirror the source layout: `test/core/use_cases/received/` for received-side use-case tests, `test/core/use_cases/triggers/` for trigger use-case tests, and `test/core/use_cases/` for registry and dispatch-coverage tests.'
     relationships:
     - rel_type: refines
       spec_id: TB-04-001

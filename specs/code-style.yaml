@@ -214,7 +214,7 @@ groups:
   - id: CS-12-002
     priority: SHOULD
     kind: protocol
-    statement: 'Use case class names SHOULD carry a suffix that reflects their origin (received message vs. local trigger):'
+    statement: 'Use case class names SHOULD carry a suffix that reflects their origin: classes handling inbound received messages SHOULD use the `Received` suffix (e.g., `ValidateReportReceived`); classes expressing local actor-initiated triggers SHOULD use the `Trigger` suffix (e.g., `PublishAdvisoryTrigger`).'
     rationale: Distinguishes messages received from external parties from actions the local actor has decided to take. This
       distinction is fundamental to the Vultron protocol model (see `notes/activitystreams-semantics.md`) and prevents accidentally
       treating incoming messages as local commands.

@@ -64,7 +64,7 @@ groups:
   - id: BTC-02-003
     priority: MUST
     kind: project
-    statement: 'Use cases MUST follow the instantiate-then-invoke pattern when using BTs:'
+    statement: 'Use cases MUST follow the instantiate-then-invoke pattern when using BTs: (1) import the pre-defined BT class from `vultron/core/behaviors/`, (2) instantiate it to obtain a root node, (3) wrap it in a `py_trees.trees.BehaviourTree`, and (4) call `tick_once()` or equivalent to execute it.'
     relationships:
     - rel_type: refines
       spec_id: BTC-02-002

@@ -331,8 +331,7 @@ groups:
   - id: BTND-06-005
     priority: MUST
     kind: project
-    statement: (**SHOULD**) Before any irreversible or protocol-significant action, a **safety guard condition** MUST be the
-      first child of the enclosing Sequence, so that the action is skipped when the guard fails.
+    statement: 'Before any irreversible or protocol-significant action, a safety guard condition MUST be the first child of the enclosing Sequence, so that the action is skipped when the guard fails.'
     rationale: Prevents unsafe state transitions when the world changes between ticks. In a multi-party protocol, another
       actor may change shared state at any time.
     relationships:
@@ -350,8 +349,7 @@ groups:
   - id: BTND-06-007
     priority: SHOULD
     kind: project
-    statement: '(**SHOULD**) Use the following **granularity guidelines** when deciding whether a behavior should be a leaf
-      node or a subtree:'
+    statement: '(**SHOULD**) Use the following granularity guidelines when deciding whether a behavior should be a leaf node or a subtree: (1) a leaf node is appropriate when the action is atomic and has no observable sub-steps; (2) a subtree is appropriate when the behavior can be decomposed into independently verifiable pre/post-condition pairs; (3) extract a subtree when the same multi-step pattern appears in more than one place (see BTND-02-001).'
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -476,10 +474,7 @@ groups:
   - id: BTND-08-001
     priority: SHOULD
     kind: project
-    statement: Condition nodes used as type-dispatch guards in a `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite
-      MUST use positive names (e.g., `IsFooEventNode`) that return SUCCESS when the condition IS true and FAILURE otherwise.  Negative-guard
-      names (e.g., `IsNotFooEventNode`) that return SUCCESS to *skip* an effect and FAILURE to *trigger* it are a readability
-      anti-pattern and MUST NOT be introduced in new code.
+    statement: 'Condition nodes used as type-dispatch guards in a `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite SHOULD use positive names (e.g., `IsFooEventNode`) that return SUCCESS when the condition is true and FAILURE otherwise. Negative-guard names (e.g., `IsNotFooEventNode`) that return SUCCESS to skip an effect and FAILURE to trigger it are a readability anti-pattern and SHOULD NOT be introduced in new code.'
     rationale: 'The `Selector(IsNotFoo, ApplyFoo)` pattern requires readers to mentally invert the condition to understand
       when the effect fires, and the `IsNotFoo` naming implies a guard against `Foo` when the intent is to *apply* `Foo`.  Positive-precondition
       Sequences make intent immediately readable: "if this IS a remove-embargo entry, apply embargo teardown; otherwise skip".'
@@ -491,9 +486,7 @@ groups:
   - id: BTND-08-002
     priority: SHOULD
     kind: project
-    statement: The `AlwaysSuccess` fallback in a `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite MUST be given
-      a descriptive `name` of the form `"<Effect>Skipped"` (e.g., `"EmbargoEffectsSkipped"`) so the no-op path is identifiable
-      in BT visualizations and logs.
+    statement: 'The `AlwaysSuccess` fallback in a `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite SHOULD be given a descriptive `name` of the form `"<Effect>Skipped"` (e.g., `"EmbargoEffectsSkipped"`) so the no-op path is identifiable in BT visualizations and logs.'
     rationale: An unnamed or generically-named `AlwaysSuccess` node is invisible in tree dumps and log output, making it harder
       to trace which effect was skipped and why.  A descriptive `<Effect>Skipped` name makes the no-op path explicit and consistent
       with the existing codebase convention (e.g., `"AutoCloseSkippedNotCaseManager"`, `"ValidationSkipped"`).

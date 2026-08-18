@@ -24,7 +24,7 @@ groups:
   - id: EP-01-002
     priority: MUST
     kind: protocol
-    statement: 'The embargo policy record MUST include the following fields:'
+    statement: 'The embargo policy record MUST include the following fields: actor_id (full URI string identifying the Actor to which this policy applies), inbox (URL string of the Actor''s ActivityPub inbox), preferred_duration (ISO 8601 duration string representing the Actor''s preferred embargo length)'
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
@@ -38,7 +38,7 @@ groups:
   - id: EP-01-003
     priority: SHOULD
     kind: protocol
-    statement: 'The embargo policy record SHOULD include the following fields:'
+    statement: 'The embargo policy record SHOULD include the following optional fields: minimum_duration (ISO 8601 duration; Actor SHOULD reject embargoes shorter than this value), maximum_duration (ISO 8601 duration; Actor SHOULD reject embargoes longer than this value), notes (free-text string describing the Actor''s embargo preferences)'
     relationships:
     - rel_type: implements
       spec_id: VP-05-001

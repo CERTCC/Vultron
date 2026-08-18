@@ -60,7 +60,7 @@ groups:
   - id: SL-03-001
     priority: MUST
     kind: project
-    statement: Log levels MUST follow standard severity semantics per table below
+    statement: 'Log levels MUST follow standard Python `logging` severity semantics: DEBUG for diagnostic detail, INFO for normal protocol operations, WARNING for recoverable anomalies, ERROR for failures requiring attention, and CRITICAL for system-threatening failures.'
 - id: SL-04
   title: State Transition Logging
   specs:

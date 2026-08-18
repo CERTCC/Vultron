@@ -53,8 +53,7 @@ groups:
   - id: SR-01-009
     priority: SHOULD
     kind: project
-    statement: Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of `protocol`, `architecture`,
-      `project`, `process`.
+    statement: 'Change the priority field from SHOULD to MUST. Statement unchanged: "Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of `protocol`, `architecture`, `project`, `process`."'
   - id: SR-01-010
     priority: SHOULD
     kind: project

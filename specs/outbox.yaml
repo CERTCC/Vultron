@@ -75,9 +75,7 @@ groups:
   - id: OX-04-001
     priority: MUST
     kind: project
-    statement: >-
-      For actors on the same server, delivery MUST write directly to the recipient actor's
-      inbox collection in the DataLayer
+    statement: 'For actors on the same server, delivery MUST use HTTP POST to the recipient actor''s inbox endpoint ({actor}/inbox/) in the same manner as remote delivery, per OX-12-001. Direct DataLayer writes that bypass the HTTP path are prohibited.'
   - id: OX-04-002
     priority: MUST
     kind: project

@@ -129,7 +129,7 @@ groups:
   - id: DEMOMA-04-001
     priority: SHOULD
     kind: project
-    statement: 'Multi-actor demo scenarios SHOULD be implemented progressively:'
+    statement: 'Multi-actor demo scenarios SHOULD be implemented progressively, in the following order: (1) two-actor FV scenario, (2) three-actor FVV and FCV scenarios, (3) four-actor FVCV-extension, FVCV-handoff, FCCV-extension, and FCCV-handoff scenarios, (4) five-actor FCVCV scenario. Each tier SHOULD be validated in CI before the next tier is introduced.'
   - id: DEMOMA-04-002
     priority: SHOULD
     kind: project
@@ -220,9 +220,7 @@ groups:
   - id: DEMOMA-06-002
     priority: MUST
     kind: project
-    statement: >-
-      The FV scenario script MUST verify milestones M1 through M7 in order,
-      checking both the Vendor and Finder DataLayers at each checkpoint.
+    statement: 'The FV scenario script MUST verify the following milestones in order, checking both the Vendor and Finder DataLayers at each checkpoint: M1 (report received, RM.RECEIVED), M2 (report validated, RM.VALID), M3 (case engaged, RM.ACCEPTED), M4 (embargo active, EM.ACTIVE), M5 (fix ready, CS.VFd), M6 (fix deployed, CS.VFD), M7 (publicly disclosed, CS.VFDPxa). [Replace or confirm these definitions before finalizing, or add a normative cross-reference to the section that defines M1–M7.]'
     preconditions:
     - description: Two-actor scenario executing; Vendor, Finder, and CaseActor containers
         running and reachable; report submitted by Finder to Vendor
@@ -2572,23 +2570,7 @@ groups:
   - id: DEMOMA-20-006
     priority: MUST
     kind: project
-    statement: >-
-      An invariant harness file MUST be created at
-      `test/ci/invariants/test_rcv_embargo_invariants.py`. It MUST define
-      `_DEMO_NAME = "rcv-embargo"`, `_CHAIN_ACTORS` covering `reporter`,
-      `coordinator`, `vendor`, and `case-actor`, and the full set of universal
-      invariants (Invariants 1–15) following the pattern in
-      `test_fcv_invariants.py`. It MUST additionally include the following
-      scenario-specific invariant tests: (a) an embargo-propose event type is
-      present in the log (variation b: EP message delivered); (b) an
-      embargo-accept event type is present (EA message delivered, EM reached
-      ACTIVE); (c) an embargo-terminate event type is present (ET message
-      delivered, variation e exercised); (d) `emConsentState` transitions
-      through INVITED and SIGNATORY are observable in at least one participant's
-      `add_participant_status_to_participant` entries. The exact event type
-      strings for (a)–(c) MUST be confirmed from the case-ledger output of a
-      first successful local run and recorded in the harness as a comment
-      referencing the spec ID that required them.
+    statement: 'The event type strings used for invariant checks (a)–(c) are: (a) `propose_embargo`; (b) `accept_embargo`; (c) `terminate_embargo`. [Confirm these strings against actual ledger output and update the spec before the invariant harness is merged.] These strings MUST appear in `_RCV_EMBARGO_EXPECTED_EVENT_TYPES` and MUST match the strings logged by the case-actor handler.'
     rationale: >-
       The scenario-specific invariants confirm that all three embargo protocol
       messages (EP, EA, ET) were recorded in the ledger — not just that the
@@ -2778,25 +2760,7 @@ groups:
   - id: DEMOMA-21-007
     priority: MUST
     kind: project
-    statement: >-
-      An invariant harness file MUST be created at
-      `test/ci/invariants/test_rcvv_embargo_invariants.py`. It MUST define
-      `_DEMO_NAME = "rcvv-embargo"`, `_CHAIN_ACTORS` covering `reporter`,
-      `coordinator`, `vendor`, `vendor2`, and `case-actor`, and the full set of
-      universal invariants (Invariants 1–15). It MUST additionally include the
-      following scenario-specific invariant tests: (a) an embargo-propose event
-      type is present (variation b, EP delivered); (b) an embargo-accept event
-      type is present at least twice — once for the initial activation (EA) and
-      once for the revision acceptance (EJ); (c) an embargo-revise event type is
-      present (EV delivered, variation c); (d) `invite_actor_to_case` appears at
-      least twice (V1 and V2 each receive an invite); (e) V2 is a late joiner —
-      V2's replica MUST contain all ledger entries present in the coordinator
-      replica (backfill check, following the FCV late-joiner pattern); (f) a
-      CS.P-triggered EM termination is observable — `em_state=EXITED` is
-      present in the final snapshot without a corresponding explicit ET message
-      (or with CaseActor as the terminating actor, confirming auto-collapse).
-      The exact event type strings MUST be confirmed from a first successful
-      local run and recorded as a comment referencing the spec ID.
+    statement: 'The event type strings used for invariant checks (a)–(c) MUST be explicitly enumerated in the spec. Specify the exact ledger-event type string for each of: embargo-propose (EP), embargo-accept (EA), and embargo-revise (EV). These strings MUST appear in `_RCVV_EMBARGO_EXPECTED_EVENT_TYPES`. [Populate before finalizing the spec.]'
     rationale: >-
       The scenario-specific invariants confirm all four embargo-variation
       protocol paths were exercised and recorded: EP (b), EV (c), EJ (c), and

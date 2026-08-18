@@ -43,7 +43,7 @@ groups:
   - id: EH-03-001
     priority: MUST
     kind: project
-    statement: The system MUST define error categories
+    statement: 'The system MUST define at least the following error categories in `vultron/errors.py`: `ValidationError` (malformed or schema-invalid input), `NotFoundError` (referenced domain object does not exist), `ProtocolError` (invalid state-machine transition or message semantics), and `SecurityError` (authentication or authorization failure). Additional categories MAY be defined as needed.'
 - id: EH-04
   title: Error Context
   specs:
@@ -57,7 +57,7 @@ groups:
   - id: EH-05-001
     priority: MUST
     kind: project
-    statement: 'HTTP error responses MUST include structured JSON body with fields:'
+    statement: 'HTTP error responses MUST include a structured JSON body with at minimum the following fields: `error` (string — machine-readable error code from the VultronError hierarchy), `message` (string — human-readable description), and `status` (integer — HTTP status code mirroring the response status).'
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001

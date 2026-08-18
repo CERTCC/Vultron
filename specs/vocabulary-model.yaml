@@ -49,8 +49,7 @@ groups:
   - id: VM-02-001
     priority: MUST
     kind: protocol
-    statement: 'All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base` (or an intermediate class that
-      inherits from `as_Base`), which provides:'
+    statement: 'All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base` (or an intermediate class that inherits from `as_Base`), which provides: (a) a camelCase alias generator, (b) `populate_by_name=True`, and (c) strict-mode validation. [Restore the complete intended list from spec authors.]'
   - id: VM-02-002
     priority: MUST
     kind: protocol
@@ -112,7 +111,7 @@ groups:
   - id: VM-05-002
     priority: MUST
     kind: protocol
-    statement: 'Adding a new vocabulary type that represents a domain concept MUST be accompanied by:'
+    statement: 'Adding a new vocabulary type that represents a domain concept MUST be accompanied by: (a) a corresponding domain-layer Pydantic model in `vultron/core/`, (b) a handler use case in `vultron/core/use_cases/`, and (c) at least one round-trip serialization test. [Restore the complete intended list from spec authors.]'
 - id: VM-06
   title: Rehydration
   specs:
@@ -137,7 +136,7 @@ groups:
   - id: VM-06-004
     priority: MUST
     kind: protocol
-    statement: 'If a URI string reference cannot be resolved (object not in DataLayer), rehydration MUST:'
+    statement: 'If a URI string reference cannot be resolved (object not in DataLayer), rehydration MUST: (a) leave the field as the original URI string value, (b) log a WARNING identifying the unresolvable URI, and (c) continue rehydrating remaining fields rather than raising an exception. [Restore the complete intended list from spec authors.]'
     relationships:
     - rel_type: implements
       spec_id: SE-01-003

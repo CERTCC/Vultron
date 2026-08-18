@@ -38,7 +38,7 @@ groups:
   - id: HTTP-03-001
     priority: MUST
     kind: architecture
-    statement: API MUST use standard HTTP status codes with consistent semantics per table below
+    statement: 'API MUST assign HTTP status codes as follows: 200 OK for successful reads; 201 Created for successful resource creation; 202 Accepted for queued processing; 400 Bad Request for malformed input; 404 Not Found for missing resources; 405 Method Not Allowed for unsupported methods; 413 Content Too Large for oversized payloads; 415 Unsupported Media Type for invalid Content-Type; 422 Unprocessable Entity for schema validation failures; 429 Too Many Requests for rate-limit violations; 503 Service Unavailable for transient errors. [Inline the full table or attach it as a normative appendix with an explicit statement-level citation.]'
 - id: HTTP-04
   title: Response Headers
   specs:

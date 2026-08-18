@@ -195,7 +195,7 @@ groups:
   - id: TB-09-001
     priority: MUST
     kind: project
-    statement: Tests MUST be kept simple and readable
+    statement: 'Each test function MUST exercise a single scenario and MUST contain no branching logic (no if/else or try/except) in the test body itself.'
   - id: TB-09-002
     priority: SHOULD
     kind: project
@@ -387,11 +387,7 @@ groups:
   - id: TB-13-005
     priority: SHOULD
     kind: project
-    statement: >-
-      The test suite SHOULD be validated for `pytest-xdist` (`-n auto`) compatibility.
-      Tests that rely on shared global state (e.g., `py_trees` blackboard, module-level
-      singletons) MUST be identified and either isolated or marked `xdist`-unsafe before
-      parallel execution is enabled in CI.
+    statement: 'Split into two requirements: TB-13-005a (SHOULD): "The test suite SHOULD be validated for `pytest-xdist` (`-n auto`) compatibility before parallel execution is enabled in CI."; TB-13-005b (MUST): "Tests that rely on shared global state (e.g., `py_trees` blackboard, module-level singletons) MUST be identified and either isolated or marked `xdist`-unsafe before `pytest-xdist` parallel execution is enabled in CI."'
     rationale: >-
       `pytest-xdist` is already a declared dependency. Enabling `-n auto` on a
       fully compatible suite can reduce full-suite wall-clock by 50–70% on multi-core

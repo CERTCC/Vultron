@@ -79,8 +79,7 @@ groups:
   - id: OID-04-001
     priority: MUST
     kind: project
-    statement: An Architecture Decision Record MUST be created at `docs/adr/ADR-XXXX-standardize-object-ids.md` before migrating
-      existing data
+    statement: 'An Architecture Decision Record MUST be created at docs/adr/0067-standardize-object-ids.md before migrating existing data'
   - id: OID-04-002
     priority: MUST
     kind: project

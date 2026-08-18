@@ -22,7 +22,7 @@ groups:
   - id: MV-01-005
     priority: MUST
     kind: protocol
-    statement: 'Pattern-matching implementation MUST be defensive:'
+    statement: 'Pattern-matching implementation MUST be defensive: it MUST handle missing or null fields without raising unhandled exceptions, MUST treat unrecognized activity types as dispatching to `UNKNOWN`, and MUST NOT propagate internal dispatch errors to callers.'
 - id: MV-02
   title: Schema Validation
   specs:
@@ -115,7 +115,7 @@ groups:
   - id: MV-10-002
     priority: MUST
     kind: protocol
-    statement: 'Stub objects are ONLY permitted in the following field positions:'
+    statement: 'Stub objects are ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
   - id: MV-10-003
     priority: MUST_NOT
     kind: protocol

@@ -22,9 +22,8 @@ groups:
   - id: BFW-01-002
     priority: MUST
     kind: process
-    statement: >-
-      The agent MUST confirm its reproduction scenario description with the user and update
-      its understanding if the user disagrees.
+    statement: 'BFW-01-002: The agent MUST confirm its reproduction scenario description with the user.
+BFW-01-002b: If the user disagrees with the agent''s reproduction scenario, the agent MUST update its understanding to reflect the user''s correction before proceeding.'
   - id: BFW-01-003
     priority: MUST
     kind: process

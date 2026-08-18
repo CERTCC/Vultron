@@ -58,36 +58,38 @@ groups:
   - id: TRIG-02-001
     priority: SHOULD
     kind: protocol
-    statement: 'The following RM behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following RM behaviors SHOULD be individually triggerable via the trigger API: validate-report, invalidate-report, reject-report, close-report, submit-report'
   - id: TRIG-02-002
     priority: SHOULD
     kind: protocol
-    statement: 'The following EM behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following EM behaviors SHOULD be individually triggerable via the trigger API: propose-embargo, accept-embargo, reject-embargo, propose-embargo-revision, terminate-embargo'
   - id: TRIG-02-003
-    priority: MAY
+    priority: SHOULD
     kind: protocol
-    statement: 'The following additional behaviors MAY be individually triggerable via the trigger API in a later phase:'
+    statement: 'The following CS state-notification behaviors SHOULD be individually triggerable via the trigger API: notify-fix-ready, notify-fix-deployed, notify-published, notify-public-exploit, notify-attacks-observed'
   - id: TRIG-02-004
     priority: SHOULD
     kind: protocol
-    statement: 'The following case management behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following case management behaviors SHOULD be individually triggerable via the trigger API: engage-case, defer-case, add-object-to-case, create-case, add-report-to-case'
   - id: TRIG-02-005
     priority: SHOULD
     kind: protocol
-    statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite, invite-actor-to-case, accept-actor-recommendation'
   - id: TRIG-02-006
     priority: MUST_NOT
     kind: protocol
-    statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/`
-      URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002):'
+    statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002): add-note-to-case, close-case, seed-offer-record, sync-log-entry'
+  - id: TRIG-02-007
+    priority: SHOULD
+    kind: protocol
+    statement: 'The following role delegation behaviors SHOULD be individually triggerable via the trigger API: offer-case-manager-role, offer-case-participant-role, offer-case-ownership-transfer, accept-case-ownership-transfer'
 - id: TRIG-03
   title: Request Body
   specs:
   - id: TRIG-03-001
     priority: MUST
     kind: project
-    statement: 'The trigger endpoint request body MUST be a JSON object containing sufficient context to identify the target
-      report or case:'
+    statement: 'The trigger endpoint request body MUST be a JSON object. Common fields: case_id (string URI, required for case-scoped behaviors); offer_id (string URI, required for offer-response behaviors such as validate-report, accept-case-invite, and reject-case-invite); note (string, optional for most behaviors; MUST be present and non-empty for reject-report per TRIG-03-004); end_time (ISO 8601 datetime string with UTC offset, required for propose-embargo and propose-embargo-revision). Behavior-specific additional required fields (e.g., report_name + report_content + recipient_id for submit-report; object_id for add-object-to-case; invitee_id for invite-actor-to-case) are defined per behavior in the API schema.'
   - id: TRIG-03-002
     priority: MUST
     kind: project
