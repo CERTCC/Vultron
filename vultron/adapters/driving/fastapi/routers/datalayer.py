@@ -52,9 +52,7 @@ logger = logging.getLogger(__name__)
 # CaseActors it self-hosts under CP-08-003).  Naming the actor in the path keeps
 # ADR-0058 causal gates honest — a gate must assert that *a named actor* has
 # committed some state, not merely that some actor in the container has.
-router = APIRouter(
-    prefix="/actors/{actor_id}/datalayer", tags=["datalayer"]
-)
+router = APIRouter(prefix="/actors/{actor_id}/datalayer", tags=["datalayer"])
 
 #: Node-level operations that legitimately span every hosted actor.  These are
 #: operator actions on the process (like a restart), not one actor reading

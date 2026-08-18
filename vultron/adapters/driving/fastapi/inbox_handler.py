@@ -150,16 +150,17 @@ def make_dispatcher() -> ActivityDispatcher:
     return d
 
 
-def init_dispatcher(dl: DataLayer | None = None) -> None:
+def init_dispatcher() -> None:
     """Initialise the module-level dispatcher.
 
     Must be called once during application startup (e.g. from the FastAPI
     lifespan event) before any inbox items are processed.  Calling it more
     than once (e.g. in tests) is allowed — the dispatcher is simply replaced.
 
-    Args:
-        dl: Unused; retained for backward compatibility. DataLayer is now
-            passed at dispatch time via :func:`dispatch`.
+    The vestigial ``dl`` parameter is gone.  It had already been unused for
+    some time (the DataLayer is passed at dispatch time via :func:`dispatch`),
+    and its one remaining caller reached for the unscoped ``get_datalayer()``
+    to satisfy it — which ADR-0066 removes.
     """
     global _DISPATCHER
     _DISPATCHER = make_dispatcher()

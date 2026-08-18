@@ -47,9 +47,7 @@ __all__ = [
 _actor_instances: dict[str, SqliteDataLayer] = {}
 
 
-def get_datalayer(
-    actor_id: str, db_url: str | None = None
-) -> SqliteDataLayer:
+def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
     """Factory that returns (or creates) the DataLayer for *actor_id*.
 
     Every actor gets its own store (ADR-0066).  There is no shared or
