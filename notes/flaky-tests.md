@@ -112,8 +112,8 @@ No open entries.
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
 | `fv Demo Integration` | #2361 | 2026-08-18 |
-| `fvcv-handoff Demo Integration` | #2221 | 2026-08-13 |
-| `fvcv-handoff Invariant Harness` | #2221 | 2026-08-13 |
+| `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
+| `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
 | `fcvcv Demo Integration` | #2337 | 2026-08-17 |
 
 > `fv Demo Integration` now points to #2361 (M4/M5 vfd_state replication timeout).
@@ -121,6 +121,14 @@ No open entries.
 > **Prior failure mode** (UnboundLocalError / add-note-to-case 422 — tracked under #2241): fixed by PR #2358. That failure was deterministic once triggered: `add-note-to-case` returned an intermittent 422 and `vultron/demo/helpers/notes.py:92` read `result` outside the swallowing `demo_step` block.  Row updated 2026-08-18.
 >
 > **Current failure mode** (#2361): M4 and M5 `wait_for_participant_vfd_state(finder_client, ...)` time out waiting for vfd_state=VFd to appear in finder's container replica.  No PR diff line affects vfd_state replication; this is an async-race-window of the same class tracked by #2221.  See also #2337 (fcvcv, same class).
+>
+> `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` now point to
+> #2257 (`AddCaseParticipantReceivedBT` failure).  Root error:
+> `VultronValidationError: AddCaseParticipantReceivedBT did not succeed ... case '...' not found`
+> — finder receives `add_case_participant_to_case` before the case exists in its
+> DataLayer, so the participant is silently dropped, `actor_participant_index` never
+> reaches 5, and `wait_for_case_participants` times out.  Previously pointed at #2221
+> (causal gating epic); updated 2026-08-18 to the specific bug.
 >
 > The rows with no issue number fail intermittently due to inter-container HTTP
 > delivery timeouts (async race windows). Root cause documented in
