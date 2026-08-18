@@ -113,7 +113,7 @@ class TestPendingCreateCaseActivityModel:
         """Marker survives a DataLayer save/read round-trip."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
@@ -178,7 +178,7 @@ class TestWriteCreateCaseMarkerNode:
         """Marker is persisted after node executes (AC-2)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         status = self._run_node(
             dl,
@@ -200,7 +200,7 @@ class TestWriteCreateCaseMarkerNode:
         """Marker create_activity_payload is non-empty and contains actor (AC-1)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         case_id = "https://example.org/cases/c-001"
         accept_id = "https://example.org/activities/a-001"
@@ -229,7 +229,7 @@ class TestWriteCreateCaseMarkerNode:
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         case_id = "https://example.org/cases/c-field-test"
         accept_id = "https://example.org/activities/accept-field-test"
@@ -256,7 +256,7 @@ class TestWriteCreateCaseMarkerNode:
         """FAILURE returned when case_id is absent from blackboard."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         node = _WriteCreateCaseMarkerNode(
             proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
@@ -280,7 +280,7 @@ class TestWriteCreateCaseMarkerNode:
         """FAILURE returned when accept_activity_id is absent from blackboard."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         node = _WriteCreateCaseMarkerNode(
             proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
@@ -302,7 +302,7 @@ class TestWriteCreateCaseMarkerNode:
         """FAILURE returned when DataLayer.save raises; no subsequent write occurs."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         self._seed_case(dl, _CASE_URI)
 
@@ -342,7 +342,7 @@ class TestClearCreateCaseMarkerNode:
         """Marker is absent after _ClearCreateCaseMarkerNode runs (AC-3)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
@@ -363,7 +363,7 @@ class TestClearCreateCaseMarkerNode:
         """SUCCESS returned even if the marker was already removed (idempotent)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         with caplog.at_level(logging.WARNING, logger="vultron"):
             status = self._run_clear_node(dl, actor_id=_CASE_ACTOR_URI)
@@ -373,7 +373,7 @@ class TestClearCreateCaseMarkerNode:
         """_ClearCreateCaseMarkerNode always returns SUCCESS regardless of delete result."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         # Run without pre-seeding a marker — delete returns False.
         status = self._run_clear_node(dl, actor_id=_CASE_ACTOR_URI)
@@ -406,7 +406,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         event = self._make_event(make_payload)
 
@@ -428,7 +428,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         event = self._make_event(make_payload)
 
@@ -460,7 +460,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         event = self._make_event(make_payload)
 
@@ -503,7 +503,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         event = self._make_event(make_payload)
 
@@ -611,7 +611,7 @@ class TestADR0041VendorParticipant:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -631,7 +631,7 @@ class TestADR0041VendorParticipant:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -658,7 +658,7 @@ class TestADR0041VendorParticipant:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -693,7 +693,7 @@ class TestOwnerRolesComeFromActorConfig:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(
@@ -712,7 +712,7 @@ class TestOwnerRolesComeFromActorConfig:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(
@@ -733,7 +733,7 @@ class TestOwnerRolesComeFromActorConfig:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl, actor_config=None)
@@ -750,7 +750,7 @@ class TestADR0041ReporterParticipant:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -769,7 +769,7 @@ class TestADR0041ReporterParticipant:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -796,7 +796,7 @@ class TestADR0041ReporterParticipant:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         # Deliberately NOT seeding the report
         _run_full_bt(make_payload, dl)
@@ -817,7 +817,7 @@ class TestADR0041EmbargoInit:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -836,7 +836,7 @@ class TestADR0041EmbargoInit:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -867,7 +867,7 @@ class TestADR0041EmbargoInit:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -915,7 +915,7 @@ class TestCM14005ReporterSignatory:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -932,7 +932,7 @@ class TestCM14005ReporterSignatory:
         """AC-2: reporter's accepted_embargo_ids includes the active embargo."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -957,7 +957,7 @@ class TestCM14005ReporterSignatory:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         # Build a minimal case with no active embargo and a reporter participant
         case = VulnerabilityCase(id_=_CASE_URI)
@@ -1009,7 +1009,7 @@ class TestCM14005ReporterSignatory:
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1073,7 +1073,7 @@ class TestCM14005ReporterSignatory:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1102,7 +1102,7 @@ class TestCM14005ReporterSignatory:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         # Deliberately NOT seeding the report
         _run_full_bt(make_payload, dl)
@@ -1123,7 +1123,7 @@ class TestADR0041LedgerEntries:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1158,7 +1158,7 @@ class TestADR0041LedgerEntries:
         """add_report_to_case ledger entry must be committed with actor=CaseActor (AC-4)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1186,7 +1186,7 @@ class TestADR0041LedgerEntries:
     def test_add_participant_status_entries_present(self, make_payload):
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1201,7 +1201,7 @@ class TestADR0041LedgerEntries:
         """add_case_status_to_case must use vendor URI as actor (not CaseActor)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1243,7 +1243,7 @@ class TestCM18007InitLedgerEntries:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1277,7 +1277,7 @@ class TestCM18007InitLedgerEntries:
         (CM-14-003 AC-4)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1321,7 +1321,7 @@ class TestADR0041InlineParticipantsPayload:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         event = _make_full_event(make_payload)
@@ -1365,7 +1365,7 @@ class TestADR0041InlineParticipantsPayload:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         event = _make_full_event(make_payload)
@@ -1410,7 +1410,7 @@ class TestADR0041Idempotency:
     ):
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
 
@@ -1483,7 +1483,7 @@ class TestADR0041GenesisCommitFailure:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         # Build a real case so the node reaches the commit step.
@@ -1526,7 +1526,7 @@ class TestADR0041GenesisCommitFailure:
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
@@ -1566,7 +1566,7 @@ class TestCaseActorRMLifecycleBootstrap:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1619,7 +1619,7 @@ class TestCaseActorRMLifecycleBootstrap:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1678,7 +1678,7 @@ class TestCaseActorRMLifecycleBootstrap:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
@@ -1785,7 +1785,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         self._make_case_with_participants(dl)
         # CaseActor is at RM.ACCEPTED (not RM.CLOSED) — should block.
@@ -1816,7 +1816,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         case = self._make_case_with_participants(dl)
 
@@ -1850,147 +1850,124 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
 
 
 # ---------------------------------------------------------------------------
-# Dual-DataLayer isolation: records land on the injected DL, not on the
-# global singleton.  Verifies the AC-2/AC-1 isolation invariant from
-# issue #1749.
+# Per-actor isolation: the case-actor's records land in the case-actor's store
+# and are invisible from any other actor's (CM-01-001, ADR-0066).
 #
-# The regression this guards against: a BT node that calls get_datalayer("https://test.example/api/v2/actors/test-actor")
-# (the process-global singleton) instead of self.datalayer would write records
-# to the singleton rather than to the DataLayer passed into the use case.
-# Each test resets the singleton before running (via the _reset_singleton
-# autouse fixture), then checks the singleton is still empty after the
-# BT completes — confirming all writes landed on the injected case_actor_dl.
+# These tests used to compare the injected DataLayer against the process-global
+# singleton for the *same* actor.  ADR-0066 makes those the same store by
+# construction — store identity is the configured URL plus the actor — so that
+# comparison can no longer fail and would assert nothing.  The invariant worth
+# guarding is the one #2238 was filed about: another actor must not be able to
+# see these writes.  A leak now shows up as records appearing in the vendor's
+# store, which is a real defect rather than a naming accident.
 # ---------------------------------------------------------------------------
 
 
 class TestCreateCaseProposalReceivedBTCaseActorRecords:
-    """Records land on the injected DataLayer, not on the global singleton.
+    """Records land in the case-actor's store and nowhere else (CM-01-001).
 
-    The CreateCaseProposalReceivedUseCase receives a single DataLayer
-    (``case_actor_dl``).  All writes (VulnerabilityCase, CaseParticipant,
-    CaseLedgerEntry, …) must appear in ``case_actor_dl``; the global
-    singleton returned by ``get_datalayer("https://test.example/api/v2/actors/test-actor")`` must remain empty for those
-    types.
-
-    Without this test, a BT node that accidentally calls ``get_datalayer("https://test.example/api/v2/actors/test-actor")``
-    instead of ``self.datalayer`` would write records to the singleton and
-    the existing single-DL tests would still pass.
+    ``CreateCaseProposalReceivedUseCase`` runs as the case actor, so all its
+    writes (VulnerabilityCase, CaseParticipant, CaseLedgerEntry, …) belong in
+    the case actor's store.  The vendor's store — a different actor, and the
+    other participant in this exchange — must show none of them.
     """
 
-    @pytest.fixture(autouse=True)
-    def _reset_singleton(self):
-        from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
-
-        reset_datalayer()
-        yield
-        reset_datalayer()
+    @pytest.fixture
+    def vendor_dl(self):
+        """The vendor's own store — must stay empty of the case actor's writes."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+        yield dl
+        dl.close()
 
     def _run(self, make_payload, case_actor_dl):
         """Run the full BT against *case_actor_dl*; seed report there too."""
         _seed_report(case_actor_dl)
         _run_full_bt(make_payload, case_actor_dl)
 
-    def test_vulnerability_case_on_injected_dl_not_singleton(
-        self, make_payload
+    def test_vulnerability_case_not_visible_to_vendor(
+        self, make_payload, vendor_dl
     ):
-        """VulnerabilityCase is written to case_actor_dl only (AC-1).
-
-        If any node leaks to the singleton via get_datalayer("https://test.example/api/v2/actors/test-actor"), the singleton
-        would be non-empty after the run.
-        """
-        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
-
+        """VulnerabilityCase is written to the case actor's store only (AC-1)."""
         case_actor_dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         self._run(make_payload, case_actor_dl)
 
         cases_on_injected = list(
             case_actor_dl.list_objects("VulnerabilityCase")
         )
-        cases_on_singleton = list(
-            get_datalayer(
-                "https://test.example/api/v2/actors/test-actor"
-            ).list_objects("VulnerabilityCase")
-        )
+        cases_on_vendor = list(vendor_dl.list_objects("VulnerabilityCase"))
 
         assert (
             cases_on_injected
         ), "VulnerabilityCase must be created on the injected DataLayer (AC-1)"
-        assert not cases_on_singleton, (
-            "VulnerabilityCase must NOT appear on the global singleton —"
-            " a BT node called get_datalayer() instead of self.datalayer"
+        assert not cases_on_vendor, (
+            "VulnerabilityCase must NOT appear in the vendor's store"
+            " (CM-01-001)"
         )
 
-    def test_case_participants_on_injected_dl_not_singleton(
-        self, make_payload
+    def test_case_participants_not_visible_to_vendor(
+        self, make_payload, vendor_dl
     ):
-        """CaseParticipant records land on case_actor_dl, not the singleton."""
-        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
-
+        """CaseParticipant records land in the case actor's store only."""
         case_actor_dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         self._run(make_payload, case_actor_dl)
 
         participants_on_injected = list(
             case_actor_dl.list_objects("CaseParticipant")
         )
-        participants_on_singleton = list(
-            get_datalayer(
-                "https://test.example/api/v2/actors/test-actor"
-            ).list_objects("CaseParticipant")
+        participants_on_vendor = list(
+            vendor_dl.list_objects("CaseParticipant")
         )
 
         assert (
             participants_on_injected
         ), "CaseParticipant records must be created on the injected DataLayer"
         assert (
-            not participants_on_singleton
-        ), "CaseParticipant records must NOT appear on the global singleton"
+            not participants_on_vendor
+        ), "CaseParticipant records must NOT appear in the vendor's store"
 
-    def test_ledger_entries_on_injected_dl_not_singleton(self, make_payload):
-        """CaseLedgerEntry records land on case_actor_dl, not the singleton."""
-        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
-
+    def test_ledger_entries_not_visible_to_vendor(
+        self, make_payload, vendor_dl
+    ):
+        """CaseLedgerEntry records land in the case actor's store only."""
         case_actor_dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         self._run(make_payload, case_actor_dl)
 
         entries_on_injected = list(
             case_actor_dl.list_objects("CaseLedgerEntry")
         )
-        entries_on_singleton = list(
-            get_datalayer(
-                "https://test.example/api/v2/actors/test-actor"
-            ).list_objects("CaseLedgerEntry")
-        )
+        entries_on_vendor = list(vendor_dl.list_objects("CaseLedgerEntry"))
 
         assert entries_on_injected, (
             "CaseLedgerEntry records must be created on the injected DataLayer"
             " (ADR-0041)"
         )
         assert (
-            not entries_on_singleton
-        ), "CaseLedgerEntry records must NOT appear on the global singleton"
+            not entries_on_vendor
+        ), "CaseLedgerEntry records must NOT appear in the vendor's store"
 
-    def test_vendor_participant_index_on_injected_dl(self, make_payload):
-        """Vendor appears in case_actor_dl's actor_participant_index, not in the singleton.
+    def test_vendor_participant_index_lives_in_the_case_actor_store(
+        self, make_payload, vendor_dl
+    ):
+        """The vendor is indexed on the case in the *case actor's* store.
 
-        This is the sharpest regression guard: a node that accidentally routes
-        the VulnerabilityCase write through get_datalayer("https://test.example/api/v2/actors/test-actor") would put the
-        vendor in the singleton's case index and leave case_actor_dl empty.
+        The sharpest guard of the four: a node that wrote the case to some other
+        actor's store would leave the case actor without the index entry that
+        every later participant lookup depends on.
         """
-        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
         from vultron.core.models.case import VulnerabilityCase
 
         case_actor_dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         self._run(make_payload, case_actor_dl)
 
@@ -2006,11 +1983,7 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
             _VENDOR_URI in case.actor_participant_index
         ), "Vendor must be in actor_participant_index on the injected DL"
 
-        assert not list(
-            get_datalayer(
-                "https://test.example/api/v2/actors/test-actor"
-            ).list_objects("VulnerabilityCase")
-        ), (
-            "VulnerabilityCase must not appear on the global singleton — the"
-            " case-actor creates the case on the injected DL only (AC-1)"
+        assert not list(vendor_dl.list_objects("VulnerabilityCase")), (
+            "VulnerabilityCase must not appear in the vendor's store — the case"
+            " actor creates the case in its own store only (CM-01-001)"
         )

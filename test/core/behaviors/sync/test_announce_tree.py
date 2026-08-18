@@ -56,9 +56,7 @@ def datalayer():
     announced ledger entry to that participant's replica.  ``case_actor.id_``
     passed to ``_make_event`` is the entry's *author*, not the executing actor.
     """
-    return SqliteDataLayer(
-        "sqlite:///:memory:", actor_id=PARTICIPANT_ACTOR_ID
-    )
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=PARTICIPANT_ACTOR_ID)
 
 
 @pytest.fixture
