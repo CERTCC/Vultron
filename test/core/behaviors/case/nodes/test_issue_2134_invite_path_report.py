@@ -67,7 +67,7 @@ CASE_GENESIS_HASH = compute_genesis_hash(
 def invited_dl():
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=INVITED_ACTOR_ID,
     )
     yield dl
     dl.close()
@@ -249,7 +249,7 @@ class TestApplyOfferReportFromLedgerNode:
     def datalayer(self):
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=INVITED_ACTOR_ID,
         )
         yield dl
         dl.close()
@@ -447,7 +447,7 @@ class TestInvitePathReportAvailableWithoutSpoof:
     def datalayer(self):
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=INVITED_ACTOR_ID,
         )
         yield dl
         dl.close()

@@ -44,7 +44,7 @@ def clear_blackboard():
 def datalayer():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=OWNER_ACTOR_ID,
     )
 
 

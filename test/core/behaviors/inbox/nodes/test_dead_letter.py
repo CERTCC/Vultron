@@ -36,7 +36,7 @@ UNRESOLVABLE_URI = "urn:uuid:does-not-exist-dead-letter-node-test"
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=ACTOR_URI,
     )
 
 

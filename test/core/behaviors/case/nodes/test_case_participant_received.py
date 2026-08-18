@@ -39,7 +39,7 @@ PARTICIPANT_ID = f"{CASE_ID}/participants/coord"
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=ACTOR_ID,
     )
 
 

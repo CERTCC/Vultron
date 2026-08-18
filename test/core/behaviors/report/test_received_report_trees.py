@@ -160,7 +160,7 @@ def _setup_case_with_participant(
 def dl() -> SqliteDataLayer:
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=ACTOR_ID,
     )
 
 
@@ -441,7 +441,7 @@ class TestCreateReportReceivedUseCase:
         """Use case delegates to BT; report and activity are persisted."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         event = _make_create_report_event()
         CreateReportReceivedUseCase(dl, event).execute()
@@ -453,7 +453,7 @@ class TestCreateReportReceivedUseCase:
         """Calling use case twice does not raise and stays consistent."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         event = _make_create_report_event()
         CreateReportReceivedUseCase(dl, event).execute()
@@ -511,7 +511,7 @@ class TestAckReportReceivedUseCase:
         """Use case delegates to BT; activity is persisted."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
@@ -522,7 +522,7 @@ class TestAckReportReceivedUseCase:
         """Use case must NOT create standalone ParticipantStatus records."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
@@ -591,7 +591,7 @@ class TestCloseReportReceivedUseCase:
         """Use case delegates to BT; activity stored + RM → CLOSED."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
@@ -607,7 +607,7 @@ class TestCloseReportReceivedUseCase:
         """Use case ledgers WARNING when no case is found for the report."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         event = _make_close_report_event()
 
@@ -680,7 +680,7 @@ class TestInvalidateReportReceivedUseCase:
         """Use case delegates to BT; activity stored + RM → INVALID."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
@@ -696,7 +696,7 @@ class TestInvalidateReportReceivedUseCase:
         """Use case ledgers WARNING when no case is found for the report."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         event = _make_invalidate_report_event()
 

@@ -64,7 +64,7 @@ def clear_blackboard():
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=CASE_MANAGER_ID,
     )
 
 
@@ -131,7 +131,7 @@ def _make_dl_with_em_state(
     """Return a populated SqliteDataLayer for skip-condition unit tests."""
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=CASE_MANAGER_ID,
     )
     case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     case.current_status.em_state = em_state
@@ -268,7 +268,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
     ) -> tuple[SqliteDataLayer, BTBridge, PublicDisclosureBranchNode]:
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=CASE_MANAGER_ID,
         )
 
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)

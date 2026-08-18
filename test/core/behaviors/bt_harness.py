@@ -70,9 +70,13 @@ class BTTestScenario:
         is_leader: bool = True,
     ) -> None:
         self.actor_id = actor_id
+        # The scenario's store is the acting actor's own (ADR-0066).  A BT's
+        # store follows its executing actor, so seeding into some other actor's
+        # store would leave `run()` reading an empty one — and, worse, a
+        # multi-actor scenario sharing one store is what hides missing-write
+        # defects, because the reader finds the writer's row.
         self.dl = dl or SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            "sqlite:///:memory:", actor_id=actor_id
         )
         self.bridge = BTBridge(
             datalayer=self.dl,

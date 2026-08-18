@@ -15,7 +15,10 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.core.use_cases._helpers import _idempotent_create
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    resolve_receiving_actor_id,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -79,7 +82,12 @@ class AddCaseStatusToCaseReceivedUseCase:
         )
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            # The *receiving* actor, not the sender (BT-17-005): this applies an
+            # inbound CaseStatus to the receiver's own replica, so the tree must
+            # execute — and therefore read and write — in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
             activity=request,
         )
 

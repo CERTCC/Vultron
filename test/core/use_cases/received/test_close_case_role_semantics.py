@@ -87,7 +87,7 @@ def _clear_blackboard():
 def _make_dl() -> SqliteDataLayer:
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=VENDOR_ID,
     )
 
 

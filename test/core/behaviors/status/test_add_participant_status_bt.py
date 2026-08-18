@@ -103,7 +103,7 @@ def clear_blackboard():
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=CASE_MANAGER_ID,
     )
 
 

@@ -269,7 +269,7 @@ def test_record_round_trips_through_datalayer():
     """case_id survives save/read — the fact _prepare depends on."""
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=PARTICIPANT_ACTOR_ID,
     )
     try:
         offer_id = f"urn:uuid:{uuid.uuid4()}"

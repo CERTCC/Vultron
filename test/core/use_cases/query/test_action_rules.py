@@ -49,7 +49,7 @@ def dl():
     """In-memory DataLayer with a minimal valid case setup."""
     layer = SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=ACTOR_ID,
     )
 
     # Case: as_VulnerabilityCase with actor_participant_index
@@ -175,7 +175,7 @@ class TestGetActionRulesUseCase:
         """When case has no as_CaseStatus entries, EM/PXA default to None/pxa."""
         layer = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         case = as_VulnerabilityCase(
             id_=CASE_ID,
@@ -212,7 +212,7 @@ class TestGetActionRulesUseCase:
         """When participant has no as_ParticipantStatus entries, RM/VFD default."""
         layer = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         case = as_VulnerabilityCase(
             id_=CASE_ID,
@@ -251,7 +251,7 @@ class TestGetActionRulesUseCase:
         ]:
             layer = SqliteDataLayer(
                 "sqlite:///:memory:",
-                actor_id="https://test.example/api/v2/actors/test-actor",
+                actor_id=ACTOR_ID,
             )
             case = as_VulnerabilityCase(
                 id_=CASE_ID,
@@ -281,7 +281,7 @@ class TestGetActionRulesUseCase:
     def test_participant_lookup_raises_on_index_mismatch(self):
         layer = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
@@ -305,7 +305,7 @@ class TestGetActionRulesUseCase:
     def test_participant_lookup_succeeds_without_index_entry(self):
         layer = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=ACTOR_ID,
         )
         participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,

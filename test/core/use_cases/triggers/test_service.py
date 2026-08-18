@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.errors import (
     VultronInvalidStateTransitionError,
@@ -108,7 +109,10 @@ def dl(datalayer):
 
 @pytest.fixture
 def actor(dl):
-    actor_obj = as_Service(name="Vendor Co")
+    # The acting actor *is* the actor whose store `dl` is: every trigger here
+    # runs as `actor.id_`, and a BT's store follows its executing actor, so a
+    # separate id would run each trigger against an empty store.
+    actor_obj = as_Service(id_=TEST_ACTOR_ID, name="Vendor Co")
     dl.create(object_to_record(actor_obj))
     return actor_obj
 

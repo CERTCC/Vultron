@@ -45,6 +45,21 @@ from vultron.metadata.specs import (  # noqa: E402
     warn_unknown_spec_id,
 )
 
+#: The actor a test uses when it does not model actor identity at all.
+#:
+#: Every DataLayer belongs to exactly one actor (ADR-0066), so a test that only
+#: needs "somewhere to put objects" still has to name whose store that is. This
+#: is that name. It is deliberately one shared constant rather than a per-file
+#: literal so the set of tests that don't distinguish actors stays greppable.
+#:
+#: A test that *does* distinguish actors MUST NOT use it for more than one of
+#: them. Two logical actors sharing one store is the condition that hides
+#: missing-write defects: the reader finds the writer's row and the test passes
+#: for the wrong reason. Give each actor its own store instead — the BT's store
+#: follows its executing actor, so running a tree as actor X against Y's store
+#: now reads an empty store rather than silently borrowing Y's data.
+TEST_ACTOR_ID = "https://test.example/api/v2/actors/test-actor"
+
 #: Per-test timeout for ``@pytest.mark.integration`` tests, in seconds.
 #:
 #: The global ``timeout = 30`` in ``pyproject.toml`` is sized for the unit

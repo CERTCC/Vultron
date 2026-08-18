@@ -86,7 +86,7 @@ OFFER_ID = f"urn:uuid:{uuid.uuid4()}"
 def datalayer():
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=PARTICIPANT_ACTOR_ID,
     )
     yield dl
     dl.close()
