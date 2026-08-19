@@ -27,7 +27,6 @@ import sys
 from typing import Optional, Tuple
 
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -121,11 +120,11 @@ from vultron.demo.helpers.verification import (  # noqa: F401
 )
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
-    _report_id_from_offer_data,
     find_case_for_offer,
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_direct_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -439,73 +438,14 @@ def _phase_report_submission(
         receiver=vendor_in_vendor,
         reporter_client=finder_client,
     )
-    # Vendor receives the Offer → RM.RECEIVED.  The case must exist before
-    # validate-report fires so that the case-actor ledger can record the
-    # validate_report eventType.  Per ADR-0041, case creation is gated on the
-    # CaseActor accepting a CaseProposal; in single-server mode that round-trip
-    # is blocked, so we simulate the CaseActor response directly.
-    offer_data = vendor_client.get(f"/datalayer/{offer.id_}")
-    report_id = _report_id_from_offer_data(offer_data, offer.id_)
-    create_case_result = post_to_trigger(
-        client=vendor_client,
-        actor_id=vendor_in_vendor.id_,
-        behavior="create-case",
-        body={
-            "name": "Vendor case for CVD report",
-            "content": "Case created after CaseActor accepted proposal.",
-            "report_id": report_id,
-            # OX-08-001: every outbound activity MUST address at least one
-            # recipient.  Without this the vendor's outbox aborts on the
-            # resulting Create(VulnerabilityCase).
-            "to": [finder.id_],
-        },
-    )
-    logger.info("trigger/create-case result: %s", create_case_result)
-
-    case = None
-    with demo_check("as_VulnerabilityCase exists in Vendor's DataLayer"):
-        case = find_case_for_offer(vendor_client, offer.id_)
-        if case is None:
-            raise AssertionError(
-                "Expected as_VulnerabilityCase after trigger/create-case (ADR-0041)"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    # Participants are seeded without pre-populated RM state so that the protocol
-    # drives every RM transition (RECEIVED → VALID → ACCEPTED) through triggers.
-    seed_case_participants_for_demo(
-        case_id=case.id_,
-        vendor_actor_id=vendor_in_vendor.id_,
-        reporter_actor_id=finder.id_,
-        report_id=report_id,
-    )
-
-    # validate-report advances RM to VALID and records the validate_report
-    # eventType in the case-actor ledger.  The case must already exist at this
-    # point (EnsureEmbargoExists requires a live case with an active embargo).
-    # Causal gate: poll until RM.VALID is committed before triggering engage-case,
-    # which requires RM.VALID as its precondition (run_direct_path_rm_triage pattern).
-    vendor_validates_report(
-        vendor_client=vendor_client,
-        vendor=vendor_in_vendor,
-        offer_id=offer.id_,
-    )
-
-    with demo_check(
-        f"{vendor_in_vendor.id_} reached RM.VALID before engage-case"
-    ):
-        wait_for_participant_rm_state(
-            client=vendor_client,
-            case_id=case.id_,
-            actor_id=vendor_in_vendor.id_,
-            expected_states={RM.VALID, RM.ACCEPTED},
-        )
-
-    # engage-case advances RM to ACCEPTED (RM state machine protocol).
-    vendor_engages_case(
-        vendor_client=vendor_client,
-        vendor=vendor_in_vendor,
-        case_id=case.id_,
+    # ADR-0041: case creation is gated on the CaseActor accepting a CaseProposal.
+    # run_direct_path_rm_triage fires validate-report (which sends
+    # Create(CaseProposal) to the vendor's CaseActor), waits for the case to
+    # appear, then drives RM through VALID → ACCEPTED via engage-case.
+    case = run_direct_path_rm_triage(
+        receiver_client=vendor_client,
+        receiver=vendor_in_vendor,
+        offer=offer,
     )
 
     wait_for_case_participants(
@@ -665,7 +605,10 @@ def _phase_sync_verification(
             reporter_actor_id=finder.id_,
         )
 
-    with demo_check("Dedicated CaseActor container remains unused for D5-2"):
+    with demo_check(
+        "Dedicated external CaseActor container holds no case data "
+        "(vendor's own case-actor sub-actor handled the CaseProposal)"
+    ):
         verify_case_actor_unused(case_actor_client, case.id_)
 
     logger.info("✓ M2: Finder DataLayer synchronized (LedgerFanout verified)")

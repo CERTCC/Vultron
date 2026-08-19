@@ -115,6 +115,8 @@ No open entries.
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
 | `fcvcv Demo Integration` | #2376 | 2026-08-19 |
+| `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
+| `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
 > `fcvcv Demo Integration` now points to #2376 (coordinator RM.RECEIVED timeout + 422
 > on engage-case, same async race-window class as #2221). Previous issue #2337
