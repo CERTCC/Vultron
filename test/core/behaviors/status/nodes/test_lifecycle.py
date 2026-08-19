@@ -62,10 +62,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id=CASE_MANAGER_ID,
-    )
+    # ACTOR_ID's own store: the trees in this module execute as ACTOR_ID, and a
+    # BT's store follows its executing actor (ADR-0066). CASE_MANAGER_ID appears
+    # here as a *role holder named in the case*, not as the store's owner.
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
 
 @pytest.fixture
@@ -129,10 +129,7 @@ def _make_dl_with_em_state(
     with_active_embargo: bool = False,
 ) -> SqliteDataLayer:
     """Return a populated SqliteDataLayer for skip-condition unit tests."""
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id=CASE_MANAGER_ID,
-    )
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     case.current_status.em_state = em_state
 
@@ -266,10 +263,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         *,
         reject_activity_id: str = "https://example.org/activities/reject-01",
     ) -> tuple[SqliteDataLayer, BTBridge, PublicDisclosureBranchNode]:
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=CASE_MANAGER_ID,
-        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
         case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
@@ -398,7 +392,7 @@ class TestEmitCloseCaseNode:
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+            tree=node, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -406,7 +400,7 @@ class TestEmitCloseCaseNode:
         """None case_id → early SUCCESS (nothing to emit)."""
         node = EmitCloseCaseNode(case_id=None)
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+            tree=node, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -414,7 +408,7 @@ class TestEmitCloseCaseNode:
         """Missing case_manager_id on blackboard → WARNING + SUCCESS."""
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+            tree=node, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
 

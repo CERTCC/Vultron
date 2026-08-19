@@ -203,11 +203,24 @@ def clear_blackboard():
 
 
 @pytest.fixture
-def dl():
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
+def store_for():
+    """Factory: the store belonging to a given actor.
+
+    These tests split between two executing actors — the asserting participant
+    and the case manager — and a BT's store follows its executing actor
+    (ADR-0066), so one shared store cannot serve both. Each test opens the store
+    of the actor it runs as.
+    """
+    created: list[SqliteDataLayer] = []
+
+    def _make(actor_id: str) -> SqliteDataLayer:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        created.append(dl)
+        return dl
+
+    yield _make
+    for dl in created:
+        dl.close()
 
 
 def _current_status(
@@ -338,13 +351,14 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
     """A regressive ``rm`` must not throw away the rest of the snapshot."""
 
     def test_regressive_rm_carried_forward_accepted_vfd_and_pxa_recorded(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """VALID + rm=RECEIVED (refused) + vfd=VFd + pxa=Pxa (both accepted).
 
         The status is appended with the participant's current ``rm`` carried
         forward and the two forward dimensions applied (RSH-05).
         """
+        dl = store_for(ACTOR_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
@@ -368,13 +382,16 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
             _em_of(latest) == EM.NONE.name
         ), "em is EmbargoTeardownAuthorizationGate's business (#2256)"
 
-    def test_regressive_rm_still_reaches_seam_2_emit(self, dl, make_payload):
+    def test_regressive_rm_still_reaches_seam_2_emit(
+        self, store_for, make_payload
+    ):
         """The StatusAdoptionGate → EmbargoTeardownAuthorizationGate emit must survive a refused dimension.
 
         This is the concrete failure reported in #2235: aborting the Sequence
         at RM validation skipped ``EmitAddCaseStatusToSelfNode``, so embargo
         teardown in EmbargoTeardownAuthorizationGate never ran (RSH-01-003, RSH-01-004).
         """
+        dl = store_for(ACTOR_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
@@ -398,7 +415,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
     """The refusal is made visible by what the canonical ledger records."""
 
     def test_ledger_snapshot_carries_accepted_rm_not_asserted_rm(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """Run as CASE_MANAGER so the guarded commit fires (CLP-10-006).
 
@@ -406,6 +423,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         *accepted* status, not the sender's raw assertion — otherwise the
         refused value is replicated to every participant.
         """
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
@@ -428,7 +446,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert _pxa_of(snapshot_object) == CS_pxa.Pxa.name
 
     def test_ledger_snapshot_keeps_the_wire_shape_of_an_unfiltered_snapshot(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """Adjudication must rewrite values, never reshape the snapshot.
 
@@ -442,6 +460,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         and silently drop every field the guard never adjudicated
         (CLP-07-001, CM-18-006, ADR-0009).
         """
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
@@ -499,9 +518,10 @@ class TestOmittedCaseStatusIsNotAnAssertion:
     """
 
     def test_omitted_case_status_does_not_erase_pxa_and_em(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """vfd advances; the receiver's own ``case_status`` carries forward."""
+        dl = store_for(ACTOR_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pXa)
         asserted = _asserted_status(RM.VALID, CS_vfd.VFd, None)
         assert asserted.case_status is None
@@ -525,7 +545,7 @@ class TestOmittedCaseStatusIsNotAnAssertion:
         ), "an unasserted em must be carried forward, not blanked"
 
     def test_omitted_case_status_alone_carries_no_new_state(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """Nothing asserted but the omission → refused in full, no entry.
 
@@ -534,6 +554,7 @@ class TestOmittedCaseStatusIsNotAnAssertion:
         a state change (RSH-05-005).  Run as the Case Manager so a commit
         *would* fire if the guards let it through.
         """
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pXa)
         asserted = _asserted_status(RM.VALID, CS_vfd.Vfd, None)
         _seed_case(dl, current, asserted)
@@ -557,12 +578,13 @@ class TestTerminalClosedParticipant:
     """``RM.CLOSED`` freezes ``rm`` only — not the other dimensions."""
 
     def test_closed_participant_still_accepts_vfd_advance(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """A CLOSED vendor deploying its fix must still be recorded.
 
         ``rm`` stays CLOSED (terminal); ``vfd`` advances Vfd → VFd.
         """
+        dl = store_for(ACTOR_ID)
         current = _current_status(RM.CLOSED, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.CLOSED, CS_vfd.VFd, CS_pxa.pxa)
         _seed_case(dl, current, asserted)
@@ -578,7 +600,7 @@ class TestTerminalClosedParticipant:
         assert _vfd_of(latest) == CS_vfd.VFd.name
 
     def test_wholly_refused_update_is_not_appended_and_commits_no_entry(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """CLOSED + duplicate CLOSED with no other change → refused outright.
 
@@ -586,6 +608,7 @@ class TestTerminalClosedParticipant:
         assertion carried no acceptable information.  Executed as the Case
         Manager so a commit *would* fire if the guards let it through.
         """
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.CLOSED, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.CLOSED, CS_vfd.Vfd, CS_pxa.pxa)
         _seed_case(dl, current, asserted)
@@ -642,13 +665,16 @@ def _announce_event(
 class TestLedgerApplyRmRatchet:
     """A replicated entry must not regress a replica's derived RM state."""
 
-    def test_regressive_rm_in_ledger_entry_does_not_regress_replica(self, dl):
+    def test_regressive_rm_in_ledger_entry_does_not_regress_replica(
+        self, store_for
+    ):
         """Replica at VALID; entry asserts RECEIVED + vfd=VFd.
 
         Monotonic visibility (see notes/sync-ledger-replication.md): the
         replica keeps ``rm`` at VALID while still applying the accepted
         ``vfd`` advance.
         """
+        dl = store_for(ACTOR_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         _seed_case(dl, current, None)
 
@@ -674,7 +700,7 @@ class TestLedgerApplyRmRatchet:
         ), "the accepted vfd advance must still be applied"
 
     def test_ratchet_holds_when_the_status_object_is_already_stored_locally(
-        self, dl
+        self, store_for
     ):
         """The ratchet must survive a status object already in the DataLayer.
 
@@ -686,6 +712,7 @@ class TestLedgerApplyRmRatchet:
         the un-ratcheted status while the ratchet's own log line claims the
         local value was carried forward (RSH-05-007, SYNC-02-002).
         """
+        dl = store_for(ACTOR_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         _seed_case(dl, current, None)
         # Present as a stored object, absent from participant_statuses.
@@ -713,7 +740,7 @@ class TestLedgerApplyRmRatchet:
         assert _vfd_of(latest) == CS_vfd.VFd.name
 
     def test_unreadable_local_rm_fails_instead_of_skipping_the_ratchet(
-        self, dl, monkeypatch
+        self, store_for, monkeypatch
     ):
         """An unreadable RM floor is a shape mismatch, not "no floor".
 
@@ -724,6 +751,7 @@ class TestLedgerApplyRmRatchet:
         mode, silent because the ratchet only logs when it refuses something.
         ARCH-15-001 and ARCH-15-002 require FAILURE (ADR-0062).
         """
+        dl = store_for(ACTOR_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         _seed_case(dl, current, None)
 
@@ -782,7 +810,7 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
     """A stale override must never reach a later commit."""
 
     def test_second_execution_does_not_inherit_the_first_overrides(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """Two runs of the same status ID, no blackboard clear in between.
 
@@ -793,6 +821,7 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
         this leak — the filter has to clear the key on its no-op path
         (BT-17-003, BT-17-004).
         """
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
@@ -818,9 +847,10 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
         )
 
     def test_a_distinct_status_id_does_not_inherit_the_override(
-        self, dl, make_payload
+        self, store_for, make_payload
     ):
         """A leftover override for another object is ignored by the ID match."""
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
