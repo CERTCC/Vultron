@@ -64,6 +64,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
+from vultron.core.models.base import ValidatedAssignmentMixin
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ def _sha256_hex(data: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-class HashChainLedgerRecord(BaseModel):
+class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
     """A single canonical case ledger entry.
 
     Each entry is created by the CaseActor's single authoritative write path
