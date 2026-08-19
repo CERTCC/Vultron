@@ -23,6 +23,8 @@ are normalised to full URIs before use.
 """
 
 import pytest
+
+from test.conftest import seed_case_actor_replica
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -260,6 +262,9 @@ class TestSvcInviteActorToCaseUseCase:
             name="CaseActorService",
         )
         dl.create(case_actor)
+        # The Invite is authored as the CaseActor and committed to its ledger, so
+        # the tree runs in the CaseActor's store and that store needs the case.
+        seed_case_actor_replica(dl, case_actor.id_, case, invitee)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,

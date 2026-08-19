@@ -165,3 +165,24 @@ def _dispose_actor_stores_between_tests():
     from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 
     reset_datalayer()
+
+
+def seed_case_actor_replica(dl, case_actor_id, case, *extra):
+    """Give the CaseActor its own replica of *case*, and return its store.
+
+    A delegated emit (CM-24-001) is authored as the CaseActor and committed to the
+    CaseActor's ledger, so the tree runs in the **CaseActor's** store. That store
+    must therefore hold the case: ``CommitCaseLedgerEntryNode`` anchors the chain
+    on the case's deterministic per-case genesis hash (CLP-08-001/002), and
+    without the case there is nothing to anchor to — the commit fails with
+    "ledger is empty and per-case genesis hash is unavailable".
+
+    In production the CaseActor always has the case; it is the actor that manages
+    it. Only the tests were seeding a single store, which a shared pool made
+    sufficient.
+    """
+    case_actor_dl = dl.clone_for_actor(case_actor_id)
+    case_actor_dl.create(case)
+    for obj in extra:
+        case_actor_dl.create(obj)
+    return case_actor_dl
