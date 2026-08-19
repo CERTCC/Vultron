@@ -29,15 +29,6 @@ if ! grep -q 'local/bin' "$HOME/.zshrc" 2>/dev/null; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
 fi
 
-# Auto-start tmux on login if not already inside a tmux session
-if ! grep -q 'TMUX' "$HOME/.zshrc" 2>/dev/null; then
-    cat >> "$HOME/.zshrc" <<'EOF'
-
-# Auto-start tmux on login
-if [ -z "$TMUX" ]; then exec tmux new-session -s main; fi
-EOF
-fi
-
 # --- tmux configuration ---
 cat > "$HOME/.tmux.conf" <<'EOF'
 set -g default-terminal "tmux-256color"
@@ -49,8 +40,13 @@ set -g set-clipboard on
 set -g default-shell /bin/zsh
 EOF
 
-# ~/.claude is a bind-mount of the host's ~/.claude — the host manages its own
-# skills symlink. Nothing to do here.
+# Wire user-level skills into Claude Code's discovery path.
+# start-dev.sh mounts the host's ~/.agents/skills into the container at
+# ~/.agents/skills. Claude Code looks for skills under ~/.claude/skills, so
+# create the symlink if the mount landed and the link doesn't already exist.
+if [ -d "$HOME/.agents/skills" ] && [ ! -e "$HOME/.claude/skills" ]; then
+    ln -s "$HOME/.agents/skills" "$HOME/.claude/skills"
+fi
 
 echo ""
 echo "Post-create complete. Run 'claude' to start Claude Code."

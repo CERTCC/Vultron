@@ -352,6 +352,14 @@ def run_invite_path_rm_triage(
             expected_states={RM.VALID, RM.ACCEPTED},
             timeout_seconds=timeout_seconds,
         )
+    with demo_check(f"{invited_obj.id_} own container at RM.VALID"):
+        wait_for_participant_rm_state(
+            client=invited_client,
+            case_id=case.id_,
+            actor_id=invited_obj.id_,
+            expected_states={RM.VALID, RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
     logger.info("✓ %s RM state reached VALID", invited_obj.id_)
 
     receiver_engages_case(
@@ -363,6 +371,14 @@ def run_invite_path_rm_triage(
     with demo_check(f"CaseActor reflects {invited_obj.id_} at RM.ACCEPTED"):
         wait_for_participant_rm_state(
             client=auth_client,
+            case_id=case.id_,
+            actor_id=invited_obj.id_,
+            expected_states={RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
+    with demo_check(f"{invited_obj.id_} own container at RM.ACCEPTED"):
+        wait_for_participant_rm_state(
+            client=invited_client,
             case_id=case.id_,
             actor_id=invited_obj.id_,
             expected_states={RM.ACCEPTED},

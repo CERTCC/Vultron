@@ -111,31 +111,28 @@ No open entries.
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
-| `fv Demo Integration` | #2241 | 2026-08-13 |
-| `fvcv-handoff Demo Integration` | #2221 | 2026-08-13 |
-| `fvcv-handoff Invariant Harness` | #2221 | 2026-08-13 |
-| `fcvcv Demo Integration` | #2337 | 2026-08-17 |
+| `fv Demo Integration` | #2361 | 2026-08-18 |
+| `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
+| `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
+| `fcvcv Demo Integration` | #2376 | 2026-08-19 |
 
-> `fv Demo Integration` is a different animal from the async-race rows above
-> it. It passed at `dc31b6c6` and failed at `0b607c11` — a docs-only diff —
-> while base `fe951d00` does not fail it at all, so the trigger is genuinely
-> intermittent. But the *failure* is deterministic once triggered:
-> `add-note-to-case` returns an intermittent 422, and
-> `vultron/demo/helpers/notes.py:92` then reads `result` outside the
-> `with demo_step(...)` block that assigned it. `demo_step` suppresses the
-> exception, so control falls through and raises
-> `UnboundLocalError: cannot access local variable 'result'`, which buries the
-> real 422 under a traceback pointing at the wrong line. Pre-existing base code
-> (last touched by #1387, #543).
+> `fcvcv Demo Integration` now points to #2376 (coordinator RM.RECEIVED timeout + 422
+> on engage-case, same async race-window class as #2221). Previous issue #2337
+> (Finder ledger-coverage timeout) was closed 2026-08-18; row re-added 2026-08-19.
 >
-> **#2241 already owns this pattern** — "assignment inside a swallowing
-> `demo_check` block then used after it" — so this row cites it rather than a
-> new issue. The concrete callsite and run evidence are recorded there; note
-> the pattern reaches `demo_step` too, not just `demo_check`. The related
-> reporting failure is #2240. The `ValueError: No case ledger entries` later in
-> the same run is *not* a second bug: `ledger_dump.py:434` raises it
-> deliberately because the run died before any ledger was written. See also
-> #2281.
+> `fv Demo Integration` now points to #2361 (M4/M5 vfd_state replication timeout).
+>
+> **Prior failure mode** (UnboundLocalError / add-note-to-case 422 — tracked under #2241): fixed by PR #2358. That failure was deterministic once triggered: `add-note-to-case` returned an intermittent 422 and `vultron/demo/helpers/notes.py:92` read `result` outside the swallowing `demo_step` block.  Row updated 2026-08-18.
+>
+> **Current failure mode** (#2361): M4 and M5 `wait_for_participant_vfd_state(finder_client, ...)` time out waiting for vfd_state=VFd to appear in finder's container replica.  No PR diff line affects vfd_state replication; this is an async-race-window of the same class tracked by #2221.  See also #2337 (fcvcv, same class).
+>
+> `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` now point to
+> #2257 (`AddCaseParticipantReceivedBT` failure).  Root error:
+> `VultronValidationError: AddCaseParticipantReceivedBT did not succeed ... case '...' not found`
+> — finder receives `add_case_participant_to_case` before the case exists in its
+> DataLayer, so the participant is silently dropped, `actor_participant_index` never
+> reaches 5, and `wait_for_case_participants` times out.  Previously pointed at #2221
+> (causal gating epic); updated 2026-08-18 to the specific bug.
 >
 > The rows with no issue number fail intermittently due to inter-container HTTP
 > delivery timeouts (async race windows). Root cause documented in

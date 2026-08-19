@@ -23,6 +23,7 @@ import httpx2 as httpx
 
 from vultron.adapters.driven.http_delivery import (
     DEFAULT_BACKOFF_MULTIPLIER,
+    DEFAULT_DELIVERY_TIMEOUT,
     DEFAULT_INITIAL_DELAY,
     DEFAULT_MAX_DELAY,
     DEFAULT_MAX_RETRIES,
@@ -57,6 +58,9 @@ class TestDefaultConstants:
     def test_default_max_delay(self):
         assert DEFAULT_MAX_DELAY == 30.0
 
+    def test_default_delivery_timeout(self):
+        assert DEFAULT_DELIVERY_TIMEOUT == 30.0
+
 
 class TestHttpDeliveryAdapterInit:
     """HttpDeliveryAdapter accepts configurable retry parameters (SYNC-05-002)."""
@@ -67,6 +71,7 @@ class TestHttpDeliveryAdapterInit:
         assert adapter._initial_delay == DEFAULT_INITIAL_DELAY
         assert adapter._backoff_multiplier == DEFAULT_BACKOFF_MULTIPLIER
         assert adapter._max_delay == DEFAULT_MAX_DELAY
+        assert adapter._timeout == DEFAULT_DELIVERY_TIMEOUT
 
     def test_custom_params(self):
         adapter = HttpDeliveryAdapter(
@@ -74,11 +79,13 @@ class TestHttpDeliveryAdapterInit:
             initial_delay=1.0,
             backoff_multiplier=3.0,
             max_delay=60.0,
+            timeout=10.0,
         )
         assert adapter._max_retries == 5
         assert adapter._initial_delay == 1.0
         assert adapter._backoff_multiplier == 3.0
         assert adapter._max_delay == 60.0
+        assert adapter._timeout == 10.0
 
     def test_zero_retries_disables_retry(self):
         adapter = HttpDeliveryAdapter(max_retries=0)
@@ -174,10 +181,11 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
-                with pytest.raises(Exception):
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                with patch("random.uniform", return_value=0.0):
+                    with pytest.raises(Exception):
+                        asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
-        # 3 retries → 3 sleep calls with delays 1.0, 2.0, 4.0
+        # 3 retries → 3 sleep calls with delays 1.0, 2.0, 4.0 (jitter zeroed)
         assert sleep_calls == [1.0, 2.0, 4.0]
 
     def test_delay_capped_at_max_delay(self):
@@ -200,10 +208,11 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
-                with pytest.raises(Exception):
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                with patch("random.uniform", return_value=0.0):
+                    with pytest.raises(Exception):
+                        asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
-        # All delays after the first should be capped at max_delay
+        # All delays after the first should be capped at max_delay (jitter zeroed)
         for delay in sleep_calls[1:]:
             assert delay <= 30.0
 
@@ -274,6 +283,63 @@ class TestDeliveryRetry:
                 with pytest.raises(Exception):
                     asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
+    def test_4xx_raises_delivery_error_immediately_without_retry(self):
+        """HTTP 4xx is terminal: DeliveryError raised on first attempt, no retries, no sleep (OX-13-005 AC-2/AC-4)."""
+        import pytest
+
+        adapter = HttpDeliveryAdapter(max_retries=3, initial_delay=0.0)
+        activity = _make_activity()
+        call_count = 0
+
+        async def four_xx(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            mock_resp = MagicMock()
+            mock_resp.status_code = 422
+            mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "422 Unprocessable Entity",
+                request=MagicMock(),
+                response=mock_resp,
+            )
+            return mock_resp
+
+        with patch("httpx2.AsyncClient.post", side_effect=four_xx):
+            with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+                with pytest.raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        assert call_count == 1, "4xx must not consume retry slots"
+        mock_sleep.assert_not_called()
+
+    def test_5xx_retries_up_to_max_retries(self):
+        """HTTP 5xx is retryable: exhausts all retry slots (OX-13-005 AC-4)."""
+        import pytest
+
+        adapter = HttpDeliveryAdapter(
+            max_retries=2, initial_delay=0.0, backoff_multiplier=1.0
+        )
+        activity = _make_activity()
+        call_count = 0
+
+        async def five_xx(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            mock_resp = MagicMock()
+            mock_resp.status_code = 503
+            mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "503 Service Unavailable",
+                request=MagicMock(),
+                response=mock_resp,
+            )
+            return mock_resp
+
+        with patch("httpx2.AsyncClient.post", side_effect=five_xx):
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                with pytest.raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        assert call_count == 3, "5xx must exhaust max_retries + 1 = 3 attempts"
+
     def test_zero_retries_attempts_once_only(self):
         adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
         activity = _make_activity()
@@ -292,3 +358,118 @@ class TestDeliveryRetry:
 
         assert call_count == 1
         mock_sleep.assert_not_called()
+
+
+class TestTimeoutParameter:
+    """AC-1/AC-4: timeout parameter is configurable and flows through to client.post (SYNC-05-004)."""
+
+    def test_timeout_stored_at_default(self):
+        adapter = HttpDeliveryAdapter()
+        assert adapter._timeout == DEFAULT_DELIVERY_TIMEOUT
+
+    def test_custom_timeout_stored(self):
+        adapter = HttpDeliveryAdapter(timeout=10.0)
+        assert adapter._timeout == 10.0
+
+    def test_timeout_flows_to_post_call(self):
+        """emit() passes self._timeout to client.post (AC-1, AC-4)."""
+        adapter = HttpDeliveryAdapter(timeout=15.0)
+        activity = _make_activity()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.raise_for_status = MagicMock()
+
+        with patch(
+            "httpx2.AsyncClient.post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = mock_response
+            asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        call_kwargs = mock_post.call_args.kwargs
+        assert call_kwargs.get("timeout") == 15.0
+
+
+class TestJitter:
+    """AC-2/AC-4: random jitter is added to retry sleep (SYNC-05-004)."""
+
+    def test_jitter_applied_before_retry_sleep(self):
+        """asyncio.sleep is called with delay + jitter on a retry (AC-2, AC-4)."""
+        adapter = HttpDeliveryAdapter(
+            max_retries=1, initial_delay=1.0, backoff_multiplier=1.0
+        )
+        activity = _make_activity()
+        sleep_calls: list[float] = []
+
+        success_response = MagicMock()
+        success_response.status_code = 202
+        success_response.raise_for_status = MagicMock()
+
+        call_count = 0
+
+        async def fail_then_succeed(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise httpx.ConnectError("first attempt fails")
+            return success_response
+
+        async def fake_sleep(delay: float) -> None:
+            sleep_calls.append(delay)
+
+        with patch("httpx2.AsyncClient.post", side_effect=fail_then_succeed):
+            with patch("asyncio.sleep", side_effect=fake_sleep):
+                with patch(
+                    "random.uniform", return_value=0.25
+                ) as mock_uniform:
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        mock_uniform.assert_called_once_with(0, 0.5)
+        assert len(sleep_calls) == 1
+        assert sleep_calls[0] == 1.0 + 0.25
+
+    def test_no_sleep_on_success_first_attempt(self):
+        """No sleep is called when delivery succeeds on the first attempt."""
+        adapter = HttpDeliveryAdapter(max_retries=2, initial_delay=1.0)
+        activity = _make_activity()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.raise_for_status = MagicMock()
+
+        with patch(
+            "httpx2.AsyncClient.post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = mock_response
+            with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+                asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        mock_sleep.assert_not_called()
+
+
+class TestConnectionPoolLimits:
+    """AC-3: emit() constructs httpx.AsyncClient with explicit pool limits (SYNC-05-004)."""
+
+    def test_connection_pool_limits_applied(self):
+        """httpx.AsyncClient is constructed with max_connections=20, max_keepalive=5."""
+        adapter = HttpDeliveryAdapter()
+        activity = _make_activity()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        with patch("httpx2.AsyncClient", return_value=mock_client) as mock_cls:
+            asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+
+        mock_cls.assert_called_once()
+        call_kwargs = mock_cls.call_args.kwargs
+        assert "limits" in call_kwargs
+        limits = call_kwargs["limits"]
+        assert limits.max_connections == 20
+        assert limits.max_keepalive_connections == 5

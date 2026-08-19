@@ -39,7 +39,11 @@ import logging
 import random
 from typing import cast
 
-from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
+from vultron.adapters.driven.http_delivery import (
+    DeliveryError,
+    HttpDeliveryAdapter,
+)
+from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 
 # ---------------------------------------------------------------------------
 # Re-exports from outbox_addressing (keep in this namespace for compat)
@@ -74,6 +78,12 @@ from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 
 logger = logging.getLogger(__name__)
+
+#: Maximum cumulative delivery attempts across all drain passes before an
+#: activity is moved to the dead-letter store (OX-13-002).  Chosen as
+#: (DEFAULT_MAX_RETRIES + 1) × ~3 drain passes — survives transient failures
+#: without running indefinitely.  See ADR-0066.
+MAX_TOTAL_ATTEMPTS: int = 12
 
 # ---------------------------------------------------------------------------
 # Default emitter singleton
@@ -240,7 +250,11 @@ async def outbox_handler(
         return
 
     logger.debug("Processing outbox for actor %s", actor_id)
-    err_count = 0
+    # dl satisfies OutboxRetryStore structurally (SqliteDataLayer implements
+    # both); cast lets mypy/pyright see the delivery-infrastructure methods
+    # without polluting the core ActorScopedDataLayer port with adapter concerns.
+    _retry: OutboxRetryStore = cast(OutboxRetryStore, dl)
+    activity_err_counts: dict[str, int] = {}
     while dl.outbox_list():
         activity_id = dl.outbox_pop()
         if activity_id is None:
@@ -249,18 +263,57 @@ async def outbox_handler(
         try:
             await handle_outbox_item(actor_id, activity_id, _read_dl, _emitter)
         except Exception as e:
-            logger.error(
-                "Error processing outbox item for actor %s: %s", actor_id, e
+            failed_recipients: list[str] = (
+                list(e.failed_recipients)
+                if isinstance(e, DeliveryError)
+                else []
             )
-            dl.outbox_append(activity_id)
-            err_count += 1
-            if err_count > 3:
-                logger.error(
-                    "Too many errors processing outbox for actor %s,"
-                    " aborting.",
-                    actor_id,
+            total = _retry.get_outbox_attempt_count(activity_id) + 1
+            if total >= MAX_TOTAL_ATTEMPTS:
+                # Budget exhausted — dead-letter the activity (OX-13-002).
+                _retry.dead_letter_append(
+                    activity_id,
+                    reason="max_attempts_exhausted",
+                    total_attempts=total,
+                    failed_recipients=failed_recipients,
                 )
-                break
-            # Back off before retrying to avoid hammering a busy recipient.
-            backoff = (2 ** (err_count - 1)) + random.uniform(0, 0.5)
-            await asyncio.sleep(backoff)
+                _retry.clear_outbox_attempt_count(activity_id)
+                logger.error(
+                    "Activity '%s' exhausted %d delivery attempts for actor"
+                    " '%s'; moved to dead letter (OX-13-002)."
+                    " Failed recipients: %s",
+                    activity_id,
+                    total,
+                    actor_id,
+                    failed_recipients,
+                )
+                # Do NOT re-queue — activity is permanently dead-lettered.
+            else:
+                _retry.set_outbox_attempt_count(activity_id, total)
+                logger.error(
+                    "Error processing outbox item '%s' (attempt %d): %s",
+                    activity_id,
+                    total,
+                    e,
+                )
+                dl.outbox_append(activity_id)
+                activity_err_counts[activity_id] = (
+                    activity_err_counts.get(activity_id, 0) + 1
+                )
+                per_err = activity_err_counts[activity_id]
+                if per_err > 3:
+                    logger.error(
+                        "Too many errors for outbox item '%s',"
+                        " skipping for this pass (OX-13-006).",
+                        activity_id,
+                    )
+                    # Stop when every remaining item has also hit its cap.
+                    if all(
+                        activity_err_counts.get(i, 0) > 3
+                        for i in dl.outbox_list()
+                    ):
+                        break
+                    continue
+                # Back off before retrying to avoid hammering a busy recipient.
+                backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)
+                await asyncio.sleep(backoff)

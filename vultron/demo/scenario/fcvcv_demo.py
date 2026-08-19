@@ -59,6 +59,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     assert_demo_success,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_inbox_and_wait,
     post_to_trigger,
@@ -539,8 +540,8 @@ def _phase_sync_verification(
             (v2_client, "V2"),
         ]:
             # V2 joins after Phase 1 completes, so it has more entries to sync.
-            timeout = 45.0 if label == "V2" else 15.0
-            with demo_check(
+            timeout = 45.0 if label == "V2" else 30.0
+            with demo_gate(
                 f"{label} ledger coverage (sync-verification phase)"
             ):
                 wait_for_contiguous_ledger_coverage(

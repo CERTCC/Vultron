@@ -287,6 +287,99 @@ addition to INFO-level delivery/receipt/commit lines.
 
 ---
 
+## Async Race Window Patterns
+
+Demo CI timeouts and out-of-order state failures are usually one of two
+shapes. Recognizing the shape tells you which layer broke and whether the
+fix is in the demo script or the protocol code.
+
+### The BackgroundTasks delivery gap
+
+Every trigger endpoint (`validate-report`, `engage-case`, etc.) returns
+HTTP 202 before its protocol effects are committed. The effect — a
+`ParticipantStatus` write, a `CaseLedgerEntry`, a replica arriving on
+another container — lands later, in a `BackgroundTasks` callback. A demo
+step that depends on that effect must wait for it explicitly. If it does
+not, one of two failure modes appears in CI:
+
+**Shape A — wrong precondition state**: the dependent step runs before the
+effect commits. The BT or use case detects the missing state (e.g.,
+`TransitionParticipantRMtoAccepted` rejects a 422 because RM.VALID has not
+committed yet) and the demo fails with a protocol-level error that looks
+like a bug rather than a timing issue.
+
+**Shape B — inconsistent replica comparison**: the demo reads a replica
+before it has all entries, computes a result (e.g., ledger tail index,
+state diff), and either the assertion passes on wrong data or the timeout
+fires while the replica is mid-delivery. Both produce flaky results across
+CI runs with different container load.
+
+### Recognizing causal vs temporal waits
+
+Ask one question about each `wait_for_*` call: **if this wait times out
+and the next step runs anyway, does the next step operate on state that was
+never established?**
+
+- **Yes** → the wait is a causal precondition. The next step depends on it.
+  Wrap it in `demo_gate`. A `demo_check` wrapper records the miss and
+  continues — the dependent step then runs blind, producing a confusing
+  secondary failure that obscures the root cause.
+
+- **No** → the wait is temporal (service liveness, transport backoff, or a
+  post-hoc verification). `demo_check` is appropriate. Identify it as
+  temporal at the call site per EDF-06-006 so it is not mistaken for a
+  causal gate in a future edit.
+
+Common causal waits (should be `demo_gate`):
+
+| Wait | Precondition for |
+|---|---|
+| `wait_for_participant_rm_state` to RM.VALID | `engage-case` trigger (rejects at 422 if RM.VALID not committed) |
+| `wait_for_case_on_container` (replica present) | `wait_for_contiguous_ledger_coverage` (needs genesis hash to anchor chain) |
+| `wait_for_contiguous_ledger_coverage` | any state comparison across replicas |
+| `wait_for_event_type_in_ledger` (close phase) | reading ledger tail on a complete replica |
+
+Common temporal waits (may stay `demo_check` if they do not gate a
+downstream step):
+
+| Wait | Why temporal |
+|---|---|
+| `wait_for_case_participants` | cross-container delivery budget; timeout is a time-based estimate, not a protocol precondition the system can accelerate |
+
+### Diagnosing a timeout in CI
+
+1. Find the `demo_check`/`demo_gate` failure message in `demo-runner.log`.
+2. Check which `wait_for_*` timed out and note what follows it in the
+   scenario script.
+3. Apply the causal-vs-temporal test above to the timed-out wait.
+4. If causal: the wait should be a `demo_gate`. Look for a `demo_check`
+   wrapper or bare `wait_for_*` call (no wrapper) — bare calls raise
+   `AssertionError` directly, bypassing the failure accumulator entirely.
+5. If temporal: the timeout budget may be under-sized for the CI
+   environment. Check the comment at the `wait_for_*` call site in
+   `vultron/demo/helpers/polling.py` for the EDF-06-006 justification.
+   Raising the budget is a last resort; verify first that the underlying
+   delivery is not silently failing.
+
+### Bare calls are not equivalent to `demo_gate`
+
+A `wait_for_*` call with no wrapper looks like a gate but is not:
+
+- It raises `AssertionError` directly on timeout, bypassing the demo
+  harness's failure accumulator.
+- The scenario may have accumulated earlier `demo_check` failures that are
+  lost when the bare raise propagates to `scenario_harness`.
+- Downstream steps do not get the structured "precondition not met" skip
+  that `demo_gate` provides; they simply never run because the exception
+  terminates the scenario.
+
+Wrap all `wait_for_*` calls in either `demo_gate` (causal) or `demo_check`
+(temporal, non-gating). No bare calls. See `vultron/demo/AGENTS.md`
+§ "Gate Each Step on Its Cause" and § "Never Wrap a Causal Wait in
+`demo_check`" for the enforcement rule and anti-pattern examples.
+
+---
+
 ## Ratchet Workflow Reference
 
 When a fix lands that resolves an xfail invariant, see

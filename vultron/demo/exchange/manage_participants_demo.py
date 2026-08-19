@@ -239,13 +239,14 @@ def demo_manage_participants_accept(
                 raise ValueError(
                     "Could not retrieve case after add participant"
                 )
-            participant_ids = [
-                (ref_id(p) or str(p)) for p in updated_case.case_participants
-            ]
-            if coordinator_participant.id_ not in participant_ids:
+            stored_id = updated_case.actor_participant_index.get(
+                coordinator.id_
+            )
+            if not stored_id:
                 raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.id_}' "
-                    f"not found in case after add. Participants: {participant_ids}"
+                    f"Coordinator actor '{coordinator.id_}' not found"
+                    " in case actor_participant_index after add."
+                    f" Index: {updated_case.actor_participant_index}"
                 )
 
     with demo_step("Step 6: Coordinator creates a as_ParticipantStatus"):

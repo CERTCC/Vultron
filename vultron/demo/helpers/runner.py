@@ -24,8 +24,10 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.demo.utils import (
     DataLayerClient,
+    assert_demo_success,
     check_server_availability,
     demo_environment,
+    reset_demo_failures,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,9 +82,11 @@ def run_exchange_demos(
     errors = []
 
     for demo_name, demo_fn in selected:
+        reset_demo_failures()
         try:
             with demo_environment(client) as (finder, vendor, coordinator):
                 demo_fn(client, finder, vendor, coordinator)
+            assert_demo_success()
         except Exception as e:
             logger.error("%s failed: %s", demo_name, e, exc_info=True)
             errors.append((demo_name, str(e)))
