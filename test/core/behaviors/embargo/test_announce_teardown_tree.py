@@ -119,11 +119,15 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
+        # Authored by the executing actor — the CASE_MANAGER the commit is gated
+        # on — and addressed to the case's *other* participants. It used to be
+        # addressed to the manager, which once the tree became role-gated meant
+        # the manager announcing the teardown to itself.
         factory.announce_embargo.assert_called_once_with(
             embargo_id=embargo.id_,
             case_id=case.id_,
-            actor=ACTOR_ID,
-            to=[CASE_MANAGER_ACTOR],
+            actor=CASE_MANAGER_ACTOR,
+            to=[ACTOR_ID],
         )
         outbox = dl.outbox_list()
         assert "https://example.org/activities/ann1" in outbox
