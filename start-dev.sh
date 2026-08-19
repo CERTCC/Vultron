@@ -115,6 +115,11 @@ DOCKER_ARGS=(
     -w "$WORKSPACE"
 )
 
+# Mount clipboard bridge socket if the host listener is running (see scripts/clipboard-bridge.sh)
+if [ -S "/tmp/docker-clipboard.sock" ]; then
+    DOCKER_ARGS+=(-v /tmp/docker-clipboard.sock:/tmp/clipboard.sock)
+fi
+
 # Mount user-level skills read-only if present on the host
 if [ -d "$HOME/.agents/skills" ]; then
     DOCKER_ARGS+=(-v "$HOME/.agents/skills:/home/vscode/.agents/skills:ro")
