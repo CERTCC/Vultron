@@ -126,6 +126,7 @@ def demo_notes_workflow(
 
     case, participant = _setup_initialized_case(client, finder, vendor)
 
+    note = None
     with demo_step("Step 1: Vendor creates note"):
         note = as_Note(
             name="Initial Triage Note",
@@ -201,6 +202,7 @@ def demo_status_workflow(
 
     case, participant = _setup_initialized_case(client, finder, vendor)
 
+    case_status = None
     with demo_step("Step 1: Vendor creates as_CaseStatus"):
         case_status = as_CaseStatus(
             context=case.id_,
@@ -233,6 +235,7 @@ def demo_status_workflow(
                         "after AddStatusToCaseActivity"
                     )
 
+    participant_status = None
     with demo_step("Step 3: Vendor creates as_ParticipantStatus"):
         participant_status = as_ParticipantStatus(
             context=participant.id_,
