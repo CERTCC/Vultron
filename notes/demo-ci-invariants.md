@@ -87,7 +87,8 @@ These cover any failure that happens *inside* `scenario_harness()`.
    | State of the downloaded artifact | Outcome |
    |---|---|
    | no `devlogs/`, or no `devlogs/<demo>/` | `skip` — the demo genuinely did not run |
-   | no ledger files **and** no `dump-manifest.json` | `skip` — same |
+   | `devlogs/<demo>/` exists, no ledger files, no manifest | **`fail`** — directory created but dump never ran (ISSUE-2411) |
+   | no ledger files **and** no `dump-manifest.json`, no `demo_name` | `skip` — unscoped load with no data |
    | no ledger files **but** a manifest exists | **`fail`** — real invariant failure |
    | manifest present but unparseable | **`fail`** |
    | ledger files present | load and check normally |
@@ -146,6 +147,7 @@ reporting a protocol result.
 - `test/demo/test_scenario_harness.py`
 - `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
 - `test/ci/invariants/test_common.py::TestAllSkipGuard`
+- `test/ci/invariants/test_common.py::TestCheckPerActorReplicaDivergence` (ISSUE-2411 Gap 1)
 - `test/demo/test_ledger_dump.py::TestWritePrerunSentinel` (AC4 for #2281)
 
 ---
@@ -166,6 +168,11 @@ existing nine:
    `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
 4. Call the shared check functions from `common.py`; keep scenario-specific
    assertions in the scenario file.
+5. Include `test_invariant_per_actor_replica_divergence` calling
+   `check_per_actor_replica_divergence(replicas)`.  Pass
+   `check_fix_ready=False` for scenarios where no Vendor ever becomes a case
+   participant (currently only `fcv-reject`), mirroring the canonical
+   `test_invariant_15_cs_state_transitions_observed` rule (ISSUE-2411 Gap 1).
 
 **The scenario→harness registry is the CI matrix**, not a Python module. The
 `demo:` / `test_file:` pairs in `.github/demo-scenarios.json` (read by the

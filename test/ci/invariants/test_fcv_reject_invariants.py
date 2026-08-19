@@ -42,6 +42,7 @@ from test.ci.invariants.common import (
     check_non_empty_payload_snapshots,
     check_participant_status_schema_completeness,
     check_payload_context_uses_case_uri,
+    check_per_actor_replica_divergence,
     check_rm_closed_termination,
     cs_observations_from_snap,
     event_type,
@@ -430,4 +431,23 @@ def test_fcv_reject_coordinator_p_transition_observed(
     assert saw_published, (
         "Coordinator: pxa_state starting with 'P' (public-aware) never observed "
         "in add_participant_status_to_participant entries"
+    )
+
+
+@pytest.mark.case_ledger_invariants
+def test_invariant_per_actor_replica_divergence(
+    fcv_reject_replicas: dict[str, list[dict]],
+) -> None:
+    """Each non-case-actor replica satisfies the same state invariants as the authoritative log.
+
+    check_fix_ready=False because Vendor rejected the invitation and never
+    advanced the VFD state machine (matching the canonical invariant 15 rule).
+    """
+    violations = check_per_actor_replica_divergence(
+        fcv_reject_replicas, check_fix_ready=False
+    )
+    assert (
+        not violations
+    ), f"{len(violations)} per-actor invariant violation(s):\n" + "\n".join(
+        violations
     )

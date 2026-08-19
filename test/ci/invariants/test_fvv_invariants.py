@@ -41,6 +41,7 @@ from test.ci.invariants.common import (
     check_non_empty_payload_snapshots,
     check_participant_status_schema_completeness,
     check_payload_context_uses_case_uri,
+    check_per_actor_replica_divergence,
     check_rm_closed_termination,
     load_devlogs,
 )
@@ -338,3 +339,16 @@ def test_fvv_finder_late_joiner_has_full_history(
         fvv_replicas, early_actor="vendor", late_actor="finder"
     )
     assert not violations, "\n".join(violations)
+
+
+@pytest.mark.case_ledger_invariants
+def test_invariant_per_actor_replica_divergence(
+    fvv_replicas: dict[str, list[dict]],
+) -> None:
+    """Each non-case-actor replica satisfies the same state invariants as the authoritative log."""
+    violations = check_per_actor_replica_divergence(fvv_replicas)
+    assert (
+        not violations
+    ), f"{len(violations)} per-actor invariant violation(s):\n" + "\n".join(
+        violations
+    )
