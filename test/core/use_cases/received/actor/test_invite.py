@@ -221,12 +221,11 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
         case_id = "https://example.org/cases/case-reject-ri1"
         case_actor_id = f"{case_id}/actor"
+        # The ledger commit is role-gated to the CASE_MANAGER, which here is
+        # the case actor — so the tree runs in the case actor's store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         invitee_id = "https://example.org/users/coordinator"
 
         case = as_VulnerabilityCase(
@@ -564,7 +563,9 @@ class TestInviteActorUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/cases/caseIA3/actor",
         )
         invitee_id = "https://example.org/users/coordinator"
         case_actor_id = "https://example.org/cases/caseIA3/actor"
@@ -641,7 +642,9 @@ class TestInviteActorUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj1",
         )
         invitee_id = "https://example.org/users/late-joiner"
         case_actor_id = "https://example.org/actors/case-actor-lj1"
@@ -764,7 +767,9 @@ class TestInviteActorUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj2",
         )
         invitee_id = "https://example.org/users/late-joiner-retry"
         case_actor_id = "https://example.org/actors/case-actor-lj2"
@@ -905,7 +910,9 @@ class TestInviteActorUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj3",
         )
         invitee_id = "https://example.org/users/late-joiner-nomarker"
         case_actor_id = "https://example.org/actors/case-actor-lj3"
@@ -1015,7 +1022,9 @@ class TestInviteActorUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj4",
         )
         invitee_id = "https://example.org/users/late-joiner-noannounce"
         case_actor_id = "https://example.org/actors/case-actor-lj4"
