@@ -84,11 +84,20 @@ def test_default_db_url_uses_vultron_database_db_url_env_var(
     monkeypatch.setenv("VULTRON_DATABASE__DB_URL", db_url)
     reload_config()
 
-    dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
+    actor_id = "https://test.example/api/v2/actors/test-actor"
+    dl = get_datalayer(actor_id)
     assert dl.ping()
-    # The URL used should be the one from the env var — verify by checking
-    # that the backing engine URL matches.
-    assert db_url in str(dl._engine.url)
+    # The configured URL is a *template*, not a location: under ADR-0066 each
+    # actor gets its own file derived from it, so `env_test.sqlite` becomes
+    # `env_test-test-actor.sqlite` and the raw value no longer appears verbatim.
+    # Assert the derivation the adapter actually performs — comparing against a
+    # hand-written expected name would just restate `actor_db_url`'s suffix rule
+    # in the test, and that rule is not what this test is about.
+    from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
+
+    assert str(dl._engine.url) == actor_db_url(db_url, actor_id)
+    # ...and that the derivation started from the env var, not the default.
+    assert str(tmp_path) in str(dl._engine.url)
 
 
 def test_default_db_url_falls_back_to_config_default(monkeypatch):

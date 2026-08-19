@@ -255,31 +255,12 @@ def test_start_after_stop_creates_new_task():
     asyncio.run(_run())
 
 
-# ---------------------------------------------------------------------------
-# drain_all — uses default shared_dl when none provided
-# ---------------------------------------------------------------------------
-
-
-def test_drain_all_uses_get_datalayer_as_default_shared_dl():
-    """drain_all falls back to get_datalayer("https://test.example/api/v2/actors/test-actor") when shared_dl is not set."""
-    dl = _mock_dl(has_items=True)
-    monitor = OutboxMonitor(
-        poll_interval=0.01,
-        actor_datalayers_factory=lambda: {"actor-x": dl},
-    )
-    fake_shared = MagicMock()
-
-    with patch(
-        "vultron.adapters.driving.fastapi.outbox_monitor.get_datalayer",
-        return_value=fake_shared,
-    ):
-        with patch(
-            "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
-            new_callable=AsyncMock,
-        ) as mock_handler:
-            asyncio.run(monitor.drain_all())
-
-    mock_handler.assert_called_once_with("actor-x", dl, emitter=None)
+# There is no "default shared_dl" test here any more.  `outbox_monitor` no longer
+# references a shared DataLayer at all (ADR-0066), so the fallback this covered
+# does not exist to be exercised.  With the `get_datalayer` patch removed the
+# test asserted exactly what
+# `test_drain_all_calls_outbox_handler_for_actor_with_items` already does —
+# one call per actor, with that actor's own store and no emitter.
 
 
 # ---------------------------------------------------------------------------

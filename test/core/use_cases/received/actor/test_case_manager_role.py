@@ -386,9 +386,17 @@ class TestCaseManagerRoleDelegationUseCases:
 
         Regression for the broad-exception anti-pattern: when
         accept_case_manager_role() succeeds (Accept written to DataLayer) but
-        record_outbox_item() then fails, the exception must propagate through
+        the outbox enqueue then fails, the exception must propagate through
         py_trees (bypassing the AcceptOrReject Selector fallback) so that
         BTBridge fails the tree hard without emitting a contradictory Reject.
+
+        The enqueue is ``outbox_append``; it used to be
+        ``record_outbox_item(actor_id, ...)``, which ADR-0066 folded away because
+        the queue lives in the owning actor's store and every call site passed
+        its own id.  Patching the retired name silently stopped simulating a
+        failure at all — ``patch.object`` raises ``AttributeError`` rather than
+        creating the attribute, so the test errored instead of exercising the
+        path.
         """
         from unittest.mock import MagicMock, patch
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -446,7 +454,7 @@ class TestCaseManagerRoleDelegationUseCases:
         # Accept creation succeeds, but outbox enqueue fails.
         with patch.object(
             dl,
-            "record_outbox_item",
+            "outbox_append",
             side_effect=RuntimeError("outbox unavailable"),
         ):
             # BTBridge swallows the exception; execute() must not raise.

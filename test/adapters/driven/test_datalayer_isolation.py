@@ -364,20 +364,35 @@ class TestGetDatalayerFactory:
         dl_b = get_datalayer("bob")
         assert dl_a is not dl_b
 
-    def test_actor_instance_distinct_from_shared(self):
-        dl_shared = get_datalayer(
+    def test_instances_for_two_actors_are_distinct(self):
+        dl_test_actor = get_datalayer(
             "https://test.example/api/v2/actors/test-actor"
         )
         dl_alice = get_datalayer("alice")
-        assert dl_shared is not dl_alice
+        assert dl_test_actor is not dl_alice
 
     def test_actor_id_assigned_on_scoped_instance(self):
         dl = get_datalayer("vendorco")
         assert dl._actor_id == "vendorco"
 
-    def test_shared_instance_has_no_actor_id(self):
-        dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
-        assert dl._actor_id is None
+    def test_every_instance_carries_the_actor_it_was_asked_for(self):
+        """There is no instance without an actor id (AC-2, at the factory).
+
+        This replaces ``test_shared_instance_has_no_actor_id``, which asserted
+        that ``get_datalayer`` could hand back an instance whose ``_actor_id``
+        was ``None``.  That was the shared DataLayer, and ADR-0066 deletes it:
+        the argument is mandatory and is always the instance's own actor, so the
+        old assertion described a state the factory can no longer reach.
+        """
+        for actor_id in (
+            "alice",
+            "vendorco",
+            "https://test.example/api/v2/actors/test-actor",
+        ):
+            assert get_datalayer(actor_id)._actor_id == actor_id
+
+        with pytest.raises(TypeError):
+            get_datalayer()  # type: ignore[call-arg]
 
     def test_get_datalayer_full_uri_is_distinct_from_short_id(self):
         """get_datalayer keyed by full URI is distinct from the short-UUID instance.
