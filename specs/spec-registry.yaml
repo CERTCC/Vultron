@@ -51,9 +51,11 @@ groups:
     kind: project
     statement: Each spec entry SHOULD include a `testable` boolean field (default `true`).
   - id: SR-01-009
-    priority: SHOULD
+    priority: MUST
     kind: project
-    statement: 'Change the priority field from SHOULD to MUST. Statement unchanged: "Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of `protocol`, `architecture`, `project`, `process`."'
+    statement: >-
+      Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of
+      `protocol`, `architecture`, `project`, `process`.
   - id: SR-01-010
     priority: SHOULD
     kind: project

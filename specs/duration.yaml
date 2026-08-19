@@ -41,6 +41,12 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: 'The following units MUST NOT appear in Vultron duration strings because they introduce calendar ambiguity: years (`Y`), months (`M`, date-part), and weeks (`W`).'
+    rationale: >-
+      A year is 365 or 366 days depending on leap year; a month is 28, 29, 30, or
+      31 days; a week is 5 business days or 7 calendar days depending on context.
+      These variable lengths make duration arithmetic non-deterministic across
+      implementations. ISO 8601 day-based durations (e.g., `P90D`) represent an
+      exact number of 86400-second intervals and are unambiguous.
 - id: DUR-03
   title: Canonical Form
   specs:

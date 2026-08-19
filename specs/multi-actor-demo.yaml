@@ -126,10 +126,6 @@ groups:
 - id: DEMOMA-04
   title: Scenario Coverage
   specs:
-  - id: DEMOMA-04-001
-    priority: SHOULD
-    kind: project
-    statement: 'Multi-actor demo scenarios SHOULD be implemented progressively, in the following order: (1) two-actor FV scenario, (2) three-actor FVV and FCV scenarios, (3) four-actor FVCV-extension, FVCV-handoff, FCCV-extension, and FCCV-handoff scenarios, (4) five-actor FCVCV scenario. Each tier SHOULD be validated in CI before the next tier is introduced.'
   - id: DEMOMA-04-002
     priority: SHOULD
     kind: project
@@ -220,7 +216,12 @@ groups:
   - id: DEMOMA-06-002
     priority: MUST
     kind: project
-    statement: 'The FV scenario script MUST verify the following milestones in order, checking both the Vendor and Finder DataLayers at each checkpoint: M1 (report received, RM.RECEIVED), M2 (report validated, RM.VALID), M3 (case engaged, RM.ACCEPTED), M4 (embargo active, EM.ACTIVE), M5 (fix ready, CS.VFd), M6 (fix deployed, CS.VFD), M7 (publicly disclosed, CS.VFDPxa). [Replace or confirm these definitions before finalizing, or add a normative cross-reference to the section that defines M1–M7.]'
+    statement: >-
+      The FV scenario script MUST verify the following protocol checkpoints in order,
+      checking both the Vendor and Finder DataLayers at each checkpoint: (1) report
+      received (RM.RECEIVED), (2) report validated (RM.VALID), (3) case engaged
+      (RM.ACCEPTED), (4) embargo active (EM.ACTIVE), (5) fix ready (CS.VFd), (6) fix
+      deployed (CS.VFD), (7) publicly disclosed (CS.VFDPxa).
     preconditions:
     - description: Two-actor scenario executing; Vendor, Finder, and CaseActor containers
         running and reachable; report submitted by Finder to Vendor
@@ -228,47 +229,50 @@ groups:
     - order: 1
       actor: demo-script
       action: >-
-        Verify M1 — case created with 3 participants (Vendor, Reporter, CaseActor) and
-        EM.ACTIVE; check Vendor DataLayer
+        Verify case creation: 3 participants (Vendor, Reporter, CaseActor) and EM.ACTIVE;
+        check Vendor DataLayer
       expected: >-
         Vendor DataLayer holds VulnerabilityCase with 3 participants and
         EM state = ACTIVE
     - order: 2
       actor: demo-script
       action: >-
-        Verify M2 — Finder has case replica with matching participant index and active
-        embargo; check Finder DataLayer
+        Verify case replica sync: Finder has case replica with matching participant index
+        and active embargo; check Finder DataLayer
       expected: >-
         Finder DataLayer holds case replica; participant index matches Vendor's; embargo
         state = ACTIVE
     - order: 3
       actor: demo-script
       action: >-
-        Verify M3 — notes exchange complete; check both DataLayers for question note and
-        reply note
+        Verify notes exchange: check both DataLayers for question note and reply note
       expected: >-
         Question note and reply note both present in canonical case state on Vendor and
         Finder replicas
     - order: 4
       actor: demo-script
-      action: Verify M4 — CS.VF on all replicas
+      action: >-
+        Verify fix-ready state: CS.VF on all replicas
       expected: Vendor and Finder replicas both show CS = VF (vendor aware, fix ready)
     - order: 5
       actor: demo-script
-      action: Verify M5 — CS.VFD on all replicas
+      action: >-
+        Verify fix-deployed state: CS.VFD on all replicas
       expected: Vendor and Finder replicas both show CS = VFD (fix deployed)
     - order: 6
       actor: demo-script
-      action: Verify M6 — CS.VFDPxa and EM terminated on all replicas
+      action: >-
+        Verify public-disclosure state: CS.VFDPxa and EM terminated on all replicas
       expected: All replicas show CS = VFDPxa; EM state = EXITED
     - order: 7
       actor: demo-script
-      action: Verify M7 — all participants RM.CLOSED and case closed
+      action: >-
+        Verify case close: all participants RM.CLOSED and case closed
       expected: All participants RM state = CLOSED; case record marked closed
     postconditions:
     - description: >-
-        All milestones M1-M7 verified; FV scenario complete in final state
-        VFDPxa with EM.EXITED and all participants RM.CLOSED
+        All checkpoints verified; FV scenario complete in final state VFDPxa
+        with EM.EXITED and all participants RM.CLOSED
   - id: DEMOMA-06-003
     priority: MUST
     kind: project
@@ -1759,7 +1763,7 @@ groups:
       (demo-entrypoint.sh forwards the DEMO value directly).
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-04-001
+      spec_id: DEMOMA-04-002
   - id: DEMOMA-14-009
     priority: MUST
     kind: project
@@ -2265,7 +2269,7 @@ groups:
       report to C1, C1 validates, C1 creates case, C1 invites V1 and C2;
       (2) c2_suggests_v2 — C2 sends suggest-actor-to-case for V2 to
       CaseActor, C1 approves the CaseParticipant Offer, CaseActor sends
-      Invite to V2, V2 accepts; (3) sync_verification — M1 milestone check
+      Invite to V2, V2 accepts; (3) sync_verification — replica consistency check
       (all five containers hold the case replica); (4) notes_exchange — each
       of the five actors posts a note; (5) fix_lifecycle — V1 advances to
       VFd (fix-ready; no deploy step); V2 advances to VFD (fix-ready then
@@ -2570,7 +2574,11 @@ groups:
   - id: DEMOMA-20-006
     priority: MUST
     kind: project
-    statement: 'The event type strings used for invariant checks (a)–(c) are: (a) `propose_embargo`; (b) `accept_embargo`; (c) `terminate_embargo`. [Confirm these strings against actual ledger output and update the spec before the invariant harness is merged.] These strings MUST appear in `_RCV_EMBARGO_EXPECTED_EVENT_TYPES` and MUST match the strings logged by the case-actor handler.'
+    statement: >-
+      The rcv-embargo scenario invariant harness MUST verify that the following event
+      types are recorded in the case ledger in order: `propose_embargo`, `accept_embargo`,
+      and `terminate_embargo`. The event type strings used in the invariant check MUST
+      match the strings logged by the CASE_MANAGER handler.
     rationale: >-
       The scenario-specific invariants confirm that all three embargo protocol
       messages (EP, EA, ET) were recorded in the ledger — not just that the
@@ -2760,7 +2768,11 @@ groups:
   - id: DEMOMA-21-007
     priority: MUST
     kind: project
-    statement: 'The event type strings used for invariant checks (a)–(c) MUST be explicitly enumerated in the spec. Specify the exact ledger-event type string for each of: embargo-propose (EP), embargo-accept (EA), and embargo-revise (EV). These strings MUST appear in `_RCVV_EMBARGO_EXPECTED_EVENT_TYPES`. [Populate before finalizing the spec.]'
+    statement: >-
+      The rcvv-embargo scenario invariant harness MUST verify that the following event
+      types are recorded in the case ledger: `propose_embargo`, `accept_embargo`, and
+      `revise_embargo`. The event type strings used in the invariant check MUST match
+      the strings logged by the CASE_MANAGER handler.
     rationale: >-
       The scenario-specific invariants confirm all four embargo-variation
       protocol paths were exercised and recorded: EP (b), EV (c), EJ (c), and

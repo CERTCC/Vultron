@@ -44,7 +44,11 @@ groups:
   - id: CM-02-005
     priority: MUST
     kind: protocol
-    statement: 'CaseActor MUST restrict the following activities to the case owner: case closure, embargo initiation and termination, participant invitation approval and rejection, and case ownership transfer (see CM-02-006 for the authorisation mechanism).'
+    statement: >-
+      CaseActor MUST restrict the following activities to the case owner: case closure,
+      approving an embargo proposal to become active on the case and terminating an active embargo,
+      approving or rejecting participant invitations, and case ownership transfer
+      (see CM-02-006 for the authorisation mechanism).
     scope:
     - production
   - id: CM-02-006
@@ -179,7 +183,13 @@ groups:
   - id: CM-04-003
     priority: MUST
     kind: protocol
-    statement: 'Handlers processing EM state transitions MUST update the appropriate EM state field as follows: (a) when the accepting actor is the case owner, MUST update CaseStatus.em_state; (b) when the accepting actor is any other participant, MUST update that participant''s ParticipantStatus.embargo_adherence; (c) no handler MUST NOT update both fields for the same accept event unless both conditions apply simultaneously (see CM-13-001 through CM-13-003 for the full decision logic).'
+    statement: >-
+      Handlers processing EM state transitions MUST update the appropriate EM state field as follows:
+      (a) when the accepting actor is the case owner, MUST update CaseStatus.em_state;
+      (b) when the accepting actor is any other participant, MUST update that participant's
+      ParticipantStatus.embargo_adherence;
+      (c) a handler MUST update at most one of these fields per accept event unless both conditions
+      apply simultaneously (see CM-13-001 through CM-13-003 for the full decision logic).
     relationships:
     - rel_type: implements
       spec_id: VP-06-001
@@ -235,7 +245,11 @@ groups:
   - id: CM-05-001
     priority: MUST
     kind: protocol
-    statement: 'The system MUST distinguish the following domain objects as separate, non-interchangeable types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference, CaseActor, CaseParticipant, and ParticipantStatus. No type MUST NOT be substituted for another at any API boundary, persistence layer, or wire message.'
+    statement: >-
+      The system MUST distinguish the following domain objects as separate, non-interchangeable
+      types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference, CaseActor,
+      CaseParticipant, and ParticipantStatus. Each of these types MUST NOT be substituted for
+      another at any API boundary, persistence layer, or wire message.
   - id: CM-05-002
     priority: MUST_NOT
     kind: protocol

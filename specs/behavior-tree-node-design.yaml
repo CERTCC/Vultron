@@ -288,9 +288,10 @@ groups:
   - id: BTND-06-001
     priority: SHOULD
     kind: project
-    statement: '(**SHOULD**) Stateful BT nodes SHOULD use the **implicit sequence** pattern: a Fallback whose first child
+    statement: >-
+      Stateful BT nodes SHOULD use the **implicit sequence** pattern: a Fallback whose first child
       checks whether the goal is already achieved (the postcondition), and whose remaining children perform the work only
-      when the goal has not yet been reached.'
+      when the goal has not yet been reached.
     rationale: Automatically makes nodes idempotent and reactive. Re-ticking a satisfied node costs only a cheap condition
       check. This is the dominant pattern throughout `vultron/bt/`.
     relationships:
@@ -299,7 +300,8 @@ groups:
   - id: BTND-06-002
     priority: SHOULD
     kind: project
-    statement: (**SHOULD**) When a Sequence contains multiple actions, each action that may already be complete SHOULD be
+    statement: >-
+      When a Sequence contains multiple actions, each action that may already be complete SHOULD be
       paired with its success condition via a Fallback, making the **explicit success condition** visible in the tree.
     rationale: Improves readability and correctness. Readers can determine the success criterion of each step from the tree
       alone, without reading action implementations.
@@ -309,9 +311,10 @@ groups:
   - id: BTND-06-003
     priority: SHOULD
     kind: project
-    statement: '(**SHOULD**) Every BT node that performs a protocol state transition (RM/EM/CS state machine update, emitting
+    statement: >-
+      Every BT node that performs a protocol state transition (RM/EM/CS state machine update, emitting
       an AS2 activity, or creating/updating a domain object) SHOULD follow the **PPA (Postcondition–Precondition–Action)**
-      structure: `Fallback(Postcondition, Sequence(Precondition1, …, PreconditionN, Action))`.'
+      structure: `Fallback(Postcondition, Sequence(Precondition1, …, PreconditionN, Action))`.
     rationale: PPA is the canonical "unit cell" of idiomatic BT design. It makes the node's contract (what it requires and
       what it guarantees) explicit and machine-readable from the tree structure.
     relationships:
@@ -320,9 +323,10 @@ groups:
   - id: BTND-06-004
     priority: MAY
     kind: project
-    statement: '(**MAY**) Multi-step workflows where each step has its own preconditions that may need to be achieved MAY
+    statement: >-
+      Multi-step workflows where each step has its own preconditions that may need to be achieved MAY
       be constructed using **back-chaining**: start with the goal condition, find the PPA whose postcondition matches, and
-      recursively substitute failing preconditions with their own PPAs.'
+      recursively substitute failing preconditions with their own PPAs.
     rationale: Back-chaining produces fully reactive, goal-directed trees where intermediate states are automatically recovered
       on failure.
     relationships:
@@ -340,16 +344,21 @@ groups:
   - id: BTND-06-006
     priority: MAY
     kind: project
-    statement: '(**MAY**) Memory composites (`memory=True` in py_trees) MAY be used **only** in contexts that are fully deterministic
-      and non-reactive: no external actor can undo a child''s outcome between ticks, and the agent operates in a closed-loop,
-      human-supervised environment.'
+    statement: >-
+      Memory composites (`memory=True` in py_trees) MAY be used **only** in contexts that are fully deterministic
+      and non-reactive: no external actor can undo a child's outcome between ticks, and the agent operates in a closed-loop,
+      human-supervised environment.
     relationships:
     - rel_type: refines
       spec_id: BT-06-003
   - id: BTND-06-007
     priority: SHOULD
     kind: project
-    statement: '(**SHOULD**) Use the following granularity guidelines when deciding whether a behavior should be a leaf node or a subtree: (1) a leaf node is appropriate when the action is atomic and has no observable sub-steps; (2) a subtree is appropriate when the behavior can be decomposed into independently verifiable pre/post-condition pairs; (3) extract a subtree when the same multi-step pattern appears in more than one place (see BTND-02-001).'
+    statement: >-
+      Use the following granularity guidelines when deciding whether a behavior should be a leaf node or a subtree:
+      (1) a leaf node is appropriate when the action is atomic and has no observable sub-steps;
+      (2) a subtree is appropriate when the behavior can be decomposed into independently verifiable pre/post-condition pairs;
+      (3) extract a subtree when the same multi-step pattern appears in more than one place (see BTND-02-001).
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -406,9 +415,10 @@ groups:
   - id: BTND-07-002
     priority: SHOULD
     kind: project
-    statement: '(**SHOULD**) The test suite for a `nodes/` subpackage SHOULD mirror the subpackage structure: a `test/…/nodes/`
-      directory with one `test_<submodule>.py` per submodule, so that each concern''s tests are co-located and independently
-      runnable.'
+    statement: >-
+      The test suite for a `nodes/` subpackage SHOULD mirror the subpackage structure: a `test/…/nodes/`
+      directory with one `test_<submodule>.py` per submodule, so that each concern's tests are co-located and independently
+      runnable.
     rationale: A monolithic `test_nodes.py` grows in parallel with the flat `nodes.py` and inherits the same blast-radius
       problem. Mirrored test files scope test failures to the affected concern and make it easier to add focused per-node
       unit tests.

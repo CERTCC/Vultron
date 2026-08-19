@@ -195,7 +195,11 @@ groups:
   - id: TB-09-001
     priority: MUST
     kind: project
-    statement: 'Each test function MUST exercise a single scenario and MUST contain no branching logic (no if/else or try/except) in the test body itself.'
+    statement: >-
+      Each test function MUST exercise a single scenario. Test bodies MUST NOT contain
+      conditional branching logic (if/else). Exception-assertion patterns using
+      pytest.raises as a context manager are permitted; bare try/except blocks that
+      catch and suppress unexpected errors are not.
   - id: TB-09-002
     priority: SHOULD
     kind: project
@@ -387,9 +391,24 @@ groups:
   - id: TB-13-005
     priority: SHOULD
     kind: project
-    statement: 'Split into two requirements: TB-13-005a (SHOULD): "The test suite SHOULD be validated for `pytest-xdist` (`-n auto`) compatibility before parallel execution is enabled in CI."; TB-13-005b (MUST): "Tests that rely on shared global state (e.g., `py_trees` blackboard, module-level singletons) MUST be identified and either isolated or marked `xdist`-unsafe before `pytest-xdist` parallel execution is enabled in CI."'
+    statement: >-
+      The test suite SHOULD be validated for `pytest-xdist` (`-n auto`) compatibility
+      before parallel execution is enabled in CI.
     rationale: >-
       `pytest-xdist` is already a declared dependency. Enabling `-n auto` on a
       fully compatible suite can reduce full-suite wall-clock by 50–70% on multi-core
-      runners. Unguarded shared state causes non-deterministic failures under xdist.
+      runners.
       Source: CONCERN-2020.
+  - id: TB-13-006
+    priority: MUST
+    kind: project
+    statement: >-
+      Tests that rely on shared global state (e.g., `py_trees` blackboard,
+      module-level singletons) MUST be identified and either isolated or marked
+      `xdist`-unsafe before `pytest-xdist` parallel execution is enabled in CI.
+    rationale: >-
+      Unguarded shared state causes non-deterministic failures under xdist.
+      Source: CONCERN-2020.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-005

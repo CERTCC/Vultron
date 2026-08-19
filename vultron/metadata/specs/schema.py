@@ -22,7 +22,7 @@ from vultron.enums.roles import CVDRole
 
 SpecIdStr = Annotated[
     str,
-    StringConstraints(pattern=r"^[A-Z]{2,8}(-\d{2}(-\d{3})?)?$"),
+    StringConstraints(pattern=r"^[A-Z]{2,8}(-\d{2}(-\d{3}[a-z]?)?)?$"),
 ]
 
 # Structured ADR reference (SR-02, MS-11-004): ``ADR-NNNN`` form. Kept separate

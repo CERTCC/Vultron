@@ -127,7 +127,11 @@ groups:
   - id: AR-07-002
     priority: MUST
     kind: protocol
-    statement: 'The action rules response MUST be a machine-parseable JSON object that includes: (a) the current case state, (b) the requesting participant''s CVD role, (c) a list of valid action identifiers available in the current state, and (d) for each unavailable action, the reason it is disallowed. [Restore the complete intended list from spec authors.]'
+    statement: >-
+      The action rules response MUST be a machine-parseable JSON object that includes:
+      (a) the current case state, (b) the requesting participant's CVD role, (c) a list
+      of valid action identifiers available in the current state, and (d) for each
+      unavailable action, the reason it is disallowed.
   - id: AR-07-003
     priority: MUST
     kind: protocol

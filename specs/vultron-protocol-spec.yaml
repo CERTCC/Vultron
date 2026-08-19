@@ -45,7 +45,9 @@ groups:
   - id: VP-02-002
     priority: MUST
     kind: protocol
-    statement: 'Participants MUST assign Valid cases a higher processing priority than cases in the Received, Deferred, or Closed states in their case-management workflow'
+    statement: >-
+      Participants MUST assign Valid cases a higher processing priority than
+      Received (untriaged) cases and Closed cases in their case-management workflow.
   - id: VP-02-003
     priority: MUST
     kind: protocol
@@ -333,9 +335,12 @@ groups:
     kind: protocol
     statement: An embargo SHALL specify an unambiguous date and time as its endpoint
   - id: VP-05-002
-    priority: MUST
+    priority: SHOULD
     kind: protocol
-    statement: 'An embargo endpoint SHOULD NOT be more than one year (P1Y) from the date of acceptance. Embargo durations exceeding 90 days (P90D) SHOULD include documented justification agreed to by all Participants.'
+    statement: >-
+      An embargo end time SHOULD NOT be more than one year (P1Y) from the date of
+      acceptance. Embargo durations exceeding 90 days (P90D) SHOULD include documented
+      justification agreed to by all Participants.
   - id: VP-05-003
     priority: MUST
     kind: protocol
@@ -458,9 +463,19 @@ groups:
     kind: protocol
     statement: Receivers SHOULD accept any embargo proposed by Reporters
   - id: VP-06-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Participants SHOULD explicitly accept or reject embargo proposals within the
+      period defined in their VDP or within 14 calendar days of receipt, whichever
+      is shorter.
+  - id: VP-06-004b
     priority: SHOULD_NOT
     kind: protocol
-    statement: 'Split into two requirements: (a) ''Participants SHOULD explicitly accept or reject embargo proposals within the period defined in their VDP or within 14 calendar days of receipt, whichever is shorter.''; (b) ''Embargo agreement or rejection SHOULD NOT be tacit.'''
+    statement: Embargo agreement or rejection SHOULD NOT be tacit.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-06-004
   - id: VP-06-005
     priority: SHOULD
     kind: protocol
@@ -479,9 +494,20 @@ groups:
       Submitting a report when an embargo proposal is pending ($q^{em} \in P$) SHALL be construed
       as the Sender's acceptance of the proposed terms
   - id: VP-06-008
+    priority: MAY
+    kind: protocol
+    statement: >-
+      CVD Participants MAY propose or accept a new embargo when
+      $q^{cs} \in VFdpxa$.
+  - id: VP-06-008b
     priority: SHOULD
     kind: protocol
-    statement: 'Split into two requirements with separate priority fields: (a) priority MAY — ''CVD Participants MAY propose or accept a new embargo when $q^{cs} \in VFdpxa$.''; (b) priority SHOULD — ''Any embargo accepted when $q^{cs} \in VFdpxa$ SHOULD be brief and used only to allow Participants to prepare for timely publication or deployment.'''
+    statement: >-
+      Any embargo accepted when $q^{cs} \in VFdpxa$ SHOULD be brief and used only
+      to allow Participants to prepare for timely publication or deployment.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-06-008
   - id: VP-06-009
     priority: MAY
     kind: protocol
@@ -799,7 +825,11 @@ groups:
   - id: VP-10-002
     priority: MUST
     kind: protocol
-    statement: 'If a child case following a case split requires an embargo end date earlier than the inherited date, Participants in that child case SHALL notify all Participants in sibling child cases before the earlier end date takes effect, documenting the rationale in the case ledger'
+    statement: >-
+      If a child case following a case split requires an embargo end time earlier than
+      the inherited date, the CASE_MANAGER of that child case SHALL notify the
+      CASE_MANAGERs of all sibling child cases before the earlier end time takes
+      effect, documenting the rationale in the case ledger.
   - id: VP-10-003
     priority: MUST
     kind: protocol
@@ -909,7 +939,27 @@ groups:
   - id: VP-12-002
     priority: SHOULD
     kind: protocol
-    statement: 'Split into three requirements: (a) ''Once attacks are observed ($q^{cs} \in \cdots A$), fix development SHOULD accelerate.''; (b) ''Once attacks are observed, the embargo teardown process SHOULD begin immediately.''; (c) ''Once attacks are observed, publication and deployment SHOULD follow as soon as is practical.'''
+    statement: >-
+      Once attacks are observed ($q^{cs} \in \cdots A$), fix development SHOULD
+      accelerate.
+  - id: VP-12-002b
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Once attacks are observed ($q^{cs} \in \cdots A$), the embargo teardown process
+      SHOULD begin immediately.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-12-002
+  - id: VP-12-002c
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Once attacks are observed ($q^{cs} \in \cdots A$), publication and deployment
+      SHOULD follow as soon as is practical.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-12-002
 - id: VP-13
   title: RM-EM Interactions
   specs:

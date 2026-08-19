@@ -22,7 +22,10 @@ groups:
   - id: MV-01-005
     priority: MUST
     kind: protocol
-    statement: 'Pattern-matching implementation MUST be defensive: it MUST handle missing or null fields without raising unhandled exceptions, MUST treat unrecognized activity types as dispatching to `UNKNOWN`, and MUST NOT propagate internal dispatch errors to callers.'
+    statement: >-
+      The activity-type dispatch implementation MUST be defensive: it MUST handle missing or
+      null fields without raising unhandled exceptions, MUST treat unrecognized activity types
+      as dispatching to `UNKNOWN`, and MUST NOT propagate internal dispatch errors to callers.
 - id: MV-02
   title: Schema Validation
   specs:

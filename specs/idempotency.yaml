@@ -93,4 +93,7 @@ groups:
   - id: ID-05-003
     priority: SHOULD
     kind: architecture
-    statement: 'Handlers SHOULD provide the final idempotency guarantee via state checks.'
+    statement: >-
+      Use-case handlers SHOULD verify that an incoming activity has not already been applied by
+      inspecting the current domain state before executing any transitions, serving as the final
+      idempotency guard when earlier filtering layers have not already rejected the duplicate.

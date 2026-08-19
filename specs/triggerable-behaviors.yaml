@@ -71,14 +71,21 @@ groups:
   - id: TRIG-02-007
     priority: SHOULD
     kind: protocol
-    statement: 'The following role delegation behaviors SHOULD be individually triggerable via the trigger API: offer-case-manager-role, offer-case-participant-role, offer-case-ownership-transfer, accept-case-ownership-transfer'
+    statement: >-
+      Actors holding the CASE_OWNER role SHOULD be able to trigger the following role
+      delegation behaviors via the trigger API: offer-case-manager-role,
+      offer-case-participant-role, offer-case-ownership-transfer,
+      accept-case-ownership-transfer.
 - id: TRIG-03
   title: Request Body
   specs:
   - id: TRIG-03-001
     priority: MUST
     kind: project
-    statement: 'The trigger endpoint request body MUST be a JSON object. Common fields: case_id (string URI, required for case-scoped behaviors); offer_id (string URI, required for offer-response behaviors such as validate-report, accept-case-invite, and reject-case-invite); note (string, optional for most behaviors; MUST be present and non-empty for reject-report per TRIG-03-004); end_time (ISO 8601 datetime string with UTC offset, required for propose-embargo and propose-embargo-revision). Behavior-specific additional required fields (e.g., report_name + report_content + recipient_id for submit-report; object_id for add-object-to-case; invitee_id for invite-actor-to-case) are defined per behavior in the API schema.'
+    statement: >-
+      Each trigger request body MUST include at least one of `case_id` (for
+      case-scoped behaviors) or `offer_id` (for offer-response behaviors).
+      Full per-behavior field requirements are defined in the API schema.
   - id: TRIG-03-002
     priority: MUST
     kind: project

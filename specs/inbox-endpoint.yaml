@@ -43,7 +43,10 @@ groups:
   - id: IE-03-002
     priority: MUST
     kind: protocol
-    statement: 'The endpoint MUST enforce a maximum request body size of [N] bytes; requests exceeding this limit MUST be rejected with HTTP 413. The maximum size MUST be configurable and MUST default to no more than [N] MB.'
+    statement: >-
+      The endpoint MUST enforce a configurable maximum request body size; requests exceeding this
+      limit MUST be rejected with HTTP 413. The default maximum MUST be documented in the deployment
+      configuration reference.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-02-001

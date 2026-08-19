@@ -52,16 +52,25 @@ groups:
   - id: IO-02-001
     priority: MUST
     kind: project
-    statement: 'IO-02-001: The inbox orchestration module MUST be located at vultron/core/behaviors/inbox/.
-IO-02-001b: The inbox orchestration module MUST NOT import from vultron/adapters/ or any web framework package.'
+    statement: The inbox orchestration module MUST be located at `vultron/core/behaviors/inbox/`.
     rationale: Placement in core/ satisfies the hexagonal architecture constraint (ADR-0009 Rule 1) and enables the module
       to be used by FastAPI, CLI, and test adapters equally.
     tags:
     - code-style
-    - code-style
     references:
     - docs/adr/0009-hexagonal-architecture.md
     - docs/adr/0020-inbox-bt-orchestration.md
+    adr:
+    - ADR-0009
+  - id: IO-02-001b
+    priority: MUST_NOT
+    kind: project
+    statement: The inbox orchestration module MUST NOT import from `vultron/adapters/` or any web framework package.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-02-001
+    tags:
+    - code-style
     adr:
     - ADR-0009
   - id: IO-02-002
@@ -78,15 +87,25 @@ IO-02-001b: The inbox orchestration module MUST NOT import from vultron/adapters
   - id: IO-02-003
     priority: MUST
     kind: project
-    statement: 'IO-02-003: The process_payload function MUST be the sole caller-facing entry point of the inbox orchestration module.
-IO-02-003b: Intermediate BT nodes used internally by process_payload MUST NOT be exported as public API symbols.'
+    statement: The `process_payload` function MUST be the sole caller-facing entry point of the inbox orchestration module.
     rationale: Encapsulating intermediate steps preserves depth and prevents shallow reimplementations of parts of the pipeline.
     tags:
     - protocol
-  - id: IO-02-004
-    priority: MUST
+  - id: IO-02-003b
+    priority: MUST_NOT
     kind: project
-    statement: The BT module MUST NOT instantiate or call a use-case class directly inside a BT node update() method.
+    statement: >-
+      Intermediate behavior-tree nodes used internally by `process_payload` MUST NOT be exported as
+      public API symbols.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-02-003
+    tags:
+    - protocol
+  - id: IO-02-004
+    priority: MUST_NOT
+    kind: project
+    statement: The inbox orchestration module MUST NOT instantiate or call a use-case class directly inside a behavior-tree node `update()` method.
     rationale: Use cases create BTs; BT nodes are leaves. Calling a use case from a node creates a prohibited BT-UseCase-BT
       chain (BT-06-006).
     tags:
@@ -104,28 +123,46 @@ IO-02-003b: Intermediate BT nodes used internally by process_payload MUST NOT be
       make the module shallow again.
     tags:
     - tooling
-    - tooling
     references:
     - docs/adr/0020-inbox-bt-orchestration.md
   - id: IO-03-002
     priority: MUST
     kind: project
-    statement: 'IO-03-002: Pending-queue management MUST be provided to the BT module via an injected port dependency.
-IO-03-002b: The BT module MUST NOT access pending-queue storage directly from vultron/adapters/.'
+    statement: Pending-queue management MUST be provided to the inbox orchestration module via an injected port dependency.
     rationale: Injecting the pending-queue port keeps core/ free of adapter dependencies and aligns with hexagonal architecture.
     tags:
     - tooling
+    - code-style
+  - id: IO-03-002b
+    priority: MUST_NOT
+    kind: project
+    statement: The inbox orchestration module MUST NOT access pending-queue storage directly from `vultron/adapters/`.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-03-002
+    tags:
     - tooling
     - code-style
   - id: IO-03-003
     priority: MUST
     kind: project
-    statement: 'IO-03-003: The FastAPI inbox path MUST supply adapter implementations to process_payload at construction time.
-IO-03-003b: The FastAPI inbox path MUST NOT contain inbox policy logic; all such logic MUST reside in the core inbox orchestration module.'
+    statement: The FastAPI inbox path MUST supply adapter implementations to `process_payload` at construction time.
     rationale: Policy logic in the router violates ADR-0009 Rule 1 and makes the orchestration untestable without a running
       FastAPI app.
     tags:
     - tooling
+    adr:
+    - ADR-0009
+  - id: IO-03-003b
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The FastAPI inbox path MUST NOT contain inbox policy logic; all such logic MUST reside in the
+      core inbox orchestration module.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-03-003
+    tags:
     - tooling
     adr:
     - ADR-0009
@@ -135,20 +172,45 @@ IO-03-003b: The FastAPI inbox path MUST NOT contain inbox policy logic; all such
   - id: IO-04-001
     priority: MUST
     kind: project
-    statement: 'IO-04-001: process_payload MUST always return an InboxOutcome instance, regardless of payload validity.
-IO-04-001b: process_payload MUST NOT raise an exception for protocol-invalid payloads; all error conditions MUST be encoded in the returned InboxOutcome.'
+    statement: >-
+      `process_payload` MUST always return an `InboxOutcome` instance, regardless of payload
+      validity.
     rationale: Typed outcomes allow callers to handle all cases uniformly without exception-driven control flow at the integration
       boundary.
+    tags:
+    - protocol
+    - error-handling
+  - id: IO-04-001b
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      `process_payload` MUST NOT raise an exception for protocol-invalid payloads; all error
+      conditions MUST be encoded in the returned `InboxOutcome`.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-04-001
     tags:
     - protocol
     - error-handling
   - id: IO-04-002
     priority: MUST
     kind: project
-    statement: 'IO-04-002: Tests for process_payload MUST assert on InboxOutcome.status and InboxOutcome.failure_reason fields.
-IO-04-002b: Tests for process_payload MUST NOT patch internal BT node helper methods to verify pipeline behavior.'
+    statement: >-
+      Tests for `process_payload` MUST assert on `InboxOutcome.status` and
+      `InboxOutcome.failure_reason` fields.
     rationale: Interface-level test assertions are resilient to internal refactors and validate the contract rather than the
       implementation.
+    tags:
+    - testing
+  - id: IO-04-002b
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Tests for `process_payload` MUST NOT patch internal behavior-tree node helper methods to
+      verify pipeline behavior.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-04-002
     tags:
     - testing
   - id: IO-04-003
