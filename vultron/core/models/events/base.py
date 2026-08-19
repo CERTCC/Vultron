@@ -10,7 +10,11 @@ from enum import StrEnum, auto
 from pydantic import BaseModel
 
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.base import (
+    NonEmptyString,
+    ValidatedAssignmentMixin,
+    VultronObject,
+)
 
 
 class MessageSemantics(StrEnum):
@@ -84,7 +88,7 @@ class MessageSemantics(StrEnum):
     REJECT_CASE_PROPOSAL = auto()
 
 
-class VultronEvent(BaseModel):
+class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     """Base domain event produced from an inbound wire-format activity.
 
     ``VultronEvent`` is the semantic event type used for dispatching within

@@ -26,10 +26,14 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronBase
+from vultron.core.models.base import (
+    NonEmptyString,
+    ValidatedAssignmentMixin,
+    VultronBase,
+)
 
 
-class DeadLetterRecord(VultronBase):
+class DeadLetterRecord(ValidatedAssignmentMixin, VultronBase):
     """Record of an inbox activity whose ``object_`` URI could not be resolved.
 
     Attributes:

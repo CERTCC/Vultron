@@ -25,6 +25,8 @@ Design: ADR-0036, spec: specs/status-dimension-objects.yaml (SDO-01 to SDO-04).
 
 from pydantic import BaseModel, field_serializer, field_validator
 
+from vultron.core.models.base import ValidatedAssignmentMixin
+
 from vultron.core.states.cs import (
     CS_pxa,
     CS_vfd,
@@ -128,7 +130,7 @@ def _apply_transition(
     )
 
 
-class EmDimension(BaseModel):
+class EmDimension(ValidatedAssignmentMixin, BaseModel):
     """Embargo Management state dimension object.
 
     Holds the case-level EM state and owns immutable transition validation.
@@ -169,7 +171,7 @@ class EmDimension(BaseModel):
         return self.state == EM.NONE
 
 
-class PxaDimension(BaseModel):
+class PxaDimension(ValidatedAssignmentMixin, BaseModel):
     """PXA (public/exploit/attacks) case state dimension object.
 
     Holds the participant-agnostic public state and owns immutable transition
@@ -211,7 +213,7 @@ class PxaDimension(BaseModel):
         return self.state == CS_pxa.pxa
 
 
-class RmDimension(BaseModel):
+class RmDimension(ValidatedAssignmentMixin, BaseModel):
     """Report Management state dimension object.
 
     Holds the per-participant RM state and owns immutable transition validation.
@@ -252,7 +254,7 @@ class RmDimension(BaseModel):
         return self.state == RM.CLOSED
 
 
-class VfdDimension(BaseModel):
+class VfdDimension(ValidatedAssignmentMixin, BaseModel):
     """VFD (vendor/fix/deploy) vendor fix path dimension object.
 
     Holds the per-participant vendor fix path state and owns immutable
@@ -291,7 +293,7 @@ class VfdDimension(BaseModel):
         return self.state in VFD_FIX_DEPLOYED
 
 
-class PecDimension(BaseModel):
+class PecDimension(ValidatedAssignmentMixin, BaseModel):
     """Participant Embargo Consent dimension object.
 
     Holds a single participant's embargo consent state and owns immutable
