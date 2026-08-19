@@ -345,7 +345,7 @@ class Record(StorableRecord):
         Returns:
             Record: The created Record.
         """
-        if obj.type_.startswith("as_"):
+        if obj.type_ is None or obj.type_.startswith("as_"):
             raise ValueError(
                 "Object 'type_' attribute cannot start with 'as_' for Record conversion"
             )

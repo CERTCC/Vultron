@@ -130,11 +130,12 @@ class VulnerabilityCase(CoreObject):
                     data["published"] = published_val
                 except (ValueError, TypeError):
                     published_val = None
-            data["genesis_hash"] = compute_genesis_hash(
-                case_id=case_id,
-                created_at=published_val,
-                case_actor_id=attributed_to,
-            )
+            if published_val is not None:
+                data["genesis_hash"] = compute_genesis_hash(
+                    case_id=case_id,
+                    created_at=published_val,
+                    case_actor_id=attributed_to,
+                )
         if attributed_to and not data.get("genesis_hash"):
             case_id = data.get("id") or data.get("id_") or "<unknown>"
             raise VultronValidationError(
