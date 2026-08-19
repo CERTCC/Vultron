@@ -157,9 +157,29 @@ class ActorCreateRequest(BaseModel):
     operation_id="actors_create",
 )
 def create_actor(request: ActorCreateRequest):
-    """Create (or return existing) actor record in that actor's own store."""
-    actor_id = request.id_ or make_id("actors")
-    datalayer = get_datalayer(actor_hosts.canonical_actor_uri(actor_id))
+    """Create (or return existing) actor record in that actor's own store.
+
+    An actor is a process with API endpoints, and its id **is** the URL that
+    reaches it: an actor this node hosts is named
+    ``{base_url}/actors/{slug}``, and its inbox is ``{id}/inbox``. So the id is
+    canonicalized *before* the record is built, not only when choosing the store.
+
+    Previously an unspecified id defaulted to ``make_id("actors")``, a
+    ``urn:uuid:`` value that addresses nothing. The store was then opened under
+    the canonical form while the record kept the urn, so the actor's own id did
+    not name the endpoint that served it and ``GET /actors/{slug}`` could not find
+    it.
+
+    A client-supplied id under another authority is not rejected here, but note
+    that it names a process *elsewhere* — a peer, whose address a hosted actor may
+    know (ADR-0066 decision 5). It is canonicalized to this node's namespace
+    rather than adopted verbatim, because this node cannot serve an endpoint it
+    does not own.
+    """
+    actor_id = actor_hosts.canonical_actor_uri(
+        request.id_ or make_id("actors")
+    )
+    datalayer = get_datalayer(actor_id)
 
     # Idempotency: return existing record unchanged.
     existing = _find_actor_record(datalayer, actor_id)

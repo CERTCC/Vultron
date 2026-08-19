@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.app import app_v2 as app
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driving.fastapi.inbox_pipeline import (
     InboxPipeline,
     build_test_pipeline,
@@ -40,24 +41,22 @@ def client(datalayer):
 
 
 @pytest.fixture
-def dl_actor_id():
-    """The actor whose store the ``datalayer`` fixture is.
-
-    Canonical under the node's own ``base_url``, because the actor routes resolve
-    a URL path segment to an actor URI by *computation* (ADR-0066).  An id under
-    some other authority cannot be addressed on this node at all — it names an
-    actor this node does not host — so a non-canonical id makes every
-    ``/actors/{segment}/...`` request 404 regardless of what is in the store.
-    """
-    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
-
-    return canonical_actor_uri("test-actor")
+def dl_route_key():
+    """The URL path segment addressing this test's actor."""
+    return "test-actor"
 
 
 @pytest.fixture
-def dl_route_key(dl_actor_id):
-    """The URL path segment addressing ``dl_actor_id``."""
-    return dl_actor_id.rstrip("/").rsplit("/", 1)[-1]
+def dl_actor_id(dl_route_key):
+    """The actor whose store the ``datalayer`` fixture is.
+
+    An actor is a process with API endpoints and its id *is* the URL that reaches
+    it, so a hosted actor is named ``{base_url}/actors/{slug}`` with its inbox at
+    ``{id}/inbox``. Deriving the id from the slug keeps the two in step; an id
+    under some other authority names a process elsewhere and cannot be addressed
+    here at all.
+    """
+    return canonical_actor_uri(dl_route_key)
 
 
 @pytest.fixture
