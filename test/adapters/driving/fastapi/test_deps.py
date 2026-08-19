@@ -15,12 +15,20 @@
 
 """Unit tests for shared FastAPI dependency providers (deps.py).
 
-Covers ARCH-13-003 and ARCH-13-004:
+Covers ARCH-13-003 — a DataLayer's ``actor_id`` is the actor's canonical URI, not
+a short id or path segment:
 
-- ``get_canonical_actor_dl()`` resolves short IDs to canonical URIs so that
-  actor-scoped DataLayer instances are keyed by the full canonical URI.
-- The canonical-URI-keyed DL can read outbox entries written by
-  ``record_outbox_item`` (BUG-2026040901 regression).
+- ``get_canonical_actor_dl()`` resolves a path segment to the canonical URI, so
+  the store it opens is keyed by that URI.
+- That store can read the outbox entries the same actor wrote (BUG-2026040901
+  regression).
+
+ARCH-13-004 is no longer covered here: it required the ``actor_id`` passed to
+``record_outbox_item`` to match the one the reading DataLayer was constructed
+with, and both that method and the mismatch it guarded against are gone
+(ADR-0066). ARCH-13-003's own wording still names ``ActorScopedDataLayer`` and
+``record_outbox_item``; its *statement* survives the change but its phrasing
+needs the Phase 6 amendment.
 """
 
 import pytest
@@ -41,11 +49,30 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 
 
 @pytest.fixture()
-def shared_dl() -> SqliteDataLayer:
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+def myactor_dl() -> SqliteDataLayer:
+    """The addressed actor's own in-memory store.
+
+    Formerly named for the shared DataLayer and scoped to a generic marker actor
+    — a name and a scope that both outlived it.  It has to be *this* actor's
+    store: ``get_canonical_actor_dl`` resolves the path segment to the canonical
+    URI and asks ``get_datalayer`` for that actor, so seeding somewhere else left
+    the setup inert and any read-back assertion looking at an empty queue.
+
+    Created through ``get_datalayer`` rather than a bare constructor so the
+    dependency's own factory call finds this in-memory instance instead of
+    resolving the configured on-disk URL.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import (
+        get_datalayer,
+        reset_datalayer,
     )
+
+    reset_datalayer(CANONICAL_URI)
+    dl = get_datalayer(CANONICAL_URI, db_url="sqlite:///:memory:")
+    dl.clear_all()
+    yield dl
+    dl.clear_all()
+    reset_datalayer(CANONICAL_URI)
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +81,7 @@ def shared_dl() -> SqliteDataLayer:
 
 
 def test_get_canonical_actor_dl_actor_found_via_read(
-    shared_dl: SqliteDataLayer,
+    myactor_dl: SqliteDataLayer,
 ) -> None:
     """AC-1a: Actor found via dl.read() — DL is scoped to canonical URI.
 
@@ -62,7 +89,7 @@ def test_get_canonical_actor_dl_actor_found_via_read(
     the actor directly and ``clone_for_actor`` is called with that URI.
     """
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
-    shared_dl.save(actor)
+    myactor_dl.save(actor)
 
     result: DataLayer = get_canonical_actor_dl(actor_id=CANONICAL_URI)
 
@@ -71,7 +98,7 @@ def test_get_canonical_actor_dl_actor_found_via_read(
 
 
 def test_get_canonical_actor_dl_actor_found_via_short_id(
-    shared_dl: SqliteDataLayer,
+    myactor_dl: SqliteDataLayer,
 ) -> None:
     """AC-1b: Actor found via dl.find_actor_by_short_id() fallback.
 
@@ -81,7 +108,7 @@ def test_get_canonical_actor_dl_actor_found_via_short_id(
     canonical URI, not the short ID (ARCH-13-003).
     """
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
-    shared_dl.save(actor)
+    myactor_dl.save(actor)
 
     result: DataLayer = get_canonical_actor_dl(actor_id=SHORT_ID)
 
@@ -93,7 +120,7 @@ def test_get_canonical_actor_dl_actor_found_via_short_id(
 
 
 def test_get_canonical_actor_dl_actor_not_found_falls_back_to_raw_param(
-    shared_dl: SqliteDataLayer,
+    myactor_dl: SqliteDataLayer,
 ) -> None:
     """AC-1c: Actor not found — DL falls back to raw actor_id path param.
 
@@ -147,19 +174,22 @@ def test_one_actor_has_exactly_one_queue_regardless_of_spelling() -> None:
 
 
 def test_get_canonical_actor_dl_resolves_canonical_uri_for_queue_reads(
-    shared_dl: SqliteDataLayer,
+    myactor_dl: SqliteDataLayer,
 ) -> None:
     """AC-3b: get_canonical_actor_dl() returns a DL that can read the outbox.
 
-    Regression for BUG-2026040901 (ARCH-13-003, ARCH-13-004): when the URL
-    path carries a short UUID, ``get_canonical_actor_dl()`` must resolve it
-    to the canonical URI so that subsequent ``outbox_list()`` calls read the
-    same queue bucket that ``record_outbox_item`` wrote to.
+    Regression for BUG-2026040901: when the URL path carries a short segment,
+    ``get_canonical_actor_dl()`` must resolve it to the canonical URI so that
+    ``outbox_list()`` reads the queue that actor's own writes went to.
+
+    The test above asserts the same property of the ``get_datalayer`` factory;
+    this one asserts it of the FastAPI dependency, which is the path a request
+    actually takes.
     """
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
-    shared_dl.save(actor)
+    myactor_dl.save(actor)
 
-    shared_dl.outbox_append(activity_id=ACTIVITY_ID)
+    myactor_dl.outbox_append(activity_id=ACTIVITY_ID)
 
     actor_dl: DataLayer = get_canonical_actor_dl(actor_id=SHORT_ID)
 

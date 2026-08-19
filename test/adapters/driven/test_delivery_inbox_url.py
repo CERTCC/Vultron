@@ -91,15 +91,25 @@ def test_inbox_url_contains_actor_uuid():
 def test_derived_inbox_path_matches_fastapi_route(dl):
     """G6: POST to derived inbox path returns 202, not 404.
 
-    Creates an actor whose id_ matches the Docker-style full URI
-    (``http://finder:7999/api/v2/actors/{uuid}``), derives the inbox URL,
-    strips the container base URL prefix to get the path relative to the
-    mounted app_v2, and verifies the FastAPI actors router accepts a POST
-    to that path.
+    Creates an actor this node hosts, derives its inbox URL with the delivery
+    adapter's formula, reduces that to the path the mounted app_v2 sees, and
+    verifies the FastAPI actors router accepts a POST to it.  What is under test
+    is that the two agree on the route shape.
     """
+    # The actor has to be one *this* node could host.  A trigger route resolves
+    # its path segment by computation — ``base_url + "actors/" + segment``
+    # (ADR-0066 decision 2) — so an id under another authority, like the
+    # ``http://finder:7999`` one the derivation tests above use, resolves to a
+    # different actor and the POST 404s for a reason that has nothing to do with
+    # the route shape this test is checking.  The derivation tests keep the remote
+    # id, because deriving an inbox URL for a remote recipient is exactly what
+    # delivery does.
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+    local_actor_id = canonical_actor_uri(_ACTOR_UUID)
     actor = as_Organization(
         name="Finder",
-        id_=_ACTOR_ID,
+        id_=local_actor_id,
     )
     dl.create(object_to_record(actor))
 
@@ -111,13 +121,16 @@ def test_derived_inbox_path_matches_fastapi_route(dl):
     client = TestClient(app, raise_server_exceptions=False)
 
     # Derive inbox URL using the same formula as HttpDeliveryAdapter.
-    inbox_url = _derive_inbox_url(_ACTOR_ID)
+    inbox_url = _derive_inbox_url(local_actor_id)
 
-    # Strip the container prefix to get the path relative to app_v2.
-    # app_v2 is mounted at /api/v2, so the remaining path is /actors/{uuid}/inbox/
+    # Reduce to the path the mounted app_v2 sees. The base URL may carry a path
+    # prefix (``/api/v2`` in the container images), so strip whatever it has
+    # rather than a hard-coded one.
     parsed = urlparse(inbox_url)
-    # path = /api/v2/actors/{uuid}/inbox/ → relative to app_v2: /actors/{uuid}/inbox/
-    path_relative_to_app_v2 = parsed.path.removeprefix("/api/v2")
+    base_path = urlparse(local_actor_id).path.removesuffix(
+        f"/actors/{_ACTOR_UUID}"
+    )
+    path_relative_to_app_v2 = parsed.path.removeprefix(base_path)
 
     # POST a minimal activity to the derived inbox path.
     activity = as_Activity(actor=_ACTOR_ID)

@@ -83,6 +83,26 @@ def datalayer(dl_actor_id):
 
 
 @pytest.fixture
+def hosted_actor(datalayer, dl_actor_id):
+    """Seed the addressed actor's own record into its own store.
+
+    Every route under ``/actors/{actor_id}/`` resolves the actor before serving
+    anything and answers ``404 Actor not found`` otherwise, so a test addressing
+    one needs its record to exist.  An actor's own record living in its own store
+    is the Actor Knowledge Model, so this is setup those routes are entitled to
+    expect.
+
+    Opt-in rather than part of ``datalayer``: some tests in this package assert
+    on an *empty* store, and seeding unconditionally would change what they see.
+    """
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    actor = as_Service(id_=dl_actor_id, name="Hosted Test Actor")
+    datalayer.create(actor)
+    return actor
+
+
+@pytest.fixture
 def test_pipeline() -> (
     Generator[tuple[InboxPipeline, SqliteDataLayer], None, None]
 ):
