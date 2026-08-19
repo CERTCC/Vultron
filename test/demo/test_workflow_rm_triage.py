@@ -24,7 +24,6 @@ These tests assert causal ordering (x happens THEREFORE y happens), not mere
 sequence, so the fix cannot silently regress to a case-object-presence proxy.
 """
 
-import contextlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -44,18 +43,6 @@ def actors():
     case = MagicMock()
     case.id_ = "urn:uuid:case-1"
     return receiver, receiver_client, offer, case
-
-
-def _nullcontext(_msg):
-    # Patched in place of demo_check: these tests verify call ordering and
-    # argument shapes using mocks, not context-manager control flow.
-    # demo_gate/demo_check behaviour is covered by test_demo_context_managers.py.
-    # Note: test_engage_not_called_when_rm_valid_never_commits additionally needs
-    # nullcontext because real demo_check suppresses the AssertionError that
-    # pytest.raises expects to catch.  This patch becomes removable once
-    # run_direct_path_rm_triage is migrated to demo_gate (dependent steps inside
-    # the gate block) — see blocking issues #2202/#2203/#2204.
-    return contextlib.nullcontext()
 
 
 def test_engage_gated_on_receivers_own_rm_valid(actors):
@@ -91,7 +78,6 @@ def test_engage_gated_on_receivers_own_rm_valid(actors):
             workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
         patch.object(workflow, "receiver_engages_case", side_effect=_engage),
-        patch.object(workflow, "demo_check", side_effect=_nullcontext),
     ):
         result = workflow.run_direct_path_rm_triage(
             receiver_client=receiver_client,
@@ -126,13 +112,11 @@ def test_engage_not_called_when_rm_valid_never_commits(actors):
         patch.object(
             workflow, "receiver_engages_case", side_effect=engage_called
         ),
-        patch.object(workflow, "demo_check", side_effect=_nullcontext),
     ):
-        with pytest.raises(AssertionError, match="RM.VALID"):
-            workflow.run_direct_path_rm_triage(
-                receiver_client=receiver_client,
-                receiver=receiver,
-                offer=offer,
-            )
+        workflow.run_direct_path_rm_triage(
+            receiver_client=receiver_client,
+            receiver=receiver,
+            offer=offer,
+        )
 
     engage_called.assert_not_called()
