@@ -314,8 +314,22 @@ class BTTestScenario:
 
 
 @pytest.fixture
-def bt_scenario() -> BTTestScenario:
-    """Return a BTTestScenario with a fresh in-memory DataLayer."""
+def bt_scenario(request) -> BTTestScenario:
+    """Return a BTTestScenario whose store belongs to the acting actor.
+
+    A test that runs its tree as somebody other than the default declares it with
+    ``@pytest.mark.executes_as(ACTOR)``. The scenario then opens *that* actor's
+    store, because a BT's store follows its executing actor (ADR-0066) — seeding
+    one actor's store and executing as another leaves the tree reading an empty
+    one, and in a multi-actor scenario it is what hides missing-write defects.
+
+    Declaring it on the test rather than threading a parameter through every
+    fixture keeps the whole chain consistent and puts the declaration where a
+    reader looks for it.
+    """
+    marker = request.node.get_closest_marker("executes_as")
+    if marker and marker.args:
+        return BTTestScenario(marker.args[0])
     return BTTestScenario()
 
 

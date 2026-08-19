@@ -62,6 +62,7 @@ def _seed_case_with_manager(bt_scenario: BTTestScenario) -> None:
     bt_scenario.seed(manager_participant, vendor_participant, case)
 
 
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_calls_commit_for_case_manager(
     bt_scenario: BTTestScenario,
 ) -> None:
