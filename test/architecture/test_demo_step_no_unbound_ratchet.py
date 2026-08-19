@@ -49,15 +49,18 @@ _GUARDED_CMS = {"demo_step", "demo_check"}
 
 
 def _cm_name(with_stmt: ast.With) -> str | None:
-    """Return the context-manager function name, or None if not recognisable."""
+    """Return the guarded CM name if any with-item is a guarded CM, else None."""
     for item in with_stmt.items:
         ctx = item.context_expr
         if isinstance(ctx, ast.Call):
             fn = ctx.func
-            if isinstance(fn, ast.Name):
-                return fn.id
-            if isinstance(fn, ast.Attribute):
-                return fn.attr
+            name = (
+                fn.id
+                if isinstance(fn, ast.Name)
+                else fn.attr if isinstance(fn, ast.Attribute) else None
+            )
+            if name in _GUARDED_CMS:
+                return name
     return None
 
 
