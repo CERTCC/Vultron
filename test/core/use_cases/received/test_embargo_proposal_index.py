@@ -181,10 +181,8 @@ class TestProposeTriggerRecordsIndex:
         )
 
         actor_id = "https://example.org/actors/coordinator"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The store belongs to the actor these trees execute as.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
         actor = as_Service(id_=actor_id, name="Coordinator")
         dl.create(actor)

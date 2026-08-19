@@ -58,11 +58,13 @@ def _make_embargo_case_with_actor(
         as_CaseParticipant,
     )
 
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
     case_actor_id = f"{case_id}/actor"
+    # The cascade commits to the canonical ledger, and CommitCaseLedgerEntryNode
+    # is role-gated to the CASE_MANAGER (CLP-09), so the tree must run as — and
+    # therefore in the store of — whoever holds that role here. That is
+    # `case_manager_actor_id` when a test names one, otherwise the case actor.
+    ledger_holder_id = case_manager_actor_id or case_actor_id
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ledger_holder_id)
 
     case_actor = VultronCaseActor(
         id_=case_actor_id,
@@ -134,7 +136,7 @@ class TestEmbargoLogEntryCascade:
         activity = add_embargo_to_case_activity(
             embargo, target=case_ref, actor=author_id
         )
-        event = make_payload(activity, receiving_actor_id=case_actor.id_)
+        event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         AddEmbargoEventToCaseReceivedUseCase(
             dl, event, sync_port=sync_port
@@ -161,7 +163,7 @@ class TestEmbargoLogEntryCascade:
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, author_id
+            case_id, author_id, case_manager_actor_id=author_id
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
@@ -173,7 +175,7 @@ class TestEmbargoLogEntryCascade:
         activity = remove_embargo_from_case_activity(
             embargo, origin=case.id_, actor=author_id
         )
-        event = make_payload(activity, receiving_actor_id=case_actor.id_)
+        event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
             dl, event, sync_port=sync_port
@@ -207,7 +209,7 @@ class TestEmbargoLogEntryCascade:
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem_fail"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, author_id
+            case_id, author_id, case_manager_actor_id=author_id
         )
         # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
         case = cast(VulnerabilityCase, dl.read(case.id_))
@@ -218,7 +220,7 @@ class TestEmbargoLogEntryCascade:
         activity = remove_embargo_from_case_activity(
             embargo, origin=case.id_, actor=author_id
         )
-        event = make_payload(activity, receiving_actor_id=case_actor.id_)
+        event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
             dl, event, sync_port=sync_port
@@ -348,7 +350,9 @@ class TestEmbargoLogEntryCascade:
             context=case_id,
             actor=coordinator_id,
         )
-        event = make_payload(reject, receiving_actor_id=case_actor.id_)
+        # coordinator_id holds CASE_MANAGER in this fixture, and the ledger
+        # commit is gated on that role, so it is the receiving actor.
+        event = make_payload(reject, receiving_actor_id=coordinator_id)
         sync_port = SyncActivityAdapter(dl)
         RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, sync_port=sync_port

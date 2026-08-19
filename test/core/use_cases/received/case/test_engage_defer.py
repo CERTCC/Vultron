@@ -44,6 +44,10 @@ class TestEngageDeferCaseBTFailureReason:
     failure reason — not a trailing colon with nothing after it.
     """
 
+    # The received-side tree executes under the case manager
+    # (BT-17-005), so this names the store it runs in.
+    _CASE_MANAGER_ID = "https://example.org/actors/coordinator-failreason"
+
     @pytest.fixture
     def dl(self):
         return SqliteDataLayer(
@@ -138,6 +142,10 @@ class TestEngageCaseStoresEmbeddedParticipants:
     DataLayer records before the BT runs — matching the pattern already
     established for Create (#564) and Announce (#566) paths.
     """
+
+    # The received-side tree executes under the case manager
+    # (BT-17-005), so this names the store it runs in.
+    _CASE_MANAGER_ID = "https://example.org/actors/coordinator-embedded"
 
     _ACTOR_ID = "https://vendor.example.org/actors/vendor"
     _CASE_ID = "https://example.org/cases/case-573-001"
