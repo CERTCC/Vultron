@@ -37,7 +37,6 @@ from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -577,14 +576,85 @@ def report(dl):
 
 
 @pytest.fixture
-def http_actor(dl):
-    """Create a URL-form actor to match demo trigger path behavior."""
-    actor_obj = as_Service(
-        id_="https://example.test/api/v2/actors/vendor-http",
-        name="Vendor Co HTTP",
+def short_id_env(report):
+    """An actor addressable by its short path segment, with its own store.
+
+    A trigger route resolves its ``{actor_id}`` path segment by *computation* —
+    ``base_url + "actors/" + segment``, no registry and no cross-actor scan
+    (ADR-0066 decision 2).  Only an actor whose id already has that shape can be
+    reached by its short id at all.
+
+    That rules out both actors this test used to be written against.  The
+    ``actor`` fixture's id is a ``urn:uuid:``, and the old ``http_actor``'s was
+    under ``https://example.test/…``; either way the segment resolves to a
+    *different* actor under this node's base URL, holding a different store.  The
+    test could not have been fixed by scoping a fixture, because the actor it
+    addressed was not addressable here.
+
+    So this derives the id from ``canonical_actor_uri`` and puts the actor, the
+    case and the report in that actor's own store — which is the store the BT
+    writes and therefore the store the outbox assertion must read.
+    """
+    from types import SimpleNamespace
+
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import (
+        get_datalayer,
+        reset_datalayer,
     )
-    dl.create(actor_obj)
-    return actor_obj
+
+    segment = "vendor-http"
+    actor_id = canonical_actor_uri(segment)
+    reset_datalayer(actor_id)
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        """Route per actor, in memory.
+
+        A single fixed store would defeat the routing under test: the point is
+        that the segment selects *which* store, so every actor id must not
+        resolve to the same rows.  Only the backing URL is replaced.
+        """
+        return get_datalayer(
+            canonical_actor_uri(actor_id), db_url="sqlite:///:memory:"
+        )
+
+    store = get_datalayer(actor_id, db_url="sqlite:///:memory:")
+    store.clear_all()
+    actor_obj = as_Service(id_=actor_id, name="Vendor Co HTTP")
+    store.create(actor_obj)
+    store.create(report)
+
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-SHORT-ID")
+    participant = as_CaseParticipant(
+        attributed_to=actor_id, context=case_obj.id_
+    )
+    participant.append_rm_state(
+        RM.RECEIVED, actor=actor_id, context=case_obj.id_
+    )
+    participant.append_rm_state(RM.VALID, actor=actor_id, context=case_obj.id_)
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor_id] = participant.id_
+    store.create(case_obj)
+    store.create(participant)
+    _add_case_manager(case_obj, store)
+
+    app = FastAPI()
+    app.include_router(trigger_case_router.router)
+    app.dependency_overrides[get_trigger_dl] = _in_memory_actor_dl
+    app.dependency_overrides[get_canonical_actor_dl] = _in_memory_actor_dl
+    client = TestClient(app)
+    yield SimpleNamespace(
+        client=client,
+        segment=segment,
+        actor=actor_obj,
+        store=store,
+        case=case_obj,
+        report=report,
+    )
+    app.dependency_overrides = {}
+    reset_datalayer(actor_id)
 
 
 # ===========================================================================
@@ -658,22 +728,21 @@ def test_trigger_create_case_unknown_actor_returns_404(client_triggers):
 
 
 def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
-    client_triggers, dl, http_actor, caplog
+    short_id_env, caplog
 ):
-    """Short actor IDs should still update the canonical actor outbox."""
+    """A short actor id in the path still queues to that actor's own outbox."""
     import logging
 
-    short_uuid = parse_id(http_actor.id_)["object_id"]
-    outbox_before = set(dl.outbox_list())
+    outbox_before = set(short_id_env.store.outbox_list())
 
     with caplog.at_level(logging.WARNING):
-        resp = client_triggers.post(
-            f"/actors/{short_uuid}/trigger/create-case",
+        resp = short_id_env.client.post(
+            f"/actors/{short_id_env.segment}/trigger/create-case",
             json={"name": "Case-001", "content": "Case content"},
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    outbox_after = set(dl.outbox_list())
+    outbox_after = set(short_id_env.store.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records
@@ -755,25 +824,24 @@ def test_trigger_add_report_to_case_unknown_report_returns_404(
 
 
 def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
-    client_triggers, dl, http_actor, case_with_participant, report, caplog
+    short_id_env, caplog
 ):
-    """Short actor IDs should not break add-report outbox updates."""
+    """A short actor id in the path does not break add-report outbox updates."""
     import logging
 
-    short_uuid = parse_id(http_actor.id_)["object_id"]
-    outbox_before = set(dl.outbox_list())
+    outbox_before = set(short_id_env.store.outbox_list())
 
     with caplog.at_level(logging.WARNING):
-        resp = client_triggers.post(
-            f"/actors/{short_uuid}/trigger/add-report-to-case",
+        resp = short_id_env.client.post(
+            f"/actors/{short_id_env.segment}/trigger/add-report-to-case",
             json={
-                "case_id": case_with_participant.id_,
-                "report_id": report.id_,
+                "case_id": short_id_env.case.id_,
+                "report_id": short_id_env.report.id_,
             },
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    outbox_after = set(dl.outbox_list())
+    outbox_after = set(short_id_env.store.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records

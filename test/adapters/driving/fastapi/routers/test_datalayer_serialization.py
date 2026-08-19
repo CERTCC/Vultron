@@ -22,11 +22,13 @@ not just base class fields.
 import pytest
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
+    get_datalayer,
     reset_datalayer as _reset_datalayer,
 )
 from vultron.adapters.driving.fastapi.main import app
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -34,28 +36,60 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
+# The read endpoint is actor-scoped: `/actors/{actor_id}/datalayer/{key}`
+# (ADR-0066 — there is no unscoped `/datalayer/…` view, because it would read
+# across actors).  The path segment resolves to a canonical URI by computation,
+# so the actor these tests address has to be one this node could host: an id
+# under some other authority resolves to a *different* actor, in a different
+# store, and every read 404s.
+ACTOR_SEGMENT = "test-actor"
+ACTOR_ID = canonical_actor_uri(ACTOR_SEGMENT)
+
 
 @pytest.fixture(autouse=True)
 def datalayer():
-    """In-memory datalayer fixture; resets the singleton before and after each test."""
-    _reset_datalayer()
-    dl = get_datalayer(
-        "https://test.example/api/v2/actors/test-actor",
-        db_url="sqlite:///:memory:",
-    )
+    """The addressed actor's own in-memory store, reset around each test.
+
+    The actor object itself is seeded, not just the objects under test: the read
+    endpoint now lives under ``/actors/{actor_id}/``, so it resolves the actor
+    before serving anything and answers ``404 Actor not found`` otherwise.  An
+    actor's own record living in its own store is the Actor Knowledge Model, so
+    this is setup the endpoint is entitled to expect.
+    """
+    _reset_datalayer(ACTOR_ID)
+    dl = get_datalayer(ACTOR_ID, db_url="sqlite:///:memory:")
     dl.clear_all()
+    dl.create(as_Service(id_=ACTOR_ID, name="Test Actor"))
     yield dl
     dl.clear_all()
-    _reset_datalayer()
+    _reset_datalayer(ACTOR_ID)
 
 
 @pytest.fixture
 def client(datalayer):
-    """FastAPI test client with in-memory datalayer injected."""
-    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    """A test client against the real dependency, over the fixture's store.
+
+    There is deliberately no ``dependency_overrides`` here.  Two reasons, and
+    the first is a trap worth naming: ``app`` *mounts* ``app_v2`` at
+    ``/api/v2``, and Starlette does not propagate ``dependency_overrides`` into
+    a mounted sub-app.  Overrides set on ``app`` never fire for any route under
+    ``/api/v2`` — which is why the version of this fixture that overrode
+    ``get_datalayer`` was inert twice over: wrong function *and* wrong app.
+
+    Nothing needs overriding anyway.  The route's real dependency resolves the
+    path segment and asks ``get_datalayer`` for that actor's store, and the
+    ``datalayer`` fixture has already put an in-memory store for exactly that
+    actor in the registry ``get_datalayer`` consults.  Passing ``db_url`` there
+    is the documented alternative to injection, so the store under test is the
+    fixture's without the request path being faked.
+    """
     with TestClient(app) as c:
         yield c
-    app.dependency_overrides.pop(get_datalayer, None)
+
+
+def _dl_url(key: str) -> str:
+    """The actor-scoped datalayer read URL for *key*."""
+    return f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/{key}"
 
 
 def test_get_vulnerability_case_includes_vulnerability_reports_field(
@@ -84,7 +118,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     datalayer.create(case)
 
     # Retrieve via API
-    response = client.get(f"/api/v2/datalayer/{case.id_}")
+    response = client.get(_dl_url(case.id_))
 
     assert response.status_code == 200
     data = response.json()
@@ -120,7 +154,7 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
     datalayer.create(case)
 
     # Retrieve via API
-    response = client.get(f"/api/v2/datalayer/{case.id_}")
+    response = client.get(_dl_url(case.id_))
 
     assert response.status_code == 200
     data = response.json()
@@ -159,7 +193,7 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     datalayer.create(report)
 
     # Retrieve via API
-    response = client.get(f"/api/v2/datalayer/{report.id_}")
+    response = client.get(_dl_url(report.id_))
 
     assert response.status_code == 200
     data = response.json()
@@ -171,18 +205,26 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     assert data["content"] == "Test vulnerability content"
 
 
-def test_test_datalayer_uses_in_memory_storage():
+def test_test_datalayer_uses_in_memory_storage(datalayer):
     """Regression test: the test datalayer must use in-memory storage.
 
     Ensures the autouse fixture forces an in-memory SQLite database so no
     on-disk files are created during the test suite.
+
+    This used to assert only ``isinstance(dl, SqliteDataLayer)``, which is true
+    of a file-backed store too — so it could not have caught the thing its
+    docstring describes.  Worse, it called ``get_datalayer`` without a
+    ``db_url``, so on a cache miss it would resolve the *configured* URL and
+    create the very on-disk file it was meant to rule out.  Assert the engine
+    URL instead, and assert it of the fixture's store rather than a fresh one.
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
-    assert isinstance(dl, SqliteDataLayer), (
-        "Test datalayer must be a SqliteDataLayer. "
-        "Fix the autouse fixture to use get_datalayer(db_url='sqlite:///:memory:')."
+    assert isinstance(datalayer, SqliteDataLayer)
+    engine_url = str(datalayer._engine.url)
+    assert "mode=memory" in engine_url or ":memory:" in engine_url, (
+        f"Test datalayer must be in memory, got {engine_url!r}. "
+        "Fix the autouse fixture to pass db_url='sqlite:///:memory:'."
     )
 
 
