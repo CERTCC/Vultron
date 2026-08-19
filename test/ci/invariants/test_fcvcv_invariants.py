@@ -20,7 +20,7 @@ FCVCV-specific invariants:
 - ``offer_case_participant`` appears at least once (C2 suggests V2 via
   ADR-0026).
 - ``accept_invite_actor_to_case`` appears at least three times.
-- V2 (late joiner via ADR-0026) holds the full ledger from genesis (SYNC-2).
+- V2 (late joiner via ADR-0026) holds the full ledger from genesis (LedgerFanout).
 - C1, V1, C2 are also late joiners whose replicas start from genesis.
 - CS transition VFd observed for both V1 and V2.
 - CS transition VFD observed for V2 only (V1 stops at VFd — DEMOMA-19-004).
@@ -359,9 +359,9 @@ def test_fcvcv_v2_late_joiner_has_full_history(
     """V2 replica holds every logIndex present in C1 (the authoritative actor).
 
     V2 joins via the ADR-0026 path (C2 suggests → C1 approves → CaseActor
-    invites) and must receive the full ledger backfill from CaseActor (SYNC-2).
+    invites) and must receive the full ledger backfill from CaseActor (LedgerFanout).
 
-    Spec: DEMOMA-19-009, SYNC-2.
+    Spec: DEMOMA-19-009, LedgerFanout.
     """
     if not fcvcv_replicas.get("c1") or not fcvcv_replicas.get("v2"):
         pytest.skip(
@@ -380,9 +380,9 @@ def test_fcvcv_c2_late_joiner_has_full_history(
     """C2 replica holds every logIndex present in C1 (the authoritative actor).
 
     C2 joins when C1 invites them; CaseActor must backfill all prior entries
-    (SYNC-2).
+    (LedgerFanout).
 
-    Spec: DEMOMA-19-003, SYNC-2.
+    Spec: DEMOMA-19-003, LedgerFanout.
     """
     if not fcvcv_replicas.get("c1") or not fcvcv_replicas.get("c2"):
         pytest.skip(
@@ -401,9 +401,9 @@ def test_fcvcv_v1_late_joiner_has_full_history(
     """V1 replica holds every logIndex present in C1 (the authoritative actor).
 
     V1 joins when C1 invites them (direct invite, not ADR-0026 path); CaseActor
-    still backfills all prior entries (SYNC-2).
+    still backfills all prior entries (LedgerFanout).
 
-    Spec: DEMOMA-19-003, SYNC-2.
+    Spec: DEMOMA-19-003, LedgerFanout.
     """
     if not fcvcv_replicas.get("c1") or not fcvcv_replicas.get("v1"):
         pytest.skip(

@@ -365,8 +365,8 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Trigger Use Cases Need Per-Use-Case Tests** — incidental coverage via
   `test_trignotify.py` is insufficient. See
   [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
-- **Hash-Chain Ledger Record vs. Domain Model** — `HashChainLedgerRecord` (in-memory
-  SYNC-1) vs. `CaseLedgerEntry` (wire-serializable). Import by full module path.
+- **Hash-Chain Ledger Record vs. Domain Model** — `HashChainLedgerRecord` (AppendOnlyLedger
+  phase, in-memory) vs. `CaseLedgerEntry` (wire-serializable). Import by full module path.
   See ARCH-12-007.
 - **Case Ledger Is Not a Process Log** — only CaseActor-accepted protocol-significant
   assertions; `payloadSnapshot` MUST NOT be empty. See ADR-0019, CLP-07,
@@ -765,6 +765,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   > /tmp/unit.log 2>&1; echo $?`. The spec-lint test
   (`test_real_specs_lint_no_hard_errors`) is particularly load-sensitive at ~3s
   against the 5s budget. *Source: ISSUE-2232*
+- **Never Restate Counts in Cross-References or Long-Lived Docs** — when a
+  spec entry, notes file, or AGENTS.md pitfall cross-references another spec,
+  omit the count: write "the universal types (DEMOMA-16-001)" not "the five
+  universal types (DEMOMA-16-001)". Counts drift silently when the authoritative
+  source is updated — the linter validates that the spec ID resolves, not the
+  prose next to it. The same applies to any long-lived doc: avoid counts like
+  "there are 4 unimplemented nodes" or "15 xfails" — these are stale snapshots.
+  See MS-16-001 and [notes/specs-vs-adrs.md](notes/specs-vs-adrs.md).
+  *Source: CONCERN-2277*
 
 ---
 

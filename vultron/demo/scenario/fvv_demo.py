@@ -18,7 +18,7 @@
 Orchestrates the full VFDPxa lifecycle across separate Finder, Vendor1,
 and Vendor2 containers with no coordinator.  Vendor1 creates the case and
 invites both Finder and Vendor2; each vendor has an independent fix path
-(CS_vfd).  Vendor2's DataLayer is verified as a SYNC-2 replica of the
+(CS_vfd).  Vendor2's DataLayer is verified as a LedgerFanout replica of the
 authoritative Vendor1 state.
 
 Spec: D5-5 (GitHub issue #1265).
@@ -164,6 +164,7 @@ def _phase_report_submission(
         vendor2_client=vendor2_client,
     )
 
+    finder = vendor = vendor2 = None
     with demo_step("Seeding all three containers with actor records"):
         finder, vendor, vendor2 = seed_containers_fvv(
             finder_client=finder_client,
@@ -300,7 +301,7 @@ def _phase_sync_verification(
     vendor2: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Verify SYNC-2 replication for both Finder and Vendor2 replicas."""
+    """Verify LedgerFanout replication for both Finder and Vendor2 replicas."""
     logger.info("─" * 80)
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
@@ -367,7 +368,7 @@ def _phase_sync_verification(
         )
 
     logger.info(
-        "✓ M2: Finder and Vendor2 DataLayers synchronized (SYNC-2 verified)"
+        "✓ M2: Finder and Vendor2 DataLayers synchronized (LedgerFanout verified)"
     )
 
 

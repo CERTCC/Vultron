@@ -159,7 +159,7 @@ def wait_for_case_participants(
     def _check() -> bool:
         case_data = vendor_client.get(f"/datalayer/{case_id}")
         case = as_VulnerabilityCase(**case_data)
-        return len(case.case_participants) >= expected_count
+        return len(case.actor_participant_index) >= expected_count
 
     _poll_until(
         _check,
@@ -224,7 +224,7 @@ def wait_for_finder_log_entry(
 
     Proves that the vendor's ``Announce(CaseLedgerEntry)`` outbox activity was
     delivered to the finder's inbox and processed by
-    ``AnnounceLedgerEntryReceivedUseCase`` (SYNC-2 receive side).
+    ``AnnounceLedgerEntryReceivedUseCase`` (LedgerFanout receive side).
 
     Args:
         finder_client: DataLayerClient connected to the Finder container.
@@ -811,6 +811,7 @@ def _wait_for_participant_status_field(
     raise AssertionError(
         f"Timed out waiting for actor '{actor_id}' {field_name} to be in "
         f"{expected_states!r}; current={current_val!r}"
+        f" (polled {client.base_url})"
     )
 
 

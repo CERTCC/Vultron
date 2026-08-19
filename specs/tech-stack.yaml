@@ -184,13 +184,12 @@ groups:
   - id: IMPLTS-07-007
     priority: MUST
     kind: project
-    statement: >-
-      All functions and methods MUST have cyclomatic complexity (CC) ≤ 15. Enforced via the
-      bundled `flake8-mccabe` plugin as part of the flake8 CI gate and pre-commit hook.
-      CC is measured using the McCabe algorithm as implemented by `flake8-mccabe`.
+    deprecated: true
+    superseded_by: IMPLTS-07-008
+    statement: This requirement is superseded by IMPLTS-07-008; the active cyclomatic complexity threshold is ≤ 10.
     rationale: >-
-      Superseded by IMPLTS-07-008. The ≤ 10 gate is now active in `.flake8`
-      (`max-complexity = 10`). This intermediate ≤ 15 threshold no longer applies.
+      The ≤ 15 threshold established here was an intermediate target. The active gate
+      is now ≤ 10 as specified in IMPLTS-07-008 and enforced by `.flake8` (`max-complexity = 10`).
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-004

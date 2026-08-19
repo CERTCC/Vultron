@@ -226,7 +226,10 @@ doors.** `validate_assignment=True` closes the assignment door. It does
 *nothing* for `append` — an in-place list mutation is not an attribute
 assignment, so Pydantic never observes it. That door is closed by prohibition
 plus canonical mutators plus an architecture ratchet (CM-27-001, PRM-03-003),
-the same way PRM-03-001 closed it for `case_roles`.
+the same way PRM-03-001 closed it for `case_roles`. The established canonical
+mutators are `add_case_status()` (on `VulnerabilityCase`, CM-27-003) and
+`add_participant_status()` (on `CaseParticipant`, PRM-03-003), alongside the
+existing `add_participant()` / `remove_participant()` for `case_participants`.
 
 ### Where `validate_assignment` goes — and where it must not
 
@@ -279,9 +282,11 @@ wire branch ever gains `validate_assignment`, this trap returns.
 ### Cost
 
 Scalar attribute assignment measured **475 ns → 1464 ns** (3.1×, ~1 µs
-absolute) — immaterial for BT tick loops. The cost that still needs watching is
-collection fields: assigning `case_participants` re-validates all N items, so it
-is O(N) per assignment.
+absolute) — immaterial for BT tick loops. Collection fields are O(N) per
+assignment: assigning `case_participants` re-validates all N items. Step 2
+(issue #2294, AC-6) benchmarked `list[FakeParticipant]` reassignment and found
+**3.8× overhead at N=100 (~3 µs absolute)** — O(N) confirmed, within the
+acceptable range.
 
 See ADR-0064 for the decision and the three-step rollout, and
 `test/architecture/test_validate_assignment_ratchet.py` for the enumerated

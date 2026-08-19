@@ -46,7 +46,7 @@ Populated by ``ApplyOfferOwnershipTransferFromLedgerNode`` on the SYNC
 ledger-replication path (#2195, ISSUE-2195).
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -90,7 +90,12 @@ class VultronOwnershipTransferOfferRecord(CoreObject):
         description="URI of the actor the transfer was offered to",
     )
 
-    @model_validator(mode="after")
-    def _set_id(self) -> "VultronOwnershipTransferOfferRecord":
-        self.id_ = self.offer_id
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            offer_id = data.get("offer_id")
+            if offer_id is not None:
+                data = dict(data)
+                data["id"] = offer_id
+        return data

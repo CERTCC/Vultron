@@ -252,6 +252,34 @@ class TestVulnerabilityCaseRecordActivity:
         assert len(case.case_activity) == 2
 
 
+class TestVulnerabilityCaseAddCaseStatus:
+    """add_case_status validates shape and appends to case_statuses (CM-27-003)."""
+
+    def test_add_case_status_appends(self, case: VulnerabilityCase):
+        initial_len = len(case.case_statuses)
+        status = CaseStatus(context=_CASE_ID, attributed_to=_ACTOR)
+        case.add_case_status(status)
+        assert len(case.case_statuses) == initial_len + 1
+        assert case.case_statuses[-1] is status
+
+    def test_add_case_status_rejects_wire_shaped(
+        self, case: VulnerabilityCase
+    ):
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_CaseStatus,
+        )
+
+        wire_status = as_CaseStatus(context=_CASE_ID)
+        with pytest.raises(VultronValidationError, match="CaseStatus"):
+            case.add_case_status(wire_status)  # type: ignore[arg-type]
+
+    def test_add_case_status_rejects_non_case_status(
+        self, case: VulnerabilityCase
+    ):
+        with pytest.raises(VultronValidationError):
+            case.add_case_status("not-a-status")  # type: ignore[arg-type]
+
+
 class TestWireVulnerabilityCaseFieldParity:
     """Wire VulnerabilityCase must not have fields absent from core VulnerabilityCase.
 

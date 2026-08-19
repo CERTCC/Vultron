@@ -27,10 +27,7 @@ groups:
   - id: DF-01-003
     priority: SHOULD_NOT
     kind: process
-    statement: >-
-      Combine multiple Diátaxis content types within a single page or section; where a combined
-      view is temporarily unavoidable, clearly separate the parts and link to full pages of
-      the appropriate type.
+    statement: 'Documentation pages SHOULD NOT combine multiple Diataxis content types within a single page or section; where a combined view is temporarily unavoidable, the parts MUST be clearly separated and each part MUST link to the canonical full page of the appropriate type.'
   - id: DF-01-004
     priority: SHOULD
     kind: process

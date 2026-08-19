@@ -60,6 +60,29 @@ class QueueEntry(SQLModel, table=True):
     activity_id: str
 
 
+class OutboxAttemptEntry(SQLModel, table=True):
+    """Persisted per-activity delivery attempt count for the outbox handler.
+
+    Keyed by ``activity_id`` alone so counts survive drain-pass resets
+    (OX-13-001).  Cleared when an activity is dead-lettered (OX-13-002).
+
+    Like :class:`VultronObjectRecord` and :class:`QueueEntry`, this carries no
+    ``actor_id``: the counter lives in the store of the actor whose outbox is
+    being drained (ADR-0066).  ``activity_id`` is the primary key rather than a
+    surrogate integer, which makes the counter structurally single-valued —
+    there is no layout in which one activity accumulates two rival counts for
+    one actor, so the upsert in
+    :func:`~vultron.adapters.driven.datalayer_sqlite.queues.set_outbox_attempt_count`
+    cannot silently start counting in parallel.
+    """
+
+    __tablename__ = "vultron_outbox_attempts"  # type: ignore[assignment]
+    __table_args__ = {"extend_existing": True}
+
+    activity_id: str = Field(primary_key=True)
+    attempt_count: int = Field(default=0)
+
+
 def matches_short_id(full_id: str, short_id: str) -> bool:
     """Return True when *short_id* resolves to *full_id*.
 

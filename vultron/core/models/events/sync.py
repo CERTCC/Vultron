@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Per-semantic inbound domain event types for SYNC-2/SYNC-3 log replication."""
+"""Per-semantic inbound domain event types for LedgerFanout/LedgerReconciliation log replication."""
 
 from typing import Literal, cast
 

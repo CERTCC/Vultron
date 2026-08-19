@@ -197,6 +197,7 @@ def _phase_report_submission(
         vendor_client=vendor_client,
     )
 
+    finder = c1 = c2 = vendor = None
     with demo_step("Seeding all four containers with actor records"):
         finder, c1, c2, vendor = seed_containers_fccv(
             finder_client=finder_client,
@@ -338,6 +339,7 @@ def _phase_c2_suggests_vendor(
 
     # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)
     # to C1 (CASE_OWNER).  Poll C1's DataLayer for the offer.
+    cp_offer_id = None
     with demo_check(
         "Offer(CaseParticipant) for Vendor arrived in C1's DataLayer"
     ):
@@ -372,6 +374,7 @@ def _phase_c2_suggests_vendor(
 
     # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor.  Poll
     # Vendor's DataLayer for the arriving Invite, then puppeteer Vendor's accept.
+    invite_id = None
     with demo_check("Vendor received invite from CaseActor (ADR-0026 path)"):
         invite_id = find_case_invite_for_actor(
             client=vendor_client,
@@ -444,7 +447,7 @@ def _phase_sync_verification(
     finder: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Verify SYNC-2 replication for Finder, C2, and Vendor replicas."""
+    """Verify LedgerFanout replication for Finder, C2, and Vendor replicas."""
     logger.info("─" * 80)
     logger.info("Phase 3: Replica synchronization verification")
     logger.info("─" * 80)
@@ -507,7 +510,7 @@ def _phase_sync_verification(
             reporter_actor_id=finder.id_,
         )
 
-    logger.info("✓ M4: All replicas synchronized (SYNC-2 verified)")
+    logger.info("✓ M4: All replicas synchronized (LedgerFanout verified)")
 
 
 def _phase_notes_exchange(

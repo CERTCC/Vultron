@@ -101,6 +101,7 @@ def demo_activate_then_terminate(
 
     case = setup_two_participant_case(client, finder, vendor, coordinator)
 
+    embargo = proposal = None
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=90, seq=1)
         create_embargo = as_Create(
@@ -232,6 +233,7 @@ def demo_reject_then_repropose(
 
     case = setup_two_participant_case(client, finder, vendor, coordinator)
 
+    proposal_v1 = None
     with demo_step("Step 2: Coordinator proposes first embargo (45-day)"):
         embargo_v1 = make_embargo_event(case, days=45, seq=1)
         create_embargo_v1 = as_Create(
@@ -284,6 +286,7 @@ def demo_reject_then_repropose(
                     f"{mid_case.active_embargo}"
                 )
 
+    embargo_v2 = proposal_v2 = None
     with demo_step("Step 5: Coordinator proposes revised embargo (90-day)"):
         embargo_v2 = make_embargo_event(case, days=90, seq=2)
         create_embargo_v2 = as_Create(

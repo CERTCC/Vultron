@@ -184,6 +184,7 @@ def demo_engage_path(
     logger.info("DEMO 1: Engage Path (submit → validate → engage → close)")
     logger.info("=" * 80)
 
+    report = case = None
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
@@ -253,6 +254,7 @@ def demo_defer_reengage_path(
     )
     logger.info("=" * 80)
 
+    report = case = None
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
@@ -322,6 +324,7 @@ def demo_invalidate_path(
     logger.info("DEMO 3: Invalidate Path (submit → invalidate → close_report)")
     logger.info("=" * 80)
 
+    report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,
@@ -338,6 +341,7 @@ def demo_invalidate_path(
             verify_object_stored(client, report.id_)
             verify_object_stored(client, offer.id_)
 
+    stored_offer = None
     with demo_step(
         "Step 2: Vendor invalidates the report (RmInvalidateReportActivity)"
     ):

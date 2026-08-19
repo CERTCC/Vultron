@@ -440,9 +440,8 @@ def _upgrade_participant_to_accepted(
     """Upgrade an existing participant record from below RM.ACCEPTED to RM.ACCEPTED.
 
     Saves the new status as an independent DataLayer record, then reads it back
-    via the vocabulary registry so the serialised type matches what the
-    participant container expects.  This avoids wire/domain type mismatches when
-    appending to ``CaseParticipant.participant_statuses``.
+    via the DataLayer so the stored canonical record is used (ADR-0034:
+    dl.read() returns core-typed objects for ParticipantStatus).
     """
     logger = logging.getLogger(__name__)
     _coerced_consent = coerce_em_consent_state(
@@ -464,10 +463,11 @@ def _upgrade_participant_to_accepted(
     except ValueError:
         dl.save(upgrade_status)
     wire_status = dl.read(upgrade_status.id_)
-    participant_statuses = getattr(existing, "participant_statuses", None)
-    if participant_statuses is not None:
-        participant_statuses.append(
-            wire_status if wire_status is not None else upgrade_status
+    if isinstance(existing, CaseParticipant):
+        existing.add_participant_status(
+            wire_status
+            if isinstance(wire_status, ParticipantStatus)
+            else upgrade_status
         )
     dl.save(existing)
     logger.info(

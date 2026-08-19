@@ -63,8 +63,7 @@ groups:
   - id: SM-03-003
     priority: MUST
     kind: protocol
-    statement: 'Transitions SHOULD be exhaustive: every valid (source → dest) pair that the protocol describes MUST have a
-      corresponding transition entry'
+    statement: 'Every valid (source → dest) pair that the protocol describes MUST have a corresponding transition entry.'
 - id: SM-04
   title: Runtime State Changes
   specs:

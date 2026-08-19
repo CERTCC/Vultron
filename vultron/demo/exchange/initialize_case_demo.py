@@ -112,6 +112,7 @@ def demo_initialize_case(
     logger.info("DEMO: Initialize Case")
     logger.info("=" * 80)
 
+    report = report_offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,
@@ -135,6 +136,7 @@ def demo_initialize_case(
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
+    case = None
     with demo_step("Step 3: Vendor creates vulnerability case"):
         case = as_VulnerabilityCase(
             attributed_to=vendor.id_,
@@ -205,6 +207,7 @@ def demo_initialize_case(
                     f"Report '{report.id_}' not found in case after AddReportToCaseActivity"
                 )
 
+    participant = None
     with demo_step("Step 6: Vendor creates finder participant"):
         participant = as_CaseParticipant(
             case_roles=[CVDRole.FINDER, CVDRole.REPORTER],

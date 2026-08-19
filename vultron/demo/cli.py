@@ -424,7 +424,7 @@ def fvv(
       2. Finder submits a vulnerability report to Vendor1's inbox.
       3. Vendor1 validates the report and engages the case.
       4. Vendor1 invites Vendor2; Vendor2 accepts.
-      5. Verify SYNC-2 replication on Finder and Vendor2.
+      5. Verify LedgerFanout replication on Finder and Vendor2.
       6. Both vendors independently advance through fix-ready → fix-deployed.
       7. All participants report publication; embargo terminates.
       8. All participants close the case.
@@ -532,7 +532,7 @@ def fvcv_extension(
       5. Coordinator accepts; Coordinator suggests Vendor2 (ADR-0026).
       6. Vendor1 approves the actor recommendation.
       7. CaseActor invites Vendor2; Vendor2 accepts.
-      8. Verify SYNC-2 replication on all replicas.
+      8. Verify LedgerFanout replication on all replicas.
       9. Both vendors independently advance through fix-ready → fix-deployed.
      10. All participants report publication; embargo terminates.
      11. All participants close the case.
@@ -657,7 +657,7 @@ def fvcv_handoff(
       6. Coordinator accepts the ownership transfer (TRIG-11-002).
       7. Verify case attributed_to updated to Coordinator.
       8. Coordinator invites Vendor2; Vendor2 accepts and Accept routed to CaseActor.
-      9. Verify SYNC-2 replication on all replicas.
+      9. Verify LedgerFanout replication on all replicas.
      10. Both vendors independently advance through fix-ready → fix-deployed.
      11. All participants report publication; embargo terminates.
      12. All participants close the case.
@@ -768,7 +768,7 @@ def fccv_extension(
       4. C2 accepts; C2 suggests Vendor (ADR-0026 suggest-actor flow).
       5. C1 approves the actor recommendation.
       6. CaseActor invites Vendor; Vendor accepts.
-      7. Verify SYNC-2 replication on all replicas.
+      7. Verify LedgerFanout replication on all replicas.
       8. Vendor advances through fix-ready → fix-deployed.
       9. C1 (CASE_OWNER) triggers publication; embargo terminates.
      10. All participants report publication; all participants close the case.
@@ -893,7 +893,7 @@ def fccv_handoff(
       6. C2 accepts the ownership transfer (TRIG-11-002).
       7. Verify case attributed_to updated to C2 on both C1 and C2 replicas.
       8. C2 invites Vendor; Vendor accepts and Accept routed to CaseActor.
-      9. Verify SYNC-2 replication on all replicas.
+      9. Verify LedgerFanout replication on all replicas.
      10. Vendor advances through fix-ready → fix-deployed.
      11. All participants report publication; embargo terminates.
      12. All participants close the case.
@@ -1015,7 +1015,7 @@ def fcvcv(
       2. Finder submits a report to C1; C1 validates and engages.
       3. C1 invites V1 (VENDOR) and C2 (COORDINATOR).
       4. C2 suggests V2 via ADR-0026; C1 approves; V2 joins via CaseActor.
-      5. Verify SYNC-2 replication across all six participants.
+      5. Verify LedgerFanout replication across all six participants.
       6. All five actors exchange notes.
       7. Fix lifecycle: V1 → VFd (no deploy); V2 → VFD (fix-deployed).
       8. Publication: V1 publishes first → embargo terminates; all publish.
@@ -1111,7 +1111,7 @@ def fcv(
     Coordinator receives the Finder's report, creates the authoritative case
     (holding CASE_OWNER), and the CaseActor service manages the case ledger.
     Coordinator invites Finder, then directly invites Vendor.  Vendor accepts
-    as a late joiner and receives the full ledger backfill (SYNC-2).  All
+    as a late joiner and receives the full ledger backfill (LedgerFanout).  All
     participants advance through the full VFDPxa fix lifecycle to closure.
 
     \b
@@ -1120,7 +1120,7 @@ def fcv(
       2. Finder submits a vulnerability report to Coordinator's inbox.
       3. Coordinator validates the report and engages the case (CASE_OWNER).
       4. Coordinator invites Vendor directly (invite-actor-to-case).
-      5. Vendor accepts the case invitation; case replica seeded (SYNC-2).
+      5. Vendor accepts the case invitation; case replica seeded (LedgerFanout).
       6. Verify all replica ledgers synchronized.
       7. Three-way notes exchange among all participants.
       8. Vendor advances: VF (fix ready) → VFD (fix deployed).

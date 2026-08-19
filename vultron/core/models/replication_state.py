@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Persistable per-peer replication state for SYNC-3/4.
+"""Persistable per-peer replication state for LedgerReconciliation/PeerLedgerSync.
 
 Spec: SYNC-04-001, SYNC-04-002.
 """
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import urllib.parse
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field, model_validator
 
@@ -112,26 +112,35 @@ class VultronReplicationState(VultronObject):
         serialization_alias="joinBackfillComplete",
     )
 
-    @model_validator(mode="after")
-    def _set_id(self) -> "VultronReplicationState":
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id(cls, data: Any) -> Any:
         """Compute ``id_`` deterministically from ``case_id`` and ``peer_id``."""
-        slug = urllib.parse.quote(self.peer_id, safe="")
-        self.id_ = f"{self.case_id}/replication/{slug}"
-        if (
-            self.join_backfill_last_sent_index
-            > self.join_backfill_target_index
-        ):
+        if not isinstance(data, dict):
+            return data
+        case_id = data.get("case_id")
+        peer_id = data.get("peer_id")
+        if case_id is not None and peer_id is not None:
+            slug = urllib.parse.quote(peer_id, safe="")
+            data = dict(data)
+            data["id"] = f"{case_id}/replication/{slug}"
+        last_sent = data.get("join_backfill_last_sent_index")
+        if last_sent is None:
+            last_sent = data.get("joinBackfillLastSentIndex", -1)
+        target = data.get("join_backfill_target_index")
+        if target is None:
+            target = data.get("joinBackfillTargetIndex", -1)
+        complete = data.get("join_backfill_complete")
+        if complete is None:
+            complete = data.get("joinBackfillComplete", True)
+        if last_sent > target:
             raise ValueError(
                 "join_backfill_last_sent_index cannot exceed "
                 "join_backfill_target_index"
             )
-        if (
-            self.join_backfill_complete
-            and self.join_backfill_last_sent_index
-            < self.join_backfill_target_index
-        ):
+        if complete and last_sent < target:
             raise ValueError(
                 "join_backfill_complete=True requires last_sent_index >= "
                 "target_index"
             )
-        return self
+        return data

@@ -31,7 +31,7 @@ Sub-modules
   ``seed_containers``, ``seed_containers_fvv``, ``seed_containers_fccv``,
   ``seed_containers_fcv``, ``seed_containers_fcvcv``, and
   ``reset_containers``.
-- :mod:`~vultron.demo.helpers.sync` — SYNC-2 ``trigger_log_commit`` and
+- :mod:`~vultron.demo.helpers.sync` — LedgerFanout ``trigger_log_commit`` and
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
   case-state assertion primitives, plus ``verify_activity_in_inbox``,

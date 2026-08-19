@@ -12,6 +12,37 @@ tags:
 - protocol
 - persistence
 groups:
+- id: SYNC-00
+  title: Ledger Sync Phase Concepts
+  specs:
+  - id: SYNC-00-001
+    priority: MUST
+    kind: architecture
+    statement: 'The AppendOnlyLedger phase MUST establish the local append-only case ledger with hash-chain indexing. Each entry MUST be immutable once committed and MUST be cryptographically linked to its predecessor via a content hash, providing the integrity foundation for all subsequent replication phases.'
+  - id: SYNC-00-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The LedgerFanout phase MUST implement one-way replication from the actor holding the
+      CASE_MANAGER role to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
+      A participant replica MUST be treated as synchronized when and only when its log tail
+      hash matches the CASE_MANAGER's authoritative tail hash.
+  - id: SYNC-00-003
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The LedgerReconciliation phase MUST extend LedgerFanout with a full synchronisation
+      loop, retry, and backoff. When a participant's replica falls behind, the reconciliation
+      mechanism MUST detect the gap and MUST retry entry delivery until the participant's tail
+      hash converges to the CASE_MANAGER's tail hash.
+  - id: SYNC-00-004
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      The PeerLedgerSync phase SHOULD enable multi-peer synchronisation between actors
+      with equal standing. Where LedgerFanout assumes one actor holds CASE_MANAGER
+      authority, PeerLedgerSync SHOULD allow two or more actors to reconcile their
+      ledgers with each other to support federated and ownership-transfer scenarios.
 - id: SYNC-01
   title: Append-Only Log
   specs:
@@ -31,7 +62,7 @@ groups:
   - id: SYNC-01-004
     priority: MUST
     kind: protocol
-    statement: Canonical recorded log entries MUST be written through the CaseActor's single authoritative write path
+    statement: Canonical recorded log entries MUST be written through the CASE_MANAGER's single authoritative write path
   - id: SYNC-01-005
     priority: MUST
     kind: protocol
@@ -42,8 +73,8 @@ groups:
   - id: SYNC-02-001
     priority: MUST
     kind: protocol
-    statement: Log replication between CaseActor and Participant Actors MUST use ActivityStreams `Announce` activities as
-      the transport envelope for canonical recorded log content
+    statement: Log replication between the CASE_MANAGER and Participant Actors MUST use ActivityStreams `Announce` activities
+      as the transport envelope for canonical recorded log content
   - id: SYNC-02-002
     priority: MUST
     kind: protocol
@@ -52,8 +83,9 @@ groups:
   - id: SYNC-02-003
     priority: MUST
     kind: protocol
-    statement: Replication MUST originate from the replication leader (initially the CaseActor) and be sent to each Participant
-      Actor individually
+    statement: >-
+      Replication MUST originate from the replication leader (the actor holding the
+      CASE_MANAGER role) and be sent to each Participant Actor individually
   - id: SYNC-02-004
     priority: MUST_NOT
     kind: protocol
@@ -85,8 +117,10 @@ groups:
   - id: SYNC-03-004
     priority: SHOULD
     kind: protocol
-    statement: When a Participant Actor sends any message to the CaseActor, it SHOULD include the hash of its last accepted
-      canonical recorded log entry as a parameter in the activity's context field
+    statement: >-
+      When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
+      hash of its last accepted canonical recorded log entry as a parameter in the activity's
+      context field
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:
@@ -147,26 +181,36 @@ groups:
   - id: SYNC-06-003
     priority: MUST
     kind: protocol
-    statement: The SYNC-1 through SYNC-4 phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
-      of one. A single-node CaseActor is always the leader and always has write authority; no election is needed.
+    statement: >-
+      In a single-node deployment, the actor holding the CASE_MANAGER role MUST be
+      treated as the permanent replication leader with exclusive write authority for
+      its cases; no leader-election procedure is required.
+    rationale: >-
+      A single-node deployment is a degenerate Raft cluster of one: there is always a
+      quorum (1/1) and no election can occur, so the CASE_MANAGER is permanently the
+      leader without consensus overhead. This is the expected topology for the
+      prototype phase.
   - id: SYNC-06-004
     priority: SHOULD
     kind: protocol
     statement: >-
-      A future multi-node CaseActor cluster (Phase 3) provides high-availability write authority
-      via Raft consensus. This is a distinct replication tier from participant replication:
-      participant replication (SYNC-2) is pull-based fan-out via `Announce(CaseLedgerEntry)`,
-      whereas the multi-node CaseActor cluster uses Raft consensus to elect a single write
-      authority among the CaseActor nodes. The two tiers operate independently and SHOULD NOT
-      be conflated.
+      A future multi-node CASE_MANAGER cluster (Phase 3) SHOULD provide high-availability write
+      authority via Raft consensus. This is a distinct replication tier from participant
+      replication: participant replication (LedgerFanout) is pull-based fan-out via
+      `Announce(CaseLedgerEntry)`, whereas the multi-node CASE_MANAGER cluster uses Raft
+      consensus to elect a single write authority among CASE_MANAGER nodes. The two tiers
+      operate independently and SHOULD NOT be conflated.
 - id: SYNC-09
   title: Commit Discipline
   specs:
   - id: SYNC-09-001
     priority: MUST
     kind: protocol
-    statement: A log entry is **committed** when it has been durably appended to the authoritative log and is safe to apply
-      to the case state machine
+    statement: >-
+      An implementation MUST treat a log entry as committed only after it has been
+      durably written to the authoritative log and its content hash has been recorded;
+      an entry that has not met these conditions MUST NOT be applied to the case state
+      machine.
   - id: SYNC-09-002
     priority: MUST
     kind: protocol
@@ -175,8 +219,10 @@ groups:
   - id: SYNC-09-003
     priority: MUST
     kind: protocol
-    statement: The CaseActor's behavior tree execution MUST be gated on holding leadership role; in single-node this is always
-      satisfied; in multi-node this MUST be checked against the Raft leader state
+    statement: >-
+      The CASE_MANAGER's behavior tree execution MUST be gated on holding the replication
+      leadership role; in single-node this is always satisfied; in multi-node this MUST be
+      checked against the Raft leader state
 - id: SYNC-07
   title: Testing
   specs:
@@ -265,7 +311,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CaseActor's
+      The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CASE_MANAGER's
       current ledger tip; lagging behind the leader tip is allowed if the actor's own
       acknowledged prefix is contiguous from genesis
 - id: SYNC-11
@@ -277,7 +323,7 @@ groups:
     statement: >-
       A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
       that records outbound assertion activities (e.g., Add(Note,Case)) emitted toward the
-      CaseActor but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
+      CASE_MANAGER but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
       the suppression window is configurable and zero disables suppression
   - id: SYNC-11-002
     priority: SHOULD
@@ -299,8 +345,8 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CaseActor MUST NOT use the pending-assertion store for its own ledger commits;
-      the CaseActor's DataLayer idempotency check already guards against duplicate commits
+      The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
+      the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits
       by the single authoritative writer
   - id: SYNC-11-005
     priority: SHOULD
@@ -416,7 +462,7 @@ groups:
     statement: >-
       A forward-gap entry that is buffered MUST still trigger resynchronization (SYNC-08-005)
       — the participant MUST send Reject(CaseLedgerEntry) carrying its last accepted hash so
-      the CaseActor replays entries that are genuinely lost (never delivered) rather than
+      the CASE_MANAGER replays entries that are genuinely lost (never delivered) rather than
       merely reordered.
   - id: SYNC-14-003
     priority: MUST
@@ -485,8 +531,8 @@ groups:
       When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct the
       per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
       (CLP-08-005), the participant MUST NOT silently discard the entry; it MUST send a
-      Reject(CaseLedgerEntry) with last_accepted_hash="" to the CaseActor so that the
-      CaseActor replays all entries from the beginning once the case is delivered.
+      Reject(CaseLedgerEntry) with last_accepted_hash="" to the CASE_MANAGER so that the
+      CASE_MANAGER replays all entries from the beginning once the case is delivered.
     rationale: >-
       last_accepted_hash="" is the conventional signal for "I have no entries; replay from
       genesis."  The CaseActor's replay path (SYNC-03-002) replays all entries after the
@@ -514,7 +560,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST bound the rate at which it replays entries to a peer whose
+      The CASE_MANAGER MUST bound the rate at which it replays entries to a peer whose
       acknowledged replication position has not advanced.  It MUST record, per peer, the
       position (the `entry_hash` a replay resumed from, or `""` for genesis) of the last
       replay in which at least one entry was actually sent, together with the time it was

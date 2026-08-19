@@ -1,7 +1,7 @@
 [build-system]
 # Todo: Why would I want to use a different build system?
 # SetupTools
-requires = ["setuptools>=83.0.0", "setuptools-scm"]
+requires = ["setuptools>=84.0.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 # Flit
 #requires = ["flit_core >=3.2,<4"]
@@ -50,7 +50,7 @@ dependencies = [
     "py-trees>=2.5.0",
     "rdflib>=7.2.1",
     "scipy>=1.18.0",
-    "uvicorn>=0.52.1",
+    "uvicorn>=0.52.3",
     "click>=8.4.2",
     "griffelib>=2.1.0",
     "transitions>=0.9.3",
@@ -173,12 +173,12 @@ profile = "black"
 dev = [
     "black>=26.5.1",
     "flake8>=7.3.0",
-    "graphifyy>=0.9.35",
+    "graphifyy>=0.9.43",
     "isort>=7.0.0",
     "linkchecker>=10.6.0",
     "mypy>=2.3.0",
     "pandas-stubs>=3.0.5.260730",
-    "pre-commit>=4.6.1",
+    "pre-commit>=4.6.2",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-timeout>=0.5",

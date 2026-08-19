@@ -34,8 +34,8 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
-from vultron.demo.helpers.seeding import _dl_key, get_actor_by_id
-from vultron.demo.utils import DataLayerClient, logfmt, ref_id
+from vultron.demo.helpers.seeding import _dl_key
+from vultron.demo.utils import DataLayerClient, ref_id
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -200,6 +200,46 @@ def _assert_case_notes(
         )
 
 
+def _check_participant_rm_state_in(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set[RM]",
+    label: str,
+) -> None:
+    """Assert actor's latest participant rm_state is in *expected_states*.
+
+    Used to enforce cross-state protocol invariants such as
+    "CS.F entails RM in {ACCEPTED, DEFERRED, CLOSED}" — i.e. a participant
+    that has a fix-ready or fix-deployed CS state must also have engaged with
+    the case at the RM level.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of acceptable ``RM`` values.
+        label: Human-readable label for ``AssertionError`` messages.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' not found"
+        )
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' has no participant"
+            " statuses"
+        )
+    latest_rm = latest.rm_state
+    if latest_rm not in expected_states:
+        raise AssertionError(
+            f"{label}: expected rm_state in {expected_states!r}, "
+            f"found {latest_rm!r}"
+        )
+
+
 def _check_participant_vfd_state_in(
     client: DataLayerClient,
     case_id: str,
@@ -330,6 +370,9 @@ def _all_fetchable_participants_rm_closed(
         if not p_data:
             return False
         core_participants.append(as_CaseParticipant(**p_data).to_core())
+    if not core_participants:
+        # No locally-fetchable participants — cannot confirm closure.
+        return False
     return all_participants_rm_closed(core_participants)
 
 
@@ -338,35 +381,40 @@ def verify_activity_in_inbox(
     actor_id: str,
     activity_id: str,
 ) -> bool:
-    """Check whether *activity_id* appears in the actor's inbox.
+    """Check whether *activity_id* was received and stored by the actor.
+
+    Checks the DataLayer directly for the activity record — the authoritative
+    approach for single-backend exchange-demo tests.  The inbound pipeline
+    stores every processed activity in the DataLayer, so a lookup by ID is
+    sufficient to confirm receipt.  The actor-profile ``inbox.items`` path is
+    not used because ``_record_inbox_receipt`` is a no-op when ``inbox`` is a
+    string URI rather than a collection object.
 
     Args:
         client: DataLayerClient for the target container.
-        actor_id: Full URI of the actor whose inbox to check.
+        actor_id: Full URI of the actor whose inbox to check (used for
+            logging only; the DataLayer lookup is ID-based).
         activity_id: Full URI of the activity to find.
 
     Returns:
         ``True`` if found; ``False`` otherwise.
-
-    Raises:
-        ValueError: If the actor cannot be found or has no inbox.
     """
-    actor = get_actor_by_id(client, actor_id)
-    if not actor.inbox:
-        raise ValueError(f"Actor {actor_id} has no inbox")
     actor_obj_id = parse_id(actor_id)["object_id"]
-    logger.info(
-        "Actor %s inbox has %d items",
-        actor_obj_id,
-        len(actor.inbox.items),
-    )
-    for item in actor.inbox.items:
-        item_id = item if isinstance(item, str) else getattr(item, "id_", None)
-        if item_id == activity_id:
-            logger.info("✓ Found activity in inbox: %s", logfmt(item))
-            return True
-    logger.warning("Activity %s not found in inbox", activity_id)
-    return False
+    try:
+        client.get(f"/datalayer/{activity_id}")
+        logger.info(
+            "✓ Activity %s found in DataLayer (actor %s)",
+            activity_id,
+            actor_obj_id,
+        )
+        return True
+    except Exception:
+        logger.warning(
+            "Activity %s not found in DataLayer (actor %s)",
+            activity_id,
+            actor_obj_id,
+        )
+        return False
 
 
 def verify_receiver_case_state(

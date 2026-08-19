@@ -33,6 +33,7 @@ Port: ``vultron.core.ports.emitter.ActivityEmitter``
 import asyncio
 import json
 import logging
+import random
 
 import httpx2 as httpx
 
@@ -79,6 +80,9 @@ DEFAULT_BACKOFF_MULTIPLIER: float = 2.0
 #: Spec: SYNC-05-002.
 DEFAULT_MAX_DELAY: float = 30.0
 
+#: Default HTTP request timeout in seconds (SYNC-05-004).
+DEFAULT_DELIVERY_TIMEOUT: float = 30.0
+
 
 class HttpDeliveryAdapter:
     """``ActivityEmitter`` driven-port implementation (ADR-0042, OX-12-001).
@@ -101,6 +105,9 @@ class HttpDeliveryAdapter:
             failed attempt.  Defaults to :data:`DEFAULT_BACKOFF_MULTIPLIER`.
         max_delay: Upper bound on retry delay in seconds.
             Defaults to :data:`DEFAULT_MAX_DELAY`.
+        timeout: HTTP request timeout in seconds passed to
+            ``httpx.AsyncClient.post``.
+            Defaults to :data:`DEFAULT_DELIVERY_TIMEOUT`.
     """
 
     def __init__(
@@ -109,11 +116,13 @@ class HttpDeliveryAdapter:
         initial_delay: float = DEFAULT_INITIAL_DELAY,
         backoff_multiplier: float = DEFAULT_BACKOFF_MULTIPLIER,
         max_delay: float = DEFAULT_MAX_DELAY,
+        timeout: float = DEFAULT_DELIVERY_TIMEOUT,
     ) -> None:
         self._max_retries = max_retries
         self._initial_delay = initial_delay
         self._backoff_multiplier = backoff_multiplier
         self._max_delay = max_delay
+        self._timeout = timeout
 
     async def emit(
         self,
@@ -158,7 +167,8 @@ class HttpDeliveryAdapter:
             json_body = json.dumps(dict(activity), default=str)
 
         failed: list[str] = []
-        async with httpx.AsyncClient() as client:
+        limits = httpx.Limits(max_connections=20, max_keepalive_connections=5)
+        async with httpx.AsyncClient(limits=limits) as client:
             for recipient_id in recipients:
                 try:
                     await self._deliver_with_retry(
@@ -192,12 +202,13 @@ class HttpDeliveryAdapter:
         delay = self._initial_delay
 
         for attempt in range(self._max_retries + 1):
+            last_exc: Exception
             try:
                 response = await client.post(
                     inbox_url,
                     content=json_body,
                     headers={"Content-Type": "application/json"},
-                    timeout=5.0,
+                    timeout=self._timeout,
                 )
                 response.raise_for_status()
                 logger.info(
@@ -207,29 +218,43 @@ class HttpDeliveryAdapter:
                     response.status_code,
                 )
                 return
-            except Exception as exc:
-                if attempt < self._max_retries:
-                    logger.warning(
-                        "Delivery attempt %d/%d failed for activity %s "
-                        "to %s: %s — retrying in %.1fs",
-                        attempt + 1,
-                        self._max_retries + 1,
-                        activity_id,
-                        inbox_url,
-                        exc,
-                        delay,
-                    )
-                    await asyncio.sleep(delay)
-                    delay = min(
-                        delay * self._backoff_multiplier, self._max_delay
-                    )
-                else:
+            except httpx.HTTPStatusError as exc:
+                if 400 <= exc.response.status_code < 500:
+                    # 4xx is deterministic: the same payload will never succeed.
+                    # Raise immediately without consuming retry slots (OX-13-005).
                     logger.error(
-                        "Failed to deliver activity %s to %s after %d "
-                        "attempt(s): %s",
+                        "Terminal delivery failure (HTTP %d) for activity %s"
+                        " to %s — not retrying (OX-13-005).",
+                        exc.response.status_code,
                         activity_id,
                         inbox_url,
-                        self._max_retries + 1,
-                        exc,
                     )
                     raise DeliveryError([recipient_id], activity_id) from exc
+                last_exc = exc
+            except Exception as exc:
+                last_exc = exc
+
+            # Retryable failure (5xx or network error).
+            if attempt < self._max_retries:
+                logger.warning(
+                    "Delivery attempt %d/%d failed for activity %s "
+                    "to %s: %s — retrying in %.1fs",
+                    attempt + 1,
+                    self._max_retries + 1,
+                    activity_id,
+                    inbox_url,
+                    last_exc,
+                    delay,
+                )
+                await asyncio.sleep(delay + random.uniform(0, 0.5))
+                delay = min(delay * self._backoff_multiplier, self._max_delay)
+            else:
+                logger.error(
+                    "Failed to deliver activity %s to %s after %d "
+                    "attempt(s): %s",
+                    activity_id,
+                    inbox_url,
+                    self._max_retries + 1,
+                    last_exc,
+                )
+                raise DeliveryError([recipient_id], activity_id) from last_exc

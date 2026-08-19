@@ -33,6 +33,20 @@ from vultron.core.models._helpers import _new_urn, _now_utc
 from vultron.core.models.registry import CORE_VOCABULARY
 
 
+class ValidatedAssignmentMixin(BaseModel):
+    """Mixin that enables Pydantic post-construction field validation on core models.
+
+    Apply to core-branch roots only (ARCH-21-001). ``VultronBase`` is permanently
+    excluded because it is the shared base of both branches and ``as_Base``
+    inherits it (ARCH-12-001, ARCH-12-002). Composes correctly with
+    ``VultronBase.model_config`` (``populate_by_name=True``) across the MRO:
+    Pydantic v2 merges ``model_config`` from all BaseModel ancestors, so the
+    result carries both ``validate_assignment=True`` and ``populate_by_name=True``.
+    """
+
+    model_config = ConfigDict(validate_assignment=True)
+
+
 def _non_empty(v: str) -> str:
     if not v.strip():
         raise ValueError("must be a non-empty string")
@@ -70,7 +84,7 @@ class VultronBase(BaseModel):
     media_type: NonEmptyString | None = None
 
 
-class VultronObject(VultronBase):
+class VultronObject(ValidatedAssignmentMixin, VultronBase):
     """Base class for core domain object models.
 
     Captures the common ``id_``, ``type_``, and ``name`` fields shared by
@@ -179,8 +193,13 @@ class CoreObject(VultronObject):
             return
         CORE_VOCABULARY[cls.__name__] = cls
 
-    @model_validator(mode="after")
-    def _set_type_from_class_name(self) -> "CoreObject":
-        if self.type_ is None:
-            self.type_ = self.__class__.__name__
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_type_from_class_name(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("type") and not data.get("type_"):
+                field_info = cls.model_fields.get("type_")
+                if field_info is not None and field_info.default is None:
+                    data = dict(data)
+                    data["type"] = cls.__name__
+        return data

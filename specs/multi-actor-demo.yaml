@@ -126,10 +126,6 @@ groups:
 - id: DEMOMA-04
   title: Scenario Coverage
   specs:
-  - id: DEMOMA-04-001
-    priority: SHOULD
-    kind: project
-    statement: 'Multi-actor demo scenarios SHOULD be implemented progressively:'
   - id: DEMOMA-04-002
     priority: SHOULD
     kind: project
@@ -221,8 +217,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The FV scenario script MUST verify milestones M1 through M7 in order,
-      checking both the Vendor and Finder DataLayers at each checkpoint.
+      The FV scenario script MUST verify the following protocol checkpoints in order,
+      checking both the Vendor and Finder DataLayers at each checkpoint: (1) report
+      received (RM.RECEIVED), (2) report validated (RM.VALID), (3) case engaged
+      (RM.ACCEPTED), (4) embargo active (EM.ACTIVE), (5) fix ready (CS.VFd), (6) fix
+      deployed (CS.VFD), (7) publicly disclosed (CS.VFDPxa).
     preconditions:
     - description: Two-actor scenario executing; Vendor, Finder, and CaseActor containers
         running and reachable; report submitted by Finder to Vendor
@@ -230,47 +229,50 @@ groups:
     - order: 1
       actor: demo-script
       action: >-
-        Verify M1 — case created with 3 participants (Vendor, Reporter, CaseActor) and
-        EM.ACTIVE; check Vendor DataLayer
+        Verify case creation: 3 participants (Vendor, Reporter, CaseActor) and EM.ACTIVE;
+        check Vendor DataLayer
       expected: >-
         Vendor DataLayer holds VulnerabilityCase with 3 participants and
         EM state = ACTIVE
     - order: 2
       actor: demo-script
       action: >-
-        Verify M2 — Finder has case replica with matching participant index and active
-        embargo; check Finder DataLayer
+        Verify case replica sync: Finder has case replica with matching participant index
+        and active embargo; check Finder DataLayer
       expected: >-
         Finder DataLayer holds case replica; participant index matches Vendor's; embargo
         state = ACTIVE
     - order: 3
       actor: demo-script
       action: >-
-        Verify M3 — notes exchange complete; check both DataLayers for question note and
-        reply note
+        Verify notes exchange: check both DataLayers for question note and reply note
       expected: >-
         Question note and reply note both present in canonical case state on Vendor and
         Finder replicas
     - order: 4
       actor: demo-script
-      action: Verify M4 — CS.VF on all replicas
+      action: >-
+        Verify fix-ready state: CS.VF on all replicas
       expected: Vendor and Finder replicas both show CS = VF (vendor aware, fix ready)
     - order: 5
       actor: demo-script
-      action: Verify M5 — CS.VFD on all replicas
+      action: >-
+        Verify fix-deployed state: CS.VFD on all replicas
       expected: Vendor and Finder replicas both show CS = VFD (fix deployed)
     - order: 6
       actor: demo-script
-      action: Verify M6 — CS.VFDPxa and EM terminated on all replicas
+      action: >-
+        Verify public-disclosure state: CS.VFDPxa and EM terminated on all replicas
       expected: All replicas show CS = VFDPxa; EM state = EXITED
     - order: 7
       actor: demo-script
-      action: Verify M7 — all participants RM.CLOSED and case closed
+      action: >-
+        Verify case close: all participants RM.CLOSED and case closed
       expected: All participants RM state = CLOSED; case record marked closed
     postconditions:
     - description: >-
-        All milestones M1-M7 verified; FV scenario complete in final state
-        VFDPxa with EM.EXITED and all participants RM.CLOSED
+        All checkpoints verified; FV scenario complete in final state VFDPxa
+        with EM.EXITED and all participants RM.CLOSED
   - id: DEMOMA-06-003
     priority: MUST
     kind: project
@@ -636,7 +638,7 @@ groups:
     statement: >-
       The FVV scenario MUST run deterministically end-to-end via a single
       `docker compose` command using the existing multi-actor Compose stack; the
-      scenario script MUST verify SYNC-2 replica convergence (both Finder and Vendor2
+      scenario script MUST verify LedgerFanout replica convergence (both Finder and Vendor2
       replicas match the authoritative Vendor1 state) after each major protocol event
   - id: DEMOMA-09-005
     priority: MUST
@@ -786,7 +788,7 @@ groups:
     kind: project
     statement: >-
       The FVCV-extension scenario MUST run deterministically end-to-end; the scenario
-      script MUST verify SYNC-2 replica convergence for Finder, Coordinator, and Vendor2
+      script MUST verify LedgerFanout replica convergence for Finder, Coordinator, and Vendor2
       replicas against the authoritative Vendor1 state after each major protocol event.
     relationships:
     - rel_type: refines
@@ -952,7 +954,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The FVCV-handoff scenario MUST run deterministically and MUST verify SYNC-2
+      The FVCV-handoff scenario MUST run deterministically and MUST verify LedgerFanout
       replica convergence for all non-owning participants after each major protocol
       event, as required by DEMOMA-10-007.
     relationships:
@@ -1225,7 +1227,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The FCV scenario MUST run deterministically end-to-end and MUST verify SYNC-2
+      The FCV scenario MUST run deterministically end-to-end and MUST verify LedgerFanout
       replica convergence for Finder and Vendor replicas against the authoritative
       Coordinator/CaseActor state after each major protocol event.
     relationships:
@@ -1516,7 +1518,7 @@ groups:
     kind: project
     statement: >-
       The FCCV-extension scenario MUST run deterministically end-to-end and MUST
-      verify SYNC-2 replica convergence for Finder, C2, and Vendor replicas against
+      verify LedgerFanout replica convergence for Finder, C2, and Vendor replicas against
       the authoritative C1/CaseActor state after each major protocol event.
     relationships:
     - rel_type: refines
@@ -1721,12 +1723,12 @@ groups:
     kind: project
     statement: >-
       After Vendor joins, all four actor containers (Finder, C1, C2, Vendor)
-      MUST converge to the same case ledger state (SYNC-2 invariant).  Vendor
+      MUST converge to the same case ledger state (LedgerFanout invariant).  Vendor
       MUST receive the complete ledger backfill from genesis.
     rationale: >-
       Late-joiner backfill is a shared invariant across FVCV-extension,
       FVCV-handoff, and FCCV-handoff.  Verifying it here ensures the
-      ownership-transfer workflow does not break SYNC-2 convergence.
+      ownership-transfer workflow does not break LedgerFanout convergence.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007
@@ -1761,7 +1763,7 @@ groups:
       (demo-entrypoint.sh forwards the DEMO value directly).
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-04-001
+      spec_id: DEMOMA-04-002
   - id: DEMOMA-14-009
     priority: MUST
     kind: project
@@ -1857,7 +1859,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In addition to the five universal types (DEMOMA-16-001), the FV scenario
+      In addition to the universal types (DEMOMA-16-001), the FV scenario
       MUST verify that its expected-event-types list is restricted to types that
       the FV scenario actually produces. FV does not include an
       `invite_actor_to_case` phase; the Finder joins by submitting a report,
@@ -1874,7 +1876,7 @@ groups:
     statement: >-
       The FVV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the five universal types (DEMOMA-16-001), because Vendor1 invites
+      to the universal types (DEMOMA-16-001), because Vendor1 invites
       Vendor2 into the case and Vendor2 explicitly accepts via the
       `accept-case-invite` trigger.
     relationships:
@@ -1890,7 +1892,7 @@ groups:
       The FVCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the five universal types (DEMOMA-16-001), because Vendor1
+      addition to the universal types (DEMOMA-16-001), because Vendor1
       invites Coordinator, Coordinator uses the ADR-0026 suggest-actor flow
       (`offer_case_participant`) to propose Vendor2, Vendor1 approves the
       recommendation (`accept_actor_recommendation`), CaseActor converts the
@@ -1908,7 +1910,7 @@ groups:
     statement: >-
       The FVCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the five universal types (DEMOMA-16-001), because Vendor1 invites
+      to the universal types (DEMOMA-16-001), because Vendor1 invites
       Coordinator, the Coordinator accepts and becomes the new CASE_OWNER,
       and Coordinator then invites Vendor2 who also accepts.
     rationale: >-
@@ -1933,7 +1935,7 @@ groups:
     statement: >-
       The FCCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the five universal types (DEMOMA-16-001), because C1 invites C2,
+      to the universal types (DEMOMA-16-001), because C1 invites C2,
       C2 accepts and becomes the new CASE_OWNER, and C2 then invites the
       Vendor who also accepts.
     relationships:
@@ -1948,7 +1950,7 @@ groups:
     statement: >-
       The FCV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
-      to the five universal types (DEMOMA-16-001), because the Coordinator
+      to the universal types (DEMOMA-16-001), because the Coordinator
       invites both the Finder and the Vendor into the case, and both Finder
       and Vendor explicitly accept via the `accept-case-invite` trigger.
     relationships:
@@ -1981,7 +1983,7 @@ groups:
       The FCVCV scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the five universal types (DEMOMA-16-001).
+      addition to the universal types (DEMOMA-16-001).
       `invite_actor_to_case` appears at least three times (C1 invites V1, C1
       invites C2, and CaseActor invites V2 via the ADR-0026 path);
       `offer_case_participant` appears at least once (C2 suggests V2 to C1
@@ -2020,7 +2022,7 @@ groups:
       The FCCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
-      addition to the five universal types (DEMOMA-16-001), because
+      addition to the universal types (DEMOMA-16-001), because
       Coordinator1 invites Coordinator2, Coordinator2 uses the ADR-0026
       suggest-actor flow (`offer_case_participant`) to propose the Vendor,
       Coordinator1 approves the recommendation (`accept_actor_recommendation`),
@@ -2038,7 +2040,7 @@ groups:
     statement: >-
       The FCV-reject scenario expected-event-types list MUST include
       `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to
-      the five universal types (DEMOMA-16-001), because the Coordinator invites
+      the universal types (DEMOMA-16-001), because the Coordinator invites
       the Vendor and the Vendor sends `Reject(Invite(actor, case))` (an
       invitation-layer rejection), which triggers
       `RejectInviteActorToCaseReceivedUseCase` on the CaseActor and produces
@@ -2267,7 +2269,7 @@ groups:
       report to C1, C1 validates, C1 creates case, C1 invites V1 and C2;
       (2) c2_suggests_v2 — C2 sends suggest-actor-to-case for V2 to
       CaseActor, C1 approves the CaseParticipant Offer, CaseActor sends
-      Invite to V2, V2 accepts; (3) sync_verification — M1 milestone check
+      Invite to V2, V2 accepts; (3) sync_verification — replica consistency check
       (all five containers hold the case replica); (4) notes_exchange — each
       of the five actors posts a note; (5) fix_lifecycle — V1 advances to
       VFd (fix-ready; no deploy step); V2 advances to VFD (fix-ready then
@@ -2573,22 +2575,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      An invariant harness file MUST be created at
-      `test/ci/invariants/test_rcv_embargo_invariants.py`. It MUST define
-      `_DEMO_NAME = "rcv-embargo"`, `_CHAIN_ACTORS` covering `reporter`,
-      `coordinator`, `vendor`, and `case-actor`, and the full set of universal
-      invariants (Invariants 1–15) following the pattern in
-      `test_fcv_invariants.py`. It MUST additionally include the following
-      scenario-specific invariant tests: (a) an embargo-propose event type is
-      present in the log (variation b: EP message delivered); (b) an
-      embargo-accept event type is present (EA message delivered, EM reached
-      ACTIVE); (c) an embargo-terminate event type is present (ET message
-      delivered, variation e exercised); (d) `emConsentState` transitions
-      through INVITED and SIGNATORY are observable in at least one participant's
-      `add_participant_status_to_participant` entries. The exact event type
-      strings for (a)–(c) MUST be confirmed from the case-ledger output of a
-      first successful local run and recorded in the harness as a comment
-      referencing the spec ID that required them.
+      The rcv-embargo scenario invariant harness MUST verify that the following event
+      types are recorded in the case ledger in order: `propose_embargo`, `accept_embargo`,
+      and `terminate_embargo`. The event type strings used in the invariant check MUST
+      match the strings logged by the CASE_MANAGER handler.
     rationale: >-
       The scenario-specific invariants confirm that all three embargo protocol
       messages (EP, EA, ET) were recorded in the ledger — not just that the
@@ -2779,24 +2769,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      An invariant harness file MUST be created at
-      `test/ci/invariants/test_rcvv_embargo_invariants.py`. It MUST define
-      `_DEMO_NAME = "rcvv-embargo"`, `_CHAIN_ACTORS` covering `reporter`,
-      `coordinator`, `vendor`, `vendor2`, and `case-actor`, and the full set of
-      universal invariants (Invariants 1–15). It MUST additionally include the
-      following scenario-specific invariant tests: (a) an embargo-propose event
-      type is present (variation b, EP delivered); (b) an embargo-accept event
-      type is present at least twice — once for the initial activation (EA) and
-      once for the revision acceptance (EJ); (c) an embargo-revise event type is
-      present (EV delivered, variation c); (d) `invite_actor_to_case` appears at
-      least twice (V1 and V2 each receive an invite); (e) V2 is a late joiner —
-      V2's replica MUST contain all ledger entries present in the coordinator
-      replica (backfill check, following the FCV late-joiner pattern); (f) a
-      CS.P-triggered EM termination is observable — `em_state=EXITED` is
-      present in the final snapshot without a corresponding explicit ET message
-      (or with CaseActor as the terminating actor, confirming auto-collapse).
-      The exact event type strings MUST be confirmed from a first successful
-      local run and recorded as a comment referencing the spec ID.
+      The rcvv-embargo scenario invariant harness MUST verify that the following event
+      types are recorded in the case ledger: `propose_embargo`, `accept_embargo`, and
+      `revise_embargo`. The event type strings used in the invariant check MUST match
+      the strings logged by the CASE_MANAGER handler.
     rationale: >-
       The scenario-specific invariants confirm all four embargo-variation
       protocol paths were exercised and recorded: EP (b), EV (c), EJ (c), and
@@ -2948,6 +2924,41 @@ groups:
     tags:
     - demo
     - documentation
+  - id: DEMOMA-22-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `wait_for_*` call in a scenario script MUST be wrapped in either
+      `demo_gate` (when the wait is a causal precondition for a subsequent
+      step) or `demo_check` (when the wait is temporal or a non-gating
+      post-hoc verification). Bare unwrapped `wait_for_*` calls are
+      prohibited.
+    rationale: >-
+      A bare call raises `AssertionError` directly on timeout, bypassing the
+      demo harness's failure accumulator. Earlier `demo_check` failures
+      accumulated in the same run are lost, and downstream steps do not
+      receive the structured skip that `demo_gate` provides — the exception
+      terminates the scenario with no record of what preceded the failure.
+      `demo_gate` and `demo_check` are the two sanctioned wrappers; using
+      them consistently keeps the failure record complete and the control
+      flow explicit.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-22-001
+      note: >-
+        DEMOMA-22-001 requires causal gating at every async boundary;
+        this requirement closes the loophole of bare calls that appear to
+        gate but do not integrate with the failure accumulator.
+    - rel_type: refines
+      spec_id: EDF-06-005
+      note: >-
+        EDF-06-005 requires unmet causal gates to prevent dependent steps;
+        this requirement enforces the same principle for the bare-call case.
+    tags:
+    - demo
+    - testing
 - id: DEMOMA-23
   title: Shared Scenario Harness
   specs:

@@ -261,20 +261,20 @@ ActivityStreams verb `Announce`. The underlying activity is
 
 ---
 
-## Milestone Verification Rules
+## Protocol Checkpoint Verification Rules
 
-All milestone checks MUST verify **both** the Vendor DataLayer and the
+All checkpoint verifications MUST check **both** the Vendor DataLayer and the
 Reporter (Finder) DataLayer. Direct DataLayer reads are acceptable in demo
 scripts for verification — they are read-only assertions, not puppeteering.
 
-| Milestone | What to verify |
+| Checkpoint | What to verify |
 |-----------|---------------|
-| M1 | Vendor: case exists, 3 participants, EM.ACTIVE, embargo present. Reporter: has case replica, matching `actor_participant_index`, matching `active_embargo`. |
-| M2 | Reporter DataLayer has case ID. Both sides: matching participant index, matching embargo, matching log tail hash (SYNC-2). |
-| M4 | Both replicas: participant status includes CS.F. |
-| M5 | Both replicas: participant status includes CS.D. |
-| M6 | Both replicas: CS.VFDPxa; EM state terminated/exited. |
-| M7 | Both replicas: all participants RM.CLOSED; case status closed. |
+| Case creation (EM.ACTIVE) | Vendor: case exists, 3 participants, EM.ACTIVE, embargo present. Reporter: has case replica, matching `actor_participant_index`, matching `active_embargo`. |
+| Replica sync (EM.ACTIVE) | Reporter DataLayer has case ID. Both sides: matching participant index, matching embargo, matching log tail hash (LedgerFanout). |
+| Fix ready (CS.VFd) | Both replicas: participant status includes CS.F. |
+| Fix deployed (CS.VFD) | Both replicas: participant status includes CS.D. |
+| Publicly disclosed (CS.VFDPxa) | Both replicas: CS.VFDPxa; EM state terminated/exited. |
+| Case closed (RM.CLOSED) | Both replicas: all participants RM.CLOSED; case status closed. |
 
 ---
 

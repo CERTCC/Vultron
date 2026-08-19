@@ -26,17 +26,18 @@ import logging
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import is_em_embargo_active, is_em_exited
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.polling import wait_for_case_on_container
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
     _assert_participant_pxa_only,
     _assert_participant_vfd_pxa,
+    _check_participant_rm_state_in,
     _check_participant_vfd_state_in,
     _fetch_participant,
     _fetch_participant_data,
 )
 from vultron.demo.utils import DataLayerClient
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -193,6 +194,9 @@ def verify_fix_ready(
         receiver_client, case_id, receiver_actor_id, "verify_fix_ready"
     )
     fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
+    # CS.F entails RM in {ACCEPTED, DEFERRED, CLOSED}: a participant that has
+    # a fix-ready CS state must also have engaged with the report at the RM level.
+    rm_engaged_states = {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
     _check_participant_vfd_state_in(
         receiver_client,
         case_id,
@@ -200,12 +204,26 @@ def verify_fix_ready(
         fix_ready_states,
         "verify_fix_ready coordinator",
     )
+    _check_participant_rm_state_in(
+        receiver_client,
+        case_id,
+        receiver_actor_id,
+        rm_engaged_states,
+        "verify_fix_ready coordinator RM",
+    )
     _check_participant_vfd_state_in(
         reporter_client,
         case_id,
         receiver_actor_id,
         fix_ready_states,
         "verify_fix_ready reporter replica",
+    )
+    _check_participant_rm_state_in(
+        reporter_client,
+        case_id,
+        receiver_actor_id,
+        rm_engaged_states,
+        "verify_fix_ready reporter replica RM",
     )
     logger.info("✓ fix ready: both replicas show CS includes F (fix ready)")
 

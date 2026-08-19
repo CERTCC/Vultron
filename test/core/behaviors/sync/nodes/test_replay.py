@@ -1,7 +1,3 @@
-import pytest
-
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
 #!/usr/bin/env python
 """Unit tests for sync replay and fan-out nodes."""
 
@@ -9,7 +5,10 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
+import pytest
 from py_trees.common import Status
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,

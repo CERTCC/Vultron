@@ -620,7 +620,7 @@ class TestWaitForFinderCase:
 
 
 # ---------------------------------------------------------------------------
-# SYNC-2 log replication helper tests
+# LedgerFanout log replication helper tests
 # ---------------------------------------------------------------------------
 
 
@@ -1170,8 +1170,40 @@ class TestRunTwoActorDemo:
         # a temp directory so it does not land in the repo-root devlogs/.
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
+        # In single-server test mode the CaseProposal round-trip (triggered by
+        # run_direct_path_rm_triage) does not complete because the loopback
+        # delivery is blocked at depth > 0 (same TestClient portal). Replace it
+        # with the manual fallback that creates the case directly and drives RM
+        # state through the same validate/engage sequence.
+        from vultron.core.states.rm import RM as _RM
+
+        def _single_server_rm_triage(receiver_client, receiver, offer):
+            case = _create_case_from_offer(receiver_client, receiver, offer)
+            offer_id = getattr(offer, "id_", str(offer))
+            demo.vendor_validates_report(
+                vendor_client=receiver_client,
+                vendor=receiver,
+                offer_id=offer_id,
+            )
+            demo.wait_for_participant_rm_state(
+                client=receiver_client,
+                case_id=case.id_,
+                actor_id=receiver.id_,
+                expected_states={_RM.VALID, _RM.ACCEPTED},
+            )
+            demo.vendor_engages_case(
+                vendor_client=receiver_client,
+                vendor=receiver,
+                case_id=case.id_,
+            )
+            return case
+
+        monkeypatch.setattr(
+            demo, "run_direct_path_rm_triage", _single_server_rm_triage
+        )
+
         # After issue #2273 (validate-report ordering fix), the in-process
-        # SYNC-2 gap (#2267) is also resolved: case-actor ledger entries now
+        # LedgerFanout gap (#2267) is also resolved: case-actor ledger entries now
         # exist (validate_report + engage_case are properly recorded), enabling
         # Finder replica replication to complete.  The demo should succeed
         # with no failures.
@@ -1965,21 +1997,7 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo, "reporter_submits_report", return_value=(report, offer)
             ),
-            patch.object(demo, "vendor_validates_report"),
-            patch.object(
-                demo,
-                "_report_id_from_offer_data",
-                return_value="urn:test:report",
-            ),
-            patch.object(
-                demo,
-                "post_to_trigger",
-                return_value={"activity": {"id": "urn:test:activity"}},
-            ),
-            patch.object(demo, "find_case_for_offer", return_value=case),
-            patch.object(demo, "seed_case_participants_for_demo"),
-            patch.object(demo, "wait_for_participant_rm_state"),
-            patch.object(demo, "vendor_engages_case"),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_finder_case"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
@@ -1987,11 +2005,15 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
             patch.object(
                 demo,
                 "demo_step",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -2022,6 +2044,8 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -2054,6 +2078,8 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
@@ -2098,6 +2124,8 @@ class TestFvMilestoneAssertions:
             patch.object(
                 demo,
                 "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):

@@ -32,6 +32,7 @@ machines, and design notes.
 | **Case Owner** | The Actor who creates and administers a Case (typically the party seeking vulnerability coordination) | Case creator |
 | **Case Actor** | An auto-generated federated peer (ActivityStreams Service actor) created during case initialization; operates as the single-writer authority for the canonical case ledger and coordinates state across participants | Case service actor, case coordinator |
 | **Case Manager** | A `CVDRole.CASE_MANAGER` role that designates a **Participant** authorized to delegate case management responsibilities and co-manage embargo negotiations; often assigned via **Offer** → **Accept** handoff during case creation | Admin role, management role |
+| **CVE Numbering Authority (CNA)** | An organization authorized to directly assign CVE IDs; modeled as `CVDRole.CVE_NUMBERING_AUTHORITY`. A **Participant** holding this role may assign IDs directly rather than delegating to an external CNA service. | CVE authority |
 
 ---
 
@@ -81,6 +82,8 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Proposed Embargo** | An **Embargo** that has been offered but not yet accepted by all parties | Embargo offer, pending embargo |
 | **Pocket Veto** | A timer-based transition in the **Embargo Consent** state machine where a **Participant** in INVITED or LAPSED state automatically transitions to DECLINED if they do not respond within a configurable timeout window (inaction = rejection). The window is the *implicit* form of the **RSVP Deadline**: when an invitation carries an explicit `Invite.end_time` that value supersedes it (CM-27-002); the policy default (7 days, EP-07-001) applies only when it is absent. The two are one mechanism, not two (ADR-0065) | Embargo invitation timeout, implicit rejection |
 | **RSVP Deadline** | The activity-level `end_time` on an `Invite(EmbargoEvent)`, giving the invitee an explicit respond-by instant after which the invitation is no longer open. Distinct from the nested `Invite.object_.end_time`, which is when the **Embargo** itself ends — the same invitation carries both, one nesting level apart. Enforced lazily by the **CaseActor** (CM-27-003); a late **Accept** is never refused outright (EMB-17). Introduced by ADR-0065 | Invite expiry, respond-by deadline, invite end_time |
+| **EmbargoPolicy** | An actor-level declaration of embargo preferences (preferred, minimum, and maximum duration); allows coordinators to evaluate compatibility before proposing an embargo. | Embargo preferences, embargo terms |
+| **Embargo Adherence** | A derived indicator on a **Participant**'s status recording whether that Participant is currently bound by the active **Embargo**; `True` only when their **Embargo Consent** state is `SIGNATORY`. Computed from consent state rather than stored independently, preventing the two from drifting out of sync. | Embargo acceptance, embargo compliance |
 
 ---
 
@@ -94,6 +97,12 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Inbox** | The protocol endpoint where an Actor receives incoming Activities from other parties | Receiver, endpoint |
 | **Outbox** | The protocol channel through which an Actor broadcasts Activities to other known parties | Sender, distribution |
 | **Precondition** | The required state(s) that must be true before a message can be sent or a state transition is valid (e.g., Participant must be in RM Accepted to send RS) | State requirement, prerequisite |
+| **CaseProposal** | An AS2 negotiation object sent by any actor (typically a Vendor or Coordinator) to a CaseActor service to request the creation and management of a new Case; the CaseActor, not the requesting actor, is the authoritative case creator. The CaseProposal is the mechanism by which an actor delegates case initialization to a CaseActor service (ADR-0023, ADR-0041). | Case request, case creation request |
+| **Case Ownership Transfer** | The protocol sequence by which the `CASE_OWNER` role is transferred from one actor to another via an `Offer(VulnerabilityCase)` → `Accept` handshake routed through the CaseActor (ADR-0053). | Case transfer, ownership handoff |
+| **Suggest-Actor-to-Case** | The CaseActor-routed protocol flow for inviting a new actor to a case: a **Participant** sends `Offer(Actor, Case)` to the **Case Manager**, the Case Manager presents the recommendation to the **Case Owner**, and upon approval issues `Invite(CaseStub, embargo)` to the suggested actor (ADR-0026). | Add participant, inject participant |
+| **Liberal Accept** | The protocol robustness principle (Postel's Law applied): be conservative in what you send, liberal in what you accept; refuse the narrowest thing that must be refused. | — |
+| **Per-Dimension Adjudication** | The pattern of evaluating each state-machine dimension of a received `ParticipantStatus` independently rather than accepting or refusing the entire snapshot as a unit; allows a valid `vfd` update to proceed even if `rm` is refused (ADR-0061). | All-or-nothing status update |
+| **ProtocolPair** | A value type tracking whether a protocol request/reply handshake (e.g., `Offer` → `Accept/Reject`) is still open or closed; used by both durable ledger queries and ephemeral assertion suppression. | Handshake state, open request |
 
 ---
 
@@ -119,6 +128,8 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Driven Port** | A port that exposes an outbound dependency; core calls it to reach adapters (e.g., `DataLayer`, `ActivityTranslator`) | Dependency port, outbound port |
 | **Driving Port** | A port that exposes an inbound boundary; adapters call it to reach core (e.g., use cases, handlers) | Inbound port, entry point |
 | **Hexagonal Architecture** | Layered design where core business logic has no imports from wire format, adapter, or external framework layers | Ports and adapters, onion architecture |
+| **Validate-at-Edge** | The architectural principle that loose wire-layer types are promoted to strict core types at system entry boundaries; core logic operates on guaranteed-field types rather than defensively guarding every field (ADR-0032). | Edge validation, boundary validation |
+| **Two-Branch Hierarchy** | The core architectural pattern where domain objects exist in two structurally incompatible shapes sharing a common base (`VultronBase`): the **core branch** (strict, required-field constraints) and the **wire branch** (lenient, permitting loose AS2 fields). | Domain/wire split, core/wire hierarchy |
 
 ## Sync, Authority & Replication
 
@@ -132,6 +143,13 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Participant Case Replica** | A local copy of **VulnerabilityCase** state maintained by a **Participant** node; must satisfy PCR safety rules (proper seeding, no out-of-order mutations) and convergence to the **CaseActor**'s authoritative state | Case replica, local case copy |
 | **Trust Bootstrap** | The first-time establishment of trust between the **CaseActor** and a new **Participant** via an **Accept** activity in response to an **Offer**; includes sending a `Create(VulnerabilityCase)` activity to seed the **Participant Case Replica** | Trust handoff, initial trust |
 | **Case Replica Seeding** | The process of initializing a **Participant Case Replica** by receiving an `Announce(VulnerabilityCase)` or `Create(VulnerabilityCase)` activity from the **CaseActor**; must occur before case-context activities can be processed | Replica initialization, case sync |
+| **Append-Only Ledger** | The first ledger synchronization phase: establishes the local append-only case ledger with hash-chain indexing, providing the cryptographic integrity foundation for all subsequent replication phases. Each entry is immutable once committed and uniquely identified by its content hash. | SYNC-1, phase 1 |
+| **Ledger Fanout** | The second ledger synchronization phase: one-way replication from the authoritative **CaseActor** to all **Participant Actors** via `Announce(CaseLedgerEntry)` messages. A participant's replica is considered synchronized when its log tail hash matches the **CaseActor**'s. | SYNC-2, phase 2 |
+| **Ledger Reconciliation** | The third ledger synchronization phase: a full sync loop with retry and backoff that detects and repairs gaps in participant replicas, ensuring eventual convergence even after missed or delayed deliveries. | SYNC-3, phase 3 |
+| **Peer Ledger Sync** | The fourth ledger synchronization phase: multi-peer synchronization enabling actors with equal standing to reconcile their ledgers with each other, supporting federated and ownership-transfer scenarios where no single actor is permanently authoritative. | SYNC-4, phase 4 |
+| **Genesis Hash** | A per-case SHA-256 hash derived deterministically from the `VulnerabilityCase` object; serves as the hash-chain predecessor anchor for the first **Case Ledger Entry**, binding the ledger to its origin case. | Initial hash, seed hash |
+| **LedgerGapBuffer** | A per-case in-memory buffer for out-of-order `Announce(CaseLedgerEntry)` activities; holds forward-gap entries until their hash-chain predecessor arrives, enabling order-independent convergence (SYNC-10-004). | Gap buffer, out-of-order buffer |
+| **PendingAssertionStore** | An in-memory store tracking outbound log-entry assertions emitted but not yet confirmed by a canonical `Announce(CaseLedgerEntry)` round-trip; suppresses duplicate near-term re-emits within a configurable timeout window (SYNC-11). | — |
 
 ## Activity & Wire Format
 
@@ -160,6 +178,11 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Compatibility Method** | A deprecated method (`get()`, `by_type()`) still present for backward compatibility but marked for removal | Escape hatch, legacy method |
 | **Actor Knowledge Model** | The architectural invariant that an **Actor**'s knowledge of the world is bounded only by what it has **received** via AS2 **Activities**; recipients cannot access senders' DataLayers; therefore, all outbound **Activities** MUST include full inline objects, never bare URIs | Knowledge boundary, isolation invariant |
 | **Bare Object URI** | An anti-pattern in outbound **Activities** where an object is referenced as a bare string URI (e.g., `object_="urn:uuid:abc123"`) instead of a full inline object; causes recipient pattern-matching failure because the recipient's DataLayer has no record of the referenced object | String reference, bare ID |
+| **Dead Letter Record** | A persistence record created when an inbound activity's `object_` URI cannot be resolved after rehydration; stored for administrative review and retry rather than raising an error. | Dead letter queue entry, failed delivery record |
+| **OfferRecord** | A core state record capturing domain facts from a received `Offer(VulnerabilityReport)` activity; stored so core can recover these facts without re-reading the wire Activity. | — |
+| **ReportCaseLink** | A persisted mapping from a vulnerability report to its associated case replica. Stores the trust anchors established during **Trust Bootstrap** — specifically, which actor the report was originally submitted to and which CaseActor is authoritative for the resulting case — so that subsequent messages can be validated against those known-good identities. | — |
+| **PendingCreateCaseActivity** | A durable marker written after `Accept(CaseProposal)` is sent but before `Create(VulnerabilityCase)` delivery; enables retry if the process crashes between the two sends. | — |
+| **Outbox Terminal State** | The condition reached when the delivery mechanism exhausts its retry budget for an outbound Activity; the Activity is moved to the dead-letter store and no further delivery is attempted. | Delivery failure, max retries exceeded |
 
 ## Behavior Trees
 
@@ -180,6 +203,21 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Retriever** | A **Coordination Agent** subtype that fetches external data needed by the BT (e.g., CVE ID lookup, SSVC scoring) | Fetch agent, lookup agent |
 | **Composer** | A **Coordination Agent** subtype that assembles content from domain state (e.g., drafting advisory text) | Generator agent, authoring agent |
 | **Actuator** | A **Coordination Agent** subtype that invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise; produces no content artifact | Side-effect agent, executor |
+| **StatusAdoptionGate** | A BT authorization gate that determines whether a received **CaseStatus** update should be adopted by the receiving actor; guards the `add_participant_status_tree` path for received-side status canonicalization (ADR-0046). | Seam 1, StatusUpdateGuard |
+| **EmbargoTeardownAuthorizationGate** | A BT authorization gate that determines whether an incoming status update should trigger **Embargo** teardown; guards the `add_case_status_tree` path alongside `ThreatTerminationBranchNode` for received-side CaseStatus canonicalization (ADR-0046). | Seam 2, SideEffectsGuard |
+| **GuardedCommit** | A Behavior Tree subtree pattern that gates case ledger entry persistence on a CASE_MANAGER role check, ensuring only the actor holding the CASE_MANAGER role commits entries to the canonical log. | — |
+| **Idempotency Guard** | A Behavior Tree precondition node that detects a duplicate inbound Activity and short-circuits processing silently, ensuring that receiving the same Activity more than once has no additional effect on case state. | Duplicate check, dedup guard |
+| **Causal Gate** | A precondition that blocks a protocol step until a specific prior event has provably occurred; ensures steps execute in causal order rather than relying on timing assumptions. Commonly used in demo scenario checks but applicable wherever causal ordering must be enforced (ADR-0058). | Causal check, timing guard |
+
+## Use-Case Layer
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **VultronEvent** | The base domain event type for received-side use cases; carries extracted semantic information from an inbound wire Activity and drives the dispatcher into the appropriate Behavior Tree handler. Contrast with **TriggerRequest**, which represents local actor intent rather than a received remote notification. | Event, handler event |
+| **TriggerRequest** | The base request type for trigger-side use cases, representing a local actor's intent to initiate a protocol action (e.g., propose an embargo, submit a report). Contrast with **VultronEvent**, which represents an inbound remote notification rather than local intent. | Trigger, use case request |
+| **UseCaseResult** | The typed return envelope from a use-case execution; communicates outcome and any emitted Activities back to the driving adapter. Has two subtypes: **HandlerResult** (for received-side use cases) and **TriggerResult** (for trigger-side use cases) (ADR-0040). | Use case output, result envelope |
+| **HandlerResult** | The **UseCaseResult** subtype returned by received-side use cases (processing an inbound Activity). | Handler output, received-side result |
+| **TriggerResult** | The **UseCaseResult** subtype returned by trigger-side use cases (executing local actor intent). | Trigger output, trigger-side result |
 
 ## Domain Model — CVD Coordination
 
@@ -197,6 +235,18 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Participant** | A CVD actor in a case; has one or more **CVDRole** values, contact info, and status in the case state machine | Actor, stakeholder |
 | **Embargo Initialization** | The automatic creation of a default **Embargo** with standard terms when a **Case** is first created; includes seeding the **Case Owner** as **Participant** with SIGNATORY **Embargo Consent** status | Default embargo creation, embargo bootstrap |
 | **Role Delegation** | The protocol sequence where a **Case Owner** can offer the **CASE_MANAGER** role to another **Participant** (via **Offer** activity) and receive acceptance (via **Accept** activity); enables distributed case administration | Role handoff, role transfer |
+| **VulnerabilityCase** | The canonical core domain type for a vulnerability coordination case; stores participants, reports, statuses, ledger links, and embargo state; distinct from the lifecycle-staged subtypes. | Coordination case, case object |
+| **CaseParticipant** | The canonical core domain type mapping a long-lived **Actor** to a specific **Case**; carries case roles, participant statuses, and embargo consent state. Because an Actor may participate in many Cases with different roles and statuses in each, `CaseParticipant` is the per-case binding that scopes an Actor's protocol obligations and state to a single coordination context. | Participant record, actor-case mapping |
+| **VulnerabilityRecord** | A persistent identifier record for a confirmed vulnerability, carrying one or more namespace identifiers (e.g., CVE ID, CERT/CC VU#) and optional aliases. A **Case** may have multiple VulnerabilityRecords associated with it when coordination spans more than one distinct vulnerability. | Vuln record, CVE record |
+| **CaseReference** | A typed external URL reference attached to a VulnerabilityCase, aligned with the CVE JSON schema reference format (e.g., `"patch"`, `"vendor-advisory"`, `"exploit"` tags). | External link, reference |
+
+## Lifecycle-Staged Types
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Lifecycle-Staged Type** | A narrowed `VulnerabilityCase` subtype that enforces a specific lifecycle milestone's invariants at construction; promotes a general `VulnerabilityCase` to a more specific shape at a read boundary, making illegal field combinations unrepresentable (ADR-0033). Examples include **IncomingReport** and **EmbargoedCase**. | — |
+| **IncomingReport** | A lifecycle-staged `VulnerabilityCase` subtype representing the pre-bootstrap stage: a case with at least one report but no participants assigned yet. | New report, pending case |
+| **EmbargoedCase** | A lifecycle-staged `VulnerabilityCase` subtype representing the active-embargo stage: a case with a non-None active embargo and EM state ∈ {ACTIVE, REVISE}. | Active embargo case, embargo-locked case |
 
 ## Architecture Compliance & Violations
 
@@ -252,6 +302,12 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Blocker** | A dependency or prerequisite that prevents an **Issue** from starting | Dependency, prerequisite |
 | **Acceptance Criteria** | The must-satisfy conditions for an **Issue** or **Subtask** to be considered complete | Definition of done, requirements |
 | **Priority 473** | Architecture Hardening: an initiative to deepen module design, reduce coupling, and improve testability via RFCs and narrowing ports | Sprint, milestone, epic |
+
+## Specification Taxonomy
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Four-Tier Spec Taxonomy** | The four-kind classification for Vultron specification files (ADR-0038): `protocol` (required for Vultron compliance in any language — wire behavior, state machine invariants, message semantics), `architecture` (implementation-independent structural guidance transferable across languages but not required for compliance — hexagonal boundaries, port/adapter patterns), `project` (specific to this codebase — Python paths, BT nodes, module organization), and `process` (how this project is run — CI config, GitHub workflow, agent conventions, spec authoring rules). Replaces a prior six-kind taxonomy. | Spec kinds, spec classification |
 
 ---
 
@@ -605,7 +661,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 ## Metadata
 
 - **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
-- **Last Updated:** 2026-07-24
+- **Last Updated:** 2026-08-18
 - **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, case actor federation, participant case replicas, trust bootstrap and delegation
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)

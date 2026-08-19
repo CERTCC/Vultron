@@ -226,9 +226,7 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        participant.participant_statuses.append(
-            cast(ParticipantStatus, status_obj)
-        )
+        participant.add_participant_status(cast(ParticipantStatus, status_obj))
         self.datalayer.save(participant)
         self.logger.info(
             "AppendStatusAndSaveParticipantNode: added status '%s' to"

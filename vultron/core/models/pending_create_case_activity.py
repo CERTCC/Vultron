@@ -86,11 +86,16 @@ class PendingCreateCaseActivity(VultronObject):
         slug = urllib.parse.quote(proposal_id, safe="")
         return f"pending-create-case/{slug}"
 
-    @model_validator(mode="after")
-    def _set_id(self) -> "PendingCreateCaseActivity":
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id(cls, data: Any) -> Any:
         """Compute ``id_`` deterministically from ``proposal_id``."""
-        self.id_ = self.build_id(self.proposal_id)
-        return self
+        if isinstance(data, dict):
+            proposal_id = data.get("proposal_id")
+            if proposal_id is not None:
+                data = dict(data)
+                data["id"] = cls.build_id(proposal_id)
+        return data
 
 
 __all__ = ["PendingCreateCaseActivity"]

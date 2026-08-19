@@ -37,7 +37,7 @@ Key properties:
 - **Audit vs replication split**: The CaseActor MAY keep a broader local case
   audit trail including rejected assertion outcomes, but only the recorded
   canonical projection participates in replication and hash chaining.
-- **Single-node Raft framing**: The SYNC-1 through SYNC-4 phases effectively
+- **Single-node Raft framing**: The AppendOnlyLedger through PeerLedgerSync phases effectively
   implement a single-node Raft cluster. The CaseActor is permanently the
   leader (no election needed), and every append is an immediate commit. A
   single-node configuration MUST always be supported as the degenerate case
@@ -47,14 +47,14 @@ Key properties:
   multiple CaseActor instances for high-availability write authority — this
   is the scope of the Raft consensus protocol. (2) *Participant replication*
   delivers the canonical recorded log from the CaseActor cluster leader to
-  Participant Actors for state convergence — this is the scope of SYNC-1–4.
+  Participant Actors for state convergence — this is the scope of AppendOnlyLedger–PeerLedgerSync.
   Both tiers share the same `Announce(CaseLedgerEntry)` wire format, but serve
   different purposes.
 - **Forward compatibility**: The single-writer, single-node design explicitly
   preserves forward compatibility with a multi-node Raft cluster for
   high-availability failover. A future Phase 3 adds N-node CaseActor cluster
   support using standard Raft (static membership, log-completeness election,
-  no priority tiebreaker). Failover semantics are out of scope for SYNC-1–4
+  no priority tiebreaker). Failover semantics are out of scope for AppendOnlyLedger–PeerLedgerSync
   and MUST NOT be implicitly assumed by implementations in those phases.
 
 ---
@@ -85,7 +85,7 @@ synchronization state reporting because:
 ## Canonical Serialization
 
 **Critical constraint**: Before cryptographic signatures are added to log
-entries (SYNC-1 "PROD_ONLY" requirement), a **canonical serialization form**
+entries (AppendOnlyLedger "PROD_ONLY" requirement), a **canonical serialization form**
 MUST be established. Changing the serialization after entries are signed will
 invalidate existing hash chains.
 
@@ -134,15 +134,15 @@ a slightly-behind participant.
 
 | Phase  | Description                                               |
 |--------|-----------------------------------------------------------|
-| SYNC-1 | Local append-only log with hash-chain indexing            |
-| SYNC-2 | One-way replication from CaseActor to Participant Actors  |
-| SYNC-3 | Full sync loop with retry/backoff                         |
-| SYNC-4 | Multi-peer synchronization (completes single-node CaseActor participant replication) |
+| AppendOnlyLedger | Local append-only log with hash-chain indexing            |
+| LedgerFanout | One-way replication from CaseActor to Participant Actors  |
+| LedgerReconciliation | Full sync loop with retry/backoff                         |
+| PeerLedgerSync | Multi-peer synchronization (completes single-node CaseActor participant replication) |
 
-### SYNC-1 Scope
+### AppendOnlyLedger Scope
 
 The canonical `CaseLedgerEntry` model (see `notes/case-ledger-authority.md`)
-provides the foundation. SYNC-1 extended it toward a true canonical recorded
+provides the foundation. AppendOnlyLedger extended it toward a true canonical recorded
 log with hash-chain indexing; the richer long-term content model is described
 in `notes/case-ledger-authority.md`.
 
@@ -155,12 +155,12 @@ Core domain classes (transport-agnostic):
 - `CaseLedger` — append-only log; enforces immutability and hash-chain
 - `ReplicationState` — per-peer last-acknowledged hash
 
-`CaseLedgerEntry` fields for SYNC-1:
+`CaseLedgerEntry` fields for AppendOnlyLedger:
 
 - `log_index` — monotonically increasing integer scoped to the case (MUST;
-  see SYNC-01-002). Added in SYNC-1 so downstream code and wire format are
+  see SYNC-01-002). Added in AppendOnlyLedger so downstream code and wire format are
   index-aware from the start.
-- `term` — Raft term number (OPTIONAL in SYNC-1; defaults to `null` or `0`
+- `term` — Raft term number (OPTIONAL in AppendOnlyLedger; defaults to `null` or `0`
   in single-node deployments; becomes required when multi-node CaseActor
   cluster is introduced in Phase 3).
 
@@ -170,7 +170,7 @@ Adapter responsibilities:
 - Inbound handler for `Announce` (participant receiving a log entry)
 - File/database log storage
 
-### SYNC-2 Scope
+### LedgerFanout Scope
 
 One-way replication from CaseActor to each Participant Actor:
 
@@ -178,7 +178,7 @@ One-way replication from CaseActor to each Participant Actor:
   with last-accepted hash
 - Sender retries from the entry following the reported last-accepted hash
 
-Design Decision (blocks SYNC-2): Reconcile "replication leadership" with
+Design Decision (blocks LedgerFanout): Reconcile "replication leadership" with
 "Case Ownership". Case Ownership governs who controls the case lifecycle
 (e.g., closing the case, transferring ownership). Replication leadership
 governs which node currently accepts writes to the log. These are distinct:
@@ -194,7 +194,7 @@ A log entry is **committed** when it has been durably appended to the
 authoritative log and is safe to apply to the case state machine and emit
 externally.
 
-- In a **single-node** CaseActor (SYNC-1–4): every append is an immediate
+- In a **single-node** CaseActor (AppendOnlyLedger–PeerLedgerSync): every append is an immediate
   commit. There is no replication quorum to wait for.
 - In a **multi-node CaseActor cluster** (Phase 3 Raft): an entry is committed
   once the leader has received acknowledgement from a majority of cluster
@@ -303,10 +303,10 @@ Design approach:
 - Add a **leadership role-check port** to the BT bridge
   (`vultron/core/behaviors/bridge.py`). The port is a simple callable or
   Protocol that returns `True` if the calling node is the current leader.
-- In SYNC-1–4 (single-node): the port implementation always returns `True`.
+- In AppendOnlyLedger–PeerLedgerSync (single-node): the port implementation always returns `True`.
 - In Phase 3 (multi-node): the port queries the Raft state machine.
 
-This port SHOULD be added during SYNC-1 so that the seam already exists in
+This port SHOULD be added during AppendOnlyLedger so that the seam already exists in
 the BT bridge and Phase 3 only needs to provide a real implementation. The
 port being permanently `True` in single-node imposes zero runtime cost.
 
@@ -323,7 +323,7 @@ port being permanently `True` in single-node imposes zero runtime cost.
   MUST eventually possess a cryptographic identity. The specification must
   define how keys are generated, distributed, rotated, and revoked, and
   how trust anchors are established (e.g., pinned keys vs. PKI). This is
-  `PROD_ONLY` scope but SHOULD be designed before SYNC-3 to avoid
+  `PROD_ONLY` scope but SHOULD be designed before LedgerReconciliation to avoid
   retrofitting later.
 
 ---
@@ -582,7 +582,7 @@ Three properties are load-bearing, and each has a regression test:
   by SYNC-15-001/002, which seed the case and rely on the *following* replay to
   deliver history; a full-length cooldown there starved the bootstrap (caught by
   `fccv-handoff` in CI: 34 suppressions against a Finder stuck at genesis, ending in
-  "SYNC-2 replication did not complete"). Exempting genesis outright would re-admit
+  "LedgerFanout replication did not complete"). Exempting genesis outright would re-admit
   the storm, since a peer that cannot anchor reports genesis on every Reject — 43 of
   51 suppressions in the fixed `fcvcv` run were at genesis. So: 2s, not 0s and not
   30s.

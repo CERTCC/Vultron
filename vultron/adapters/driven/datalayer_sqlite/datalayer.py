@@ -21,6 +21,7 @@ from typing import Any, Callable, cast
 from pydantic import BaseModel, ValidationError
 from sqlmodel import SQLModel
 
+from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
 from vultron.adapters.driven.db_record import (
     Record,
     _AS_LIST_REF_FIELDS,
@@ -686,3 +687,39 @@ class SqliteDataLayer:
     def outbox_pop(self) -> str | None:
         """Remove and return the oldest activity ID from the outbox."""
         return queues.outbox_pop(self)
+
+    # ------------------------------------------------------------------
+    # Per-activity outbox attempt counter (OX-13-001)
+    # ------------------------------------------------------------------
+
+    def get_outbox_attempt_count(self, activity_id: str) -> int:
+        """Return this actor's cumulative delivery attempt count for *activity_id*."""
+        return queues.get_outbox_attempt_count(self, activity_id)
+
+    def set_outbox_attempt_count(self, activity_id: str, count: int) -> None:
+        """Upsert this actor's delivery attempt count for *activity_id*."""
+        queues.set_outbox_attempt_count(self, activity_id, count)
+
+    def clear_outbox_attempt_count(self, activity_id: str) -> None:
+        """Remove this actor's attempt count entry for *activity_id*."""
+        queues.clear_outbox_attempt_count(self, activity_id)
+
+    # ------------------------------------------------------------------
+    # Dead-letter store (OX-13-002, OX-13-004)
+    # ------------------------------------------------------------------
+
+    def dead_letter_append(
+        self,
+        activity_id: str,
+        reason: str,
+        total_attempts: int,
+        failed_recipients: list[str],
+    ) -> None:
+        """Write an exhausted outbox activity to this actor's dead-letter store."""
+        queues.dead_letter_append(
+            self, activity_id, reason, total_attempts, failed_recipients
+        )
+
+    def dead_letter_list(self) -> list[OutboxDeadLetterEntry]:
+        """Return this actor's dead-letter entries (OX-13-004)."""
+        return queues.dead_letter_list(self)
