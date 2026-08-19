@@ -21,6 +21,8 @@ Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest
+
+from test.conftest import seed_case_actor_replica
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
@@ -667,6 +669,12 @@ def case_for_invite(dl, actor):
     dl.create(case)
     dl.create(owner_participant)
     dl.create(case_manager_participant)
+    # The Invite is authored as the CaseActor and committed to its ledger, so the
+    # tree runs in the CaseActor's store — which needs the case for its genesis
+    # anchor (CLP-08-001/002).
+    seed_case_actor_replica(
+        dl, case_actor.id_, case, owner_participant, case_manager_participant
+    )
     case_actor_with_context = as_Service(
         id_=case_actor.id_,
         name="Case Actor for Invite",
