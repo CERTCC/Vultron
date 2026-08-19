@@ -216,6 +216,11 @@ class CoreObject(VultronObject):
             # No explicit type_ annotation: _set_type_from_class_name will set
             # type_ = cls.__name__ at construction time, so register by class
             # name so that find_in_vocabulary can reconstruct from DB storage.
+            # This fires for abstract intermediate subclasses too — any
+            # CoreObject subclass that never overrides type_ registers here,
+            # making find_in_vocabulary('ClassName') succeed even for abstract
+            # bases.  Intentional: _set_type_from_class_name runs on all such
+            # subclasses, so every registered name is a valid stored type_.
             CORE_TYPE_MAP[cls.__name__] = cls
             return  # Skip CORE_VOCABULARY — not a concrete vocab entry
         try:
