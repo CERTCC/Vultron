@@ -1134,3 +1134,68 @@ class TestCrossMachineEntailments:
         before = self._status_count()
         self._execute(pxa_state=CS_pxa.Pxa)
         assert self._status_count() == before + 1
+
+
+class TestViolationPxaEmEntailment:
+    """Unit tests for violation_pxa_em_entailment() (CSB-18-002..004).
+
+    These rules are provided for future receive-path enforcement and are NOT
+    wired into the emit path.  Tests document the expected semantics so future
+    maintainers have a baseline when adding the receive-path guard.
+    """
+
+    def _check(self, pxa, em):
+        from vultron.core.states.cross_machine_invariants import (
+            violation_pxa_em_entailment,
+        )
+
+        return violation_pxa_em_entailment(pxa, em)
+
+    def test_p_bit_with_active_embargo_returns_error(self):
+        """CSB-18-002: P bit (public aware) with EM.ACTIVE is a violation."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.Pxa, EM.ACTIVE)
+        assert result is not None
+        assert "P bit" in result
+
+    def test_x_bit_with_active_embargo_returns_error(self):
+        """CSB-18-003: X bit (exploit public) with EM.ACTIVE is a violation."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.PXa, EM.ACTIVE)
+        assert result is not None
+        assert "X bit" in result
+
+    def test_a_bit_with_active_embargo_returns_error(self):
+        """CSB-18-004: A bit (attacks observed) with EM.ACTIVE is a violation."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.pxA, EM.ACTIVE)
+        assert result is not None
+        assert "A bit" in result
+
+    def test_p_bit_with_revise_embargo_returns_error(self):
+        """CSB-18-002: P bit with EM.REVISE (also active) is a violation."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.Pxa, EM.REVISE)
+        assert result is not None
+
+    def test_pxa_no_bits_with_active_embargo_returns_none(self):
+        """No bit set with EM.ACTIVE — no entailment violated."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        assert self._check(CS_pxa.pxa, EM.ACTIVE) is None
+
+    def test_p_bit_without_active_embargo_returns_none(self):
+        """P bit with EM.NONE — no embargo, no constraint."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        assert self._check(CS_pxa.Pxa, EM.NONE) is None
