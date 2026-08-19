@@ -291,8 +291,9 @@ async def outbox_handler(
             else:
                 _retry.set_outbox_attempt_count(activity_id, total)
                 logger.error(
-                    "Error processing outbox item for actor %s: %s",
-                    actor_id,
+                    "Error processing outbox item '%s' (attempt %d): %s",
+                    activity_id,
+                    total,
                     e,
                 )
                 dl.outbox_append(activity_id)
@@ -302,10 +303,9 @@ async def outbox_handler(
                 per_err = activity_err_counts[activity_id]
                 if per_err > 3:
                     logger.error(
-                        "Too many errors for outbox item %s (actor %s),"
+                        "Too many errors for outbox item '%s',"
                         " skipping for this pass (OX-13-006).",
                         activity_id,
-                        actor_id,
                     )
                     # Stop when every remaining item has also hit its cap.
                     if all(

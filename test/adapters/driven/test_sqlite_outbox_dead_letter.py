@@ -151,3 +151,39 @@ def test_dead_letter_entry_has_timestamp(alice_dl, dl):
     )
     entry = dl.dead_letter_list()[0]
     assert entry.recorded_at is not None
+
+
+def test_dead_letter_list_skips_corrupted_entries(
+    alice_dl, dl, caplog, monkeypatch
+):
+    """dead_letter_list silently skips undeserializable entries and returns valid ones."""
+    from datetime import UTC, datetime
+
+    valid_data = {
+        "type_": "OutboxDeadLetterEntry",
+        "id_": "urn:test:valid-dl-entry",
+        "activity_id": _ACT_ID,
+        "actor_id": _ALICE,
+        "reason": "max_attempts_exhausted",
+        "total_attempts": 12,
+        "failed_recipients": [],
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
+    corrupted_data = {
+        "type_": "OutboxDeadLetterEntry"
+    }  # missing required fields
+
+    monkeypatch.setattr(
+        dl,
+        "by_type",
+        lambda _type: {"id-valid": valid_data, "id-corrupt": corrupted_data},
+    )
+
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        entries = dl.dead_letter_list()
+
+    assert len(entries) == 1
+    assert entries[0].activity_id == _ACT_ID
+    assert "could not reconstruct" in caplog.text

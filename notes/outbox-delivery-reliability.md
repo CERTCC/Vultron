@@ -177,64 +177,38 @@ the timeout parameter flows through and jitter is applied.
 
 ---
 
-## Task D — Per-activity attempt counter + dead-letter store
+## Task D — Per-activity attempt counter + dead-letter store ✅ IMPLEMENTED
 
-**Files:** `vultron/adapters/driving/fastapi/outbox_handler.py`,
-DataLayer persistence layer (outbox queue entry model), `vultron/errors.py`
+**Implemented in PR #2371 (2026-08-19). See ADR-0066.**
 
-### Per-activity attempt counter (OX-13-001)
+**Implementation files:**
 
-The outbox queue currently stores plain activity ID strings. The counter requires
-the queue entry to carry additional state. Two approaches:
+- `vultron/adapters/outbox_dead_letter.py` — `OutboxDeadLetterEntry` model and
+  `OutboxRetryStore` Protocol (adapter layer, not core port)
+- `vultron/adapters/driven/datalayer_sqlite/queues.py` — `get_outbox_attempt_count`,
+  `set_outbox_attempt_count`, `clear_outbox_attempt_count`, `dead_letter_append`,
+  `dead_letter_list`
+- `vultron/adapters/driven/datalayer_sqlite/schema.py` — `OutboxAttemptEntry` SQLModel
+  table (`vultron_outbox_attempts`)
+- `vultron/adapters/driving/fastapi/outbox_handler.py` — `MAX_TOTAL_ATTEMPTS = 12`,
+  exhaustion branch, `cast(OutboxRetryStore, dl)` pattern
+- `test/adapters/driven/test_sqlite_outbox_dead_letter.py` — 13 tests (OX-13-001–004)
+- `test/adapters/driving/fastapi/test_outbox_handler.py` — 4 new handler tests
 
-1. **Side-table in DataLayer**: store `{activity_id: attempt_count}` in a separate
-   DataLayer key (e.g. `outbox_attempts`). Simpler queue API change; query by
-   activity ID.
-2. **Structured queue entry**: replace the string queue with structured objects
-   `OutboxQueueEntry(activity_id, total_attempts)`. More correct but requires
-   wider DataLayer changes.
+**Design choices (supersedes guidance above):**
 
-Recommendation: start with the side-table approach so the queue API (`outbox_pop`,
-`outbox_append`, `outbox_list`) does not need to change. The counter is read/written
-by `outbox_handler` alongside `outbox_append`.
+- Side-table approach used (`OutboxAttemptEntry` SQLModel, `vultron_outbox_attempts`),
+  keeping queue API unchanged.
+- `OutboxRetryStore` is an adapter-level Protocol; `SqliteDataLayer` satisfies it
+  structurally. `outbox_handler` uses `cast(OutboxRetryStore, dl)` to access the
+  delivery-infrastructure methods without polluting the core `ActorScopedDataLayer` port.
+- `MAX_TOTAL_ATTEMPTS = 12` is a module-level constant (not constructor-configurable).
+- Counter is cleared when an activity is dead-lettered (OX-13-002) so the side-table
+  does not accumulate stale rows.
 
-```python
-# outbox_handler.py — on delivery failure:
-count = dl.get_outbox_attempt_count(activity_id) + 1
-if count >= max_total_attempts:
-    dl.dead_letter_append(activity_id, reason="max_attempts_exhausted")
-    logger.error(
-        "Activity %s exhausted %d delivery attempts — moved to dead letter (OX-13-002)",
-        activity_id, count,
-    )
-else:
-    dl.set_outbox_attempt_count(activity_id, count)
-    dl.outbox_append(activity_id)
-```
+**Remaining open items:**
 
-### Dead-letter store (OX-13-002–OX-13-004)
-
-The DataLayer needs two new methods:
-
-- `dead_letter_append(activity_id, reason)` — write a dead-letter entry
-- `dead_letter_list()` → list of entries — operator visibility (OX-13-004)
-
-Model: `OutboxDeadLetterEntry(activity_id, reason, total_attempts, timestamp)`.
-
-**Cross-reference ADR-0066:** the protocol-level NACK on exhaustion (Option C in the
-ADR) is explicitly deferred to CERTCC/Vultron#1880 which asks the analogous inbound
-question.
-
-### Default max_total_attempts = 12
-
-Rationale: `DEFAULT_MAX_RETRIES + 1 = 4` inner attempts per drain pass; three
-drain-pass cycles × 4 = 12 total. Survives brief transient failures (network blip,
-container restart) without running indefinitely. Make it a module constant in
-`outbox_handler.py` (configurable via `HttpDeliveryAdapter` constructor or
-`OutboxMonitor` parameters).
-
-**Tests:** unit tests for counter increment, exhaustion path, dead-letter write, and
-dead-letter readable via DataLayer.
+- Protocol-level NACK on exhaustion (ADR-0066 Option C) still deferred to #1880.
 
 ---
 
