@@ -64,10 +64,11 @@ _ACCEPT_ID = "https://case-actor.test/activities/accept-001"
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
     """Fresh in-memory DataLayer for each test."""
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
+    # The case actor's own store. Every test below hands this DataLayer to the
+    # retry machinery *as* _CASE_ACTOR_ID's ({_CASE_ACTOR_ID: dl}), so claiming a
+    # different owner made the mapping a lie: the re-queue BT executes as the case
+    # actor and would open that actor's real — empty — store (ADR-0066).
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
 
 
 def _build_activity() -> VultronCreateCaseActivity:
@@ -344,15 +345,13 @@ class TestRetryMultipleMarkers:
 
     def test_markers_across_two_actor_dls(self):
         """Markers in distinct DataLayers are both processed."""
-        dl_a = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        dl_b = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # Distinct actors, therefore genuinely distinct stores. Both of these
+        # were previously built with the same actor id, which under ADR-0066
+        # resolves to the *same* named in-memory database — so the test had one
+        # store holding both markers and counted each of them twice.
         actor_b = "https://case-actor-b.test/actors/svc-002"
+        dl_a = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+        dl_b = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_b)
 
         activity_a = _build_activity()
         activity_b = VultronCreateCaseActivity(
@@ -492,43 +491,45 @@ class TestStartupRecovery:
     """
 
     @staticmethod
-    def _make_shared_and_actor_dl():
-        """Return (shared_dl, actor_dl) backed by the same in-memory SQLite DB."""
-        shared_dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        actor_dl = shared_dl.clone_for_actor(_CASE_ACTOR_ID)
-        return shared_dl, actor_dl
+    def _make_actor_dl():
+        """Return the case actor's own store, as startup recovery will find it.
 
-    def test_discovers_actor_from_shared_dl_when_cache_empty(self):
-        """Marker is processed when actor cache is empty but shared DL has markers.
-
-        Simulates crash/restart: actor_datalayers_factory returns {} but the
-        shared DataLayer still holds a persisted PendingCreateCaseActivity.
+        There is no shared DataLayer to scan any more (ADR-0066).
+        ``marker_scan_factory`` now yields the *actor ids* discovered from the
+        per-actor stores that exist on the node, and recovery opens each one — so
+        these tests supply ids, not a store.
         """
-        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        return SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+
+    def test_discovers_actor_from_stores_when_cache_empty(self):
+        """Marker is processed when the actor cache is empty but a store has markers.
+
+        Simulates crash/restart: ``actor_datalayers_factory`` returns {} while the
+        case actor's own store still holds a persisted PendingCreateCaseActivity,
+        and store discovery finds that actor.
+        """
+        actor_dl = self._make_actor_dl()
         activity = _build_activity()
         marker = _build_marker(activity)
         actor_dl.save(marker)  # saved with actor_id, as the BT node does
 
         count = retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {},  # empty cache (post-restart)
-            marker_scan_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: [_CASE_ACTOR_ID],
         )
 
         assert count == 1, "Marker should be processed via shared-DL discovery"
 
-    def test_activity_enqueued_after_shared_dl_discovery(self):
+    def test_activity_enqueued_after_store_discovery(self):
         """Activity is placed in the outbox after shared-DL actor discovery."""
-        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        actor_dl = self._make_actor_dl()
         activity = _build_activity()
         marker = _build_marker(activity)
         actor_dl.save(marker)
 
         retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {},
-            marker_scan_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: [_CASE_ACTOR_ID],
         )
 
         outbox = actor_dl.outbox_list()
@@ -536,15 +537,15 @@ class TestStartupRecovery:
             activity.id_ in outbox
         ), "Activity should be in the outbox after startup recovery"
 
-    def test_marker_deleted_after_shared_dl_discovery(self):
+    def test_marker_deleted_after_store_discovery(self):
         """Marker is cleared after startup recovery completes (AC-3)."""
-        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        actor_dl = self._make_actor_dl()
         marker = _build_marker()
         actor_dl.save(marker)
 
         retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {},
-            marker_scan_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: [_CASE_ACTOR_ID],
         )
 
         assert (
@@ -552,8 +553,8 @@ class TestStartupRecovery:
         ), "Marker should be deleted after startup recovery"
 
     def test_no_duplicate_when_actor_already_in_cache(self):
-        """Actor already in the cache is not processed twice via shared-DL scan."""
-        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        """An actor already in the cache is not processed twice by store discovery."""
+        actor_dl = self._make_actor_dl()
         activity = _build_activity()
         marker = _build_marker(activity)
         actor_dl.save(marker)
@@ -561,7 +562,7 @@ class TestStartupRecovery:
         # Actor is in the cache AND marker_scan_factory is injected.
         count = retry_pending_create_case_activities(
             actor_datalayers_factory=lambda: {_CASE_ACTOR_ID: actor_dl},
-            marker_scan_factory=lambda: shared_dl,
+            marker_scan_factory=lambda: [_CASE_ACTOR_ID],
         )
 
         assert count == 1, "Marker should be processed exactly once"
