@@ -423,6 +423,7 @@ def _phase_report_submission(
         case_actor_client=case_actor_client,
     )
 
+    finder = vendor = None
     with demo_step("Seeding both containers with actor records"):
         finder, vendor = seed_containers(
             finder_client=finder_client,
@@ -461,6 +462,7 @@ def _phase_report_submission(
     )
     logger.info("trigger/create-case result: %s", create_case_result)
 
+    case = None
     with demo_check("as_VulnerabilityCase exists in Vendor's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
@@ -573,6 +575,7 @@ def _phase_notes_exchange(
         question_note=question_note,
     )
 
+    final_case = None
     with demo_check(
         "M3: Vendor container holds the authoritative final case state"
     ):

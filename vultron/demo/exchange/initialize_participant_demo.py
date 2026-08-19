@@ -173,6 +173,7 @@ def demo_initialize_participant(
 
     case = setup_case_precondition(client, finder, vendor)
 
+    initial_case = None
     with demo_check("Initial case state"):
         initial_case = log_case_state(client, case.id_, "initial")
         if initial_case is None:
@@ -183,6 +184,7 @@ def demo_initialize_participant(
 
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
+    coordinator_participant = None
     with demo_step(
         "Step 1: Vendor creates coordinator participant (standalone)"
     ):

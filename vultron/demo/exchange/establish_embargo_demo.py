@@ -98,6 +98,7 @@ def demo_propose_embargo_accept(
 
     case = setup_two_participant_case(client, finder, vendor, coordinator)
 
+    embargo = proposal = None
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=90)
         create_embargo = as_Create(
@@ -195,6 +196,7 @@ def demo_propose_embargo_reject(
 
     case = setup_two_participant_case(client, finder, vendor, coordinator)
 
+    embargo = proposal = None
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=45)
         create_embargo = as_Create(

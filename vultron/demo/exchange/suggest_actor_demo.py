@@ -93,6 +93,7 @@ def demo_suggest_actor_accept(
 
     case = setup_initialized_case(client, finder, vendor)
 
+    recommendation = None
     with demo_step(
         "Step 2: Finder sends Offer(Actor, Case) to CaseActor inbox"
     ):
@@ -113,6 +114,7 @@ def demo_suggest_actor_accept(
         with demo_check("Offer(Actor,Case) stored in data layer"):
             verify_object_stored(client, recommendation.id_)
 
+    cp_offer = None
     with demo_step(
         "Step 3: CaseActor transforms to Offer(as_CaseParticipant) → Case Owner"
     ):
@@ -187,6 +189,7 @@ def demo_suggest_actor_reject(
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
+    recommendation = cp_offer = None
     with demo_step(
         "Step 2: Finder sends Offer(Actor, Case) to CaseActor inbox"
     ):

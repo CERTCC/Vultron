@@ -180,6 +180,7 @@ def _phase_report_submission(
         vendor2_client=vendor2_client,
     )
 
+    finder = vendor = coordinator = vendor2 = None
     with demo_step("Seeding all four containers with actor records"):
         finder, vendor, coordinator, vendor2 = seed_containers_fvcv(
             finder_client=finder_client,
@@ -330,6 +331,7 @@ def _phase_coordinator_suggests_vendor2(
 
     # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)
     # to Vendor1 (CASE_OWNER).  Poll Vendor1's DataLayer for the offer.
+    cp_offer_id = None
     with demo_check(
         "Offer(CaseParticipant) for Vendor2 arrived in Vendor1's DataLayer"
     ):
@@ -368,6 +370,7 @@ def _phase_coordinator_suggests_vendor2(
     # Announce(VulnerabilityCase) (MV-10-003).  Poll Vendor2's DataLayer for the
     # arriving Invite, then puppeteer Vendor2's accept (ADR-0026 invite/accept/
     # bootstrap chain; DEMOMA-10-005 / CM-16-006).
+    invite_id = None
     with demo_check("Vendor2 received invite from CaseActor (ADR-0026 path)"):
         invite_id = find_case_invite_for_actor(
             client=vendor2_client,

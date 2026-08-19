@@ -117,6 +117,7 @@ def demo_validate_and_engage(
     logger.info("TRIGGER DEMO 1: Validate Report → Engage Case")
     logger.info("=" * 80)
 
+    report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report, offer = _submit_report(
             client=client,
@@ -129,6 +130,7 @@ def demo_validate_and_engage(
             ),
         )
 
+    stored_offer = response = None
     with demo_step("Step 2: Vendor triggers validate-report"):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         response = post_to_trigger(
@@ -199,6 +201,7 @@ def demo_invalidate_and_close(
     logger.info("TRIGGER DEMO 2: Invalidate Report → Close Report")
     logger.info("=" * 80)
 
+    report = offer = None
     with demo_step("Step 1: Finder submits a low-quality report to vendor"):
         report, offer = _submit_report(
             client=client,
@@ -211,6 +214,7 @@ def demo_invalidate_and_close(
             ),
         )
 
+    stored_offer = response = None
     with demo_step("Step 2: Vendor triggers invalidate-report"):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         response = post_to_trigger(

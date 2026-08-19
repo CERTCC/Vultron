@@ -192,6 +192,7 @@ def demo_manage_participants_accept(
 
     case = _setup_case_with_vendor(client, finder, vendor)
 
+    invite = None
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = rm_invite_to_case_activity(
             coordinator,
@@ -213,6 +214,7 @@ def demo_manage_participants_accept(
         logger.info(f"Sending accept: {logfmt(accept)}")
         post_to_inbox_and_wait(client, vendor.id_, accept)
 
+    coordinator_participant = None
     with demo_step("Step 4: Vendor creates coordinator participant"):
         coordinator_participant = as_CaseParticipant(
             case_roles=[CVDRole.COORDINATOR],
@@ -249,6 +251,7 @@ def demo_manage_participants_accept(
                     f" Index: {updated_case.actor_participant_index}"
                 )
 
+    participant_status = None
     with demo_step("Step 6: Coordinator creates a as_ParticipantStatus"):
         participant_status = as_ParticipantStatus(
             context=coordinator_participant.id_,
@@ -340,6 +343,7 @@ def demo_manage_participants_reject(
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
+    invite = None
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = rm_invite_to_case_activity(
             coordinator,

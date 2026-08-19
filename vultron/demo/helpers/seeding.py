@@ -933,6 +933,7 @@ def reset_containers(
 
     Spec: D5-2.
     """
+    label = client = None
     with demo_step("Resetting actor containers to a clean baseline"):
         for label, client in labeled_clients:
             result = reset_fn(client=client, init=False)
