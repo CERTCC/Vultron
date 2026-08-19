@@ -30,7 +30,7 @@ from pydantic import (
 )
 
 from vultron.core.models._helpers import _new_urn, _now_utc
-from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 
 
 class ValidatedAssignmentMixin(BaseModel):
@@ -92,6 +92,43 @@ class VultronObject(ValidatedAssignmentMixin, VultronBase):
     hierarchy in the wire layer.  Concrete domain object classes inherit from
     this base rather than directly from ``BaseModel``.
     """
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
+        # Register every concrete VultronObject subclass in CORE_TYPE_MAP so
+        # that find_in_vocabulary() can locate them without placing them in the
+        # wire VOCABULARY dict (ARCH-12-003). Only subclasses that declare
+        # their own concrete type_ annotation are registered; abstract bases
+        # that inherit or omit type_ are skipped (same guard as CoreObject).
+        own_annotations = cls.__dict__.get("__annotations__", {})
+        if "type_" not in own_annotations:
+            return
+        try:
+            hints = _typing.get_type_hints(cls)
+        except Exception:
+            return
+        annotation = hints.get("type_")
+        if isinstance(annotation, _types.UnionType):
+            return
+        if _typing.get_origin(annotation) is _typing.Union:
+            return
+        try:
+            # Register by class name (covers classes where _set_type_from_class_name
+            # sets type_ = cls.__name__, e.g. CoreActor stored as "CoreActor").
+            CORE_TYPE_MAP[cls.__name__] = cls
+            # Also register by the Literal value itself when it differs from the
+            # class name (e.g. VultronOfferRecord → "OfferRecord"). Extract from
+            # the annotation directly; model_fields is not yet populated at
+            # __init_subclass__ time.
+            literal_args = _typing.get_args(annotation)
+            if (
+                literal_args
+                and len(literal_args) == 1
+                and isinstance(literal_args[0], str)
+            ):
+                CORE_TYPE_MAP[literal_args[0]] = cls
+        except Exception:
+            pass
 
     replies: Any | None = None
     url: NonEmptyString | None = None
@@ -176,7 +213,11 @@ class CoreObject(VultronObject):
         # would silently fall through and register abstract bases.
         own_annotations = cls.__dict__.get("__annotations__", {})
         if "type_" not in own_annotations:
-            return  # No type_ override → abstract base, skip
+            # No explicit type_ annotation: _set_type_from_class_name will set
+            # type_ = cls.__name__ at construction time, so register by class
+            # name so that find_in_vocabulary can reconstruct from DB storage.
+            CORE_TYPE_MAP[cls.__name__] = cls
+            return  # Skip CORE_VOCABULARY — not a concrete vocab entry
         try:
             hints = _typing.get_type_hints(cls)
         except Exception:

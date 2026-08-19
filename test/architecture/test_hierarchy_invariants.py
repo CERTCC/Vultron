@@ -71,19 +71,9 @@ _TO_CAMEL_BACKLOG_1991: frozenset[str] = frozenset(
 
 # ---------------------------------------------------------------------------
 # Backlog: core-layer classes registered in the wire VOCABULARY registry,
-# violating ARCH-12-003 (issue #1992). This set may only SHRINK.
+# violating ARCH-12-003 (issue #1992). All violations resolved — set is empty.
 # ---------------------------------------------------------------------------
-_NON_AS_BASE_BACKLOG_1992: frozenset[str] = frozenset(
-    {
-        "Actor",
-        "CoreActor",
-        "OfferRecord",
-        "PendingCaseInbox",
-        "PendingCreateCaseActivity",
-        "ReplicationState",
-        "ReportCaseLink",
-    }
-)
+_NON_AS_BASE_BACKLOG_1992: frozenset[str] = frozenset()
 
 
 class TestCoreVocabularyHierarchy:
@@ -198,13 +188,6 @@ class TestWireVocabularyHierarchy:
             " (ARCH-12-003, issue #1992)."
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Goal state for issue #1992: the wire VOCABULARY contains only "
-        "as_Base subclasses. 7 known core-layer entries remain, enumerated in "
-        "_NON_AS_BASE_BACKLOG_1992. When the last is removed this test XPASSes "
-        "and fails the build — delete the marker and the backlog then.",
-    )
     def test_all_vocabulary_are_as_base_subclasses(self) -> None:
         """All VOCABULARY classes must be subclasses of as_Base.
 

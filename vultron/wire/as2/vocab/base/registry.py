@@ -18,22 +18,30 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 
 from pydantic import BaseModel
 
+from vultron.core.models.registry import CORE_TYPE_MAP
+
 VOCABULARY: dict[str, type[BaseModel]] = {}
 
 
 def find_in_vocabulary(item_name: str) -> type[BaseModel]:
     """Find a class in the vocabulary by type name.
 
+    Checks the wire ``VOCABULARY`` first, then falls back to the core
+    ``CORE_TYPE_MAP`` for types that belong to the core domain layer and
+    must not be registered as wire vocabulary entries (ARCH-12-003).
+
     Args:
         item_name: The name of the type to find.
     Returns:
         The class registered under that name.
     Raises:
-        KeyError: If the type name is not registered in the vocabulary.
+        KeyError: If the type name is not registered in either vocabulary.
     """
-    if item_name not in VOCABULARY:
-        raise KeyError(f"Unknown vocabulary type: {item_name!r}")
-    return VOCABULARY[item_name]
+    if item_name in VOCABULARY:
+        return VOCABULARY[item_name]
+    if item_name in CORE_TYPE_MAP:
+        return CORE_TYPE_MAP[item_name]
+    raise KeyError(f"Unknown vocabulary type: {item_name!r}")
 
 
 def main():
