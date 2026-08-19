@@ -536,7 +536,14 @@ class TestFullValidateReportLedgerChain:
         )
 
         # ── Step 4: build case_actor_dl with same case identifiers ────────────
-        case_actor_dl = _make_dl(self.VENDOR_ID)
+        # Keyed by the CaseActor, not the vendor. Two things were wrong with
+        # `_make_dl(self.VENDOR_ID)` here: the use case receives as the CaseActor,
+        # so the tree runs in the CaseActor's store and found no case there; and
+        # an actor id *is* a store name, so passing the vendor's id handed back
+        # the very same in-memory database as `vendor_dl` above. The two halves of
+        # this "vendor triggers, CaseActor receives" chain were one store, which
+        # is exactly the sharing that hides a missing cross-store write.
+        case_actor_dl = _make_dl(case_actor_id)
 
         # The CaseActor Service needs context=case.id_ for _find_case_actor_id.
         ca_svc = VultronCaseActor(id_=case_actor_id, context=case.id_)

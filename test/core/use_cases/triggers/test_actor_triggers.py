@@ -1372,9 +1372,16 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         This test seeds a case with a CASE_MANAGER participant and verifies
         the emitted ``to`` field carries the case actor URI.
         """
-        owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
+        # The store is the *transferee's*: it is the requesting actor, so it is
+        # the actor the BT executes as, and a BT reads and writes its executing
+        # actor's own store (ADR-0066).  Holding the owner's store instead left
+        # the tree looking for the case in an empty one, and `to` fell back to an
+        # actor that is not the case manager — the assertion below failed on a
+        # value that had nothing to do with `_resolve_case_manager_id`.
+        transferee, dl = _make_actor_dl("Coordinator")
+
+        owner, _ = _make_actor_dl("Vendor")
+        dl.create(owner)
 
         case_actor, _ = _make_actor_dl("CaseActor")
         dl.create(case_actor)
