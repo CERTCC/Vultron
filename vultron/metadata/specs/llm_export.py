@@ -72,6 +72,8 @@ def _spec_record(
     if spec.adr:
         rec["adr"] = list(spec.adr)
 
+    rec["verification"] = spec.verification
+
     if isinstance(spec, BehavioralSpec):
         if spec.preconditions:
             rec["preconditions"] = [p.description for p in spec.preconditions]
