@@ -826,10 +826,12 @@ class TestVerifyFinderReplicaState:
 
 
 def _setup_case_with_3_participants(base: str):
-    """Helper: seed, submit report, validate, and return (finder, vendor, case).
+    """Helper: seed, submit report, validate, engage, and return (finder, vendor, case).
 
     Returns a tuple of (finder_client, vendor_client, finder, vendor, case).
-    The shared DataLayer will have 3 participants (Vendor + Finder + Case Actor).
+    The shared DataLayer will have 3 participants (Vendor + Finder + Case Actor)
+    and the vendor's RM state will be at RM.ACCEPTED (the minimum required for
+    fix-ready assertions per CSB-18-001).
     """
     finder_client = make_client(base)
     vendor_client = make_client(base)
@@ -845,13 +847,22 @@ def _setup_case_with_3_participants(base: str):
         finder=finder,
         vendor=vendor_in_vendor,
     )
+    # ADR-0041: no case after validate-report; create one directly for setup.
+    # validate-report requires a live case (EnsureEmbargoExists needs an active
+    # embargo), so create the case first, then run the RM triage sequence.
+    case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
+    # Advance vendor RM: RECEIVED → VALID (validate-report) → ACCEPTED (engage-case).
+    # CSB-18-001: VFd (F bit set) requires RM ∈ {ACCEPTED, DEFERRED, CLOSED}.
     demo.vendor_validates_report(
         vendor_client=vendor_client,
         vendor=vendor_in_vendor,
         offer_id=offer.id_,
     )
-    # ADR-0041: no case after validate-report; create one directly for setup.
-    case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
+    demo.vendor_engages_case(
+        vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
+        case_id=case.id_,
+    )
     return finder_client, vendor_client, finder, vendor_in_vendor, case
 
 

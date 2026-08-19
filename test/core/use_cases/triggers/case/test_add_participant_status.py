@@ -939,3 +939,267 @@ class TestValidateTriggerTransitions:
         before = self._status_count()
         self._execute(rm_state=RM.RECEIVED)
         assert self._status_count() == before + 1
+
+
+# ---------------------------------------------------------------------------
+# ValidateTriggerTransitionsNode — cross-machine entailments (#2236)
+# ---------------------------------------------------------------------------
+
+
+class TestCrossMachineEntailments:
+    """Trigger-path cross-machine entailment guard (#2236).
+
+    CSB-18-001: VFD F bit (VFd/VFD) requires RM ∈ {ACCEPTED, DEFERRED, CLOSED}.
+    Both RM and VFD are per-actor attributes; a contradictory combination is
+    rejected at emit time.
+
+    Motivating case: FCV failure shipped VFd + RM.RECEIVED — an impossible
+    combination because fix readiness entails RM.ACCEPTED.
+
+    Note: PXA→EM entailments (CSB-18-002..004) are causal, not contradictory
+    from the emitter's perspective: asserting P CAUSES EM to terminate. Those
+    constraints are enforced on the receive path.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from vultron.adapters.driven.datalayer_sqlite import (
+            SqliteDataLayer,
+            reset_datalayer,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        self.actor = as_Service(name="Vendor")
+        actor_id = self.actor.id_
+        reset_datalayer(actor_id)
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        self.dl.clear_all()
+        self.dl.create(self.actor)
+
+        self.case_actor = as_Service(name="Case Actor")
+        reset_datalayer(self.case_actor.id_)
+        self.dl.create(self.case_actor)
+
+        self.case = as_VulnerabilityCase(name="Test Case #2236")
+        self.actor_participant = as_CaseParticipant(
+            attributed_to=actor_id,
+            context=self.case.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        self.case_manager_participant = as_CaseParticipant(
+            attributed_to=self.case_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        self.case.actor_participant_index[actor_id] = (
+            self.actor_participant.id_
+        )
+        self.case.actor_participant_index[self.case_actor.id_] = (
+            self.case_manager_participant.id_
+        )
+        self.dl.create(self.case)
+        self.dl.create(self.actor_participant)
+        self.dl.create(self.case_manager_participant)
+        self.trigger_activity = TriggerActivityAdapter(self.dl)
+        yield
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(actor_id)
+            reset_datalayer(self.case_actor.id_)
+
+    def _execute(self, rm_state=None, vfd_state=None, pxa_state=None):
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            rm_state=rm_state,
+            vfd_state=vfd_state,
+            pxa_state=pxa_state,
+        )
+        return SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+
+    def _status_count(self):
+        participant = self.dl.read(self.actor_participant.id_)
+        return len(getattr(participant, "participant_statuses", []))
+
+    def _advance_rm_to_accepted(self):
+        """Step the actor through RM.START → RECEIVED → VALID → ACCEPTED."""
+        self._execute(rm_state=RM.RECEIVED)
+        self._execute(rm_state=RM.VALID)
+        self._execute(rm_state=RM.ACCEPTED)
+
+    # --- CSB-18-001: RM ↔ VFD entailment ---
+
+    def test_csb18_001_vfd_fix_ready_with_rm_received_raises(self):
+        """CSB-18-001: Vfd → VFd while RM is RECEIVED raises (FCV motivating case).
+
+        The actor advances to vendor-aware (Vfd) while still at RM.RECEIVED,
+        then tries to assert fix-ready (VFd). This is the FCV failure pattern:
+        fix readiness requires RM.ACCEPTED.
+        """
+        from vultron.errors import VultronValidationError
+
+        # Valid combined step: vendor becomes aware while reporting received.
+        self._execute(rm_state=RM.RECEIVED, vfd_state=CS_vfd.Vfd)
+        before = self._status_count()
+        # Cross-machine violation: VFd requires RM ≥ ACCEPTED; current is RECEIVED.
+        with pytest.raises(VultronValidationError, match="Cross-machine"):
+            self._execute(vfd_state=CS_vfd.VFd)
+        assert self._status_count() == before
+
+    def test_csb18_001_vfd_fix_ready_with_current_rm_valid_raises(self):
+        """CSB-18-001: Vfd → VFd when actor is at RM.VALID raises.
+
+        After advancing to RM.VALID and Vfd, the actor must not assert VFd
+        because fix readiness requires RM.ACCEPTED.
+        """
+        from vultron.errors import VultronValidationError
+
+        self._execute(rm_state=RM.RECEIVED)
+        self._execute(rm_state=RM.VALID)
+        self._execute(vfd_state=CS_vfd.Vfd)
+        before = self._status_count()
+        with pytest.raises(VultronValidationError, match="Cross-machine"):
+            self._execute(vfd_state=CS_vfd.VFd)
+        assert self._status_count() == before
+
+    def test_csb18_001_vfd_fix_ready_with_rm_accepted_succeeds(self):
+        """CSB-18-001: Vfd → VFd when actor is at RM.ACCEPTED is valid."""
+        self._advance_rm_to_accepted()
+        self._execute(vfd_state=CS_vfd.Vfd)
+        before = self._status_count()
+        self._execute(vfd_state=CS_vfd.VFd)
+        assert self._status_count() == before + 1
+
+    def test_csb18_001_vfd_fix_deployed_with_rm_accepted_succeeds(self):
+        """CSB-18-001: VFd → VFD when actor is at RM.ACCEPTED is valid.
+
+        DEPLOYER role is required for the d→D transition (CSB-15-002); the
+        participant is re-registered with CVDRole.DEPLOYER before the test.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        # Re-register the participant as DEPLOYER so the role guard passes.
+        deployer_participant = as_CaseParticipant(
+            id_=self.actor_participant.id_,
+            attributed_to=self.actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+        )
+        self.dl.save(deployer_participant)
+
+        self._advance_rm_to_accepted()
+        self._execute(vfd_state=CS_vfd.Vfd)
+        self._execute(vfd_state=CS_vfd.VFd)
+        before = self._status_count()
+        self._execute(vfd_state=CS_vfd.VFD)
+        assert self._status_count() == before + 1
+
+    def test_csb18_001_vfd_vendor_aware_with_rm_received_succeeds(self):
+        """CSB-18-001: vfd → Vfd when actor is at RM.RECEIVED is valid.
+
+        The V bit (vendor aware) has no RM constraint; only F/D bits do.
+        """
+        before = self._status_count()
+        self._execute(rm_state=RM.RECEIVED, vfd_state=CS_vfd.Vfd)
+        assert self._status_count() == before + 1
+
+    def test_pxa_public_aware_succeeds(self):
+        """Asserting Pxa (P bit) is valid — PXA is an actor-level attribute."""
+        from vultron.core.states.cs import CS_pxa
+
+        before = self._status_count()
+        self._execute(pxa_state=CS_pxa.Pxa)
+        assert self._status_count() == before + 1
+
+
+class TestViolationPxaEmEntailment:
+    """Unit tests for violation_pxa_em_entailment() (CSB-18-002..004).
+
+    These rules are provided for future receive-path enforcement and are NOT
+    wired into the emit path.  Tests document the expected semantics so future
+    maintainers have a baseline when adding the receive-path guard.
+    """
+
+    def _check(self, pxa, em):
+        from vultron.core.states.cross_machine_invariants import (
+            violation_pxa_em_entailment,
+        )
+
+        return violation_pxa_em_entailment(pxa, em)
+
+    def test_p_bit_with_active_embargo_returns_error(self):
+        """CSB-18-002: P bit (public aware) with EM.ACTIVE is a violation."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.Pxa, EM.ACTIVE)
+        assert result is not None
+        assert "P bit" in result
+
+    def test_x_bit_with_active_embargo_returns_error(self):
+        """CSB-18-003: X bit (exploit public) with EM.ACTIVE is a violation.
+
+        Uses pXa (X set, P not set) to isolate the X-bit check from the P-bit
+        check (P is tested first in violation_pxa_em_entailment).
+        """
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.pXa, EM.ACTIVE)
+        assert result is not None
+        assert "X bit" in result
+
+    def test_a_bit_with_active_embargo_returns_error(self):
+        """CSB-18-004: A bit (attacks observed) with EM.ACTIVE is a violation."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.pxA, EM.ACTIVE)
+        assert result is not None
+        assert "A bit" in result
+
+    def test_p_bit_with_revise_embargo_returns_error(self):
+        """CSB-18-002: P bit with EM.REVISE (also active) is a violation."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        result = self._check(CS_pxa.Pxa, EM.REVISE)
+        assert result is not None
+
+    def test_pxa_no_bits_with_active_embargo_returns_none(self):
+        """No bit set with EM.ACTIVE — no entailment violated."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        assert self._check(CS_pxa.pxa, EM.ACTIVE) is None
+
+    def test_p_bit_without_active_embargo_returns_none(self):
+        """P bit with EM.NONE — no embargo, no constraint."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+
+        assert self._check(CS_pxa.Pxa, EM.NONE) is None
