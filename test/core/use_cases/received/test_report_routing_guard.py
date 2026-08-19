@@ -13,10 +13,18 @@
 """Unit tests for InvalidateReportReceivedUseCase and CloseReportReceivedUseCase
 BT execution under the receiving actor's identity (BT-17-006).
 
-Pins the BT-17-006 requirement: ``execute_with_setup`` MUST be called with
-``actor_id=request.receiving_actor_id`` so the RM-transition BT updates the
-RECEIVING actor's participant, not the sender's.  Before the fix both use cases
-passed ``request.actor_id`` (the sender) instead.
+Pins the BT-17-006 requirement: ``execute_with_setup`` MUST be called with the
+*receiving* actor so the RM-transition BT updates the RECEIVING actor's
+participant, not the sender's.  Before the fix both use cases passed
+``request.actor_id`` (the sender) instead.
+
+When ``receiving_actor_id`` is absent, the answer is the actor whose store the
+use case was handed — see ``resolve_receiving_actor_id``.  It is *not*
+``request.actor_id``: falling back to the sender is the defect BT-17-006 exists
+to forbid, and under ADR-0066 it would also route every read and write into an
+actor other than the one whose replica is being updated.  The fallback tests
+below therefore pin the store owner, and do it by parametrizing over which
+actor owns the store so that the store is demonstrably what decides.
 
 The trees for these use cases do NOT contain ``GuardedCommitCaseLedgerEntryBT``
 (unlike the AckReport and CloseCase trees), so the routing assertion is on RM
@@ -78,13 +86,21 @@ def _clear_blackboard():
 def _make_dl(
     receiving_rm: RM = RM.RECEIVED,
     sender_rm: RM = RM.RECEIVED,
+    actor_id: str = RECEIVING_ACTOR_ID,
 ) -> SqliteDataLayer:
-    """DataLayer with a case linked to a report and two participants.
+    """*actor_id*'s store, holding a case linked to a report and two participants.
 
     Both RECEIVING_ACTOR_ID and SENDER_ACTOR_ID have participants in the case
-    so tests can verify which participant's RM state is transitioned.
+    so tests can verify which participant's RM state is transitioned.  Both
+    live in one store because they are two participants in *one* actor's
+    replica of the case, not two actors' worth of state.
+
+    *actor_id* defaults to the receiving actor, which is who a received-side
+    use case executes as (ADR-0066): the store a use case is handed is the
+    store the BT reads and writes.  The fallback tests override it to show that
+    this fact — and not the sender on the request — is what decides.
     """
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
     report = as_VulnerabilityReport(id_=REPORT_ID, name="Routing Guard Report")
     dl.save(report)
@@ -228,19 +244,42 @@ class TestInvalidateReportReceivedActorId:
             " actor's participant should be transitioned (BT-17-006)"
         )
 
-    def test_fallback_to_actor_id_when_receiving_actor_id_is_none(self):
-        """Falls back to actor_id (sender) when receiving_actor_id is None."""
-        dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.RECEIVED)
+    @pytest.mark.parametrize(
+        "store_owner_id", [RECEIVING_ACTOR_ID, SENDER_ACTOR_ID]
+    )
+    def test_fallback_is_the_store_owner_when_receiving_actor_id_is_none(
+        self, store_owner_id
+    ):
+        """With no receiving_actor_id, the executing actor is the store's owner.
+
+        Parametrized over both actors so the assertion cannot pass by
+        coincidence: whichever actor owns the store is the one whose
+        participant transitions, and the request's ``actor_id`` (always the
+        sender) does not change the answer.
+        """
+        other_id = (
+            SENDER_ACTOR_ID
+            if store_owner_id == RECEIVING_ACTOR_ID
+            else RECEIVING_ACTOR_ID
+        )
+        dl = _make_dl(
+            receiving_rm=RM.RECEIVED,
+            sender_rm=RM.RECEIVED,
+            actor_id=store_owner_id,
+        )
 
         InvalidateReportReceivedUseCase(
             dl=dl,
             request=_make_invalidate_event(receiving_actor_id=None),
         ).execute()
 
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.INVALID, (
-            "Fallback: sender's participant must transition when"
-            " receiving_actor_id is None and actor_id is the fallback"
+        assert _rm_state(dl, store_owner_id) == RM.INVALID, (
+            "the store's own actor is the executing actor when the request"
+            " carries no receiving_actor_id"
         )
+        assert (
+            _rm_state(dl, other_id) == RM.RECEIVED
+        ), "no other actor's participant may be transitioned"
 
 
 # ---------------------------------------------------------------------------
@@ -287,17 +326,46 @@ class TestCloseReportReceivedActorId:
             " actor's participant should be transitioned (BT-17-006)"
         )
 
-    def test_fallback_to_actor_id_when_receiving_actor_id_is_none(self):
-        """Falls back to actor_id (sender) when receiving_actor_id is None."""
-        # Sender needs RM.INVALID so RM.CLOSED transition is valid
-        dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.INVALID)
+    @pytest.mark.parametrize(
+        "store_owner_id", [RECEIVING_ACTOR_ID, SENDER_ACTOR_ID]
+    )
+    def test_fallback_is_the_store_owner_when_receiving_actor_id_is_none(
+        self, store_owner_id
+    ):
+        """With no receiving_actor_id, the executing actor is the store's owner.
+
+        Parametrized over both actors so the assertion cannot pass by
+        coincidence.  Only the store's owner starts at RM.INVALID, since that
+        is the actor whose RM.CLOSED transition must be reachable.
+        """
+        other_id = (
+            SENDER_ACTOR_ID
+            if store_owner_id == RECEIVING_ACTOR_ID
+            else RECEIVING_ACTOR_ID
+        )
+        dl = _make_dl(
+            receiving_rm=(
+                RM.INVALID
+                if store_owner_id == RECEIVING_ACTOR_ID
+                else RM.RECEIVED
+            ),
+            sender_rm=(
+                RM.INVALID
+                if store_owner_id == SENDER_ACTOR_ID
+                else RM.RECEIVED
+            ),
+            actor_id=store_owner_id,
+        )
 
         CloseReportReceivedUseCase(
             dl=dl,
             request=_make_close_report_event(receiving_actor_id=None),
         ).execute()
 
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED, (
-            "Fallback: sender's participant must transition when"
-            " receiving_actor_id is None and actor_id is the fallback"
+        assert _rm_state(dl, store_owner_id) == RM.CLOSED, (
+            "the store's own actor is the executing actor when the request"
+            " carries no receiving_actor_id"
         )
+        assert (
+            _rm_state(dl, other_id) == RM.RECEIVED
+        ), "no other actor's participant may be transitioned"
