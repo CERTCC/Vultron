@@ -58,11 +58,13 @@ def _clear_blackboard():
     py_trees.blackboard.Blackboard.storage.clear()
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
+def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
+    """The store of *actor_id*, defaulting to the case actor.
+
+    The canonical ledger these tests assert on belongs to the case actor, and the
+    commit is gated on its CASE_MANAGER role, so that is the store the tree runs in.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 def _make_case_actor_dl() -> SqliteDataLayer:
