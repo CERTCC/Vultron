@@ -146,11 +146,17 @@ class CaseLedgerEntry(CoreObject):
         serialization_alias="reasonDetail",
     )
 
-    @model_validator(mode="after")
-    def _set_id_from_case(self) -> "CaseLedgerEntry":
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id_from_case(cls, data: Any) -> Any:
         """Compute ``id_`` from ``case_id`` and ``log_index``."""
-        self.id_ = f"{self.case_id}/log/{self.log_index}"
-        return self
+        if isinstance(data, dict):
+            case_id = data.get("case_id")
+            if case_id is not None:
+                log_index = data.get("log_index", -1)
+                data = dict(data)
+                data["id"] = f"{case_id}/log/{log_index}"
+        return data
 
 
 #: Legacy Vultron-prefixed alias; prefer :class:`CaseLedgerEntry` in new code.

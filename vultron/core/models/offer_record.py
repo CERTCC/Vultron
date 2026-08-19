@@ -33,7 +33,7 @@ so core can look it up given only the offer ID.
 """
 
 import urllib.parse
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -71,8 +71,13 @@ class VultronOfferRecord(VultronObject):
         slug = urllib.parse.quote(offer_id, safe="")
         return f"offer-record/{slug}"
 
-    @model_validator(mode="after")
-    def _set_id(self) -> "VultronOfferRecord":
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id(cls, data: Any) -> Any:
         """Compute ``id_`` deterministically from ``offer_id``."""
-        self.id_ = self.build_id(self.offer_id)
-        return self
+        if isinstance(data, dict):
+            offer_id = data.get("offer_id")
+            if offer_id is not None:
+                data = dict(data)
+                data["id"] = cls.build_id(offer_id)
+        return data

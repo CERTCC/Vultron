@@ -86,33 +86,7 @@ _MODELS_PACKAGE = "vultron.core.models"
 #
 # This set may only SHRINK.
 # ---------------------------------------------------------------------------
-_SELF_ASSIGNING_AFTER_VALIDATORS: frozenset[str] = frozenset(
-    {
-        "vultron/core/models/base.py::CoreObject._set_type_from_class_name",
-        "vultron/core/models/case.py::VulnerabilityCase._compute_genesis_hash_if_missing",
-        "vultron/core/models/case.py::VulnerabilityCase._init_case_statuses",
-        "vultron/core/models/case_ledger.py::HashChainLedgerRecord._compute_entry_hash",
-        "vultron/core/models/case_ledger_entry.py::CaseLedgerEntry._set_id_from_case",
-        "vultron/core/models/case_participant.py::CaseActorParticipant._set_role",
-        "vultron/core/models/case_participant.py::CaseParticipant._init_participant_status_if_empty",
-        "vultron/core/models/case_participant.py::CaseParticipant._set_name_if_empty",
-        "vultron/core/models/case_participant.py::CoordinatorParticipant._set_role",
-        "vultron/core/models/case_participant.py::DeployerParticipant._set_role",
-        "vultron/core/models/case_participant.py::FinderParticipant._set_role",
-        "vultron/core/models/case_participant.py::FinderReporterParticipant._set_accepted_status",
-        "vultron/core/models/case_participant.py::FinderReporterParticipant._set_roles",
-        "vultron/core/models/case_participant.py::OtherParticipant._set_role",
-        "vultron/core/models/case_participant.py::ReporterParticipant._set_accepted_status",
-        "vultron/core/models/case_participant.py::ReporterParticipant._set_role",
-        "vultron/core/models/case_participant.py::VendorParticipant._set_role",
-        "vultron/core/models/offer_record.py::VultronOfferRecord._set_id",
-        "vultron/core/models/ownership_transfer_offer_record.py::VultronOwnershipTransferOfferRecord._set_id",
-        "vultron/core/models/pending_case_inbox.py::VultronPendingCaseInbox._set_id",
-        "vultron/core/models/pending_create_case_activity.py::PendingCreateCaseActivity._set_id",
-        "vultron/core/models/replication_state.py::VultronReplicationState._set_id",
-        "vultron/core/models/report_case_link.py::VultronReportCaseLink._set_id",
-    }
-)
+_SELF_ASSIGNING_AFTER_VALIDATORS: frozenset[str] = frozenset()
 
 # ---------------------------------------------------------------------------
 # Backlog 2 — the classes that must carry ``validate_assignment`` directly
@@ -300,13 +274,6 @@ def test_self_assigning_after_validator_backlog_is_exact():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason='Goal state for issue #2293 (#2261 step 1): no core `mode="after"` validator'
-    " assigns to `self`. 23 known sites remain, enumerated in"
-    " _SELF_ASSIGNING_AFTER_VALIDATORS. When the last one is fixed this test"
-    " XPASSes and fails the build — delete the marker and the backlog then.",
-)
 def test_no_core_after_validator_assigns_to_self():
     found = _find_self_assigning_after_validators()
     assert not found, (

@@ -18,10 +18,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from vultron.core.models._helpers import _new_urn, _now_utc
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
@@ -92,8 +94,9 @@ class VulnerabilityCase(CoreObject):
     child_cases: list[str] = Field(default_factory=list)
     sibling_cases: list[str] = Field(default_factory=list)
 
-    @model_validator(mode="after")
-    def _compute_genesis_hash_if_missing(self) -> "VulnerabilityCase":
+    @model_validator(mode="before")
+    @classmethod
+    def _compute_genesis_hash_if_missing(cls, data: Any) -> Any:
         """Compute ``genesis_hash`` at case creation when not explicitly set.
 
         Uses ``id_``, ``published``, and ``attributed_to`` (the CaseActor URI)
@@ -108,31 +111,58 @@ class VulnerabilityCase(CoreObject):
 
         Spec: CLP-08-002, CLP-08-003.
         """
-        if not self.genesis_hash and self.attributed_to:
-            self.genesis_hash = compute_genesis_hash(
-                case_id=self.id_,
-                created_at=self.published,
-                case_actor_id=self.attributed_to,
-            )
-        if self.attributed_to and not self.genesis_hash:
+        if not isinstance(data, dict):
+            return data
+        attributed_to = data.get("attributed_to")
+        genesis_hash = data.get("genesis_hash", "")
+        if not genesis_hash and attributed_to:
+            data = dict(data)
+            if not data.get("id") and not data.get("id_"):
+                data["id"] = _new_urn()
+            case_id = data.get("id") or data.get("id_")
+            published_val = data.get("published")
+            if published_val is None:
+                published_val = _now_utc()
+                data["published"] = published_val
+            elif not isinstance(published_val, datetime):
+                try:
+                    published_val = datetime.fromisoformat(str(published_val))
+                    data["published"] = published_val
+                except (ValueError, TypeError):
+                    published_val = None
+            if published_val is not None:
+                data["genesis_hash"] = compute_genesis_hash(
+                    case_id=case_id,
+                    created_at=published_val,
+                    case_actor_id=attributed_to,
+                )
+        if attributed_to and not data.get("genesis_hash"):
+            case_id = data.get("id") or data.get("id_") or "<unknown>"
             raise VultronValidationError(
-                f"VulnerabilityCase '{self.id_}': genesis_hash could not "
+                f"VulnerabilityCase '{case_id}': genesis_hash could not "
                 "be computed — 'published' timestamp is required "
                 "(CLP-08-003)."
             )
-        return self
+        return data
 
-    @model_validator(mode="after")
-    def _init_case_statuses(self) -> "VulnerabilityCase":
+    @model_validator(mode="before")
+    @classmethod
+    def _init_case_statuses(cls, data: Any) -> Any:
         """Seed ``case_statuses`` with a default entry when empty."""
-        if not self.case_statuses and self.attributed_to:
-            self.case_statuses = [
+        if not isinstance(data, dict):
+            return data
+        if not data.get("case_statuses") and data.get("attributed_to"):
+            data = dict(data)
+            if not data.get("id") and not data.get("id_"):
+                data["id"] = _new_urn()
+            case_id = data.get("id") or data.get("id_")
+            data["case_statuses"] = [
                 CaseStatus(
-                    context=self.id_,
-                    attributed_to=self.attributed_to,
+                    context=case_id,
+                    attributed_to=data["attributed_to"],
                 )
             ]
-        return self
+        return data
 
     # ------------------------------------------------------------------
     # Domain methods

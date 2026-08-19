@@ -238,12 +238,38 @@ class HashChainLedgerRecord(BaseModel):
         description="Human-readable rejection reason detail (for rejected dispositions)",
     )
 
-    @model_validator(mode="after")
-    def _compute_entry_hash(self) -> "HashChainLedgerRecord":
+    @model_validator(mode="before")
+    @classmethod
+    def _compute_entry_hash(cls, data: Any) -> Any:
         """Compute ``entry_hash`` from canonical content if not already set."""
-        if not self.entry_hash:
-            self.entry_hash = self._hash_content()
-        return self
+        if not isinstance(data, dict):
+            return data
+        if data.get("entry_hash"):
+            return data
+        data = dict(data)
+        if "received_at" not in data:
+            data["received_at"] = _now_utc()
+        received_val = data["received_at"]
+        received_iso = (
+            received_val.isoformat()
+            if hasattr(received_val, "isoformat")
+            else str(received_val)
+        )
+        hashable = {
+            "case_id": data.get("case_id", ""),
+            "log_index": data.get("log_index", -1),
+            "disposition": data.get("disposition", "recorded"),
+            "term": data.get("term"),
+            "object_id": data.get("object_id", ""),
+            "event_type": data.get("event_type", ""),
+            "payload_snapshot": data.get("payload_snapshot", {}),
+            "prev_log_hash": data.get("prev_log_hash", ""),
+            "received_at": received_iso,
+            "reason_code": data.get("reason_code"),
+            "reason_detail": data.get("reason_detail"),
+        }
+        data["entry_hash"] = _sha256_hex(hashable)
+        return data
 
     def _hashable_dict(self) -> dict[str, Any]:
         """Return the canonical dict used for hash computation.
