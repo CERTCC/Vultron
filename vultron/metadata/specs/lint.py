@@ -174,15 +174,18 @@ _IGNORED_TREE_DIRS = frozenset(
 
 
 def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
-    """Hard error when a spec ``statement`` names a file that does not exist (MS-15-001).
+    """Hard error when a spec ``statement`` or ``verification`` names a file that does not exist (MS-15-001).
 
-    A normative statement that points at a non-existent path is a stale-premise
-    landmine: an agent reads the MUST, cannot find the infrastructure, and
-    either invents something inconsistent or silently ignores the requirement.
+    A normative statement or verification criterion that points at a
+    non-existent path is a stale-premise landmine: an agent reads the MUST,
+    cannot find the infrastructure, and either invents something inconsistent
+    or silently ignores the requirement.
     DEMOMA-19-008 (issue #2004) named a ``test/ci/invariants/conftest.py`` that
     had never existed on any branch.
 
-    Only ``statement`` is scanned. ``rationale`` narrates history by design
+    Both ``statement`` and ``verification`` are scanned — ``verification``
+    names live test infrastructure and must refer to real paths.
+    ``rationale`` narrates history by design
     ("X has been converted to Y", "if X stays in Z...") and legitimately
     references paths that no longer exist.
 
@@ -216,6 +219,10 @@ def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
             problem = resolver.problem_with(match)
             if problem is not None:
                 errors.append(f"{spec_id}: statement references {problem}")
+        for match in _SPEC_PATH_RE.findall(spec.verification or ""):
+            problem = resolver.problem_with(match)
+            if problem is not None:
+                errors.append(f"{spec_id}: verification references {problem}")
     return errors
 
 
