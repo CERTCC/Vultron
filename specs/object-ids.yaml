@@ -25,7 +25,8 @@ groups:
   - id: OID-01-002
     priority: MUST
     kind: protocol
-    statement: IDs MUST be globally unique within the system
+    statement: IDs MUST be unique within the issuing actor's deployment; cross-deployment uniqueness is achieved by requiring
+      full URI form (OID-01-001) with a deployment-controlled authority component.
   - id: OID-01-003
     priority: MUST
     kind: protocol
@@ -74,13 +75,8 @@ groups:
     - rel_type: refines
       spec_id: BT-03-003
 - id: OID-04
-  title: ADR Requirement
+  title: Migration Requirements
   specs:
-  - id: OID-04-001
-    priority: MUST
-    kind: project
-    statement: An Architecture Decision Record MUST be created at `docs/adr/ADR-XXXX-standardize-object-ids.md` before migrating
-      existing data
   - id: OID-04-002
     priority: MUST
     kind: project

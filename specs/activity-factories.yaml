@@ -56,8 +56,7 @@ groups:
   - id: AF-02-002
     priority: MUST
     kind: project
-    statement: 'The `factories/` package MUST be organized into one module per protocol domain, mirroring the existing `vocab/activities/`
-      modules:'
+    statement: 'The `factories/` package MUST be organized into one module per protocol domain, with one factory module for each module present in `vocab/activities/` (e.g. `embargo.py`, `report_management.py`, `case_management.py`). New `vocab/activities/` modules MUST have a corresponding `factories/` module added at the same time.'
   - id: AF-02-003
     priority: MUST
     kind: project
@@ -142,9 +141,7 @@ groups:
   - id: AF-08-002
     priority: SHOULD
     kind: project
-    statement: Migration of `from_core()` call sites in `vultron/core/use_cases/` to use driven adapter translation instead
-      of calling wire-layer methods directly is a **separate tracked task** and MUST NOT be conflated with factory function
-      migration
+    statement: 'Set priority to MUST_NOT and rewrite: "Migration of `from_core()` call sites in `vultron/core/use_cases/` to use driven adapter translation is a separate tracked task. This migration task MUST NOT be conflated with the factory-function migration described in AF-08-001."'
 - id: AF-09
   title: Activity Translator Port
   specs:

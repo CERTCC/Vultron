@@ -45,6 +45,7 @@ from vultron.metadata.specs.schema import (
         "AB-01",
         "AB-01-001",
         "ABCD-99-999",
+        "AB-01-001b",  # lowercase suffix introduced in SpecIdStr regex update
     ],
 )
 def test_spec_id_str_valid(spec_id):
@@ -68,6 +69,7 @@ def test_spec_id_str_valid(spec_id):
         "AB-01-01",  # spec number with 2 digits
         "",  # empty
         "AB_01",  # underscore
+        "AB-01-001B",  # uppercase suffix — only lowercase [a-z] is permitted
     ],
 )
 def test_spec_id_str_invalid(spec_id):
@@ -129,6 +131,18 @@ def test_statement_spec_full():
     assert spec.lint_suppress is not None and len(spec.lint_suppress) == 1
 
 
+def test_statement_spec_extra_field_rejected():
+    """ConfigDict(extra='forbid') rejects unknown fields (SR-02-022)."""
+    with pytest.raises(ValidationError):
+        StatementSpec(
+            id="AB-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="AB-01-001 MUST do something",
+            kind=SpecKind.PROTOCOL,
+            unknown_field="should raise",  # type: ignore[call-arg]
+        )
+
+
 def test_statement_spec_empty_statement_rejected():
     with pytest.raises(ValidationError):
         StatementSpec(
@@ -178,7 +192,15 @@ def test_statement_spec_rationale_omitted_allowed():
 
 
 @pytest.mark.parametrize(
-    "field", ["scope", "tags", "relationships", "lint_suppress"]
+    "field",
+    [
+        "scope",
+        "tags",
+        "references",
+        "exceptions",
+        "relationships",
+        "lint_suppress",
+    ],
 )
 def test_empty_list_rejected(field: str) -> None:
     """Empty lists are rejected — use None for absent."""

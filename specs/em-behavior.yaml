@@ -756,7 +756,6 @@ groups:
       following up with GI allows the sender to explain the error and enables
       recovery. EE does not trigger an EM state transition.
     testable: true
-    preconditions: []
     steps:
     - order: 1
       actor: receiver
@@ -798,7 +797,6 @@ groups:
     testable: false
     lint_suppress:
     - testable_without_steps
-    preconditions: []
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -1649,9 +1647,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case has no current embargo (EM state is EXITED or NO_EMBARGO),
+      When the case has no current embargo (EM state is EXITED or NONE),
       the CaseActor MUST acknowledge the late Accept as a no-op on embargo state,
-      leaving the participant's PEC state at NO_EMBARGO. It MUST NOT issue a
+      leaving the participant's PEC state at NONE. It MUST NOT issue a
       fresh invitation, and it MUST NOT remove the accepting actor from the case.
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
@@ -1668,8 +1666,8 @@ groups:
     preconditions:
     - em_state:
         - EXITED
-        - NO_EMBARGO
-      description: EM state is Exited or No Embargo
+        - NONE
+      description: EM state is EXITED (embargo terminated) or NONE (no embargo started)
     steps:
     - order: 1
       actor: system

@@ -64,7 +64,7 @@ groups:
   - id: BTC-02-003
     priority: MUST
     kind: project
-    statement: 'Use cases MUST follow the instantiate-then-invoke pattern when using BTs:'
+    statement: 'Use cases MUST follow the instantiate-then-invoke pattern when using BTs: (1) import the pre-defined BT class from `vultron/core/behaviors/`, (2) instantiate it to obtain a root node, (3) wrap it in a `py_trees.trees.BehaviourTree`, and (4) call `tick_once()` or equivalent to execute it.'
     relationships:
     - rel_type: refines
       spec_id: BTC-02-002
@@ -128,8 +128,7 @@ groups:
   - id: BTC-04-003
     priority: MUST
     kind: project
-    statement: The "trunk-removed branches" model means extracting reusable subtrees at *the appropriate depth for the behavior*,
-      not uniformly at the top level.
+    statement: 'Reusable protocol behaviors MUST be implemented as BT subtrees in core/behaviors/ and reused across all call sites; inline duplication of equivalent logic MUST NOT occur. The extraction depth SHOULD be the deepest level at which more than one call site requires the same subtree — not forced uniformly to the top level.'
     relationships:
     - rel_type: refines
       spec_id: BT-06-002

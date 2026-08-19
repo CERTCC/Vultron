@@ -50,7 +50,7 @@ groups:
     rationale: >
       The self-addressed Add(CaseStatus) threads the two gates together without
       coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
-    notes: >
+    note: >
       Implementation pattern for obtaining the `CaseStatus` ID: read the
       `ParticipantStatus` record by `participant_status_id`, extract the
       embedded `.case_status` field (a `CaseStatus` object), persist it
@@ -201,7 +201,7 @@ groups:
       causality: the ledger write should precede the announce, not be triggered
       by a self-addressed inbox message. DRY: one shared node, not N inline
       patches per BT tree factory.
-    notes: >
+    note: >
       Implementation tracked in ISSUE-2175 (implement EmitCaseStatusUpdateNode,
       size:M). A follow-on refactor of `EmitAddCaseStatusToSelfNode` is tracked
       in ISSUE-2176 (size:S, blocked-by ISSUE-2175).
@@ -233,7 +233,7 @@ groups:
       unacceptable in one dimension carries no information about the others, so
       discarding the whole snapshot destroys state the receiver has no grounds
       to refuse. Liberal accept (ISSUE-2229): accept everything acceptable.
-    notes: >
+    note: >
       Implemented by `FilterParticipantStatusDimensionsNode` in
       `vultron/core/behaviors/status/nodes/dimension_filter.py`, wired as a
       precondition guard of `add_participant_status_tree`. It supersedes
@@ -274,7 +274,7 @@ groups:
       the receiver refused, and each replica would apply it. Recording the
       accepted portion is also what makes the refusal visible: the canonical
       entry differs from what the sender asserted.
-    notes: >
+    note: >
       Implemented via the `ledger_payload_object_override` blackboard contract
       read by `CommitCaseLedgerEntryNode`. The guard runs before
       `GuardedCommit` per CLP-10-006, so the adjudication is available at
@@ -332,7 +332,7 @@ groups:
       EM is per-case rather than per-participant and its authorization gate is
       the EmbargoTeardownAuthorizationGate (RSH-02-001). Adjudicating it in the StatusAdoptionGate guard
       would duplicate — and could contradict — EmbargoTeardownAuthorizationGate's decision.
-    notes: >
+    note: >
       EmbargoTeardownAuthorizationGate EM adjudication is tracked in ISSUE-2256.
   - id: RSH-05-009
     priority: MUST
@@ -351,7 +351,7 @@ groups:
       because core MUST NOT import `vultron.wire` to convert (ADR-0009,
       ADR-0017). Publishing a field patch instead makes shape preservation
       structural rather than a property the guard has to remember to maintain.
-    notes: >
+    note: >
       The merge is one level deep, so a patched `caseStatus.pxaState` keeps the
       nested object's own `id` and remaining fields. A patched alias also drops
       any stale snake_case twin of the same field, so a consumer that prefers

@@ -28,7 +28,7 @@ groups:
   - id: SE-01-003
     priority: MUST
     kind: protocol
-    statement: 'If rehydration fails for any nested object, the system MUST:'
+    statement: 'If rehydration fails for any nested object, the system MUST: (1) log a WARNING identifying the unresolvable URI, (2) return MessageSemantics.UNKNOWN for the containing activity, and (3) store the activity in a dead-letter record per SE-04-003.'
   - id: SE-01-004
     priority: MUST
     kind: protocol
@@ -326,7 +326,7 @@ groups:
   - id: SE-08-004
     priority: MUST
     kind: protocol
-    status: deprecated
+    deprecated: true
     statement: >-
       The `OFFER_CASE_MANAGER_ROLE` semantic and its wire format
       `Offer(VulnerabilityCase, target=CaseParticipant)` are **deprecated** in favour of

@@ -258,10 +258,3 @@ groups:
           Recommended keys: `sync_port` for SyncActivityPort,
           `datalayer` for DataLayer (already established).
 
-      - id: SBT-05-003
-        priority: MUST
-        kind: project
-        statement: >-
-          The port injection pattern MUST be documented in
-          `notes/sync-behavior-trees.md` as a general reusable pattern
-          applicable to all BT-based protocol flows, not only sync.
