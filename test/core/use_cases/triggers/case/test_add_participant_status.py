@@ -1161,11 +1161,15 @@ class TestViolationPxaEmEntailment:
         assert "P bit" in result
 
     def test_x_bit_with_active_embargo_returns_error(self):
-        """CSB-18-003: X bit (exploit public) with EM.ACTIVE is a violation."""
+        """CSB-18-003: X bit (exploit public) with EM.ACTIVE is a violation.
+
+        Uses pXa (X set, P not set) to isolate the X-bit check from the P-bit
+        check (P is tested first in violation_pxa_em_entailment).
+        """
         from vultron.core.states.cs import CS_pxa
         from vultron.core.states.em import EM
 
-        result = self._check(CS_pxa.PXa, EM.ACTIVE)
+        result = self._check(CS_pxa.pXa, EM.ACTIVE)
         assert result is not None
         assert "X bit" in result
 
