@@ -77,6 +77,21 @@ def assert_demo_success() -> None:
         )
 
 
+def _note_accumulated_failures(exc: BaseException) -> None:
+    """Attach any accumulated demo failures to *exc* as notes.
+
+    On the failing path the caller lets the original exception propagate
+    rather than calling ``assert_demo_success()``, which would replace the
+    real cause with a generic ``DemoFailureError``.  The accumulated soft
+    failures are still worth reporting, so they ride along as exception notes.
+    """
+    try:
+        assert_demo_success()
+    except DemoFailureError as accumulated:
+        for failure in accumulated.failures:
+            exc.add_note(failure)
+
+
 BASE_URL = os.environ.get(
     "VULTRON_API_BASE_URL", "http://localhost:7999/api/v2"
 )

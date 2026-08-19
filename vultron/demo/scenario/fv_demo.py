@@ -120,7 +120,6 @@ from vultron.demo.helpers.verification import (  # noqa: F401
 )
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
-    _report_id_from_offer_data,
     find_case_for_offer,
     receiver_engages_case,
     receiver_validates_report,
@@ -423,6 +422,7 @@ def _phase_report_submission(
         case_actor_client=case_actor_client,
     )
 
+    finder = vendor = None
     with demo_step("Seeding both containers with actor records"):
         finder, vendor = seed_containers(
             finder_client=finder_client,
@@ -515,6 +515,7 @@ def _phase_notes_exchange(
         question_note=question_note,
     )
 
+    final_case = None
     with demo_check(
         "M3: Vendor container holds the authoritative final case state"
     ):

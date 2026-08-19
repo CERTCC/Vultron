@@ -169,6 +169,7 @@ def _phase_report_submission(
         case_actor_client=case_actor_client,
     )
 
+    finder = coordinator = vendor = None
     with demo_step("Seeding Finder, Coordinator, and Vendor containers"):
         finder, coordinator, vendor = seed_containers_fcv(
             finder_client=finder_client,

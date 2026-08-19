@@ -102,6 +102,7 @@ def demo_transfer_ownership_accept(
         raise ValueError("Could not retrieve initial case state")
     logger.info(f"Initial owner: {initial_case.attributed_to}")
 
+    offer = None
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
         offer = offer_case_ownership_transfer_activity(
             case,
@@ -173,6 +174,7 @@ def demo_transfer_ownership_reject(
     original_owner = initial_case.attributed_to
     logger.info(f"Initial owner: {original_owner}")
 
+    offer = None
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
         offer = offer_case_ownership_transfer_activity(
             case,

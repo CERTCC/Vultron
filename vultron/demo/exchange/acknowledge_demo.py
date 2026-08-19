@@ -95,6 +95,7 @@ def demo_acknowledge_only(
     logger.info("DEMO 1: Acknowledge Only (RmReadReportActivity)")
     logger.info("=" * 80)
 
+    report = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,
@@ -160,6 +161,7 @@ def demo_acknowledge_then_validate(
     logger.info("DEMO 2: Acknowledge then Validate")
     logger.info("=" * 80)
 
+    report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,
@@ -242,6 +244,7 @@ def demo_acknowledge_then_invalidate(
     logger.info("DEMO 3: Acknowledge then Invalidate")
     logger.info("=" * 80)
 
+    report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,

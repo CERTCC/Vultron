@@ -241,6 +241,7 @@ def _phase_report_submission(
         vendor_client=vendor_client,
     )
 
+    finder = c1 = c2 = vendor = None
     with demo_step("Seeding all five containers with actor records"):
         finder, c1, c2, vendor = seed_containers_fccv(
             finder_client=finder_client,

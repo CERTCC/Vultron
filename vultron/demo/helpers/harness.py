@@ -61,11 +61,11 @@ from vultron.demo.helpers.ledger_dump import (
     write_dump_manifest,
 )
 from vultron.demo.utils import (
+    _note_accumulated_failures,
     assert_demo_success,
     demo_step,
     reset_demo_failures,
 )
-from vultron.errors import DemoFailureError
 
 logger = logging.getLogger(__name__)
 
@@ -173,21 +173,6 @@ def _run_dump(harness: ScenarioHarness) -> None:
             "scenario's own outcome instead",
             harness.demo_name,
         )
-
-
-def _note_accumulated_failures(exc: BaseException) -> None:
-    """Attach any accumulated demo failures to *exc* as notes.
-
-    On the failing path the harness lets the original exception propagate
-    rather than calling ``assert_demo_success()``, which would replace the real
-    cause with a generic ``DemoFailureError``. The accumulated soft failures
-    are still worth reporting, so they ride along as exception notes.
-    """
-    try:
-        assert_demo_success()
-    except DemoFailureError as accumulated:
-        for failure in accumulated.failures:
-            exc.add_note(failure)
 
 
 @contextmanager

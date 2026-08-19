@@ -434,6 +434,7 @@ def run_direct_path_rm_triage(
         offer_id=offer_id,
     )
 
+    case = None
     with demo_check("as_VulnerabilityCase exists after validate-report"):
         case = find_case_for_offer(receiver_client, offer_id)
         if case is None:

@@ -203,6 +203,7 @@ def _phase_report_submission(
         v2_client=v2_client,
     )
 
+    finder = c1 = v1 = c2 = v2 = None
     with demo_step("Seeding all five containers with actor records"):
         finder, c1, v1, c2, v2 = seed_containers_fcvcv(
             finder_client=finder_client,

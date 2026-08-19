@@ -116,6 +116,7 @@ def demo_invite_actor_accept(
     case_actor_id = _get_case_actor_id(client, case.id_)
     invite_actor_id = case_actor_id if case_actor_id else vendor.id_
 
+    invite = None
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = rm_invite_to_case_activity(
             coordinator,
@@ -198,6 +199,7 @@ def demo_invite_actor_reject(
     case_actor_id = _get_case_actor_id(client, case.id_)
     invite_actor_id = case_actor_id if case_actor_id else vendor.id_
 
+    invite = None
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = rm_invite_to_case_activity(
             coordinator,
