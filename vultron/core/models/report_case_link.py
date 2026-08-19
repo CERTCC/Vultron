@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -76,8 +76,13 @@ class VultronReportCaseLink(VultronObject):
         slug = urllib.parse.quote(report_id, safe="")
         return f"report-case-link/{slug}"
 
-    @model_validator(mode="after")
-    def _set_id(self) -> "VultronReportCaseLink":
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id(cls, data: Any) -> Any:
         """Compute ``id_`` deterministically from ``report_id``."""
-        self.id_ = self.build_id(self.report_id)
-        return self
+        if isinstance(data, dict):
+            report_id = data.get("report_id")
+            if report_id is not None:
+                data = dict(data)
+                data["id"] = cls.build_id(report_id)
+        return data

@@ -179,8 +179,13 @@ class CoreObject(VultronObject):
             return
         CORE_VOCABULARY[cls.__name__] = cls
 
-    @model_validator(mode="after")
-    def _set_type_from_class_name(self) -> "CoreObject":
-        if self.type_ is None:
-            self.type_ = self.__class__.__name__
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_type_from_class_name(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("type") and not data.get("type_"):
+                field_info = cls.model_fields.get("type_")
+                if field_info is not None and field_info.default is None:
+                    data = dict(data)
+                    data["type"] = cls.__name__
+        return data
