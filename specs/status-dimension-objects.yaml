@@ -75,12 +75,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Any code path that constructs a new dimension object by target state value
-      (e.g. VfdDimension(state=target)) rather than calling transition() MUST
-      first validate that (current_state → target_state) is a permitted transition
-      using is_valid_*_transition() or equivalent. A same-state write (target ==
-      current) is permitted. A None target (preserve current) requires no validation.
-      An illegal jump MUST NOT be persisted.
+      Dimension objects MUST enforce valid-transition invariants at the model layer
+      (e.g., via Pydantic field or model validators) so that constructing an object
+      with an invalid (current_state → target_state) transition is rejected at
+      construction time, regardless of call site. A same-state write (target ==
+      current) is always permitted; a None target (preserve current) requires no
+      validation.
     rationale: >-
       Constructing a dimension object by target state bypasses the transition()
       validation contract established in SDO-02-001/SDO-02-002. BT write nodes

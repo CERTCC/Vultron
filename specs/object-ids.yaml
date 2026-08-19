@@ -25,7 +25,8 @@ groups:
   - id: OID-01-002
     priority: MUST
     kind: protocol
-    statement: IDs MUST be globally unique within the system
+    statement: IDs MUST be unique within the issuing actor's deployment; cross-deployment uniqueness is achieved by requiring
+      full URI form (OID-01-001) with a deployment-controlled authority component.
   - id: OID-01-003
     priority: MUST
     kind: protocol

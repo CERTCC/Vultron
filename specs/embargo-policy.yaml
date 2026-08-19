@@ -145,6 +145,13 @@ groups:
       (sender proposes a duration and receiver has a default), the shorter of the two MUST
       be made active immediately (`em_state = EM.ACTIVE`) and the longer SHOULD be registered
       as a pending revision (`em_state = EM.REVISE`).
+    rationale: >-
+      Two parties that propose 30 and 60 days respectively agree on days 1–30 and disagree
+      only on days 31–60. Activating the shorter embargo immediately captures all mutual
+      agreement; the longer duration becomes a pending revision so the proposer can negotiate
+      the contested portion. This is strictly better than rejecting outright: both parties
+      secure the overlap they both wanted. See docs/topics/process_models/em/defaults.md
+      for the full vector-agreement derivation.
   - id: EP-04-004
     priority: MUST
     kind: protocol

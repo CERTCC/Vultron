@@ -128,8 +128,7 @@ groups:
   - id: BTC-04-003
     priority: MUST
     kind: project
-    statement: The "trunk-removed branches" model means extracting reusable subtrees at *the appropriate depth for the behavior*,
-      not uniformly at the top level.
+    statement: 'Reusable protocol behaviors MUST be implemented as BT subtrees in core/behaviors/ and reused across all call sites; inline duplication of equivalent logic MUST NOT occur. The extraction depth SHOULD be the deepest level at which more than one call site requires the same subtree — not forced uniformly to the top level.'
     relationships:
     - rel_type: refines
       spec_id: BT-06-002

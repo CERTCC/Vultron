@@ -41,17 +41,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: IE-03-001
-  - id: TRIG-01-005
-    priority: MUST
-    kind: project
-    statement: 'Trigger endpoints MUST be synchronous from the caller''s perspective: the response MUST be returned only after
-      the triggered behavior completes (or fails)'
-    rationale: Unlike inbound message handlers (which are intentionally asynchronous because they react to remote actors),
-      triggerable behaviors are initiated locally and the caller expects an immediate result
-    relationships:
-    - rel_type: refines
-      spec_id: TRIG-01-004
-      note: the no-block constraint applies to HTTP I/O machinery, not to the behavior execution itself
 - id: TRIG-02
   title: Candidate RM Behaviors
   specs:

@@ -250,10 +250,8 @@ groups:
   - id: OX-10-004
     priority: MUST
     kind: project
-    statement: >-
-      Until signed delivery is implemented, adapters/driven/prod_http_delivery.py MUST
-      raise NotImplementedError if instantiated, so that callers receive an explicit
-      signal rather than a silent no-op
+    statement: Until signed delivery is implemented, the production HTTP delivery adapter MUST raise NotImplementedError
+      if instantiated, so that callers receive an explicit signal rather than a silent no-op.
     scope:
     - prototype
 - id: OX-11

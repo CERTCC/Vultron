@@ -93,8 +93,7 @@ groups:
       "Actor '<actor_id>' <verb> '<object_id>' (<STATE_A> → <STATE_B>)" so
       that reading an actor's INFO log tells the complete protocol story
       without requiring DEBUG. See notes/structured-logging.md for the
-      full template inventory and the list of infrastructure patterns that
-      MUST be demoted to DEBUG.
+      full template inventory.
   - id: SL-04-007
     priority: MUST
     kind: project

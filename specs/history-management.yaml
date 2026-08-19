@@ -183,11 +183,6 @@ groups:
     kind: process
     statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
       skill MUST invoke `study-project-docs` and let that skill mediate which plan files are appropriate to load.
-  - id: HM-05-004
-    priority: MUST
-    kind: process
-    statement: '`AGENTS.md` MUST be updated to reflect the new `plan/history/` structure: the "Key Files Map" and any quick-reference
-      sections that list `plan/*HISTORY.md` paths MUST be updated to reference `plan/history/` and the `append-history` tool.'
 - id: HM-06
   title: Timestamp Field and Future-Date Rejection
   kind: protocol

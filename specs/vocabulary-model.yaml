@@ -28,13 +28,14 @@ groups:
     statement: New vocabulary types MUST be importable at startup without explicit registration calls in application code
   - id: VM-01-004
     priority: MUST
-    kind: protocol
-    statement: The `VOCABULARY` registry MUST be a flat `dict[str, type[as_Base]]` keyed by AS2 type name
+    kind: project
+    statement: The `VOCABULARY` registry MUST map AS2 type name strings to their corresponding vocabulary type, enabling
+      lookup by type name string.
   - id: VM-01-005
     priority: MUST
     kind: project
-    statement: The `vocab/objects/__init__.py` and `vocab/activities/__init__.py` files MUST use `pkgutil.iter_modules` and
-      `importlib.import_module` to dynamically import all sibling modules at package import time
+    statement: Vocabulary type registration MUST occur automatically at package import time; no explicit per-type registration
+      call MUST be required at call sites.
     relationships:
     - rel_type: refines
       spec_id: VM-01-001

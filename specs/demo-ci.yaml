@@ -215,14 +215,12 @@ groups:
       - id: DEMOCI-02-007
         priority: SHOULD
         kind: project
-        statement: >-
-          The workflow SHOULD use Docker layer caching to avoid rebuilding
-          unchanged dependency layers on every run. GHA cache export via
-          composite `run:` steps is inoperable because GitHub only injects
-          the required cache tokens (ACTIONS_RUNTIME_TOKEN,
-          ACTIONS_CACHE_URL) into `uses:` steps; accordingly the GHA cache
-          configuration has been removed. This entry documents the intent for
-          when a working caching mechanism becomes available (#2248).
+        statement: The workflow SHOULD use Docker layer caching to avoid rebuilding unchanged dependency layers on every run.
+        rationale: >-
+          GHA cache export via composite `run:` steps is inoperable: GitHub only injects
+          the required cache tokens (ACTIONS_RUNTIME_TOKEN, ACTIONS_CACHE_URL) into
+          `uses:` steps, not `run:` steps. The GHA cache configuration has been removed
+          until a working mechanism is available (see #2248).
 
       - id: DEMOCI-02-008
         priority: MUST
@@ -839,31 +837,6 @@ groups:
           button click in the GitHub UI. The unconditional expression form avoids
           a conditional `if: inputs.ref != ''` guard that would silently break
           normal checkout behaviour.
-        relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-05-001
-
-      - id: DEMOCI-09-002
-        priority: MUST
-        kind: project
-        statement: >-
-          While a `fix/demo-ci` integration branch is active, both the
-          `pull_request` and `push` triggers in `demo-integration.yml` MUST list
-          `fix/demo-ci` alongside `main` in their `branches:` arrays, so that
-          PRs targeting and direct pushes to the integration branch receive the
-          same Demo Integration CI gate as `main`. When the integration branch is
-          merged and no longer active, the `fix/demo-ci` entries MUST be removed
-          from both `branches:` arrays. The cleanup obligation MUST be tracked as
-          a GitHub issue so it is not silently forgotten (GitHub ignores deleted
-          branches in `branches:` arrays without warning).
-        rationale: >-
-          Child fix PRs targeting an integration branch must be validated against
-          that branch — not against `main` — so that each incremental fix is
-          confirmed not to perturb scenarios already green on the integration
-          branch. The same reasoning applies to direct pushes: when a child PR
-          merges into `fix/demo-ci`, the post-merge full-suite run validates the
-          cumulative result, closing the same "two green PRs break the shared
-          branch" gap that DEMOCI-05-001 closes for `main`.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001
