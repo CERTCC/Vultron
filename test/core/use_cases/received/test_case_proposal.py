@@ -60,7 +60,15 @@ def _make_proposal() -> as_CaseProposal:
 
 
 def _run_create_proposal(dl, proposal, make_payload):
-    """Helper: build and execute CreateCaseProposalReceivedUseCase."""
+    """Helper: build and execute CreateCaseProposalReceivedUseCase.
+
+    The event names ``_CASE_ACTOR_URI`` as the receiving actor, so *dl* must be
+    that actor's store: the tree executes as the receiving actor and reads and
+    writes its own store (ADR-0066).  Callers that passed a generic marker
+    actor's store saw the tree run against an empty one — and their assertions
+    were comparative ("no *second* case", "no *new* Accept"), so several passed
+    while nothing happened at all.
+    """
     activity = as_Create(
         actor=_VENDOR_URI,
         object_=proposal,
@@ -248,7 +256,7 @@ class TestCreateCaseProposalIdempotency:
         """AC-1: Second proposal for same report creates no duplicate case."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
 
@@ -276,7 +284,7 @@ class TestCreateCaseProposalIdempotency:
         """AC-2: Duplicate proposal triggers a new Accept referencing existing case."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
 
@@ -329,7 +337,7 @@ class TestCreateCaseProposalIdempotency:
         """AC-3: Proposal with existing marker is a no-op (no duplicate Accept)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
 
@@ -377,9 +385,7 @@ class TestCreateCaseProposalIdempotencyIntegration:
         a persistent backend, not just an in-memory one.
         """
         db_url = f"sqlite:///{tmp_path / 'test_idempotency.db'}"
-        dl = SqliteDataLayer(
-            db_url, actor_id="https://test.example/api/v2/actors/test-actor"
-        )
+        dl = SqliteDataLayer(db_url, actor_id=_CASE_ACTOR_URI)
         proposal = _make_proposal()
 
         _run_create_proposal(dl, proposal, make_payload)
