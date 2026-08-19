@@ -265,6 +265,64 @@ DEMOMA-22, ADR-0058, and
 
 ---
 
+### Never Wrap a Causal Wait in `demo_check` (and Never Leave One Bare)
+
+A `wait_for_*` call that is a precondition for the next step MUST be
+wrapped in `demo_gate`, not `demo_check` and not left as a bare call.
+
+**Why `demo_check` is wrong here:** `demo_check` records the timeout as a
+failure and then **continues**. The next step runs on state that was never
+established — producing a confusing secondary failure (a 422 from a
+trigger, a wrong snapshot comparison, a ledger assertion on a partial
+replica) that obscures the root cause.
+
+**Why a bare call is also wrong:** a bare `wait_for_*` call raises
+`AssertionError` directly on timeout, bypassing the harness's failure
+accumulator. Earlier `demo_check` failures are lost. Downstream steps get
+no structured skip — the exception terminates the scenario. Bare calls look
+like gates but are not.
+
+```python
+# ❌ Wrong — demo_check lets the next step run on uncommitted RM.VALID state
+with demo_check(f"{actor.id_} reached RM.VALID before engage-case"):
+    wait_for_participant_rm_state(
+        client=vendor_client, case_id=case.id_,
+        actor_id=actor.id_, expected_states={RM.VALID, RM.ACCEPTED},
+    )
+vendor_engages_case(...)  # may 422 if RM.VALID not yet committed
+
+# ❌ Wrong — bare call raises AssertionError directly, bypasses accumulator
+wait_for_contiguous_ledger_coverage(
+    client=finder_client, case_id=case.id_,
+    expected_tail_index=vendor_tail_index,
+)
+compare_replica_state(...)  # runs on partial replica if wait timed out
+
+# ✅ Correct — demo_gate blocks dependent steps when precondition is unmet
+with demo_gate(f"{actor.id_} reached RM.VALID before engage-case"):
+    wait_for_participant_rm_state(
+        client=vendor_client, case_id=case.id_,
+        actor_id=actor.id_, expected_states={RM.VALID, RM.ACCEPTED},
+    )
+vendor_engages_case(...)  # skipped (not run) if gate failed
+```
+
+**How to decide `demo_gate` vs `demo_check`:** ask whether the next step
+would operate on wrong or incomplete state if this wait timed out.
+
+- **Yes** → `demo_gate`. The wait is a causal precondition.
+- **No** → `demo_check`. The wait is temporal or a post-hoc verification.
+  Label it as temporal at the call site (EDF-06-006) so it is not mistaken
+  for a causal gate in a future edit.
+
+See `notes/demo-ci-diagnostics.md` § "Async Race Window Patterns" for the
+full diagnostic workflow, and `specs/event-driven-control-flow.yaml`
+EDF-06-005 and EDF-06-006 for the normative rules.
+
+<!-- Source: CONCERN-2325 -->
+
+---
+
 ### Event-Phrase Lookups MUST Use `lookup_entry()`, Not a Local Phrase Dict
 
 Any display-layer code that maps a `MessageSemantics` value to a human-readable
