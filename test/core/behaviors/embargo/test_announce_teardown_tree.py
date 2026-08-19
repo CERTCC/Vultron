@@ -45,6 +45,8 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 
+# Kept for objects that reference the vendor; the trees below execute as the
+# CASE_MANAGER, which is who the ledger commit is gated on.
 ACTOR_ID = "https://example.org/actors/vendor"
 
 
@@ -79,10 +81,10 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             actor_id=ACTOR_ID,
             object_=VultronObject(id_=embargo.id_),
             origin=VultronObject(id_=case.id_),
-            receiving_actor_id=ACTOR_ID,
+            receiving_actor_id=CASE_MANAGER_ACTOR,
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=activity
+            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
@@ -118,10 +120,10 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             actor_id=ACTOR_ID,
             object_=VultronObject(id_=embargo.id_),
             origin=VultronObject(id_=case.id_),
-            receiving_actor_id=ACTOR_ID,
+            receiving_actor_id=CASE_MANAGER_ACTOR,
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=activity
+            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
@@ -142,10 +144,10 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             actor_id=ACTOR_ID,
             object_=VultronObject(id_=embargo.id_),
             origin=VultronObject(id_=case.id_),
-            receiving_actor_id=ACTOR_ID,
+            receiving_actor_id=CASE_MANAGER_ACTOR,
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=activity
+            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.SUCCESS

@@ -132,6 +132,7 @@ def _seeded_scenario(bt_scenario: BTTestScenario) -> BTTestScenario:
     return bt_scenario
 
 
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_entry_has_non_empty_hash(
     _seeded_scenario: BTTestScenario,
 ) -> None:
@@ -160,6 +161,7 @@ def test_guarded_commit_tree_entry_has_non_empty_hash(
         assert len(entry.entry_hash) > 0
 
 
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_entry_has_utc_received_at(
     _seeded_scenario: BTTestScenario,
 ) -> None:
@@ -189,6 +191,7 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
         assert entry.received_at.tzinfo == timezone.utc
 
 
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_entry_references_correct_case_id(
     _seeded_scenario: BTTestScenario,
 ) -> None:
