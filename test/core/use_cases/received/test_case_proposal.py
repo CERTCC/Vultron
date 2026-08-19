@@ -78,7 +78,7 @@ class TestCreateCaseProposalReceivedUseCase:
         """Happy path: case created + Accept + Create(VulnerabilityCase) queued."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
         activity = as_Create(
@@ -141,7 +141,7 @@ class TestCreateCaseProposalReceivedUseCase:
         """The report from the proposal is linked to the created case."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
         activity = as_Create(
@@ -200,7 +200,7 @@ class TestCreateCaseProposalReceivedUseCase:
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_CASE_ACTOR_URI,
         )
         proposal = _make_proposal()
         activity = as_Create(
@@ -422,7 +422,7 @@ class TestAcceptCaseProposalReceivedUseCase:
         """accept_case_proposal_received updates VultronReportCaseLink.trusted_case_actor_id."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
         assert isinstance(
@@ -457,7 +457,7 @@ class TestAcceptCaseProposalReceivedUseCase:
         """Missing VultronReportCaseLink causes a warning but not an error (CP-06-003)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
 
@@ -476,7 +476,7 @@ class TestAcceptCaseProposalReceivedUseCase:
         """Missing report_id (inner_object_id) logs a warning and returns early."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_VENDOR_URI,
         )
 
         # Build an Accept whose object_ lacks a nested object (pathological case)
@@ -499,7 +499,7 @@ class TestRejectCaseProposalReceivedUseCase:
         """Rejection sets proposal_rejected=True on VultronReportCaseLink (CP-06-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
         assert isinstance(proposal.object_, as_VulnerabilityReport)
@@ -535,7 +535,7 @@ class TestRejectCaseProposalReceivedUseCase:
         """When Reject activity carries a summary, it is stored as rejection_reason (CP-06-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
         assert isinstance(proposal.object_, as_VulnerabilityReport)
@@ -570,7 +570,7 @@ class TestRejectCaseProposalReceivedUseCase:
         """Missing VultronReportCaseLink causes a warning but not an error (CP-06-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
 
@@ -589,7 +589,7 @@ class TestRejectCaseProposalReceivedUseCase:
         """Rejection is surfaced via a warning-level log message (CP-06-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_VENDOR_URI,
         )
         proposal = _make_proposal()
         activity = as_Reject(

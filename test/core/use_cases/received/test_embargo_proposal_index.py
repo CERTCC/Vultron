@@ -94,7 +94,7 @@ class TestInviteToEmbargoRecordsIndex:
         actor_id = "https://example.org/actors/vendor"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=actor_id,
         )
 
         actor = as_Service(id_=actor_id, name="Vendor")
@@ -135,7 +135,7 @@ class TestInviteToEmbargoRecordsIndex:
         actor_id = "https://example.org/actors/vendor-idem"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=actor_id,
         )
 
         actor = as_Service(id_=actor_id, name="Vendor")
@@ -406,7 +406,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         actor_id = "https://example.org/actors/rej-actor"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=actor_id,
         )
 
         actor = as_Service(id_=actor_id, name="RejActor")

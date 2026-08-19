@@ -48,7 +48,7 @@ class TestEngageDeferCaseBTFailureReason:
     def dl(self):
         return SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_MANAGER_ID,
         )
 
     @pytest.fixture
@@ -147,7 +147,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
     def dl(self):
         return SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_MANAGER_ID,
         )
 
     @pytest.fixture
@@ -235,7 +235,7 @@ class TestEngageCaseLedgerCommit:
     def dl(self):
         return SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_MANAGER_ID,
         )
 
     @pytest.fixture
@@ -367,7 +367,7 @@ class TestDeferCaseLedgerCommit:
     def dl(self):
         return SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_MANAGER_ID,
         )
 
     @pytest.fixture

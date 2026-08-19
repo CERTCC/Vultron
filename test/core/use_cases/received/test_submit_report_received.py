@@ -82,7 +82,7 @@ class TestSubmitReportLogMessages:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/actors/vendor",
         )
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
@@ -251,7 +251,7 @@ class TestSubmitReportCreatesCase:
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.VENDOR_ID,
         )
 
         SubmitReportReceivedUseCase(

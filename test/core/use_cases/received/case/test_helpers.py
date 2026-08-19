@@ -43,7 +43,6 @@ from vultron.core.use_cases.received.case.create import (
 )
 from vultron.wire.as2.factories import create_case_activity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from test.conftest import TEST_ACTOR_ID
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )

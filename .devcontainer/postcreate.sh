@@ -29,15 +29,6 @@ if ! grep -q 'local/bin' "$HOME/.zshrc" 2>/dev/null; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
 fi
 
-# Auto-start tmux on login if not already inside a tmux session
-if ! grep -q 'TMUX' "$HOME/.zshrc" 2>/dev/null; then
-    cat >> "$HOME/.zshrc" <<'EOF'
-
-# Auto-start tmux on login
-if [ -z "$TMUX" ]; then exec tmux new-session -s main; fi
-EOF
-fi
-
 # --- tmux configuration ---
 cat > "$HOME/.tmux.conf" <<'EOF'
 set -g default-terminal "tmux-256color"
@@ -45,34 +36,9 @@ set -s extended-keys on
 set -as terminal-features ',xterm-256color:extkeys'
 set -g history-limit 50000
 set -g mouse on
+set -g set-clipboard on
 set -g default-shell /bin/zsh
-
-# OSC 52 doesn't pass through docker exec, so we use a clipboard bridge socket
-# mounted from the host (see start-dev.sh — bridge starts automatically).
-# pbcopy (~/.local/bin/pbcopy) writes to /tmp/clipboard.sock when present.
-set -g set-clipboard off
-bind-key -T copy-mode    MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
 EOF
-
-# --- clipboard bridge client ---
-# Writes tmux selections to the Unix socket mounted from the Mac host.
-mkdir -p "$HOME/.local/bin"
-cat > "$HOME/.local/bin/pbcopy" <<'EOF'
-#!/usr/bin/env python3
-import sys, socket, os
-sock = '/tmp/clipboard.sock'
-if not os.path.exists(sock):
-    sys.exit(0)
-data = sys.stdin.buffer.read()
-try:
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.connect(sock)
-        s.sendall(data)
-except OSError:
-    sys.exit(0)
-EOF
-chmod +x "$HOME/.local/bin/pbcopy"
 
 # Wire user-level skills into Claude Code's discovery path.
 # start-dev.sh mounts the host's ~/.agents/skills into the container at

@@ -83,7 +83,7 @@ def _make_entry(
 def dl() -> SqliteDataLayer:
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=RECEIVER_URI,
     )
 
 
