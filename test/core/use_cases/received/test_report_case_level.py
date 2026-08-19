@@ -79,10 +79,8 @@ class TestCaseLevelUseeCases:
     def test_invalidate_case_transitions_participant_to_invalid(self):
         """InvalidateCaseUseCase sets participant RM state to INVALID."""
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         case, _ = self._make_case_with_participant(dl, actor_id, RM.RECEIVED)
 
         InvalidateCaseUseCase(dl, case.id_, actor_id).execute()
@@ -95,10 +93,8 @@ class TestCaseLevelUseeCases:
     def test_close_case_transitions_participant_to_closed(self):
         """CloseCaseUseCase sets participant RM state to CLOSED."""
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
         case, _ = self._make_case_with_participant(dl, actor_id, RM.INVALID)
 
@@ -197,10 +193,8 @@ class TestDereferencePatternInReportUseCases:
         """InvalidateReportReceivedUseCase dereferences and sets RM.INVALID."""
         report_id = "https://example.org/reports/r-invalidate-deref"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         case, _ = self._setup_case_for_report(dl, report_id, actor_id)
 
         offer_activity = VultronActivity(
@@ -230,10 +224,8 @@ class TestDereferencePatternInReportUseCases:
         """CloseReportReceivedUseCase dereferences and sets RM.CLOSED."""
         report_id = "https://example.org/reports/r-close-deref"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
         case, _ = self._setup_case_for_report(
             dl, report_id, actor_id, RM.INVALID
@@ -268,10 +260,8 @@ class TestDereferencePatternInReportUseCases:
 
         report_id = "https://example.org/reports/r-no-case"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
         offer_activity = VultronActivity(
             id_="https://example.org/activities/offer-no-case",
@@ -302,10 +292,8 @@ class TestDereferencePatternInReportUseCases:
 
         report_id = "https://example.org/reports/r-close-no-case"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
         offer_activity = VultronActivity(
             id_="https://example.org/activities/offer-close-no-case",

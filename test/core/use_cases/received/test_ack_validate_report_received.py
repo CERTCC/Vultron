@@ -126,7 +126,7 @@ class TestFullReportFlow:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.VENDOR_ID,
         )
         report = VultronReport(id_=self.REPORT_ID)
         vendor = VultronCaseActor(id_=self.VENDOR_ID)
@@ -344,7 +344,7 @@ class TestValidateReportReceivedGuardedCommit:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.CASE_ACTOR_ID,
         )
         event = self._make_validate_event_with_receiving_actor(
             receiving_actor_id=None
@@ -367,7 +367,7 @@ class TestValidateReportReceivedGuardedCommit:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.CASE_ACTOR_ID,
         )
         event = self._make_validate_event_with_receiving_actor(
             receiving_actor_id=self.CASE_ACTOR_ID
@@ -395,7 +395,7 @@ class TestValidateReportReceivedGuardedCommit:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.CASE_ACTOR_ID,
         )
 
         # Create a report and link it to a case with CaseActor
@@ -468,7 +468,7 @@ class TestValidateReportReceivedGuardedCommit:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.CASE_ACTOR_ID,
         )
 
         report = VultronReport(id_=self.REPORT_ID)
