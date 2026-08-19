@@ -103,7 +103,7 @@ class _FakeAcceptActivity:
     ],
 )
 def test_accept_ownership_transfer_commit_is_role_gated(
-    bt_scenario: BTTestScenario,
+    bt_scenario_factory,
     actor_id: str,
     expect_commit: bool,
 ) -> None:
@@ -113,7 +113,15 @@ def test_accept_ownership_transfer_commit_is_role_gated(
     ``CommitCaseLedgerEntryNode`` in ``effect_nodes`` that fired for the
     transferee, writing a duplicate entry at the same ``log_index`` as the
     CaseActor's guarded commit (CLP-09-001, AC-3).
+
+    The scenario is built per parameter rather than taken from the ``bt_scenario``
+    fixture, because this test has *two* executing actors and a BT's store follows
+    the actor it executes as (ADR-0066).  One shared store would leave whichever
+    actor did not own it reading an empty one — the case would be absent, the role
+    guard would fail for lack of a case rather than for lack of the role, and the
+    "transferee does not commit" half would pass for the wrong reason.
     """
+    bt_scenario: BTTestScenario = bt_scenario_factory(actor_id)
     _seed_case(bt_scenario)
     tree = create_accept_ownership_transfer_tree(
         case_id=CASE_ID,
