@@ -292,3 +292,42 @@ class TestLlmExport:
         assert data["topics"] == []
         assert data["requirements"] == []
         assert data["edges"] == []
+
+    def test_verification_always_present_when_null(self, graph_registry):
+        """verification is always in the output, even when not authored (null)."""
+        data = json.loads(to_llm_json(graph_registry))
+        for req in data["requirements"]:
+            assert "verification" in req
+            assert req["verification"] is None
+
+    def test_verification_value_emitted_when_set(self, tmp_path):
+        """When verification is authored, its value appears in spec-dump output."""
+        import yaml as _yaml
+
+        spec_data = {
+            "id": "VV",
+            "title": "Verification Test",
+            "description": "Tests verification emission",
+            "version": "0.1",
+            "scope": ["production"],
+            "groups": [
+                {
+                    "id": "VV-01",
+                    "title": "Group",
+                    "specs": [
+                        {
+                            "id": "VV-01-001",
+                            "priority": "MUST",
+                            "kind": "project",
+                            "statement": "VV-01-001 MUST do the thing",
+                            "verification": "A test in `test/foo.py` asserts this.",
+                        }
+                    ],
+                }
+            ],
+        }
+        (tmp_path / "vv.yaml").write_text(_yaml.dump(spec_data))
+        registry = load_registry(tmp_path)
+        data = json.loads(to_llm_json(registry, topic="VV"))
+        req = data["requirements"][0]
+        assert req["verification"] == "A test in `test/foo.py` asserts this."

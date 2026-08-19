@@ -833,3 +833,44 @@ def test_lint_phantom_path_suppress(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "MS-15-001" not in captured.err
+
+
+def test_lint_phantom_path_in_verification_is_hard_error(tmp_path, capsys):
+    """A verification field naming a non-existent path fails (MS-15-001)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "verification"
+    ] = "Assert via `vultron/nope.py` that the invariant holds."
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "vultron/nope.py" in captured.err
+
+
+def test_lint_phantom_path_in_verification_existing_passes(tmp_path):
+    """A verification field naming an existing path is accepted."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "vultron" / "real.py").write_text("x = 1\n")
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "verification"
+    ] = "Assert via `vultron/real.py` that the invariant holds."
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_path_verification_suppress(tmp_path, capsys):
+    """lint_suppress: [phantom_path_ref] exempts phantom paths in verification."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec(extra={"lint_suppress": ["phantom_path_ref"]})
+    data["groups"][0]["specs"][0][
+        "verification"
+    ] = "A test at `vultron/future.py` will assert this."
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-15-001" not in captured.err
