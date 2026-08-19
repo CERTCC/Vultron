@@ -48,7 +48,7 @@ set -g mouse on
 set -g default-shell /bin/zsh
 
 # OSC 52 doesn't pass through docker exec, so we use a clipboard bridge socket
-# mounted from the host (see start-dev.sh and scripts/clipboard-bridge.sh).
+# mounted from the host (see start-dev.sh — bridge starts automatically).
 # pbcopy (~/.local/bin/pbcopy) writes to /tmp/clipboard.sock when present.
 set -g set-clipboard off
 bind-key -T copy-mode    MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
@@ -65,9 +65,12 @@ sock = '/tmp/clipboard.sock'
 if not os.path.exists(sock):
     sys.exit(0)
 data = sys.stdin.buffer.read()
-with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-    s.connect(sock)
-    s.sendall(data)
+try:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.connect(sock)
+        s.sendall(data)
+except OSError:
+    sys.exit(0)
 EOF
 chmod +x "$HOME/.local/bin/pbcopy"
 
