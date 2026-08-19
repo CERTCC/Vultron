@@ -153,7 +153,10 @@ def _violations_in_file(path: pathlib.Path) -> list:
                 found.append((path, lineno, var))
             self.generic_visit(node)
 
-        visit_AsyncFunctionDef = visit_FunctionDef
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
+            for lineno, var in _undefended_in_stmts(node.body):
+                found.append((path, lineno, var))
+            self.generic_visit(node)
 
     _V().visit(tree)
     return found
