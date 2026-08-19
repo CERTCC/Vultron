@@ -55,6 +55,9 @@ def _mock_dl_with_queue(
     mock_dl.outbox_list.side_effect = lambda: list(queue)
     mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
     mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
+    # Default: no prior attempts (below MAX_TOTAL_ATTEMPTS), so existing tests
+    # retain their retry-and-requeue behaviour unchanged.
+    mock_dl.get_outbox_attempt_count.return_value = 0
     return mock_dl
 
 
@@ -235,6 +238,125 @@ def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
     asyncio.run(oh.outbox_handler("bob", mock_dl))
 
     mock_dl.find_actor_by_short_id.assert_called_once_with("bob")
+
+
+# ---------------------------------------------------------------------------
+# Per-activity attempt counter + dead-letter (OX-13-001/002/003)
+# ---------------------------------------------------------------------------
+
+
+def test_exhausted_activity_is_dead_lettered_not_requeued(monkeypatch):
+    """Activity exhausting MAX_TOTAL_ATTEMPTS is dead-lettered, not re-queued.
+
+    AC-2 (OX-13-002): on exhaustion the activity is removed from the outbox
+    and written to the dead-letter store.
+    """
+    activity_id = "urn:test:exhausted-item"
+    queue = _make_queue(activity_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+
+    async def always_raise(actor_id, activity_id, dl, emitter):
+        raise RuntimeError("permanent failure")
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    mock_dl.dead_letter_append.assert_called_once()
+    assert activity_id not in queue
+
+
+def test_exhausted_activity_error_log_includes_id_and_count(
+    monkeypatch, caplog
+):
+    """ERROR log on exhaustion includes activity ID and total attempt count.
+
+    AC-3 (OX-13-003).
+    """
+    import logging
+
+    activity_id = "urn:test:exhausted-log-item"
+    queue = _make_queue(activity_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+
+    async def always_raise(actor_id, activity_id, dl, emitter):
+        raise RuntimeError("permanent failure")
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    with caplog.at_level(logging.ERROR):
+        asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    error_messages = [
+        r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR
+    ]
+    combined = " ".join(error_messages)
+    assert activity_id in combined
+    assert str(oh.MAX_TOTAL_ATTEMPTS) in combined
+
+
+def test_non_exhausted_error_increments_persistent_counter(monkeypatch):
+    """A delivery error below MAX_TOTAL_ATTEMPTS increments the persistent counter.
+
+    AC-1 (OX-13-001): counter must be updated so it survives across drain passes.
+    """
+    activity_id = "urn:test:counting-item"
+    queue = _make_queue(activity_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    call_count = [0]
+
+    async def fail_once(actor_id, activity_id, dl, emitter):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise RuntimeError("transient failure")
+
+    monkeypatch.setattr(oh, "handle_outbox_item", fail_once)
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    mock_dl.set_outbox_attempt_count.assert_called()
+    mock_dl.dead_letter_append.assert_not_called()
+
+
+def test_dead_letter_clears_attempt_counter(monkeypatch):
+    """After dead-lettering, the attempt counter is cleared (not left stale)."""
+    activity_id = "urn:test:clear-on-exhaust"
+    queue = _make_queue(activity_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+
+    async def always_raise(actor_id, activity_id, dl, emitter):
+        raise RuntimeError("permanent failure")
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    mock_dl.clear_outbox_attempt_count.assert_called_once_with(activity_id)
 
 
 # ---------------------------------------------------------------------------

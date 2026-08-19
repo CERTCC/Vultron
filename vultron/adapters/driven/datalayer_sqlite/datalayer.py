@@ -674,3 +674,39 @@ class SqliteDataLayer:
     def record_outbox_item(self, actor_id: str, activity_id: str) -> None:
         """Queue an outbox item for *actor_id* regardless of this DL's scope."""
         queues.record_outbox_item(self, actor_id, activity_id)
+
+    # ------------------------------------------------------------------
+    # Per-activity outbox attempt counter (OX-13-001)
+    # ------------------------------------------------------------------
+
+    def get_outbox_attempt_count(self, activity_id: str) -> int:
+        """Return the cumulative delivery attempt count for *activity_id*."""
+        return queues.get_outbox_attempt_count(self, activity_id)
+
+    def set_outbox_attempt_count(self, activity_id: str, count: int) -> None:
+        """Upsert the delivery attempt count for *activity_id*."""
+        queues.set_outbox_attempt_count(self, activity_id, count)
+
+    def clear_outbox_attempt_count(self, activity_id: str) -> None:
+        """Remove the attempt count entry for *activity_id*."""
+        queues.clear_outbox_attempt_count(self, activity_id)
+
+    # ------------------------------------------------------------------
+    # Dead-letter store (OX-13-002, OX-13-004)
+    # ------------------------------------------------------------------
+
+    def dead_letter_append(
+        self,
+        activity_id: str,
+        reason: str,
+        total_attempts: int,
+        failed_recipients: list[str],
+    ) -> None:
+        """Write an exhausted outbox activity to the dead-letter store."""
+        queues.dead_letter_append(
+            self, activity_id, reason, total_attempts, failed_recipients
+        )
+
+    def dead_letter_list(self) -> list:
+        """Return all dead-letter entries readable from the DataLayer."""
+        return queues.dead_letter_list(self)

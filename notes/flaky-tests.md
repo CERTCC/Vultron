@@ -114,8 +114,12 @@ No open entries.
 | `fv Demo Integration` | #2361 | 2026-08-18 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
-| `fcvcv Demo Integration` | #2337 | 2026-08-17 |
+| `fcvcv Demo Integration` | #2376 | 2026-08-19 |
 
+> `fcvcv Demo Integration` now points to #2376 (coordinator RM.RECEIVED timeout + 422
+> on engage-case, same async race-window class as #2221). Previous issue #2337
+> (Finder ledger-coverage timeout) was closed 2026-08-18; row re-added 2026-08-19.
+>
 > `fv Demo Integration` now points to #2361 (M4/M5 vfd_state replication timeout).
 >
 > **Prior failure mode** (UnboundLocalError / add-note-to-case 422 — tracked under #2241): fixed by PR #2358. That failure was deterministic once triggered: `add-note-to-case` returned an intermittent 422 and `vultron/demo/helpers/notes.py:92` read `result` outside the swallowing `demo_step` block.  Row updated 2026-08-18.
