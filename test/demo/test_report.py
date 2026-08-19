@@ -588,7 +588,7 @@ class TestEventPhraseBehavioural:
     @pytest.mark.xfail(
         reason=(
             "SE-07-006: submit_report {target} slot not yet populated by runtime"
-            " — tracked in #1898, implementation in #2150"
+            " — tracked in #2150"
         ),
         strict=True,
     )

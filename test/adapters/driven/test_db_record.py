@@ -18,11 +18,16 @@ from pydantic import BaseModel
 
 from vultron.adapters.driven.db_record import (
     Record,
+    _KEEP_INLINE_NESTED_TYPES,
     _dehydrate_data,
     object_to_record,
     record_to_object,
 )
 from vultron.errors import VultronValidationError
+from vultron.wire.as2.enums import (
+    as_IntransitiveActivityType,
+    as_TransitiveActivityType,
+)
 from vultron.wire.as2.factories import rm_submit_report_activity
 
 
@@ -411,3 +416,41 @@ def test_object_to_record_still_accepts_wire_activities():
 
     record = object_to_record(offer)
     assert record.type_ == "Offer"
+
+
+# ---------------------------------------------------------------------------
+# _KEEP_INLINE_NESTED_TYPES derivation guard (issue #2218)
+# ---------------------------------------------------------------------------
+
+
+def test_keep_inline_nested_types_contains_all_transitive_activity_values():
+    """_KEEP_INLINE_NESTED_TYPES must cover every as_TransitiveActivityType value."""
+    for member in as_TransitiveActivityType:
+        assert member.value in _KEEP_INLINE_NESTED_TYPES, (
+            f"as_TransitiveActivityType.{member.name} ({member.value!r}) "
+            "is missing from _KEEP_INLINE_NESTED_TYPES"
+        )
+
+
+def test_keep_inline_nested_types_contains_all_intransitive_activity_values():
+    """_KEEP_INLINE_NESTED_TYPES must cover every as_IntransitiveActivityType value."""
+    for member in as_IntransitiveActivityType:
+        assert member.value in _KEEP_INLINE_NESTED_TYPES, (
+            f"as_IntransitiveActivityType.{member.name} ({member.value!r}) "
+            "is missing from _KEEP_INLINE_NESTED_TYPES"
+        )
+
+
+def test_keep_inline_nested_types_contains_case_ledger_entry():
+    """_KEEP_INLINE_NESTED_TYPES must include the Vultron-specific CaseLedgerEntry."""
+    assert "CaseLedgerEntry" in _KEEP_INLINE_NESTED_TYPES
+
+
+def test_keep_inline_nested_types_matches_enum_union_exactly():
+    """_KEEP_INLINE_NESTED_TYPES must equal the union of both enum value sets plus CaseLedgerEntry."""
+    expected = (
+        frozenset(e.value for e in as_TransitiveActivityType)
+        | frozenset(e.value for e in as_IntransitiveActivityType)
+        | {"CaseLedgerEntry"}
+    )
+    assert _KEEP_INLINE_NESTED_TYPES == expected

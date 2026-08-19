@@ -46,6 +46,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     assert_demo_success,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     reset_datalayer,
@@ -260,19 +261,20 @@ def _phase_report_submission(
     )
 
     # Wait for initial participants (Finder + Vendor1 + CaseActor).
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_count=3,
-    )
-
-    with demo_check(
-        "Finder's DataLayer received case replica (genesis hash available)"
-    ):
-        wait_for_case_on_container(
-            client=finder_client,
+    with demo_gate("participant count ≥3 before M1 verify_case_active"):
+        wait_for_case_participants(
+            vendor_client=vendor_client,
             case_id=case.id_,
+            expected_count=3,
         )
+
+        with demo_check(
+            "Finder's DataLayer received case replica (genesis hash available)"
+        ):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
+            )
 
     case = as_VulnerabilityCase.model_validate(
         vendor_client.get(f"/datalayer/{case.id_}")
