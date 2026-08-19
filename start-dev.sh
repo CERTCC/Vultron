@@ -61,6 +61,17 @@ WIP_OUTPUTS_SLOT="$MAIN_DIR/wip_outputs/$SLOT"
 GRAPHIFY_HOST="$HOME/dev/graphify-out/$SLOT"
 mkdir -p "$GRAPHIFY_HOST"
 
+# Start clipboard bridge in the background if not already running.
+# OSC 52 doesn't pass through docker exec, so tmux pipes selections to a Unix
+# socket that this listener forwards to pbcopy on the Mac host.
+CLIPBOARD_SOCK=/tmp/docker-clipboard.sock
+if ! [ -S "$CLIPBOARD_SOCK" ]; then
+    rm -f "$CLIPBOARD_SOCK"
+    (while true; do nc -lU "$CLIPBOARD_SOCK" 2>/dev/null | pbcopy; done) &
+    disown $!
+    for _i in $(seq 1 10); do [ -S "$CLIPBOARD_SOCK" ] && break; sleep 0.1; done
+fi
+
 # --rebuild: remove container and image
 if [ "$REBUILD" = true ]; then
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
