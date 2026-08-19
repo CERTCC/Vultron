@@ -455,8 +455,12 @@ def post_actor_outbox(
     actor_dl.outbox_append(activity.id_)
 
     emitter = getattr(request.app.state, "emitter", None)
+    # Keyword, not positional: `outbox_handler`'s third parameter used to be a
+    # second DataLayer (the shared one), so a positional third argument reads as
+    # a store here and silently becomes the emitter.  See the ratchet in
+    # test/architecture/test_outbox_handler_emitter_keyword.py.
     background_tasks.add_task(
-        outbox_handler, canonical_actor_id, actor_dl, emitter
+        outbox_handler, canonical_actor_id, actor_dl, emitter=emitter
     )
 
     return None

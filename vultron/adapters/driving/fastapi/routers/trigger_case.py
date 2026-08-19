@@ -24,7 +24,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
-    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
@@ -58,7 +57,6 @@ def trigger_engage_case(
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -70,7 +68,7 @@ def trigger_engage_case(
     """
     with domain_error_translation():
         result = svc.engage_case(actor_id, body.case_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -91,7 +89,6 @@ def trigger_defer_case(
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -103,7 +100,7 @@ def trigger_defer_case(
     """
     with domain_error_translation():
         result = svc.defer_case(actor_id, body.case_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -126,7 +123,6 @@ def trigger_add_object_to_case(
     body: AddObjectToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Add an existing AS2 object to a case.
@@ -141,7 +137,7 @@ def trigger_add_object_to_case(
             case_id=body.case_id,
             object_id=body.object_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -162,7 +158,6 @@ def trigger_create_case(
     body: CreateCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -180,7 +175,7 @@ def trigger_create_case(
             report_id=body.report_id,
             to=body.to,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -199,7 +194,6 @@ def trigger_add_report_to_case(
     body: AddReportToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -215,5 +209,5 @@ def trigger_add_report_to_case(
             case_id=body.case_id,
             report_id=body.report_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result

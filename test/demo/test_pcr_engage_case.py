@@ -179,7 +179,7 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
     """
     case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
     try:
-        asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
+        asyncio.run(outbox_handler(case_actor_id, case_actor_dl))
     finally:
         case_actor_dl.close()
 

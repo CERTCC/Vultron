@@ -24,7 +24,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
-    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
@@ -58,7 +57,6 @@ def trigger_validate_report(
     body: ValidateReportRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -70,7 +68,7 @@ def trigger_validate_report(
     """
     with domain_error_translation():
         result = svc.validate_report(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -92,7 +90,6 @@ def trigger_invalidate_report(
     body: InvalidateReportRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -104,7 +101,7 @@ def trigger_invalidate_report(
     """
     with domain_error_translation():
         result = svc.invalidate_report(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -127,7 +124,6 @@ def trigger_reject_report(
     body: RejectReportRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -139,7 +135,7 @@ def trigger_reject_report(
     """
     with domain_error_translation():
         result = svc.reject_report(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -165,7 +161,6 @@ def trigger_close_report(
     body: CloseReportRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -177,7 +172,7 @@ def trigger_close_report(
     """
     with domain_error_translation():
         result = svc.close_case(actor_id, body.offer_id, body.note)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -198,7 +193,6 @@ def trigger_submit_report(
     body: SubmitReportRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Create a VulnerabilityReport and offer it to a recipient."""
@@ -209,5 +203,5 @@ def trigger_submit_report(
             body.report_content,
             body.recipient_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result

@@ -488,17 +488,19 @@ class TestTriggerCaseOutboxScheduling:
 
 
 class TestTriggerCaseOutboxCanonicalId:
-    """Regression tests for BUG-2026040901.
+    """The URL path segment must resolve to the canonical actor URI.
 
-    The bug: trigger routes receive ``actor_id`` as a short UUID from the URL
-    path, but use-case helpers write to the outbox using the canonical full URI
-    (``actor.id_``).  If ``outbox_handler`` is called with the short UUID, it
-    reads from a different TinyDB table and finds nothing — silently dropping
-    all outbox activities.
+    Originally a regression test for BUG-2026040901, where a queue written
+    under the canonical URI was read under the short path segment and the
+    activities vanished. That *class* of bug is now unreachable: ADR-0066
+    dropped the ``actor_id`` column, so a queue lives in its owner's store
+    rather than in a bucket named by one spelling of an id.
 
-    Fix: ``_canonical_actor_dl`` resolves the actor from the DataLayer and
-    returns an actor-scoped DataLayer keyed by the canonical URI, which is then
-    passed to ``outbox_handler``.
+    What still needs pinning is the resolution itself. ``get_canonical_actor_dl``
+    turns a short path segment into the canonical URI, and it is that URI which
+    selects the store ``outbox_handler`` drains. Get it wrong and the handler
+    opens a different — empty — store, which is the same silent drop by a
+    different route.
     """
 
     def test_engage_case_canonical_actor_dl_resolves_full_uri(
@@ -507,30 +509,27 @@ class TestTriggerCaseOutboxCanonicalId:
         """outbox_handler receives the canonical-URI-keyed DataLayer.
 
         When the URL uses a short UUID (last path segment of actor.id_),
-        get_canonical_actor_dl must resolve to the full URI so that
-        outbox_handler reads from the same table as record_outbox_item.
+        get_canonical_actor_dl must resolve to the full URI, because that URI
+        is what selects the store the handler drains.
         """
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
         short_uuid = actor.id_.rstrip("/").rsplit("/", 1)[-1]
 
-        # Fresh app — override get_trigger_service and get_trigger_dl but NOT
-        # get_canonical_actor_dl so the real dependency resolves the canonical
+        # Fresh app — override get_trigger_service but NOT
+        # get_canonical_actor_dl, so the real dependency resolves the canonical
         # URI via the real DataLayer.
-        from vultron.adapters.driving.fastapi.deps import get_trigger_dl
-
         app = FastAPI()
         app.include_router(trigger_case_router.router)
         app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         )
-        app.dependency_overrides[get_trigger_dl] = lambda: dl
         # get_canonical_actor_dl intentionally NOT overridden.
 
         captured_dl_arg = []
 
-        async def capture_outbox(actor_id, actor_dl, shared_dl):
+        async def capture_outbox(actor_id, actor_dl):
             captured_dl_arg.append((actor_id, actor_dl))
 
         import pytest

@@ -889,7 +889,11 @@ class TestTriggerReportOutboxScheduling:
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
         assert mock_outbox.call_args.args[1] is dl
-        assert mock_outbox.call_args.args[2] is dl
+        # No third positional: that slot is `emitter` now, and a store
+        # passed there silently becomes the emitter (see the ratchet in
+        # test/architecture/test_outbox_handler_emitter_keyword.py).
+        assert len(mock_outbox.call_args.args) == 2
+        assert "emitter" not in mock_outbox.call_args.kwargs
 
     def test_invalidate_report_schedules_outbox_handler(
         self, client_triggers, dl, actor, offer
@@ -904,7 +908,11 @@ class TestTriggerReportOutboxScheduling:
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
         assert mock_outbox.call_args.args[1] is dl
-        assert mock_outbox.call_args.args[2] is dl
+        # No third positional: that slot is `emitter` now, and a store
+        # passed there silently becomes the emitter (see the ratchet in
+        # test/architecture/test_outbox_handler_emitter_keyword.py).
+        assert len(mock_outbox.call_args.args) == 2
+        assert "emitter" not in mock_outbox.call_args.kwargs
 
     def test_submit_report_schedules_outbox_handler(
         self, client_triggers, dl, actor
@@ -923,4 +931,8 @@ class TestTriggerReportOutboxScheduling:
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
         assert mock_outbox.call_args.args[1] is dl
-        assert mock_outbox.call_args.args[2] is dl
+        # No third positional: that slot is `emitter` now, and a store
+        # passed there silently becomes the emitter (see the ratchet in
+        # test/architecture/test_outbox_handler_emitter_keyword.py).
+        assert len(mock_outbox.call_args.args) == 2
+        assert "emitter" not in mock_outbox.call_args.kwargs

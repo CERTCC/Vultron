@@ -103,7 +103,6 @@ def demo_add_note_to_case(
     body: AddNoteToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Create a Note and add it to a case (demo scaffold).
@@ -121,7 +120,7 @@ def demo_add_note_to_case(
             note_content=body.note_content,
             in_reply_to=body.in_reply_to,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -143,7 +142,6 @@ def demo_notify_fix_ready(
     body: NotifyFixReadyRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the actor has a fix ready (demo scaffold).
@@ -166,7 +164,7 @@ def demo_notify_fix_ready(
             case_id=body.case_id,
             vfd_state=CS_vfd.VFd,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -188,7 +186,6 @@ def demo_notify_fix_deployed(
     body: NotifyFixDeployedRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the actor has deployed a fix (demo scaffold).
@@ -203,7 +200,7 @@ def demo_notify_fix_deployed(
             case_id=body.case_id,
             vfd_state=CS_vfd.VFD,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -225,7 +222,6 @@ def demo_notify_published(
     body: NotifyPublishedRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the vulnerability is publicly disclosed (demo scaffold).
@@ -240,7 +236,7 @@ def demo_notify_published(
             case_id=body.case_id,
             pxa_state=CS_pxa.Pxa,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -262,7 +258,6 @@ def demo_close_case(
     body: CloseCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Trigger Leave(VulnerabilityCase) for the given actor and case.
@@ -278,7 +273,7 @@ def demo_close_case(
             actor_id=actor_id,
             case_id=body.case_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -417,7 +412,7 @@ def demo_sync_log_entry(
         dl=dl,
     )
 
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
 
     if entry is None:
         return JSONResponse(
