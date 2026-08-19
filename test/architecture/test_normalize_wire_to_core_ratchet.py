@@ -68,14 +68,6 @@ _NORMALIZED_AS_OF_2232: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 _NOT_YET_NORMALIZED: frozenset[str] = frozenset(
     {
-        "CaseLedgerEntry",
-        "CaseReference",
-        "CaseStatus",
-        "EmbargoEvent",
-        "EmbargoPolicy",
-        "VulnerabilityCase",
-        "VulnerabilityRecord",
-        "VulnerabilityReport",
         # No to_core() projection exists for these yet.
         "VultronApplication",
         "VultronGroup",

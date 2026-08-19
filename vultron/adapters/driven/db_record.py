@@ -53,8 +53,16 @@ _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 # only by key spelling today and are not yet normalised — tracked in #2268.
 _NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
     {
+        "CaseLedgerEntry",
         "CaseParticipant",
+        "CaseReference",
+        "CaseStatus",
+        "EmbargoEvent",
+        "EmbargoPolicy",
         "ParticipantStatus",
+        "VulnerabilityCase",
+        "VulnerabilityRecord",
+        "VulnerabilityReport",
     }
 )
 
@@ -274,6 +282,13 @@ def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
     model = _project_shadowing_wire_obj(obj)
     updates: dict[str, Any] = {}
     for field_name in type(model).model_fields:
+        if field_name in _AS_OBJECT_REF_FIELDS:
+            # These fields are dehydrated to ID strings by _dehydrate_data; their
+            # in-memory shape is irrelevant to the stored row.  Skipping them
+            # prevents spurious to_core() calls on stub/reference objects (e.g.
+            # VulnerabilityCaseStub in Invite.target) that are never stored
+            # standalone and have no full core projection.
+            continue
         value = getattr(model, field_name, None)
         if isinstance(value, BaseModel):
             projected = _project_shadowing_wire_obj(value)
