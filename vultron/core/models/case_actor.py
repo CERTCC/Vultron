@@ -19,11 +19,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from vultron.core.models.base import CoreObject
+from vultron.core.models.base import CoreObject, ValidatedAssignmentMixin
 from vultron.core.models.enums import VultronActorType
 
 
-class VultronOutbox(BaseModel):
+class VultronOutbox(ValidatedAssignmentMixin, BaseModel):
     """Minimal outbox representation for domain actor types."""
 
     items: list[str] = Field(default_factory=list)

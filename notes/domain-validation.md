@@ -282,9 +282,11 @@ wire branch ever gains `validate_assignment`, this trap returns.
 ### Cost
 
 Scalar attribute assignment measured **475 ns → 1464 ns** (3.1×, ~1 µs
-absolute) — immaterial for BT tick loops. The cost that still needs watching is
-collection fields: assigning `case_participants` re-validates all N items, so it
-is O(N) per assignment.
+absolute) — immaterial for BT tick loops. Collection fields are O(N) per
+assignment: assigning `case_participants` re-validates all N items. Step 2
+(issue #2294, AC-6) benchmarked `list[FakeParticipant]` reassignment and found
+**3.8× overhead at N=100 (~3 µs absolute)** — O(N) confirmed, within the
+acceptable range.
 
 See ADR-0064 for the decision and the three-step rollout, and
 `test/architecture/test_validate_assignment_ratchet.py` for the enumerated

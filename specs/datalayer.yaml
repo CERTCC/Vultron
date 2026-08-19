@@ -2,7 +2,7 @@ id: DL
 title: DataLayer Port
 description: Behavioural contract that all DataLayer adapter implementations MUST satisfy. Covers auto-rehydration on read,
   type-safe write operations, and port isolation.
-version: 1.3.0
+version: 1.4.0
 scope:
 - prototype
 - production
@@ -200,6 +200,28 @@ groups:
     - persistence
     - testing
     - wire-format
+  - id: DL-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      An architecture ratchet test MUST assert that `_NORMALIZE_WIRE_TO_CORE` in
+      `vultron/adapters/driven/db_record.py` covers every wire vocabulary class whose bare `type_`
+      shadows a `CORE_VOCABULARY` entry; the set may only grow (shrinking re-opens the write-path
+      shape duality). When all shadowing types are migrated the companion `_NOT_YET_NORMALIZED`
+      enumeration MUST be empty and the test MUST enforce that no shadowing type is left uncovered.
+    rationale: >-
+      Prevents regression on the write path: a wire-shaped row MUST NOT be persisted in a
+      core-typed DataLayer table. The write-side ratchet is the mirror-image of DL-05-004 and
+      enforces the persistence-boundary backstop described in ADR-0062. Source concern #2268.
+    relationships:
+    - rel_type: implements
+      spec_id: DL-05-001
+    tags:
+    - persistence
+    - testing
+    - wire-format
+    adr:
+    - ADR-0062
 - id: DL-06
   title: Activity Read-Back and the Semantic/Envelope Split
   description: >-
