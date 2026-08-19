@@ -345,7 +345,8 @@ class Record(StorableRecord):
         Returns:
             Record: The created Record.
         """
-        if obj.type_ is None or obj.type_.startswith("as_"):
+        obj_type = obj.type_
+        if obj_type is None or obj_type.startswith("as_"):
             raise ValueError(
                 "Object 'type_' attribute cannot start with 'as_' for Record conversion"
             )
@@ -357,7 +358,7 @@ class Record(StorableRecord):
 
         record = Record(
             id_=obj.id_,
-            type_=obj.type_,
+            type_=obj_type,
             # serialize_as_any=True serializes each nested object by its runtime
             # type, preserving subtype fields (e.g. a CaseLedgerEntry inline in
             # an Announce keeps case_id/event_type/…).  Without it, an inline
