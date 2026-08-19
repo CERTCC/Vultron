@@ -138,7 +138,7 @@ class TestEmbargoProposalLifecycle:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/vendor",
         )
 
         embargo = as_EmbargoEvent(
@@ -175,7 +175,7 @@ class TestEmbargoProposalLifecycle:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
@@ -229,7 +229,7 @@ class TestEmbargoProposalLifecycle:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
@@ -285,7 +285,7 @@ class TestEmbargoProposalLifecycle:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
@@ -347,7 +347,7 @@ class TestEmbargoProposalLifecycle:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
@@ -562,7 +562,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.COORD_ID,
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
@@ -592,7 +592,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.COORD_ID,
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"
@@ -669,7 +669,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.COORD_ID,
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
@@ -702,7 +702,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.COORD_ID,
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"

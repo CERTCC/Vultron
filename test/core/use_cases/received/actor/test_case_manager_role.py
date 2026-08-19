@@ -66,7 +66,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
@@ -82,7 +82,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
@@ -155,7 +155,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
 
         offer = self._make_offer()
@@ -184,7 +184,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
@@ -265,7 +265,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._VENDOR_URI,
         )
         reporter_id = "https://example.org/actors/reporter"
         reporter_participant_id = f"{self._CASE_URI}/participants/reporter"
@@ -343,7 +343,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
 
         # Seed DL so EmitRejectCaseManagerRoleNode can reconstruct the offer
@@ -401,7 +401,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         # attributed_to triggers genesis_hash computation (CLP-08-001); required
         # for the ledger commit that precedes the outbox enqueue.
@@ -475,7 +475,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         case = as_VulnerabilityCase(id_=self._CASE_URI, name="ADAPTER-REJECT")
         participant = as_CaseParticipant(

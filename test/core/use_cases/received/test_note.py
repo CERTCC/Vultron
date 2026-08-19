@@ -186,7 +186,7 @@ class TestNoteUseCases:
         """CaseActor appends note ID to case.notes on Add(Note, Case)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/cases/case_n1/actor",
         )
         case_actor_id = "https://example.org/cases/case_n1/actor"
         case_id = "https://example.org/cases/case_n1"
@@ -217,7 +217,7 @@ class TestNoteUseCases:
         """CaseActor skips adding a note already in the case (idempotent)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/cases/case_n2/actor",
         )
         case_actor_id = "https://example.org/cases/case_n2/actor"
         case_id = "https://example.org/cases/case_n2"
@@ -258,7 +258,7 @@ class TestNoteUseCases:
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/actors/non-manager",
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_n3_noop",
@@ -363,7 +363,7 @@ class TestNoteUseCases:
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/cases/case_le1/actor",
         )
         case_actor_id = "https://example.org/cases/case_le1/actor"
         author_id = "https://example.org/users/vendor"
@@ -443,7 +443,7 @@ class TestNoteUseCases:
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/cases/case_le2/actor",
         )
         case_actor_id = "https://example.org/cases/case_le2/actor"
         author_id = "https://example.org/users/vendor"

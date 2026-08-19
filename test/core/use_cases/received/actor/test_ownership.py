@@ -73,7 +73,7 @@ class TestOwnershipTransferUseCases:
         coordinator_id = "https://example.org/users/coordinator"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=coordinator_id,
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot2",
@@ -135,7 +135,7 @@ class TestOwnershipTransferUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=case_actor_id,
         )
 
         case = as_VulnerabilityCase(
@@ -216,7 +216,7 @@ class TestOwnershipTransferUseCases:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=case_actor_id,
         )
 
         case = as_VulnerabilityCase(

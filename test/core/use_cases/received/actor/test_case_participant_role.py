@@ -50,7 +50,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
@@ -66,7 +66,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
@@ -103,7 +103,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         offer = self._make_offer(role=CVDRole.COORDINATOR)
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
@@ -122,7 +122,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self._CASE_ACTOR_URI,
         )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
