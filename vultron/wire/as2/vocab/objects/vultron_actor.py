@@ -74,8 +74,6 @@ class as_VultronGroup(VultronActorMixin):
     )
 
 
-VOCABULARY["Actor"] = CoreActor
-VOCABULARY["CoreActor"] = CoreActor
 VOCABULARY["Person"] = as_VultronPerson
 VOCABULARY["Organization"] = as_VultronOrganization
 VOCABULARY["Service"] = as_VultronService

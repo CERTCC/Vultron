@@ -24,8 +24,5 @@ Spec: SYNC-04-001, SYNC-04-002.
 from vultron.core.models.replication_state import (  # noqa: F401
     VultronReplicationState,
 )
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
-
-VOCABULARY["ReplicationState"] = VultronReplicationState
 
 __all__ = ["VultronReplicationState"]

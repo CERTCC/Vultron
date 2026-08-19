@@ -115,6 +115,44 @@ loaded without requiring each application path to import them manually.
 
 ---
 
+## CORE_TYPE_MAP and the ARCH-12-003 Fix
+
+(ISSUE-1992, 2026-08-19)
+
+ARCH-12-003 forbids core-branch types from appearing in the wire `VOCABULARY`
+dict. Before this fix, six core types (`VultronOfferRecord`,
+`VultronPendingCaseInbox`, `PendingCreateCaseActivity`,
+`VultronReplicationState`, `VultronReportCaseLink`, `CoreActor`) were
+explicitly assigned to `VOCABULARY` keys in their wire-side re-export modules.
+
+The fix:
+
+1. **`CORE_TYPE_MAP`** (`vultron/core/models/registry.py`) — a new dict
+   separate from `VOCABULARY` and `CORE_VOCABULARY`. Auto-populated by
+   `VultronObject.__init_subclass__` (for concrete `Literal[...]` `type_`
+   annotations) and by `CoreObject.__init_subclass__` (for no-`type_`
+   subclasses that use `_set_type_from_class_name`).
+
+2. **`find_in_vocabulary()` fallback** — after checking `VOCABULARY`, the
+   function calls `find_in_core_type_map()` before raising `KeyError`.
+   This means callers (deserialization, discriminated-union construction) can
+   look up core types by name without those types polluting the wire registry.
+
+3. **Wire re-export modules** (`offer_record.py`, etc.) no longer write to
+   `VOCABULARY`. They import and re-export the core class unchanged.
+
+**Why `VultronObject`, not `CoreObject`**: five of the six affected types
+inherit `VultronObject` directly (not through `CoreObject`), so the hook must
+live on the shared root. See
+`plan/incoming/learnings/20260819-core-type-map-hook-on-vultronobject-not-coreobject.md`.
+
+**Known side-effect**: because `as_Object` also inherits `VultronObject`
+(ARCH-12-001), wire-layer types also trigger `VultronObject.__init_subclass__`
+and land in `CORE_TYPE_MAP`. This is functionally harmless — `VOCABULARY` is
+checked first — but is architecturally imprecise. Tracked in a separate issue.
+
+---
+
 ## Vocabulary Override Preservation
 
 (ISSUE-801, 2026-06-09)
@@ -132,7 +170,7 @@ mapping in the base module.
 
 ```python
 # base/objects/actors.py — keep at least this registration
-VOCABULARY["Actor"] = as_Actor  # ← must stay
+VOCABULARY["Actor"] = as_Actor  # ← must stay (and is the correct state as of ISSUE-1992)
 
 # vultron_actor.py — override specific concrete types only
 VOCABULARY["Person"] = VultronPerson
@@ -143,6 +181,12 @@ VOCABULARY["Organization"] = VultronOrganization
 `vocab/base/objects/` contributes at least one concrete registration.
 A module with zero registrations indicates a structural gap (all
 registrations were moved elsewhere) and causes the invariant check to fail.
+
+**Current state (post ISSUE-1992)**: `VOCABULARY["Actor"]` correctly maps to
+`as_Actor`. The earlier `CoreActor` assignment was removed as an ARCH-12-003
+violation — `CoreActor` is a core-layer type and must not appear in the wire
+`VOCABULARY`. It is now reachable via `find_in_vocabulary("CoreActor")` through
+the `CORE_TYPE_MAP` fallback.
 
 ## Related Files
 
