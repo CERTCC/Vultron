@@ -27,10 +27,8 @@ protection, for the mirror-image reason:
   issue #2232 closed, and it would do so without any test noticing: nothing else
   asserts that a given type is normalised.
 
-Fifteen wire classes shadow a ``CORE_VOCABULARY`` entry (their ``type_`` is bare,
-so the ``as_``-prefix guard in ``Record.from_obj`` never fires for them).  Two are
-normalised today; the remaining thirteen are enumerated below so that a *new*
-shadowing type has to be triaged rather than joining the backlog unnoticed.
+Seven types are normalised: the two from #2232 plus the five actor types from
+#2402.  The remaining eight shadowing object types are tracked in issue #2401.
 
 Related: issue #2232 (the shape duality), issue #2268 (migrating the rest).
 """
@@ -58,13 +56,29 @@ _NORMALIZED_AS_OF_2232: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Shadowing types NOT yet normalised (issue #2268).  This set may only SHRINK:
+# Baseline: seven types normalised as of issue #2402 (five actor types added).
+# The remaining eight shadowing object types are tracked in issue #2401.
+# ---------------------------------------------------------------------------
+_NORMALIZED_AS_OF_2402: frozenset[str] = frozenset(
+    {
+        "CaseParticipant",
+        "ParticipantStatus",
+        "VultronApplication",
+        "VultronGroup",
+        "VultronOrganization",
+        "VultronPerson",
+        "VultronService",
+    }
+)
+
+# ---------------------------------------------------------------------------
+# Shadowing types NOT yet normalised (issue #2401).  This set may only SHRINK:
 # migrating a type moves it out of here and into ``_NORMALIZE_WIRE_TO_CORE``.
 #
-# The ten object types differ from their core counterpart only by key spelling
-# today, so a wire-shaped row is misspelled rather than structurally unreadable.
-# The five actor types have no ``to_core()`` projection at all, so they cannot be
-# normalised until one exists.
+# The eight object types differ from their core counterpart only by key
+# spelling today, so a wire-shaped row is misspelled rather than structurally
+# unreadable.  Each also needs ALL wire classes sharing that ``type_`` string
+# to have ``to_core()`` before the type can be added to ``_NORMALIZE_WIRE_TO_CORE``.
 # ---------------------------------------------------------------------------
 _NOT_YET_NORMALIZED: frozenset[str] = frozenset(
     {
@@ -76,12 +90,6 @@ _NOT_YET_NORMALIZED: frozenset[str] = frozenset(
         "VulnerabilityCase",
         "VulnerabilityRecord",
         "VulnerabilityReport",
-        # No to_core() projection exists for these yet.
-        "VultronApplication",
-        "VultronGroup",
-        "VultronOrganization",
-        "VultronPerson",
-        "VultronService",
     }
 )
 
@@ -103,12 +111,12 @@ def test_registries_are_populated():
 
 
 def test_normalize_set_may_only_grow():
-    """Every type normalised as of #2232 must still be normalised."""
-    missing = _NORMALIZED_AS_OF_2232 - _NORMALIZE_WIRE_TO_CORE
+    """Every type normalised as of #2402 must still be normalised."""
+    missing = _NORMALIZED_AS_OF_2402 - _NORMALIZE_WIRE_TO_CORE
     assert not missing, (
         "_NORMALIZE_WIRE_TO_CORE lost entries"
         f" {sorted(missing)} — the write path would again persist a wire-shaped"
-        " row for those types (issue #2232). The set may only grow."
+        " row for those types (issues #2232, #2402). The set may only grow."
     )
 
 
