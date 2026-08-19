@@ -25,6 +25,10 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronValidationError
+from vultron.wire.as2.enums import (
+    as_IntransitiveActivityType,
+    as_TransitiveActivityType,
+)
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
@@ -77,40 +81,9 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
 # Announce envelope), so dehydrating them would make rehydration impossible on
 # read-back and cause MV-09-001 outbox-gate failures.
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
-    {
-        # as_TransitiveActivityType values
-        "Accept",
-        "Add",
-        "Announce",
-        "Block",
-        "Create",
-        "Delete",
-        "Dislike",
-        "Flag",
-        "Follow",
-        "Ignore",
-        "Invite",
-        "Join",
-        "Leave",
-        "Like",
-        "Listen",
-        "Move",
-        "Offer",
-        "Read",
-        "Reject",
-        "Remove",
-        "TentativeAccept",
-        "TentativeReject",
-        "Undo",
-        "Update",
-        "View",
-        # as_IntransitiveActivityType values
-        "Arrive",
-        "Question",
-        "Travel",
-        # Vultron-specific type kept inline for the same reason
-        "CaseLedgerEntry",
-    }
+    {e.value for e in as_TransitiveActivityType}
+    | {e.value for e in as_IntransitiveActivityType}
+    | {"CaseLedgerEntry"}
 )
 
 # Fields that hold a *list* of object references (ID strings or inline
