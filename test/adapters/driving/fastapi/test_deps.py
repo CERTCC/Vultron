@@ -28,9 +28,14 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import get_canonical_actor_dl
 from vultron.core.ports.datalayer import DataLayer
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-CANONICAL_URI = "https://example.org/actors/myactor"
+# Canonical *for this node*: an actor id is the URL that reaches it here, so a
+# hosted actor is named base_url + "actors/" + slug (ADR-0066). An id under
+# another authority names a process elsewhere and cannot be resolved from a path
+# segment on this node, which is what these tests exercise.
+CANONICAL_URI = canonical_actor_uri("myactor")
 SHORT_ID = CANONICAL_URI.rsplit("/", 1)[-1]  # "myactor"
 ACTIVITY_ID = "https://example.org/activities/act-001"
 
@@ -109,38 +114,35 @@ def test_get_canonical_actor_dl_actor_not_found_falls_back_to_raw_param(
 # ---------------------------------------------------------------------------
 
 
-def test_short_id_dl_cannot_read_queue_written_by_canonical_uri(
-    shared_dl: SqliteDataLayer,
-) -> None:
-    """AC-3a: Short-ID-scoped DL cannot read outbox written by canonical URI.
+def test_one_actor_has_exactly_one_queue_regardless_of_spelling() -> None:
+    """BUG-2026040901 is structurally impossible now (ADR-0066).
 
-    Documents the BUG-2026040901 failure mode: ``record_outbox_item``
-    writes an outbox entry keyed by the canonical URI.  A DL clone scoped
-    to the short UUID (not the canonical URI) reads a different queue bucket
-    and sees no items — the activity is silently dropped.
+    This used to document the failure mode: ``record_outbox_item`` wrote under the
+    canonical URI while a DL cloned to the *short id* read a different queue
+    bucket, so the activity was silently dropped. Two spellings of one actor meant
+    two queues.
 
-    This test intentionally demonstrates the problematic behaviour so that
-    AC-3b (the regression test) can confirm ``get_canonical_actor_dl``
-    prevents it.
+    A path segment is now resolved to a canonical actor URI by **computation**
+    (``base_url + "actors/" + segment``), and a store is keyed by that URI alone.
+    So the short id and the canonical URI name the same store, and the queue-key
+    mismatch cannot be expressed — which is the point: the bug was fixed by
+    removing the possibility, not by remembering to canonicalize.
+
+    Asserted positively, because the old test asserted the *presence* of the
+    hazard and would now fail for the right reason.
     """
-    actor = as_Service(id_=CANONICAL_URI, name="MyActor")
-    shared_dl.save(actor)
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 
-    # Use-case writes to the canonical-URI-keyed outbox (normal runtime path)
-    shared_dl.outbox_append(activity_id=ACTIVITY_ID)
+    canonical_dl = get_datalayer(CANONICAL_URI, db_url="sqlite:///:memory:")
+    canonical_dl.outbox_append(activity_id=ACTIVITY_ID)
 
-    # A DL scoped to the short ID reads a *different* queue bucket → empty
-    short_id_dl: DataLayer = shared_dl.clone_for_actor(SHORT_ID)
-    assert short_id_dl.outbox_list() == [], (
-        "Short-ID-scoped DL must NOT see entries written by the canonical-URI "
-        "key (documents the BUG-2026040901 queue-key mismatch scenario)"
+    # Reached via the short segment: same actor, therefore the same queue.
+    short_id_dl = get_datalayer(
+        canonical_actor_uri(SHORT_ID), db_url="sqlite:///:memory:"
     )
-
-    # A DL scoped to the canonical URI reads the correct bucket
-    canonical_dl: DataLayer = shared_dl.clone_for_actor(CANONICAL_URI)
-    assert ACTIVITY_ID in canonical_dl.outbox_list(), (
-        "Canonical-URI-scoped DL must read the entry written by "
-        "record_outbox_item(actor_id=CANONICAL_URI, ...)"
+    assert ACTIVITY_ID in short_id_dl.outbox_list(), (
+        "the short segment and the canonical URI must name one store; two"
+        " queues for one actor is BUG-2026040901"
     )
 
 

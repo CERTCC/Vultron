@@ -49,8 +49,8 @@ def test_create_app_datalayers_are_distinct(app1, app2):
     from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     with TestClient(app1), TestClient(app2):
-        dl1 = app1.dependency_overrides[get_actor_dl]()
-        dl2 = app2.dependency_overrides[get_actor_dl]()
+        dl1 = app1.dependency_overrides[get_actor_dl]("shared-actor")
+        dl2 = app2.dependency_overrides[get_actor_dl]("shared-actor")
         assert dl1 is not dl2
 
 
@@ -64,8 +64,8 @@ def test_create_app_datalayers_are_isolated(app1, app2):
     with TestClient(app1), TestClient(app2):
         from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
-        dl1 = app1.dependency_overrides[get_actor_dl]()
-        dl2 = app2.dependency_overrides[get_actor_dl]()
+        dl1 = app1.dependency_overrides[get_actor_dl]("shared-actor")
+        dl2 = app2.dependency_overrides[get_actor_dl]("shared-actor")
 
         dl1.save(actor)
 
@@ -79,13 +79,13 @@ def test_create_app_datalayer_override_not_clobbered(app1):
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
     custom_dl = SqliteDataLayer(
-        db_url="sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        db_url="sqlite:///:memory:", actor_id="custom-actor"
     )
-    app1.dependency_overrides[get_actor_dl] = lambda: custom_dl
+    # Signature mirrors the real dependency, which takes the path's actor id.
+    app1.dependency_overrides[get_actor_dl] = lambda actor_id=None: custom_dl
 
     with TestClient(app1):
-        resolved = app1.dependency_overrides[get_actor_dl]()
+        resolved = app1.dependency_overrides[get_actor_dl]("shared-actor")
         assert resolved is custom_dl
 
 
