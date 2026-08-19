@@ -13,7 +13,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Union
 
-from pydantic import BaseModel, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 
 from vultron.metadata.base import NonEmptyStr
 from vultron.core.states.em import EM
@@ -106,6 +106,8 @@ class Trigger(BaseModel):
     (e.g. ``"fv"``, ``"fvv"``).
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     type: TriggerType
     value: str
 
@@ -197,6 +199,8 @@ class LintWarningCode(StrEnum):
 class Relationship(BaseModel):
     """Cross-spec traceability link (SR-02-015)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     rel_type: RelationType
     spec_id: SpecIdStr
     note: str | None = None
@@ -216,19 +220,37 @@ class StatementSpec(BaseModel):
     inherits from the containing file when absent.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     id: SpecIdStr
     priority: RFC2119Priority
     kind: SpecKind
     statement: NonEmptyStr
     rationale: NonEmptyStr | None = None
     testable: bool = True
+    deprecated: bool = False
+    superseded_by: SpecIdStr | None = None
+    verification: NonEmptyStr | None = None
+    note: NonEmptyStr | None = None
+    tracking_issue: str | None = None
+    trigger: Trigger | None = None
     scope: list[Scope] | None = None
     tags: list[SpecTag] | None = None
+    references: list[str] | None = None
+    exceptions: list[NonEmptyStr] | None = None
     relationships: list[Relationship] | None = None
     adr: list[AdrIdStr] | None = None
     lint_suppress: list[LintWarningCode] | None = None
 
-    @field_validator("scope", "tags", "relationships", "adr", "lint_suppress")
+    @field_validator(
+        "scope",
+        "tags",
+        "references",
+        "exceptions",
+        "relationships",
+        "adr",
+        "lint_suppress",
+    )
     @classmethod
     def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
         if v is not None and len(v) == 0:
@@ -248,6 +270,8 @@ class Precondition(BaseModel):
     ``role`` MUST be described here as a prose fallback.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     rm_state: list[RM] | None = None
     em_state: list[EM] | None = None
     role: list[CVDRole] | None = None
@@ -258,6 +282,8 @@ class Precondition(BaseModel):
 class BehaviorStep(BaseModel):
     """A single step in a behavioral spec sequence (SR-02-016)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     order: int
     actor: str
     action: str
@@ -266,6 +292,8 @@ class BehaviorStep(BaseModel):
 
 class Postcondition(BaseModel):
     """A postcondition for a behavioral spec."""
+
+    model_config = ConfigDict(extra="forbid")
 
     description: NonEmptyStr
 
@@ -302,9 +330,12 @@ class SpecGroup(BaseModel):
     parsing prose titles.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     id: SpecIdStr
     title: NonEmptyStr
     description: NonEmptyStr | None = None
+    rationale: NonEmptyStr | None = None
     scope: list[Scope] | None = None
     trigger: Trigger | None = None
     specs: list[Spec]
@@ -333,12 +364,15 @@ class SpecFile(BaseModel):
     required on each individual spec item rather than at the file level.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     id: str
     title: NonEmptyStr
     description: NonEmptyStr
     version: NonEmptyStr
     scope: list[Scope]
     tags: list[SpecTag] | None = None
+    relationships: list[Relationship] | None = None
     groups: list[SpecGroup]
 
     @field_validator("scope")
@@ -348,11 +382,11 @@ class SpecFile(BaseModel):
             raise ValueError("scope must not be empty")
         return v
 
-    @field_validator("tags")
+    @field_validator("tags", "relationships")
     @classmethod
     def _tags_nonempty_if_present(cls, v: list | None) -> list | None:
         if v is not None and len(v) == 0:
-            raise ValueError("tags must be non-empty if present")
+            raise ValueError("list field must be non-empty if present")
         return v
 
     @field_validator("groups")

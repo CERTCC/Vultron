@@ -326,7 +326,7 @@ groups:
   - id: SE-08-004
     priority: MUST
     kind: protocol
-    status: deprecated
+    deprecated: true
     statement: >-
       The `OFFER_CASE_MANAGER_ROLE` semantic and its wire format
       `Offer(VulnerabilityCase, target=CaseParticipant)` are **deprecated** in favour of

@@ -178,6 +178,43 @@ groups:
       a mechanical query. The structured field closes that gap (MS-11-004). See ADR-0043.
     adr:
     - ADR-0043
+  - id: SR-02-021
+    priority: MUST
+    kind: project
+    statement: >-
+      `StatementSpec` (and by inheritance `BehavioralSpec`) MUST support the following
+      optional fields in addition to the core set: `verification` (NonEmptyStr — machine-executable
+      or human-reviewable check that confirms the requirement is met), `note` (NonEmptyStr —
+      correction notice or clarifying annotation), `tracking_issue` (str — GitHub issue
+      reference(s) tracking planned implementation), `references` (list[str] — file paths or
+      URIs to supporting documents), `exceptions` (list[NonEmptyStr] — permitted exceptions
+      to the rule stated in the requirement), `trigger` (Trigger — activating event for a
+      behavioral spec item), `deprecated` (bool, default False), and `superseded_by`
+      (SpecIdStr | None — ID of the replacement requirement).
+    rationale: >-
+      These fields were found in widespread use across the spec corpus but were absent from
+      the formal schema, causing them to be silently ignored rather than validated. Formalising
+      them closes that gap and enables tooling to surface deprecation warnings, link tracking
+      issues, and verify execution steps. `deprecated`/`superseded_by` mirror the ADR
+      supersession pattern (MS-14-001) applied at the individual requirement level.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-02-009
+  - id: SR-02-022
+    priority: MUST
+    kind: project
+    statement: >-
+      Every Pydantic model in `vultron/metadata/specs/schema.py` (`Relationship`, `Trigger`,
+      `Precondition`, `BehaviorStep`, `Postcondition`, `StatementSpec`, `BehavioralSpec`,
+      `SpecGroup`, `SpecFile`) MUST declare `model_config = ConfigDict(extra="forbid")`.
+    rationale: >-
+      Without `extra="forbid"`, unrecognised YAML keys are silently ignored. This allows
+      schema drift to accumulate undetected — the `deprecated`/`superseded_by` incident
+      being the immediate trigger. Hard-failing on unknown fields converts silent data loss
+      into a validation error that forces explicit schema evolution.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-02-009
 - id: SR-03
   title: Registry Loader
   specs:

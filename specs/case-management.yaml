@@ -1213,8 +1213,7 @@ groups:
       `attributed_to` without also updating the participant record leaves the
       new owner unable to trigger embargo teardown, case closure, and other
       CASE_OWNER-gated operations.  Both fields MUST be kept in sync.
-    rationale_detail: >-
-      This was the root cause of the FCCV-handoff CI failure (2026-07-23):
+      Root cause of the FCCV-handoff CI failure (2026-07-23):
       `AcceptCaseOwnershipTransferNode` updated `attributed_to` but did not
       add `CVDRole.CASE_OWNER` to C2's participant record, so
       `_sender_is_case_owner()` returned False and embargo teardown was
