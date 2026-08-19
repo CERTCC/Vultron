@@ -358,7 +358,10 @@ def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
         init: When ``True``, re-seed the DataLayer with default actors after reset.
     """
     logger.debug("Resetting data layer...")
-    return client.delete("/datalayer/reset/", params={"init": init})
+    # Node-level, not actor-scoped: resetting is an operation on the node's
+    # storage rather than a read of one actor's replica, so it deliberately does
+    # *not* go through `dl_path` (ADR-0066 moved it to /admin/).
+    return client.delete("/admin/datalayer/reset/", params={"init": init})
 
 
 def _log_discovered_actor(role: str, actor: as_Actor) -> None:
@@ -501,7 +504,7 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
             return [_drop_nulls(item) for item in value]
         return value
 
-    obj = client.get(f"/datalayer/{obj_id}")
+    obj = client.get(client.dl_path(obj_id))
     filtered = _drop_nulls(obj)
     logger.info(
         "Stored record (nested objects shown as ID references): %s",
@@ -526,7 +529,7 @@ def get_offer_from_datalayer(
     vendor_obj_id = parse_id(vendor_id)["object_id"]
     offer_obj_id = parse_id(offer_id)["object_id"]
     offer_data = client.get(
-        f"/datalayer/Actors/{vendor_obj_id}/Offers/{offer_obj_id}"
+        client.dl_path(f"Actors/{vendor_obj_id}/Offers/{offer_obj_id}")
     )
     raw = as_Offer(**offer_data)
     logger.info(f"Retrieved Offer: {logfmt(raw)}")
@@ -538,7 +541,7 @@ def log_case_state(
 ) -> Optional[as_VulnerabilityCase]:
     """Fetch and log the current state of a case."""
     try:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         case = as_VulnerabilityCase(**case_data)
         logger.info(
             f"Case state [{label}]: reports={len(case.vulnerability_reports)}, "

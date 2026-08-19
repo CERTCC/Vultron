@@ -180,7 +180,7 @@ def demo_validate_report(
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
         with demo_check("ValidateReport activity stored"):
-            response = client.get(f"/datalayer/{validate_activity.id_}")
+            response = client.get(client.dl_path(validate_activity.id_))
             logger.info(
                 f"ValidateReport stored: {json.dumps(response, indent=2)}"
             )
@@ -265,7 +265,7 @@ def demo_invalidate_report(
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
         with demo_check("InvalidateReport activity stored"):
             invalidate_response = client.get(
-                f"/datalayer/{invalidate_activity.id_}"
+                client.dl_path(invalidate_activity.id_)
             )
             logger.info(
                 f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
@@ -350,12 +350,12 @@ def demo_invalidate_and_close_report(
         post_to_inbox_and_wait(client, vendor.id_, close_activity)
         with demo_check("InvalidateReport and CloseReport activities stored"):
             invalidate_response = client.get(
-                f"/datalayer/{invalidate_activity.id_}"
+                client.dl_path(invalidate_activity.id_)
             )
             logger.info(
                 f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
             )
-            close_response = client.get(f"/datalayer/{close_activity.id_}")
+            close_response = client.get(client.dl_path(close_activity.id_))
             logger.info(
                 f"CloseReport stored: {json.dumps(close_response, indent=2)}"
             )

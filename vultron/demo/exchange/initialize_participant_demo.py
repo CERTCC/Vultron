@@ -89,7 +89,7 @@ def _find_canonical_case(client: DataLayerClient) -> as_VulnerabilityCase:
     Raises:
         ValueError: If no initialized VulnerabilityCase is found.
     """
-    cases_by_id: dict = client.get("/datalayer/VulnerabilityCases/")
+    cases_by_id: dict = client.get(client.dl_path("VulnerabilityCases/"))
     for case_raw in cases_by_id.values():
         try:
             case = as_VulnerabilityCase(**case_raw)

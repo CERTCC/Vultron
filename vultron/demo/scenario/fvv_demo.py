@@ -287,7 +287,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        vendor_client.get(vendor_client.dl_path(case.id_))
     )
     return finder, vendor, vendor_in_vendor, vendor2, report, offer, case
 

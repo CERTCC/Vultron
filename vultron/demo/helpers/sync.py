@@ -62,7 +62,7 @@ def _get_log_entries_for_case(
         ``GET /actors/{actor_id}/demo/cases/{case_id}/log``
         (see ``demo_triggers.demo_get_case_ledger``).
     """
-    raw = client.get("/datalayer/CaseLedgerEntrys/")
+    raw = client.get(client.dl_path("CaseLedgerEntrys/"))
     if not isinstance(raw, dict):
         return []
     return [
@@ -156,11 +156,11 @@ def verify_replica_state(
 
     Spec: SYNC-02-002, D5-7-DEMOREPLCHECK-1.
     """
-    auth_case_data = auth_client.get(f"/datalayer/{case_id}")
+    auth_case_data = auth_client.get(auth_client.dl_path(case_id))
     assert auth_case_data, f"Authoritative case {case_id!r} not found"
     auth_case = as_VulnerabilityCase.model_validate(auth_case_data)
 
-    replica_case_data = replica_client.get(f"/datalayer/{case_id}")
+    replica_case_data = replica_client.get(replica_client.dl_path(case_id))
     assert replica_case_data, (
         f"Replica does not have a copy of case {case_id!r} — "
         "outbox delivery or inbox processing may have failed"

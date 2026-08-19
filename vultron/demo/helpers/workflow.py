@@ -524,7 +524,7 @@ def _load_case_from_datalayer(
 
     try:
         return as_VulnerabilityCase.model_validate(
-            client.get(f"/datalayer/{item}")
+            client.get(client.dl_path(item))
         )
     except Exception as exc:
         logger.warning("Could not fetch case %s: %s", item, exc)
@@ -544,7 +544,7 @@ def find_case_by_report_id(
     Returns:
         The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
-    cases_data = client.get("/datalayer/VulnerabilityCases/")
+    cases_data = client.get(client.dl_path("VulnerabilityCases/"))
     if not cases_data:
         return None
 
@@ -579,7 +579,7 @@ def find_case_for_offer(
     Returns:
         The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
-    offer_data = client.get(f"/datalayer/{offer_id}")
+    offer_data = client.get(client.dl_path(offer_id))
     if not offer_data:
         return None
 

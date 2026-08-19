@@ -68,6 +68,32 @@ def get_actor_by_id(client: DataLayerClient, actor_id: str) -> as_Actor:
     raise ValueError(f"Actor {actor_id!r} not found in container")
 
 
+def _own_actor(client: DataLayerClient, actor: as_Actor) -> as_Actor:
+    """Record on *client* which actor's store its DataLayer reads address.
+
+    Under ADR-0066 ``base_url`` names a *container*, which no longer says whose
+    replica a read is about: a container hosts an actor plus any CaseActors it
+    self-hosts (CP-08-003).  ``DataLayerClient.dl_path`` refuses to guess, so the
+    binding has to happen where the fact is learned — here, as the container's
+    *own* actor is created.  The scenario entry points cannot do it, because they
+    build their clients for the health check before any actor exists.
+
+    Deliberately not folded into :func:`seed_actor`: that helper also registers
+    *peers*, so binding there would leave each client addressing whichever peer
+    was seeded last — the store of an actor the container does not host, which is
+    the confusion ADR-0066 decision 5 makes easy to fall into.
+
+    Returns *actor* so the call can wrap ``seed_actor(...)`` in place.
+    """
+    client.actor_id = actor.id_
+    logger.debug(
+        "DataLayer reads via %s now address actor %s",
+        client.base_url,
+        actor.id_,
+    )
+    return actor
+
+
 def seed_containers(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
@@ -97,19 +123,25 @@ def seed_containers(
         respective containers.
     """
     logger.info("Phase 1: creating local actors on each container...")
-    finder = seed_actor(
-        client=finder_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=reporter_actor_id,
+    finder = _own_actor(
+        finder_client,
+        seed_actor(
+            client=finder_client,
+            name="Finder",
+            actor_type="Person",
+            actor_id=reporter_actor_id,
+        ),
     )
     logger.info("Finder actor seeded on Finder container: %s", finder.id_)
 
-    vendor = seed_actor(
-        client=vendor_client,
-        name="Vendor",
-        actor_type="Organization",
-        actor_id=vendor_actor_id,
+    vendor = _own_actor(
+        vendor_client,
+        seed_actor(
+            client=vendor_client,
+            name="Vendor",
+            actor_type="Organization",
+            actor_id=vendor_actor_id,
+        ),
     )
     logger.info("Vendor actor seeded on Vendor container: %s", vendor.id_)
 
@@ -164,27 +196,36 @@ def seed_containers_fvv(
         created on their respective containers.
     """
     logger.info("Phase 1: creating local actors on each container...")
-    finder = seed_actor(
-        client=finder_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=reporter_actor_id,
+    finder = _own_actor(
+        finder_client,
+        seed_actor(
+            client=finder_client,
+            name="Finder",
+            actor_type="Person",
+            actor_id=reporter_actor_id,
+        ),
     )
     logger.info("Finder actor seeded: %s", finder.id_)
 
-    vendor = seed_actor(
-        client=vendor_client,
-        name="Vendor",
-        actor_type="Organization",
-        actor_id=vendor_actor_id,
+    vendor = _own_actor(
+        vendor_client,
+        seed_actor(
+            client=vendor_client,
+            name="Vendor",
+            actor_type="Organization",
+            actor_id=vendor_actor_id,
+        ),
     )
     logger.info("Vendor1 actor seeded: %s", vendor.id_)
 
-    vendor2 = seed_actor(
-        client=vendor2_client,
-        name="Vendor2",
-        actor_type="Organization",
-        actor_id=vendor2_actor_id,
+    vendor2 = _own_actor(
+        vendor2_client,
+        seed_actor(
+            client=vendor2_client,
+            name="Vendor2",
+            actor_type="Organization",
+            actor_id=vendor2_actor_id,
+        ),
     )
     logger.info("Vendor2 actor seeded: %s", vendor2.id_)
 
@@ -275,35 +316,47 @@ def seed_containers_fvcv(
         as created on their respective containers.
     """
     logger.info("Phase 1: creating local actors on each container...")
-    finder = seed_actor(
-        client=finder_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=reporter_actor_id,
+    finder = _own_actor(
+        finder_client,
+        seed_actor(
+            client=finder_client,
+            name="Finder",
+            actor_type="Person",
+            actor_id=reporter_actor_id,
+        ),
     )
     logger.info("Finder actor seeded: %s", finder.id_)
 
-    vendor = seed_actor(
-        client=vendor_client,
-        name="Vendor",
-        actor_type="Organization",
-        actor_id=vendor_actor_id,
+    vendor = _own_actor(
+        vendor_client,
+        seed_actor(
+            client=vendor_client,
+            name="Vendor",
+            actor_type="Organization",
+            actor_id=vendor_actor_id,
+        ),
     )
     logger.info("Vendor1 actor seeded: %s", vendor.id_)
 
-    coordinator = seed_actor(
-        client=coordinator_client,
-        name="Coordinator",
-        actor_type="Organization",
-        actor_id=coordinator_actor_id,
+    coordinator = _own_actor(
+        coordinator_client,
+        seed_actor(
+            client=coordinator_client,
+            name="Coordinator",
+            actor_type="Organization",
+            actor_id=coordinator_actor_id,
+        ),
     )
     logger.info("Coordinator actor seeded: %s", coordinator.id_)
 
-    vendor2 = seed_actor(
-        client=vendor2_client,
-        name="Vendor2",
-        actor_type="Organization",
-        actor_id=vendor2_actor_id,
+    vendor2 = _own_actor(
+        vendor2_client,
+        seed_actor(
+            client=vendor2_client,
+            name="Vendor2",
+            actor_type="Organization",
+            actor_id=vendor2_actor_id,
+        ),
     )
     logger.info("Vendor2 actor seeded: %s", vendor2.id_)
 
@@ -443,35 +496,47 @@ def seed_containers_fccv(
         created on their respective containers.
     """
     logger.info("Phase 1: creating local actors on each container...")
-    finder = seed_actor(
-        client=finder_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=reporter_actor_id,
+    finder = _own_actor(
+        finder_client,
+        seed_actor(
+            client=finder_client,
+            name="Finder",
+            actor_type="Person",
+            actor_id=reporter_actor_id,
+        ),
     )
     logger.info("Finder actor seeded: %s", finder.id_)
 
-    c1 = seed_actor(
-        client=c1_client,
-        name="Coordinator1",
-        actor_type="Organization",
-        actor_id=c1_actor_id,
+    c1 = _own_actor(
+        c1_client,
+        seed_actor(
+            client=c1_client,
+            name="Coordinator1",
+            actor_type="Organization",
+            actor_id=c1_actor_id,
+        ),
     )
     logger.info("C1 actor seeded: %s", c1.id_)
 
-    c2 = seed_actor(
-        client=c2_client,
-        name="Coordinator2",
-        actor_type="Organization",
-        actor_id=c2_actor_id,
+    c2 = _own_actor(
+        c2_client,
+        seed_actor(
+            client=c2_client,
+            name="Coordinator2",
+            actor_type="Organization",
+            actor_id=c2_actor_id,
+        ),
     )
     logger.info("C2 actor seeded: %s", c2.id_)
 
-    vendor = seed_actor(
-        client=vendor_client,
-        name="Vendor",
-        actor_type="Organization",
-        actor_id=vendor_actor_id,
+    vendor = _own_actor(
+        vendor_client,
+        seed_actor(
+            client=vendor_client,
+            name="Vendor",
+            actor_type="Organization",
+            actor_id=vendor_actor_id,
+        ),
     )
     logger.info("Vendor actor seeded: %s", vendor.id_)
 
@@ -602,27 +667,36 @@ def seed_containers_fcv(
         created on their respective containers.
     """
     logger.info("Phase 1: creating local actors on each container...")
-    finder = seed_actor(
-        client=finder_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=reporter_actor_id,
+    finder = _own_actor(
+        finder_client,
+        seed_actor(
+            client=finder_client,
+            name="Finder",
+            actor_type="Person",
+            actor_id=reporter_actor_id,
+        ),
     )
     logger.info("Finder actor seeded: %s", finder.id_)
 
-    coordinator = seed_actor(
-        client=coordinator_client,
-        name="Coordinator",
-        actor_type="Organization",
-        actor_id=coordinator_actor_id,
+    coordinator = _own_actor(
+        coordinator_client,
+        seed_actor(
+            client=coordinator_client,
+            name="Coordinator",
+            actor_type="Organization",
+            actor_id=coordinator_actor_id,
+        ),
     )
     logger.info("Coordinator actor seeded: %s", coordinator.id_)
 
-    vendor = seed_actor(
-        client=vendor_client,
-        name="Vendor",
-        actor_type="Organization",
-        actor_id=vendor_actor_id,
+    vendor = _own_actor(
+        vendor_client,
+        seed_actor(
+            client=vendor_client,
+            name="Vendor",
+            actor_type="Organization",
+            actor_id=vendor_actor_id,
+        ),
     )
     logger.info("Vendor actor seeded: %s", vendor.id_)
 
@@ -725,43 +799,58 @@ def seed_containers_fcvcv(
         created on their respective containers.
     """
     logger.info("Phase 1: creating local actors on each container...")
-    finder = seed_actor(
-        client=finder_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=reporter_actor_id,
+    finder = _own_actor(
+        finder_client,
+        seed_actor(
+            client=finder_client,
+            name="Finder",
+            actor_type="Person",
+            actor_id=reporter_actor_id,
+        ),
     )
     logger.info("Finder actor seeded: %s", finder.id_)
 
-    c1 = seed_actor(
-        client=c1_client,
-        name="Coordinator1",
-        actor_type="Organization",
-        actor_id=c1_actor_id,
+    c1 = _own_actor(
+        c1_client,
+        seed_actor(
+            client=c1_client,
+            name="Coordinator1",
+            actor_type="Organization",
+            actor_id=c1_actor_id,
+        ),
     )
     logger.info("C1 actor seeded: %s", c1.id_)
 
-    v1 = seed_actor(
-        client=v1_client,
-        name="Vendor1",
-        actor_type="Organization",
-        actor_id=v1_actor_id,
+    v1 = _own_actor(
+        v1_client,
+        seed_actor(
+            client=v1_client,
+            name="Vendor1",
+            actor_type="Organization",
+            actor_id=v1_actor_id,
+        ),
     )
     logger.info("V1 actor seeded: %s", v1.id_)
 
-    c2 = seed_actor(
-        client=c2_client,
-        name="Coordinator2",
-        actor_type="Organization",
-        actor_id=c2_actor_id,
+    c2 = _own_actor(
+        c2_client,
+        seed_actor(
+            client=c2_client,
+            name="Coordinator2",
+            actor_type="Organization",
+            actor_id=c2_actor_id,
+        ),
     )
     logger.info("C2 actor seeded: %s", c2.id_)
 
-    v2 = seed_actor(
-        client=v2_client,
-        name="VendorDeployer",
-        actor_type="Organization",
-        actor_id=v2_actor_id,
+    v2 = _own_actor(
+        v2_client,
+        seed_actor(
+            client=v2_client,
+            name="VendorDeployer",
+            actor_type="Organization",
+            actor_id=v2_actor_id,
+        ),
     )
     logger.info("V2 actor seeded: %s", v2.id_)
 
@@ -941,7 +1030,7 @@ def reset_containers(
 
     with demo_check("All actor containers start with no persisted cases"):
         for label, client in labeled_clients:
-            cases = client.get("/datalayer/VulnerabilityCases/")
+            cases = client.get(client.dl_path("VulnerabilityCases/"))
             if cases:
                 raise AssertionError(
                     f"{label} container was not reset cleanly: {cases}"

@@ -50,10 +50,16 @@ def make_testclient_call(client: TestClient, base: str):
     return testclient_call
 
 
-def make_client(base: str) -> DataLayerClient:
+def make_client(base: str, actor_id: str | None = None) -> DataLayerClient:
     """Return a DataLayerClient pointing at *base*.
 
     Shared by demo test modules that patch ``DataLayerClient.call`` with
     ``make_testclient_call`` to route requests through a FastAPI TestClient.
+
+    *actor_id* names the actor whose store this client's DataLayer reads address.
+    It is optional because many callers only use non-DataLayer endpoints, and
+    ``dl_path`` raises rather than guessing (ADR-0066) — so a client that needs it
+    and lacks it fails loudly at the read instead of silently reporting another
+    replica's state.
     """
-    return DataLayerClient(base_url=base)
+    return DataLayerClient(base_url=base, actor_id=actor_id)

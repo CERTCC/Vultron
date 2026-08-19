@@ -808,14 +808,18 @@ class TestVerifyFinderReplicaState:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when vendor has no record of the given case_id."""
-        vendor_client = make_client(base)
+        # The client needs an actor for the read to be *addressable* at all; the
+        # point of the test is that the case is absent from that actor's store,
+        # not that the read cannot be formed.
+        vendor_actor_id = "https://example.org/vendor"
+        vendor_client = make_client(base, actor_id=vendor_actor_id)
 
         with pytest.raises(AssertionError):
             demo.verify_finder_replica_state(
                 finder_client=vendor_client,
                 vendor_client=vendor_client,
                 case_id="https://example.org/non-existent-case-vrfs",
-                vendor_actor_id="https://example.org/vendor",
+                vendor_actor_id=vendor_actor_id,
                 reporter_actor_id="https://example.org/finder",
             )
 

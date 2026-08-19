@@ -80,8 +80,15 @@ def _receiver_client() -> MagicMock:
 class _LateReporterClient:
     """Reporter client whose replica appears only after *delay* GET calls."""
 
+    #: Borrowed from the real client so the stub cannot drift from the path the
+    #: helpers actually request.  A stub that hard-codes ``/datalayer/...`` keeps
+    #: answering after the production path changes shape, which is how these
+    #: stubs survived the move to ``/actors/{segment}/datalayer/`` unnoticed.
+    dl_path = DataLayerClient.dl_path
+
     def __init__(self, delay: int) -> None:
         self.base_url = "http://finder:7999/api/v2"
+        self.actor_id = _REPORTER_ID
         self._delay = delay
         self.calls = 0
 
@@ -231,13 +238,16 @@ class TestIsOwnershipTransferOfferFor:
 class _LateOTOfferClient:
     """Coordinator client where the forwarded Offer appears only after *delay* GET calls."""
 
+    dl_path = DataLayerClient.dl_path
+
     def __init__(self, delay: int) -> None:
         self.base_url = "http://coordinator:7999/api/v2"
+        self.actor_id = _OT_TRANSFEREE_ID
         self._delay = delay
         self.calls = 0
 
     def get(self, path: str) -> dict | None:
-        if path == "/datalayer/":
+        if path == self.dl_path():
             self.calls += 1
             if self.calls <= self._delay:
                 return {}
