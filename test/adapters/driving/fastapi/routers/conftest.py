@@ -159,20 +159,37 @@ def actor_classes():
 
 
 @pytest.fixture
-def created_actors(datalayer, actor_classes):
+def created_actors(actor_classes):
+    """Host one actor per class, each in its own store.
+
+    ``GET /actors/`` enumerates the actors this node *hosts*, and hosting means
+    holding that actor's store (ADR-0066) — for an in-memory URL, the in-process
+    registry that ``get_datalayer`` populates. Writing six actor rows into one
+    store would therefore report **one** host, not six.
+
+    Ids are canonical under the node's ``base_url`` because the actor routes
+    resolve a path segment to an actor URI by computation, so a generated ``urn:``
+    id could not be addressed on this node at all.
+    """
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
     actors = []
     for actor_cls in actor_classes:
+        actor_id = canonical_actor_uri(f"list-{actor_cls.__name__.lower()}")
         # CoreActor stores inbox/outbox as URI strings; provide them explicitly
         # so profile-discovery tests can assert inbox/outbox are present.
         if issubclass(actor_cls, CoreActor):
             actor = actor_cls(
+                id_=actor_id,
                 name="Test Actor for List",
-                inbox=make_id("inbox"),
-                outbox=make_id("outbox"),
+                inbox=f"{actor_id}/inbox",
+                outbox=f"{actor_id}/outbox",
             )
         else:
-            actor = actor_cls(name="Test Actor for List")
-        datalayer.create(object_to_record(actor))
+            actor = actor_cls(id_=actor_id, name="Test Actor for List")
+        dl = get_datalayer(actor_id, db_url="sqlite:///:memory:")
+        dl.create(object_to_record(actor))
         actors.append(actor)
     return actors
 

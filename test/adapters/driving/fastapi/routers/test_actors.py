@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 # python
+import pytest
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
@@ -41,6 +42,22 @@ _URN_PARTICIPANT_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000004"
 
 def _route_key(object_id: str) -> str:
     return strip_id_prefix(object_id)
+
+
+# A ``urn:`` actor is addressed by its **full** id, not a stripped surrogate key.
+# ``canonical_actor_uri`` passes any segment carrying a URI scheme straight
+# through (ADR-0066), while the bare uuid would be prefixed with the node's
+# base_url and so name a different actor entirely.
+def _actor_route_key(actor_id: str) -> str:
+    return actor_id
+
+
+@pytest.fixture
+def urn_actor_dl():
+    """The urn actor's own store — the one the route will open for it."""
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    return get_datalayer(_URN_ACTOR_ID, db_url="sqlite:///:memory:")
 
 
 def test_created_actors_fixture_has_expected_count(created_actors):
@@ -178,13 +195,13 @@ def _seed_action_rules_data(dl):
 
 
 def test_get_action_rules_returns_200_with_expected_fields(
-    client_actors, datalayer
+    client_actors, urn_actor_dl
 ):
     """Actor/case endpoint returns all required state and action fields."""
-    _seed_action_rules_data(datalayer)
+    _seed_action_rules_data(urn_actor_dl)
 
     resp = client_actors.get(
-        f"/actors/{_route_key(_URN_ACTOR_ID)}/cases/"
+        f"/actors/{_actor_route_key(_URN_ACTOR_ID)}/cases/"
         f"{_route_key(_URN_CASE_ID)}/action-rules"
     )
     assert resp.status_code == status.HTTP_200_OK
@@ -211,17 +228,17 @@ def test_get_action_rules_returns_200_with_expected_fields(
 def test_get_action_rules_case_not_found_returns_404(client_actors):
     """Missing case returns 404."""
     resp = client_actors.get(
-        f"/actors/{_route_key(_URN_ACTOR_ID)}/cases/"
+        f"/actors/{_actor_route_key(_URN_ACTOR_ID)}/cases/"
         "urn:uuid:00000000-0000-0000-0000-000000000000/action-rules"
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_get_action_rules_actor_not_in_case_returns_404(
-    client_actors, datalayer
+    client_actors, datalayer, urn_actor_dl
 ):
     """Actor outside the selected case returns 404."""
-    _seed_action_rules_data(datalayer)
+    _seed_action_rules_data(urn_actor_dl)
 
     resp = client_actors.get(
         "/actors/99999999-0000-0000-0000-000000000000/cases/"
