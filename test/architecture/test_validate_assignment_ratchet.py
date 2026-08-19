@@ -60,7 +60,6 @@ import pkgutil
 import re
 from pathlib import Path
 
-import pytest
 from pydantic import BaseModel
 
 import vultron.core.models
@@ -111,6 +110,7 @@ _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
         "PecDimension",
         "PxaDimension",
         "RmDimension",
+        "ValidatedAssignmentMixin",
         "VfdDimension",
         "VultronEvent",
         "VultronObject",
@@ -338,13 +338,6 @@ def test_wire_branch_does_not_enable_validate_assignment():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Goal state for issue #2294 (#2261 step 2): every core model carries"
-    " validate_assignment. Blocked on step 1 — flipping the flag first aborts"
-    " 400+ tests with RecursionError. When step 2 lands this test XPASSes and"
-    " fails the build — delete the marker then.",
-)
 def test_every_core_model_has_validate_assignment():
     lacking = sorted(
         name
