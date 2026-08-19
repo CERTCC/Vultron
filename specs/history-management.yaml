@@ -15,7 +15,6 @@ tags:
 groups:
 - id: HM-01
   title: History File Location and Structure
-  kind: process
   specs:
   - id: HM-01-001
     priority: MUST
@@ -47,12 +46,11 @@ groups:
     kind: process
     statement: Once written, a history entry file MUST NOT be modified. History entries are immutable records. The `plan/history/YYMM/README.md`
       index may be regenerated locally but is gitignored.
-    notes: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing entries to replace the legacy
+    note: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing entries to replace the legacy
       `date:` field with a tz-aware `timestamp:` field. That migration is the only authorised exception to this rule; future
       changes to entry files are prohibited.'
 - id: HM-02
   title: Entry File Format
-  kind: protocol
   specs:
   - id: HM-02-001
     priority: MUST
@@ -88,7 +86,6 @@ groups:
       monthly directory. The file is gitignored and serves only as a local convenience cache.
 - id: HM-03
   title: append-history CLI Tool
-  kind: project
   specs:
   - id: HM-03-001
     priority: MUST
@@ -130,7 +127,7 @@ groups:
     statement: After writing a new entry file, the tool MUST regenerate `plan/history/YYMM/README.md` by scanning the known-type
       subdirectories (`idea/`, `implementation/`, `learning/`, `priority/`), reading each entry file's frontmatter, and writing
       a summary table sorted by timestamp descending.
-    notes: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
+    note: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
       subdirs (e.g. report/). The gitignore constraint is specified in HM-01-003.
   - id: HM-03-007
     priority: MUST
@@ -149,7 +146,6 @@ groups:
     statement: The tool MUST be registered in `pyproject.toml` under `[project.scripts]` as `append-history = "vultron.metadata.history.cli:main"`.
 - id: HM-04
   title: Agent Context Boundaries
-  kind: process
   specs:
   - id: HM-04-001
     priority: MUST_NOT
@@ -168,7 +164,6 @@ groups:
       but NOT `plan/history/`. Agents following this skill MUST NOT recursively read `plan/history/` during orientation.
 - id: HM-05
   title: Skill and AGENTS.md Integration
-  kind: process
   specs:
   - id: HM-05-001
     priority: MUST
@@ -183,14 +178,8 @@ groups:
     kind: process
     statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
       skill MUST invoke `study-project-docs` and let that skill mediate which plan files are appropriate to load.
-  - id: HM-05-004
-    priority: MUST
-    kind: process
-    statement: '`AGENTS.md` MUST be updated to reflect the new `plan/history/` structure: the "Key Files Map" and any quick-reference
-      sections that list `plan/*HISTORY.md` paths MUST be updated to reference `plan/history/` and the `append-history` tool.'
 - id: HM-06
   title: Timestamp Field and Future-Date Rejection
-  kind: protocol
   specs:
   - id: HM-06-001
     priority: MUST
@@ -241,7 +230,6 @@ groups:
       and a `Time (UTC)` column (HH:MM extracted from `timestamp`). Entries MUST be sorted by `timestamp` in descending order.
 - id: HM-07
   title: CLI Interface for Frontmatter Construction
-  kind: project
   specs:
   - id: HM-07-001
     priority: MUST
@@ -291,7 +279,6 @@ groups:
       interface for `append-history`. The frontmatter-in-stdin pattern MUST NOT be used.
 - id: HM-08
   title: GitHub Comment Output Mode
-  kind: project
   specs:
   - id: HM-08-001
     priority: MUST

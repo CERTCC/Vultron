@@ -213,8 +213,8 @@ groups:
       make the code self-documenting and reduce reliance on comments to explain intent.
   - id: CS-12-002
     priority: SHOULD
-    kind: protocol
-    statement: 'Use case class names SHOULD carry a suffix that reflects their origin (received message vs. local trigger):'
+    kind: project
+    statement: 'Use-case class names SHOULD carry a suffix that reflects their origin: classes handling inbound received messages SHOULD use the `Received` suffix (e.g., `ValidateReportReceived`); classes expressing local actor-initiated triggers SHOULD use the `Trigger` suffix (e.g., `PublishAdvisoryTrigger`).'
     rationale: Distinguishes messages received from external parties from actions the local actor has decided to take. This
       distinction is fundamental to the Vultron protocol model (see `notes/activitystreams-semantics.md`) and prevents accidentally
       treating incoming messages as local commands.
@@ -305,7 +305,7 @@ groups:
   - id: CS-18-001
     priority: SHOULD
     kind: project
-    statement: (**SHOULD**) A Python source file SHOULD NOT exceed 500 lines when it mixes multiple distinct responsibilities.
+    statement: A Python source file SHOULD NOT exceed 500 lines when it mixes multiple distinct responsibilities.
       When the 500-line threshold is crossed, the module MUST be split into a subpackage whose submodules are grouped by semantic
       concern.
     rationale: Large, multi-responsibility files accumulate technical debt, slow review cycles, and make targeted test coverage
@@ -342,8 +342,9 @@ groups:
   - id: CS-18-004
     priority: SHOULD
     kind: project
-    statement: '(**SHOULD**) The test suite for a subpackage created by splitting a flat module SHOULD mirror the subpackage
-      structure: a `test/…/nodes/` (or equivalent) directory with one `test_<submodule>.py` per submodule.'
+    statement: >-
+      The test suite for a subpackage created by splitting a flat module SHOULD mirror the subpackage
+      structure: a `test/…/nodes/` (or equivalent) directory with one `test_<submodule>.py` per submodule.
     rationale: A monolithic test file grows in parallel with the flat module and inherits the same blast-radius problem. Mirrored
       test files scope failures to the affected concern and make it easier to add focused per-unit tests.
     relationships:

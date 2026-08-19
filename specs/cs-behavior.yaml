@@ -750,7 +750,6 @@ groups:
     testable: false
     lint_suppress:
     - testable_without_steps
-    preconditions: []
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-008

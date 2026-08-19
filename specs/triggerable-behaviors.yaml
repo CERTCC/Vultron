@@ -41,53 +41,51 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: IE-03-001
-  - id: TRIG-01-005
-    priority: MUST
-    kind: project
-    statement: 'Trigger endpoints MUST be synchronous from the caller''s perspective: the response MUST be returned only after
-      the triggered behavior completes (or fails)'
-    rationale: Unlike inbound message handlers (which are intentionally asynchronous because they react to remote actors),
-      triggerable behaviors are initiated locally and the caller expects an immediate result
-    relationships:
-    - rel_type: refines
-      spec_id: TRIG-01-004
-      note: the no-block constraint applies to HTTP I/O machinery, not to the behavior execution itself
 - id: TRIG-02
   title: Candidate RM Behaviors
   specs:
   - id: TRIG-02-001
     priority: SHOULD
     kind: protocol
-    statement: 'The following RM behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following RM behaviors SHOULD be individually triggerable via the trigger API: validate-report, invalidate-report, reject-report, close-report, submit-report'
   - id: TRIG-02-002
     priority: SHOULD
     kind: protocol
-    statement: 'The following EM behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following EM behaviors SHOULD be individually triggerable via the trigger API: propose-embargo, accept-embargo, reject-embargo, propose-embargo-revision, terminate-embargo'
   - id: TRIG-02-003
-    priority: MAY
+    priority: SHOULD
     kind: protocol
-    statement: 'The following additional behaviors MAY be individually triggerable via the trigger API in a later phase:'
+    statement: 'The following CS state-notification behaviors SHOULD be individually triggerable via the trigger API: notify-fix-ready, notify-fix-deployed, notify-published, notify-public-exploit, notify-attacks-observed'
   - id: TRIG-02-004
     priority: SHOULD
     kind: protocol
-    statement: 'The following case management behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following case management behaviors SHOULD be individually triggerable via the trigger API: engage-case, defer-case, add-object-to-case, create-case, add-report-to-case'
   - id: TRIG-02-005
     priority: SHOULD
     kind: protocol
-    statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API:'
+    statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite, invite-actor-to-case, accept-actor-recommendation'
   - id: TRIG-02-006
     priority: MUST_NOT
     kind: protocol
-    statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/`
-      URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002):'
+    statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002): add-note-to-case, close-case, seed-offer-record, sync-log-entry'
+  - id: TRIG-02-007
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Actors holding the CASE_OWNER role SHOULD be able to trigger the following role
+      delegation behaviors via the trigger API: offer-case-manager-role,
+      offer-case-participant-role, offer-case-ownership-transfer,
+      accept-case-ownership-transfer.
 - id: TRIG-03
   title: Request Body
   specs:
   - id: TRIG-03-001
     priority: MUST
     kind: project
-    statement: 'The trigger endpoint request body MUST be a JSON object containing sufficient context to identify the target
-      report or case:'
+    statement: >-
+      Each trigger request body MUST include at least one of `case_id` (for
+      case-scoped behaviors) or `offer_id` (for offer-response behaviors).
+      Full per-behavior field requirements are defined in the API schema.
   - id: TRIG-03-002
     priority: MUST
     kind: project

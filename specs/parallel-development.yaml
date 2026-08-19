@@ -338,14 +338,6 @@ groups:
           When the sweeper identifies an orphaned claim, it MUST apply the
           `stale-claim` label to the Issue and MUST post a comment identifying
           the orphaned branch and requesting human review.
-      - id: PAD-10-003
-        priority: MUST
-        kind: process
-        statement: >-
-          A human MUST review the orphaned branch, clean it up, unassign the
-          Issue, and remove the `stale-claim` label before the Issue becomes
-          claimable again.
-
   - id: PAD-11
     title: Merge Conflict Recovery
     specs:

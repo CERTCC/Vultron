@@ -14,7 +14,6 @@ tags:
 groups:
   - id: BW-01
     title: Incoming Learnings Queue Content Policy
-    kind: process
     specs:
       - id: BW-01-001
         priority: MUST
@@ -98,7 +97,6 @@ groups:
             spec_id: BW-01-004
   - id: BW-02
     title: Incoming Learnings File Format
-    kind: protocol
     specs:
       - id: BW-02-001
         priority: MUST
@@ -137,7 +135,6 @@ groups:
             spec_id: HM-06-001
   - id: BW-03
     title: learn Skill Processing
-    kind: process
     specs:
       - id: BW-03-001
         priority: MUST
@@ -175,7 +172,6 @@ groups:
           every learning session that fully drains it.
   - id: BW-04
     title: learning History Entry Type
-    kind: project
     specs:
       - id: BW-04-001
         priority: MUST
@@ -208,7 +204,6 @@ groups:
             spec_id: HM-02-001
   - id: BW-05
     title: append-history --from-file Behaviour
-    kind: project
     specs:
       - id: BW-05-001
         priority: MUST
@@ -238,7 +233,6 @@ groups:
           frontmatter fields (HM-02-001).
   - id: BW-06
     title: Skill Documentation Updates
-    kind: process
     specs:
       - id: BW-06-001
         priority: MUST
@@ -265,7 +259,6 @@ groups:
           analysis MUST be written directly to `notes/*.md` files.
   - id: BW-07
     title: Upward-Reflection Signal Taxonomy
-    kind: process
     specs:
       - id: BW-07-001
         priority: MUST

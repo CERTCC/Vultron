@@ -44,7 +44,11 @@ groups:
   - id: CM-02-005
     priority: MUST
     kind: protocol
-    statement: CaseActor MUST restrict certain activities to the case owner
+    statement: >-
+      CaseActor MUST restrict the following activities to the case owner: case closure,
+      approving an embargo proposal to become active on the case and terminating an active embargo,
+      approving or rejecting participant invitations, and case ownership transfer
+      (see CM-02-006 for the authorisation mechanism).
     scope:
     - production
   - id: CM-02-006
@@ -179,8 +183,13 @@ groups:
   - id: CM-04-003
     priority: MUST
     kind: protocol
-    statement: 'Handlers processing EM state transitions MUST update the appropriate EM state field based on who is accepting
-      and the current state:'
+    statement: >-
+      Handlers processing EM state transitions MUST update the appropriate EM state field as follows:
+      (a) when the accepting actor is the case owner, MUST update CaseStatus.em_state;
+      (b) when the accepting actor is any other participant, MUST update that participant's
+      ParticipantStatus.embargo_adherence;
+      (c) a handler MUST update at most one of these fields per accept event unless both conditions
+      apply simultaneously (see CM-13-001 through CM-13-003 for the full decision logic).
     relationships:
     - rel_type: implements
       spec_id: VP-06-001
@@ -216,7 +225,7 @@ groups:
   - id: CM-04-006
     priority: MUST_NOT
     kind: protocol
-    statement: State transition handlers MUST NOT mix participant-specific and participant-agnostic state updates incorrectly
+    statement: 'A state transition handler for a participant-specific transition (RM or VFD) MUST NOT update any case-level (participant-agnostic) state field (em_state, pxa_state). A state transition handler for a case-level transition (PXA or EM) MUST NOT update any participant-specific state field (rm_state, vfd_state).'
     relationships:
     - rel_type: implements
       spec_id: VP-13-009
@@ -236,7 +245,11 @@ groups:
   - id: CM-05-001
     priority: MUST
     kind: protocol
-    statement: 'The system MUST distinguish the following domain objects as separate, non-interchangeable types:'
+    statement: >-
+      The system MUST distinguish the following domain objects as separate, non-interchangeable
+      types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference, CaseActor,
+      CaseParticipant, and ParticipantStatus. Each of these types MUST NOT be substituted for
+      another at any API boundary, persistence layer, or wire message.
   - id: CM-05-002
     priority: MUST_NOT
     kind: protocol
@@ -1200,8 +1213,7 @@ groups:
       `attributed_to` without also updating the participant record leaves the
       new owner unable to trigger embargo teardown, case closure, and other
       CASE_OWNER-gated operations.  Both fields MUST be kept in sync.
-    rationale_detail: >-
-      This was the root cause of the FCCV-handoff CI failure (2026-07-23):
+      Root cause of the FCCV-handoff CI failure (2026-07-23):
       `AcceptCaseOwnershipTransferNode` updated `attributed_to` but did not
       add `CVDRole.CASE_OWNER` to C2's participant record, so
       `_sender_is_case_owner()` returned False and embargo teardown was

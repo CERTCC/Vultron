@@ -118,7 +118,7 @@ groups:
   - id: CLP-04-006
     priority: MUST
     kind: protocol
-    statement: The canonical recorded log is the authoritative source of truth for case participant membership and case state
+    statement: 'The canonical recorded log MUST be the authoritative source of truth for case participant membership and case state; implementations MUST NOT derive participant membership or case state from any other source.'
 - id: CLP-05
   title: Rejection Handling
   specs:
@@ -313,7 +313,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: The canonical commit operation MUST NOT be invoked directly (bare, unguarded) from any production call site
-      outside the guarded-commit composition itself; a registry- or grep-based test MUST assert that no such bare usage exists
+      outside the guarded-commit composition itself.
     verification: A dedicated test enumerates known commit call sites (or greps for the unguarded commit node's class name)
       and fails if any usage outside the guarded-commit factory's own implementation is found.
   - id: CLP-09-003
@@ -518,18 +518,13 @@ groups:
   - id: CLP-12-001
     priority: MUST
     kind: project
-    statement: >-
-      `_CASE_AUTHORED_SIGNATURES` in
-      `vultron/core/behaviors/sync/nodes/canonical_entry.py`
-      MUST include `("Add", "CaseStatus")` so that `add_case_status_to_case`
-      ledger entries authored by the CaseActor are accepted by
-      `_validate_canonical_entry`.
+    statement: '`Add(CaseStatus)` ledger entries authored by the CaseActor MUST be accepted as canonical entries by the
+      ledger validation step.'
     rationale: >-
-      Issue #1767: `("Add", "CaseStatus")` appears in `_CANONICAL_PAYLOAD_SIGNATURES`
-      but was absent from `_CASE_AUTHORED_SIGNATURES`, causing
-      `_validate_canonical_entry` to reject CaseActor-authored
-      `add_case_status_to_case` entries.  This is the direct mechanical fix
-      required by ADR-0041's native-initialization model (CM-22-003).
+      Issue #1767: `("Add", "CaseStatus")` appeared in `_CANONICAL_PAYLOAD_SIGNATURES`
+      but was absent from `_CASE_AUTHORED_SIGNATURES`, causing the ledger validator
+      to reject CaseActor-authored `add_case_status_to_case` entries. Fix required
+      by ADR-0041's native-initialization model (CM-22-003).
     relationships:
     - rel_type: implements
       spec_id: CM-22-003

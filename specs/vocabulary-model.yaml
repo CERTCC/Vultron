@@ -28,13 +28,16 @@ groups:
     statement: New vocabulary types MUST be importable at startup without explicit registration calls in application code
   - id: VM-01-004
     priority: MUST
-    kind: protocol
-    statement: The `VOCABULARY` registry MUST be a flat `dict[str, type[as_Base]]` keyed by AS2 type name
+    kind: project
+    statement: >-
+      The `VOCABULARY` registry MUST be keyed by the AS2 `type` field value (the string
+      that appears as `"type": "..."` in wire JSON, e.g., `"VulnerabilityCase"`) and MUST
+      map each such key to its corresponding vocabulary class.
   - id: VM-01-005
     priority: MUST
     kind: project
-    statement: The `vocab/objects/__init__.py` and `vocab/activities/__init__.py` files MUST use `pkgutil.iter_modules` and
-      `importlib.import_module` to dynamically import all sibling modules at package import time
+    statement: Vocabulary type registration MUST occur automatically at package import time; no explicit per-type registration
+      call MUST be required at call sites.
     relationships:
     - rel_type: refines
       spec_id: VM-01-001
@@ -48,9 +51,12 @@ groups:
   specs:
   - id: VM-02-001
     priority: MUST
-    kind: protocol
-    statement: 'All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base` (or an intermediate class that
-      inherits from `as_Base`), which provides:'
+    kind: project
+    statement: >-
+      All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base`
+      (or an intermediate class that inherits from `as_Base`), which provides:
+      (a) a camelCase alias generator, (b) `populate_by_name=True`, and
+      (c) strict-mode validation.
   - id: VM-02-002
     priority: MUST
     kind: protocol
@@ -111,8 +117,12 @@ groups:
       `__init__.py` (i.e., exist as a `.py` file in the package directory)'
   - id: VM-05-002
     priority: MUST
-    kind: protocol
-    statement: 'Adding a new vocabulary type that represents a domain concept MUST be accompanied by:'
+    kind: project
+    statement: >-
+      Adding a new vocabulary type that represents a domain concept MUST be accompanied
+      by: (a) a corresponding domain-layer Pydantic model in `vultron/core/`,
+      (b) a handler use case in `vultron/core/use_cases/`, and (c) at least one
+      round-trip serialization test.
 - id: VM-06
   title: Rehydration
   specs:
@@ -137,7 +147,11 @@ groups:
   - id: VM-06-004
     priority: MUST
     kind: protocol
-    statement: 'If a URI string reference cannot be resolved (object not in DataLayer), rehydration MUST:'
+    statement: >-
+      If a URI string reference cannot be resolved (object not in DataLayer),
+      rehydration MUST: (a) leave the field as the original URI string value,
+      (b) log a WARNING identifying the unresolvable URI, and (c) continue
+      rehydrating remaining fields rather than raising an exception.
     relationships:
     - rel_type: implements
       spec_id: SE-01-003

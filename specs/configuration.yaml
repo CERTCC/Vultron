@@ -97,8 +97,7 @@ groups:
   - id: CFG-03-003
     priority: MUST
     kind: project
-    statement: 'The following legacy environment variable names MUST be removed from all source files and replaced with their
-      normalized equivalents:'
+    statement: 'The following legacy environment variable names MUST be removed from all source files and replaced with their normalized equivalents: VULTRON_API_BASE_URL → VULTRON_SERVER__BASE_URL; DEVLOGS_DIR → VULTRON_DEVLOGS_DIR'
 - id: CFG-04
   title: AppConfig Structure
   specs:

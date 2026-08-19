@@ -45,7 +45,9 @@ groups:
   - id: VP-02-002
     priority: MUST
     kind: protocol
-    statement: Participants MUST prioritize Valid cases
+    statement: >-
+      Participants MUST assign Valid cases a higher processing priority than
+      Received (untriaged) cases and Closed cases in their case-management workflow.
   - id: VP-02-003
     priority: MUST
     kind: protocol
@@ -133,9 +135,7 @@ groups:
   - id: VP-02-018
     priority: SHOULD
     kind: protocol
-    statement: >-
-      Reports SHOULD be moved to the Closed state once a Participant has completed all outstanding
-      work tasks and is fairly sure they will not pursue further action
+    statement: 'Reports SHOULD be moved to the Closed state once a Participant has completed all outstanding work tasks and has determined that no further action will be taken on the report'
   - id: VP-02-019
     priority: SHOULD
     kind: protocol
@@ -306,7 +306,10 @@ groups:
   - id: VP-04-001
     priority: MUST
     kind: protocol
-    statement: Accepted embargoes MUST eventually terminate
+    statement: Every accepted embargo MUST have a non-null end_time; embargoes without a specified endpoint MUST NOT be accepted.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-05-001
   - id: VP-04-002
     priority: MUST
     kind: protocol
@@ -332,11 +335,12 @@ groups:
     kind: protocol
     statement: An embargo SHALL specify an unambiguous date and time as its endpoint
   - id: VP-05-002
-    priority: MUST
+    priority: SHOULD
     kind: protocol
     statement: >-
-      An embargo SHALL NOT be used to indefinitely delay publication of vulnerability information,
-      whether through repeated extension or by setting a long-range endpoint
+      An embargo end time SHOULD NOT be more than one year (P1Y) from the date of
+      acceptance. Embargo durations exceeding 90 days (P90D) SHOULD include documented
+      justification agreed to by all Participants.
   - id: VP-05-003
     priority: MUST
     kind: protocol
@@ -459,11 +463,19 @@ groups:
     kind: protocol
     statement: Receivers SHOULD accept any embargo proposed by Reporters
   - id: VP-06-004
-    priority: SHOULD_NOT
+    priority: SHOULD
     kind: protocol
     statement: >-
-      Participants SHOULD explicitly accept or reject embargo proposals in a timely manner;
-      embargo agreement or rejection SHOULD NOT be tacit
+      Participants SHOULD explicitly accept or reject embargo proposals within the
+      period defined in their VDP or within 14 calendar days of receipt, whichever
+      is shorter.
+  - id: VP-06-004b
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: Embargo agreement or rejection SHOULD NOT be tacit.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-06-004
   - id: VP-06-005
     priority: SHOULD
     kind: protocol
@@ -482,13 +494,20 @@ groups:
       Submitting a report when an embargo proposal is pending ($q^{em} \in P$) SHALL be construed
       as the Sender's acceptance of the proposed terms
   - id: VP-06-008
+    priority: MAY
+    kind: protocol
+    statement: >-
+      CVD Participants MAY propose or accept a new embargo when
+      $q^{cs} \in VFdpxa$.
+  - id: VP-06-008b
     priority: SHOULD
     kind: protocol
     statement: >-
-      CVD Participants MAY propose or accept a new embargo when the fix for a vulnerability
-      is ready but has neither been made public nor deployed ($q^{cs} \in VFdpxa$); such an
-      embargo SHOULD be brief and used only to allow Participants to prepare for timely publication
-      or deployment
+      Any embargo accepted when $q^{cs} \in VFdpxa$ SHOULD be brief and used only
+      to allow Participants to prepare for timely publication or deployment.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-06-008
   - id: VP-06-009
     priority: MAY
     kind: protocol
@@ -788,6 +807,11 @@ groups:
     statement: >-
       Embargoes MAY terminate early when a quorum of Vendor Participants is prepared to release
       fixes ($q^{cs} \in VF\cdots$), even if some Vendors remain unprepared
+    rationale: >-
+      'Quorum' is intentionally left undefined at the protocol level. Different CVD communities
+      may adopt different decision rules (simple majority by count, weighted by deployed-user
+      impact, unanimity, etc.). This requirement marks an expansion point for future
+      community-specific behavioral norms rather than prescribing a single rule.
 - id: VP-10
   title: Embargo Case Splits and Merges
   specs:
@@ -802,9 +826,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      If an earlier embargo date is needed for a child case following a case split, consideration
-      SHALL be given to the impact that ending the embargo on that case will have on the other
-      child cases retaining a later embargo date
+      If a child case following a case split requires an embargo end time earlier than
+      the inherited date, the CASE_MANAGER of that child case SHALL notify the
+      CASE_MANAGERs of all sibling child cases before the earlier end time takes
+      effect, documenting the rationale in the case ledger.
   - id: VP-10-003
     priority: MUST
     kind: protocol
@@ -915,8 +940,26 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Once attacks have been observed, fix development SHOULD accelerate, the embargo teardown
-      process SHOULD begin, and publication and deployment SHOULD follow as soon as is practical
+      Once attacks are observed ($q^{cs} \in \cdots A$), fix development SHOULD
+      accelerate.
+  - id: VP-12-002b
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Once attacks are observed ($q^{cs} \in \cdots A$), the embargo teardown process
+      SHOULD begin immediately.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-12-002
+  - id: VP-12-002c
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Once attacks are observed ($q^{cs} \in \cdots A$), publication and deployment
+      SHOULD follow as soon as is practical.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-12-002
 - id: VP-13
   title: RM-EM Interactions
   specs:
@@ -1183,11 +1226,8 @@ groups:
   - id: VP-17-001
     priority: MUST
     kind: protocol
-    statement: >-
-      `CaseActor` is the ONLY entity authorized to mutate shared case state (CS axes EM and
-      PXA, the embargo record, and the case ledger). No participant or use-case handler MUST
-      write to shared case state directly; all mutations MUST route through a `CaseActor`
-      method or use-case.
+    statement: All direct mutations to the canonical case state MUST route through the CaseActor; no participant or use-case
+      handler MAY write to canonical case state directly.
     rationale: >-
       This single-writer axiom prevents concurrent-write races and ensures that all shared
       state changes flow through the actor's consistency checks and persistence layer.
@@ -1196,6 +1236,19 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-02-001
+  - id: VP-17-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: Participant-local case replicas MUST NOT be updated by direct mutation from inbound protocol messages; replicas
+      MUST be updated exclusively via ledger replay from `Announce(CaseLedgerEntry)` fan-out.
+    rationale: >-
+      Ledger replay is the intended propagation mechanism for keeping participant replicas
+      consistent with canonical case state. Direct mutation from inbound messages (e.g.,
+      Add(Note, Case)) would bypass the ledger ordering guarantees and create divergence.
+      This path is distinct from VP-17-001 and is not a bypass of the CaseActor write constraint.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-17-001
     - rel_type: constrains
       spec_id: SM-10-002
 - id: VP-18
