@@ -245,3 +245,26 @@ groups:
     tags:
     - demo
     - testing
+  - id: EDF-06-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The timeout value of a temporal wait (EDF-06-006) MUST be accompanied by
+      a comment at the call site that names the delivery chain being bounded and
+      justifies the chosen value relative to worst-case BackgroundTasks delivery
+      across the containers involved.
+    rationale: >-
+      A bare integer timeout (e.g. `timeout_seconds=15.0`) with no explanation
+      is indistinguishable from an arbitrary guess. When the wait starts failing
+      in CI, there is no basis for deciding whether to raise the budget, change
+      the observable, or investigate a deeper delivery failure. The justification
+      comment is the decision record that makes that choice tractable.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: EDF-06-006
+      note: Adds a justification requirement to the identification requirement; both apply to every temporal wait.
+    tags:
+    - demo
+    - testing

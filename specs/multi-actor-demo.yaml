@@ -2948,6 +2948,41 @@ groups:
     tags:
     - demo
     - documentation
+  - id: DEMOMA-22-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `wait_for_*` call in a scenario script MUST be wrapped in either
+      `demo_gate` (when the wait is a causal precondition for a subsequent
+      step) or `demo_check` (when the wait is temporal or a non-gating
+      post-hoc verification). Bare unwrapped `wait_for_*` calls are
+      prohibited.
+    rationale: >-
+      A bare call raises `AssertionError` directly on timeout, bypassing the
+      demo harness's failure accumulator. Earlier `demo_check` failures
+      accumulated in the same run are lost, and downstream steps do not
+      receive the structured skip that `demo_gate` provides — the exception
+      terminates the scenario with no record of what preceded the failure.
+      `demo_gate` and `demo_check` are the two sanctioned wrappers; using
+      them consistently keeps the failure record complete and the control
+      flow explicit.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-22-001
+      note: >-
+        DEMOMA-22-001 requires causal gating at every async boundary;
+        this requirement closes the loophole of bare calls that appear to
+        gate but do not integrate with the failure accumulator.
+    - rel_type: refines
+      spec_id: EDF-06-005
+      note: >-
+        EDF-06-005 requires unmet causal gates to prevent dependent steps;
+        this requirement enforces the same principle for the bare-call case.
+    tags:
+    - demo
+    - testing
 - id: DEMOMA-23
   title: Shared Scenario Harness
   specs:
