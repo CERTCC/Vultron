@@ -103,8 +103,10 @@ groups:
   - id: SR-02-004
     priority: MUST
     kind: project
-    statement: '`RelationType` MUST include at minimum: `implements`, `supersedes`, `extends`, `depends_on`, `conflicts`,
-      `refines`, `derives_from`, `verifies`, `part_of`, `constrains`.'
+    statement: >-
+      `RelationType` MUST include at minimum: `implements`, `supersedes`, `extends`,
+      `depends_on`, `conflicts`, `refines`, `derives_from`, `verifies`, `part_of`,
+      `constrains`, `satisfies`.
   - id: SR-02-005
     priority: MUST
     kind: project
