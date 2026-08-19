@@ -33,6 +33,14 @@ receiving actor from that same value rather than restating them
 needs the three to differ, it is testing the *skip* path and should assert the skip
 — not a commit.
 
-Candidate for a normative entry alongside the ADR-0066 spec work (`DL-07`,
-`BT-05-005`): the executing actor of a role-gated tree MUST hold the gating role,
-and its store MUST be that actor's.
+**Decided (maintainer, 2026-08-19): this becomes a normative entry in Phase 6**,
+under `BT-05` alongside `BT-05-005` — the executing actor of a role-gated tree MUST
+hold the gating role, and its store MUST be that actor's.
+
+Rationale for a MUST rather than a note: this is the invariant that made the
+delegated-emit defect class possible in the first place, and production satisfying
+it *today* is not the same as it being required. Without a MUST, a future BT node
+can re-separate the three identities and the failure mode is a silent skip.
+
+An architecture ratchet was considered and rejected for now: role holding is
+data-dependent, so a static check could only approximate it and would be noisy.
