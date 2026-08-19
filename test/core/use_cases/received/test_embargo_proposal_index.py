@@ -238,10 +238,8 @@ class TestAcceptRejectFromCoreState:
     def test_accept_uses_core_state_index(self):
         """SvcAcceptEmbargoUseCase activates embargo using core state (no Invite DL read)."""
         actor_id = "https://example.org/actors/accept-actor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="AcceptActor")
         dl.create(actor)
 
@@ -264,10 +262,8 @@ class TestAcceptRejectFromCoreState:
     def test_accept_without_proposal_id_uses_first_pending(self):
         """SvcAcceptEmbargoUseCase finds first pending proposal from index when no proposal_id given."""
         actor_id = "https://example.org/actors/accept-auto"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="AcceptAutoActor")
         dl.create(actor)
 
@@ -291,10 +287,8 @@ class TestAcceptRejectFromCoreState:
     def test_reject_uses_core_state_index(self):
         """SvcRejectEmbargoUseCase resolves embargo from core state (no Invite DL read)."""
         actor_id = "https://example.org/actors/reject-actor"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="RejectActor")
         dl.create(actor)
 
@@ -320,10 +314,8 @@ class TestAcceptRejectFromCoreState:
     def test_accept_raises_notfound_when_index_empty(self):
         """SvcAcceptEmbargoUseCase raises VultronNotFoundError when no pending proposal in index."""
         actor_id = "https://example.org/actors/accept-noproposal"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="AcceptNoProposalActor")
         dl.create(actor)
 
@@ -343,10 +335,8 @@ class TestAcceptRejectFromCoreState:
     def test_reject_raises_notfound_when_index_empty(self):
         """SvcRejectEmbargoUseCase raises VultronNotFoundError when no pending proposal in index."""
         actor_id = "https://example.org/actors/reject-noproposal"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="RejectNoProposalActor")
         dl.create(actor)
 

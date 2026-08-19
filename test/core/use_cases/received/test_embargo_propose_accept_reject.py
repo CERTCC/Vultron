@@ -16,6 +16,8 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+from vultron.errors import VultronValidationError
+
 import pytest
 
 from vultron.adapters.driven.db_record import StorableRecord
@@ -411,10 +413,16 @@ class TestEmbargoProposalLifecycle:
 
         event = make_payload(reject)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            MagicMock(), event
-        ).execute()
-        assert result is None
+        # Neither source of the receiving actor is available here: the event
+        # carries no receiving_actor_id and a MagicMock DataLayer cannot say whose
+        # store it is. That is unanswerable, so it raises rather than inventing an
+        # identity and applying the message to a scratch store (ARCH-15-001).
+        # Unreachable in production: the inbox adapter always sets
+        # receiving_actor_id, and a real DataLayer always knows its own actor.
+        with pytest.raises(VultronValidationError, match="receiving actor"):
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                MagicMock(), event
+            ).execute()
 
     def test_evaluate_embargo_raises_invalid_state_transition_when_em_state_invalid(
         self,
@@ -433,9 +441,9 @@ class TestEmbargoProposalLifecycle:
             as_Service,
         )
 
+        # The trigger runs as the vendor, so this is the vendor's store.
         dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            "sqlite:///:memory:", actor_id="https://example.org/users/vendor"
         )
         actor = Actor(id_="https://example.org/users/vendor", name="Vendor")
         case = as_VulnerabilityCase(
@@ -627,7 +635,8 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The coordinator receives these, so this is its store.
+            actor_id=self.COORD_ID,
         )
         case_id = f"{self.CASE_ID}/clear"
         coordinator_id = self.COORD_ID
@@ -740,7 +749,8 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            # The coordinator receives these, so this is its store.
+            actor_id=self.COORD_ID,
         )
         case_id = f"{self.CASE_ID}/clear"
         coordinator_id = self.COORD_ID
