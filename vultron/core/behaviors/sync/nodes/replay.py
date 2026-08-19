@@ -12,7 +12,13 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Action nodes for SYNC log-replication replay and fan-out workflows."""
+"""Action nodes for SYNC log-replication replay.
+
+Replay is catch-up for one peer that has fallen behind, driven by an inbound
+``Reject(CaseLedgerEntry)``.  The fan-out nodes that used to live here — the
+distribution of a single entry to every recipient — now sit in ``fanout.py``
+alongside their RM.CLOSED-filtered variants (BTND-07-004).
+"""
 
 from __future__ import annotations
 
@@ -28,7 +34,6 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     replay_from_hash,
     should_replay,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry,
     VultronCaseLedgerEntry,
@@ -39,7 +44,6 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.use_cases._helpers import case_addressees
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -103,6 +107,16 @@ def _require_case_actor_id(case_actor: object, node_name: str) -> str:
 
 
 class FindCaseActorNode(DataLayerAction):
+    """Resolve the case's CaseActor, and publish the case id for later gates.
+
+    ``case_id`` is written to the blackboard because ``CheckIsCaseManagerNode``
+    reads it from there (CLP-09).  Without it, the role gate on the genesis
+    pre-seed could not resolve a case, returned FAILURE, and the guard's
+    selector silently took its skip branch — so the announce never fired for
+    *anyone*, case manager or not.  This node already derives the value from the
+    rejected entry, so it is the right place to publish it.
+    """
+
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
@@ -111,12 +125,16 @@ class FindCaseActorNode(DataLayerAction):
         self.blackboard.register_key(
             key="case_actor_id", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.WRITE
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
         entry = _require_rejected_entry(self.blackboard.activity, self.name)
+        self.blackboard.case_id = entry.case_id
         case_actor = _find_case_actor(self.datalayer, entry.case_id)
         if case_actor is None:
             self.logger.warning(
@@ -320,9 +338,6 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
         self.blackboard.register_key(
             key="activity", access=py_trees.common.Access.READ
         )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -349,12 +364,13 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
 
         entry = _require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
-        case_actor_id = self.actor_id
 
         try:
             activity_id = factory.announce_vulnerability_case(
                 case_id=entry.case_id,
-                actor=case_actor_id,
+                # The executing actor, which the CASE_MANAGER gate has already
+                # established holds that role — not a looked-up CaseActor id.
+                actor=self.actor_id,
                 context_id=entry.case_id,
                 to=[peer_id],
             )
@@ -389,113 +405,5 @@ class ReplayMissingEntriesNode(py_trees.composites.Sequence):
                 ),
                 FindDivergenceIndexNode(name="FindDivergenceIndex"),
                 SendMissingEntriesNode(name="SendMissingEntries"),
-            ],
-        )
-
-
-class CollectLogEntryRecipientsNode(DataLayerAction):
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="log_entry", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="fanout_recipients", access=py_trees.common.Access.WRITE
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
-        case_obj = self.datalayer.read(self.case_id)
-        if not isinstance(case_obj, VulnerabilityCase):
-            self.logger.warning(
-                "%s: case '%s' not found; skipping fan-out for '%s'",
-                self.name,
-                self.case_id,
-                entry.id_,
-            )
-            self.blackboard.fanout_recipients = []
-            return Status.SUCCESS
-
-        recipients = case_addressees(
-            case_obj, excluding_actor_id=self.actor_id
-        )
-        self.blackboard.fanout_recipients = recipients
-        return Status.SUCCESS
-
-
-class SendLogEntryToEachNode(DataLayerAction):
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._sync_port: SyncActivityPort | None = None
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="log_entry", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="fanout_recipients", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="sync_port", access=py_trees.common.Access.READ
-        )
-
-    def initialise(self) -> None:
-        super().initialise()
-        try:
-            self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
-        except (AttributeError, KeyError):
-            self._sync_port = None
-
-    def update(self) -> Status:
-        if self.actor_id is None:
-            self.logger.error("%s: actor_id not available", self.name)
-            return Status.FAILURE
-
-        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
-        recipients = cast(list[str], self.blackboard.fanout_recipients)
-        if self._sync_port is None:
-            self.logger.debug(
-                "%s: sync_port not injected; skipping fan-out for '%s'",
-                self.name,
-                entry.id_,
-            )
-            return Status.SUCCESS
-
-        for recipient_id in recipients:
-            self._sync_port.send_announce_log_entry(
-                entry=entry,
-                actor_id=self.actor_id,
-                to=[recipient_id],
-            )
-        self.logger.info(
-            "%s: fanned out log entry '%s' to %d recipients",
-            self.name,
-            entry.id_,
-            len(recipients),
-        )
-        return Status.SUCCESS
-
-
-class FanOutLogEntryNode(py_trees.composites.Sequence):
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                CollectLogEntryRecipientsNode(
-                    case_id=case_id,
-                    name="CollectLogEntryRecipients",
-                ),
-                SendLogEntryToEachNode(name="SendLogEntryToEach"),
             ],
         )

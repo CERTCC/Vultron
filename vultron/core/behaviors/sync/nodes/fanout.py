@@ -38,6 +38,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.use_cases._helpers import case_addressees
 
 logger = logging.getLogger(__name__)
 
@@ -185,5 +186,125 @@ class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
                     name="CollectNonClosedLogEntryRecipients",
                 ),
                 _SendLogEntryToEachNode(name="SendLogEntryToEach"),
+            ],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Unfiltered fan-out — moved here from ``replay.py`` (BTND-07-004).
+#
+# These are the plain fan-out nodes; the filtered variants above skip
+# participants already at RM.CLOSED.  They lived in ``replay.py`` because
+# reject-driven replay was written first, but fan-out is a distinct concern:
+# replay is catch-up for one lagging peer, fan-out is distribution of one
+# entry to every recipient.  Keeping both fan-out flavours in one module also
+# makes the filtered/unfiltered choice visible in one place.
+# ---------------------------------------------------------------------------
+
+
+class CollectLogEntryRecipientsNode(DataLayerAction):
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="log_entry", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="fanout_recipients", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
+        case_obj = self.datalayer.read(self.case_id)
+        if not isinstance(case_obj, VulnerabilityCase):
+            self.logger.warning(
+                "%s: case '%s' not found; skipping fan-out for '%s'",
+                self.name,
+                self.case_id,
+                entry.id_,
+            )
+            self.blackboard.fanout_recipients = []
+            return Status.SUCCESS
+
+        recipients = case_addressees(
+            case_obj, excluding_actor_id=self.actor_id
+        )
+        self.blackboard.fanout_recipients = recipients
+        return Status.SUCCESS
+
+
+class SendLogEntryToEachNode(DataLayerAction):
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._sync_port: SyncActivityPort | None = None
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="log_entry", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="fanout_recipients", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="sync_port", access=py_trees.common.Access.READ
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
+        except (AttributeError, KeyError):
+            self._sync_port = None
+
+    def update(self) -> Status:
+        if self.actor_id is None:
+            self.logger.error("%s: actor_id not available", self.name)
+            return Status.FAILURE
+
+        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
+        recipients = cast(list[str], self.blackboard.fanout_recipients)
+        if self._sync_port is None:
+            self.logger.debug(
+                "%s: sync_port not injected; skipping fan-out for '%s'",
+                self.name,
+                entry.id_,
+            )
+            return Status.SUCCESS
+
+        for recipient_id in recipients:
+            self._sync_port.send_announce_log_entry(
+                entry=entry,
+                actor_id=self.actor_id,
+                to=[recipient_id],
+            )
+        self.logger.info(
+            "%s: fanned out log entry '%s' to %d recipients",
+            self.name,
+            entry.id_,
+            len(recipients),
+        )
+        return Status.SUCCESS
+
+
+class FanOutLogEntryNode(py_trees.composites.Sequence):
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                CollectLogEntryRecipientsNode(
+                    case_id=case_id,
+                    name="CollectLogEntryRecipients",
+                ),
+                SendLogEntryToEachNode(name="SendLogEntryToEach"),
             ],
         )

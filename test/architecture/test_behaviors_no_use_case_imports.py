@@ -110,7 +110,10 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/core/behaviors/report/nodes/storage.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
         "vultron/core/behaviors/sync/nodes/chain.py",
-        "vultron/core/behaviors/sync/nodes/replay.py",
+        # Was replay.py; the `case_addressees` caller moved to fanout.py when
+        # the fan-out nodes were split out of replay.py for BTND-07-004. Same
+        # debt, same count, new home.
+        "vultron/core/behaviors/sync/nodes/fanout.py",
     ]
 )
 
