@@ -840,6 +840,27 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001
+      - id: DEMOCI-09-002
+        priority: MUST
+        kind: project
+        statement: >-
+          When an integration branch (e.g. `fix/demo-ci`) has merged to `main`
+          and all its child issues are closed, the branch name MUST be removed
+          from the `pull_request` and `push` trigger `branches:` arrays in
+          `demo-integration.yml`. Any inline comments that referenced the
+          temporary branch as a `# remove when merged` note MUST also be
+          removed at the same time.
+        rationale: >-
+          Stale branch entries in trigger arrays are dead configuration: the
+          branch no longer exists, so the entries neither fire nor provide
+          documentation value. Leaving them risks confusing future maintainers
+          about which branches are legitimate targets. Removing them (together
+          with any accompanying comments) keeps the trigger configuration
+          self-consistent and matches the actual lifecycle of integration
+          branches.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-09-001
 
   - id: DEMOCI-10
     title: Case-Ledger Artifact Availability on Failure
