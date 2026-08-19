@@ -301,6 +301,8 @@ class Postcondition(BaseModel):
 class BehavioralSpec(StatementSpec):
     """A spec with structured pre/step/post conditions (SR-02-010)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     preconditions: list[Precondition] | None = None
     steps: list[BehaviorStep] | None = None
     postconditions: list[Postcondition] | None = None
