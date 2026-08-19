@@ -2263,6 +2263,49 @@ class TestFvCausalGates:
 
         coverage_wait_called.assert_not_called()
 
+    def test_sync_verification_skips_replica_check_when_ledger_coverage_times_out(
+        self,
+    ):
+        """Inner demo_gate skips verify_finder_replica_state when ledger coverage times out."""
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        replica_check_called = MagicMock()
+
+        with (
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(
+                demo,
+                "_get_log_entries_for_case",
+                return_value=[{"log_index": 0}],
+            ),
+            patch.object(
+                demo,
+                "wait_for_contiguous_ledger_coverage",
+                side_effect=AssertionError(
+                    "timed out waiting for ledger coverage"
+                ),
+            ),
+            patch.object(
+                demo,
+                "verify_finder_replica_state",
+                side_effect=replica_check_called,
+            ),
+        ):
+            demo._phase_sync_verification(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor=vendor,
+                finder=finder,
+                case=case,
+                case_actor_client=None,
+            )
+
+        replica_check_called.assert_not_called()
+
     def test_case_closure_skips_coverage_wait_when_close_case_entry_absent(
         self,
     ):
