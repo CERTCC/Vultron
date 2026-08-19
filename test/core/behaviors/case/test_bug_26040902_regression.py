@@ -61,14 +61,15 @@ def configure_case_actor_url(monkeypatch):
 
 
 @pytest.fixture
-def _fresh_datalayer():
-    """In-memory SQLite DataLayer with NO pre-seeded vocabulary imports."""
+def _fresh_datalayer(_actor_id):
+    """The vendor's own store, with NO pre-seeded vocabulary imports.
+
+    Scoped to ``_actor_id`` because the tree executes as that actor and a BT's
+    store follows its executing actor (ADR-0066).
+    """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id=_actor_id,
-    )
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=_actor_id)
 
 
 @pytest.fixture
