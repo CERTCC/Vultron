@@ -260,6 +260,11 @@ class TestSendOfferCaseManagerRoleNode:
 class TestEmitRejectCaseManagerRoleNode:
     """EmitRejectCaseManagerRoleNode sends Reject(Offer(CaseManagerRole))."""
 
+    @pytest.fixture
+    def bt_scenario(self):
+        """Scenario scoped to the case actor — the identity these trees run as."""
+        return BTTestScenario(self._CASE_ACTOR_ID)
+
     _OFFER_ID = "https://example.org/activities/offer-cm-001"
     _CASE_ID = "https://example.org/cases/case-cm-001"
     _PARTICIPANT_ID = (
@@ -326,9 +331,9 @@ class TestEmitRejectCaseManagerRoleNode:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
+        # The case actor's own store: these trees execute as the case actor.
         dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            "sqlite:///:memory:", actor_id=self._CASE_ACTOR_ID
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -349,9 +354,9 @@ class TestEmitRejectCaseManagerRoleNode:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
+        # The case actor's own store: these trees execute as the case actor.
         dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            "sqlite:///:memory:", actor_id=self._CASE_ACTOR_ID
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -476,6 +481,11 @@ class TestEmitRejectCaseManagerRoleNode:
 
 class TestAutoAcceptCaseManagerRoleNode:
     """AutoAcceptCaseManagerRoleNode commits ledger entry before enqueuing."""
+
+    @pytest.fixture
+    def bt_scenario(self):
+        """Scenario scoped to the case actor — the identity these trees run as."""
+        return BTTestScenario(self._CASE_ACTOR_ID)
 
     _OFFER_ID = "https://example.org/activities/offer-cm-002"
     _CASE_ID = "https://example.org/cases/case-cm-002"
@@ -604,9 +614,9 @@ class TestAutoAcceptCaseManagerRoleNode:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
+        # The case actor's own store: these trees execute as the case actor.
         dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            "sqlite:///:memory:", actor_id=self._CASE_ACTOR_ID
         )
         bridge = BTBridge(
             datalayer=dl,

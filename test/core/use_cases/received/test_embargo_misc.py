@@ -46,7 +46,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/finder",
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_aem1",
@@ -127,7 +127,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/finder",  # the receiving actor's own store
         )
 
         # Build a participant and store it — it also appears inline in case
@@ -199,7 +199,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/finder",  # the receiving actor's own store
         )
 
         # Wire-layer as_CaseParticipant with non-default consent state.
@@ -259,7 +259,7 @@ class TestPxaEmbargoIneligible:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/finder",
         )
         pxa_state = CS_pxa[pxa_state_name]
         case = as_VulnerabilityCase(id_=self.CASE_ID, name="PXA Test")
@@ -289,7 +289,7 @@ class TestPxaEmbargoIneligible:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/finder",
         )
         assert (
             _pxa_embargo_ineligible(dl, "https://example.org/cases/missing")

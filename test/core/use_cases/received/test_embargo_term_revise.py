@@ -43,7 +43,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coord",
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em1",
@@ -88,7 +88,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coord",
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em1_warn",
@@ -133,7 +133,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coord",
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem1",
@@ -184,7 +184,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coord",
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem2",
@@ -233,7 +233,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/users/coord",
         )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem3",

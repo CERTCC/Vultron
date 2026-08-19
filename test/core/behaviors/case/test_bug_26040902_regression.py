@@ -67,7 +67,7 @@ def _fresh_datalayer():
 
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=_actor_id,
     )
 
 

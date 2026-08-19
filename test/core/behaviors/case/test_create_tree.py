@@ -71,7 +71,7 @@ def configure_case_actor_url(monkeypatch):
 def datalayer():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=actor.id_,
     )
 
 

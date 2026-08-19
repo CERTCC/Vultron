@@ -91,7 +91,7 @@ def _build_link(
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=_CASE_ACTOR_ID,
     )
 
 
