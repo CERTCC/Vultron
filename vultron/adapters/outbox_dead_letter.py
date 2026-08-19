@@ -1,11 +1,19 @@
-"""Dead-letter record model for outbox activities that exhausted delivery attempts.
+"""Outbox dead-letter model and adapter-level retry-store protocol.
 
-When an outbound activity's total delivery attempts reach ``max_total_attempts``,
-it is moved from the outbox queue to a ``OutboxDeadLetterEntry`` in the DataLayer
-rather than being re-queued indefinitely.  Entries are stored for operator review
-without requiring log access.
+The dead-letter concern is a delivery infrastructure artifact, not a domain
+concern.  ``OutboxDeadLetterEntry`` records an HTTP-transport failure that
+exhausted its retry budget; ``OutboxRetryStore`` is the adapter-level protocol
+that ``outbox_handler`` uses to track cumulative attempt counts and record
+exhausted activities.
 
-See ``specs/outbox.yaml`` OX-13-002, OX-13-003, OX-13-004.
+These types live in the adapter layer (not ``vultron/core/``) because:
+- The trigger is HTTP delivery failure — a transport-level event.
+- The data captured (retry counts, failed recipients) is delivery bookkeeping.
+- Core should be delivery-mechanism agnostic (hexagonal architecture).
+
+``SqliteDataLayer`` satisfies ``OutboxRetryStore`` structurally.
+
+See ``specs/outbox.yaml`` OX-13-001 through OX-13-004.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -22,7 +30,7 @@ See ``specs/outbox.yaml`` OX-13-002, OX-13-003, OX-13-004.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, Protocol
 
 from pydantic import Field
 
@@ -53,3 +61,34 @@ class OutboxDeadLetterEntry(VultronBase):
     total_attempts: int
     failed_recipients: list[str] = Field(default_factory=list)
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class OutboxRetryStore(Protocol):
+    """Adapter-level port for outbox delivery retry tracking and dead-lettering.
+
+    ``outbox_handler`` uses this protocol to persist cumulative attempt counts
+    across drain passes and to move exhausted activities to the dead-letter
+    store.  ``SqliteDataLayer`` satisfies this protocol structurally.
+
+    This protocol is intentionally NOT part of the core ``DataLayer`` /
+    ``ActorScopedDataLayer`` ports — it expresses a delivery-infrastructure
+    concern, not a domain contract.
+    """
+
+    def get_outbox_attempt_count(self, activity_id: str) -> int: ...
+
+    def set_outbox_attempt_count(
+        self, activity_id: str, count: int
+    ) -> None: ...
+
+    def clear_outbox_attempt_count(self, activity_id: str) -> None: ...
+
+    def dead_letter_append(
+        self,
+        activity_id: str,
+        reason: str,
+        total_attempts: int,
+        failed_recipients: list[str],
+    ) -> None: ...
+
+    def dead_letter_list(self) -> list[OutboxDeadLetterEntry]: ...

@@ -132,7 +132,6 @@ _SELF_ASSIGNING_AFTER_VALIDATORS: frozenset[str] = frozenset(
 _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
     {
         "DeadLetterRecord",
-        "OutboxDeadLetterEntry",
         "EmDimension",
         "HashChainLedgerRecord",
         "PecDimension",

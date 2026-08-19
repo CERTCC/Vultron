@@ -43,6 +43,7 @@ from vultron.adapters.driven.http_delivery import (
     DeliveryError,
     HttpDeliveryAdapter,
 )
+from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 
 # ---------------------------------------------------------------------------
 # Re-exports from outbox_addressing (keep in this namespace for compat)
@@ -249,6 +250,10 @@ async def outbox_handler(
         return
 
     logger.debug("Processing outbox for actor %s", actor_id)
+    # dl satisfies OutboxRetryStore structurally (SqliteDataLayer implements
+    # both); cast lets mypy/pyright see the delivery-infrastructure methods
+    # without polluting the core ActorScopedDataLayer port with adapter concerns.
+    _retry: OutboxRetryStore = cast(OutboxRetryStore, dl)
     activity_err_counts: dict[str, int] = {}
     while dl.outbox_list():
         activity_id = dl.outbox_pop()
@@ -263,16 +268,16 @@ async def outbox_handler(
                 if isinstance(e, DeliveryError)
                 else []
             )
-            total = dl.get_outbox_attempt_count(activity_id) + 1
+            total = _retry.get_outbox_attempt_count(activity_id) + 1
             if total >= MAX_TOTAL_ATTEMPTS:
                 # Budget exhausted — dead-letter the activity (OX-13-002).
-                dl.dead_letter_append(
+                _retry.dead_letter_append(
                     activity_id,
                     reason="max_attempts_exhausted",
                     total_attempts=total,
                     failed_recipients=failed_recipients,
                 )
-                dl.clear_outbox_attempt_count(activity_id)
+                _retry.clear_outbox_attempt_count(activity_id)
                 logger.error(
                     "Activity '%s' exhausted %d delivery attempts for actor"
                     " '%s'; moved to dead letter (OX-13-002)."
@@ -284,7 +289,7 @@ async def outbox_handler(
                 )
                 # Do NOT re-queue — activity is permanently dead-lettered.
             else:
-                dl.set_outbox_attempt_count(activity_id, total)
+                _retry.set_outbox_attempt_count(activity_id, total)
                 logger.error(
                     "Error processing outbox item for actor %s: %s",
                     actor_id,

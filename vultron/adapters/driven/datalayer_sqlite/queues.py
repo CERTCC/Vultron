@@ -21,7 +21,7 @@ from typing import Any
 
 from sqlmodel import Session, col, select
 
-from vultron.core.models.outbox_dead_letter import OutboxDeadLetterEntry
+from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
 
 from .schema import OutboxAttemptEntry, QueueEntry
 
