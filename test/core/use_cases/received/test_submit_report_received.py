@@ -140,7 +140,7 @@ class TestSubmitReportCreatesCase:
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
         dl.save(report)
         vendor_actor = VultronCaseActor(id_=vendor_id)
@@ -292,7 +292,7 @@ class TestSubmitReportAutoCreateCasePolicy:
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return event, dl
@@ -397,7 +397,7 @@ class TestOfferAddressingSemantics:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
         dl.save(VultronReport(id_=self.REPORT_ID))
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
@@ -550,7 +550,7 @@ class TestSubmitReportStoresOfferRecord:
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return event, dl

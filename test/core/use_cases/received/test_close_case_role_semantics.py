@@ -84,11 +84,14 @@ def _clear_blackboard():
     py_trees.blackboard.Blackboard.storage.clear()
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id=VENDOR_ID,
-    )
+def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
+    """The store of *actor_id*, defaulting to the CaseActor.
+
+    ``_make_full_dl`` below is documented as "DataLayer as seen by the CaseActor",
+    so the CaseActor is the right default: it holds the canonical ledger these
+    tests commit to.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 def _make_full_dl(
