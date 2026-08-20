@@ -393,44 +393,44 @@ tracking issue for ADR update).
 
 ## Target-Field Discriminators: Wire Ambiguity Between Offer Semantics
 
-(CONCERN-1674, 2026-07-27)
+(CONCERN-1674, 2026-07-27; amended CONCERN-2322, 2026-08-20)
 
-`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both serialize as
-`Offer(VulnerabilityCase)` on the wire. They are disambiguated solely by the
+**Resolution summary**: The `OFFER_CASE_MANAGER_ROLE` wire format and all
+supporting infrastructure have been removed (CONCERN-2322). The canonical
+format is `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole,
+target=Actor, context=VulnerabilityCase)`). The historical context below is
+preserved for understanding ADR-0039 and the strictness fix.
+
+---
+
+`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both serialized
+as `Offer(VulnerabilityCase)` on the wire, disambiguated solely by the
 presence or absence of `target=CaseParticipant`:
 
 | Semantic | Pattern |
 |---|---|
-| `OFFER_CASE_MANAGER_ROLE` | `Offer(VulnerabilityCase, target=CaseParticipant)` |
+| `OFFER_CASE_MANAGER_ROLE` (removed) | `Offer(VulnerabilityCase, target=CaseParticipant)` |
 | `OFFER_CASE_OWNERSHIP_TRANSFER` | `Offer(VulnerabilityCase)` (no target) |
 
-**Current protections** (both required while the wire format migration is pending):
+**Structural gap (CONCERN-2322)**: `ActivityPattern._match_activity_field`
+always treated `target_` as permissive (`strict=False`), meaning a bare URI
+string in `target` would match any typed target constraint. Registry ordering
+was therefore the *sole* protection against misrouting when `_rehydrate_fields`
+had not yet resolved the target.
 
-1. **Registry ordering** — `OFFER_CASE_MANAGER_ROLE` appears before
-   `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
-   `_validate_registry_order()` at import time; raises `RegistryOrderError` on
-   violation). See SE-08-001.
-2. **Required target field** — `_OfferCaseManagerRoleActivity.target` is
-   `as_CaseParticipant` (required, not optional). A sender omitting it gets a
-   `ValidationError` at construction time. See SE-08-002.
+**Fix**: When `ActivityPattern.strict=True`, the `target_` field is now also
+matched strictly — bare URI strings do NOT match a typed target constraint.
+Patterns that discriminate by target should set `strict=True`. See SE-08-004.
 
-**Resolution (ADR-0039, Issue #1726)** — the dedicated `as_CaseParticipantRole`
-wire object type has been introduced.  New senders MUST emit
-`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` using the
-`OFFER_CASE_PARTICIPANT_ROLE` semantic (factory:
-`offer_case_participant_role_activity`).  Receivers continue to handle the
-deprecated `OFFER_CASE_MANAGER_ROLE` format for interoperability with
-pre-ADR-0039 actors.  See SE-08-003, SE-08-004.
+**Full resolution (ADR-0039 + CONCERN-2322)**: The `OFFER_CASE_MANAGER_ROLE`
+format was never emitted by any supported actor; retaining it as a registry
+entry was a source of ordering fragility. It has been removed entirely.
+The canonical `OFFER_CASE_PARTICIPANT_ROLE` format uses a dedicated object
+type (`as_CaseParticipantRole`) that is self-describing without any registry
+ordering dependency. See SE-08-003, SE-08-005.
 
-**Migration checklist for senders**:
-
-1. Replace `offer_case_manager_role_activity(...)` calls with
-   `offer_case_participant_role_activity(role=CVDRole.CASE_MANAGER, ...)`.
-2. Remove `target=CaseParticipant` construction — the new format carries the
-   Actor as `target` and the case as `context`.
-3. No receiver-side change required; the registry handles both formats.
-
-**Rule for new patterns sharing `Offer(VulnerabilityCase)`** — if a new
-semantic requires `Offer(VulnerabilityCase)`, it MUST either (a) use a distinct
-object type, or (b) add a more-specific discriminator field AND be placed before
-the existing less-specific entries in `SEMANTIC_REGISTRY`.
+**Rule for new patterns that share a verb+object pair** — if a new semantic
+requires the same `(activity_, object_)` pair as an existing pattern, it MUST
+either (a) use a distinct object type (preferred — SE-08-003), or (b) add a
+more-specific discriminator field with `strict=True` AND appear before the
+less-specific entry in `SEMANTIC_REGISTRY` (SE-08-001, SE-08-004).
