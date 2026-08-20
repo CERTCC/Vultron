@@ -45,6 +45,7 @@ from vultron.core.behaviors.report.nodes import (
     CreateCaseNode,
     EvaluateReportCredibility,
     EvaluateReportValidity,
+    TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
     UpdateActorOutbox,
@@ -242,6 +243,222 @@ def test_transition_rm_to_invalid(
     )
     bt_scenario.assert_success(result)
     bt_scenario.assert_rm_state(report.id_, RM.INVALID, actor_id=actor.id_)
+
+
+def test_transition_rm_to_valid_same_state(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoValid succeeds on a same-state write (AC-3)."""
+    valid_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.VALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.VALID),
+    )
+    bt_scenario.seed(valid_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+def test_transition_rm_to_valid_invalid_jump(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoValid returns FAILURE for an illegal RM jump (AC-2)."""
+    closed_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.CLOSED),
+    )
+    bt_scenario.seed(closed_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+
+def test_transition_rm_to_invalid_same_state(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoInvalid succeeds on a same-state write (AC-3)."""
+    invalid_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    bt_scenario.seed(invalid_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+def test_transition_rm_to_invalid_invalid_jump(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoInvalid returns FAILURE for an illegal RM jump (AC-2)."""
+    closed_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.CLOSED),
+    )
+    bt_scenario.seed(closed_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+
+def test_transition_rm_to_valid_from_invalid(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoValid succeeds from RM.INVALID (re-validation path)."""
+    invalid_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    bt_scenario.seed(invalid_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
+
+
+def test_transition_rm_to_closed_valid_from_invalid(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed succeeds from RM.INVALID (valid adjacent step)."""
+    invalid_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    bt_scenario.seed(invalid_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.CLOSED, actor_id=actor.id_)
+
+
+def test_transition_rm_to_closed_same_state(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed succeeds on a same-state write (AC-3)."""
+    closed_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.CLOSED),
+    )
+    bt_scenario.seed(closed_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+def test_transition_rm_to_closed_valid_from_accepted(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed succeeds from RM.ACCEPTED (valid adjacent step)."""
+    accepted_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.ACCEPTED),
+    )
+    bt_scenario.seed(accepted_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.CLOSED, actor_id=actor.id_)
+
+
+def test_transition_rm_to_closed_valid_from_deferred(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed succeeds from RM.DEFERRED (valid adjacent step)."""
+    deferred_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.DEFERRED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.DEFERRED),
+    )
+    bt_scenario.seed(deferred_status)
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.CLOSED, actor_id=actor.id_)
+
+
+def test_transition_rm_to_closed_invalid_jump_from_received(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed returns FAILURE for RECEIVED→CLOSED (AC-2)."""
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
 
 
 def test_create_case_node(
