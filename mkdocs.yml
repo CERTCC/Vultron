@@ -284,6 +284,7 @@ nav:
       - Enforce Post-Construction Type Safety on the Core Branch Only: 'adr/0064-core-branch-validate-assignment.md'
       - Embargo Invite RSVP Deadline on Invite.end_time: 'adr/0065-embargo-invite-rsvp-deadline.md'
       - 'Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store': 'adr/0066-outbox-terminal-state.md'
+      - 'Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently': 'adr/0067-rm-nonadj-accept-and-notify.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
