@@ -890,3 +890,134 @@ class TestRegressionCSPTeardownPath:
         assert (
             new_embargo is None and old_embargo is None
         ), "Both paths must clear active_embargo after CS.P teardown"
+
+
+# ---------------------------------------------------------------------------
+# Regression: CLP-10-009 — validators in preconditions, ledger entry on accept
+# ---------------------------------------------------------------------------
+
+CASE_MANAGER_ID_2254 = "https://example.org/actors/case-mgr-2254"
+CM_PARTICIPANT_ID_2254 = f"{CASE_ID}/participants/case-mgr-2254"
+
+
+class TestCaseLedgerEntryCreation:
+    """CLP-10-009 / ISSUE-2254 regression: add_case_status_tree must commit a
+    canonical ledger entry for valid updates (Fix 2: plain Sequence → create_receive_activity_tree).
+
+    Before the fix add_case_status_tree used a plain Sequence with no
+    GuardedCommit, so NO ledger entries were ever produced.  After the fix the
+    tree uses create_receive_activity_tree and a CaseLedgerEntry is created
+    for every valid accepted update when the receiving actor is the CASE_MANAGER.
+    """
+
+    def _build_dl_with_case_manager(self):
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        cm_participant = as_CaseParticipant(
+            id_=CM_PARTICIPANT_ID_2254,
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID_2254,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        # attributed_to seeds the per-case genesis hash (CLP-08-003); without
+        # it the guarded commit cannot anchor a hash chain.
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="Ledger Test Case",
+            attributed_to=CASE_MANAGER_ID_2254,
+        )
+        case.add_participant(cm_participant)
+        dl.create(case)
+        dl.create(cm_participant)
+        return dl
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_valid_update_produces_ledger_entry(self, make_payload):
+        """A valid Add(CaseStatus) produces exactly one CaseLedgerEntry when
+        the receiving actor is the CASE_MANAGER (CLP-10-009, Fix 2).
+
+        This test FAILS on pre-fix code where add_case_status_tree used a
+        plain Sequence with no GuardedCommit.
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = self._build_dl_with_case_manager()
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        dl.create(status_obj)
+
+        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="Ledger Test Case")
+        activity = add_status_to_case_activity(
+            status_obj, target=wire_case, actor=CASE_MANAGER_ID_2254
+        )
+        event = make_payload(activity).model_copy(
+            update={"activity": activity}
+        )
+
+        tree = add_case_status_tree(request=event)
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID_2254, activity=event
+        )
+        assert result.status == Status.SUCCESS
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 1, (
+            "A valid Add(CaseStatus) accepted by the CASE_MANAGER must produce"
+            " exactly one CaseLedgerEntry (CLP-10-009)"
+        )
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_invalid_em_transition_produces_no_ledger_entry(
+        self, make_payload
+    ):
+        """An invalid EM transition is rejected in precondition_guards → zero
+        CaseLedgerEntries (CLP-10-009: validators run before GuardedCommit).
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = self._build_dl_with_case_manager()
+        initial = as_CaseStatus(
+            id_=f"{CASE_ID}/statuses/init",
+            context=CASE_ID,
+            em_state=EM.NONE,
+        )
+        from typing import cast as c
+        from vultron.core.models.case import VulnerabilityCase
+
+        case_obj = c(VulnerabilityCase, dl.read(CASE_ID))
+        case_obj.case_statuses.append(initial)
+        dl.create(initial)
+        dl.save(case_obj)
+
+        bad_status = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
+        )
+        dl.create(bad_status)
+
+        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="Ledger Test Case")
+        activity = add_status_to_case_activity(
+            bad_status, target=wire_case, actor=CASE_MANAGER_ID_2254
+        )
+        event = make_payload(activity)
+
+        tree = add_case_status_tree(request=event)
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID_2254, activity=event
+        )
+        assert result.status == Status.FAILURE
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 0, (
+            "An invalid Add(CaseStatus) rejected by a precondition guard must"
+            " produce zero CaseLedgerEntries (CLP-10-009)"
+        )
