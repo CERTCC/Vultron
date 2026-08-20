@@ -463,13 +463,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
-- **`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` Share
-  `Offer(VulnerabilityCase)` — Registry Order and Required `target` Field Are
-  the Current Guards** — `OFFER_CASE_MANAGER_ROLE` MUST appear before
-  `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
-  `_validate_registry_order()`). `_OfferCaseManagerRoleActivity.target` MUST
-  remain required. Do NOT add a third `Offer(VulnerabilityCase)` pattern without
-  a distinct object type. See SE-08-001, SE-08-002, ADR-0039,
+- **`ActivityPattern.target_` Is Always Permissive Unless `strict=True`** —
+  `_match_activity_field` hardcodes `strict=False` for the `target_` field pair,
+  so a bare URI string matches any typed target constraint. When `target_` is the
+  sole discriminator between two competing patterns (same `activity_` + `object_`),
+  set `strict=True` on the more-specific pattern; otherwise an unresolved target
+  URI bypasses the discriminator and makes registry ordering the only guard.
+  Prefer a dedicated object type (SE-08-003) over target-field discrimination
+  whenever possible. See SE-08-001, SE-08-004, ADR-0039, CONCERN-2322,
   [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md)
   § "Target-Field Discriminators".
 - **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix**

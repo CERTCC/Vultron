@@ -285,11 +285,9 @@ groups:
       less-specific pattern. The more-specific pattern MUST appear before the less-specific
       one in `SEMANTIC_REGISTRY`.
     rationale: >-
-      `OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both match
-      `Offer(VulnerabilityCase)`. `OFFER_CASE_MANAGER_ROLE` is disambiguated by the
-      presence of `target=CaseParticipant`. If the more-specific entry appeared after the
-      less-specific one, every case-manager delegation offer would be silently misrouted
-      as an ownership transfer. `_validate_registry_order()` enforces this at import time.
+      Without an additional discriminator, two patterns sharing the same verb and object
+      type are indistinguishable; the first matching entry always wins.
+      `_validate_registry_order()` enforces ordering at import time.
     relationships:
     - rel_type: refines
       spec_id: SE-03-002
@@ -301,9 +299,9 @@ groups:
       MUST declare that target field as required (not optional) so that a sender omitting it
       produces a validation error rather than a silently misrouted activity.
     rationale: >-
-      `_OfferCaseManagerRoleActivity.target` is `as_CaseParticipant` (required). This ensures
-      that any attempt to construct the activity without the discriminator field fails fast at
-      the sending side rather than reaching the receiver's registry as an ambiguous shape.
+      Declaring the discriminator field as required ensures that any attempt to construct
+      the activity without it fails fast at the sending side rather than reaching the
+      receiver's registry as an ambiguous shape.
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
@@ -311,35 +309,52 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      When two semantics share `Offer(VulnerabilityCase)` and are discriminated only by a
-      target-field value, a dedicated wire object type (e.g. `as_CaseParticipantRole`)
-      SHOULD be preferred over target-field discrimination so that the wire shape is
-      unambiguously self-describing without depending on registry ordering.
+      When two semantics are discriminated only by a target-field value, a dedicated wire
+      object type (e.g. `as_CaseParticipantRole`) SHOULD be preferred over target-field
+      discrimination so that the wire shape is unambiguously self-describing without
+      depending on registry ordering.
     rationale: >-
       Target-field discrimination is a latent correctness risk: a minimally-conformant or
       buggy sender omitting the target will be silently misrouted. A distinct object type
       eliminates this risk structurally and makes the wire format self-describing.
       See also `notes/activitystreams-state-update.md` § "Target-Field Discriminators".
+      `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, context=VulnerabilityCase)`)
+      is the canonical example of applying this principle, introduced by ADR-0039.
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
   - id: SE-08-004
     priority: MUST
     kind: protocol
+    statement: >-
+      When an `ActivityPattern` uses `target_` as the sole field that distinguishes it from
+      a less-specific competing pattern, `strict=True` MUST be set on that pattern so that
+      a bare URI string in the `target` field does NOT match the typed target constraint.
+    rationale: >-
+      `ActivityPattern._match_activity_field` treats a bare string as matching in permissive
+      mode (`strict=False`). Without `strict=True`, an unresolved `target` URI would cause
+      the more-specific pattern to match every competing shape regardless of whether the
+      target is the right type, making registry ordering the sole protection against
+      misrouting and defeating the discriminator's purpose.
+      See CONCERN-2322.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-08-001
+  - id: SE-08-005
+    priority: MUST
+    kind: protocol
     deprecated: true
     statement: >-
       The `OFFER_CASE_MANAGER_ROLE` semantic and its wire format
-      `Offer(VulnerabilityCase, target=CaseParticipant)` are **deprecated** in favour of
-      `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
-      context=VulnerabilityCase)`) introduced by ADR-0039. New senders MUST emit the
-      `OFFER_CASE_PARTICIPANT_ROLE` wire format. Receivers MUST continue to handle
-      `OFFER_CASE_MANAGER_ROLE` traffic for interoperability with pre-ADR-0039 actors.
+      `Offer(VulnerabilityCase, target=CaseParticipant)` have been **removed**.
+      Use `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
+      context=VulnerabilityCase)`) introduced by ADR-0039.
     rationale: >-
-      ADR-0039 resolves the wire ambiguity identified in CONCERN-1674 by introducing a
-      self-describing `as_CaseParticipantRole` object type, eliminating reliance on the
-      target-field discriminator that SE-08-001 through SE-08-003 document.
-      `OFFER_CASE_MANAGER_ROLE` is retained in the registry as a fallback-only entry
-      that appears after `OFFER_CASE_PARTICIPANT_ROLE` (SE-08-001).
+      ADR-0039 resolved the wire ambiguity identified in CONCERN-1674 by introducing a
+      self-describing `as_CaseParticipantRole` object type. The deprecated backward-compat
+      entry was removed by CONCERN-2322 since its wire format was never emitted by any
+      supported actor implementation and its presence was a source of registry-ordering
+      fragility documented in SE-08-004.
     relationships:
     - rel_type: refines
       spec_id: SE-08-003
