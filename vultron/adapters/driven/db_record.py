@@ -48,9 +48,11 @@ _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 # ``ParticipantStatus`` and ``CaseParticipant`` are normalised because their
 # two shapes are structurally incompatible: core nests ``rm: RmDimension``
 # while wire uses a flat ``rm_state``, so a wire-shaped row silently yields
-# ``None`` for ``status.rm.state``.  The other thirteen shadowing types
-# (``VulnerabilityCase``, ``VulnerabilityReport``, the actor types, …) differ
-# only by key spelling today and are not yet normalised — tracked in #2268.
+# ``None`` for ``status.rm.state``.  The remaining five shadowing types are
+# all actor types (``VultronApplication``, ``VultronGroup``,
+# ``VultronOrganization``, ``VultronPerson``, ``VultronService``); none has a
+# ``to_core()`` projection yet and they are not yet normalised — tracked in
+# #2268.
 _NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
     {
         "CaseLedgerEntry",
