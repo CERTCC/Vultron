@@ -184,7 +184,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Handlers processing EM state transitions MUST update the appropriate EM state field as follows:
+      Handlers processing EM state transitions MUST update the EM state field as follows:
       (a) when the accepting actor is the case owner, MUST update CaseStatus.em_state;
       (b) when the accepting actor is any other participant, MUST update that participant's
       ParticipantStatus.embargo_adherence;

@@ -411,7 +411,7 @@ groups:
     kind: project
     statement: 'Pydantic model fields whose type is a collection (`dict`, `set`, `list`, or any generic alias thereof) MUST
       NOT use `None` as their default value when the intent is "empty collection if not provided". Use `Field(default_factory=list)`,
-      `Field(default_factory=dict)`, or `Field(default_factory=set)` as appropriate. `None` is only acceptable as a field
+      `Field(default_factory=dict)`, or `Field(default_factory=set)` matching the field''s collection type. `None` is only acceptable as a field
       default when it is an intentional sentinel meaning "absent" (as distinct from "empty"), and that distinction must be
       observable in the model''s behaviour or serialisation. Plain function and method parameters are out of scope for this
       rule: `param: set[str] | None = None` with an `x or set()` guard in the body is the correct idiom for optional collection

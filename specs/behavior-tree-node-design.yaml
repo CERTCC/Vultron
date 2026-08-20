@@ -137,7 +137,7 @@ groups:
     kind: project
     statement: A decomposed BT leaf node that encounters a domain-layer error MUST write the error to the `result_out["error"]`
       blackboard key before returning `FAILURE`, and MUST re-raise the original exception in `execute()` after the write so
-      that the bridge layer can translate it into an appropriate HTTP or protocol response.
+      that the bridge layer can map it to the corresponding HTTP error response.
     rationale: Without a written error key the bridge layer sees only `FAILURE` with no diagnostic context; the error is silently
       swallowed. Writing to `result_out["error"]` ensures the error propagates to the caller via the result channel even when
       the BT stops traversal at the failing leaf.
@@ -149,7 +149,7 @@ groups:
     kind: project
     statement: A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a `FAILURE` status and MUST NOT
       allow the `KeyError` to propagate uncaught to the bridge layer. The leaf is responsible for catching `KeyError` in its
-      `update()` method and returning `FAILURE` with an appropriate diagnostic message.
+      `update()` method and returning `FAILURE` with a diagnostic message naming the missing key.
     rationale: A `KeyError` propagating to the bridge results in an unhandled 500-level error for the caller. At the leaf
       level the semantics of "key not present" are known — this is a precondition failure, not an unexpected crash, so `FAILURE`
       is the correct BT response.

@@ -111,7 +111,7 @@ groups:
     priority: MUST
     kind: project
     statement: 'When adding a new Vultron-specific object type, the new class MUST: 1. Inherit from `VultronObject` (or an
-      appropriate AS2 base such as `as_Object`, `as_Activity`, etc.) 2. Define `type_` as a `Literal[str]` field matching
+      AS2 base such as `as_Object`, `as_Activity`, etc.) 2. Define `type_` as a `Literal[str]` field matching
       the wire type name (registration via `__init_subclass__` fires automatically) 3. Be placed in the vocabulary subpackage
       that matches its category (`vocab/objects/`, `vocab/activities/`) 4. Be reachable via the dynamic discovery in the subpackage
       `__init__.py` (i.e., exist as a `.py` file in the package directory)'
