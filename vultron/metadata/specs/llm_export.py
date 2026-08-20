@@ -140,7 +140,7 @@ def _matches_filters(
     topic: str | None,
     selected_ids: set[str] | None,
     spec_id: str,
-    kind: str | None,
+    kinds: list[str] | None,
     scope: str | None,
     tags: list[str] | None,
     priority: str | None,
@@ -155,7 +155,7 @@ def _matches_filters(
     }
     eff_tag_values = {item.value for item in effective_tags(spec, file)}
 
-    if kind and spec.kind.value != kind:
+    if kinds and spec.kind.value not in kinds:
         return False
     if scope and scope not in eff_scope_values:
         return False
@@ -183,7 +183,7 @@ def to_llm_json(
     topic: str | None = None,
     spec_ids: list[str] | None = None,
     include_deps: bool = False,
-    kind: str | None = None,
+    kinds: list[str] | None = None,
     scope: str | None = None,
     tags: list[str] | None = None,
     priority: str | None = None,
@@ -196,7 +196,8 @@ def to_llm_json(
         spec_ids: Filter to these specific spec IDs.
         include_deps: When True and *spec_ids* is given, expand to include
             transitive dependencies via the requirements graph.
-        kind: Filter to specs with this effective kind value.
+        kinds: Filter to specs whose kind value is in this list (e.g.
+            ``["protocol", "architecture"]``).  *None* means no filter.
         scope: Filter to specs whose effective scope contains this value.
         tags: Filter to specs that have ALL of the given tags.
         priority: Filter to specs with this priority value.
@@ -220,7 +221,7 @@ def to_llm_json(
             topic=topic,
             selected_ids=selected_ids,
             spec_id=spec_id,
-            kind=kind,
+            kinds=kinds,
             scope=scope,
             tags=tags,
             priority=priority,

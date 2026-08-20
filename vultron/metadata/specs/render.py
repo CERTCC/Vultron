@@ -375,6 +375,8 @@ def main_llm_json() -> None:
 
         spec-dump
         spec-dump specs/
+        spec-dump --kind protocol
+        spec-dump --kind protocol,architecture
         spec-dump-llm-json
 
     Agents should run this at the start of any implementation or design task
@@ -382,7 +384,30 @@ def main_llm_json() -> None:
     """
     import sys
 
+    from vultron.metadata.specs.schema import SpecKind
+
+    _valid_kinds = {k.value for k in SpecKind}
+
     args = sys.argv[1:]
+    kinds_filter: list[str] | None = None
+
+    if "--kind" in args:
+        idx = args.index("--kind")
+        if idx + 1 >= len(args):
+            print("Error: --kind requires a value", file=sys.stderr)
+            sys.exit(2)
+        raw_kind = args[idx + 1]
+        args = args[:idx] + args[idx + 2 :]
+        kinds_filter = [k.strip() for k in raw_kind.split(",")]
+        invalid = [k for k in kinds_filter if k not in _valid_kinds]
+        if invalid:
+            print(
+                f"Error: unknown kind value(s): {', '.join(sorted(invalid))}."
+                f" Valid values: {', '.join(sorted(_valid_kinds))}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
     spec_dir = Path(args[0]) if args else Path("specs")
 
     if not spec_dir.is_dir():
@@ -395,7 +420,7 @@ def main_llm_json() -> None:
     from vultron.metadata.specs.llm_export import to_llm_json
 
     registry = load_registry(spec_dir)
-    print(to_llm_json(registry))
+    print(to_llm_json(registry, kinds=kinds_filter))
 
 
 if __name__ == "__main__":
