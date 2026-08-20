@@ -63,3 +63,61 @@ def make_client(base: str, actor_id: str | None = None) -> DataLayerClient:
     replica's state.
     """
     return DataLayerClient(base_url=base, actor_id=actor_id)
+
+
+def seed_case_replica_for_actor(
+    source_dl: Any, target_dl: Any, case_id: str
+) -> Any:
+    """Copy *case_id* from *source_dl* into *target_dl*, replica and participants.
+
+    Stands in for the ``Create(VulnerabilityCase)`` the CaseActor would deliver to
+    each participant.  Single-server demo tests share one ``TestClient`` portal,
+    where loopback delivery is blocked at depth > 0 to avoid deadlock, so that
+    message never arrives and the participant is left with no replica.  Tests
+    exercising the *real* round-trip use isolated actor apps instead
+    (``TestDeliveryIsolation``).
+
+    Copies the participant rows as well as the case.  ``_resolve_case_manager_id``
+    walks ``actor_participant_index`` and does ``dl.read(participant_id)`` on each,
+    so a replica holding only the case object resolves no CASE_MANAGER and any
+    participant-originated outbound activity fails with "No CASE_MANAGER
+    participant found" (PCR-08-001).
+
+    Both stores are passed in rather than derived here via ``clone_for_actor``:
+    only ``get_datalayer`` registers an instance, and for an in-memory ``db_url``
+    that registry *is* the hosted-actor list, so a cloned store can be the right
+    database while leaving the node not hosting that actor.  Callers therefore
+    hand over the same instances the routes will be given.
+
+    Returns:
+        The target actor's store, so callers can seed further objects into it.
+    """
+    target = target_dl
+    case = source_dl.read(case_id)
+    if case is None:
+        raise AssertionError(
+            f"cannot replicate case {case_id!r}: absent from the source store"
+            f" ({getattr(source_dl, 'actor_id', '<unknown>')})"
+        )
+
+    # Overwrite an existing replica rather than leaving it alone.  The target
+    # often *does* already hold a case row — an earlier `Create(VulnerabilityCase)`
+    # delivery can seed a skeleton whose `actor_participant_index` is empty — and
+    # "create only if absent" then silently keeps the empty one, which is
+    # indistinguishable from this helper never having run.
+    if target.read(case_id) is None:
+        target.create(case)
+    else:
+        target.save(case)
+
+    for participant_id in getattr(
+        case, "actor_participant_index", {}
+    ).values():
+        participant = source_dl.read(participant_id)
+        if participant is None:
+            continue
+        if target.read(participant_id) is None:
+            target.create(participant)
+        else:
+            target.save(participant)
+    return target

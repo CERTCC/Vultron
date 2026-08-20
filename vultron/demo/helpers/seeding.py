@@ -1031,6 +1031,20 @@ def reset_containers(
 
     with demo_check("All actor containers start with no persisted cases"):
         for label, client in labeled_clients:
+            # Only a client already bound to an actor can be asked "any cases?" —
+            # a DataLayer read names an actor under ADR-0066.  Resetting normally
+            # runs *before* seeding, so on a first run the clients are unbound
+            # and there is nothing to interrogate: the reset just cleared every
+            # store on the node, and no actor exists to hold a case.  This check
+            # earns its keep on re-runs, where a client carries the actor it was
+            # bound to and a surviving case would be a real leak.
+            if not client.actor_id:
+                logger.debug(
+                    "%s container not yet bound to an actor; nothing to verify"
+                    " after reset",
+                    label,
+                )
+                continue
             cases = client.get(client.dl_path("VulnerabilityCases/"))
             if cases:
                 raise AssertionError(

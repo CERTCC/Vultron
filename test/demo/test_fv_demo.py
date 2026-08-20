@@ -33,7 +33,11 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fv_demo as demo
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import (
+    make_client,
+    make_testclient_call,
+    seed_case_replica_for_actor,
+)
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.cli import main
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -509,6 +513,15 @@ class TestFinderAsksQuestion:
         )
         # ADR-0041: no case after validate-report; create one directly for setup.
         case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
+
+        # The finder needs its own replica before it can act on the case: adding
+        # a note resolves the CASE_MANAGER from the *finder's* store, since a BT
+        # runs against the store of the actor executing it (BT-05-005).
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        seed_case_replica_for_actor(
+            get_datalayer(vendor.id_), get_datalayer(finder.id_), case.id_
+        )
 
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         case = as_VulnerabilityCase(**case_data)
