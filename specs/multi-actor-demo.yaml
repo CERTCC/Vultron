@@ -513,37 +513,60 @@ groups:
   - id: DEMOMA-08-002
     priority: MUST
     kind: project
+    deprecated: true
     statement: >-
       CASE_MANAGER role delegation MUST be implemented as a distinct protocol mechanism from
       OFFER_CASE_OWNERSHIP_TRANSFER. CASE_MANAGER delegation allows the Vendor to retain
       CASE_OWNER while delegating operational authority to a service actor. The three-message
       handshake (Offer/Accept/Reject) MUST use distinct `MessageSemantics` values:
       `OFFER_CASE_MANAGER_ROLE`, `ACCEPT_CASE_MANAGER_ROLE`, `REJECT_CASE_MANAGER_ROLE`.
+    rationale: >-
+      Superseded by ADR-0039 (CONCERN-2322). The `OFFER_CASE_MANAGER_ROLE` wire format and
+      all supporting infrastructure were removed and replaced by `OFFER_CASE_PARTICIPANT_ROLE`
+      (`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)`), which is
+      self-describing and eliminates the ambiguity with OFFER_CASE_OWNERSHIP_TRANSFER.
+      See SE-08-005.
   - id: DEMOMA-08-006
     priority: MUST
     kind: project
+    deprecated: true
     statement: >-
       `OfferCaseManagerRolePattern`, `AcceptCaseManagerRolePattern`, and
       `RejectCaseManagerRolePattern` MUST be registered in
       `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/semantic_registry/__init__.py`.
       `OfferCaseManagerRoleReceivedUseCase`, `AcceptCaseManagerRoleReceivedUseCase`, and
       `RejectCaseManagerRoleReceivedUseCase` MUST be registered in the `use_case_map`.
+    rationale: >-
+      Superseded by ADR-0039 (CONCERN-2322). These patterns and use cases were deleted;
+      the replacement registry entries are `OFFER_CASE_PARTICIPANT_ROLE`,
+      `ACCEPT_CASE_PARTICIPANT_ROLE`, and `REJECT_CASE_PARTICIPANT_ROLE` backed by
+      `OfferCaseParticipantRoleReceivedUseCase`. See SE-08-005.
   - id: DEMOMA-08-007
     priority: MUST
     kind: project
+    deprecated: true
     statement: >-
       A trigger-side use case `SvcOfferCaseManagerRoleUseCase` MUST be implemented in
       `vultron/core/use_cases/triggers/actor.py` (or a new module in that package).
       It MUST build an `_OfferCaseManagerRoleActivity` addressed to the target Case Actor
       and enqueue it to the offering Vendor's outbox.
+    rationale: >-
+      Superseded by ADR-0039 (CONCERN-2322). `SvcOfferCaseManagerRoleUseCase` was deleted;
+      the replacement is the `offer_case_participant_role` adapter method and
+      `SvcOfferCaseParticipantRoleUseCase`. See SE-08-005.
   - id: DEMOMA-08-008
     priority: SHOULD
     kind: project
+    deprecated: true
     statement: >-
       A trigger-side use case `SvcAcceptCaseManagerRoleUseCase` SHOULD be implemented
       for the Case Actor to explicitly accept (rather than auto-accepting via the received
       use case). This allows manual override of the auto-accept behavior for deployments
       that require explicit operator approval before the Case Actor assumes the role.
+    rationale: >-
+      Superseded by ADR-0039 (CONCERN-2322). `SvcAcceptCaseManagerRoleUseCase` was deleted;
+      auto-acceptance is now handled by `AutoAcceptCaseParticipantRoleNode` in the received
+      tree. See SE-08-005.
   - id: DEMOMA-08-009
     priority: MUST
     kind: project

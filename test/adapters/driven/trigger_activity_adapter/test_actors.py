@@ -273,3 +273,128 @@ class TestAcceptCaseParticipantOffer:
             obj, dict
         ), "object_ must be an inline dict, not a URI"
         assert obj.get("id") == cp_offer_id
+
+
+_VENDOR = "https://example.org/actors/vendor"
+_CASE_ACTOR = "https://example.org/actors/case-actor"
+_OFFER_ID = "https://example.org/activities/offer-role-1"
+
+
+def _make_role_case(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(id_=_CASE_ID, name="Role Test Case")
+    dl.create(case)
+    return case
+
+
+class TestAcceptCaseParticipantRole:
+    """Tests for accept_case_participant_role adapter method (ADR-0039)."""
+
+    def test_returns_id_and_dict(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        activity_id, activity_dict = adapter.accept_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
+        )
+
+        assert activity_id
+        assert isinstance(activity_dict, dict)
+        assert "id" in activity_dict
+
+    def test_persists_accept_activity(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        activity_id, _ = adapter.accept_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
+        )
+
+        assert dl.read(activity_id) is not None
+
+    def test_idempotent_on_duplicate(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        kwargs = dict(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
+        )
+        activity_id1, _ = adapter.accept_case_participant_role(**kwargs)
+        activity_id2, _ = adapter.accept_case_participant_role(**kwargs)
+
+        assert activity_id1 == activity_id2
+
+
+class TestRejectCaseParticipantRole:
+    """Tests for reject_case_participant_role adapter method (ADR-0039)."""
+
+    def test_returns_activity_id(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        activity_id = adapter.reject_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
+        )
+
+        assert activity_id
+
+    def test_persists_reject_activity(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        activity_id = adapter.reject_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
+        )
+
+        assert dl.read(activity_id) is not None
+
+    def test_idempotent_on_duplicate(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        kwargs = dict(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
+        )
+        activity_id1 = adapter.reject_case_participant_role(**kwargs)
+        activity_id2 = adapter.reject_case_participant_role(**kwargs)
+
+        assert activity_id1 == activity_id2
