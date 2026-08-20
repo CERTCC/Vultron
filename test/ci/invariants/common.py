@@ -242,11 +242,18 @@ def load_devlogs(
         if manifests:
             _fail_no_ledgers_despite_dump(search_root, manifests)
         skip_hint = f"devlogs/{demo_name}/" if demo_name else "devlogs/"
-        pytest.skip(
+        msg = (
             f"No *-case-ledger.jsonl files found under {skip_hint} and no "
             f"{DUMP_MANIFEST_FILENAME} — run the demo first "
             "(see test/ci/README-case-log-ratchet.md)"
         )
+        if demo_name:
+            # The scenario directory exists but contains neither ledger files
+            # nor a dump manifest — the dump never ran at all.  This is a
+            # real failure (crashed before any output was written), not a
+            # "demo has not been run yet" skip (ISSUE-2411 Gap 2).
+            pytest.fail(msg)
+        pytest.skip(msg)
 
     for actor in replicas:
         replicas[actor] = sorted(replicas[actor], key=log_index)
@@ -778,4 +785,52 @@ def check_no_rejected_invite_entries(
                     f"Actor {actor!r} logIndex={log_index(e)}: spurious"
                     f" rejected invite_actor_to_case entry (CLP-13-001 violation)"
                 )
+    return violations
+
+
+def check_per_actor_replica_divergence(
+    replicas: dict[str, list[dict]],
+    *,
+    check_fix_ready: bool = True,
+) -> list[str]:
+    """Each non-case-actor replica satisfies the same state invariants as the authoritative log.
+
+    Runs RM-state and CS-transition invariants against every replica that is
+    not ``case-actor``.  The ``{actor: entries}`` single-actor dict causes
+    ``auth_entries()`` to fall back to the actor's own entries, reusing the
+    existing canonical check logic without modification (ISSUE-2411 Gap 1).
+
+    Actors whose replica contains no ``add_participant_status_to_participant``
+    entries are skipped for the three status-dependent checks; they have no
+    state-machine observations to verify.
+
+    Args:
+        replicas: All loaded replicas for the scenario.
+        check_fix_ready: Passed through to ``check_cs_state_transitions_observed``.
+            Set ``False`` for scenarios where no Vendor ever becomes a participant
+            (e.g. fcv-reject), matching the canonical invariant's behaviour.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        if actor == "case-actor":
+            continue
+        actor_dict = {actor: entries}
+        prefix = f"Actor {actor!r}"
+        for msg in check_no_rm_state_oscillation(actor_dict):
+            violations.append(f"{prefix}: {msg}")
+        has_status_entries = any(
+            event_type(e) == "add_participant_status_to_participant"
+            for e in entries
+        )
+        if has_status_entries:
+            for msg in check_rm_closed_termination(actor_dict):
+                violations.append(f"{prefix}: {msg}")
+            for msg in check_participant_status_schema_completeness(
+                actor_dict
+            ):
+                violations.append(f"{prefix}: {msg}")
+            for msg in check_cs_state_transitions_observed(
+                actor_dict, check_fix_ready=check_fix_ready
+            ):
+                violations.append(f"{prefix}: {msg}")
     return violations

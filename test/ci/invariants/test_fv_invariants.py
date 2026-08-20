@@ -31,6 +31,7 @@ from test.ci.invariants.common import (
     check_non_empty_payload_snapshots,
     check_participant_status_schema_completeness,
     check_payload_context_uses_case_uri,
+    check_per_actor_replica_divergence,
     check_rm_closed_termination,
     load_devlogs,
 )
@@ -293,6 +294,19 @@ def test_invariant_clp13_no_rejected_invite_entries(
     assert not violations, (
         f"Found {len(violations)} spurious rejected invite_actor_to_case"
         f" entries (CLP-13-001 violation):\n" + "\n".join(violations)
+    )
+
+
+@pytest.mark.case_ledger_invariants
+def test_invariant_per_actor_replica_divergence(
+    fv_replicas: dict[str, list[dict]],
+) -> None:
+    """Each non-case-actor replica satisfies the same state invariants as the authoritative log."""
+    violations = check_per_actor_replica_divergence(fv_replicas)
+    assert (
+        not violations
+    ), f"{len(violations)} per-actor invariant violation(s):\n" + "\n".join(
+        violations
     )
 
 
