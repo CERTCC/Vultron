@@ -62,6 +62,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AddCaseStatusToCaseReceivedUseCase,
         phrase="{actor} updated the case status",
         wire_activity_class=_AddStatusToCaseActivity,
+        include_activity=True,
     ),
     # Participant status
     SemanticEntry(

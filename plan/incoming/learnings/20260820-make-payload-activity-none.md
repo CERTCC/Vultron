@@ -24,6 +24,14 @@ event = make_payload(activity).model_copy(update={"activity": activity})
 **Risk:** Any future test that exercises the ledger-commit path without attaching the raw activity
 will fail with a confusing `payloadSnapshot.actor` error, not an obvious `activity is None` error.
 
-**Possible fix:** Update `_extract_payload_snapshot` to fall back to `event.actor_id` when
-`activity.activity` is None and `activity` is a domain event. Or update the `make_payload`
-fixture to always attach `event.activity`. Track as a follow-up Concern.
+**Root cause confirmed (ISSUE-2254 / PR #2421):** The `ADD_CASE_STATUS_TO_CASE` semantic registry
+entry was missing `include_activity=True`. That flag causes `extract_intent()` to populate
+`event.activity` with a `VultronActivity` snapshot of the raw AS2 activity. Without it, the inbox
+never set `event.activity`, so `_extract_payload_snapshot` fell back to dumping the domain event
+directly — which lacks the wire-format `actor` and `type` fields the ledger schema requires.
+
+Fix applied: `include_activity=True` added to `semantic_registry/status.py` for
+`ADD_CASE_STATUS_TO_CASE`. Compare: `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` already had it.
+
+`_extract_payload_snapshot` also received a defensive `actor` patch from `actor_id` (lifecycle.py)
+to guard against future callers that pass a domain event with `activity=None`.
