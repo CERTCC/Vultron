@@ -25,13 +25,43 @@ from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     update_participant_rm_state,
 )
+
+
+def _current_report_phase_rm_state(dl, actor_id: str, report_id: str) -> RM:
+    """Return the current report-phase RM state for actor/report.
+
+    Checks the DataLayer for existing report-phase ParticipantStatus records in
+    descending-progress order (CLOSED first) and returns the highest-progress
+    state found.  Returns ``RM.RECEIVED`` as the implicit default when no
+    records exist — consistent with ``CheckRMStateReceivedOrInvalid`` semantics
+    (absence of a status record means the report was received but not yet
+    processed).
+
+    Per BTND-10-001: callers use this to establish the *current_state* side of
+    the (current_state → target_state) validity check before writing a new
+    report-phase ParticipantStatus.
+    """
+    for rm_state in (
+        RM.CLOSED,
+        RM.ACCEPTED,
+        RM.DEFERRED,
+        RM.VALID,
+        RM.INVALID,
+        RM.RECEIVED,
+    ):
+        status_id = _report_phase_status_id(
+            actor_id, report_id, rm_state.value
+        )
+        if dl.read(status_id) is not None:
+            return rm_state
+    return RM.RECEIVED
 
 
 def _transition_case_participant_rm(
@@ -170,6 +200,18 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
                 else self.report_id
             )
 
+            current_rm = _current_report_phase_rm_state(
+                self.datalayer, actor_id, self.report_id
+            )
+            if current_rm != RM.VALID and not is_valid_rm_transition(
+                current_rm, RM.VALID
+            ):
+                self.feedback_message = (
+                    f"Invalid RM transition {current_rm!r} → {RM.VALID!r}"
+                )
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     actor_id, self.report_id, RM.VALID.value
@@ -251,6 +293,18 @@ class TransitionRMtoInvalid(DataLayerAction):
                 else self.report_id
             )
 
+            current_rm = _current_report_phase_rm_state(
+                self.datalayer, self.actor_id, self.report_id
+            )
+            if current_rm != RM.INVALID and not is_valid_rm_transition(
+                current_rm, RM.INVALID
+            ):
+                self.feedback_message = (
+                    f"Invalid RM transition {current_rm!r} → {RM.INVALID!r}"
+                )
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.INVALID.value
@@ -326,6 +380,18 @@ class TransitionRMtoClosed(DataLayerAction):
                 if isinstance(case, VulnerabilityCase)
                 else self.report_id
             )
+
+            current_rm = _current_report_phase_rm_state(
+                self.datalayer, self.actor_id, self.report_id
+            )
+            if current_rm != RM.CLOSED and not is_valid_rm_transition(
+                current_rm, RM.CLOSED
+            ):
+                self.feedback_message = (
+                    f"Invalid RM transition {current_rm!r} → {RM.CLOSED!r}"
+                )
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(

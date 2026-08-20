@@ -496,8 +496,24 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
 class TestSvcRejectReportUseCase(_ReportTriggerBase):
     """execute() path tests for SvcRejectReportUseCase."""
 
+    def _seed_invalid(self):
+        """Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001)."""
+        from vultron.core.models.dimensions import RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+
+        status = ParticipantStatus(
+            id_=_report_phase_status_id(
+                self.vendor.id_, self.report.id_, RM.INVALID.value
+            ),
+            context=self.report.id_,
+            attributed_to=self.vendor.id_,
+            rm=RmDimension(state=RM.INVALID),
+        )
+        self.dl.create(status)
+
     def test_reject_report_returns_activity_dict(self):
         """execute() returns result['activity'] with type 'Reject' (DL-06-001)."""
+        self._seed_invalid()
         request = RejectReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -513,6 +529,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
 
     def test_reject_report_queues_activity_in_outbox(self):
         """execute() enqueues at least one activity in the actor's outbox."""
+        self._seed_invalid()
         request = RejectReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
