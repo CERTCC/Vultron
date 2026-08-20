@@ -65,9 +65,17 @@ def _extract_payload_snapshot(
             dict[str, Any],
             build_activity_payload_snapshot(event_activity, dl=dl),
         )
-    return cast(
+    snapshot = cast(
         dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
     )
+    # Domain events serialize actor_id, not the wire-format actor URI.
+    # Patch it in so the ledger schema's non-empty-URI check passes.
+    if not snapshot.get("actor"):
+        actor_id = getattr(activity, "actor_id", None)
+        if actor_id:
+            snapshot = dict(snapshot)
+            snapshot["actor"] = actor_id
+    return snapshot
 
 
 #: snake_case spellings of the patchable flat status fields.  A snapshot is
