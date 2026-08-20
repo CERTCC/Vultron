@@ -186,6 +186,7 @@ def add_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,
+                validate_rm=False,
             ),
             status_adoption_gate,
             EmitAddCaseStatusToSelfNode(

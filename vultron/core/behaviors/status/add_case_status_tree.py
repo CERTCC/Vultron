@@ -23,15 +23,16 @@ RSH-03-003): after the canonical CaseStatus write, a ``EmbargoTeardownAuthorizat
 signals a threat (P=True OR X=True OR A=True).
 
     AddCaseStatusToCaseBT (Sequence)
-    ├─ CheckCaseStatusIdempotencyNode   # AC-1: status not already present
-    ├─ ValidateCaseStatusTransitionNode # AC-2: EM/PXA transitions are valid
-    ├─ AppendCaseStatusToCaseNode       # AC-1: append status and persist
-    ├─ EmbargoTeardownAuthorizationGate (Selector)      # EmbargoTeardownAuthorizationGate (RSH-02-001)
-    │   └─ SideEffectsApproved         # call-out; default AlwaysSucceed
-    └─ ThreatTerminationBranchNode      # Embargo teardown (RSH-03-001)
+    ├─ CheckCaseStatusIdempotencyNode              # precondition guard (CLP-10-009)
+    ├─ ValidateCaseStatusTransitionNode            # precondition guard (CLP-10-009)
+    ├─ GuardedCommitOrSkip                         # canonical ledger commit (CLP-10-006)
+    ├─ AppendCaseStatusToCaseNode                  # AC-1: append status and persist
+    ├─ EmbargoTeardownAuthorizationGate (Selector) # EmbargoTeardownAuthorizationGate (RSH-02-001)
+    │   └─ SideEffectsApproved                    # call-out; default AlwaysSucceed
+    └─ ThreatTerminationBranchNode                 # Embargo teardown (RSH-03-001)
 
 Per issue #758 (BT-SM Integration: AddCaseStatusToCaseReceivedUseCase),
-RSH-02-001 to RSH-03-003, ADR-0046.
+RSH-02-001 to RSH-03-003, ADR-0046, CLP-10-006, CLP-10-009.
 """
 
 import logging
@@ -41,6 +42,9 @@ import py_trees
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
+)
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    create_receive_activity_tree,
 )
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 from vultron.core.behaviors.status.nodes import (
@@ -87,10 +91,10 @@ def add_case_status_tree(
     case_id = request.case_id or ""
     status_obj = request.status
 
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="AddCaseStatusToCaseBT",
-        memory=False,
-        children=[
+        case_id=case_id or None,
+        precondition_guards=[
             CheckCaseStatusIdempotencyNode(
                 case_id=case_id,
                 status_id=status_id,
@@ -100,6 +104,8 @@ def add_case_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
+        ],
+        effect_nodes=[
             AppendCaseStatusToCaseNode(
                 case_id=case_id,
                 status_id=status_id,

@@ -113,7 +113,7 @@ No open entries.
 | `fv Invariant Harness` | #2422 | 2026-08-20 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
-| `fcvcv Demo Integration` | #2376 | 2026-08-19 |
+| `fcvcv Demo Integration` | #2376 | 2026-08-20 |
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
@@ -124,9 +124,11 @@ No open entries.
 > downstream consequence of incomplete devlogs.  First confirmed 2026-08-20 on
 > PR #2419.
 >
-> `fcvcv Demo Integration` now points to #2376 (coordinator RM.RECEIVED timeout + 422
-> on engage-case, same async race-window class as #2221). Previous issue #2337
-> (Finder ledger-coverage timeout) was closed 2026-08-18; row re-added 2026-08-19.
+> `fcvcv Demo Integration` points to #2376 (async race-window class, #2221). Third
+> observed failure mode (2026-08-20, PR #2421): `M7 reporter pxa_state not
+> public-aware` — `fcvcv Invariant Harness` passed confirming orchestration-layer
+> timing. Second mode: coordinator RM.RECEIVED / 422 engage-case (also #2376).
+> First mode (Finder ledger-coverage timeout): closed as #2337 (2026-08-18).
 >
 > `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` now point to
 > #2257 (`AddCaseParticipantReceivedBT` failure).  Root error:

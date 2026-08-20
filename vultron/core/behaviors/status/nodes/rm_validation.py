@@ -15,12 +15,12 @@
 
 """RM-transition guards for the append-participant-status path.
 
-Both nodes here adjudicate the ``rm`` dimension *alone* and refuse the whole
-snapshot when it is unacceptable.  That is correct for the standalone
-``append_participant_status_tree``, where the caller has already decided which
-status to append, but it is the wrong shape for a receive-side seam — see
-:mod:`vultron.core.behaviors.status.nodes.dimension_filter` and ADR-0061
-(RSH-05, ISSUE-2235).
+``ValidateRMTransitionNode`` adjudicates the ``rm`` dimension alone and is
+appropriate for standalone use of ``append_participant_status_tree``.  When
+called from ``add_participant_status_tree`` the rm dimension has already been
+adjudicated by ``FilterParticipantStatusDimensionsNode`` in
+``precondition_guards`` (CLP-10-009, RSH-05), so ``validate_rm=False`` is
+passed to skip this node and avoid a redundant post-commit check.
 """
 
 import logging
@@ -30,10 +30,6 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition, read_rm_states
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    BB_DIMENSION_FILTER,
-    resolve_dimension_filter,
-)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import (
@@ -88,25 +84,6 @@ class ValidateRMTransitionNode(DataLayerCondition):
             key="append_status_status_obj",
             access=py_trees.common.Access.READ,
         )
-        self.blackboard.register_key(
-            key=BB_DIMENSION_FILTER,
-            access=py_trees.common.Access.READ,
-        )
-
-    def _rm_was_carried_forward(
-        self, current_rm: RM, new_rm_state: RM
-    ) -> bool:
-        """Return True if the filter node refused ``rm`` and carried *current*.
-
-        Only a filtered status that actually restates the current RM value is
-        honoured; anything else falls through to the normal checks.
-        """
-        if not self.status_id:
-            return False
-        filtered = resolve_dimension_filter(self.blackboard, self.status_id)
-        if filtered is None or "rm" not in filtered["refused"]:
-            return False
-        return current_rm == new_rm_state
 
     def update(self) -> Status:
         participant = self.blackboard.get("append_status_participant")
@@ -128,13 +105,6 @@ class ValidateRMTransitionNode(DataLayerCondition):
         if states is None:
             return Status.FAILURE
         new_rm_state, current_rm = states
-        if self._rm_was_carried_forward(current_rm, new_rm_state):
-            self.logger.debug(
-                "ValidateRMTransitionNode: rm was refused upstream and"
-                " carried forward as %s — accepting (RSH-05)",
-                current_rm,
-            )
-            return Status.SUCCESS
 
         if current_rm == RM.CLOSED:
             self.feedback_message = (
