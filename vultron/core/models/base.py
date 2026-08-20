@@ -19,7 +19,7 @@ import re
 import types as _types
 import typing as _typing
 from datetime import datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, ClassVar
 
 from pydantic import (
     AfterValidator,
@@ -93,8 +93,18 @@ class VultronObject(ValidatedAssignmentMixin, VultronBase):
     this base rather than directly from ``BaseModel``.
     """
 
+    # Sentinel: True on the core branch (default), overridden to False on
+    # as_Object so wire-branch types never self-register in CORE_TYPE_MAP
+    # (issue #2416).  CoreObject subclasses inherit True and are guarded by
+    # CoreObject.__init_subclass__ instead.
+    _is_core_branch: ClassVar[bool] = True
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
+        # Wire-branch types inherit _is_core_branch=False from as_Object and
+        # must not self-register in CORE_TYPE_MAP (issue #2416).
+        if not cls._is_core_branch:
+            return
         # Register every concrete VultronObject subclass in CORE_TYPE_MAP so
         # that find_in_vocabulary() can locate them without placing them in the
         # wire VOCABULARY dict (ARCH-12-003). Only subclasses that declare

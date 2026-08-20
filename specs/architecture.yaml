@@ -213,9 +213,21 @@ groups:
   - id: ARCH-12-004
     priority: MUST
     kind: project
-    statement: The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for AS2 serialization
-      shape (field aliases, `@context`, lenient `Any | None` types). Wire-branch types MUST register in `VOCABULARY`; core-branch
-      types MUST register in `CORE_VOCABULARY`.
+    statement: >-
+      The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for AS2 serialization
+      shape (field aliases, `@context`, lenient `Any | None` types). Wire-branch types MUST register in `VOCABULARY`.
+      Core-branch types use a two-registry model: `CoreObject` subclasses MUST register in `CORE_VOCABULARY` (the
+      DataLayer primary reconstruction path); `VultronObject`-direct subclasses that do not extend `CoreObject` MUST
+      register in `CORE_TYPE_MAP` (the wire-layer fallback path). Both registries are consulted by `find_in_vocabulary()`:
+      `VOCABULARY` first, then `CORE_TYPE_MAP`. Wire-branch types MUST NOT register in either core registry.
+    rationale: >-
+      `CORE_VOCABULARY` is the DataLayer primary reconstruction path (used by `_from_row()` in `SqliteDataLayer`);
+      every entry must be a `CoreObject` subclass. `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()` in the
+      wire registry layer, catching core types that are not `CoreObject` subclasses (e.g. `VultronOfferRecord`,
+      `VultronPendingCaseInbox`). These types extend `VultronObject` directly and carry Vultron-specific domain state
+      not representable via `CoreObject`. Contaminating `CORE_TYPE_MAP` with wire types (issue #2416) would silently
+      allow wire-shaped objects to be reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary
+      path and contradicting ARCH-12-003.
   - id: ARCH-12-005
     priority: MUST
     kind: project

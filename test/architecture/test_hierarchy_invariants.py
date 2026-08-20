@@ -233,6 +233,78 @@ class TestWireVocabularyHierarchy:
         ), f"Non-VultronBase classes in VOCABULARY: {list(non_vultron_base.keys())}"
 
 
+class TestCoreTypeMapHierarchy:
+    """Tests for CORE_TYPE_MAP hierarchy invariants (ARCH-12-003, ARCH-12-004)."""
+
+    def test_no_wire_types_in_core_type_map(self) -> None:
+        """CORE_TYPE_MAP must contain only core-branch types, never wire types.
+
+        VultronObject.__init_subclass__ must guard against wire-layer types
+        self-registering via the shared root hook (issue #2416).
+
+        Spec: ARCH-12-003 — core-branch types MUST NOT carry wire-specific
+        concerns; the converse also holds: CORE_TYPE_MAP must not be
+        contaminated with wire types.
+        """
+        import vultron.wire.as2.vocab.objects  # noqa: F401
+        import vultron.wire.as2.vocab.activities  # noqa: F401
+
+        from vultron.core.models.registry import CORE_TYPE_MAP
+
+        _WIRE_MODULE_PREFIX = "vultron.wire"
+        wire_intruders = {
+            name: cls
+            for name, cls in CORE_TYPE_MAP.items()
+            if cls.__module__.startswith(_WIRE_MODULE_PREFIX)
+        }
+        assert not wire_intruders, (
+            f"Wire types found in CORE_TYPE_MAP: {sorted(wire_intruders.keys())}\n"
+            "CORE_TYPE_MAP must contain only core-branch types (issue #2416)."
+        )
+
+    def test_vultron_object_direct_types_in_core_type_map(self) -> None:
+        """VultronObject-direct core types must be reachable via CORE_TYPE_MAP.
+
+        These five types extend VultronObject but not CoreObject; they must
+        register in CORE_TYPE_MAP (not CORE_VOCABULARY) so that
+        find_in_vocabulary() can reconstruct them without VOCABULARY
+        registration (ARCH-12-003). Enforces ARCH-12-004 as updated per
+        issue #2417.
+        """
+        from vultron.core.models.offer_record import VultronOfferRecord
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+        from vultron.core.models.pending_create_case_activity import (
+            PendingCreateCaseActivity,
+        )
+        from vultron.core.models.registry import CORE_TYPE_MAP
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+
+        expected = [
+            ("OfferRecord", VultronOfferRecord),
+            ("VultronOfferRecord", VultronOfferRecord),
+            ("PendingCaseInbox", VultronPendingCaseInbox),
+            ("VultronPendingCaseInbox", VultronPendingCaseInbox),
+            ("PendingCreateCaseActivity", PendingCreateCaseActivity),
+            ("ReplicationState", VultronReplicationState),
+            ("VultronReplicationState", VultronReplicationState),
+            ("ReportCaseLink", VultronReportCaseLink),
+            ("VultronReportCaseLink", VultronReportCaseLink),
+        ]
+        missing = [
+            key for key, cls in expected if CORE_TYPE_MAP.get(key) is not cls
+        ]
+        assert not missing, (
+            f"Expected CORE_TYPE_MAP entries missing or wrong: {missing}\n"
+            "VultronObject-direct core types must register in CORE_TYPE_MAP"
+            " (ARCH-12-004, issue #2417)."
+        )
+
+
 class TestCoreObjectModelConfig:
     """Tests for CoreObject model_config invariants."""
 
