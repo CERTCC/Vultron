@@ -26,8 +26,6 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
-| `test/ci/invariants/test_fv_invariants.py::test_invariant_5_expected_event_types_present[validate_report]` | #2274 | 2026-08-13 |
-| `test/ci/invariants/test_fv_invariants.py::test_invariant_5_expected_event_types_present[engage_case]` | #2274 | 2026-08-13 |
 
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
@@ -111,12 +109,21 @@ No open entries.
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
+| `fv Demo Integration` | #2422 | 2026-08-20 |
+| `fv Invariant Harness` | #2422 | 2026-08-20 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
 | `fcvcv Demo Integration` | #2376 | 2026-08-19 |
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
+> `fv Demo Integration` / `fv Invariant Harness` now point to #2422 (vendor
+> RM.RECEIVED timeout at M3, cascading `notify-fix-ready` 422 from cross-machine
+> entailment guard, then vfd_state timeouts at M4/M5/M6).  Same async race-window
+> class as #2376 (fcvcv, coordinator/engage-case).  Invariant Harness fails as a
+> downstream consequence of incomplete devlogs.  First confirmed 2026-08-20 on
+> PR #2419.
+>
 > `fcvcv Demo Integration` now points to #2376 (coordinator RM.RECEIVED timeout + 422
 > on engage-case, same async race-window class as #2221). Previous issue #2337
 > (Finder ledger-coverage timeout) was closed 2026-08-18; row re-added 2026-08-19.
