@@ -399,6 +399,59 @@ def wait_for_contiguous_ledger_coverage(
 
 
 # ---------------------------------------------------------------------------
+# Generic DataLayer scan helper
+# ---------------------------------------------------------------------------
+
+
+def _poll_datalayer_for(
+    client: DataLayerClient,
+    discriminator_fn: Callable[[dict], bool],
+    timeout_seconds: float,
+    poll_interval: float,
+    log_msg: str,
+    error_msg: str,
+) -> str:
+    """Poll ``GET /datalayer/`` until *discriminator_fn* matches an object.
+
+    Scans the full DataLayer dict on each tick and calls *discriminator_fn*
+    on every ``dict``-typed value.  Returns the matching object's raw ID
+    string on the first match.
+
+    Args:
+        client: DataLayerClient to poll.
+        discriminator_fn: Callable receiving a single ``dict`` and returning
+            ``True`` when the target object is found.
+        timeout_seconds: Maximum seconds to wait before raising.
+        poll_interval: Seconds between successive GET calls.
+        log_msg: ``%``-style format string with a single ``%s`` placeholder
+            for the matched object ID; logged at INFO on a successful find.
+        error_msg: Message for the ``AssertionError`` raised on timeout.
+
+    Returns:
+        The raw ID string of the first matching object.
+
+    Raises:
+        AssertionError: If no matching object is found within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            all_objects = client.get("/datalayer/")
+            if isinstance(all_objects, dict):
+                for raw_id, obj_data in all_objects.items():
+                    if not isinstance(obj_data, dict):
+                        continue
+                    if discriminator_fn(obj_data):
+                        obj_id = str(raw_id)
+                        logger.info(log_msg, obj_id)
+                        return obj_id
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+    raise AssertionError(error_msg)
+
+
+# ---------------------------------------------------------------------------
 # Invite polling helpers
 # ---------------------------------------------------------------------------
 
@@ -446,30 +499,18 @@ def find_case_invite_for_actor(
     Raises:
         AssertionError: If no matching Invite is found within *timeout_seconds*.
     """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            all_objects = client.get("/datalayer/")
-            if isinstance(all_objects, dict):
-                for raw_id, obj_data in all_objects.items():
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if _is_case_invite_for(obj_data, case_id, invitee_id):
-                        obj_id = str(raw_id)
-                        logger.info(
-                            "Found Invite for actor %s on case %s: %s",
-                            invitee_id,
-                            case_id,
-                            obj_id,
-                        )
-                        return obj_id
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
-        f" case {case_id!r} to appear in DataLayer at {client.base_url}"
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_case_invite_for(
+            obj, case_id, invitee_id
+        ),
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=f"Found Invite for actor {invitee_id} on case {case_id}: %s",
+        error_msg=(
+            f"Timed out waiting for CaseActor Invite for actor {invitee_id!r}"
+            f" on case {case_id!r} to appear in DataLayer at {client.base_url}"
+        ),
     )
 
 
@@ -538,35 +579,23 @@ def find_ownership_transfer_offer_for_actor(
 
     Spec: CM-21-005.
     """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            all_objects = client.get("/datalayer/")
-            if isinstance(all_objects, dict):
-                for raw_id, obj_data in all_objects.items():
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if _is_ownership_transfer_offer_for(
-                        obj_data, case_id, transferee_id
-                    ):
-                        obj_id = str(raw_id)
-                        logger.info(
-                            "Found forwarded Offer(VulnerabilityCase) for"
-                            " transferee %s on case %s: %s",
-                            transferee_id,
-                            case_id,
-                            obj_id,
-                        )
-                        return obj_id
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for forwarded Offer(VulnerabilityCase) for"
-        f" transferee {transferee_id!r} on case {case_id!r} to appear in"
-        f" DataLayer at {client.base_url} — CaseActor outbox delivery may"
-        " not have completed (CM-21-005)"
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_ownership_transfer_offer_for(
+            obj, case_id, transferee_id
+        ),
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=(
+            f"Found forwarded Offer(VulnerabilityCase) for"
+            f" transferee {transferee_id} on case {case_id}: %s"
+        ),
+        error_msg=(
+            f"Timed out waiting for forwarded Offer(VulnerabilityCase) for"
+            f" transferee {transferee_id!r} on case {case_id!r} to appear in"
+            f" DataLayer at {client.base_url} — CaseActor outbox delivery may"
+            " not have completed (CM-21-005)"
+        ),
     )
 
 
@@ -615,29 +644,16 @@ def find_cp_offer_for_case(
     Raises:
         AssertionError: If no such offer is found within *timeout_seconds*.
     """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            all_objects = client.get("/datalayer/")
-            if isinstance(all_objects, dict):
-                for raw_id, obj_data in all_objects.items():
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if _is_cp_offer_for_case(obj_data, case_id):
-                        obj_id = str(raw_id)
-                        logger.info(
-                            "Found Offer(CaseParticipant) for case %s: %s",
-                            case_id,
-                            obj_id,
-                        )
-                        return obj_id
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for Offer(CaseParticipant) for case {case_id!r}"
-        f" to appear in DataLayer at {client.base_url}"
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_cp_offer_for_case(obj, case_id),
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=f"Found Offer(CaseParticipant) for case {case_id}: %s",
+        error_msg=(
+            f"Timed out waiting for Offer(CaseParticipant) for case"
+            f" {case_id!r} to appear in DataLayer at {client.base_url}"
+        ),
     )
 
 
