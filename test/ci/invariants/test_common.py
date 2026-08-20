@@ -33,6 +33,7 @@ from test.ci.invariants.common import (
     check_non_empty_payload_snapshots,
     check_participant_status_schema_completeness,
     check_payload_context_uses_case_uri,
+    check_per_actor_replica_divergence,
     check_rm_closed_termination,
 )
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
@@ -617,13 +618,34 @@ class TestLoadDevlogsManifestHandling:
             common.load_devlogs("fvv")
         assert "devlogs/" in str(excinfo.value)
 
-    def test_skips_when_scenario_ran_no_dump(self, tmp_path, monkeypatch):
-        """No manifest means the dump never ran, so there is nothing to judge."""
+    def test_fails_when_scenario_dir_exists_but_no_dump(
+        self, tmp_path, monkeypatch
+    ):
+        """Directory exists with no manifest means the dump never ran — a real failure.
+
+        When a named scenario directory exists but contains neither ledger
+        files nor a manifest, the demo runner wrote the directory but exited
+        before producing any output.  This is a crashed run, not a missing
+        run, so the harness must fail rather than skip (ISSUE-2411 Gap 2).
+        """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
         (tmp_path / "fvv").mkdir()
-        with pytest.raises(Skipped) as excinfo:
+        with pytest.raises(Failed) as excinfo:
             common.load_devlogs("fvv")
-        assert "run the" in str(excinfo.value)
+        assert "run the" in (excinfo.value.msg or "")
+
+    def test_skips_when_unscoped_and_no_files(self, tmp_path, monkeypatch):
+        """Unscoped load_devlogs() (no demo_name) still skips when no ledger files exist.
+
+        The ISSUE-2411 Gap-2 fix adds an ``if demo_name:`` branch so that only
+        named-scenario calls fail on an empty directory; unscoped calls must
+        continue to skip so that running the invariant harness locally against
+        an empty devlogs/ tree does not error.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs()
+        assert "devlogs/" in str(excinfo.value)
 
     def test_fails_when_manifest_reports_no_ledgers(
         self, tmp_path, monkeypatch
@@ -896,3 +918,134 @@ class TestAllSkipGuard:
         session = _ses(0)
         guard.pytest_sessionfinish(session=session)
         assert session.exitstatus == 0
+
+
+# ---------------------------------------------------------------------------
+# check_per_actor_replica_divergence (ISSUE-2411 Gap 1)
+# ---------------------------------------------------------------------------
+
+_ACTOR_A_ID = "https://example.org/actors/actor-a"
+_ACTOR_B_ID = "https://example.org/actors/actor-b"
+
+
+def _status_entry(
+    log_idx: int,
+    rm_state: str,
+    vfd_state: str,
+    pxa_state: str,
+    actor_id: str = _ACTOR_A_ID,
+) -> dict:
+    h = _SHA256(f"status:{log_idx}:{rm_state}")
+    return _entry(
+        log_idx,
+        h,
+        _SHA256(f"prev:{log_idx}"),
+        event_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": rm_state,
+                "emConsentState": "SIGNATORY",
+                "cvdRole": ["FINDER"],
+                "vfdState": vfd_state,
+                "caseStatus": {"pxaState": pxa_state},
+            }
+        },
+    )
+
+
+def _vendor_entries_valid() -> list[dict]:
+    """Minimal vendor replica that passes all per-actor checks."""
+    return [
+        _status_entry(0, "ACCEPTED", "VFd", "Pxa"),
+        _status_entry(1, "CLOSED", "VFd", "PXA"),
+    ]
+
+
+class TestCheckPerActorReplicaDivergence:
+    """check_per_actor_replica_divergence detects per-replica state violations.
+
+    Tests confirm: (a) case-actor replica is exempt; (b) actors without status
+    entries are exempt; (c) violations are found on invalid replicas; (d)
+    check_fix_ready is honoured per-actor (ISSUE-2411 Gap 1).
+    """
+
+    def test_passes_on_valid_multi_actor_replicas(self):
+        replicas = {
+            "case-actor": _vendor_entries_valid(),
+            "vendor": _vendor_entries_valid(),
+        }
+        assert check_per_actor_replica_divergence(replicas) == []
+
+    def test_case_actor_is_exempt(self):
+        """case-actor replica is never checked by this function."""
+        # Inject a defect only in case-actor — should produce no violations.
+        bad_entry = _status_entry(0, "ACCEPTED", "VFd", "Pxa")
+        bad_entry["payloadSnapshot"]["object"].pop("emConsentState")
+        replicas = {"case-actor": [bad_entry]}
+        assert check_per_actor_replica_divergence(replicas) == []
+
+    def test_actor_without_status_entries_is_exempt(self):
+        """An actor whose log has no status entries is not checked."""
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        assert check_per_actor_replica_divergence(replicas) == []
+
+    def test_detects_rm_oscillation_in_non_case_actor(self):
+        """RM state oscillation after CLOSED is detected in non-case-actor."""
+        actor_id = _ACTOR_A_ID
+        entries = [
+            _status_entry(0, "ACCEPTED", "VFd", "Pxa", actor_id),
+            _status_entry(1, "CLOSED", "VFd", "PXA", actor_id),
+            _status_entry(
+                2, "ACCEPTED", "VFd", "PXA", actor_id
+            ),  # oscillation
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_divergence(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_detects_rm_closed_termination_failure_in_non_case_actor(self):
+        """Actor that never reaches CLOSED is flagged."""
+        entries = [_status_entry(0, "ACCEPTED", "VFd", "Pxa")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_divergence(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_detects_missing_cs_transition_in_non_case_actor(self):
+        """Actor whose replica never observes the P-transition is flagged."""
+        entries = [
+            _status_entry(0, "ACCEPTED", "VFd", "pxa"),  # no P yet
+            _status_entry(1, "CLOSED", "VFd", "pxa"),  # still no P
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_divergence(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_check_fix_ready_false_skips_vfd_check_per_actor(self):
+        """check_fix_ready=False exempts VFd check for each non-case-actor replica."""
+        # vendor has P-transition but no VFd — valid when check_fix_ready=False
+        entries = [
+            _status_entry(0, "ACCEPTED", "vfd", "Pxa"),  # no VFd
+            _status_entry(1, "CLOSED", "vfd", "PXA"),  # still no VFd
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_divergence(
+            replicas, check_fix_ready=False
+        )
+        assert not violations
+
+    def test_check_fix_ready_true_enforces_vfd_check_per_actor(self):
+        """check_fix_ready=True (default) flags missing VFd in non-case-actor."""
+        entries = [
+            _status_entry(0, "ACCEPTED", "vfd", "Pxa"),  # no VFd
+            _status_entry(1, "CLOSED", "vfd", "PXA"),  # still no VFd
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_divergence(replicas)
+        assert violations
+        assert "vendor" in violations[0]

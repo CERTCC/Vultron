@@ -313,6 +313,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             embargo = as_EmbargoEvent(
                 id_=f"{case.id_}/embargo/e1",
                 content="Active embargo",
+                context=case.id_,
             )
             dl.create(embargo)
             case.active_embargo = embargo.id_
@@ -385,6 +386,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             id_=f"{case.id_}/embargo/e1",
             content="Active embargo",
             end_time=end_time,
+            context=case.id_,
         )
         dl.create(embargo)
         from vultron.core.states.em import EM

@@ -28,9 +28,10 @@ protection, for the mirror-image reason:
   asserts that a given type is normalised.
 
 Fifteen wire classes shadow a ``CORE_VOCABULARY`` entry (their ``type_`` is bare,
-so the ``as_``-prefix guard in ``Record.from_obj`` never fires for them).  Two are
-normalised today; the remaining thirteen are enumerated below so that a *new*
-shadowing type has to be triaged rather than joining the backlog unnoticed.
+so the ``as_``-prefix guard in ``Record.from_obj`` never fires for them).  Ten are
+normalised today; the remaining five (all actor types) are enumerated below so
+that a *new* shadowing type has to be triaged rather than joining the backlog
+unnoticed.
 
 Related: issue #2232 (the shape duality), issue #2268 (migrating the rest).
 """
@@ -68,14 +69,6 @@ _NORMALIZED_AS_OF_2232: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 _NOT_YET_NORMALIZED: frozenset[str] = frozenset(
     {
-        "CaseLedgerEntry",
-        "CaseReference",
-        "CaseStatus",
-        "EmbargoEvent",
-        "EmbargoPolicy",
-        "VulnerabilityCase",
-        "VulnerabilityRecord",
-        "VulnerabilityReport",
         # No to_core() projection exists for these yet.
         "VultronApplication",
         "VultronGroup",

@@ -454,3 +454,138 @@ def test_keep_inline_nested_types_matches_enum_union_exactly():
         | {"CaseLedgerEntry"}
     )
     assert _KEEP_INLINE_NESTED_TYPES == expected
+
+
+# ---------------------------------------------------------------------------
+# Round-trip normalization tests for the 8 types migrated in #2401 (DL-05-005)
+# ---------------------------------------------------------------------------
+
+_CASE_ID_2401 = "urn:uuid:case-2401-0000-0000-000000000000"
+_LOG_OBJ_ID_2401 = "urn:uuid:logobj-2401-0000-000000000000"
+_ACTOR_ID_2401 = "https://example.org/actors/finder-2401"
+_ACTOR_INBOX_2401 = "https://example.org/actors/finder-2401/inbox"
+
+
+def _make_wire_vulnerability_report():
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    return as_VulnerabilityReport(
+        name="CVE-2401-0001",
+        content="details",
+        attributed_to=_ACTOR_ID_2401,
+    )
+
+
+def _make_wire_vulnerability_case():
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    return as_VulnerabilityCase(name="Case-2401")
+
+
+def _make_wire_embargo_event():
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    return as_EmbargoEvent(context=_CASE_ID_2401)
+
+
+def _make_wire_case_status():
+    from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+
+    return as_CaseStatus(context=_CASE_ID_2401)
+
+
+def _make_wire_case_ledger_entry():
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        as_CaseLedgerEntry,
+    )
+
+    return as_CaseLedgerEntry(
+        case_id=_CASE_ID_2401,
+        log_object_id=_LOG_OBJ_ID_2401,
+        event_type="RS",
+    )
+
+
+def _make_wire_case_reference():
+    from vultron.wire.as2.vocab.objects.case_reference import as_CaseReference
+
+    return as_CaseReference(url="https://example.org/cases/ext-case-2401")
+
+
+def _make_wire_embargo_policy():
+    from datetime import timedelta
+
+    from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
+
+    return as_EmbargoPolicy(
+        actor_id=_ACTOR_ID_2401,
+        inbox=_ACTOR_INBOX_2401,
+        preferred_duration=timedelta(days=90),
+    )
+
+
+def _make_wire_vulnerability_record():
+    from vultron.wire.as2.vocab.objects.vulnerability_record import (
+        as_VulnerabilityRecord,
+    )
+
+    return as_VulnerabilityRecord(name="CVE-2401-0001")
+
+
+@pytest.mark.parametrize(
+    "make_wire_obj,expected_type",
+    [
+        (_make_wire_vulnerability_report, "VulnerabilityReport"),
+        (_make_wire_vulnerability_case, "VulnerabilityCase"),
+        (_make_wire_embargo_event, "EmbargoEvent"),
+        (_make_wire_case_status, "CaseStatus"),
+        (_make_wire_case_ledger_entry, "CaseLedgerEntry"),
+        (_make_wire_case_reference, "CaseReference"),
+        (_make_wire_embargo_policy, "EmbargoPolicy"),
+        (_make_wire_vulnerability_record, "VulnerabilityRecord"),
+    ],
+    ids=[
+        "VulnerabilityReport",
+        "VulnerabilityCase",
+        "EmbargoEvent",
+        "CaseStatus",
+        "CaseLedgerEntry",
+        "CaseReference",
+        "EmbargoPolicy",
+        "VulnerabilityRecord",
+    ],
+)
+def test_object_to_record_normalizes_migrated_wire_type(
+    make_wire_obj, expected_type
+):
+    """Wire instances of each type migrated in #2401 are stored in core shape.
+
+    Regression for DL-05-005: these types were previously stored as-is in
+    their wire shape, producing rows whose field names might not match what
+    the core reader expected.  Each must now be stored with type_ equal to
+    the core vocabulary entry name.
+    """
+    wire_obj = make_wire_obj()
+    record = object_to_record(cast(Any, wire_obj))
+    assert record.type_ == expected_type
+
+
+def test_embargo_event_without_context_raises_on_persist():
+    """A wire EmbargoEvent with no context cannot be persisted.
+
+    Core EmbargoEvent.context is NonEmptyString (required).  The wire class
+    accepts None, but projecting it via to_core() raises because the core
+    constraint is not met.  This must surface as VultronValidationError —
+    not silently stored — so the caller can supply context before persisting.
+    """
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    no_context = as_EmbargoEvent()
+    assert no_context.context is None, "wire class must accept None context"
+
+    with pytest.raises(VultronValidationError):
+        object_to_record(cast(Any, no_context))
