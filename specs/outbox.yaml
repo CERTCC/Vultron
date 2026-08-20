@@ -127,7 +127,7 @@ groups:
     statement: The `object_` field of outbound activities MUST NOT be dehydrated
     relationships:
     - rel_type: depends_on
-      spec_id: MV-09-001
+      spec_id: AKM-03-001
 - id: OX-08
   title: Outbox Addressing
   specs:
