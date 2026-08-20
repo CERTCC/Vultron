@@ -4,6 +4,7 @@ status: active
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
+  - specs/ci-security.yaml
 ---
 
 # Demo CI Invariant Harness Design
@@ -423,8 +424,8 @@ workflow-status-detection logic lives inside the action:
     run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 ```
 
-Every qualifying workflow MUST declare `issues: write` permission (CISEC-05-001,
-CISEC-05-002). Workflows with a root-level `permissions: contents: read` block MUST
+Every qualifying workflow MUST declare `issues: write` permission (CISEC-02-002,
+CISEC-05-001, CISEC-05-002). Workflows with a root-level `permissions: contents: read` block MUST
 expand it to a map that explicitly includes `issues: write`.
 
 ### Qualifying Workflows and Their Labels
