@@ -98,12 +98,20 @@ def _assigned_shallow(stmts: list) -> set:
 
 
 def _load_names(stmts: list) -> set:
-    """All Load-context Name ids anywhere within a statement list."""
+    """Load-context Name ids within stmts, not crossing nested scope boundaries."""
     names: set = set()
+    _scope_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+
+    def _collect(node: ast.AST) -> None:
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            names.add(node.id)
+        if isinstance(node, _scope_types):
+            return  # stop at scope boundary
+        for child in ast.iter_child_nodes(node):
+            _collect(child)
+
     for stmt in stmts:
-        for node in ast.walk(stmt):
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-                names.add(node.id)
+        _collect(stmt)
     return names
 
 
@@ -125,6 +133,12 @@ def _undefended_in_stmts(stmts: list) -> list:
         if cm not in _GUARDED_CMS:
             pre.update(_assigned_shallow([stmt]))
             continue
+
+        # optional_vars (the "as x" binding) are bound by __enter__ before the
+        # body runs; add them to pre so a body re-assignment is not flagged.
+        for item in stmt.items:
+            if item.optional_vars:
+                pre.update(_store_names(item.optional_vars))
 
         block_assigned = _assigned_shallow(stmt.body)
         undefended = block_assigned - pre
@@ -168,6 +182,132 @@ def _violations_in_file(path: pathlib.Path) -> list:
 # ---------------------------------------------------------------------------
 # The ratchet test
 # ---------------------------------------------------------------------------
+
+
+def _parse_function_body(src: str) -> list:
+    """Return the body of the first function defined in *src*."""
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return node.body
+    raise ValueError("no function found")
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for helpers (#2386 and #2387)
+# ---------------------------------------------------------------------------
+
+
+def test_load_names_does_not_cross_nested_functiondef():
+    """_load_names must not collect names from nested FunctionDef bodies.
+
+    A variable assigned only in a nested function is a distinct binding;
+    it must not cause a false positive for the enclosing scope (#2386).
+    """
+    stmts = _parse_function_body("""
+def outer():
+    def inner():
+        report = make_inner_report()
+        use(report)
+
+    outer_call(other)
+""")
+    # 'report' appears only inside the nested def body — must not be returned
+    names = _load_names(stmts)
+    assert (
+        "report" not in names
+    ), "_load_names crossed into nested FunctionDef and found 'report'"
+    # 'other' is in the outer scope and must be returned
+    assert "other" in names
+
+
+def test_load_names_does_not_cross_nested_asyncfunctiondef():
+    """_load_names must not collect names from nested AsyncFunctionDef bodies (#2386)."""
+    stmts = _parse_function_body("""
+def outer():
+    async def inner():
+        result = compute()
+        use(result)
+
+    outer_call(x)
+""")
+    names = _load_names(stmts)
+    assert "result" not in names
+    assert "x" in names
+
+
+def test_load_names_does_not_cross_nested_classdef():
+    """_load_names must not collect names from nested ClassDef bodies (#2386)."""
+    stmts = _parse_function_body("""
+def outer():
+    class Inner:
+        value = compute()
+
+    outer_call(y)
+""")
+    names = _load_names(stmts)
+    assert "value" not in names
+    assert "y" in names
+
+
+def test_undefended_no_false_positive_nested_def_same_name(tmp_path):
+    """Nested function with same-named local must not produce false positive (#2386).
+
+    'report' is assigned in the demo_step block and also in a nested function's
+    body. Because the nested function is a separate scope, the outer function
+    should NOT be flagged.
+    """
+    src = """\
+def outer():
+    with demo_step("Step"):
+        report = get_report()
+
+    def inner():
+        report = make_inner_report()
+        use(report)
+"""
+    path = tmp_path / "demo_outer.py"
+    path.write_text(src)
+    found = _violations_in_file(path)
+    assert found == [], f"False positive for nested-def same-name: {found}"
+
+
+def test_undefended_no_false_positive_optional_vars_also_in_body(tmp_path):
+    """as-binding plus body re-assignment must not produce false positive (#2387).
+
+    'ctx' is bound by demo_step.__enter__ AND reassigned in the block body.
+    Because __enter__ fires before the body, 'ctx' is always bound; the ratchet
+    must not flag it.
+    """
+    src = """\
+def example():
+    with demo_step("Step") as ctx:
+        ctx = transform(ctx)
+    use(ctx)
+"""
+    path = tmp_path / "demo_example.py"
+    path.write_text(src)
+    found = _violations_in_file(path)
+    assert (
+        found == []
+    ), f"False positive for optional_vars re-assignment in body: {found}"
+
+
+def test_undefended_still_catches_real_undefended_after_fixes(tmp_path):
+    """After both fixes, genuine undefended variables must still be flagged."""
+    src = """\
+def bad():
+    with demo_step("Step"):
+        result = compute()
+    use(result)
+"""
+    path = tmp_path / "demo_bad.py"
+    path.write_text(src)
+    found = _violations_in_file(path)
+    vars_found = [v for _, _, v in found]
+    assert (
+        "result" in vars_found
+    ), "Real undefended 'result' was not detected after fixes"
 
 
 def test_no_undefended_demo_step_vars():
