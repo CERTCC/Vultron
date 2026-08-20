@@ -1059,9 +1059,9 @@ groups:
     kind: project
     statement: >-
       After the FVCV-handoff ownership transfer, the Coordinator MUST hold
-      CVDRole.CASE_OWNER and Vendor1 MUST become a plain participant.
+      CVDRole.CASE_OWNER.
     rationale: >-
-      These are the two role-change postconditions that define a successful handoff.
+      The ownership transfer postcondition for the Coordinator: it becomes the case owner.
   - id: DEMOMA-11-012
     priority: MUST
     kind: project
@@ -1080,6 +1080,15 @@ groups:
     rationale: >-
       Ownership transfer does not alter PEC consent state; all prior signatories and
       any late-joining participants remain bound by the active embargo.
+  - id: DEMOMA-11-014
+    priority: MUST
+    kind: project
+    statement: >-
+      After the FVCV-handoff ownership transfer, Vendor1 MUST become a plain
+      participant (no longer holding CVDRole.CASE_OWNER).
+    rationale: >-
+      The ownership transfer postcondition for Vendor1: it relinquishes the case-owner
+      role and becomes an ordinary participant.
 
 - id: DEMOMA-12
   title: FCV Scenario (Finder reports to Coordinator; Coordinator invites Vendor)
