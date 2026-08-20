@@ -4,6 +4,7 @@ status: active
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
+  - specs/ci-security.yaml
 ---
 
 # Demo CI Invariant Harness Design
@@ -381,6 +382,76 @@ combined) is only fully closed by a GitHub **merge queue**, which re-runs
 required checks against the actual merged result before landing. That is a
 larger branch-protection / required-checks decision tracked separately as a
 follow-up Idea; DEMOCI-05 only adds the post-merge baseline signal.
+
+---
+
+## CI Failure Notification — `notify-failure` Composite Action (CISEC-05)
+
+Design decisions and implementation guidance for `.github/actions/notify-failure`,
+the shared composite action wired into every qualifying workflow (push to `main`
+or `schedule` trigger). See ADR-0055 and `specs/ci-security.yaml` CISEC-05.
+
+### Composite Action Interface
+
+The action accepts three inputs:
+
+- `mode`: `notify` (file/update issue on failure) or `close` (close open issue on
+  recovery).
+- `workflow-label`: the workflow-specific label, e.g. `ci:workflow-demo-integration`.
+  Combined with the shared `ci:main-failure` label, the pair uniquely identifies the
+  open failure issue for this workflow — enabling update-not-duplicate semantics.
+- `run-url`: `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`.
+  Included in the issue body so the failing run is one click away.
+
+Each qualifying workflow wires **two** steps using `if:` conditions so no
+workflow-status-detection logic lives inside the action:
+
+```yaml
+- name: Notify CI failure
+  if: failure()
+  uses: ./.github/actions/notify-failure
+  with:
+    mode: notify
+    workflow-label: ci:workflow-<name>
+    run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+- name: Close CI failure issue
+  if: success()
+  uses: ./.github/actions/notify-failure
+  with:
+    mode: close
+    workflow-label: ci:workflow-<name>
+    run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+```
+
+Every qualifying workflow MUST declare `issues: write` permission (CISEC-02-002,
+CISEC-05-001, CISEC-05-002). Workflows with a root-level `permissions: contents: read` block MUST
+expand it to a map that explicitly includes `issues: write`.
+
+### Qualifying Workflows and Their Labels
+
+| Workflow file                 | Trigger            | Workflow-specific label              |
+|-------------------------------|--------------------|-----------------------------------------|
+| `demo-integration.yml`        | push to main       | `ci:workflow-demo-integration`          |
+| `python-app.yml`              | push to main       | `ci:workflow-python-app`                |
+| `lint_md_all.yml`             | push to main       | `ci:workflow-lint-markdown`             |
+| `spec-check.yml`              | push to main       | `ci:workflow-spec-check`                |
+| `actions-lint.yml`            | push to main       | `ci:workflow-actions-lint`              |
+| `quarterly_tag.yml`           | schedule           | `ci:workflow-quarterly-tag`             |
+| `stale_claim_sweeper.yml`     | schedule           | `ci:workflow-stale-claim-sweeper`       |
+
+### Deduplication Model
+
+The composite action searches for any open issue with **both** `ci:main-failure`
+and the workflow-specific label using `gh issue list --label`. If one exists,
+`notify` appends a comment (avoids alert flooding across repeated failures without
+a fix). If none exists, `notify` creates a new issue. `close` searches the same
+label combination and closes any open match.
+
+The `ci:main-failure` label is bot-managed; CISEC-05-005 enforces this via a
+separate `issues: labeled` workflow that strips the label if `github.actor !=
+github-actions[bot]`. This prevents label spoofing that could suppress a
+legitimate failure notification.
 
 ---
 
