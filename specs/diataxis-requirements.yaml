@@ -135,7 +135,7 @@ groups:
   - id: DF-04-004
     priority: MUST
     kind: process
-    statement: Use conditional imperatives (e.g., "If you want X, do Y") when appropriate.
+    statement: Use conditional imperatives (e.g., "If you want X, do Y") when the step applies only under a specific condition.
   - id: DF-04-005
     priority: MUST_NOT
     kind: process

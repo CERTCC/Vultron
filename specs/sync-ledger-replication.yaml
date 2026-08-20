@@ -420,7 +420,7 @@ groups:
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
       Announce(CaseLedgerEntry). The inline CaseLedgerEntry parsed from the wire envelope
-      MUST be carried forward in-memory (or via a clearly separate, non-ledger holding area)
+      MUST be carried forward in-memory (or via a dedicated, non-ledger holding area)
       so that semantic routing and effect application do not depend on pre-storing the entry.
   - id: SYNC-13-004
     priority: MUST
