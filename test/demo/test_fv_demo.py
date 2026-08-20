@@ -36,7 +36,7 @@ import vultron.demo.scenario.fv_demo as demo
 from test.demo._helpers import (
     make_client,
     make_testclient_call,
-    seed_case_replica_for_actor,
+    seed_replicas_for_case_participants,
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.cli import main
@@ -514,13 +514,14 @@ class TestFinderAsksQuestion:
         # ADR-0041: no case after validate-report; create one directly for setup.
         case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
-        # The finder needs its own replica before it can act on the case: adding
-        # a note resolves the CASE_MANAGER from the *finder's* store, since a BT
-        # runs against the store of the actor executing it (BT-05-005).
+        # Every participant needs its own replica before it can act on the case:
+        # a BT runs against the store of the actor executing it (BT-05-005), so
+        # the finder resolves CASE_MANAGER from the finder's store and the
+        # CaseActor reads the case from its own before it will commit anything.
         from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 
-        seed_case_replica_for_actor(
-            get_datalayer(vendor.id_), get_datalayer(finder.id_), case.id_
+        seed_replicas_for_case_participants(
+            get_datalayer(vendor.id_), case.id_
         )
 
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))

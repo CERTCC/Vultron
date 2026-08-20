@@ -71,11 +71,15 @@ def seed_case_replica_for_actor(
     """Copy *case_id* from *source_dl* into *target_dl*, replica and participants.
 
     Stands in for the ``Create(VulnerabilityCase)`` the CaseActor would deliver to
-    each participant.  Single-server demo tests share one ``TestClient`` portal,
-    where loopback delivery is blocked at depth > 0 to avoid deadlock, so that
-    message never arrives and the participant is left with no replica.  Tests
-    exercising the *real* round-trip use isolated actor apps instead
-    (``TestDeliveryIsolation``).
+    each participant.
+
+    Note on why that delivery does not happen: *not* because nested delivery is
+    blocked.  Several comments in this suite claim loopback delivery is "blocked
+    at depth > 0 to prevent deadlocks", but nothing implements such a guard —
+    ``_TestClientRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
+    precisely so nested sends do not deadlock, and multi-hop deliveries are
+    observably completing with 202s.  The seeding here compensates for the
+    *sender* never queueing the message, not for the transport dropping it.
 
     Copies the participant rows as well as the case.  ``_resolve_case_manager_id``
     walks ``actor_participant_index`` and does ``dl.read(participant_id)`` on each,
@@ -121,3 +125,49 @@ def seed_case_replica_for_actor(
         else:
             target.save(participant)
     return target
+
+
+def seed_replicas_for_case_participants(
+    source_dl: Any, case_id: str, db_url: str = "sqlite:///:memory:"
+) -> dict[str, Any]:
+    """Replicate *case_id* into the store of every actor participating in it.
+
+    Stands in for the CaseActor's ``Create(VulnerabilityCase)`` /
+    ``Announce(CaseLedgerEntry)`` fan-out, which seeds each participant's replica
+    in a real deployment.
+
+    The CaseActor's own replica matters as much as the participants':
+    ``CheckIsCaseManagerNode`` reads the case from the store of the actor
+    executing the tree, so a CaseActor with no case fails the role gate with
+    "case not found in DataLayer" — which reads like a *role* problem and is
+    really a *replica* problem. The gate then skips silently, no ledger entry is
+    committed, and nothing is announced onward.
+
+    Args:
+        source_dl: Store holding the authoritative case (usually the owner's).
+        case_id: Case to replicate.
+        db_url: Backing URL for the target stores; must match the one the app's
+            ``get_actor_dl`` override uses or the routes will read a different
+            database.
+
+    Returns:
+        Mapping of actor id to the store seeded for it, source actor excluded.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    case = source_dl.read(case_id)
+    if case is None:
+        raise AssertionError(
+            f"cannot replicate case {case_id!r}: absent from the source store"
+            f" ({getattr(source_dl, 'actor_id', '<unknown>')})"
+        )
+
+    seeded: dict[str, Any] = {}
+    own = getattr(source_dl, "actor_id", None)
+    for actor_id in getattr(case, "actor_participant_index", {}):
+        if actor_id == own:
+            continue
+        target = get_datalayer(actor_id, db_url=db_url)
+        seed_case_replica_for_actor(source_dl, target, case_id)
+        seeded[actor_id] = target
+    return seeded

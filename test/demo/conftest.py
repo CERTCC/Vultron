@@ -286,7 +286,20 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.integration)
 
 
-_CASE_ACTOR_SERVICE_URL = "http://localhost:7999/api/v2"
+#: Where demo tests expect to find a CaseActor service.
+#:
+#: This is ``TestClient``'s own base, not the configured ``localhost:7999``,
+#: because it must name the node that actually *serves* these tests.
+#: ``ResolveCaseActorUrlsNode`` derives a CaseActor's id from this value, and the
+#: inbox route resolves an incoming path segment against the serving app's base
+#: URL.  Point the two at different hosts and the case's CASE_MANAGER participant
+#: names one CaseActor while the route opens another's store — so
+#: ``CheckIsCaseManagerNode`` finds no match, the guarded commit skips silently,
+#: no ``Announce(CaseLedgerEntry)`` is queued, and the fan-out that carries notes
+#: and status to the other participants never happens. Nothing raises.
+#:
+#: Tests using ``create_isolated_actor_app`` override this with their own host.
+_CASE_ACTOR_SERVICE_URL = "http://testserver/api/v2"
 
 
 @pytest.fixture(scope="session", autouse=True)
