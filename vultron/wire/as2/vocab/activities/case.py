@@ -211,6 +211,30 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     )
 
 
+class _AcceptCaseParticipantRoleActivity(as_Accept):
+    """Target actor accepts the canonical role-delegation offer (ADR-0039).
+
+    - object_: the ``_OfferCaseParticipantRoleActivity`` being accepted
+    See SE-08-003, ADR-0039.
+    """
+
+    object_: _OfferCaseParticipantRoleActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RejectCaseParticipantRoleActivity(as_Reject):
+    """Target actor rejects the canonical role-delegation offer (ADR-0039).
+
+    - object_: the ``_OfferCaseParticipantRoleActivity`` being rejected
+    See SE-08-003, ADR-0039.
+    """
+
+    object_: _OfferCaseParticipantRoleActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
 class _OfferCaseManagerRoleActivity(as_Offer):
     """Vendor offers the CASE_MANAGER role to a Case Actor participant.
 

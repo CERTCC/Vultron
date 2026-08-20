@@ -464,9 +464,10 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **`ActivityPattern.target_` Is Always Permissive Unless `strict=True`** —
-  `_match_activity_field` hardcodes `strict=False` for the `target_` field pair,
-  so a bare URI string matches any typed target constraint. When `target_` is the
-  sole discriminator between two competing patterns (same `activity_` + `object_`),
+  `_match_activity_field` follows `self.strict` for the `target_` field pair
+  (permissive by default). When `strict=True`, bare URI strings do NOT match a
+  typed target constraint. When `target_` is the sole discriminator between two
+  competing patterns (same `activity_` + `object_`),
   set `strict=True` on the more-specific pattern; otherwise an unresolved target
   URI bypasses the discriminator and makes registry ordering the only guard.
   Prefer a dedicated object type (SE-08-003) over target-field discrimination

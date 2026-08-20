@@ -43,6 +43,48 @@ class OfferCaseParticipantRoleReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
+class AcceptCaseParticipantRoleReceivedEvent(VultronEvent):
+    """Offering actor received Accept(Offer(CaseParticipantRole, ...)).
+
+    The ADR-0039 canonical role-delegation acceptance: the target Actor (or
+    their CaseActor representative) accepted the role offer.
+    See SE-08-003, ADR-0039.
+    """
+
+    semantic_type: Literal[MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE] = (
+        MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE
+    )
+
+    @property
+    def offer_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def offer(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
+
+
+class RejectCaseParticipantRoleReceivedEvent(VultronEvent):
+    """Offering actor received Reject(Offer(CaseParticipantRole, ...)).
+
+    The ADR-0039 canonical role-delegation rejection: the target Actor (or
+    their CaseActor representative) declined the role offer.
+    See SE-08-003, ADR-0039.
+    """
+
+    semantic_type: Literal[MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE] = (
+        MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE
+    )
+
+    @property
+    def offer_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def offer(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
+
+
 class OfferCaseManagerRoleReceivedEvent(VultronEvent):
     """Vendor offered the CASE_MANAGER role to a Case Actor participant.
 

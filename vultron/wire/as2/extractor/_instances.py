@@ -239,6 +239,24 @@ OfferCaseParticipantRolePattern = ActivityPattern(
     object_=VOtype.CASE_PARTICIPANT_ROLE,
     context_=VOtype.VULNERABILITY_CASE,
 )
+AcceptCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Accept(Offer(CaseParticipantRole, ...)) — acceptance of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the offering actor "
+        "when the target actor accepts the role. See SE-08-003."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=OfferCaseParticipantRolePattern,
+)
+RejectCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Reject(Offer(CaseParticipantRole, ...)) — rejection of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the offering actor "
+        "when the target actor declines the role. See SE-08-003."
+    ),
+    activity_=TAtype.REJECT,
+    object_=OfferCaseParticipantRolePattern,
+)
 OfferCaseManagerRolePattern = ActivityPattern(
     description=(
         "Vendor offers the CASE_MANAGER role to a Case Actor participant. "
