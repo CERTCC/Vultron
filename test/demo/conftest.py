@@ -154,6 +154,27 @@ class IsolatedActorApp:
     base_url: str
     actor_id: str = ""
 
+    def store_for(self, actor_id: str) -> SqliteDataLayer:
+        """Return the store of *actor_id* as hosted by this app.
+
+        ``dl`` is only ever *one* actor's store — the app's own, named by
+        ``actor_slug`` at construction.  A container may host more actors than
+        that (a participant plus the CaseActors it self-hosts, CP-08-003), and a
+        test that creates its actor under a per-test slug is asking about a
+        different store than ``dl``.  Reading ``dl`` in that case reports an empty
+        store and the assertion fails for the wrong reason.
+
+        Built through ``get_datalayer`` with the same in-memory ``db_url`` the
+        app's ``get_actor_dl`` override uses, so it is the *same instance* the
+        routes are handed.
+
+        Args:
+            actor_id: Canonical URI of an actor hosted by this app.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        return get_datalayer(actor_id, db_url="sqlite:///:memory:")
+
 
 def create_isolated_actor_app(
     base_url: str,
