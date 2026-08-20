@@ -116,8 +116,8 @@ groups:
   - id: CP-05-002
     priority: MUST
     kind: protocol
-    statement: '`CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and either accept or reject it, emitting the
-      appropriate response activity.'
+    statement: '`CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and either accept or reject it, emitting an
+      `Accept(CaseProposal)` or `Reject(CaseProposal)` activity accordingly.'
   - id: CP-05-003
     priority: MUST
     kind: protocol

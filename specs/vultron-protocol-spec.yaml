@@ -31,7 +31,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      Adequate operation of the protocol MUST NOT depend on perfect information across all
+      Correct operation of the protocol MUST NOT depend on perfect information across all
       Participants
 - id: VP-02
   title: 'Report Management (RM): Receiving Reports'
@@ -40,7 +40,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Coordinators MUST have a clearly defined and publicly available mechanism for receiving
+      Coordinators MUST have a formally documented, publicly available mechanism for receiving
       reports
   - id: VP-02-002
     priority: MUST

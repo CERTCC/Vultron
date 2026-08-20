@@ -146,7 +146,7 @@ groups:
   - id: BT-07-003
     priority: MUST
     kind: protocol
-    statement: State transitions MUST be logged at the appropriate level
+    statement: State transitions MUST be logged at the level specified by SL-04-001
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
@@ -178,10 +178,6 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Actor blackboards MUST NOT share state
-  - id: BT-09-003
-    priority: MUST
-    kind: protocol
-    statement: Actor interaction MUST occur only via protocol messages
 - id: BT-10
   title: CaseActor Management
   specs:

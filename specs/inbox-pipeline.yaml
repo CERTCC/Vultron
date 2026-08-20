@@ -31,8 +31,8 @@ groups:
     statement: >-
       `InboxPipeline.process(activity_id: str)` MUST execute the full inbox
       processing chain: rehydrate the activity from the DataLayer, extract
-      the domain event, check case context, defer or dispatch as appropriate,
-      and handle errors with requeue logic.
+      the domain event, check case context, defer to the wait queue or dispatch via
+      the activity dispatcher, and handle errors with requeue logic.
     rationale: >-
       Wrapping the full `_process_inbox_item` path (not the simpler
       `handle_inbox_item`) ensures that deferral and error-requeue behaviours

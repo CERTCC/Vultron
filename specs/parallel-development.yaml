@@ -114,8 +114,9 @@ groups:
         kind: process
         statement: >-
           Epic Issues MUST be created using the GitHub `Epic` issue type (via
-          GraphQL `createIssue` with the appropriate `issueTypeId`) and MUST
-          be added to GitHub Project #24 with the appropriate `Schedule` value.
+          GraphQL `createIssue` with the Epic issue type's `issueTypeId`, discovered
+          via the GraphQL `issueTypes` query) and MUST be added to GitHub Project #24
+          with a `Schedule` value (Now/Next/Later/Someday) matching the work's priority.
       - id: PAD-02-013
         priority: MUST
         kind: process
@@ -308,7 +309,7 @@ groups:
         statement: >-
           After the docs-only PR is opened, `ingest-idea` MUST create a
           GitHub Issue with: a title and description derived from the spec,
-          the appropriate `size:` label (from AC count per PAD-05-001), and a
+          the `size:` label derived from the AC count per PAD-05-001, and a
           link to the spec file in the body. The Issue MUST be added to
           GitHub Project #24 (defaulting to `Schedule=Someday`).
       - id: PAD-09-003
@@ -403,8 +404,8 @@ groups:
         kind: process
         statement: >-
           Issues created by `update-plan` MUST be added to GitHub Project #24
-          with `Schedule=Someday` and the appropriate initial `size:` label
-          (from AC count per PAD-05-001).
+          with `Schedule=Someday` and the initial `size:` label derived from
+          the AC count per PAD-05-001.
 
   - id: PAD-14
     title: GitHub Actions Requirements

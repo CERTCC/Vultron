@@ -177,7 +177,7 @@ groups:
     priority: MUST
     kind: process
     statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
-      skill MUST invoke `study-project-docs` and let that skill mediate which plan files are appropriate to load.
+      skill MUST invoke `study-project-docs` and let that skill mediate which plan files are relevant to load.
 - id: HM-06
   title: Timestamp Field and Future-Date Rejection
   specs:

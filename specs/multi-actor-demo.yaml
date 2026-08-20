@@ -1756,7 +1756,7 @@ groups:
       `--finder-url`, `--c1-url`, `--c2-url`, `--vendor-url`,
       `--case-actor-url`, `--finder-id`, `--c1-id`, `--c2-id`,
       `--vendor-id`, `--case-actor-id`, and `--skip-health-check`
-      options with appropriate env-var bindings.
+      options with corresponding environment variable bindings.
     rationale: >-
       CLI consistency and Docker-entrypoint compatibility require the
       `DEMO=fccv-handoff` env var to map to `vultron-demo fccv-handoff`

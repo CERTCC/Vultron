@@ -48,8 +48,8 @@ groups:
   - id: CLP-02-003
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a normalized immutable snapshot of it, sufficient
-      for deterministic replay'
+    statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a normalized immutable snapshot of it, containing
+      all fields required for deterministic replay'
   - id: CLP-02-004
     priority: MUST
     kind: protocol

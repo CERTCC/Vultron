@@ -83,13 +83,6 @@ groups:
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
-  - id: MV-09-001
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
-      Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object
-      — bare string URIs and `as_Link` references are NOT permitted in outbound activities.
   - id: MV-09-002
     priority: MUST
     kind: protocol
@@ -164,13 +157,3 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
-- id: MV-08
-  title: Duplicate Detection
-  specs:
-  - id: MV-08-001
-    priority: SHOULD
-    kind: protocol
-    statement: The system SHOULD detect duplicate activity submissions during validation
-    relationships:
-    - rel_type: depends_on
-      spec_id: ID-02-001
