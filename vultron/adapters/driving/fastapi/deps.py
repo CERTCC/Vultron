@@ -39,7 +39,7 @@ that actor's own store.  The ``{actor_id}`` path parameter is no longer
 "accepted but unused".
 """
 
-from fastapi import Depends, Path
+from fastapi import Depends, Path, Request
 from typing import cast
 
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
@@ -54,8 +54,33 @@ from vultron.core.ports.trigger_service import TriggerServicePort
 from vultron.core.use_cases.triggers.service import TriggerService
 
 
+def node_base_url(request: Request | None) -> str | None:
+    """Return the base URL of the node serving *request*, if it declares one.
+
+    An actor's canonical URI is ``{node base URL}/actors/{slug}``, so resolving a
+    path segment needs to know which node is answering.  Process-global
+    configuration is the right answer in deployment, where one process is one
+    node.  It is the wrong answer in a harness that runs several nodes in one
+    process: every app would resolve segments into the same node's namespace.
+
+    So the value is *app*-scoped — fixed when the app is built (``create_app``)
+    and read from ``app.state`` here.  Deliberately not derived from the incoming
+    request's URL: that would let a client change which store the node opens by
+    changing its ``Host`` header, and would break every test that reaches an app
+    through ``TestClient``'s ``http://testserver`` default.
+
+    Returns ``None`` when the app declares nothing, leaving callers to fall back
+    to configuration — which keeps production behaviour unchanged.
+    """
+    if request is None:
+        return None
+    value = getattr(request.app.state, "node_base_url", None)
+    return value if isinstance(value, str) and value else None
+
+
 def get_actor_dl(
     actor_id: str = Path(...),
+    request: Request = None,  # type: ignore[assignment]
 ) -> DataLayer:
     """FastAPI dependency: the DataLayer belonging to the addressed actor.
 
@@ -68,12 +93,22 @@ def get_actor_dl(
     shared pool.  It also retires BUG-2026040901 structurally: there is only
     one store for an actor, so a queue can no longer be written under one
     spelling of its id and read under another.
+
+    The segment is resolved against the *serving app's* base URL when it declares
+    one (see :func:`node_base_url`), so a harness hosting several nodes in one
+    process resolves each app's segments into that app's own namespace.
     """
-    return cast(DataLayer, get_datalayer(canonical_actor_uri(actor_id)))
+    return cast(
+        DataLayer,
+        get_datalayer(
+            canonical_actor_uri(actor_id, base_url=node_base_url(request))
+        ),
+    )
 
 
 def get_trigger_dl(
     actor_id: str = Path(...),
+    request: Request = None,  # type: ignore[assignment]
 ) -> DataLayer:
     """FastAPI dependency: the addressed actor's DataLayer for trigger routes.
 
@@ -81,11 +116,12 @@ def get_trigger_dl(
     routes remain independently overridable in tests
     (``app.dependency_overrides[get_trigger_dl]``).
     """
-    return get_actor_dl(actor_id)
+    return get_actor_dl(actor_id, request)
 
 
 def get_canonical_actor_dl(
     actor_id: str = Path(...),
+    request: Request = None,  # type: ignore[assignment]
 ) -> DataLayer:
     """FastAPI dependency: alias of :func:`get_actor_dl`.
 
@@ -93,7 +129,7 @@ def get_canonical_actor_dl(
     the "canonical" qualifier is now redundant because every actor DataLayer is
     keyed by the canonical URI.
     """
-    return get_actor_dl(actor_id)
+    return get_actor_dl(actor_id, request)
 
 
 def get_trigger_service(

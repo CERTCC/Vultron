@@ -262,6 +262,7 @@ def create_app(
     version: str = "0.2.0",
     docs_url: str | None = "/docs",
     openapi_url: str | None = "/openapi/v2.json",
+    node_base_url: str | None = None,
 ) -> FastAPI:
     """Factory that creates a fresh, isolated FastAPI application instance.
 
@@ -296,6 +297,13 @@ def create_app(
         version: OpenAPI version string.
         docs_url: URL for the Swagger UI (``None`` to disable).
         openapi_url: URL for the OpenAPI schema (``None`` to disable).
+        node_base_url: Base URL at which *this* app is reached, used to resolve
+            actor path segments to canonical URIs.  Leave ``None`` to use
+            ``ServerConfig.base_url``, which is correct whenever one process is
+            one node.  Set it when several apps run in one process and each must
+            resolve segments into its own namespace — otherwise an actor created
+            under one app's base URL is looked up under another's and reported
+            missing.  See ``deps.node_base_url``.
 
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.
@@ -309,6 +317,7 @@ def create_app(
         openapi_url=openapi_url,
         lifespan=_make_lifespan(configure_globals=False),
     )
+    application.state.node_base_url = node_base_url
     if get_config().mode == RunMode.PROTOTYPE:
         from vultron.adapters.driving.fastapi.routers import demo_triggers
 

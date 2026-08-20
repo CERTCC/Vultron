@@ -38,7 +38,7 @@ from pydantic import BaseModel, Field
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer import get_datalayer
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from vultron.adapters.driving.fastapi.deps import get_actor_dl, node_base_url
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
@@ -158,7 +158,7 @@ class ActorCreateRequest(BaseModel):
     ),
     operation_id="actors_create",
 )
-def create_actor(request: ActorCreateRequest):
+def create_actor(request: ActorCreateRequest, http_request: Request):
     """Create (or return existing) actor record in that actor's own store.
 
     An actor is a process with API endpoints, and its id **is** the URL that
@@ -181,8 +181,16 @@ def create_actor(request: ActorCreateRequest):
     know (ADR-0066 decision 5). It is canonicalized to this node's namespace
     rather than adopted verbatim, because this node cannot serve an endpoint it
     does not own.
+
+    "This node's namespace" is the *serving app's* base URL where it declares one
+    (``deps.node_base_url``), falling back to configuration. Creating an actor and
+    then addressing it have to agree on that namespace, or the record lands in a
+    store no request can reach.
     """
-    actor_id = actor_hosts.canonical_actor_uri(request.id_ or str(uuid4()))
+    actor_id = actor_hosts.canonical_actor_uri(
+        request.id_ or str(uuid4()),
+        base_url=node_base_url(http_request),
+    )
     datalayer = get_datalayer(actor_id)
 
     # Idempotency: return existing record unchanged.

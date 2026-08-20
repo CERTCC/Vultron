@@ -102,7 +102,7 @@ def _extract_offer_ids(
     client: "demo.DataLayerClient", offer: as_Offer
 ) -> tuple[str | None, str | None]:
     """Return (report_id, reporter_id) extracted from *offer*'s raw data."""
-    offer_data = client.get(f"/datalayer/{offer.id_}")
+    offer_data = client.get(client.dl_path(offer.id_))
     if not offer_data:
         return None, None
     report_id = None
@@ -124,11 +124,11 @@ def _find_case_for_report(
     client: "demo.DataLayerClient", report_id: str | None
 ) -> str | None:
     """Return the case_id linked to *report_id*, or ``None`` if not found."""
-    cases_data = client.get("/datalayer/VulnerabilityCases/")
+    cases_data = client.get(client.dl_path("VulnerabilityCases/"))
     if not cases_data or not report_id:
         return None
     for cid in cases_data:
-        case_data = client.get(f"/datalayer/{cid}")
+        case_data = client.get(client.dl_path(cid))
         if not case_data:
             continue
         reports = (
@@ -163,13 +163,22 @@ def _create_case_from_offer(
         client: DataLayerClient for the vendor container.
         actor: The vendor actor that will be the CASE_OWNER.
         offer: The Offer activity whose report_id links to the case.
-        dl: DataLayer instance for seeding.  Pass an isolated DataLayer when
-            using ``IsolatedActorApp``; defaults to the shared module-level DL.
+        dl: Store to seed into.  Defaults to *actor*'s own store, which is the
+            one the downstream BTs read, since a tree executes against the store
+            of the actor it runs as (BT-05-005).  There is no shared
+            module-level DataLayer to fall back on any more (ADR-0066), so
+            leaving this ``None`` used to seed nothing and fail later with
+            ``'NoneType' has no attribute 'read'``.
 
     Returns:
         The as_VulnerabilityCase with actor registered as CASE_OWNER+VENDOR.
     """
     from vultron.demo.helpers.seeding import seed_case_participants_for_demo
+
+    if dl is None:
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        dl = get_datalayer(actor.id_)
 
     report_id, reporter_id = _extract_offer_ids(client, offer)
 
@@ -201,7 +210,7 @@ def _create_case_from_offer(
 
     if not case_id:
         # Last resort: take the most-recent case (no report linkage found).
-        cases_data = client.get("/datalayer/VulnerabilityCases/")
+        cases_data = client.get(client.dl_path("VulnerabilityCases/"))
         assert cases_data, "No VulnerabilityCases found"
         case_id = next(reversed(cases_data))
 
@@ -217,7 +226,7 @@ def _create_case_from_offer(
         dl=dl,
     )
 
-    case_data = client.get(f"/datalayer/{case_id}")
+    case_data = client.get(client.dl_path(case_id))
     return as_VulnerabilityCase.model_validate(case_data)
 
 
@@ -313,9 +322,9 @@ class TestResetContainers:
 
         reset_mock.assert_has_calls(
             [
-                call(client=finder_client, init=False),
-                call(client=vendor_client, init=False),
-                call(client=case_actor_client, init=False),
+                call(client=finder_client),
+                call(client=vendor_client),
+                call(client=case_actor_client),
             ]
         )
 
@@ -448,7 +457,7 @@ class TestVendorValidatesReport:
         # server (same netloc) so the round-trip completes synchronously, and
         # the VulnerabilityCase may already exist.  What matters is that the
         # VultronReportCaseLink was written (proposal was sent per CP-04-001).
-        offer_data = vendor_client.get(f"/datalayer/{offer.id_}")
+        offer_data = vendor_client.get(vendor_client.dl_path(offer.id_))
         obj_ = (
             offer_data.get("object_") or offer_data.get("object")
             if offer_data
@@ -461,7 +470,7 @@ class TestVendorValidatesReport:
             report_id = obj_
         assert report_id is not None, "Could not extract report_id from offer"
         link_id = VultronReportCaseLink.build_id(report_id)
-        link_data = vendor_client.get(f"/datalayer/{link_id}")
+        link_data = vendor_client.get(vendor_client.dl_path(link_id))
         assert link_data is not None, (
             f"Expected a VultronReportCaseLink at '{link_id}' after"
             " validate-report (ADR-0041 pending proposal marker, CP-04-001)"
@@ -501,7 +510,7 @@ class TestFinderAsksQuestion:
         # ADR-0041: no case after validate-report; create one directly for setup.
         case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         case = as_VulnerabilityCase(**case_data)
         return finder_client, vendor_client, case, finder, vendor
 
@@ -1042,7 +1051,7 @@ class TestWaitForAllParticipantsRmClosed:
         demo.actor_closes_case(
             client=finder_client, actor=finder, case_id=case.id_
         )
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         refreshed_case = as_VulnerabilityCase.model_validate(case_data)
         result = demo._all_fetchable_participants_rm_closed(
             vendor_client, refreshed_case
@@ -1067,7 +1076,7 @@ class TestWaitForAllParticipantsRmClosed:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         fetched_case = as_VulnerabilityCase.model_validate(case_data)
 
         # actor_participant_index keys are actor IDs; the CaseActor key is an
@@ -1084,7 +1093,7 @@ class TestWaitForAllParticipantsRmClosed:
         # The CaseActor Service object (HTTP-URL key) must be fetchable.
         actor_id = url_based_actor_ids[0]
         encoded = quote(actor_id, safe="")
-        result = vendor_client.get(f"/datalayer/{encoded}")
+        result = vendor_client.get(vendor_client.dl_path(encoded))
         assert (
             isinstance(result, dict) and result.get("id") == actor_id
         ), f"Expected Service record for URL-format ID {actor_id!r}, got {result!r}"
@@ -1783,7 +1792,7 @@ def completed_workflow(
         case is not None
     ), "Expected as_VulnerabilityCase after trigger/create-case"
     # Refresh case to get actor_participant_index populated.
-    case_data = vendor_client.get(f"/datalayer/{case.id_}")
+    case_data = vendor_client.get(vendor_client.dl_path(case.id_))
     case = as_VulnerabilityCase(**case_data)
 
     # Fix lifecycle: vendor-only actor stops at VFd (CSB-15-002).
@@ -1804,7 +1813,7 @@ def completed_workflow(
     )
 
     # Final refresh to pick up any post-closure case-actor state.
-    case_data = vendor_client.get(f"/datalayer/{case.id_}")
+    case_data = vendor_client.get(vendor_client.dl_path(case.id_))
     case = as_VulnerabilityCase(**case_data)
 
     return vendor_client, case

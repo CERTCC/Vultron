@@ -193,10 +193,10 @@ def create_isolated_actor_app(
     from vultron.adapters.driven.actor_hosts import canonical_actor_uri
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 
-    # This app's own node root. Closed over rather than read from the request,
-    # because production resolves a segment against the *configured* base URL and
-    # this override must not diverge from that — see ISSUE-2238 for why the
-    # configured value and the served URL can disagree.
+    # This app's own node root, declared on the app so every dependency resolves
+    # segments into *this* node's namespace rather than the process-global
+    # configured one — several of these apps run in one process, so there is no
+    # single configured answer that is right for all of them (ISSUE-2238).
     node_root = f"{base_url.rstrip('/')}/api/v2"
 
     def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
@@ -215,7 +215,7 @@ def create_isolated_actor_app(
             db_url="sqlite:///:memory:",
         )
 
-    app = create_app(docs_url=None, openapi_url=None)
+    app = create_app(docs_url=None, openapi_url=None, node_base_url=node_root)
     app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
 
     # `dl` is this app's own actor's store, for tests that seed or assert
@@ -504,8 +504,20 @@ def client():
         previous_app_emitter = getattr(api_app.state, "emitter", None)
         configure_default_emitter(router)  # type: ignore[arg-type]
         api_app.state.emitter = router  # type: ignore[assignment]
+
+        # Tell the serving app which node it is. These tests address actors as
+        # `{TestClient base}/api/v2/actors/{slug}` — TestClient's base_url, not
+        # the configured one — so without this the routes resolve a segment into
+        # the *configured* namespace and open a different (empty) store than the
+        # one `POST /actors/` wrote to. `app_v2` is what carries it because
+        # `main.app` mounts it, so `request.app` inside a route is the sub-app.
+        from vultron.adapters.driving.fastapi.app import app_v2
+
+        previous_node_base_url = getattr(app_v2.state, "node_base_url", None)
+        app_v2.state.node_base_url = f"{tc_base}/api/v2"
         try:
             yield test_client
         finally:
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
             api_app.state.emitter = previous_app_emitter
+            app_v2.state.node_base_url = previous_node_base_url

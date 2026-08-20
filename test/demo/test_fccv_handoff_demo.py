@@ -162,11 +162,11 @@ class TestResetContainersFccv:
 
         reset_mock.assert_has_calls(
             [
-                call(client=finder_client, init=False),
-                call(client=c1_client, init=False),
-                call(client=c2_client, init=False),
-                call(client=case_actor_client, init=False),
-                call(client=vendor_client, init=False),
+                call(client=finder_client),
+                call(client=c1_client),
+                call(client=c2_client),
+                call(client=case_actor_client),
+                call(client=vendor_client),
             ]
         )
 
