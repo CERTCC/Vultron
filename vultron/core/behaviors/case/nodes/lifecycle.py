@@ -37,6 +37,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,13 @@ _SNAKE_TWINS: dict[str, str] = {
     "emConsentState": "em_consent_state",
     "caseStatus": "case_status",
 }
+
+#: Producer class names recognized by the override consumer.  An override with
+#: an unrecognized ``producer_type`` still applies (RSH-05-014 is a warning,
+#: not a block); this set is an audit allowlist, not a security gate.
+_RECOGNIZED_OVERRIDE_PRODUCERS: frozenset[str] = frozenset(
+    {"FilterParticipantStatusDimensionsNode"}
+)
 
 
 def _merge_snapshot_object_fields(
@@ -244,6 +252,25 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         fields = override.get("fields")
         if not isinstance(fields, dict) or not fields:
             return None
+        # RSH-05-014: warn when producer_type is present but unrecognized.
+        producer_type = override.get("producer_type")
+        if (
+            producer_type is not None
+            and producer_type not in _RECOGNIZED_OVERRIDE_PRODUCERS
+        ):
+            self.logger.warning(
+                "%s: ledger_payload_object_override from unrecognized"
+                " producer '%s' — applying override (RSH-05-014)",
+                self.name,
+                producer_type,
+            )
+        # RSH-05-013: hard-fail on any unrecognized wire alias in fields.
+        unknown = set(fields) - set(_SNAKE_TWINS)
+        if unknown:
+            raise VultronValidationError(
+                f"ledger_payload_object_override contains unrecognized wire"
+                f" alias(es) {unknown!r} — fix the producer (RSH-05-013)"
+            )
         current = payload_snapshot.get("object")
         if not isinstance(current, dict):
             return None
@@ -306,9 +333,19 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         # Record the portion of the assertion the receiver accepts, when a
         # preceding guard adjudicated it (RSH-05).
         if payload_snapshot:
-            replacement = self._resolve_payload_object_override(
-                payload_snapshot
-            )
+            try:
+                replacement = self._resolve_payload_object_override(
+                    payload_snapshot
+                )
+            except VultronValidationError as exc:
+                self.logger.error(
+                    "%s: refusing ledger commit for case '%s':"
+                    " override validation failed: %s",
+                    self.name,
+                    case_id,
+                    exc,
+                )
+                return Status.FAILURE
             if replacement is not None:
                 payload_snapshot = dict(payload_snapshot)
                 payload_snapshot["object"] = replacement

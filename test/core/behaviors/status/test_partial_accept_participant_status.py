@@ -1023,3 +1023,36 @@ class TestRMGapAnomalyFlag:
         assert anomaly["anomaly_type"] == "regression"
         assert anomaly["from_rm"] == RM.ACCEPTED
         assert anomaly["to_rm"] == RM.RECEIVED
+
+
+# ---------------------------------------------------------------------------
+# RSH-05-011: producer_type in ledger_payload_object_override
+# ---------------------------------------------------------------------------
+
+
+class TestOverrideIncludesProducerType:
+    """AC-1: FilterParticipantStatusDimensionsNode publishes producer_type (RSH-05-011)."""
+
+    def test_published_override_includes_producer_type(self, dl, make_payload):
+        """The override dict written to BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE must carry producer_type."""
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+
+        reader = py_trees.blackboard.Client(name="override-shape-reader")
+        reader.register_key(
+            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
+            access=py_trees.common.Access.READ,
+        )
+
+        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        assert result.status == Status.SUCCESS
+
+        override = reader.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE)
+        assert isinstance(
+            override, dict
+        ), "override must be a dict after partial accept"
+        assert (
+            override.get("producer_type")
+            == "FilterParticipantStatusDimensionsNode"
+        ), "RSH-05-011: producer_type must identify the producing node"
