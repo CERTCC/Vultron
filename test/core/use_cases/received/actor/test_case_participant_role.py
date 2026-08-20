@@ -10,13 +10,24 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for OfferCaseParticipantRoleReceivedUseCase (ADR-0039)."""
+"""Tests for CaseParticipantRole received use cases (ADR-0039)."""
 
+import logging
+from unittest.mock import MagicMock
+
+from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
+    AcceptCaseParticipantRoleReceivedUseCase,
+    RejectCaseParticipantRoleReceivedUseCase,
+)
 from vultron.core.use_cases.received.actor.case_participant_role import (
     OfferCaseParticipantRoleReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import offer_case_participant_role_activity
+from vultron.wire.as2.factories import (
+    accept_case_participant_role_activity,
+    offer_case_participant_role_activity,
+    reject_case_participant_role_activity,
+)
 
 
 class TestOfferCaseParticipantRoleReceivedUseCase:
@@ -126,3 +137,119 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         call_kwargs = trigger.accept_case_manager_role.call_args
         assert call_kwargs.kwargs["offer_id"] == offer.id_
         assert call_kwargs.kwargs["vendor_id"] == self._VENDOR_URI
+
+
+class TestAcceptCaseParticipantRoleReceivedUseCase:
+    """Tests for AcceptCaseParticipantRoleReceivedUseCase (ADR-0039, SE-08-003)."""
+
+    _VENDOR_URI = "https://example.org/actors/vendor"
+    _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
+    _CASE_URI = "https://example.org/cases/urn:uuid:test-case-role"
+
+    def _make_offer(self):
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(id_=self._CASE_URI, name="ROLE-TEST")
+        actor = as_Actor(id_=self._CASE_ACTOR_URI)
+        return offer_case_participant_role_activity(
+            role=CVDRole.CASE_MANAGER,
+            target_actor=actor,
+            case=case,
+            actor=self._VENDOR_URI,
+        )
+
+    def test_accept_case_participant_role_persists_acceptance(
+        self, make_payload
+    ):
+        """AcceptCaseParticipantRoleReceivedUseCase persists the Accept activity."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        accept = accept_case_participant_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(accept.type_.value, accept.id_)
+        assert stored is not None
+
+    def test_accept_case_participant_role_idempotent(self, make_payload):
+        """Repeated AcceptCaseParticipantRoleReceivedUseCase execution is a no-op."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        accept = accept_case_participant_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(accept.type_.value, accept.id_)
+        assert stored is not None
+
+    def test_accept_case_participant_role_logs_acceptance(
+        self, caplog, make_payload
+    ):
+        """AcceptCaseParticipantRoleReceivedUseCase logs acceptance at INFO level."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        accept = accept_case_participant_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        with caplog.at_level(logging.INFO):
+            AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
+
+        assert any("accepted" in r.message.lower() for r in caplog.records)
+
+
+class TestRejectCaseParticipantRoleReceivedUseCase:
+    """Tests for RejectCaseParticipantRoleReceivedUseCase (ADR-0039, SE-08-003)."""
+
+    _VENDOR_URI = "https://example.org/actors/vendor"
+    _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
+    _CASE_URI = "https://example.org/cases/urn:uuid:test-case-role"
+
+    def _make_offer(self):
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(id_=self._CASE_URI, name="ROLE-TEST")
+        actor = as_Actor(id_=self._CASE_ACTOR_URI)
+        return offer_case_participant_role_activity(
+            role=CVDRole.CASE_MANAGER,
+            target_actor=actor,
+            case=case,
+            actor=self._VENDOR_URI,
+        )
+
+    def test_reject_case_participant_role_logs_warning(
+        self, caplog, make_payload
+    ):
+        """RejectCaseParticipantRoleReceivedUseCase logs a warning without raising."""
+        offer = self._make_offer()
+        reject = reject_case_participant_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(reject)
+
+        with caplog.at_level(logging.WARNING):
+            RejectCaseParticipantRoleReceivedUseCase(
+                MagicMock(), event
+            ).execute()
+
+        assert any("rejected" in r.message.lower() for r in caplog.records)
