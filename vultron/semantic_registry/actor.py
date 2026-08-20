@@ -19,6 +19,7 @@ invite/accept/reject to case, and vulnerability case announcements.
 
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
+    AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
     AcceptOfferCaseParticipantReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -28,12 +29,14 @@ from vultron.core.models.events.actor import (
     OfferCaseParticipantReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
+    RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.received.actor import (
     AcceptCaseOwnershipTransferReceivedUseCase,
+    AcceptCaseParticipantRoleReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
     AcceptOfferCaseParticipantReceivedUseCase,
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -43,6 +46,7 @@ from vultron.core.use_cases.received.actor import (
     OfferCaseParticipantReceivedUseCase,
     OfferCaseParticipantRoleReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
+    RejectCaseParticipantRoleReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
 )
@@ -50,6 +54,7 @@ from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
     AcceptActorRecommendationPattern,
     AcceptCaseOwnershipTransferActivityPattern,
+    AcceptCaseParticipantRolePattern,
     AcceptInviteActorToCasePattern,
     AnnounceVulnerabilityCasePattern,
     InviteActorToCasePattern,
@@ -58,6 +63,7 @@ from vultron.wire.as2.extractor import (
     OfferCaseParticipantRolePattern,
     RejectActorRecommendationPattern,
     RejectCaseOwnershipTransferActivityPattern,
+    RejectCaseParticipantRolePattern,
     RejectInviteActorToCasePattern,
 )
 from vultron.wire.as2.extractor._instances import SuggestActorToCasePattern
@@ -69,10 +75,12 @@ from vultron.wire.as2.vocab.activities.actor import (
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseOwnershipTransferActivity,
+    _AcceptCaseParticipantRoleActivity,
     _AnnounceVulnerabilityCaseActivity,
     _OfferCaseOwnershipTransferActivity,
     _OfferCaseParticipantRoleActivity,
     _RejectCaseOwnershipTransferActivity,
+    _RejectCaseParticipantRoleActivity,
     _RmAcceptInviteToCaseActivity,
     _RmInviteToCaseActivity,
     _RmRejectInviteToCaseActivity,
@@ -126,6 +134,23 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} offered {object} role to {target} in the case",
         wire_activity_class=_OfferCaseParticipantRoleActivity,
         include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE,
+        pattern=AcceptCaseParticipantRolePattern,
+        event_class=AcceptCaseParticipantRoleReceivedEvent,
+        use_case_class=AcceptCaseParticipantRoleReceivedUseCase,
+        phrase="{actor} accepted the role offer",
+        wire_activity_class=_AcceptCaseParticipantRoleActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE,
+        pattern=RejectCaseParticipantRolePattern,
+        event_class=RejectCaseParticipantRoleReceivedEvent,
+        use_case_class=RejectCaseParticipantRoleReceivedUseCase,
+        phrase="{actor} declined the role offer",
+        wire_activity_class=_RejectCaseParticipantRoleActivity,
     ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,

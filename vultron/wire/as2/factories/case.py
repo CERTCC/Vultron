@@ -461,10 +461,12 @@ def accept_case_participant_role_activity(
 ) -> as_Accept:
     """Build an Accept(_OfferCaseParticipantRoleActivity) (ADR-0039).
 
+    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
+    value returned by :func:`offer_case_participant_role_activity`).
+
     Args:
         offer: The ``_OfferCaseParticipantRoleActivity`` being accepted.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+        **kwargs: Optional AS2 fields (e.g. ``actor``).
 
     Returns:
         An ``as_Accept`` whose ``object_`` is the offer.
@@ -493,10 +495,12 @@ def reject_case_participant_role_activity(
 ) -> as_Reject:
     """Build a Reject(_OfferCaseParticipantRoleActivity) (ADR-0039).
 
+    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
+    value returned by :func:`offer_case_participant_role_activity`).
+
     Args:
         offer: The ``_OfferCaseParticipantRoleActivity`` being rejected.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+        **kwargs: Optional AS2 fields (e.g. ``actor``).
 
     Returns:
         An ``as_Reject`` whose ``object_`` is the offer.

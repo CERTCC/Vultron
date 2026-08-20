@@ -34,6 +34,7 @@ from vultron.wire.as2.factories.actor import (
 from vultron.wire.as2.factories.case import (
     accept_case_participant_role_activity,
     offer_case_participant_role_activity,
+    reject_case_participant_role_activity,
     accept_case_ownership_transfer_activity,
     accept_case_proposal_activity,
     add_note_to_case_activity,
@@ -44,7 +45,6 @@ from vultron.wire.as2.factories.case import (
     create_case_activity,
     create_case_status_activity,
     offer_case_ownership_transfer_activity,
-    reject_case_participant_role_activity,
     reject_case_ownership_transfer_activity,
     reject_case_proposal_activity,
     rm_accept_invite_to_case_activity,

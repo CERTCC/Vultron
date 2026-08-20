@@ -27,6 +27,7 @@ from vultron.wire.as2.extractor._extract import extract_intent  # noqa: F401
 # can continue to import directly from vultron.wire.as2.extractor.
 from vultron.wire.as2.extractor._instances import (  # noqa: F401
     AcceptCaseOwnershipTransferActivityPattern,
+    AcceptCaseParticipantRolePattern,
     AcceptCaseProposalPattern,
     AcceptInviteActorToCasePattern,
     AcceptInviteToEmbargoOnCasePattern,
@@ -60,6 +61,7 @@ from vultron.wire.as2.extractor._instances import (  # noqa: F401
     OfferCaseOwnershipTransferActivityPattern,
     OfferCaseParticipantRolePattern,
     RejectCaseOwnershipTransferActivityPattern,
+    RejectCaseParticipantRolePattern,
     RejectCaseProposalPattern,
     RejectInviteActorToCasePattern,
     RejectInviteToEmbargoOnCasePattern,
@@ -80,6 +82,7 @@ __all__ = [
     "extract_intent",
     # Pattern instances
     "AcceptCaseOwnershipTransferActivityPattern",
+    "AcceptCaseParticipantRolePattern",
     "AcceptCaseProposalPattern",
     "AcceptInviteActorToCasePattern",
     "AcceptInviteToEmbargoOnCasePattern",
@@ -113,6 +116,7 @@ __all__ = [
     "OfferCaseOwnershipTransferActivityPattern",
     "OfferCaseParticipantRolePattern",
     "RejectCaseOwnershipTransferActivityPattern",
+    "RejectCaseParticipantRolePattern",
     "RejectCaseProposalPattern",
     "RejectInviteActorToCasePattern",
     "RejectInviteToEmbargoOnCasePattern",

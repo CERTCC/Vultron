@@ -211,9 +211,10 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
 
 
 class _AcceptCaseParticipantRoleActivity(as_Accept):
-    """Actor accepts the role delegation offer (ADR-0039).
+    """Target actor accepts the canonical role-delegation offer (ADR-0039).
 
     - object_: the ``_OfferCaseParticipantRoleActivity`` being accepted
+    See SE-08-003, ADR-0039.
     """
 
     object_: _OfferCaseParticipantRoleActivity = Field(
@@ -222,9 +223,10 @@ class _AcceptCaseParticipantRoleActivity(as_Accept):
 
 
 class _RejectCaseParticipantRoleActivity(as_Reject):
-    """Actor rejects the role delegation offer (ADR-0039).
+    """Target actor rejects the canonical role-delegation offer (ADR-0039).
 
     - object_: the ``_OfferCaseParticipantRoleActivity`` being rejected
+    See SE-08-003, ADR-0039.
     """
 
     object_: _OfferCaseParticipantRoleActivity = Field(

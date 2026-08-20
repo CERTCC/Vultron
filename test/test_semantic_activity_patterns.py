@@ -12,9 +12,11 @@ from vultron.wire.as2.extractor import (
     ActivityPattern,
 )
 from vultron.wire.as2.factories import (
+    accept_case_participant_role_activity,
     announce_vulnerability_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    reject_case_participant_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
@@ -685,3 +687,152 @@ def test_case_proposal_with_string_object_returns_unresolvable():
     assert (
         result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     ), f"Expected UNKNOWN_UNRESOLVABLE_OBJECT for bare URI, got {result}"
+
+
+# ---------------------------------------------------------------------------
+# AC-1: strict target_ field — bare string URIs must be rejected (ADR-0039)
+# ---------------------------------------------------------------------------
+
+
+def test_strict_target_rejects_bare_string_uri():
+    """ActivityPattern with strict=True must not match when target is a bare string URI.
+
+    AC-1: The target_ field pair must use self.strict (not hardcoded False) so
+    that bare URI strings do not satisfy a typed target_ constraint when the
+    pattern is in strict mode.
+    """
+    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+    from vultron.core.models.enums import VultronObjectType as VOtype
+    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Offer,
+    )
+
+    strict_pattern = ActivityPattern(
+        activity_=TAtype.OFFER,
+        object_=VOtype.VULNERABILITY_CASE,
+        target_=AOtype.ACTOR,
+        strict=True,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/strict-target-test", name="T-001"
+    )
+
+    # Bare string target must NOT match when strict=True (AC-1 fix)
+    activity_string_target = as_Offer(
+        actor=_VENDOR_URI,
+        object_=case,
+        target="https://example.org/actors/alice",
+    )
+    assert not strict_pattern.match(
+        activity_string_target
+    ), "strict=True pattern must not match when target is a bare string URI"
+
+
+def test_strict_target_matches_typed_actor():
+    """ActivityPattern with strict=True must match when target is a typed Actor.
+
+    Complement of test_strict_target_rejects_bare_string_uri — confirms that
+    the fix only blocks bare strings, not properly typed target values.
+    """
+    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+    from vultron.core.models.enums import VultronObjectType as VOtype
+    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Offer,
+    )
+
+    strict_pattern = ActivityPattern(
+        activity_=TAtype.OFFER,
+        object_=VOtype.VULNERABILITY_CASE,
+        target_=AOtype.ACTOR,
+        strict=True,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/strict-target-test", name="T-001"
+    )
+    actor = as_Actor(id_="https://example.org/actors/alice")
+
+    activity_typed_target = as_Offer(
+        actor=_VENDOR_URI,
+        object_=case,
+        target=actor,
+    )
+    assert strict_pattern.match(
+        activity_typed_target
+    ), "strict=True pattern must match when target is a typed Actor object"
+
+
+# ---------------------------------------------------------------------------
+# AC-2/AC-3/AC-4: Accept/Reject CaseParticipantRole dispatch (ADR-0039)
+# ---------------------------------------------------------------------------
+
+
+def _make_role_offer():
+    """Build a valid Offer(CaseParticipantRole, target=Actor, context=Case) activity."""
+    from vultron.enums.roles import CVDRole
+
+    case = _make_case_manager_case()
+    actor = _make_target_actor()
+    return offer_case_participant_role_activity(
+        role=CVDRole.CASE_MANAGER,
+        target_actor=actor,
+        case=case,
+        actor=_VENDOR_URI,
+    )
+
+
+def test_accept_case_participant_role_dispatches_correctly():
+    """Accept(Offer(CaseParticipantRole, ...)) must be classified as
+    ACCEPT_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
+
+    AC-2/AC-3/AC-4: the Accept pattern, registry entry, and MessageSemantics
+    enum value must all be wired up so the semantic extractor routes correctly.
+    """
+    offer = _make_role_offer()
+    accept = accept_case_participant_role_activity(
+        offer, actor=_CASE_ACTOR_URI
+    )
+    result = find_matching_semantics(accept)
+    assert (
+        result == MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE
+    ), f"Expected ACCEPT_CASE_PARTICIPANT_ROLE, got {result}"
+
+
+def test_reject_case_participant_role_dispatches_correctly():
+    """Reject(Offer(CaseParticipantRole, ...)) must be classified as
+    REJECT_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
+
+    AC-2/AC-3/AC-4: the Reject pattern, registry entry, and MessageSemantics
+    enum value must all be wired up so the semantic extractor routes correctly.
+    """
+    offer = _make_role_offer()
+    reject = reject_case_participant_role_activity(
+        offer, actor=_CASE_ACTOR_URI
+    )
+    result = find_matching_semantics(reject)
+    assert (
+        result == MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE
+    ), f"Expected REJECT_CASE_PARTICIPANT_ROLE, got {result}"
+
+
+def test_accept_case_participant_role_not_confused_with_other_accepts():
+    """Accept(Offer(CaseParticipantRole)) must NOT match any other Accept semantics.
+
+    Ordering guard: the new ACCEPT_CASE_PARTICIPANT_ROLE entry must not be
+    shadowed by existing Accept patterns.
+    """
+    offer = _make_role_offer()
+    accept = accept_case_participant_role_activity(
+        offer, actor=_CASE_ACTOR_URI
+    )
+    result = find_matching_semantics(accept)
+    assert result not in {
+        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    }, f"Accept(Offer(CaseParticipantRole)) misrouted as {result}"
