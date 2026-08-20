@@ -445,8 +445,24 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Silent `None` Returns and Fake `SUCCESS` Are the Same Bug** — raise
   `VultronValidationError` (helpers) or return `Status.FAILURE` (BT nodes).
   See [notes/domain-validation.md](notes/domain-validation.md) ARCH-15-001–15-004.
-- **`outbox_list()` Requires `clone_for_actor` in Tests** —
-  see [notes/datalayer-design.md](notes/datalayer-design.md).
+- **An Actor Id *Is* a Store Name** — two `DataLayer`s built for the same
+  `actor_id` are the *same* database, so two scenarios that must not see each
+  other's rows need two actor ids (deriving one per test, `f"{ACTOR_ID}/{slug}"`,
+  is enough). Conversely, do not give one logical actor two ids just to get a
+  fresh database — sharing a store between two logical actors hides a *missing*
+  write, because the reader finds the writer's row and the test passes for the
+  wrong reason. `test/conftest.py`'s autouse `_dispose_actor_stores_between_tests`
+  covers the between-test case only; both hazards occur *within* a single test.
+  Replaces the retired "`outbox_list()` requires `clone_for_actor`" pitfall.
+  See DL-07-004 and [notes/datalayer-design.md](notes/datalayer-design.md).
+  *Source: ISSUE-2238*
+- **A BT's Store Follows Its Executing Actor** — the blackboard `datalayer` is the
+  store of the blackboard `actor_id`, reconciled in `BTBridge._store_for_actor`
+  (BT-05-005). So seeding one actor's store and executing as another leaves the
+  tree reading an empty one: the symptom is a role gate that skips, or a "case not
+  found" warning, not an error. Where a tree is role-gated, the role holder, the
+  receiving actor and the store owner must be **one** actor (BT-05-006); letting
+  any two drift is a silent skip. *Source: ISSUE-2238*
 - **Happy-Path DL Seed Must Include `origin` Activities for `dl.read()` Calls** —
   assert `len(outbox) >= N` (expected count, not just ≥1).
   See [notes/datalayer-design.md](notes/datalayer-design.md).
@@ -510,11 +526,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   ID (e.g. `request.receiving_actor_id`), NOT the sender's (`request.actor_id`).
   This applies to production received-side use cases and to tests alike. In tests,
   use `actor_id=case_manager_actor_id`; in received-side use cases, use
-  `actor_id=request.receiving_actor_id if request.receiving_actor_id is not None
-  else request.actor_id`. BT nodes that also need the *sender* ID must store it as
+  `resolve_receiving_actor_id(self._dl, request.receiving_actor_id)`, which falls
+  back to the **store's own actor** when the field is absent and raises when
+  neither source yields one. Do **not** fall back to `request.actor_id`: that is
+  the sender, and since `actor_id` now selects the store, using it routes every
+  read and write into an actor other than the one whose replica is being updated.
+  BT nodes that also need the *sender* ID must store it as
   a private attribute (e.g. `self._target_actor_id`); `DataLayerAction.setup()` will
   overwrite the blackboard `actor_id` and a stored attribute is the only safe way to
-  keep it. See BT-17-005, BT-17-006. *Source: ISSUE-2300*
+  keep it. See BT-17-005, BT-17-006, BT-05-006. *Source: ISSUE-2300, ISSUE-2238*
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
 - **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —
@@ -623,9 +643,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Delegated-Emit Trigger Use Cases MUST Set `actor=case_actor_id`,
   `attributed_to=requesting_actor_id`** — trigger use cases that emit an
   Activity on behalf of the CaseActor (invite, ownership transfer, and any
-  future delegated flows) MUST set `self._actor_id = case_actor_id` and
-  `self._attributed_to = requesting_actor_id` in `_prepare()`, then queue
-  the Activity in the CaseActor's outbox (CM-24-001 through CM-24-004).
+  future delegated flows) MUST set `self._attributed_to = requesting_actor_id`
+  in `_prepare()` and sit inside a composite gated on the executing actor holding
+  `CVDRole.CASE_MANAGER`, then queue the Activity in the CaseActor's outbox
+  (CM-24-001 through CM-24-004). Gate on the **role**, never on an
+  `actor_id == case_actor_id` comparison: the authority is a role held in the case
+  and its holder may be any Actor type. The former `self._actor_id =
+  case_actor_id` convention is retired — it spelled wire authorship and "whose
+  store this is" with one variable, which made a local write look foreign; once
+  gated, the executing actor *is* the case manager and both the activity and its
+  outbox entry land in one store by construction (BT-05-006).
   Setting `actor` to the requesting actor directly causes receivers to reject
   the message (ISSUE-2142).  Use the shared `_prepare_delegated_context()`
   helper (or equivalent) — never reconstruct the pattern inline (CM-24-005).

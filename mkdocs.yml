@@ -283,6 +283,7 @@ nav:
       - Render Core Objects to Wire JSON Through a Driven Port: 'adr/0063-wire-rendering-port-for-core-objects.md'
       - Enforce Post-Construction Type Safety on the Core Branch Only: 'adr/0064-core-branch-validate-assignment.md'
       - Embargo Invite RSVP Deadline on Invite.end_time: 'adr/0065-embargo-invite-rsvp-deadline.md'
+      - Give Each Actor Its Own Store; Delete the Unscoped DataLayer: 'adr/0066-per-actor-storage-isolation.md'
       - 'Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store': 'adr/0066-outbox-terminal-state.md'
   - About:
     - Contributing: 'about/contributing.md'

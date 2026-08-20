@@ -46,6 +46,26 @@ The unscoped mode is also load-bearing in ways that contradict the invariant.
 `deps.py` states it plainly: *"Operational data (actors, offers, reports,
 cases) is stored in the shared DataLayer."*
 
+There is a second leak, in *execution identity* rather than storage layout.
+`BTBridge.setup_tree` puts `datalayer` and `actor_id` on the blackboard as two
+independent facts, so they can disagree. Under per-actor storage they are one
+fact: a store is always some actor's own, so the executing actor's identity
+*determines* which store the tree operates on.
+
+The delegated-emit pattern is where this bites. A trigger emitting on the
+CaseActor's behalf runs with `actor_id` set to the CaseActor (CM-24-001) while
+the injected DataLayer belongs to the *requesting* actor. So the activity is
+created in the requester's store and queued in the CaseActor's outbox: the
+CaseActor never delivers it, and its outbox names an activity its own store does
+not hold (PCR-08-007, CM-24-004).
+
+An outbox call-site survey missed this, and it is worth recording why. The four
+`record_outbox_item` sites traced below name the actor in an *argument*, and all
+four are genuinely self-directed. This seam is different: the mismatch arrives
+through the blackboard, so no call site reads as cross-actor. "Every outbox call
+site passes the executing actor's own id" is true of the traced sites and false
+at the trigger seam.
+
 ## Decision Drivers
 
 - CM-01-001: each actor MUST have an isolated protocol state domain.
@@ -137,6 +157,28 @@ Concretely:
 - `GET /actors/` returns only the actors this node hosts. A peer is not
   something the node hosts; it is an address some hosted actor happens to know.
 
+- **A BT's store follows its executing actor**, reconciled once in `BTBridge`
+  rather than at each BT invocation (`_store_for_actor`). Chosen over fixing only
+  the trigger seam for the same reason isolation must not depend on every query
+  remembering a filter: correctness must not depend on every BT invocation
+  remembering to re-scope. Normative as BT-05-005.
+
+  The stronger choice is not free, and the cost was measured rather than
+  estimated. Fixing only the trigger seam left 139 failing tests across 10 extra
+  files; forcing the store to follow the executing actor everywhere took the
+  suite to 622 failures across 123 files. The maintainer took the structural fix
+  with that number in hand.
+
+  A related invariant falls out and is normative as BT-05-006: where a tree is
+  gated on a role, the role holder, the receiving actor and the store owner must
+  be one actor. Letting any two drift makes the gate evaluate against an actor
+  holding no role, which returns SUCCESS-by-skip and writes nothing. Nothing
+  raises, which is what makes it worth a MUST.
+- **Cross-actor access must be named.** `clone_for_actor` is the only route to
+  another actor's store, and `CasePersistence` declares it, so a fan-out is
+  explicit in the type as well as in the code rather than something a forgotten
+  filter grants.
+
 This supersedes the "DataLayer isolation strategy" half of ADR-0012, which
 chose *Option B — namespace prefix per actor in one file*. ADR-0012's other
 three decisions (DI-1 closure lambda, IO-A queues in the DataLayer, OX-B
@@ -174,6 +216,11 @@ argument that does not survive being weighed against CM-01-001.
   actor's write cannot change what another reads.
 - `SqliteDataLayer` cannot be constructed without an `actor_id`, so the
   unscoped mode is unreachable rather than merely discouraged.
+- `test/core/behaviors/test_bridge.py` asserts the Leak 2 invariant directly: the
+  blackboard's `datalayer.actor_id` equals its `actor_id`, and — as the
+  complement, so the reconciliation cannot be satisfied by cloning
+  unconditionally — an injected store that already belongs to the executing actor
+  is passed through un-cloned.
 
 ## Pros and Cons of the Options
 
@@ -218,6 +265,23 @@ argument that does not survive being weighed against CM-01-001.
 - CP-08-003 / #1700 — the vendor self-hosting its CaseActors, one of the two
   topologies that exposed the defect.
 
-Generated spec requirements: `specs/datalayer.yaml` DL-07 (per-actor store
-isolation); retires `specs/architecture.yaml` ARCH-13-001, ARCH-13-002 and
-ARCH-13-004; amends DL-04-002 and DL-04-004 for the collapsed outbox methods.
+Generated spec requirements: `specs/datalayer.yaml` DL-07-001 through DL-07-008
+(per-actor store isolation); `specs/behavior-tree-integration.yaml` BT-05-005 (a
+BT's store is its executing actor's) and BT-05-006 (role holder, receiving actor
+and store owner are one actor); `specs/em-behavior.yaml` EMB-18 (the teardown
+announcement's author and recipients, unspecified until this change exposed the
+gap).
+
+Retires `specs/architecture.yaml` ARCH-13-001, ARCH-13-002, ARCH-13-004 and
+ARCH-13-005 as vacuous. ARCH-13-005 was not in the original plan: it asks for the
+`ActorScopedDataLayer` Protocol, which this decision deletes, so it was
+unimplementable rather than merely redundant. ARCH-13-003 is *amended, not
+retired* — its substance (a store is opened under the actor's canonical URI, never
+a short id) survives and is load-bearing, but its wording named
+`ActorScopedDataLayer` and `record_outbox_item`.
+
+Amends DL-04-002 and DL-04-004 for the collapsed outbox methods and the
+`actor_id`/`clone_for_actor` additions to `CasePersistence`; CM-24-004 to require
+the role gate instead of the `self._actor_id` convention; and BT-17-006, which
+required `actor_id=request.receiving_actor_id` outright and so forbade the
+store-owner fallback it should require.

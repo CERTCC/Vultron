@@ -1688,3 +1688,50 @@ groups:
         after EM EXITED when CS is not yet P/X/A
     adr:
     - ADR-0065
+- id: EMB-18
+  title: Embargo Teardown Announcement
+  description: >-
+    Who authors the `Announce(EmbargoEvent)` that follows an embargo teardown, and
+    who receives it. Added by ISSUE-2238 after the recipients were found to be
+    unspecified, which is how they came to disagree with the tree's role gate.
+  specs:
+  - id: EMB-18-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by the actor
+      holding `CVDRole.CASE_MANAGER` for the case, and MUST be addressed to the case's other
+      participants — every participant except the announcing actor. It MUST NOT be addressed to the
+      Case Manager.
+    rationale: >-
+      The teardown is canonical case state, so the role holder announces it and the participants are the
+      audience. Addressing the Case Manager was correct while the tree ran as an ordinary participant
+      telling the manager; once the tree's ledger commit became gated on `CVDRole.CASE_MANAGER` the
+      executing actor *is* the manager, so the announce was addressed to itself and the teardown reached
+      nobody. Nothing in this corpus governed the recipients, which is why only one half of the pair was
+      updated when the gate was added — the gap is the reason this entry exists.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-05-006
+    verification: >-
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce is authored by
+      the CASE_MANAGER and addressed to the case's other participants.
+    tags:
+    - protocol
+    - messaging
+  - id: EMB-18-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a case has no participants besides the Case Manager, the teardown announcement MUST be
+      skipped rather than emitted with an empty recipient list.
+    rationale: >-
+      An activity addressed to nobody is undeliverable, and delivery discards it anyway; constructing one
+      only adds a queue entry that can never be resolved. Skipping keeps the teardown itself unaffected,
+      consistent with the announcement being best-effort — a notification gap MUST NOT block a teardown.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+    tags:
+    - protocol
+    - messaging
