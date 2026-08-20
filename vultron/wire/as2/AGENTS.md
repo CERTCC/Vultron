@@ -62,7 +62,7 @@ come before general ones:
 | 2 | Reports | `CREATE_REPORT`, `SUBMIT_REPORT`, `ACK_REPORT`, `VALIDATE_REPORT`, ... |
 | 3 | Cases | `CREATE_CASE`, `UPDATE_CASE`, `ENGAGE_CASE`, `DEFER_CASE`, ... |
 | 4 | Case membership | `INVITE_ACTOR_TO_CASE`, `ACCEPT_INVITE_ACTOR_TO_CASE`, ... |
-| 5 | Case manager role | `OFFER_CASE_MANAGER_ROLE`, `ACCEPT_CASE_MANAGER_ROLE`, ... |
+| 5 | Case participant role | `OFFER_CASE_PARTICIPANT_ROLE`, `ACCEPT_CASE_PARTICIPANT_ROLE`, `REJECT_CASE_PARTICIPANT_ROLE` |
 | 6 | Ownership transfer | `OFFER_CASE_OWNERSHIP_TRANSFER`, `ACCEPT_CASE_OWNERSHIP_TRANSFER`, ... |
 | 7 | Case log entries | `ANNOUNCE_LOG_ENTRY`, `REJECT_LOG_ENTRY` |
 | 8 | Vulnerability case announcements | `ANNOUNCE_VULNERABILITY_CASE` |
