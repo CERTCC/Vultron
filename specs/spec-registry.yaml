@@ -380,6 +380,14 @@ groups:
     kind: project
     statement: The JSON exporter SHOULD support filtering by `kind`, `scope`, `tags`, or `priority` to allow agents to request
       only relevant subsets.
+  - id: SR-07-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `spec-dump` CLI entry point SHOULD support a `--kind` flag accepting one or more
+      comma-separated `SpecKind` values, filtering the LLM-optimized JSON output to matching
+      requirements. An unknown kind value MUST produce a clear error message listing valid values
+      and exit with code 2.
 - id: SR-09
   title: Docs Renderer Kind Routing
   specs:
