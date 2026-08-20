@@ -329,13 +329,14 @@ class TestInviteActorUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Organization(id_=invitee_id)
-        embargo = as_EmbargoEvent(
-            id_="https://example.org/cases/caseIA2/embargo_events/e1",
-            content="Active embargo",
-        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseIA2",
             name="TEST-ACCEPT-INVITE-EMBARGO",
+        )
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/cases/caseIA2/embargo_events/e1",
+            content="Active embargo",
+            context=case.id_,
         )
         case.active_embargo = embargo.id_
         case.current_status.em_state = EM.ACTIVE

@@ -21,7 +21,7 @@ _CASE_ID = "https://example.org/cases/case-001"
 
 
 def _make_embargo(dl) -> as_EmbargoEvent:
-    embargo = as_EmbargoEvent()
+    embargo = as_EmbargoEvent(context=_CASE_ID)
     dl.create(embargo)
     return embargo
 

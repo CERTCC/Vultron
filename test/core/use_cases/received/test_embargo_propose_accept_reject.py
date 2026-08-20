@@ -174,6 +174,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em3/embargo_events/e3",
             content="Embargo",
+            context=case.id_,
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
         proposal = em_propose_embargo_activity(
@@ -225,6 +226,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em3_warn/embargo_events/e3",
             content="Embargo",
+            context=case.id_,
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -277,6 +279,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em5/embargo_events/e5",
             content="Embargo",
+            context=case.id_,
         )
         participant = as_CaseParticipant(
             id_="https://example.org/cases/case_em5/participants/coord",
@@ -337,6 +340,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
+            context=case.id_,
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -511,7 +515,9 @@ def _make_pxa_case(
     )
     case.current_status.em_state = em_state
     case.current_status.pxa_state = CS_pxa[pxa_state_name]
-    embargo = as_EmbargoEvent(id_=embargo_id, content="PXA test embargo")
+    embargo = as_EmbargoEvent(
+        id_=embargo_id, content="PXA test embargo", context=case_id
+    )
     proposal = em_propose_embargo_activity(
         embargo,
         context=case.id_,
@@ -604,7 +610,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
         dl.create(case)
         embargo = as_EmbargoEvent(
-            id_=f"{case_id}/embargo_events/e1", content="clear embargo"
+            id_=f"{case_id}/embargo_events/e1",
+            content="clear embargo",
+            context=case_id,
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -709,7 +717,9 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         case.current_status.em_state = EM.PROPOSED
         dl.create(case)
         embargo = as_EmbargoEvent(
-            id_=f"{case_id}/embargo_events/e1", content="clear embargo"
+            id_=f"{case_id}/embargo_events/e1",
+            content="clear embargo",
+            context=case_id,
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(

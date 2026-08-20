@@ -240,8 +240,9 @@ core-shaped case.
 `_NORMALIZE_WIRE_TO_CORE` enumerates the migrated types. It is the write-side
 analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
 **grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). The
-remaining 13 shadowing types differ only by key spelling today and are tracked
-in #2268; five of them (the actor types) have no `to_core()` at all yet.
+remaining 5 shadowing types are all actor types (`VultronApplication`,
+`VultronGroup`, `VultronOrganization`, `VultronPerson`, `VultronService`);
+none has a `to_core()` projection yet — tracked in #2268.
 
 **`StorableRecord` inputs to `create()` and `update()` are also normalised.**
 `crud.create()` and `crud.update()` receive `StorableRecord` from core BT nodes

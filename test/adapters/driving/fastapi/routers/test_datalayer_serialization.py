@@ -94,7 +94,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     # Verify the field contains the report
     assert isinstance(data["vulnerabilityReports"], list)
     assert len(data["vulnerabilityReports"]) == 1
-    assert data["vulnerabilityReports"][0]["id"] == report.id_
+    assert data["vulnerabilityReports"][0] == report.id_
 
 
 def test_get_vulnerability_case_includes_all_fields(client, datalayer):
