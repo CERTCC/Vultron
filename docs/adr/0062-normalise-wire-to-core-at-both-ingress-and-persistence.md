@@ -154,7 +154,7 @@ the shapes converge.
 ## More Information
 
 Related: issue #2232 (the shape duality), issue #2264 (initial-state
-substitution sites), issue #2268 (migrating the remaining 13 shadowing types).
+substitution sites), issue #2268 (migrating the remaining shadowing types).
 Related ADRs: ADR-0017 (wire is a projection of core), ADR-0034 (`dl.read()`
 returns core objects — this is its write-side counterpart), ADR-0036
 (dimension objects on `ParticipantStatus`).
