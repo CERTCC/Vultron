@@ -298,11 +298,7 @@ groups:
   - id: TB-12-003
     priority: MUST
     kind: project
-    statement: >-
-      BT integration tests MUST complete within 5 seconds per test case. Tests that
-      exceed this limit MUST be redesigned (e.g., reducing dataset size, mocking
-      external I/O) rather than raising the timeout. The `pytest-timeout` `timeout = 5`
-      configuration MUST apply to all BT tests.
+    statement: BT integration tests MUST complete within 5 seconds per test case.
     relationships:
     - rel_type: refines
       spec_id: TB-12-001
@@ -317,6 +313,29 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TB-12-001
+  - id: TB-12-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Tests that exceed the 5-second limit MUST be redesigned (e.g., reducing dataset
+      size, mocking external I/O) rather than raising the timeout.
+    rationale: >-
+      Raising the timeout papers over performance regressions rather than fixing them;
+      redesigning the test preserves the 5-second budget.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-12-003
+  - id: TB-12-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The `pytest-timeout` `timeout = 5` configuration MUST apply to all BT tests.
+    rationale: >-
+      A blanket timeout prevents runaway tests from blocking CI without requiring
+      per-test annotation.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-12-003
 - id: TB-13
   title: Architecture Ratchet Corpus
   specs:
@@ -341,8 +360,7 @@ groups:
     kind: project
     statement: >-
       Architecture ratchet tests MUST apply a substring prefilter before calling
-      `ast.parse()`. A file that does not contain any target fragment string as a plain
-      substring MUST be skipped entirely; `ast.parse()` MUST NOT be called on it.
+      `ast.parse()`.
     rationale: >-
       `ast.parse()` is the dominant per-file cost (~1 ms each). A plain `in` substring
       check is ~1 µs. For import-boundary ratchets the prefilter string is the module
@@ -412,3 +430,27 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TB-13-005
+  - id: TB-13-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A file that does not contain the target fragment string as a plain substring
+      MUST be skipped entirely by architecture ratchet tests.
+    rationale: >-
+      Skipping files without a matching substring avoids the ~1 ms per-file
+      `ast.parse()` cost for files that cannot match the ratchet pattern.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-002
+  - id: TB-13-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Architecture ratchet tests MUST NOT call `ast.parse()` on files that do not
+      contain the target fragment string as a plain substring.
+    rationale: >-
+      `ast.parse()` is the dominant per-file cost (~1 ms each); calling it on
+      non-matching files wastes CI time proportional to corpus size.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-002

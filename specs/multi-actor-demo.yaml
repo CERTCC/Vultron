@@ -503,9 +503,7 @@ groups:
     statement: >-
       The vendor MUST send Create(VulnerabilityCase) (not Announce) to the Reporter as the
       trust bootstrap after case initialization; only the Case Actor uses Announce for
-      subsequent case updates; the bootstrap payload MUST include all three participants
-      (Vendor, Reporter, Case Actor) so the Reporter can bind the Case Actor identity to
-      this case
+      subsequent case updates.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-001
@@ -585,6 +583,16 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CBT-01-007
+  - id: DEMOMA-08-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The trust bootstrap payload MUST include all three participants (Vendor, Reporter,
+      Case Actor) so the Reporter can bind the Case Actor identity to this case.
+    rationale: >-
+      Without all three participants embedded in the bootstrap payload, the Reporter
+      cannot establish trust for the Case Actor and cannot route subsequent protocol
+      messages correctly.
 - id: DEMOMA-09
   title: FVV Scenario (Finder → Vendor1 → Vendor2, no Coordinator)
   trigger:
@@ -596,8 +604,7 @@ groups:
     kind: project
     statement: >-
       The FVV scenario MUST seed three independent actor containers — Finder, Vendor1, and
-      Vendor2 — with no Coordinator; each container MUST have its own isolated DataLayer
-      and the Case Actor MUST be co-located in the Vendor1 container
+      Vendor2 — with no Coordinator; each container MUST have its own isolated DataLayer.
   - id: DEMOMA-09-002
     priority: MUST
     kind: project
@@ -651,6 +658,14 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-004
+  - id: DEMOMA-09-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The Case Actor MUST be co-located in the Vendor1 container in the FVV scenario.
+    rationale: >-
+      FVV uses no dedicated Coordinator actor, so the Case Actor runs as a sub-actor
+      within the Vendor1 container rather than in a separate container.
 
 - id: DEMOMA-10
   title: FVCV-Extension Scenario (Vendor1 retains ownership; Coordinator is participant; Coordinator suggests Vendor2)
@@ -838,9 +853,7 @@ groups:
     kind: project
     statement: >-
       Vendor1 MUST transfer case ownership to the Coordinator via the
-      offer-case-ownership-transfer / accept-case-ownership-transfer handshake; after the
-      handoff, Coordinator MUST hold CVDRole.CASE_OWNER and Vendor1 MUST become a plain
-      participant.
+      offer-case-ownership-transfer / accept-case-ownership-transfer handshake.
     rationale: >-
       This is the defining contrast with FVCV-extension (DEMOMA-10-002): ownership
       transfers mid-scenario rather than staying with Vendor1 throughout.
@@ -883,7 +896,7 @@ groups:
     statement: >-
       After becoming CASE_OWNER, the Coordinator MUST invite Vendor2 directly using the
       invite-actor-to-case trigger, and Vendor2 MUST accept the invitation before the
-      scenario advances; the CaseActor MUST seed Vendor2's case replica on acceptance.
+      scenario advances.
     rationale: >-
       In FVCV-extension, Vendor1 approves a Coordinator suggestion. In FVCV-handoff,
       the Coordinator is the owner and invites directly — no approval step is needed.
@@ -933,9 +946,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The EM state machine MUST transition correctly through the ownership change:
-      an active embargo initiated before the transfer MUST remain ACTIVE and all
-      participants (including Vendor2 after joining) MUST be subject to it.
+      An active embargo initiated before an ownership transfer MUST remain ACTIVE
+      through and after the transfer; the EM state machine MUST transition correctly
+      through the ownership change.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-006
@@ -1041,6 +1054,32 @@ groups:
       spec_id: CP-08-003
     - rel_type: refines
       spec_id: DEMOMA-10-009
+  - id: DEMOMA-11-011
+    priority: MUST
+    kind: project
+    statement: >-
+      After the FVCV-handoff ownership transfer, the Coordinator MUST hold
+      CVDRole.CASE_OWNER and Vendor1 MUST become a plain participant.
+    rationale: >-
+      These are the two role-change postconditions that define a successful handoff.
+  - id: DEMOMA-11-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The CaseActor MUST seed Vendor2's case replica on Vendor2's acceptance of the
+      FVCV-handoff invitation.
+    rationale: >-
+      Replica seeding is the CaseActor's responsibility after each new participant
+      accepts an invitation.
+  - id: DEMOMA-11-013
+    priority: MUST
+    kind: project
+    statement: >-
+      All participants (including Vendor2 after joining) MUST be subject to an active
+      embargo that was established before the FVCV-handoff ownership transfer.
+    rationale: >-
+      Ownership transfer does not alter PEC consent state; all prior signatories and
+      any late-joining participants remain bound by the active embargo.
 
 - id: DEMOMA-12
   title: FCV Scenario (Finder reports to Coordinator; Coordinator invites Vendor)
@@ -1067,9 +1106,7 @@ groups:
     statement: >-
       The Coordinator MUST receive the Finder's report (RM→RECEIVED), validate it
       (RM→VALID), and engage the case (RM→ACCEPTED), which triggers CaseActor
-      creation on the Coordinator's container. The Coordinator MUST hold
-      `CVDRole.CASE_OWNER` throughout the entire scenario; ownership MUST NOT
-      transfer to any other actor.
+      creation on the Coordinator's container.
     rationale: >-
       FCV is the canonical Coordinator-as-owner scenario: Finder reports to
       Coordinator, Coordinator creates the case. This contrasts with FVV (Vendor
@@ -1167,11 +1204,8 @@ groups:
     kind: project
     statement: >-
       The Coordinator MUST invite Vendor to the case using the `invite-actor-to-case`
-      trigger directly (not via a suggestion/approval chain). Vendor MUST accept via
-      the `accept-case-invite` trigger. The CaseActor MUST then emit
-      `Announce(VulnerabilityCase)` to seed Vendor's case replica. The demo script
-      MUST poll Vendor's DataLayer for the arriving invitation before driving the
-      accept step.
+      trigger directly (not via a suggestion/approval chain); Vendor MUST accept via
+      the `accept-case-invite` trigger.
     rationale: >-
       Coordinator is CASE_OWNER, so a direct `invite-actor-to-case` is correct;
       the ADR-0026 suggest/approve chain is for participants recommending actors to
@@ -1211,13 +1245,9 @@ groups:
     kind: project
     statement: >-
       The FCV scenario MUST reach a final state with three participants — Finder,
-      Coordinator, and Vendor (plus the CaseActor) — and MUST advance to VFDPxa
-      CS with EM.EXITED and RM.CLOSED for all participants. Only Vendor's fix path
-      (VFD) is tracked; Coordinator and Finder have no VENDOR role and therefore
-      no vendor fix path. EM.EXITED is the terminal state; the causal chain is
-      EM.ACTIVE (established at case creation per EP-04-001) → triggered by CS.P
-      (DEMOMA-07-003(4)) → EM.EXITED. Demo scripts MUST verify EM.ACTIVE
-      at the case-creation milestone and EM.EXITED at the final milestone.
+      Coordinator, and Vendor (plus the CaseActor) — advancing to VFDPxa CS with
+      EM.EXITED and RM.CLOSED for all participants; only Vendor's fix path (VFD)
+      is tracked.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
@@ -1252,11 +1282,8 @@ groups:
       The FCV implementation MUST ship a dedicated per-scenario case-ledger
       invariant test file (`test/ci/invariants/test_fcv_invariants.py`) built
       exclusively on the shared invariant library introduced by the harness
-      refactor (issue #1592). DEMOMA-12-008 is satisfied only when that shared
-      library exists; the FCV invariant test file is blocked by #1592. The test
-      file MUST NOT duplicate universal invariant logic; universal
-      chain/hash/RM-closed checks MUST be imported from the shared library,
-      not re-implemented inline.
+      refactor (issue #1592); DEMOMA-12-008 is satisfied only when that shared
+      library exists.
     rationale: >-
       Requiring use of the shared library enforces the DRY constraint across
       scenarios. A file that copies invariant logic is not compliant even if
@@ -1270,16 +1297,13 @@ groups:
     statement: >-
       The FCV per-scenario invariant test file MUST assert the following
       scenario-specific checks in addition to the universal library checks:
-      (1) `validate_report` event present in case-actor log; (2)
-      `invite_actor_to_case` present at least twice (Finder invitation +
-      Vendor invitation); (3) `close_case` present; (4) CS transitions VFd
+      (1) `validate_report` event present in case-actor log,
+      (2) `invite_actor_to_case` present at least twice (Finder invitation +
+      Vendor invitation), (3) `close_case` present, (4) CS transitions VFd
       and VFD observed in `add_participant_status_to_participant` entries for
-      the Vendor actor (Vendor fix path); public-aware (P) transition observed
-      in `add_participant_status_to_participant` entries for the Coordinator
-      actor, since the Coordinator (as CASE_OWNER) is the party that triggers
-      CS.P (DEMOMA-07-003(4)); the P-set CS state MUST also be visible in all
-      replicas via Announce(CaseLedgerEntry) fan-out;
-      (5) Vendor replica holds the complete log from genesis (full history
+      the Vendor actor and public-aware (P) transition observed in
+      `add_participant_status_to_participant` entries for the Coordinator actor,
+      and (5) Vendor replica holds the complete log from genesis (full history
       backfill, as Vendor is a late joiner).
     rationale: >-
       Scenario-specific invariants prevent the FCV scenario from accidentally
@@ -1303,6 +1327,62 @@ groups:
       spec_id: CP-08-003
     - rel_type: refines
       spec_id: DEMOMA-12-001
+  - id: DEMOMA-12-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The Coordinator MUST hold `CVDRole.CASE_OWNER` throughout the entire FCV scenario;
+      ownership MUST NOT transfer to any other actor.
+    rationale: >-
+      FCV is the canonical Coordinator-as-owner scenario. Retaining CASE_OWNER
+      throughout differentiates it from FVCV-extension and FVCV-handoff variants.
+  - id: DEMOMA-12-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The CaseActor MUST emit `Announce(VulnerabilityCase)` to seed Vendor's case replica
+      after Vendor accepts the invitation in the FCV scenario.
+    rationale: >-
+      Replica seeding via Announce is the CaseActor's canonical response to an accepted
+      invitation (PCR-02-002).
+  - id: DEMOMA-12-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV demo script MUST poll Vendor's DataLayer for the arriving invitation before
+      driving the accept step.
+    rationale: >-
+      Polling before accept is required for determinism; driving accept before the
+      invitation is visible in Vendor's DataLayer causes a race condition.
+  - id: DEMOMA-12-014
+    priority: MUST
+    kind: project
+    statement: >-
+      FCV demo scripts MUST verify EM.ACTIVE at the case-creation milestone and EM.EXITED
+      at the final milestone.
+    rationale: >-
+      The causal chain EM.ACTIVE (established at case creation per EP-04-001) to
+      EM.EXITED (triggered by CS.P per DEMOMA-07-003(4)) must be confirmed at both
+      endpoints.
+  - id: DEMOMA-12-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV invariant test file MUST NOT duplicate universal invariant logic;
+      universal chain/hash/RM-closed checks MUST be imported from the shared library,
+      not re-implemented inline.
+    rationale: >-
+      Copying invariant logic violates the DRY constraint enforced by the shared
+      library architecture introduced by issue #1592.
+  - id: DEMOMA-12-016
+    priority: MUST
+    kind: project
+    statement: >-
+      The P-set CS state MUST be visible in all replicas via Announce(CaseLedgerEntry)
+      fan-out after the Coordinator triggers CS.P.
+    rationale: >-
+      Announce(CaseLedgerEntry) is the sole canonical propagation path for status
+      updates to peers (SYNC-02-002); this invariant confirms the fan-out fired.
 
 - id: DEMOMA-13
   title: FCCV-Extension Scenario (C1 retains ownership; C2 is participant; C2 suggests Vendor)
@@ -1544,16 +1624,7 @@ groups:
       The FCCV-extension implementation MUST ship a dedicated per-scenario
       case-ledger invariant test file
       (`test/ci/invariants/test_fccv_extension_invariants.py`) built exclusively
-      on the shared invariant library (per DEMOMA-12-008 pattern). The test file
-      MUST assert the following scenario-specific checks in addition to universal
-      library checks: (1) `validate_report` event present in case-actor log;
-      (2) `invite_actor_to_case` present at least twice (C2 invitation + Vendor
-      invitation); (3) `close_case` present; (4) CS transitions VFd and VFD
-      observed in `add_participant_status_to_participant` entries for the Vendor
-      actor (Vendor fix path); public-aware (P) transition observed in
-      `add_participant_status_to_participant` entries for C1 (CASE_OWNER triggers
-      CS.P); (5) Vendor replica holds the complete log from genesis (full history
-      backfill, as Vendor is a late joiner).
+      on the shared invariant library (per DEMOMA-12-008 pattern).
     rationale: >-
       Scenario-specific invariants prevent the FCCV-extension scenario from
       accidentally omitting protocol steps not covered by universal checks.
@@ -1576,6 +1647,23 @@ groups:
       spec_id: CP-08-003
     - rel_type: refines
       spec_id: DEMOMA-13-001
+  - id: DEMOMA-13-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-extension invariant test file MUST assert the following
+      scenario-specific checks in addition to universal library checks:
+      (1) `validate_report` event present in case-actor log,
+      (2) `invite_actor_to_case` present at least twice (C2 invitation + Vendor
+      invitation), (3) `close_case` present, (4) CS transitions VFd and VFD
+      observed in `add_participant_status_to_participant` entries for the Vendor
+      actor and public-aware (P) transition observed in
+      `add_participant_status_to_participant` entries for C1 (CASE_OWNER triggers
+      CS.P), and (5) Vendor replica holds the complete log from genesis (full
+      history backfill, as Vendor is a late joiner).
+    rationale: >-
+      Scenario-specific invariants prevent the FCCV-extension scenario from
+      accidentally omitting protocol steps not covered by universal checks.
 
 - id: DEMOMA-14
   title: FCCV-Handoff Scenario (C1 transfers case ownership to C2; C2 invites Vendor)
@@ -1636,9 +1724,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      C1 MUST invite C2 to the case (CVDRole.COORDINATOR), and C2 MUST
-      accept.  C2 MUST then be a participant with CVDRole.COORDINATOR before
-      the ownership transfer is initiated.
+      C1 MUST invite C2 to the case (CVDRole.COORDINATOR), and C2 MUST accept.
     rationale: >-
       C2 must be a known participant before C1 can offer ownership transfer.
       The invite-accept flow establishes C2's presence in the case ledger.
@@ -1663,10 +1749,7 @@ groups:
     kind: project
     statement: >-
       C1 MUST offer case ownership transfer to C2 (TRIG-11-001) and C2 MUST
-      accept (TRIG-11-002).  After acceptance the case's attributed_to MUST
-      reflect C2 on C1's DataLayer, C2's DataLayer, and CaseActor's
-      canonical ledger.  C1's CVDRole MUST become CVDRole.COORDINATOR
-      (no longer CASE_OWNER).
+      accept (TRIG-11-002).
     rationale: >-
       This is the core FCCV-handoff invariant.  The ownership-transfer
       trigger pair (TRIG-11-001/002) is the same mechanism as FVCV-handoff
@@ -1695,9 +1778,7 @@ groups:
     kind: project
     statement: >-
       C2 (the new CASE_OWNER) MUST invite Vendor to the case (NOT C1), and
-      Vendor MUST accept.  The Vendor Accept MUST be delivered to the
-      CaseActor so AcceptInviteActorToCaseBT runs and the join is committed
-      to the canonical ledger (PCR-08-008).
+      Vendor MUST accept.
     rationale: >-
       This invariant confirms that the new CASE_OWNER (C2) has the authority
       to extend the case to additional actors after the handoff, and that the
@@ -1737,9 +1818,7 @@ groups:
     kind: project
     statement: >-
       Vendor MUST advance through the full fix lifecycle: CS.VFd (fix ready)
-      and CS.VFD (fix deployed).  All participants MUST then report
-      publication (CS.VFDPx or CS.VFDPxa), the embargo MUST terminate
-      (EM.EXITED), and all participants MUST close the case (RM.CLOSED).
+      and CS.VFD (fix deployed).
     rationale: >-
       End-to-end completion is required to exercise the full CVD coordination
       workflow in the FCCV-handoff variant.
@@ -1771,17 +1850,7 @@ groups:
       The FCCV-handoff implementation MUST ship a dedicated per-scenario
       case-ledger invariant test file
       (`test/ci/invariants/test_fccv_handoff_invariants.py`) built
-      exclusively on the shared invariant library (per DEMOMA-12-008
-      pattern).  The test file MUST assert the following
-      scenario-specific checks in addition to universal library checks:
-      (1) `validate_report` event present in case-actor log;
-      (2) `invite_actor_to_case` present at least twice (C2 invitation +
-      Vendor invitation); (3) `accept_invite_actor_to_case` present at
-      least twice (C2 accept + Vendor accept); (4) `close_case` present;
-      (5) CS transitions VFd and VFD observed in
-      `add_participant_status_to_participant` entries for the Vendor actor;
-      (6) Vendor replica holds the complete log from genesis (late-joiner
-      full-history backfill).
+      exclusively on the shared invariant library (per DEMOMA-12-008 pattern).
     rationale: >-
       Scenario-specific invariants prevent the FCCV-handoff scenario from
       accidentally omitting protocol steps not covered by universal checks.
@@ -1790,6 +1859,75 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-008
+  - id: DEMOMA-14-010
+    priority: MUST
+    kind: project
+    statement: >-
+      C2 MUST be a participant with CVDRole.COORDINATOR before the ownership transfer
+      is initiated in the FCCV-handoff scenario.
+    rationale: >-
+      C2 must be a known case participant before C1 can offer ownership transfer;
+      the invite-accept flow in DEMOMA-14-003 establishes C2's presence in the ledger.
+  - id: DEMOMA-14-011
+    priority: MUST
+    kind: project
+    statement: >-
+      After the FCCV-handoff ownership transfer, the case's attributed_to MUST reflect
+      C2 on C1's DataLayer, C2's DataLayer, and the CaseActor's canonical ledger.
+    rationale: >-
+      attributed_to reflects the current CASE_OWNER; all replicas must converge on
+      the updated value after the ownership transfer completes.
+  - id: DEMOMA-14-012
+    priority: MUST
+    kind: project
+    statement: >-
+      After the FCCV-handoff ownership transfer, C1's CVDRole MUST become
+      CVDRole.COORDINATOR (no longer CASE_OWNER).
+    rationale: >-
+      This is the defining role-change outcome of the handoff; C1 retains participation
+      but surrenders ownership authority.
+  - id: DEMOMA-14-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The Vendor's Accept activity MUST be delivered to the CaseActor so
+      `AcceptInviteActorToCaseBT` runs and the join is committed to the canonical
+      ledger (PCR-08-008).
+    rationale: >-
+      Accept must reach the CaseActor, not just the inviting actor, so the join
+      is recorded in the authoritative ledger.
+  - id: DEMOMA-14-014
+    priority: MUST
+    kind: project
+    statement: >-
+      All participants MUST report publication (CS.VFDPx or CS.VFDPxa) and the
+      embargo MUST terminate (EM.EXITED) in the FCCV-handoff scenario.
+    rationale: >-
+      Public disclosure triggers embargo teardown via ThreatTerminationBranchNode;
+      both outcomes must be confirmed to validate the end-to-end CS.P path.
+  - id: DEMOMA-14-015
+    priority: MUST
+    kind: project
+    statement: >-
+      All participants MUST close the case (RM.CLOSED) in the FCCV-handoff scenario.
+    rationale: >-
+      RM.CLOSED for all participants is the terminal acceptance criterion for the
+      full CVD lifecycle in the FCCV-handoff scenario.
+  - id: DEMOMA-14-016
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-handoff invariant test file MUST assert the following scenario-specific
+      checks in addition to universal library checks: (1) `validate_report` event
+      present in case-actor log, (2) `invite_actor_to_case` present at least twice
+      (C2 invitation + Vendor invitation), (3) `accept_invite_actor_to_case` present
+      at least twice (C2 accept + Vendor accept), (4) `close_case` present, (5) CS
+      transitions VFd and VFD observed in `add_participant_status_to_participant`
+      entries for the Vendor actor, and (6) Vendor replica holds the complete log
+      from genesis (late-joiner full-history backfill).
+    rationale: >-
+      Scenario-specific invariants prevent the FCCV-handoff scenario from accidentally
+      omitting protocol steps not covered by universal checks.
 - id: DEMOMA-15
   title: Demo Helper Preconditions
   specs:
@@ -1800,13 +1938,6 @@ groups:
       `verify_fix_ready` in `vultron/demo/helpers/milestones.py` MUST accept only
       actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
       (fix-ready) transition is gated on VENDOR by `CheckVendorRoleNode`.
-      `verify_fix_deployed` MUST accept only actor IDs holding `CVDRole.DEPLOYER`
-      in the case's participant index; the d→D (fix-deployed) transition is gated
-      on DEPLOYER by `CheckDeployerRoleNode`. Passing any other actor (e.g.
-      COORDINATOR, CASE_OWNER, or a VENDOR-only actor without DEPLOYER) to either
-      helper is a caller error. Each helper MUST enforce its precondition at
-      runtime, raising `AssertionError` with the actor ID and its actual roles if
-      the assertion fails.
     rationale: >-
       The f→F (fix-ready) transition requires CVDRole.VENDOR; coordinators have no
       vendor fix path. The d→D (fix-deployed) transition requires CVDRole.DEPLOYER;
@@ -1822,6 +1953,27 @@ groups:
       spec_id: DEMOMA-06-002
     - rel_type: refines
       spec_id: DEMOMA-12-005
+  - id: DEMOMA-15-002
+    priority: MUST
+    kind: project
+    statement: >-
+      `verify_fix_deployed` MUST accept only actor IDs holding `CVDRole.DEPLOYER`
+      in the case's participant index; the d→D (fix-deployed) transition is gated
+      on DEPLOYER by `CheckDeployerRoleNode`.
+    rationale: >-
+      A VENDOR-only actor stops at VFd and cannot advance to VFD (CSB-15-002);
+      requiring DEPLOYER makes the failure mode unambiguous when the wrong actor ID
+      is passed.
+  - id: DEMOMA-15-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Each demo helper (`verify_fix_ready` and `verify_fix_deployed`) MUST enforce
+      its role precondition at runtime, raising `AssertionError` with the actor ID
+      and its actual roles if the assertion fails.
+    rationale: >-
+      Runtime enforcement surfaces caller errors immediately with a clear diagnostic
+      rather than a confusing downstream VFD state-check failure.
 - id: DEMOMA-16
   title: Per-Scenario Required Event Types for the Invariant Harness
   description: >-
@@ -1984,13 +2136,6 @@ groups:
       `invite_actor_to_case`, `offer_case_participant`,
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
       addition to the universal types (DEMOMA-16-001).
-      `invite_actor_to_case` appears at least three times (C1 invites V1, C1
-      invites C2, and CaseActor invites V2 via the ADR-0026 path);
-      `offer_case_participant` appears at least once (C2 suggests V2 to C1
-      via the ADR-0026 suggest-actor flow); `accept_actor_recommendation`
-      appears at least once (C1 approves C2's recommendation);
-      `accept_invite_actor_to_case` appears at least three times (V1, C2,
-      and V2 each accept their respective invitations).
     rationale: >-
       FCVCV is the first scenario with two independent coordinators and two
       independent vendor actors. C1 directly invites V1 and C2; C2 suggests
@@ -2050,6 +2195,27 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
+  - id: DEMOMA-16-012
+    priority: MUST
+    kind: project
+    statement: >-
+      In the FCVCV scenario, the case-actor log MUST record `invite_actor_to_case`
+      at least three times (C1 invites V1, C1 invites C2, and CaseActor invites V2
+      via the ADR-0026 path) and `offer_case_participant` at least once (C2 suggests
+      V2 to C1 via the ADR-0026 suggest-actor flow).
+    rationale: >-
+      These counts confirm that the multi-party invitation and suggest-actor flows
+      were exercised end-to-end, not just that the event types appear at least once.
+  - id: DEMOMA-16-013
+    priority: MUST
+    kind: project
+    statement: >-
+      In the FCVCV scenario, the case-actor log MUST record `accept_actor_recommendation`
+      at least once (C1 approves C2's recommendation) and `accept_invite_actor_to_case`
+      at least three times (V1, C2, and V2 each accept their respective invitations).
+    rationale: >-
+      These counts verify that every actor who received an invitation explicitly
+      accepted, and that the ADR-0026 approval path was exercised.
 
 - id: DEMOMA-18
   title: In-Process Fuzz Simulation Scenario
@@ -2214,14 +2380,7 @@ groups:
       pattern, data volume) with `VULTRON_SERVER__BASE_URL=http://actor6:7999/api/v2/`,
       `VULTRON_ACTOR_ID=http://actor6:7999/api/v2/actors/vendor-deployer`,
       `VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor","deployer"]`, and
-      `VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor6.yaml`. A
-      corresponding `seed-actor6.yaml` seed config MUST be created in
-      `docker/seed-configs/` with `local_actor.id=http://actor6:7999/api/v2/actors/vendor-deployer`,
-      `local_actor.name=VendorDeployer`, and a peers list covering the five
-      other actors (finder, vendor, coordinator, actor5, case-actor). The
-      `demo-runner` service MUST add `actor6` to its `depends_on` list and
-      expose `VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2` in
-      its environment block.
+      `VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor6.yaml`.
     rationale: >-
       The FCVCV scenario requires five independent actor containers — one per
       CVD-role actor — to force all inter-actor communication over the network
@@ -2242,12 +2401,7 @@ groups:
       A `seed_containers_fcvcv` function MUST be added to
       `vultron/demo/helpers/seeding.py` accepting five `DataLayerClient`
       arguments (finder_client, c1_client, v1_client, c2_client, v2_client)
-      and five optional deterministic actor ID arguments. It MUST create
-      five local actors: Finder (Person), Coordinator1 (Organization), Vendor1
-      (Organization), Coordinator2 (Organization), VendorDeployer (Organization).
-      It MUST then register every actor as a known peer on each of the other
-      four containers (N×(N-1) = 20 cross-registrations total, following the
-      same Phase 1 / Phase 2 pattern as `seed_containers_fccv`).
+      and five optional deterministic actor ID arguments.
     rationale: >-
       The 5-actor cross-registration ensures that every actor can locate and
       deliver activities to every other actor without runtime DNS surprises.
@@ -2264,18 +2418,7 @@ groups:
     kind: project
     statement: >-
       The FCVCV scenario file MUST be implemented at
-      `vultron/demo/scenario/fcvcv_demo.py`. It MUST be structured with the
-      following phases executed in order: (1) report_submission — F submits
-      report to C1, C1 validates, C1 creates case, C1 invites V1 and C2;
-      (2) c2_suggests_v2 — C2 sends suggest-actor-to-case for V2 to
-      CaseActor, C1 approves the CaseParticipant Offer, CaseActor sends
-      Invite to V2, V2 accepts; (3) sync_verification — replica consistency check
-      (all five containers hold the case replica); (4) notes_exchange — each
-      of the five actors posts a note; (5) fix_lifecycle — V1 advances to
-      VFd (fix-ready; no deploy step); V2 advances to VFD (fix-ready then
-      fix-deployed); (6) publication — V1 publishes first (triggering CS.P
-      and embargo teardown via CaseActor), then V2 publishes; (7) case_closure
-      — all participants close; (8) dump_case_ledgers — devlog output.
+      `vultron/demo/scenario/fcvcv_demo.py`.
     rationale: >-
       The phased structure mirrors the FCCV-extension scenario (the closest
       prior template) while adding V1's vendor-only VFd path and V2's full
@@ -2296,12 +2439,7 @@ groups:
     statement: >-
       In the FCVCV scenario, V1 MUST be assigned `CVDRole.VENDOR` only (no
       DEPLOYER role) and V2 MUST be assigned both `CVDRole.VENDOR` and
-      `CVDRole.DEPLOYER`. The fix lifecycle phase MUST call `verify_fix_ready`
-      for both V1 and V2 after they each advance to VFd. It MUST then call
-      `verify_fix_deployed` for V2 only after V2 advances to VFD.
-      `verify_fix_ready` MUST NOT be called with a DEPLOYER-only actor ID;
-      `verify_fix_deployed` MUST NOT be called with a VENDOR-only (no DEPLOYER)
-      actor ID such as V1.
+      `CVDRole.DEPLOYER`.
     rationale: >-
       V1's vendor-only role set (stops at VFd) and V2's vendor-deployer role
       set (reaches VFD) are the key differentiators of this scenario. The
@@ -2319,11 +2457,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In the FCVCV scenario, V1 MUST publish before V2. After V1 sends its
+      In the FCVCV scenario, V1 MUST publish before V2; after V1 sends its
       participant status update indicating CS.P, the scenario MUST wait for
       CaseActor to process that update and emit the embargo teardown
-      (EM.EXITED) before V2 publishes. The `verify_publicly_disclosed`
-      check MUST be called after both V1 and V2 have published.
+      (EM.EXITED) before V2 publishes.
     rationale: >-
       Having V1 publish first exercises the ThreatTerminationBranchNode code
       path where a VENDOR participant (not the CASE_OWNER) triggers embargo
@@ -2359,9 +2496,7 @@ groups:
       The FCVCV scenario MUST be added to the CI demo-integration matrix in
       `.github/workflows/demo-integration.yml` with `DEMO=fcvcv`, and
       `actor6` MUST be listed as a service dependency alongside the existing
-      five services. The CI devlogs directory for the FCVCV run MUST use the
-      scenario-role naming convention: `finder`, `c1`, `v1`, `c2`, `v2`,
-      `case-actor` (not docker service names).
+      five services.
     rationale: >-
       CI coverage of all demo scenarios is required by DEMOCI-04-001. The
       FCVCV scenario introduces the actor6 container, which must be listed as
@@ -2378,23 +2513,9 @@ groups:
     kind: project
     statement: >-
       An invariant harness file MUST be created at
-      `test/ci/invariants/test_fcvcv_invariants.py`. It MUST define
-      `_FCVCV_EXPECTED_EVENT_TYPES` per DEMOMA-16-009, a `_CHAIN_ACTORS`
-      list of scenario-role actor names (finder, c1, v1, c2, v2, case-actor),
-      and the universal invariant tests (Invariants 1–5) plus at minimum the
-      following scenario-specific invariant tests: (a)
-      `invite_actor_to_case` appears at least three times (C1→V1, C1→C2,
-      CaseActor→V2); (b) `offer_case_participant` appears at least once (C2
-      suggests V2 via ADR-0026); (c) `accept_invite_actor_to_case` appears
-      at least three times (V1, C2, V2 each accept). The harness MUST set
-      `_DEMO_NAME = "fcvcv"` and load its replicas via
-      `load_devlogs(demo_name=_DEMO_NAME)` from
-      `test/ci/invariants/common.py`, following the same self-contained
-      pattern as every prior scenario harness. The scenario MUST be routed to
-      this file by the `demo`/`test_file` matrix in
-      `.github/workflows/demo-integration.yml`, which is the sole
-      scenario-to-harness registry; harnesses MUST NOT be registered via a
-      `conftest.py` scenario mapping.
+      `test/ci/invariants/test_fcvcv_invariants.py` with `_DEMO_NAME = "fcvcv"`,
+      a `_CHAIN_ACTORS` list of scenario-role actor names (finder, c1, v1, c2,
+      v2, case-actor), and `_FCVCV_EXPECTED_EVENT_TYPES` per DEMOMA-16-009.
     rationale: >-
       The invariant harness is the CI-level acceptance test for the scenario.
       The three scenario-specific count checks verify that the multi-party
@@ -2414,15 +2535,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The FCVCV scenario MUST exercise the ADR-0026 suggest-actor flow for
-      V2's onboarding. The flow sequence is: (1) C2 posts `suggest-actor-to-case`
-      trigger (Offer(Actor, Case) sent to CaseActor); (2) CaseActor stores the
-      offer and forwards an `Offer(CaseParticipant)` to the CASE_OWNER (C1);
-      (3) C1 posts `accept-actor-recommendation` trigger providing the
-      CaseParticipant offer ID; (4) CaseActor sends `Invite` to V2; (5) V2
-      receives the `Invite` and posts `accept-case-invite`. The scenario MUST
-      use polling helpers (not `post_to_inbox_and_wait`) to deliver the invite
-      to V2's inbox, consistent with the no-mail-carrying rule (DEMOMA-03-003).
+      The FCVCV scenario MUST exercise the ADR-0026 suggest-actor flow for V2's
+      onboarding: C2 posts `suggest-actor-to-case`, CaseActor forwards an
+      `Offer(CaseParticipant)` to C1, C1 posts `accept-actor-recommendation`,
+      CaseActor sends `Invite` to V2, and V2 posts `accept-case-invite`.
     rationale: >-
       The ADR-0026 flow is the accepted pattern for coordinator-to-case actor
       suggestion (ADR-0026). The FCVCV scenario is the first to exercise C2
@@ -2437,6 +2553,141 @@ groups:
       spec_id: DEMOMA-03-003
     - rel_type: refines
       spec_id: DEMOMA-19-003
+  - id: DEMOMA-19-010
+    priority: MUST
+    kind: project
+    statement: >-
+      A `seed-actor6.yaml` seed config MUST be created in `docker/seed-configs/`
+      with `local_actor.id=http://actor6:7999/api/v2/actors/vendor-deployer`,
+      `local_actor.name=VendorDeployer`, and a peers list covering the five other
+      actors (finder, vendor, coordinator, actor5, case-actor).
+    rationale: >-
+      The seed config bootstraps actor6's identity and peer registry at container
+      startup, consistent with the pattern used by all other actor containers.
+  - id: DEMOMA-19-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The `demo-runner` service MUST add `actor6` to its `depends_on` list and
+      expose `VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2` in
+      its environment block.
+    rationale: >-
+      Without actor6 in depends_on, the demo runner may start before actor6 is
+      healthy; without the environment variable, the scenario cannot locate V2.
+  - id: DEMOMA-19-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The `seed_containers_fcvcv` function MUST create five local actors: Finder
+      (Person), Coordinator1 (Organization), Vendor1 (Organization), Coordinator2
+      (Organization), and VendorDeployer (Organization).
+    rationale: >-
+      Each of the five scenario participants requires a typed local actor record
+      in its container's DataLayer before cross-registration.
+  - id: DEMOMA-19-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The `seed_containers_fcvcv` function MUST register every actor as a known
+      peer on each of the other four containers (N×(N-1) = 20 cross-registrations
+      total), following the same Phase 1 / Phase 2 pattern as `seed_containers_fccv`.
+    rationale: >-
+      Full cross-registration ensures every actor can locate and deliver activities
+      to every other actor without runtime DNS surprises.
+  - id: DEMOMA-19-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario MUST implement the following phases in order:
+      report_submission, c2_suggests_v2, sync_verification, notes_exchange,
+      fix_lifecycle, publication, case_closure, and dump_case_ledgers.
+    rationale: >-
+      The phased structure mirrors the FCCV-extension scenario (the closest prior
+      template) while adding V1's vendor-only VFd path and V2's full VFD path.
+      Phase ordering reflects temporal protocol constraints.
+  - id: DEMOMA-19-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The fix lifecycle phase MUST call `verify_fix_ready` for both V1 and V2 after
+      they each advance to VFd, and MUST call `verify_fix_deployed` for V2 only after
+      V2 advances to VFD.
+    rationale: >-
+      V1's vendor-only role set (stops at VFd) and V2's vendor-deployer role set
+      (reaches VFD) are the key differentiators of the FCVCV scenario.
+  - id: DEMOMA-19-016
+    priority: MUST
+    kind: project
+    statement: >-
+      `verify_fix_ready` MUST NOT be called with a DEPLOYER-only actor ID;
+      `verify_fix_deployed` MUST NOT be called with a VENDOR-only (no DEPLOYER)
+      actor ID such as V1.
+    rationale: >-
+      Calling the wrong helper with the wrong actor masks future regressions where
+      the BT gate is weakened; the precondition guards surface the error immediately.
+  - id: DEMOMA-19-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The `verify_publicly_disclosed` check MUST be called after both V1 and V2
+      have published in the FCVCV scenario.
+    rationale: >-
+      Calling the check before both actors have published may produce a spurious
+      failure if the second publication has not yet propagated.
+  - id: DEMOMA-19-018
+    priority: MUST
+    kind: project
+    statement: >-
+      The CI devlogs directory for the FCVCV run MUST use the scenario-role naming
+      convention: `finder`, `c1`, `v1`, `c2`, `v2`, `case-actor` (not docker
+      service names).
+    rationale: >-
+      Scenario-role names match the names used in scenario code, making log
+      archaeology easier than using docker service names.
+  - id: DEMOMA-19-019
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV invariant harness MUST define the universal invariant tests
+      (Invariants 1–5) plus at minimum these scenario-specific invariant tests:
+      `invite_actor_to_case` appears at least three times (C1→V1, C1→C2,
+      CaseActor→V2), `offer_case_participant` appears at least once (C2 suggests
+      V2 via ADR-0026), and `accept_invite_actor_to_case` appears at least three
+      times (V1, C2, V2 each accept).
+    rationale: >-
+      The three scenario-specific count checks verify that the multi-party
+      invitation and suggest-actor flows were exercised end-to-end.
+  - id: DEMOMA-19-020
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV invariant harness MUST load its replicas via
+      `load_devlogs(demo_name=_DEMO_NAME)` from `test/ci/invariants/common.py`,
+      following the same self-contained pattern as every prior scenario harness.
+    rationale: >-
+      Consistent loading via common.py ensures the harness can be run standalone
+      without importing scenario module state.
+  - id: DEMOMA-19-021
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario MUST be routed to the invariant harness file by the
+      `demo`/`test_file` matrix in `.github/workflows/demo-integration.yml`;
+      harnesses MUST NOT be registered via a `conftest.py` scenario mapping.
+    rationale: >-
+      The CI matrix is the sole scenario-to-harness registry; conftest.py mappings
+      are not consulted by the CI runner.
+  - id: DEMOMA-19-022
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario MUST use polling helpers (not `post_to_inbox_and_wait`)
+      to deliver the invite to V2's inbox, consistent with the no-mail-carrying
+      rule (DEMOMA-03-003).
+    rationale: >-
+      The no-mail-carrying rule requires that the demo orchestrator never post
+      directly to another actor's inbox; the invite must arrive via the normal
+      routing path and be detected by polling.
 
 - id: DEMOMA-20
   title: RCV Embargo Scenario (Reporter + Coordinator + Vendor, deliberate termination)
@@ -2459,18 +2710,7 @@ groups:
     kind: project
     statement: >-
       The rcv-embargo scenario file MUST be implemented at
-      `vultron/demo/scenario/rcv_embargo_demo.py`. It MUST be structured with
-      the following phases executed in order: (1) report_submission — R submits
-      report to C, C validates, C creates the case, C invites R and V; (2)
-      embargo_proposal — R proposes an embargo (EP trigger), C accepts (EA
-      trigger), all three parties reach `emConsentState=SIGNATORY` and
-      `em_state=ACTIVE`; (3) fix_lifecycle — V advances through the fix-ready
-      path (VFd); (4) embargo_termination — C posts the terminate-embargo
-      trigger (ET), advancing `em_state` to EXITED; (5) publication — C
-      triggers the P-transition (CS.P); (6) case_closure — all participants
-      close; (7) dump_case_ledgers — devlog output. After each phase the
-      scenario MUST assert the expected EM state before proceeding to the
-      next phase.
+      `vultron/demo/scenario/rcv_embargo_demo.py`.
     rationale: >-
       The phased structure mirrors prior FCV/FVCV scenarios while inserting
       embargo lifecycle phases between report setup and fix-lifecycle. Asserting
@@ -2492,15 +2732,11 @@ groups:
     kind: project
     statement: >-
       An exchange helper function `demo_propose_and_activate_embargo` MUST be
-      added to `vultron/demo/exchange/`. It MUST accept `(reporter_client,
-      coordinator_client, vendor_client, case_id)` arguments and execute the
-      following sequence: (1) reporter posts `trigger_propose_embargo` with a
-      valid embargo event (deadline, sequence); (2) coordinator polls for the
-      EP message and posts `trigger_accept_embargo`; (3) vendor polls for the
-      EA message. After step 3, the helper MUST assert `em_state == EM.ACTIVE`
-      on the coordinator's case replica and `emConsentState == SIGNATORY` for
-      all three participants. The helper MUST use `demo_step` and `demo_check`
-      for all assertions, consistent with existing exchange helpers.
+      added to `vultron/demo/exchange/` accepting `(reporter_client,
+      coordinator_client, vendor_client, case_id)` arguments; it MUST execute
+      a three-step propose-activate sequence: reporter posts
+      `trigger_propose_embargo`, coordinator polls for the EP message and posts
+      `trigger_accept_embargo`, and vendor polls for the EA message.
     rationale: >-
       Extracting the propose-and-activate sequence as a reusable exchange
       helper follows DEMOMA-17-001 (DRY for demo code). The three-party
@@ -2516,13 +2752,9 @@ groups:
     kind: project
     statement: >-
       An exchange helper function `demo_terminate_embargo` MUST be added to
-      `vultron/demo/exchange/`. It MUST accept `(terminating_client, case_id)`
-      arguments — where `terminating_client` is any SIGNATORY participant
-      authorized to terminate — and post `trigger_terminate_embargo`. After
-      delivery, the helper MUST assert `em_state == EM.EXITED` on the
-      terminating actor's case replica using `demo_check`. The helper MUST NOT
-      assert PEC states for other participants; PEC propagation is asynchronous
-      and belongs in scenario-level phase assertions, not in the exchange helper.
+      `vultron/demo/exchange/` accepting `(terminating_client, case_id)` arguments
+      — where `terminating_client` is any SIGNATORY participant authorized to
+      terminate — and posting `trigger_terminate_embargo`.
     rationale: >-
       The terminate-embargo exchange is a single-actor trigger that can be
       reused by any scenario exercising variation (e). Keeping it in
@@ -2596,6 +2828,65 @@ groups:
       spec_id: DEMOMA-16-009
     - rel_type: refines
       spec_id: DEMOMA-20-001
+  - id: DEMOMA-20-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcv-embargo scenario MUST be structured with the following phases
+      executed in order: (1) report_submission, (2) embargo_proposal,
+      (3) fix_lifecycle, (4) embargo_termination, (5) publication,
+      (6) case_closure, and (7) dump_case_ledgers.
+    rationale: >-
+      The phased structure mirrors prior FCV/FVCV scenarios while inserting
+      embargo lifecycle phases between report setup and fix-lifecycle.
+  - id: DEMOMA-20-008
+    priority: MUST
+    kind: project
+    statement: >-
+      After each phase of the rcv-embargo scenario, the scenario MUST assert
+      the expected EM state before proceeding to the next phase.
+    rationale: >-
+      Phase-boundary EM assertions catch regressions where an embargo trigger
+      silently fails and the scenario continues in an unexpected state.
+  - id: DEMOMA-20-009
+    priority: MUST
+    kind: project
+    statement: >-
+      After completing the propose-activate sequence, `demo_propose_and_activate_embargo`
+      MUST assert `em_state == EM.ACTIVE` on the coordinator's case replica and
+      `emConsentState == SIGNATORY` for all three participants.
+    rationale: >-
+      These post-conditions confirm that all three parties successfully enrolled in
+      the embargo before the scenario advances.
+  - id: DEMOMA-20-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The `demo_propose_and_activate_embargo` helper MUST use `demo_step` and
+      `demo_check` for all assertions, consistent with existing exchange helpers.
+    rationale: >-
+      Using the shared assertion utilities keeps failure reporting consistent
+      across all exchange helpers.
+  - id: DEMOMA-20-011
+    priority: MUST
+    kind: project
+    statement: >-
+      After delivery of `trigger_terminate_embargo`, `demo_terminate_embargo`
+      MUST assert `em_state == EM.EXITED` on the terminating actor's case
+      replica using `demo_check`.
+    rationale: >-
+      Asserting on the terminating actor's replica immediately after delivery
+      confirms the embargo teardown was committed locally before returning.
+  - id: DEMOMA-20-012
+    priority: MUST
+    kind: project
+    statement: >-
+      `demo_terminate_embargo` MUST NOT assert PEC states for other participants;
+      PEC propagation is asynchronous and belongs in scenario-level phase
+      assertions, not in the exchange helper.
+    rationale: >-
+      Asserting peer PEC states in the exchange helper introduces a race condition;
+      propagation timing varies by topology and scenario.
 
 - id: DEMOMA-21
   title: RCVV Embargo Scenario (Reporter + Coordinator + V1 + V2, revision and accidental collapse)
@@ -2623,21 +2914,7 @@ groups:
     kind: project
     statement: >-
       The rcvv-embargo scenario file MUST be implemented at
-      `vultron/demo/scenario/rcvv_embargo_demo.py`. It MUST be structured with
-      the following phases executed in order: (1) report_submission — R submits
-      report to C, C validates and creates the case, C invites R and V1; (2)
-      embargo_proposal — R proposes an embargo (EP), C accepts (EA), R and V1
-      reach `emConsentState=SIGNATORY` and `em_state=ACTIVE`; (3)
-      embargo_revision — C proposes a revision (EV, `em_state→REVISE`), V1
-      accepts the revision (EJ, `em_state→ACTIVE`); (4) v2_late_invite — C
-      invites V2 to the case; V2 accepts the case invite and the in-force
-      embargo (`emConsentState→SIGNATORY`); (5) fix_lifecycle — V1 and V2 each
-      advance through their fix-ready paths; (6) accidental_collapse — R
-      publishes (`actor_notifies_published`), triggering CS.P and causing
-      CaseActor to auto-terminate the embargo (`em_state→EXITED`) via
-      `PublicDisclosureBranchNode`; (7) case_closure — all participants close;
-      (8) dump_case_ledgers — devlog output. After phases 2, 3, 4, and 6 the
-      scenario MUST assert the expected EM state before proceeding.
+      `vultron/demo/scenario/rcvv_embargo_demo.py`.
     rationale: >-
       The phased ordering reflects the temporal constraints of the embargo
       protocol: revision requires an ACTIVE embargo (phase 3 must follow
@@ -2659,16 +2936,11 @@ groups:
     kind: project
     statement: >-
       An exchange helper function `demo_propose_embargo_revision` MUST be added
-      to `vultron/demo/exchange/`. It MUST accept `(proposing_client,
-      accepting_client, case_id)` arguments and execute the following sequence:
-      (1) `proposing_client` posts `trigger_propose_embargo_revision`
-      (`em_state: ACTIVE → REVISE`); (2) `accepting_client` polls for the EV
+      to `vultron/demo/exchange/` accepting `(proposing_client, accepting_client,
+      case_id)` arguments; it MUST execute the following sequence:
+      `proposing_client` posts `trigger_propose_embargo_revision`
+      (`em_state: ACTIVE → REVISE`), then `accepting_client` polls for the EV
       message and posts `trigger_accept_embargo` (`em_state: REVISE → ACTIVE`).
-      After step 2, the helper MUST assert `em_state == EM.ACTIVE` on the
-      accepting client's case replica using `demo_check`. The function MUST be
-      importable from `vultron/demo/exchange/` and MUST NOT duplicate the
-      propose-and-activate logic already in `demo_propose_and_activate_embargo`
-      (DEMOMA-20-002).
     rationale: >-
       The revision exchange (EV→EJ) is a self-contained composable unit that
       can be reused if future scenarios add multiple revision cycles. Accepting
@@ -2688,13 +2960,9 @@ groups:
     kind: project
     statement: >-
       The v2_late_invite phase of rcvv-embargo MUST invite V2 to the case only
-      after the embargo revision (phase 3) is complete and `em_state` is
-      confirmed ACTIVE. On receiving the case invite, V2 MUST also receive the
-      current embargo event and accept it, reaching `emConsentState=SIGNATORY`.
-      The scenario MUST assert that V2's `emConsentState` is SIGNATORY before
-      proceeding to the fix_lifecycle phase. The scenario MUST use polling
-      helpers (not `post_to_inbox_and_wait`) to detect the invite in V2's
-      inbox, consistent with the no-mail-carrying rule (DEMOMA-03-003).
+      after the embargo revision (phase 3) is complete and `em_state` is confirmed
+      ACTIVE; on receiving the case invite, V2 MUST accept the current embargo
+      event, reaching `emConsentState=SIGNATORY`.
     rationale: >-
       Inviting V2 after the revision is complete — rather than before — is the
       defining characteristic of variation (f): the coordinator delays
@@ -2714,13 +2982,10 @@ groups:
     kind: project
     statement: >-
       The accidental_collapse phase of rcvv-embargo MUST trigger the P-transition
-      by calling `actor_notifies_published` on the reporter's client, which posts
-      to the `demo/notify-published` endpoint. The scenario MUST then poll for
-      CaseActor to emit the embargo teardown (the EM.EXITED transition driven by
+      by calling `actor_notifies_published` on the reporter's client; the scenario
+      MUST then poll for CaseActor to emit the embargo teardown (EM.EXITED via
       `PublicDisclosureBranchNode`) before asserting `em_state == EM.EXITED` on
-      the coordinator's replica. The scenario MUST NOT call
-      `trigger_terminate_embargo` directly for this phase; the collapse MUST
-      arrive as an automatic consequence of CS.P, not a deliberate termination.
+      the coordinator's replica.
     rationale: >-
       Variation (d) specifically exercises the accidental/automatic embargo
       collapse path rather than the deliberate termination (ET) path.
@@ -2790,6 +3055,79 @@ groups:
       spec_id: DEMOMA-16-009
     - rel_type: refines
       spec_id: DEMOMA-21-001
+  - id: DEMOMA-21-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcvv-embargo scenario MUST be structured with the following phases
+      executed in order: (1) report_submission, (2) embargo_proposal,
+      (3) embargo_revision, (4) v2_late_invite, (5) fix_lifecycle,
+      (6) accidental_collapse, (7) case_closure, and (8) dump_case_ledgers.
+    rationale: >-
+      Phase ordering reflects the temporal protocol constraints: revision
+      requires an ACTIVE embargo; V2 late-invite simulates a short-deadline
+      vendor held back until terms are settled.
+  - id: DEMOMA-21-009
+    priority: MUST
+    kind: project
+    statement: >-
+      After phases 2, 3, 4, and 6 of the rcvv-embargo scenario, the scenario
+      MUST assert the expected EM state before proceeding to the next phase.
+    rationale: >-
+      Phase-boundary EM assertions catch silent failures where an embargo
+      trigger fires but the state machine does not advance.
+  - id: DEMOMA-21-010
+    priority: MUST
+    kind: project
+    statement: >-
+      After the revision sequence, `demo_propose_embargo_revision` MUST assert
+      `em_state == EM.ACTIVE` on the accepting client's case replica using
+      `demo_check`.
+    rationale: >-
+      Confirming ACTIVE after the revision ensures the EJ path completed and
+      the embargo did not stall in REVISE state.
+  - id: DEMOMA-21-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The `demo_propose_embargo_revision` function MUST be importable from
+      `vultron/demo/exchange/` and MUST NOT duplicate the propose-and-activate
+      logic already in `demo_propose_and_activate_embargo` (DEMOMA-20-002).
+    rationale: >-
+      Reusing the activate path prevents divergence between the propose-and-activate
+      and revision helpers when the embargo lifecycle nodes change.
+  - id: DEMOMA-21-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcvv-embargo scenario MUST assert that V2's `emConsentState` is
+      SIGNATORY before proceeding to the fix_lifecycle phase.
+    rationale: >-
+      V2 must be fully enrolled in the embargo before it is accidentally
+      collapsed by CS.P, making the ledger record unambiguous about V2's
+      consent at time of collapse.
+  - id: DEMOMA-21-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcvv-embargo scenario MUST use polling helpers (not
+      `post_to_inbox_and_wait`) to detect the invite in V2's inbox, consistent
+      with the no-mail-carrying rule (DEMOMA-03-003).
+    rationale: >-
+      The no-mail-carrying rule requires that the demo orchestrator never post
+      directly to another actor's inbox; polling ensures the invite arrives via
+      the normal routing path.
+  - id: DEMOMA-21-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The accidental_collapse phase of rcvv-embargo MUST NOT call
+      `trigger_terminate_embargo` directly; the embargo collapse MUST arrive as
+      an automatic consequence of CS.P, not a deliberate termination.
+    rationale: >-
+      Variation (d) specifically exercises the automatic embargo collapse path
+      via `PublicDisclosureBranchNode`; calling `trigger_terminate_embargo`
+      directly would test variation (e) instead.
 - id: DEMOMA-22
   title: Causal Gating and Scenario Narratives
   specs:

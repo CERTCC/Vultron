@@ -43,13 +43,32 @@ groups:
   - id: IE-03-002
     priority: MUST
     kind: protocol
-    statement: >-
-      The endpoint MUST enforce a configurable maximum request body size; requests exceeding this
-      limit MUST be rejected with HTTP 413. The default maximum MUST be documented in the deployment
-      configuration reference.
+    statement: The endpoint MUST enforce a configurable maximum request body size.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-02-001
+  - id: IE-03-003
+    priority: MUST
+    kind: protocol
+    statement: Requests exceeding the maximum request body size MUST be rejected with HTTP 413.
+    rationale: >-
+      Rejecting oversized payloads with an explicit 413 prevents resource exhaustion
+      and signals the limit violation to the sender.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-03-002
+  - id: IE-03-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The default maximum request body size MUST be documented in the deployment
+      configuration reference.
+    rationale: >-
+      Operators need to know the default limit to tune it for their deployment
+      environment.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-03-002
 - id: IE-04
   title: Activity Validation
   specs:

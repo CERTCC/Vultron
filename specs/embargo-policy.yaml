@@ -38,7 +38,10 @@ groups:
   - id: EP-01-003
     priority: SHOULD
     kind: protocol
-    statement: 'The embargo policy record SHOULD include the following optional fields: minimum_duration (ISO 8601 duration; Actor SHOULD reject embargoes shorter than this value), maximum_duration (ISO 8601 duration; Actor SHOULD reject embargoes longer than this value), notes (free-text string describing the Actor''s embargo preferences)'
+    statement: >-
+      The embargo policy record SHOULD include the optional fields
+      `minimum_duration` (ISO 8601 duration), `maximum_duration` (ISO 8601 duration),
+      and `notes` (free-text string describing the Actor's embargo preferences).
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
@@ -60,6 +63,30 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OID-01-001
+  - id: EP-01-006
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      When `minimum_duration` is declared, an Actor SHOULD reject embargo proposals
+      shorter than that value.
+    rationale: >-
+      The minimum_duration field signals a floor below which the Actor will not
+      accept an embargo; evaluating it prevents compatibility mismatches.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-01-003
+  - id: EP-01-007
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      When `maximum_duration` is declared, an Actor SHOULD reject embargo proposals
+      longer than that value.
+    rationale: >-
+      The maximum_duration field signals a ceiling above which the Actor will not
+      accept an embargo; evaluating it prevents compatibility mismatches.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-01-003
 - id: EP-02
   title: API Endpoint
   specs:
@@ -252,11 +279,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiving actor that receives an `Invite(EmbargoEvent)` whose
-      `Invite.end_time` is earlier than the configured minimum window MUST clamp
-      the effective deadline up to that minimum. It MUST NOT reject the invite as
-      malformed on the basis of a sub-minimum deadline, and it MUST log the
-      clamp.
+      When a receiving actor receives an `Invite(EmbargoEvent)` whose
+      `Invite.end_time` is earlier than the configured minimum window, it MUST
+      clamp the effective deadline up to that minimum.
     note: >-
       Both parties must reach the same effective deadline for CM-28-002 to hold.
       Because the floor is a configured value, a receiver whose floor differs
@@ -271,5 +296,34 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-07-002
+    adr:
+    - ADR-0065
+  - id: EP-07-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiving actor MUST NOT reject an `Invite(EmbargoEvent)` as malformed
+      solely on the basis of a sub-minimum deadline.
+    rationale: >-
+      Rejecting the invitation would hand a hostile sender exactly what they want —
+      an invite that never takes effect — and punishes the invitee for the inviter's
+      misbehaviour.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-07-003
+    adr:
+    - ADR-0065
+  - id: EP-07-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiving actor MUST log the deadline clamp when it clamps an
+      `Invite(EmbargoEvent)` deadline up to the configured minimum window.
+    rationale: >-
+      Logging the clamp makes the adjustment observable for auditing and
+      debugging without rejecting the invitation.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-07-003
     adr:
     - ADR-0065

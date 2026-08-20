@@ -1260,9 +1260,6 @@ groups:
     statement: >-
       Outbound messages from a participant MUST follow the routing path:
       `participant → CaseActor → CaseLedgerEntry → broadcast → participants`.
-      A participant MUST NOT deliver messages directly to another participant's inbox;
-      delivery MUST be mediated by the `CaseActor` and recorded in the case ledger
-      before being fanned out.
     rationale: >-
       The ledger record provides the audit trail and ordering guarantees for all case
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
@@ -1271,3 +1268,26 @@ groups:
     - rel_type: refines
       spec_id: PCR-08-001
       note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
+  - id: VP-18-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant MUST NOT deliver messages directly to another participant's inbox.
+    rationale: >-
+      Direct peer-to-peer delivery bypasses the case ledger, removing the audit trail
+      and broadcast idempotency guarantees.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-18-001
+  - id: VP-18-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Delivery of outbound participant messages MUST be mediated by the `CaseActor`
+      and recorded in the case ledger before being fanned out to participants.
+    rationale: >-
+      Mediation through the CaseActor ensures all case activity is ledger-ordered
+      and consistently broadcast to all participants.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-18-001

@@ -103,14 +103,34 @@ groups:
         kind: project
         statement: >-
           The non-case-actor (participant) path MUST validate the received
-          log entry's hash chain before persisting: `prev_log_hash` MUST
-          match the receiver's local chain tail hash. On mismatch, the
-          participant MUST send `Reject(CaseLedgerEntry)` back to the
-          case-actor with its last-accepted hash.
+          log entry's hash chain before persisting.
         relationships:
           - rel_type: implements
             spec_id: SYNC-03-001
             note: Reject on hash-chain divergence
+
+      - id: SBT-02-007
+        priority: MUST
+        kind: project
+        statement: >-
+          In the non-case-actor path, `prev_log_hash` MUST match the
+          receiver's local chain tail hash.
+        rationale: >-
+          The hash-chain linkage is the integrity guarantee; accepting an
+          entry whose prev_log_hash does not match the local tail would
+          introduce a fork in the replica's chain.
+
+      - id: SBT-02-008
+        priority: MUST
+        kind: project
+        statement: >-
+          On hash-chain mismatch in the non-case-actor path, the participant
+          MUST send `Reject(CaseLedgerEntry)` back to the case-actor with
+          its last-accepted hash.
+        rationale: >-
+          The Reject triggers the case-actor's replay path (SYNC-03-002),
+          which resends all entries from the last accepted position forward
+          so the participant can converge.
 
       - id: SBT-02-003
         priority: MUST
@@ -130,9 +150,29 @@ groups:
         statement: >-
           The case-actor path MUST verify that the log entry's sender
           matches the case-actor's own identity (actor-ID comparison).
-          On mismatch (potential injection attempt), the BT MUST log at
-          WARNING level including the activity_id and the mismatched
-          actor IDs, and MUST return FAILURE without persisting.
+
+      - id: SBT-02-009
+        priority: MUST
+        kind: project
+        statement: >-
+          On sender-identity mismatch (potential injection attempt) in the
+          case-actor path, the BT MUST log at WARNING level including the
+          activity_id and the mismatched actor IDs.
+        rationale: >-
+          A WARNING-level log with the mismatched IDs provides an auditable
+          record of potential injection attempts without exposing internal
+          state to the sender.
+
+      - id: SBT-02-010
+        priority: MUST
+        kind: project
+        statement: >-
+          On sender-identity mismatch in the case-actor path, the BT MUST
+          return FAILURE without persisting.
+        rationale: >-
+          Persisting a log entry whose sender does not match the case-actor's
+          own identity would allow injection of forged entries into the
+          canonical ledger.
 
       - id: SBT-02-005
         priority: SHOULD
