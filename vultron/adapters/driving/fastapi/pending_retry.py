@@ -59,6 +59,7 @@ Issue: #1139.
 """
 
 import logging
+from typing import cast
 from collections.abc import Callable
 
 from py_trees.common import Status
@@ -67,6 +68,7 @@ from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
@@ -180,7 +182,11 @@ def _enqueue_and_clear(
     tree = RequeuePendingCreateCaseActivityNode(
         marker=marker, activity_id=activity.id_
     )
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    # `dl` is typed as the narrow `DataLayer` port; the BT needs case-aware
+    # reads.  `SqliteDataLayer` satisfies both protocols structurally, but a bare
+    # `DataLayer` does not, because `CasePersistence.clone_for_actor` is declared
+    # to return a `CasePersistence`.
+    result = BTBridge(datalayer=cast(CasePersistence, dl)).execute_with_setup(
         tree=tree,
         actor_id=marker.case_actor_id,
     )

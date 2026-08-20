@@ -39,7 +39,7 @@ Per specs/sync-ledger-replication.yaml:
 import logging
 import threading
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 import py_trees
 from py_trees.common import Status
@@ -171,7 +171,11 @@ class BTBridge:
             own_actor_id,
             actor_id,
         )
-        return clone_for_actor(actor_id)
+        # `clone_for_actor` came from getattr, so it is untyped. The cast is safe
+        # because `CasePersistence.clone_for_actor` is declared to return a
+        # `CasePersistence`; the getattr exists only so that test doubles and any
+        # non-actor-scoped implementation fall through the guards above untouched.
+        return cast(CasePersistence, clone_for_actor(actor_id))
 
     def setup_tree(
         self,

@@ -50,6 +50,7 @@ from vultron.core.models.actor import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
@@ -300,7 +301,13 @@ def get_action_rules(
         req = ActionRulesRequest(
             case_id=case_obj.id_, actor_id=canonical_actor_id
         )
-        return GetActionRulesUseCase(dl=dl, request=req).execute()
+        # `dl` is typed as the narrow `DataLayer` port but this use case needs
+        # case-aware reads.  `SqliteDataLayer` satisfies both protocols
+        # structurally; a bare `DataLayer` does not, because
+        # `CasePersistence.clone_for_actor` returns a `CasePersistence`.
+        return GetActionRulesUseCase(
+            dl=cast(CasePersistence, dl), request=req
+        ).execute()
     except VultronNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

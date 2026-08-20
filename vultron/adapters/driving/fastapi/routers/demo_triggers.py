@@ -28,7 +28,7 @@ Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from fastapi import (
     APIRouter,
@@ -362,6 +362,7 @@ def demo_sync_log_entry(
     from vultron.core.behaviors.sync.commit_tree import (
         create_commit_log_entry_tree,
     )
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
     from vultron.core.sync_helpers import _find_equivalent_recorded_entry
     from vultron.core.use_cases._helpers import _find_case_actor_id
 
@@ -369,12 +370,20 @@ def demo_sync_log_entry(
     object_id = body.object_id
     event_type = body.event_type
 
+    # The dependency is typed as the narrow `DataLayer` port, but everything
+    # below wants case-aware reads and an outbox.  `SqliteDataLayer` satisfies
+    # both protocols structurally; a bare `DataLayer` does not, because
+    # `CasePersistence.clone_for_actor` is declared to return a
+    # `CasePersistence`.  Cast once here rather than at each use — the same
+    # pattern `deps.get_trigger_service` uses.
+    cop = cast(CaseOutboxPersistence, dl)
+
     # Resolve canonical actor URI (slug from path param → full ID).
     _actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
     canonical_actor_id = (
         _actor.id_ if _actor and hasattr(_actor, "id_") else actor_id
     )
-    case_actor_id = _find_case_actor_id(dl, case_id) or canonical_actor_id
+    case_actor_id = _find_case_actor_id(cop, case_id) or canonical_actor_id
     payload_snapshot = {
         "type": "Announce",
         "object": {"type": "VulnerabilityCase", "id": case_id},
@@ -383,16 +392,12 @@ def demo_sync_log_entry(
     }
 
     with domain_error_translation():
-        from typing import cast as _cast
-
         from vultron.adapters.driven.sync_activity_adapter import (
             SyncActivityAdapter,
         )
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
-        cop = _cast(CaseOutboxPersistence, dl)
         sync_port = SyncActivityAdapter(cop)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(datalayer=cop)
         bridge.execute_with_setup(
             tree=create_commit_log_entry_tree(
                 case_id=case_id,
@@ -409,7 +414,7 @@ def demo_sync_log_entry(
         object_id=object_id,
         event_type=event_type,
         payload_snapshot=payload_snapshot,
-        dl=dl,
+        dl=cop,
     )
 
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)

@@ -31,6 +31,7 @@ from vultron.demo.utils import (
     demo_step,
     seed_actor,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -1194,7 +1195,7 @@ def seed_case_participants_for_demo(
     vendor_actor_id: str,
     reporter_actor_id: str | None,
     report_id: str | None,
-    dl=None,
+    dl: CasePersistence,
 ) -> None:
     """Seed vendor, reporter, and CaseActor participants on an ADR-0041 case.
 
@@ -1212,16 +1213,15 @@ def seed_case_participants_for_demo(
         reporter_actor_id: Full URI of the reporter actor, or ``None`` to skip.
         report_id: Report URI used to derive the CaseActor slug; falls back to
             ``case_id`` if ``None``.
-        dl: DataLayer instance to use.  Defaults to ``get_shared_dl()`` when
-            ``None``.  Pass an isolated DataLayer in tests that use
-            ``dependency_overrides`` (e.g. ``IsolatedActorApp.dl``) so that
-            seeding targets the correct in-memory store.
+        dl: The store to seed — required, and specifically the store of the
+            actor whose replica of the case is being set up.  There is no
+            default: it used to fall back to ``get_shared_dl()``, which ADR-0066
+            deletes, and no defensible default replaced it.  "Which actor's
+            replica?" is exactly the question a shared DataLayer let callers skip,
+            and the participants seeded here are per-replica state.
     """
-    from vultron.adapters.driven.datalayer import get_shared_dl
     from vultron.core.models.vultron_types import VulnerabilityCase
 
-    if dl is None:
-        dl = get_shared_dl()
     case_obj = dl.read(case_id)
     if not isinstance(case_obj, VulnerabilityCase):
         logger.warning(
