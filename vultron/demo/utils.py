@@ -111,6 +111,30 @@ def ref_id(value: object) -> str | None:
 
 
 @contextmanager
+def _demo_accumulate(
+    description: str,
+    start: str,
+    on_pass: str,
+    on_fail: str,
+    prefix: str,
+) -> Generator[None, None, None]:
+    """Shared try/except/log backbone for demo context managers.
+
+    Logs *start* on entry, *on_pass* on clean exit, *on_fail* + exc on
+    exception.  Exceptions are caught, logged, appended to
+    ``_demo_failures`` as ``"<prefix>: <description> — <exc>"``, and
+    suppressed so callers continue after the block.
+    """
+    logger.info(f"{start} {description}")
+    try:
+        yield
+        logger.info(f"{on_pass} {description}")
+    except Exception as exc:
+        logger.error(f"{on_fail} {description}: {exc}", exc_info=True)
+        _demo_failures.append(f"{prefix}: {description} — {exc}")
+
+
+@contextmanager
 def demo_step(description: str) -> Generator[None, None, None]:
     """Context manager for declaring workflow steps in demo logs.
 
@@ -120,13 +144,8 @@ def demo_step(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    logger.info(f"🚥 {description}")
-    try:
+    with _demo_accumulate(description, "🚥", "🟢", "🔴", "STEP FAILED"):
         yield
-        logger.info(f"🟢 {description}")
-    except Exception as exc:
-        logger.error(f"🔴 {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"STEP FAILED: {description} — {exc}")
 
 
 @contextmanager
@@ -139,13 +158,8 @@ def demo_check(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    logger.info(f"📋 {description}")
-    try:
+    with _demo_accumulate(description, "📋", "✅", "❌", "CHECK FAILED"):
         yield
-        logger.info(f"✅ {description}")
-    except Exception as exc:
-        logger.error(f"❌ {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"CHECK FAILED: {description} — {exc}")
 
 
 @contextmanager
@@ -181,13 +195,8 @@ def demo_gate(description: str) -> Generator[None, None, None]:
 
     See DEMOCI-01-007, EDF-06-005, ADR-0058.
     """
-    logger.info(f"🚧 {description}")
-    try:
+    with _demo_accumulate(description, "🚧", "🔓", "🔒", "GATE FAILED"):
         yield
-        logger.info(f"🔓 {description}")
-    except Exception as exc:
-        logger.error(f"🔒 {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"GATE FAILED: {description} — {exc}")
 
 
 def logfmt(obj: object) -> str:
