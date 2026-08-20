@@ -146,10 +146,12 @@ inherit `VultronObject` directly (not through `CoreObject`), so the hook must
 live on the shared root. See
 `plan/incoming/learnings/20260819-core-type-map-hook-on-vultronobject-not-coreobject.md`.
 
-**Known side-effect**: because `as_Object` also inherits `VultronObject`
-(ARCH-12-001), wire-layer types also trigger `VultronObject.__init_subclass__`
-and land in `CORE_TYPE_MAP`. This is functionally harmless — `VOCABULARY` is
-checked first — but is architecturally imprecise. Tracked in a separate issue.
+**Wire-branch guard** (issue #2416): `as_Object` (the wire-branch root)
+overrides `_is_core_branch: ClassVar[bool] = False`. All wire subclasses
+inherit this value; `VultronObject.__init_subclass__` checks
+`cls._is_core_branch` at entry and returns immediately for any wire-branch
+type. Confirmed by `test_no_wire_types_in_core_type_map` in
+`test/architecture/test_hierarchy_invariants.py`.
 
 ---
 

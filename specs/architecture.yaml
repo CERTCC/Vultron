@@ -228,6 +228,10 @@ groups:
       not representable via `CoreObject`. Contaminating `CORE_TYPE_MAP` with wire types (issue #2416) would silently
       allow wire-shaped objects to be reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary
       path and contradicting ARCH-12-003.
+    verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
+      module class appears in `CORE_TYPE_MAP`) and `test_vultron_object_direct_types_in_core_type_map` (asserts the five
+      `VultronObject`-direct core types are reachable by class name and Literal value) in
+      `test/architecture/test_hierarchy_invariants.py`. Both MUST NOT be marked `xfail`.'
   - id: ARCH-12-005
     priority: MUST
     kind: project
