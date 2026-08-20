@@ -24,6 +24,7 @@ import pytest
 
 from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
 
 # ---------------------------------------------------------------------------
 # Initialisation
@@ -32,11 +33,17 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
 @pytest.mark.integration
 def test_database_initialization_creates_db_file(tmp_db_url):
-    """Creating a file-backed SqliteDataLayer creates the SQLite file."""
-    instance = SqliteDataLayer(
-        tmp_db_url, actor_id="https://test.example/api/v2/actors/test-actor"
-    )
-    db_path = tmp_db_url.replace("sqlite:///", "")
+    """Creating a file-backed SqliteDataLayer creates that actor's SQLite file.
+
+    The configured URL is a *template*, not a location: under ADR-0066 each actor
+    gets its own file, discriminated by slug (``mydb.sqlite`` →
+    ``mydb-test-actor.sqlite``).  So the file to assert on is the resolved
+    per-actor URL, not the template — asserting the template passes only while a
+    single shared database exists.
+    """
+    actor_id = "https://test.example/api/v2/actors/test-actor"
+    instance = SqliteDataLayer(tmp_db_url, actor_id=actor_id)
+    db_path = actor_db_url(tmp_db_url, actor_id).replace("sqlite:///", "")
     assert os.path.exists(db_path)
     instance.close()
 
