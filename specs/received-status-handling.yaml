@@ -356,3 +356,77 @@ groups:
       nested object's own `id` and remaining fields. A patched alias also drops
       any stale snake_case twin of the same field, so a consumer that prefers
       the snake_case spelling cannot read the value the receiver refused.
+  - id: RSH-05-010
+    priority: MUST
+    kind: protocol
+    statement: >
+      A producer of `ledger_payload_object_override` MUST write `None` to the
+      key unconditionally at the start of every tick — before any early return
+      — so that a stale value from a previous execution cannot bleed into the
+      current one.
+    rationale: >
+      The py_trees blackboard is process-global. `BTBridge.execute_with_setup`
+      does not reset application-level keys between runs, so a producer that
+      only writes on its active path leaves the key at its previous value on
+      every no-op tick. `CommitCaseLedgerEntryNode` would then apply that stale
+      patch to a different payload snapshot. BT-17-003.
+    note: >
+      Pattern: call the unconditional clear (e.g. `self._publish((), None)`) as
+      the first statement in `update()`, before any conditional branch. Once
+      the producer node is migrated to the typed-Ports base class (ISSUE-1808),
+      the base class SHOULD auto-clear declared output ports in `initialise()`,
+      making this obligation structural.
+  - id: RSH-05-011
+    priority: MUST
+    kind: protocol
+    statement: >
+      A producer of `ledger_payload_object_override` MUST include a
+      `producer_type` field in the override dict. The required shape is
+      `{"object_id": <id>, "producer_type": <str>, "fields": {<wire alias>: <value>}}`.
+    rationale: >
+      Multiple producers are anticipated (ISSUE-2256 adds EM adjudication in
+      `EmbargoTeardownAuthorizationGate` as a second producer). Naming the
+      source node in the dict enables targeted audit logging and per-producer
+      diagnostics without out-of-band context. RSH-05-014 uses `producer_type`
+      to emit a warning on unrecognized producers without failing the commit.
+  - id: RSH-05-012
+    priority: MUST
+    kind: protocol
+    statement: >
+      The `fields` value of `ledger_payload_object_override` MUST contain only
+      wire alias keys recognized by `CommitCaseLedgerEntryNode`. Publishing an
+      unrecognized key is a protocol error.
+    rationale: >
+      The consumer hard-fails on any unrecognized alias (RSH-05-013). An unknown
+      alias applied to the canonical snapshot would abort the commit, blocking
+      the receive-side BT. Declaring this as a producer obligation means callers
+      can validate at construction time rather than catching a runtime failure.
+    note: >
+      The recognized aliases are those present in the `_migrate_flat_fields` /
+      `_SNAKE_TWINS` mechanism in `CommitCaseLedgerEntryNode`
+      (`vultron/core/behaviors/case/nodes/lifecycle.py`).
+  - id: RSH-05-013
+    priority: MUST
+    kind: protocol
+    statement: >
+      `CommitCaseLedgerEntryNode` MUST raise a hard failure — not a warning —
+      if the `fields` dict of `ledger_payload_object_override` contains a key
+      that is not a recognized wire alias for the snapshot object type.
+    rationale: >
+      An unrecognized alias applied to the canonical snapshot would silently add
+      unexpected content to the hash-chained ledger entry, which every replica
+      and the invariant harness would then apply. Data integrity requires a hard
+      stop; the correct response is to fix the producer (RSH-05-012), not to log
+      and continue.
+  - id: RSH-05-014
+    priority: SHOULD
+    kind: protocol
+    statement: >
+      `CommitCaseLedgerEntryNode` SHOULD emit a WARNING when
+      `ledger_payload_object_override` carries an unrecognized `producer_type`
+      value, and MUST NOT fail the commit on that basis alone.
+    rationale: >
+      An unrecognized `producer_type` may indicate a newer node type operating
+      against an older consumer. Logging preserves auditability without
+      blocking a structurally valid override. Field-name validation (RSH-05-013)
+      is the data-integrity guard; `producer_type` is an audit hint only.
