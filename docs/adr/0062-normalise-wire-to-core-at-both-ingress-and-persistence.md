@@ -99,9 +99,9 @@ the shapes converge.
   reasonably wonder which one is authoritative. Mitigated by
   `notes/datalayer-design.md`, which names the persistence boundary as the
   backstop.
-- Bad, because `_NORMALIZE_WIRE_TO_CORE` covers 2 of the 15 shadowing types. The
-  other 13 differ only by key spelling today, so they are misspelled rather than
-  unreadable — tracked in #2268.
+- Bad, because `_NORMALIZE_WIRE_TO_CORE` covers 7 of the 15 shadowing types. The
+  other 8 differ only by key spelling today, so they are misspelled rather than
+  unreadable — tracked in #2401.
 - Neutral, because per-write child projection costs one `model_fields` scan on
   objects that are already being serialised.
 

@@ -44,18 +44,6 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 
 # ---------------------------------------------------------------------------
-# Baseline: the types normalised as of issue #2232.  This set may only GROW.
-# Adding a type here is the second half of migrating it; removing one is a
-# regression, not a refactor.
-# ---------------------------------------------------------------------------
-_NORMALIZED_AS_OF_2232: frozenset[str] = frozenset(
-    {
-        "CaseParticipant",
-        "ParticipantStatus",
-    }
-)
-
-# ---------------------------------------------------------------------------
 # Baseline: seven types normalised as of issue #2402 (five actor types added).
 # The remaining eight shadowing object types are tracked in issue #2401.
 # ---------------------------------------------------------------------------
