@@ -266,6 +266,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
             {
                 "object_id": self.status_id,
+                "producer_type": self.__class__.__name__,
                 "fields": _accepted_wire_patch(filtered),
             },
             overwrite=True,
