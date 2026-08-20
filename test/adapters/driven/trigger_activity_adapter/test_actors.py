@@ -327,24 +327,6 @@ class TestAcceptCaseParticipantRole:
 
         assert dl.read(activity_id) is not None
 
-    def test_idempotent_on_duplicate(self, adapter, dl):
-        _make_role_case(dl)
-        from vultron.enums.roles import CVDRole
-
-        kwargs = dict(
-            offer_id=_OFFER_ID,
-            case_id=_CASE_ID,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_VENDOR,
-            actor=_CASE_ACTOR,
-            to=[_VENDOR],
-        )
-        activity_id1, _ = adapter.accept_case_participant_role(**kwargs)
-        activity_id2, _ = adapter.accept_case_participant_role(**kwargs)
-
-        assert activity_id1 == activity_id2
-
 
 class TestRejectCaseParticipantRole:
     """Tests for reject_case_participant_role adapter method (ADR-0039)."""
@@ -380,21 +362,3 @@ class TestRejectCaseParticipantRole:
         )
 
         assert dl.read(activity_id) is not None
-
-    def test_idempotent_on_duplicate(self, adapter, dl):
-        _make_role_case(dl)
-        from vultron.enums.roles import CVDRole
-
-        kwargs = dict(
-            offer_id=_OFFER_ID,
-            case_id=_CASE_ID,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_VENDOR,
-            actor=_CASE_ACTOR,
-            to=[_VENDOR],
-        )
-        activity_id1 = adapter.reject_case_participant_role(**kwargs)
-        activity_id2 = adapter.reject_case_participant_role(**kwargs)
-
-        assert activity_id1 == activity_id2

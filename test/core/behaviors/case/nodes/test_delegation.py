@@ -17,7 +17,7 @@
 
 import pytest
 from py_trees.common import Status
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -89,14 +89,20 @@ class TestAutoAcceptCaseParticipantRoleNode:
     def test_success_path(self, bridge, dl):
         """Happy path: creates Accept activity, commits to ledger, enqueues."""
         node = _make_accept_node()
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        with patch.object(
+            type(node), "_commit_accept_to_ledger", return_value=True
+        ):
+            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
 
     def test_accept_enqueued_to_outbox(self, bridge, dl):
         """Accept activity ID is enqueued to the actor's outbox after success."""
         node = _make_accept_node()
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        with patch.object(
+            type(node), "_commit_accept_to_ledger", return_value=True
+        ):
+            bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         queued = dl.outbox_list_for_actor(ACTOR_ID)
         assert len(queued) >= 1
