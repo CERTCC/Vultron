@@ -15,9 +15,6 @@ import random
 from typing import Any, cast
 from uuid import uuid4
 
-from vultron.adapters.driven.db_record import object_to_record
-from vultron.core.models.protocols import PersistableModel
-from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -130,13 +127,6 @@ def gen_report() -> as_VulnerabilityReport:
         a as_VulnerabilityReport object
     """
     return _REPORT
-
-
-def initialize_examples(datalayer: DataLayer) -> None:
-    for obj in [_FINDER, _VENDOR, _COORDINATOR, _CASE_ACTOR, _REPORT]:
-        if obj.type_ is None:
-            raise ValueError(f"Example object missing type_: {obj}")
-        datalayer.create(object_to_record(cast(PersistableModel, obj)))
 
 
 def _strip_published_udpated(obj: as_Base) -> as_Base:

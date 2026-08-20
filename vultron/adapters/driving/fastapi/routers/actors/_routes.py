@@ -23,6 +23,7 @@ dependencies provide.
 
 import logging
 from typing import Any, Literal, cast
+from uuid import uuid4
 
 from fastapi import (
     APIRouter,
@@ -43,7 +44,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.utils import make_id, strip_id_prefix
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
@@ -165,11 +166,15 @@ def create_actor(request: ActorCreateRequest):
     ``{base_url}/actors/{slug}``, and its inbox is ``{id}/inbox``. So the id is
     canonicalized *before* the record is built, not only when choosing the store.
 
-    Previously an unspecified id defaulted to ``make_id("actors")``, a
-    ``urn:uuid:`` value that addresses nothing. The store was then opened under
-    the canonical form while the record kept the urn, so the actor's own id did
-    not name the endpoint that served it and ``GET /actors/{slug}`` could not find
-    it.
+    An unspecified id becomes a fresh **slug**, not a generated URI. Passing
+    ``make_id("actors")`` here did not work: it builds on ``adapters.utils
+    .BASE_URL`` rather than ``ServerConfig.base_url``, yielding
+    ``…/api/actors/{uuid}`` — no ``v2`` segment — and because that value already
+    carries a scheme, ``canonical_actor_uri`` returns it verbatim instead of
+    adopting it. The record's id then named an endpoint this node does not serve,
+    so its store was reachable under one id and ``GET /actors/{slug}`` resolved to
+    another. Handing the canonicalizer a bare slug is what makes the id and the
+    serving endpoint the same string by construction (ADR-0066 decision 2).
 
     A client-supplied id under another authority is not rejected here, but note
     that it names a process *elsewhere* — a peer, whose address a hosted actor may
@@ -177,9 +182,7 @@ def create_actor(request: ActorCreateRequest):
     rather than adopted verbatim, because this node cannot serve an endpoint it
     does not own.
     """
-    actor_id = actor_hosts.canonical_actor_uri(
-        request.id_ or make_id("actors")
-    )
+    actor_id = actor_hosts.canonical_actor_uri(request.id_ or str(uuid4()))
     datalayer = get_datalayer(actor_id)
 
     # Idempotency: return existing record unchanged.

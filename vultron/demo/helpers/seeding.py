@@ -1014,7 +1014,7 @@ def reset_containers(
         labeled_clients: Sequence of ``(label, client)`` pairs, one per
             container.  *label* is used only in log and assertion messages.
         reset_fn: Callable with the signature
-            ``reset_fn(client: DataLayerClient, init: bool) -> Any``.
+            ``reset_fn(client: DataLayerClient) -> Any``.
             Pass the module-local reference so test patches take effect.
 
     Raises:
@@ -1026,7 +1026,7 @@ def reset_containers(
     label = client = None
     with demo_step("Resetting actor containers to a clean baseline"):
         for label, client in labeled_clients:
-            result = reset_fn(client=client, init=False)
+            result = reset_fn(client=client)
             logger.debug("%s reset result: %s", label, result)
 
     with demo_check("All actor containers start with no persisted cases"):
@@ -1110,6 +1110,23 @@ def _seed_reporter_participant(
     )
 
 
+def _store_for_actor(dl: Any, actor_id: str) -> Any:
+    """Return *actor_id*'s own store, given any actor's *dl*.
+
+    ``clone_for_actor`` is the only sanctioned route to another actor's store
+    (ADR-0066 decision 7), so writing a record into a store other than the one
+    we were handed reads as the cross-actor act it is.  Falls back to *dl* when
+    the port does not offer cloning, which keeps the seeding helpers usable with
+    test doubles.
+    """
+    if getattr(dl, "actor_id", None) == actor_id:
+        return dl
+    clone_for_actor = getattr(dl, "clone_for_actor", None)
+    if not callable(clone_for_actor):
+        return dl
+    return clone_for_actor(actor_id)
+
+
 def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     import uuid as _uuid
 
@@ -1132,16 +1149,23 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
         return
 
     # Create the CaseActor Service object so that inbox delivery to the
-    # CaseActor succeeds in single-container test environments (the inbox
-    # endpoint resolves actors by short ID, which requires a Service row).
+    # CaseActor succeeds.  The record goes in the CaseActor's *own* store,
+    # because that is what makes it a hosted actor: the inbox route computes the
+    # canonical URI from the path segment and resolves the actor from the store
+    # that URI names (ADR-0066 decision 2), so a copy sitting in the seeding
+    # actor's store leaves `POST /actors/case-actor-…/inbox/` answering
+    # `404 Actor not found` and the CaseProposal round-trip never starts.
+    # (Pre-ADR-0066 this wrote to the one shared store, where "some row exists"
+    # and "this actor is hosted" were the same thing.)
     actor_obj = CaseActor(
         id_=case_actor_id,
         name=f"CaseActor for {case_id}",
         attributed_to=case_actor_id,
         context=case_id,
     )
+    own_store = _store_for_actor(dl, case_actor_id)
     try:
-        dl.create(actor_obj)
+        own_store.create(actor_obj)
     except ValueError:
         pass
 

@@ -309,22 +309,28 @@ def get_objects(
     ),
     operation_id="datalayer_reset",
 )
-def reset_datalayer(init: bool = False) -> dict:
+def reset_datalayer() -> dict:
     """Clear every hosted actor's store.
 
     A node-level operation: there is no single store to clear under ADR-0066,
     and demo scenarios reset a whole container between runs.  Kept off the
     actor-scoped router so that it cannot be mistaken for one actor reaching
     into another's data.
-    """
-    from vultron.wire.as2.vocab.examples._base import initialize_examples
 
+    Resetting does not *provision*.  An earlier ``init`` flag seeded the wire
+    vocabulary's example actors here, which per-actor storage made unworkable in
+    two independent ways: this loop iterates the actors the node already hosts,
+    so on a clean node it has nothing to iterate and the seed silently never ran;
+    and those example actors are named under ``https://vultron.example/users/…``,
+    which is not ``{base_url}actors/{slug}`` and so can never be addressed on this
+    node (ADR-0066 decision 2).  Provisioning an actor is ``POST /actors/``, and
+    callers that need a populated node call it — see
+    ``vultron.demo.utils.seed_exchange_actors``.
+    """
     counts: dict[str, dict[str, int]] = {}
     for actor_id in actor_hosts.hosted_actor_ids():
         actor_dl = get_datalayer(actor_id)
         actor_dl.clear_all()
-        if init:
-            initialize_examples(datalayer=actor_dl)
         counts[actor_id] = actor_dl.count_all()
 
     return {

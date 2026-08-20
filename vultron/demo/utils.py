@@ -350,18 +350,22 @@ class DataLayerClient(BaseModel):
         return cast(dict, self.call(HTTPMethod.DELETE, path, **kwargs))
 
 
-def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
-    """Reset the DataLayer to a clean state via the API.
+def reset_datalayer(client: DataLayerClient) -> dict:
+    """Clear every store on the node *client* addresses, via the API.
+
+    Clearing only clears.  The former ``init`` flag asked the server to seed
+    default actors as part of the reset; provisioning is now the caller's job,
+    via :func:`seed_exchange_actors` or :func:`seed_actor` (see the route
+    docstring for why per-actor storage made the server-side seed unworkable).
 
     Args:
         client: DataLayerClient instance.
-        init: When ``True``, re-seed the DataLayer with default actors after reset.
     """
     logger.debug("Resetting data layer...")
     # Node-level, not actor-scoped: resetting is an operation on the node's
     # storage rather than a read of one actor's replica, so it deliberately does
     # *not* go through `dl_path` (ADR-0066 moved it to /admin/).
-    return client.delete("/admin/datalayer/reset/", params={"init": init})
+    return client.delete("/admin/datalayer/reset/")
 
 
 def _log_discovered_actor(role: str, actor: as_Actor) -> None:
@@ -479,7 +483,9 @@ def post_to_trigger(
     )
 
 
-def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
+def verify_object_stored(
+    client: DataLayerClient, obj_id: str, actor_id: str | None = None
+) -> as_Object:
     """Fetch an object from the DataLayer by ID and verify it is present.
 
     Logs the stored representation so all fields are visible. Nested objects
@@ -487,6 +493,15 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     shows ID strings for nested fields such as ``object_``, ``target``, etc.
     To inspect a nested object, call ``verify_object_stored`` again with the
     nested object's own ID.
+
+    Args:
+        client: DataLayerClient for the container to read from.
+        obj_id: Id of the object to fetch.
+        actor_id: Whose replica to look in.  Defaults to *client*'s own actor.
+            "Is this object stored?" has no answer under ADR-0066 without naming
+            an actor, so pass this whenever the read is about an actor other than
+            the one the client is bound to — typically because the activity was
+            delivered to a different recipient's inbox.
 
     Returns:
         The retrieved ``as_Object``.
@@ -504,7 +519,7 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
             return [_drop_nulls(item) for item in value]
         return value
 
-    obj = client.get(client.dl_path(obj_id))
+    obj = client.get(client.dl_path(obj_id, actor_id=actor_id))
     filtered = _drop_nulls(obj)
     logger.info(
         "Stored record (nested objects shown as ID references): %s",
@@ -520,16 +535,19 @@ def get_offer_from_datalayer(
 
     Args:
         client: DataLayerClient instance.
-        vendor_id: ID of the vendor actor that owns the offer.
+        vendor_id: ID of the vendor actor that owns the offer.  Names the store
+            to read, so the lookup does not depend on *client*'s own binding.
         offer_id: ID of the offer to retrieve.
 
     Returns:
         The retrieved offer as :class:`as_Offer`.
     """
-    vendor_obj_id = parse_id(vendor_id)["object_id"]
     offer_obj_id = parse_id(offer_id)["object_id"]
+    # `Offers/{id}` sits under the actor-scoped prefix, so the owning actor is
+    # already in the path.  The old key nested a second `Actors/{segment}/`
+    # inside it, which addressed nothing once `dl_path` supplied the prefix.
     offer_data = client.get(
-        client.dl_path(f"Actors/{vendor_obj_id}/Offers/{offer_obj_id}")
+        client.dl_path(f"Offers/{offer_obj_id}", actor_id=vendor_id)
     )
     raw = as_Offer(**offer_data)
     logger.info(f"Retrieved Offer: {logfmt(raw)}")
@@ -537,11 +555,23 @@ def get_offer_from_datalayer(
 
 
 def log_case_state(
-    client: DataLayerClient, case_id: str, label: str
+    client: DataLayerClient,
+    case_id: str,
+    label: str,
+    actor_id: str | None = None,
 ) -> Optional[as_VulnerabilityCase]:
-    """Fetch and log the current state of a case."""
+    """Fetch and log the current state of a case.
+
+    Args:
+        client: DataLayerClient for the container to read from.
+        case_id: Id of the case to read.
+        label: Short description of the point in the flow, for the log line.
+        actor_id: Whose replica to read.  Defaults to *client*'s own actor.
+            Participants hold their own replicas of a case (PCR), so the state
+            logged is always some named actor's view of it, never "the" state.
+    """
     try:
-        case_data = client.get(client.dl_path(case_id))
+        case_data = client.get(client.dl_path(case_id, actor_id=actor_id))
         case = as_VulnerabilityCase(**case_data)
         logger.info(
             f"Case state [{label}]: reports={len(case.vulnerability_reports)}, "
@@ -554,21 +584,79 @@ def log_case_state(
         return None
 
 
+#: The three actors every exchange demo runs with, as
+#: ``(slug, name, actor_type)``.
+#:
+#: Slugs, not absolute URIs: ``POST /actors/`` canonicalizes a bare slug into
+#: ``{base_url}actors/{slug}`` (ADR-0066 decision 2), so the id names the very
+#: endpoint this node serves.  A hard-coded absolute id would instead name an
+#: actor on some *other* node — the mistake the retired example actors made, and
+#: the reason they could not be addressed here.
+#:
+#: The names retain the prefixes :func:`discover_actors` matches on, so a node
+#: seeded this way is still introspectable by role.
+_EXCHANGE_ACTORS: Tuple[Tuple[str, str, str], ...] = (
+    ("finndervul", "Finn der Vul", "Person"),
+    ("vendorco", "VendorCo", "Organization"),
+    ("coordinator", "Coordinator LLC", "Organization"),
+)
+
+
+def seed_exchange_actors(
+    client: DataLayerClient,
+) -> Tuple[as_Actor, as_Actor, as_Actor]:
+    """Create the Finder, Vendor and Coordinator actors on *client*'s node.
+
+    Each gets its own store, holding its own record, which is the whole of what
+    a single-container exchange demo needs: the three actors reach each other by
+    URL, and delivery derives a recipient's inbox from its URI alone
+    (``http_delivery``), so no actor needs a stored copy of another's record.
+
+    Idempotent, because ``POST /actors/`` is.
+
+    Returns:
+        A tuple of ``(finder, vendor, coordinator)`` actors as created.
+    """
+    seeded = tuple(
+        seed_actor(
+            client=client, name=name, actor_type=actor_type, actor_id=slug
+        )
+        for slug, name, actor_type in _EXCHANGE_ACTORS
+    )
+    for actor in seeded:
+        logger.info("Seeded exchange actor: %s", actor.id_)
+    finder, vendor, coordinator = seeded
+
+    # One client serves a node hosting three actors, so it cannot infer whose
+    # replica a `dl_path` read is about.  Bind it to the vendor: the exchange
+    # demos are receiver-side stories and the vendor is the recipient in the
+    # large majority of them.  Reads about the finder's or coordinator's replica
+    # pass `actor_id=` explicitly at the call site, which is what makes those
+    # reads legible as cross-actor rather than silently answering from the wrong
+    # store (ADR-0066 decision 7).
+    client.actor_id = vendor.id_
+    logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
+
+    return finder, vendor, coordinator
+
+
 def setup_clean_environment(
     client: DataLayerClient,
 ) -> Tuple[as_Actor, as_Actor, as_Actor]:
-    """Reset the DataLayer and return the three default demo actors.
+    """Reset the node and provision the three default demo actors.
 
-    Resets the DataLayer, clears all actor I/O queues, discovers the Finder,
-    Vendor, and Coordinator actors, and initialises their inboxes and outboxes.
+    Clears every store on the node, then creates the Finder, Vendor and
+    Coordinator actors.  The seeding step is explicit because clearing a node
+    leaves it hosting nothing at all: under ADR-0066 there is no store that
+    outlives the reset for a server-side ``init`` to populate.
 
     Returns:
         A tuple of ``(finder, vendor, coordinator)`` actors.
     """
     logger.info("Setting up clean environment...")
-    reset = reset_datalayer(client=client, init=True)
+    reset = reset_datalayer(client=client)
     logger.info(f"Reset status: {reset}")
-    finder, vendor, coordinator = discover_actors(client=client)
+    finder, vendor, coordinator = seed_exchange_actors(client=client)
     logger.info("Clean environment setup complete.")
     return finder, vendor, coordinator
 
@@ -590,7 +678,7 @@ def demo_environment(
         yield finder, vendor, coordinator
     finally:
         logger.info("Tearing down demo environment...")
-        reset_datalayer(client=client, init=False)
+        reset_datalayer(client=client)
         logger.info("Demo environment torn down.")
 
 
@@ -622,6 +710,59 @@ def seed_actor(
 
     response_data = client.post("/actors/", json=payload)
     return as_Actor.model_validate(response_data)
+
+
+def case_actor_id_for_report(report_id: str) -> str:
+    """Return the CaseActor URI that a report's CaseProposal will be sent to.
+
+    Mirrors ``ResolveCaseActorUrlsNode`` / ``ProposeReportCaseToActorNode``: the
+    id is *derived*, not looked up, so a demo can compute it before the proposal
+    exists and provision the actor that must receive it.
+    """
+    from vultron.config import get_config
+    from vultron.core.behaviors.case.nodes.conditions import _derive_case_slug
+
+    cfg = get_config()
+    base = (
+        str(cfg.actor.case_actor_service_url).rstrip("/")
+        if cfg.actor.case_actor_service_url
+        else str(cfg.server.base_url).rstrip("/")
+    )
+    return f"{base}/actors/case-actor-{_derive_case_slug(report_id)}"
+
+
+def seed_case_actor_for_report(
+    client: DataLayerClient, report_id: str
+) -> as_Actor:
+    """Provision the CaseActor that *report_id*'s CaseProposal is addressed to.
+
+    ``ProposeReportCaseToActorNode`` sends ``Create(CaseProposal)`` to a CaseActor
+    whose URI it derives from the report, and delivery is an ordinary HTTP POST to
+    that actor's inbox (ADR-0042).  The inbox route resolves the actor from the
+    store its URI names, so the CaseActor has to be a *hosted actor* before the
+    proposal is delivered or the round-trip never starts.
+
+    In the exchange demos one container plays both the participant node and the
+    CaseActor service, so that container is the one that must host it.  Going
+    through ``POST /actors/`` is what puts the record in the CaseActor's own
+    store, since the route opens the store the id names (ADR-0066).
+
+    Spawning a CaseActor on demand for an unknown-in-advance case is a separate
+    protocol question (CP-08-003, #1700); this helper deliberately only does what
+    a demo can do — provision an actor whose id it can compute.
+
+    Returns:
+        The created (or pre-existing) CaseActor as an ``as_Actor``.
+    """
+    case_actor_id = case_actor_id_for_report(report_id)
+    actor = seed_actor(
+        client=client,
+        name=f"CaseActor for report {report_id}",
+        actor_type="Service",
+        actor_id=case_actor_id,
+    )
+    logger.info("Provisioned CaseActor for report: %s", case_actor_id)
+    return actor
 
 
 def check_server_availability(

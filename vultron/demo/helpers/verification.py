@@ -392,8 +392,12 @@ def verify_activity_in_inbox(
 
     Args:
         client: DataLayerClient for the target container.
-        actor_id: Full URI of the actor whose inbox to check (used for
-            logging only; the DataLayer lookup is ID-based).
+        actor_id: Full URI of the actor whose inbox to check.  This *selects the
+            store* read: an activity delivered to one actor is absent from every
+            other actor's store (CM-01-001), so a lookup by id alone has no
+            answer.  It was logging-only when a container had a single shared
+            store, which made "not in the finder's inbox" report on whichever
+            actor the client happened to be bound to.
         activity_id: Full URI of the activity to find.
 
     Returns:
@@ -401,7 +405,7 @@ def verify_activity_in_inbox(
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
     try:
-        client.get(client.dl_path(activity_id))
+        client.get(client.dl_path(activity_id, actor_id=actor_id))
         logger.info(
             "✓ Activity %s found in DataLayer (actor %s)",
             activity_id,
