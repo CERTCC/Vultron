@@ -520,8 +520,8 @@ Some specifications consolidate requirements from multiple sources to create a s
 
 - **`actor-knowledge-model.yaml`** consolidates Actor isolation and inline-object
   requirements from `case-management.yaml` (CM-01-001) and
-  `message-validation.yaml` (MV-09-001); it is the authoritative basis for
-  both.
+  `message-validation.yaml` (MV-09-001, removed — now AKM-03-001); it is the
+  authoritative basis for both.
 - **`http-protocol.yaml`** consolidates HTTP requirements from `inbox-endpoint.yaml`,
   `message-validation.yaml`, `error-handling.yaml`, and `agentic-readiness.yaml`
 - **`structured-logging.yaml`** consolidates logging requirements from `observability.yaml`,
