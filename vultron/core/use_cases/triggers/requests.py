@@ -261,19 +261,6 @@ class OfferCaseParticipantRoleTriggerRequest(CaseTriggerRequest):
     role: CVDRole = CVDRole.CASE_MANAGER
 
 
-class OfferCaseManagerRoleTriggerRequest(CaseTriggerRequest):
-    """Trigger request to offer the CASE_MANAGER role to the Case Actor.
-
-    Emits an ``_OfferCaseManagerRoleActivity`` from the Case Actor's identity
-    to itself, initiating the CASE_MANAGER delegation handshake.  The Case
-    Actor must already exist in the DataLayer (DEMOMA-08-007).
-
-    .. deprecated::
-        Use ``OfferCaseParticipantRoleTriggerRequest`` for the canonical
-        ``Offer(CaseParticipantRole, ...)`` wire format (ADR-0039).
-    """
-
-
 class OfferCaseOwnershipTransferTriggerRequest(CaseTriggerRequest):
     """Trigger request to offer case ownership to another actor.
 

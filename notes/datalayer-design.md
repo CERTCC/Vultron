@@ -317,8 +317,9 @@ activity into the API response; the factory already built the object):
 - `vultron/core/use_cases/triggers/report.py` — `_handle_result` in
   `SvcValidateReportUseCase`, `SvcInvalidateReportUseCase`, `SvcRejectReportUseCase`,
   `SvcCloseReportUseCase` (4 sites).
-- `vultron/core/behaviors/case/nodes/delegation.py:160` — re-reads the
-  just-created `Offer(CaseManagerRole)`.
+- ~~`vultron/core/behaviors/case/nodes/delegation.py`~~ — `CreateOfferCaseManagerActivityNode`
+  re-read the just-created `Offer(CaseManagerRole)`. Deleted in issue #2429 when
+  `OFFER_CASE_MANAGER_ROLE` infrastructure was removed (ADR-0039).
 - *Fix*: `TriggerActivityPort` returns `(activity_id, activity_dict)`; delete the
   re-reads. Not even a semantic read.
 

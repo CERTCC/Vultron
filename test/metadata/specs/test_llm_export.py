@@ -1,6 +1,7 @@
 """Tests for SpecRegistry graph integration and llm_export module."""
 
 import json
+import sys
 
 import pytest
 import yaml
@@ -234,9 +235,21 @@ class TestLlmExport:
         assert "GA-01-002" not in ids
 
     def test_kind_filter(self, graph_registry):
-        data = json.loads(to_llm_json(graph_registry, kind="project"))
+        data = json.loads(to_llm_json(graph_registry, kinds=["project"]))
         assert len(data["requirements"]) == 1
         assert data["requirements"][0]["id"] == "GA-02-001"
+
+    def test_kinds_multi_filter(self, graph_registry):
+        data = json.loads(
+            to_llm_json(graph_registry, kinds=["protocol", "project"])
+        )
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"GA-01-001", "GA-01-002", "GA-02-001", "GB-01-001"}
+
+    def test_kinds_none_returns_all(self, graph_registry):
+        data_all = json.loads(to_llm_json(graph_registry))
+        data_none = json.loads(to_llm_json(graph_registry, kinds=None))
+        assert data_all["requirements"] == data_none["requirements"]
 
     def test_scope_filter(self, graph_registry):
         data = json.loads(to_llm_json(graph_registry, scope="prototype"))
@@ -331,3 +344,137 @@ class TestLlmExport:
         data = json.loads(to_llm_json(registry, topic="VV"))
         req = data["requirements"][0]
         assert req["verification"] == "A test in `test/foo.py` asserts this."
+
+
+# ---------------------------------------------------------------------------
+# CLI tests for main_llm_json --kind flag
+# ---------------------------------------------------------------------------
+
+
+class TestMainLlmJsonKindFlag:
+    """Tests for the --kind flag in the main_llm_json CLI entry point."""
+
+    @pytest.fixture
+    def kind_spec_dir(self, tmp_path):
+        """Spec dir with both protocol and project kind specs."""
+        spec_data = {
+            "id": "KF",
+            "title": "Kind Filter Test",
+            "description": "Tests --kind flag",
+            "version": "0.1",
+            "scope": ["production"],
+            "groups": [
+                {
+                    "id": "KF-01",
+                    "title": "Protocol group",
+                    "specs": [
+                        {
+                            "id": "KF-01-001",
+                            "priority": "MUST",
+                            "kind": "protocol",
+                            "statement": "KF-01-001 MUST be protocol",
+                        },
+                    ],
+                },
+                {
+                    "id": "KF-02",
+                    "title": "Project group",
+                    "specs": [
+                        {
+                            "id": "KF-02-001",
+                            "priority": "SHOULD",
+                            "kind": "project",
+                            "statement": "KF-02-001 SHOULD be project",
+                        },
+                    ],
+                },
+            ],
+        }
+        (tmp_path / "kf.yaml").write_text(yaml.dump(spec_data))
+        return tmp_path
+
+    def test_kind_flag_single(self, kind_spec_dir, monkeypatch, capsys):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "protocol", str(kind_spec_dir)],
+        )
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001"}
+        assert "KF-02-001" not in ids
+
+    def test_kind_flag_multi(self, kind_spec_dir, monkeypatch, capsys):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "protocol,project", str(kind_spec_dir)],
+        )
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001", "KF-02-001"}
+
+    def test_no_kind_flag_returns_all(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(sys, "argv", ["spec-dump", str(kind_spec_dir)])
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001", "KF-02-001"}
+
+    def test_invalid_kind_exits_with_error(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "unknown", str(kind_spec_dir)],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main_llm_json()
+        assert exc_info.value.code == 2
+        err = capsys.readouterr().err
+        assert "unknown kind value(s)" in err
+        assert "unknown" in err
+        assert "protocol" in err
+
+    def test_kind_with_spaces_stripped(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "protocol, project", str(kind_spec_dir)],
+        )
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001", "KF-02-001"}
+
+    def test_kind_flag_missing_value_exits_with_error(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(sys, "argv", ["spec-dump", "--kind"])
+        with pytest.raises(SystemExit) as exc_info:
+            main_llm_json()
+        assert exc_info.value.code == 2
+        assert "--kind requires a value" in capsys.readouterr().err

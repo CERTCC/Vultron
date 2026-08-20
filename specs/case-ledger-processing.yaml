@@ -462,9 +462,10 @@ groups:
       under a different actor identity for the commit — literal actor-switching, reproducing the "post-BT procedural cascade"
       anti-pattern (see `notes/bt-integration.md`) for the commit step specifically; in `embargo.py`''s case the main tree
       already (uselessly) embeds the same guarded-commit branch under the wrong actor, so the first execution is a guaranteed
-      no-op. (2) `note.py` and `actor/case_manager_role.py` call the commit factory exactly once but precede it with domain-significant
-      procedural code (DataLayer mutation, broadcast, trigger-activity calls) for the main operation, outside any BT — `execute()`
-      is not "build one tree, run it, handle the result" even though only one `execute_with_setup()` call exists. (3) `case/lifecycle.py`
+      no-op. (2) `note.py` and `actor/case_manager_role.py` (deleted, issue #2429) called the commit factory exactly once but
+      preceded it with domain-significant procedural code (DataLayer mutation, broadcast, trigger-activity calls) for the main
+      operation, outside any BT — `execute()` was not "build one tree, run it, handle the result" even though only one
+      `execute_with_setup()` call existed. (3) `case/lifecycle.py`
       already executes a single tree under the correct actor but constructs it ad hoc inside `execute()` instead of via a
       `behaviors/` factory function. See ADR-0022 for the full per-site breakdown.'
     verification: '`test/architecture/test_single_bt_execution_received_side.py` greps every module under `vultron/core/use_cases/`

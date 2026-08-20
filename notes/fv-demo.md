@@ -216,16 +216,19 @@ from the existing CASE_OWNER transfer:
 | Mechanism | Activity type | Effect |
 |-----------|--------------|--------|
 | `OFFER_CASE_OWNERSHIP_TRANSFER` (existing) | Transfers CASE_OWNER role from one actor to another | The offering actor loses CASE_OWNER |
-| `OFFER_CASE_MANAGER_ROLE` (new) | Delegates CASE_MANAGER operational authority to Case Actor | The offering actor (Vendor) retains CASE_OWNER permanently |
+| `OFFER_CASE_PARTICIPANT_ROLE` (ADR-0039) | Delegates a CVDRole to a target Actor within a VulnerabilityCase | The offering actor (Vendor) retains CASE_OWNER permanently |
 
-New `MessageSemantics` values required:
+**Note**: `OFFER_CASE_MANAGER_ROLE` was removed in issue #2429 (ADR-0039,
+SE-08-005). The canonical replacement is `OFFER_CASE_PARTICIPANT_ROLE` —
+`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` — handled
+by `OfferCaseParticipantRoleReceivedUseCase` and the
+`offer_case_participant_role_received_tree`.
 
-- `OFFER_CASE_MANAGER_ROLE`
-- `ACCEPT_CASE_MANAGER_ROLE`
-- `REJECT_CASE_MANAGER_ROLE` (optional; for completeness)
+`MessageSemantics` values in use:
 
-These must be added to `vultron/core/models/events/base.py`,
-`vultron/wire/as2/extractor.py` (patterns), and the use-case map.
+- `OFFER_CASE_PARTICIPANT_ROLE`
+- `ACCEPT_CASE_PARTICIPANT_ROLE`
+- `REJECT_CASE_PARTICIPANT_ROLE`
 
 ---
 

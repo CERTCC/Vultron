@@ -193,7 +193,7 @@ The following nodes are **removed** from the vendor's
 | `InitializeDefaultEmbargoNode` | CaseActor initializes embargo |
 | `CreateCaseActivity` / `UpdateActorOutbox` | CaseActor emits `Create(VulnerabilityCase)` |
 | `CreateCaseActorNode` | CaseActor is a pre-existing service, not spawned by vendor |
-| `SendOfferCaseManagerRoleNode` | CaseActor adds itself as `CASE_MANAGER` natively |
+| `SendOfferCaseManagerRoleNode` *(deleted, issue #2429)* | CaseActor adds itself as `CASE_MANAGER` natively — replaced by `OFFER_CASE_PARTICIPANT_ROLE` (ADR-0039) |
 | `WritePrologueLedgerEntriesNode` | Back-fill replaced by native CaseActor init |
 
 ### Corrected vendor tree shape (ADR-0041)

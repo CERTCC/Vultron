@@ -243,12 +243,6 @@ class TriggerServicePort(Protocol):
         role: CVDRole = CVDRole.CASE_MANAGER,
     ) -> dict[str, Any]: ...
 
-    def offer_case_manager_role(
-        self,
-        actor_id: str,
-        case_id: str,
-    ) -> dict[str, Any]: ...
-
     def offer_case_ownership_transfer(
         self,
         actor_id: str,
