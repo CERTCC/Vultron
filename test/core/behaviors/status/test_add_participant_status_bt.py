@@ -60,12 +60,14 @@ from vultron.core.behaviors.status.nodes import (
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
     EmitAddCaseStatusToSelfNode,
+    EmitRMGapNoteNode,
     LoadParticipantNode,
     PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
     VerifySenderIsParticipantNode,
 )
+from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -1547,3 +1549,102 @@ class TestRejectionValidatorBeforeCommit:
             "A fully rejected update must produce zero CaseLedgerEntries"
             " (CLP-10-009)"
         )
+
+
+# ---------------------------------------------------------------------------
+# EmitRMGapNoteNode (RSH-06)
+# ---------------------------------------------------------------------------
+
+
+class TestEmitRMGapNoteNode:
+    """EmitRMGapNoteNode emits Add(Note,Case) on RM anomaly (RSH-06-004)."""
+
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    def _set_anomaly(self, anomaly_type: str, from_rm: RM, to_rm: RM) -> None:
+        """Write BB_RM_ANOMALY directly to blackboard storage for the test."""
+        import py_trees
+
+        py_trees.blackboard.Blackboard.storage["/" + BB_RM_ANOMALY] = {
+            "anomaly_type": anomaly_type,
+            "from_rm": from_rm,
+            "to_rm": to_rm,
+        }
+
+    def test_no_anomaly_is_noop_success(self, populated_dl):
+        """BB_RM_ANOMALY=None → SUCCESS with no outbox entry (happy path)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert len(outbox) == 0, "No anomaly → no outbox entry expected"
+
+    def test_gap_anomaly_emits_note(self, populated_dl):
+        """BB_RM_ANOMALY=gap → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        # Pre-populate anomaly flag as if FilterParticipantStatusDimensionsNode ran
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert (
+            len(outbox) == 1
+        ), "Gap anomaly should emit exactly one Add(Note,Case)"
+
+    def test_regression_anomaly_emits_note(self, populated_dl):
+        """BB_RM_ANOMALY=regression → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        self._set_anomaly("regression", RM.ACCEPTED, RM.RECEIVED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert (
+            len(outbox) == 1
+        ), "Regression anomaly should emit exactly one Add(Note,Case)"
+
+    def test_no_case_id_is_noop_success(self, populated_dl):
+        """case_id=None → SUCCESS with no outbox entry (no case context)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=None,
+        )
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert len(outbox) == 0, "No case_id → no outbox entry expected"
+
+    def test_no_factory_is_success_noop(self, populated_bridge):
+        """No TriggerActivityPort → SUCCESS (degrades gracefully — SHOULD not MUST)."""
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+        # populated_bridge has no trigger_activity_factory
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
