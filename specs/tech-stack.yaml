@@ -155,29 +155,21 @@ groups:
   - id: IMPLTS-07-002
     priority: MUST
     kind: project
-    statement: >-
-      The project MUST use pyright for static type checking; pyright MUST run in CI and MUST
-      pass with zero errors on every commit to `main` and on every pull request targeting
-      `main`.
+    statement: The project MUST use pyright for static type checking.
     relationships:
     - rel_type: implements
       spec_id: CS-11-001
   - id: IMPLTS-07-003
     priority: MUST
     kind: project
-    statement: >-
-      The project MUST use mypy for static type checking; mypy MUST run in CI and MUST pass
-      with zero errors on every commit to `main` and on every pull request targeting `main`.
+    statement: The project MUST use mypy for static type checking.
     relationships:
     - rel_type: implements
       spec_id: CS-11-001
   - id: IMPLTS-07-004
     priority: MUST
     kind: project
-    statement: >-
-      The project MUST use flake8 for PEP 8 linting; flake8 MUST run in CI (without `--exit-zero`)
-      and MUST pass with zero errors on every commit to `main` and on every pull request targeting
-      `main`.
+    statement: The project MUST use flake8 for PEP 8 linting.
     relationships:
     - rel_type: implements
       spec_id: CS-01-001
@@ -219,10 +211,86 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The pytest configuration in `[tool.pytest.ini_options]` MUST include `filterwarnings
-      = ["error"]` so that test-suite warnings are treated as errors and cannot accumulate
-      as silent technical debt. Existing warnings MUST be resolved before this setting is
-      activated; new warnings MUST NOT be introduced after it is active.
+      The pytest configuration in `[tool.pytest.ini_options]` MUST include
+      `filterwarnings = ["error"]` so that test-suite warnings are treated as errors.
+  - id: IMPLTS-07-009
+    priority: MUST
+    kind: project
+    statement: >-
+      pyright MUST run in CI on every commit to `main` and on every pull request
+      targeting `main`.
+    rationale: Static type checking must be enforced on every change to the main branch.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-002
+  - id: IMPLTS-07-010
+    priority: MUST
+    kind: project
+    statement: pyright MUST pass with zero errors.
+    rationale: A zero-error gate ensures the codebase remains fully type-correct under pyright.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-002
+  - id: IMPLTS-07-011
+    priority: MUST
+    kind: project
+    statement: >-
+      mypy MUST run in CI on every commit to `main` and on every pull request
+      targeting `main`.
+    rationale: Static type checking must be enforced on every change to the main branch.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-003
+  - id: IMPLTS-07-012
+    priority: MUST
+    kind: project
+    statement: mypy MUST pass with zero errors.
+    rationale: A zero-error gate ensures the codebase remains fully type-correct under mypy.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-003
+  - id: IMPLTS-07-013
+    priority: MUST
+    kind: project
+    statement: >-
+      flake8 MUST run in CI (without `--exit-zero`) on every commit to `main` and on
+      every pull request targeting `main`.
+    rationale: PEP 8 linting must be enforced on every change to the main branch.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-004
+  - id: IMPLTS-07-014
+    priority: MUST
+    kind: project
+    statement: flake8 MUST pass with zero errors.
+    rationale: A zero-error gate ensures the codebase remains PEP 8 compliant.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-004
+  - id: IMPLTS-07-015
+    priority: MUST
+    kind: project
+    statement: >-
+      Existing warnings MUST be resolved before the `filterwarnings = ["error"]`
+      setting is activated.
+    rationale: >-
+      Unresolved pre-existing warnings must be cleared to avoid a broken CI state
+      when the filterwarnings gate is enabled.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-006
+  - id: IMPLTS-07-016
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      New warnings MUST NOT be introduced after `filterwarnings = ["error"]` is
+      active.
+    rationale: >-
+      Preventing new warnings maintains the zero-warning discipline established by
+      the filterwarnings setting.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-006
 - id: IMPLTS-06
   title: Optional and Prototype Extensions
   specs:

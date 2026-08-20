@@ -544,19 +544,11 @@ groups:
   title: Spec Statements Must Not Reference Phantom Paths
   specs:
   - id: MS-15-001
-    priority: MUST
+    priority: MUST_NOT
     kind: process
     statement: >-
       A spec item's `statement` and `verification` fields MUST NOT reference a
-      file path that does not exist, and MUST NOT use an absolute path or a `..`
-      segment. A path rooted at a top-level repo directory is resolved
-      repo-relatively; any other path is resolved as a suffix of some file in
-      the tree, so a package-relative illustration is permitted but a mistyped
-      leading segment is not. A spec-first requirement that deliberately names a
-      file yet to be created MUST either use a placeholder form (e.g.
-      `test_XXX_invariants.py`) or opt out with
-      `lint_suppress: [phantom_path_ref]`. Enforced as a hard error by
-      spec-lint.
+      file path that does not exist.
     rationale: >-
       A normative statement naming non-existent infrastructure is a stale-premise
       landmine: the implementing agent either invents something inconsistent with
@@ -570,6 +562,37 @@ groups:
     - rel_type: derives_from
       spec_id: MS-04-001
       note: extends spec-authoring rules with a path-existence guarantee
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-002
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A spec item's `statement` and `verification` fields MUST NOT use an absolute
+      path or a `..` segment.
+    rationale: >-
+      Absolute paths and parent-traversal segments are deployment-specific and will
+      not resolve correctly in the repo-relative context used by spec-lint.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-003
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec-first requirement that deliberately names a file yet to be created MUST
+      either use a placeholder form (e.g. `test_XXX_invariants.py`) or opt out with
+      `lint_suppress: [phantom_path_ref]`.
+    rationale: >-
+      The placeholder or lint_suppress mechanism makes the spec-first intent explicit
+      rather than silently passing a phantom-path check by accident.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
     tags:
     - documentation
     - tooling

@@ -211,13 +211,14 @@ groups:
   - id: CFG-07-005
     priority: MUST
     kind: project
-    statement: A `load_actor_config()` function MUST exist in `vultron/config/` (the neutral config sub-package) and MUST
-      return an `ActorConfig` by reading `VULTRON_SEED_CONFIG` YAML (extracting `local_actor` fields with `extra="ignore"`
-      to discard demo-only fields) or falling back to `VULTRON_ACTOR_*` environment variables.  Production adapter modules
-      MUST import this function rather than importing from `vultron/demo/` to obtain actor policy configuration.
-    rationale: 'PR #1331 introduced a direct `SeedConfig` import in `vultron/adapters/driving/fastapi/inbox_port_factories.py`,
-      making `vultron/demo/` a de-facto production dependency (concern #1334).  A neutral `load_actor_config()` in `vultron/config/`
-      severs that dependency without losing YAML seed-file support.'
+    statement: >-
+      A `load_actor_config()` function MUST exist in `vultron/config/` (the neutral config
+      sub-package).
+    rationale: >-
+      PR #1331 introduced a direct `SeedConfig` import in
+      `vultron/adapters/driving/fastapi/inbox_port_factories.py`, making `vultron/demo/` a
+      de-facto production dependency (concern #1334). A neutral `load_actor_config()` in
+      `vultron/config/` severs that dependency without losing YAML seed-file support.
   - id: CFG-07-006
     priority: MUST
     kind: project
@@ -230,13 +231,14 @@ groups:
   - id: CFG-07-007
     priority: MUST
     kind: project
-    statement: '`LocalActorConfig` in `vultron/demo/seed_config.py` MUST be decoupled from `ActorConfig`: it MUST carry only
-      demo/bootstrap fields (`name`, `actor_type`, `id_`) and MUST NOT extend `ActorConfig`.  Actor policy fields (`auto_create_case`,
-      `default_case_roles`) belong in `AppConfig.actor` and are loaded via `load_actor_config()`.'
-    rationale: '`LocalActorConfig` currently extends `ActorConfig`, mixing bootstrap identity data with runtime policy.  In
-      the target architecture, identity data seeds the DataLayer once at startup while policy is read at dispatch time from
-      `AppConfig.actor`.  Decoupling the two models reflects this distinct lifecycle and prevents demo scaffolding from leaking
-      policy concerns into production paths.'
+    statement: >-
+      `LocalActorConfig` in `vultron/demo/seed_config.py` MUST be decoupled from `ActorConfig`.
+    rationale: >-
+      `LocalActorConfig` currently extends `ActorConfig`, mixing bootstrap identity data with
+      runtime policy. In the target architecture, identity data seeds the DataLayer once at
+      startup while policy is read at dispatch time from `AppConfig.actor`. Decoupling the two
+      models reflects this distinct lifecycle and prevents demo scaffolding from leaking policy
+      concerns into production paths.
   - id: CFG-07-008
     priority: MUST
     kind: project
@@ -252,3 +254,39 @@ groups:
     - rel_type: refines
       spec_id: CFG-03-001
       note: resolution-order guarantee requires key-presence check, not value comparison
+  - id: CFG-07-009
+    priority: MUST
+    kind: project
+    statement: >-
+      `load_actor_config()` MUST return an `ActorConfig` by reading `VULTRON_SEED_CONFIG` YAML
+      (extracting `local_actor` fields with `extra="ignore"` to discard demo-only fields) or
+      falling back to `VULTRON_ACTOR_*` environment variables.
+    rationale: >-
+      Defines the resolution order (YAML seed file then env vars then defaults) so that both
+      seed-file and environment-variable-only deployments are supported.
+  - id: CFG-07-010
+    priority: MUST
+    kind: project
+    statement: >-
+      Production adapter modules MUST import `load_actor_config()` from `vultron/config/` rather
+      than importing from `vultron/demo/` to obtain actor policy configuration.
+    rationale: >-
+      Prevents the demo layer from becoming a de-facto production dependency, as introduced by
+      concern #1334.
+  - id: CFG-07-011
+    priority: MUST
+    kind: project
+    statement: >-
+      `LocalActorConfig` MUST carry only demo/bootstrap fields (`name`, `actor_type`, `id_`).
+    rationale: >-
+      Restricting `LocalActorConfig` to identity bootstrap fields ensures policy concerns do not
+      leak into demo scaffolding.
+  - id: CFG-07-012
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      `LocalActorConfig` MUST NOT extend `ActorConfig`; actor policy fields (`auto_create_case`,
+      `default_case_roles`) belong in `AppConfig.actor` and are loaded via `load_actor_config()`.
+    rationale: >-
+      Extending `ActorConfig` entangles bootstrap identity with runtime actor policy, violating
+      the distinct lifecycle separation described in CFG-07-007.

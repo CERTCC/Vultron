@@ -19,10 +19,9 @@ groups:
   - id: HM-01-001
     priority: MUST
     kind: process
-    statement: History entries for `learning` and `priority` types MUST reside under `plan/history/` as per-entry write-once
-      files. History entries for `implementation` and `idea` types whose `--source` resolves to a GitHub issue number MUST
-      be posted as a comment on the corresponding GitHub issue (see HM-08); those entries MUST NOT be written as files under
-      `plan/history/`.
+    statement: >-
+      History entries for `learning` and `priority` types MUST reside under
+      `plan/history/` as per-entry write-once files.
   - id: HM-01-006
     priority: MUST_NOT
     kind: process
@@ -49,6 +48,31 @@ groups:
     note: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing entries to replace the legacy
       `date:` field with a tz-aware `timestamp:` field. That migration is the only authorised exception to this rule; future
       changes to entry files are prohibited.'
+  - id: HM-01-007
+    priority: MUST
+    kind: process
+    statement: >-
+      History entries for `implementation` and `idea` types whose `--source` resolves
+      to a GitHub issue number MUST be posted as a comment on the corresponding GitHub
+      issue (see HM-08).
+    rationale: >-
+      GitHub comment mode keeps implementation and idea records co-located with the
+      issue they describe, avoiding file churn in plan/history/.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-01-001
+  - id: HM-01-008
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      History entries for `implementation` and `idea` types whose `--source` resolves
+      to a GitHub issue number MUST NOT be written as files under `plan/history/`.
+    rationale: >-
+      Writing these entries as files would duplicate content already posted as GitHub
+      comments and pollute the plan/history/ directory with redundant records.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-01-001
 - id: HM-02
   title: Entry File Format
   specs:
@@ -112,10 +136,9 @@ groups:
   - id: HM-03-004
     priority: MUST
     kind: project
-    statement: The tool MUST determine the target month directory using the current system clock (`datetime.date.today()`)
-      during normal operation. A backfill-only date override MAY exist for migration tooling so legacy entries can be written
-      into historical `YYMM` directories, but normal skill and agent guidance MUST continue to use the default current-date
-      flow and MUST NOT require agents to choose a target month manually.
+    statement: >-
+      The tool MUST determine the target month directory using the current system
+      clock (`datetime.date.today()`) during normal operation.
   - id: HM-03-005
     priority: MUST
     kind: project
@@ -143,7 +166,41 @@ groups:
   - id: HM-03-008
     priority: MUST
     kind: project
-    statement: The tool MUST be registered in `pyproject.toml` under `[project.scripts]` as `append-history = "vultron.metadata.history.cli:main"`.
+    statement: >-
+      The tool MUST be registered in `pyproject.toml` under `[project.scripts]` as
+      `append-history = "vultron.metadata.history.cli:main"`.
+  - id: HM-03-011
+    priority: MAY
+    kind: project
+    statement: >-
+      A backfill-only date override MAY exist for migration tooling so legacy entries
+      can be written into historical `YYMM` directories.
+    rationale: >-
+      Migration tooling requires placing entries into historical month directories;
+      this override is available only for that purpose.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-03-004
+  - id: HM-03-012
+    priority: MUST
+    kind: process
+    statement: Normal skill and agent guidance MUST use the default current-date flow.
+    rationale: >-
+      Agents must not diverge from the standard flow by choosing a target month
+      manually; the tool determines the directory from the system clock.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-03-004
+  - id: HM-03-013
+    priority: MUST_NOT
+    kind: process
+    statement: Normal skill and agent guidance MUST NOT require agents to choose a target month manually.
+    rationale: >-
+      Manual month selection is an error-prone step that the tool eliminates by
+      deriving the directory from the current system clock.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-03-004
 - id: HM-04
   title: Agent Context Boundaries
   specs:

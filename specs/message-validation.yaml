@@ -23,9 +23,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The activity-type dispatch implementation MUST be defensive: it MUST handle missing or
-      null fields without raising unhandled exceptions, MUST treat unrecognized activity types
-      as dispatching to `UNKNOWN`, and MUST NOT propagate internal dispatch errors to callers.
+      The activity-type dispatch implementation MUST handle missing or null fields
+      without raising unhandled exceptions.
+  - id: MV-01-006
+    priority: MUST
+    kind: protocol
+    statement: 'The activity-type dispatch implementation MUST treat unrecognized activity types as dispatching to `UNKNOWN`.'
+    rationale: >-
+      Mapping unknown types to UNKNOWN rather than failing allows the system to log
+      and route unrecognised activities without crashing the dispatch pipeline.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-01-005
+  - id: MV-01-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The activity-type dispatch implementation MUST NOT propagate internal dispatch
+      errors to callers.
+    rationale: >-
+      Propagating internal errors exposes implementation details to senders and can
+      cause the inbox handler to return unexpected error responses.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-01-005
 - id: MV-02
   title: Schema Validation
   specs:

@@ -17,9 +17,7 @@ groups:
   - id: ENC-01-001
     priority: MUST
     kind: protocol
-    statement: Each CaseActor MUST generate a unique asymmetric key pair when first created for a case. The key pair MUST
-      be persisted and reused across process restarts for the lifetime of that case; a new key pair MUST NOT be generated
-      on process resumption.
+    statement: Each CaseActor MUST generate a unique asymmetric key pair when first created for a case.
     rationale: The intended model is one key pair per case, bound to the CaseActor for that case's lifetime. Regenerating
       on restart would invalidate any peer's cached public key and break encrypted communication mid-case. Open question —
       if a single CaseActor process ever manages multiple cases, it is unresolved whether the key pair belongs to the actor
@@ -52,6 +50,32 @@ groups:
       Private keys MUST be stored securely and MUST NOT be logged or included in API responses
     scope:
     - production
+  - id: ENC-01-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor's asymmetric key pair MUST be persisted and reused across process
+      restarts for the lifetime of that case.
+    rationale: >-
+      Regenerating on restart would invalidate any peer's cached public key and break
+      encrypted communication mid-case.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: ENC-01-001
+  - id: ENC-01-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: A new key pair MUST NOT be generated on process resumption for an existing case.
+    rationale: >-
+      Generating a new key pair on restart breaks any encrypted channel established
+      with the previous key, invalidating cached public keys held by case participants.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: ENC-01-001
 - id: ENC-02
   title: Message Encryption
   specs:

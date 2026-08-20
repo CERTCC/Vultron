@@ -102,11 +102,7 @@ groups:
         kind: project
         statement: >-
           A causal precondition MUST be expressed with a `demo_gate` context
-          manager, distinct from `demo_check`. On failure `demo_gate` MUST
-          record the failure in the accumulator exactly as `demo_check` does,
-          and MUST additionally prevent execution of the steps that depend on
-          the unmet precondition. `demo_check` MUST remain advisory: it records
-          and continues.
+          manager, distinct from `demo_check`.
         rationale: >-
           Accumulate-and-continue is correct for verification assertions — report
           every failed check, not just the first — and wrong for preconditions,
@@ -123,6 +119,38 @@ groups:
               exit-code contract of DEMOCI-01-001 and DEMOCI-01-003 is unchanged.
           - rel_type: implements
             spec_id: EDF-06-005
+
+      - id: DEMOCI-01-008
+        priority: MUST
+        kind: project
+        statement: >-
+          On failure, `demo_gate` MUST record the failure in the accumulator
+          exactly as `demo_check` does.
+        rationale: >-
+          Gate failures must be accumulated so the exit-code contract of
+          DEMOCI-01-001 and DEMOCI-01-003 applies uniformly, regardless of
+          whether the failed check is a precondition or an advisory assertion.
+
+      - id: DEMOCI-01-009
+        priority: MUST
+        kind: project
+        statement: >-
+          On failure, `demo_gate` MUST prevent execution of the steps that
+          depend on the unmet precondition.
+        rationale: >-
+          Continuing past a failed precondition buries the root cause under
+          secondary failures from steps that assumed the precondition was met.
+
+      - id: DEMOCI-01-010
+        priority: MUST
+        kind: project
+        statement: >-
+          `demo_check` MUST remain advisory: it records a failure in the
+          accumulator and continues execution.
+        rationale: >-
+          Advisory accumulation is the correct behaviour for verification
+          assertions — every failed check should be reported in a single run
+          rather than stopping at the first one.
 
   - id: DEMOCI-02
     title: GitHub Actions Demo Workflow
@@ -264,15 +292,7 @@ groups:
         kind: project
         statement: >-
           The demo-integration.yml workflow MUST define a `concurrency` group
-          keyed on `${{ github.workflow }}-${{ github.ref }}`. On
-          pull_request-triggered runs it MUST set `cancel-in-progress: true` so
-          a newer push to a PR branch cancels superseded in-progress and queued
-          runs. On push-to-main-triggered runs it MUST set
-          `cancel-in-progress: false` so main-branch runs always run to
-          completion (see DEMOCI-05-002). Because a single workflow file serves
-          both triggers, `cancel-in-progress` MUST be expressed as an expression
-          that evaluates to `false` on the default branch and `true` otherwise,
-          e.g. `${{ github.ref != 'refs/heads/main' }}`.
+          keyed on `${{ github.workflow }}-${{ github.ref }}`.
         rationale: >-
           When commits land quickly during iterative work, queued demo runs
           pile up and waste CI minutes while delaying feedback; a newer commit
@@ -282,6 +302,41 @@ groups:
           the ref, a burst of merges to main still runs each qualifying commit
           to completion rather than collapsing to the newest, preserving
           per-commit failure attribution.
+
+      - id: DEMOCI-02-013
+        priority: MUST
+        kind: project
+        statement: >-
+          On pull_request-triggered runs, the concurrency group MUST set
+          `cancel-in-progress: true` so a newer push to a PR branch cancels
+          superseded in-progress and queued runs.
+        rationale: >-
+          Cancelling superseded PR runs reclaims CI minutes and reduces
+          feedback latency when commits land quickly during iterative work.
+
+      - id: DEMOCI-02-014
+        priority: MUST
+        kind: project
+        statement: >-
+          On push-to-main-triggered runs, the concurrency group MUST set
+          `cancel-in-progress: false` so main-branch runs always run to
+          completion (see DEMOCI-05-002).
+        rationale: >-
+          On-main runs validate the actual merged main HEAD; allowing them to
+          be cancelled would destroy per-commit failure attribution.
+
+      - id: DEMOCI-02-015
+        priority: MUST
+        kind: project
+        statement: >-
+          Because a single workflow file serves both triggers,
+          `cancel-in-progress` MUST be expressed as an expression that
+          evaluates to `false` on the default branch and `true` otherwise,
+          e.g. `${{ github.ref != 'refs/heads/main' }}`.
+        rationale: >-
+          A single boolean literal cannot satisfy both cancellation policies
+          simultaneously; an expression keyed on `github.ref` resolves to the
+          correct value at evaluation time for each trigger.
 
       - id: DEMOCI-02-012
         priority: MUST
@@ -451,12 +506,7 @@ groups:
         kind: project
         statement: >-
           The invariant-harness job MUST NOT run for Dependabot PRs, matching
-          the demo job's exclusion (DEMOCI-02-004). The guard MUST be enforced
-          such that a bare `always()` cannot resurrect the job: because the
-          Dependabot exclusion is applied once on the upstream `scenarios` job
-          (DEMOCI-06-004), the invariant-harness `if:` MUST pair `always()`
-          with a check that the scenarios job succeeded — e.g.
-          `always() && needs.scenarios.result == 'success'`.
+          the demo job's exclusion (DEMOCI-02-004).
         rationale: >-
           Without the guard, a Dependabot PR skips the demo job (correct) but
           triggers the invariant-harness job, which immediately fails because
@@ -479,6 +529,31 @@ groups:
             spec_id: DEMOCI-04-002
           - rel_type: refines
             spec_id: DEMOCI-02-004
+
+      - id: DEMOCI-04-006
+        priority: MUST
+        kind: project
+        statement: >-
+          The Dependabot exclusion guard for the invariant-harness job MUST be
+          enforced such that a bare `always()` condition cannot resurrect the
+          job when an upstream job was skipped.
+        rationale: >-
+          `always()` alone runs the job even when an upstream job was skipped,
+          which is exactly the spurious-failure case when Dependabot PRs skip
+          the demo job but trigger the invariant-harness job.
+
+      - id: DEMOCI-04-007
+        priority: MUST
+        kind: project
+        statement: >-
+          Because the Dependabot exclusion is applied once on the upstream
+          `scenarios` job (DEMOCI-06-004), the invariant-harness `if:` MUST
+          pair `always()` with a check that the scenarios job succeeded, e.g.
+          `always() && needs.scenarios.result == 'success'`.
+        rationale: >-
+          Pairing `always()` with the upstream result check ensures the
+          invariant-harness job runs after artifacts are uploaded and never
+          runs spuriously when the scenarios job was skipped.
 
   - id: DEMOCI-05
     title: Post-Merge Validation on the Default Branch
@@ -550,11 +625,6 @@ groups:
           A scenario coverage analysis MUST be performed that maps each of the
           demo scenarios to the distinct Vultron protocol phases and
           message-type milestones it exercises, producing a coverage matrix.
-          The analysis MUST inspect the actual milestone sets defined in each
-          scenario script (not assume they are complete), and MAY update
-          scenario milestone sets where copy-paste from simpler scenarios has
-          left them incomplete. The validated coverage matrix MUST be recorded
-          in `notes/demo-ci-scenario-coverage.md`.
         rationale: >-
           The scenarios share common helper phases but each exercises a
           distinct set of protocol phases (e.g. invite_actor_to_case,
@@ -567,6 +637,29 @@ groups:
             spec_id: DEMOCI-03-001
           - rel_type: refines
             spec_id: DEMOCI-04-004
+
+      - id: DEMOCI-06-005
+        priority: MUST
+        kind: project
+        statement: >-
+          The scenario coverage analysis MUST inspect the actual milestone sets
+          defined in each scenario script rather than assuming they are
+          complete, and MAY update scenario milestone sets where copy-paste from
+          simpler scenarios has left them incomplete.
+        rationale: >-
+          Milestone sets were often copied from simpler scenarios and may
+          under-report what a scenario actually exercises; inspecting the
+          scripts directly is necessary to produce an accurate coverage matrix.
+
+      - id: DEMOCI-06-006
+        priority: MUST
+        kind: project
+        statement: >-
+          The validated coverage matrix MUST be recorded in
+          `notes/demo-ci-scenario-coverage.md`.
+        rationale: >-
+          Recording the matrix in a notes file makes it the authoritative
+          reference for the minimum PR validation set defined in DEMOCI-06-002.
 
       - id: DEMOCI-06-002
         priority: MUST
@@ -622,17 +715,8 @@ groups:
         kind: project
         statement: >-
           Per-event scenario selection (DEMOCI-06-002, DEMOCI-06-003) MUST be
-          implemented by resolving the matrix before matrix expansion, NOT by a
+          implemented by resolving the matrix before matrix expansion, not by a
           job-level `if:` condition that references the `matrix` context.
-          Specifically: the scenario list MUST live in a single declarative
-          source of truth (`.github/demo-scenarios.json`), each entry carrying a
-          boolean `full_suite_only` field; a `scenarios` job MUST filter that
-          list according to `github.event_name` and expose the result as a JSON
-          job output; and the `demo` and `invariant-harness` jobs MUST derive
-          their matrices via `fromJSON()` of that output.
-
-          A job-level `if:` referencing `matrix.*` MUST NOT be used to gate
-          matrix entries.
         rationale: >-
           GitHub evaluates job-level `if:` conditions BEFORE expanding the
           matrix, so the `matrix` context does not exist at that point.
@@ -662,6 +746,53 @@ groups:
           - rel_type: refines
             spec_id: DEMOCI-06-003
 
+      - id: DEMOCI-06-007
+        priority: MUST
+        kind: project
+        statement: >-
+          The scenario list MUST reside in a single declarative source of truth
+          (`.github/demo-scenarios.json`), with each entry carrying a boolean
+          `full_suite_only` field.
+        rationale: >-
+          A single source of truth prevents the PR and post-merge scenario
+          lists from drifting apart and makes the `full_suite_only` flag the
+          canonical mechanism for per-event filtering.
+
+      - id: DEMOCI-06-008
+        priority: MUST
+        kind: project
+        statement: >-
+          A `scenarios` job MUST filter the scenario list in
+          `.github/demo-scenarios.json` according to `github.event_name` and
+          expose the result as a JSON job output.
+        rationale: >-
+          Centralising event-based filtering in a dedicated job ensures both
+          downstream jobs consume the same filtered list and removes per-job
+          `if:` conditions that would reference the matrix context.
+
+      - id: DEMOCI-06-009
+        priority: MUST
+        kind: project
+        statement: >-
+          The `demo` and `invariant-harness` jobs MUST derive their matrices
+          via `fromJSON()` of the `scenarios` job output.
+        rationale: >-
+          Using `fromJSON` of a shared upstream output guarantees both jobs
+          expand the same scenario set and eliminates verbatim matrix
+          duplication that could silently drift.
+
+      - id: DEMOCI-06-010
+        priority: MUST
+        kind: project
+        statement: >-
+          A job-level `if:` condition referencing `matrix.*` MUST NOT be used
+          to gate matrix entries.
+        rationale: >-
+          GitHub evaluates job-level `if:` conditions before expanding the
+          matrix, so the `matrix` context is undefined at that point;
+          referencing it causes a startup failure with no logs or per-job
+          statuses.
+
   - id: DEMOCI-07
     title: Embargo Lifecycle Scenario CI Registration (rcv-embargo, rcvv-embargo)
     specs:
@@ -673,10 +804,7 @@ groups:
           matrix in `.github/workflows/demo-integration.yml` with
           `DEMO=rcv-embargo`, `full_suite_only: false`, and the actor services
           `finder` (reporter role), `coordinator`, `vendor`, and `case-actor`
-          as container dependencies. The `test_file` matrix entry MUST point to
-          `test/ci/invariants/test_rcv_embargo_invariants.py`. The devlogs
-          directory for the CI run MUST use scenario-role names: `reporter`,
-          `coordinator`, `vendor`, `case-actor`.
+          as container dependencies.
         rationale: >-
           Adding both embargo scenarios with `full_suite_only: false` places
           them in the PR validation set immediately, consistent with the
@@ -694,6 +822,35 @@ groups:
           - rel_type: refines
             spec_id: DEMOMA-20-005
 
+      - id: DEMOCI-07-004
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The `test_file` matrix entry for the `rcv-embargo` CI job MUST point
+          to `test/ci/invariants/test_rcv_embargo_invariants.py`.
+        rationale: >-
+          An explicit file path makes the scenario-to-test relationship
+          declarative and visible in the workflow definition per DEMOCI-03-005.
+        lint_suppress:
+          - phantom_path_ref
+
+      - id: DEMOCI-07-005
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The devlogs directory for the `rcv-embargo` CI run MUST use
+          scenario-role names: `reporter`, `coordinator`, `vendor`, `case-actor`.
+        rationale: >-
+          Scenario-role names in devlogs match scenario code and make log
+          archaeology easier and consistent with the post-DEMOMA-12 naming
+          convention.
+
       - id: DEMOCI-07-002
         priority: MUST
         kind: project
@@ -702,10 +859,7 @@ groups:
           matrix in `.github/workflows/demo-integration.yml` with
           `DEMO=rcvv-embargo`, `full_suite_only: false`, and the actor services
           `finder` (reporter role), `coordinator`, `vendor`, `vendor2`, and
-          `case-actor` as container dependencies. The `test_file` matrix entry
-          MUST point to `test/ci/invariants/test_rcvv_embargo_invariants.py`.
-          The devlogs directory for the CI run MUST use scenario-role names:
-          `reporter`, `coordinator`, `vendor`, `vendor2`, `case-actor`.
+          `case-actor` as container dependencies.
         rationale: >-
           The rcvv-embargo scenario requires a fourth actor container (`vendor2`)
           beyond the three used by rcv-embargo. Listing `vendor2` as a service
@@ -721,28 +875,53 @@ groups:
           - rel_type: refines
             spec_id: DEMOMA-21-006
 
+      - id: DEMOCI-07-006
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The `test_file` matrix entry for the `rcvv-embargo` CI job MUST point
+          to `test/ci/invariants/test_rcvv_embargo_invariants.py`.
+        rationale: >-
+          An explicit file path makes the scenario-to-test relationship
+          declarative and visible in the workflow definition per DEMOCI-03-005.
+        lint_suppress:
+          - phantom_path_ref
+
+      - id: DEMOCI-07-007
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The devlogs directory for the `rcvv-embargo` CI run MUST use
+          scenario-role names: `reporter`, `coordinator`, `vendor`, `vendor2`,
+          `case-actor`.
+        rationale: >-
+          Scenario-role names in devlogs match scenario code and make log
+          archaeology easier and consistent with the FCVCV pattern
+          (DEMOMA-19-007).
+
       - id: DEMOCI-07-003
         priority: SHOULD
         kind: project
         statement: >-
           A follow-up coverage analysis SHOULD be performed after `rcv-embargo`
-          and `rcvv-embargo` are implemented and passing in CI. The analysis
-          MUST evaluate whether the minimum PR set defined in
-          DEMOCI-06-002 requires expansion to preserve full embargo lifecycle
-          protocol coverage, and MUST update `notes/demo-ci-scenario-coverage.md`,
-          DEMOCI-06-002, and DEMOCI-06-003 accordingly. If the embargo scenarios
-          introduce protocol event types not covered by `fv`, `fvcv-handoff`, or
-          `fcvcv`, the minimum PR set MUST be expanded. DEMOCI-06-003 names the
-          full scenario suite explicitly; it MUST be updated to include
-          `rcv-embargo` and `rcvv-embargo` when they are wired into CI.
+          and `rcvv-embargo` are implemented and passing in CI, to evaluate
+          whether the minimum PR set defined in DEMOCI-06-002 requires expansion
+          to preserve full embargo lifecycle protocol coverage.
         rationale: >-
           DEMOCI-06-002 defined the minimum PR set before embargo-lifecycle
           scenarios existed. The embargo protocol messages (EP, EA, EV, EJ, ET)
           are not exercised by any scenario in the current minimum set.
           DEMOCI-06-003 lists the full scenario suite by name; after #2073
           adds rcv-embargo and rcvv-embargo to the CI matrix, DEMOCI-06-003
-          must be updated in the same pass. This SHOULD-priority spec creates an explicit obligation to
-          revisit both coverage specs rather than letting either gap go unnoticed.
+          must be updated in the same pass. This SHOULD-priority spec creates
+          an explicit obligation to revisit both coverage specs rather than
+          letting either gap go unnoticed.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-06-001
@@ -750,6 +929,51 @@ groups:
             spec_id: DEMOCI-06-002
           - rel_type: refines
             spec_id: DEMOCI-06-003
+
+      - id: DEMOCI-07-008
+        priority: SHOULD
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          When the follow-up coverage analysis is performed, it MUST update
+          `notes/demo-ci-scenario-coverage.md`, DEMOCI-06-002, and DEMOCI-06-003
+          to reflect its conclusions.
+        rationale: >-
+          The analysis findings must be propagated to all three documents so
+          that the coverage matrix, minimum PR set, and full scenario suite
+          list remain mutually consistent.
+
+      - id: DEMOCI-07-009
+        priority: SHOULD
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          If the embargo scenarios introduce protocol event types not covered
+          by `fv`, `fvcv-handoff`, or `fcvcv`, the minimum PR set defined in
+          DEMOCI-06-002 MUST be expanded.
+        rationale: >-
+          The embargo protocol messages (EP, EA, EV, EJ, ET) are not exercised
+          by any scenario in the current minimum set; if the coverage analysis
+          confirms this gap, the PR set must grow to close it.
+
+      - id: DEMOCI-07-010
+        priority: SHOULD
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          DEMOCI-06-003 MUST be updated to include `rcv-embargo` and
+          `rcvv-embargo` in the full scenario suite list when they are wired
+          into CI.
+        rationale: >-
+          DEMOCI-06-003 names the full scenario suite explicitly; once the
+          embargo scenarios are wired in, the list must be updated so the
+          post-merge validation run is complete.
 
   - id: DEMOCI-08
     title: Workflow Static Analysis (actionlint)
@@ -761,12 +985,7 @@ groups:
           GitHub Actions workflow files MUST be statically analysed by
           `actionlint` in CI, via a dedicated workflow
           (`.github/workflows/actions-lint.yml`) whose path filter is scoped to
-          `.github/**`. The check MUST NOT be added to `python-app.yml`, whose
-          path filter is scoped to `vultron/**` and `test/**` and therefore
-          would not trigger on a workflow-only change. The same linter MUST be
-          registered as a pre-commit hook so the error is caught before push.
-          The actionlint version MUST be pinned, and the CI download MUST be
-          verified against a pinned SHA256 checksum.
+          `.github/**`.
         rationale: >-
           A workflow can be syntactically valid YAML yet be rejected by GitHub
           at startup — the `matrix`-context-in-job-`if:` bug of DEMOCI-06-004 is
@@ -783,17 +1002,65 @@ groups:
           - rel_type: refines
             spec_id: DEMOCI-06-004
 
+      - id: DEMOCI-08-003
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The `actionlint` check MUST NOT be added to `python-app.yml`, whose
+          path filter is scoped to `vultron/**` and `test/**` and therefore
+          would not trigger on a workflow-only change.
+        rationale: >-
+          A workflow-only change (touching only `.github/**`) would not match
+          `python-app.yml`'s path filter, so placing `actionlint` there would
+          leave workflow changes unchecked.
+
+      - id: DEMOCI-08-004
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          `actionlint` MUST be registered as a pre-commit hook so that workflow
+          errors are caught before push.
+        rationale: >-
+          A pre-commit hook catches the illegal context reference before it
+          reaches CI, closing the feedback loop that otherwise requires a push
+          and a CI run to surface the error.
+
+      - id: DEMOCI-08-005
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: The `actionlint` version used in CI MUST be pinned.
+        rationale: >-
+          Pinning by version keeps CI reproducible and prevents a retagged
+          upstream release from silently altering what executes in the pipeline.
+
+      - id: DEMOCI-08-006
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The CI download of `actionlint` MUST be verified against a pinned
+          SHA256 checksum.
+        rationale: >-
+          A checksum verification prevents a compromised upstream release from
+          silently altering what executes in the pipeline.
+
       - id: DEMOCI-08-002
         priority: MUST
         kind: project
         statement: >-
-          The `actions-lint.yml` workflow MUST validate
-          `.github/demo-scenarios.json` structurally: it MUST assert the file is
-          a non-empty array; that every entry has a non-empty string `demo`, a
-          non-empty string `test_file`, and a boolean (not string)
-          `full_suite_only`; that no `demo` name is duplicated; that at least
-          one entry has `full_suite_only: false`; and that every referenced
-          `test_file` exists in the repository.
+          The `actions-lint.yml` workflow MUST verify that
+          `.github/demo-scenarios.json` is a non-empty array.
         rationale: >-
           Once the matrix is data rather than inline YAML, malformed data
           degrades silently instead of failing loudly. A string `"false"` is
@@ -810,6 +1077,63 @@ groups:
             spec_id: DEMOCI-08-001
           - rel_type: refines
             spec_id: DEMOCI-06-004
+
+      - id: DEMOCI-08-007
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The `actions-lint.yml` workflow MUST verify that every entry in
+          `.github/demo-scenarios.json` has a non-empty string `demo` field, a
+          non-empty string `test_file` field, and a boolean (not string)
+          `full_suite_only` field.
+        rationale: >-
+          A missing `test_file` key expands into a job that runs `pytest ""`;
+          a string `"false"` is truthy to `jq` and would drop a scenario from
+          the PR set.
+
+      - id: DEMOCI-08-008
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The `actions-lint.yml` workflow MUST verify that no `demo` name is
+          duplicated in `.github/demo-scenarios.json`.
+        rationale: >-
+          A duplicated `demo` name collides on the upload-artifact name and
+          one scenario's logs overwrite the other's.
+
+      - id: DEMOCI-08-009
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The `actions-lint.yml` workflow MUST verify that at least one entry
+          in `.github/demo-scenarios.json` has `full_suite_only: false`.
+        rationale: >-
+          An empty PR validation set would let `pull_request` runs report a
+          vacuous success with zero scenarios executed — the same false-green
+          class of failure that DEMOCI-06-004 exists to prevent.
+
+      - id: DEMOCI-08-010
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The `actions-lint.yml` workflow MUST verify that every `test_file`
+          path referenced in `.github/demo-scenarios.json` exists in the
+          repository.
+        rationale: >-
+          A non-existent `test_file` path should be caught at schema-validation
+          time rather than 15 minutes into a demo run.
 
   - id: DEMOCI-09
     title: Integration Branch Support
@@ -913,12 +1237,9 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          `test/ci/invariants/common.py::load_devlogs()` MUST fail — not skip —
-          when a `dump-manifest.json` is present under the scenario's devlogs
-          directory but no `*-case-ledger.jsonl` file is, and MUST fail when a
-          manifest is present but unparseable. It MUST skip only when there is no
-          evidence the demo ran: no `devlogs/`, no scenario sub-directory, or
-          neither ledger files nor a manifest.
+          `test/ci/invariants/common.py::load_devlogs()` MUST fail — not skip
+          — when a `dump-manifest.json` is present under the scenario's devlogs
+          directory but no `*-case-ledger.jsonl` file exists.
         rationale: >-
           Skipping on absent data is right for a developer who has not run the
           demo and wrong for CI, where absent data means the scenario died. The
@@ -931,14 +1252,42 @@ groups:
           - rel_type: implements
             spec_id: DEMOCI-10-002
 
+      - id: DEMOCI-10-008
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          `test/ci/invariants/common.py::load_devlogs()` MUST fail when a
+          `dump-manifest.json` is present under the scenario's devlogs directory
+          but is unparseable.
+        rationale: >-
+          An unparseable manifest indicates data corruption during the CI run;
+          failing loudly surfaces this as a real harness error rather than a
+          silent skip.
+
+      - id: DEMOCI-10-009
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          `test/ci/invariants/common.py::load_devlogs()` MUST skip only when
+          there is no evidence the demo ran: no `devlogs/` directory, no scenario
+          sub-directory, or neither ledger files nor a manifest.
+        rationale: >-
+          Skipping is appropriate only when a developer has not run the demo
+          locally; the manifest distinguishes that case from a CI run that
+          produced no artifacts.
+
       - id: DEMOCI-10-004
         priority: MUST
         kind: project
         statement: >-
           A failure inside the case-ledger dump MUST NOT replace the exception
-          that ended the scenario. The dump MUST record its own failure through
-          the accumulator and the manifest, and the original exception MUST
-          propagate unchanged.
+          that ended the scenario.
         rationale: >-
           A dump that runs on the failure path runs precisely when the system is
           already unhealthy, so it is the most likely thing to fail second. If it
@@ -948,6 +1297,32 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-001
+
+      - id: DEMOCI-10-010
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          When the case-ledger dump fails, it MUST record its own failure
+          through the accumulator and the manifest.
+        rationale: >-
+          Recording dump failures in the manifest makes them machine-readable
+          and distinguishable from a scenario that never started.
+
+      - id: DEMOCI-10-011
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          When the case-ledger dump fails, the original scenario exception MUST
+          propagate unchanged.
+        rationale: >-
+          Propagating the original exception unchanged ensures the root-cause
+          diagnosis is not replaced by a secondary dump failure.
 
       - id: DEMOCI-10-005
         priority: MUST
@@ -975,17 +1350,7 @@ groups:
         statement: >-
           The CI demo job MUST write a pre-run sentinel `dump-manifest.json`
           under `devlogs/<demo-name>/` immediately before launching the
-          demo-runner container. The sentinel MUST conform to the DEMOCI-10-002
-          schema with `caseId: null` (no case exists at pre-run time),
-          `ledgerFileCount: 0`, `targetCount: 0`, and a `reason` string
-          indicating the demo-runner had not yet started. When the
-          demo-runner subsequently runs and reaches `scenario_harness()`, the
-          harness MUST overwrite the sentinel with the real dump manifest. When
-          the demo-runner exits before reaching `scenario_harness()` — due to a
-          container startup failure, import error, or health-check gate — the
-          sentinel survives and is uploaded as the artifact, so the
-          invariant-harness job can download it and report a real failure
-          instead of a plumbing error.
+          demo-runner container.
         rationale: >-
           `scenario_harness()` only runs when the demo-runner container starts
           and the scenario module imports successfully. Docker startup failures,
@@ -1003,6 +1368,36 @@ groups:
             spec_id: DEMOCI-10-002
           - rel_type: refines
             spec_id: DEMOCI-10-003
+
+      - id: DEMOCI-10-012
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          The pre-run sentinel `dump-manifest.json` MUST conform to the
+          DEMOCI-10-002 schema with `caseId: null`, `ledgerFileCount: 0`,
+          `targetCount: 0`, and a `reason` string indicating the demo-runner
+          had not yet started.
+        rationale: >-
+          The sentinel must be schema-conformant so the invariant-harness job
+          can parse and interpret it via the manifest-without-ledgers path
+          (DEMOCI-10-003).
+
+      - id: DEMOCI-10-013
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          When the demo-runner reaches `scenario_harness()`, the harness MUST
+          overwrite the pre-run sentinel with the real dump manifest.
+        rationale: >-
+          Overwriting the sentinel ensures that a successful run does not leave
+          misleading pre-run metadata as the artifact for the invariant-harness
+          job to read.
 
       - id: DEMOCI-10-007
         priority: MUST

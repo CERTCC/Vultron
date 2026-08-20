@@ -156,13 +156,11 @@ groups:
   - id: DL-05-002
     priority: MUST
     kind: project
-    statement: The DataLayer adapter MUST own the wire↔core translation for persistence and MUST maintain its own
-      `type_`→core-class mapping (via `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry; the wire
-      vocabulary registry MUST NOT be the mechanism by which core objects are reconstructed on the read path.
+    statement: The DataLayer adapter MUST own the wire↔core translation for persistence.
     rationale: >-
-      The wire registry is a wire-layer concern (DL-03-002). Making the adapter reconstruct core objects from a core
-      registry decouples DataLayer storage from the wire type system so the wire layer can evolve without breaking
-      persistence.
+      The wire registry is a wire-layer concern (DL-03-002). Making the adapter own translation
+      decouples DataLayer storage from the wire type system so the wire layer can evolve without
+      breaking persistence.
     relationships:
     - rel_type: implements
       spec_id: DL-03-002
@@ -206,9 +204,8 @@ groups:
     statement: >-
       An architecture ratchet test MUST assert that `_NORMALIZE_WIRE_TO_CORE` in
       `vultron/adapters/driven/db_record.py` covers every wire vocabulary class whose bare `type_`
-      shadows a `CORE_VOCABULARY` entry; the set may only grow (shrinking re-opens the write-path
-      shape duality). When all shadowing types are migrated the companion `_NOT_YET_NORMALIZED`
-      enumeration MUST be empty and the test MUST enforce that no shadowing type is left uncovered.
+      shadows a `CORE_VOCABULARY` entry; the set may only grow, as shrinking re-opens the
+      write-path shape duality.
     rationale: >-
       Prevents regression on the write path: a wire-shaped row MUST NOT be persisted in a
       core-typed DataLayer table. The write-side ratchet is the mirror-image of DL-05-004 and
@@ -216,6 +213,60 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: DL-05-001
+    tags:
+    - persistence
+    - testing
+    - wire-format
+    adr:
+    - ADR-0062
+  - id: DL-05-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The DataLayer adapter MUST maintain its own `type_`→core-class mapping (via
+      `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry.
+    rationale: >-
+      An independent adapter-owned mapping decouples DataLayer storage from the wire type system
+      so the wire layer can evolve without breaking persistence (DL-03-002).
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-007
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The wire vocabulary registry MUST NOT be the mechanism by which core objects are
+      reconstructed on the DataLayer read path.
+    rationale: >-
+      Using the wire registry for core object reconstruction leaks wire-layer concerns into the
+      adapter read path, violating DL-03-002.
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-008
+    priority: MUST
+    kind: project
+    statement: >-
+      When all shadowing types are migrated, the companion `_NOT_YET_NORMALIZED` enumeration in
+      `vultron/adapters/driven/db_record.py` MUST be empty.
+    rationale: >-
+      An empty `_NOT_YET_NORMALIZED` set confirms that all wire-shaped rows have been migrated
+      to core-typed persistence, completing the write-path normalization described in ADR-0062.
+    tags:
+    - persistence
+    - testing
+    - wire-format
+    adr:
+    - ADR-0062
+  - id: DL-05-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The architecture ratchet test MUST enforce that no wire vocabulary class shadowing a
+      `CORE_VOCABULARY` entry in `_NORMALIZE_WIRE_TO_CORE` is left uncovered.
+    rationale: >-
+      Ensures the ratchet is closed-form: every shadowing type must be explicitly handled, with
+      no silent gaps that would allow wire-shaped rows to slip through.
     tags:
     - persistence
     - testing
