@@ -111,18 +111,21 @@ No open entries.
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
-| `fv Demo Integration` | #2361 | 2026-08-18 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
-| `fcvcv Demo Integration` | #2376 | 2026-08-19 |
+| `fcvcv Demo Integration` | #2376 | 2026-08-20 |
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
-> `fcvcv Demo Integration` now points to #2376 (coordinator RM.RECEIVED timeout + 422
-> on engage-case, same async race-window class as #2221). Previous issue #2337
-> (Finder ledger-coverage timeout) was closed 2026-08-18; row re-added 2026-08-19.
+> `fcvcv Demo Integration` points to #2376 (async race-window class, #2221). Third
+> observed failure mode (2026-08-20, PR #2421): `M7 reporter pxa_state not
+> public-aware` — `fcvcv Invariant Harness` passed confirming orchestration-layer
+> timing. Second mode: coordinator RM.RECEIVED / 422 engage-case (also #2376).
+> First mode (Finder ledger-coverage timeout): closed as #2337 (2026-08-18).
 >
-> `fv Demo Integration` now points to #2361 (M4/M5 vfd_state replication timeout).
+> `fv Demo Integration` evicted 2026-08-20: issue #2361 closed; `include_activity=True`
+> fix for `ADD_CASE_STATUS_TO_CASE` (PR #2421) resolved the payloadSnapshot/actor
+> ledger-commit failure that was causing M4/M5 vfd_state timeout.
 >
 > **Prior failure mode** (UnboundLocalError / add-note-to-case 422 — tracked under #2241): fixed by PR #2358. That failure was deterministic once triggered: `add-note-to-case` returned an intermittent 422 and `vultron/demo/helpers/notes.py:92` read `result` outside the swallowing `demo_step` block.  Row updated 2026-08-18.
 >
