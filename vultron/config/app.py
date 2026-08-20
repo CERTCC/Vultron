@@ -96,12 +96,18 @@ class ServerConfig(BaseModel):
 
     Attributes:
         base_url: Base URL of the Vultron server, used for constructing
-            object IDs.  Defaults to ``"http://localhost:7999"``.
+            object IDs.  MUST include the API path prefix: an actor's id is the
+            URL that reaches it, and a hosted actor is named
+            ``{base_url}/actors/{slug}``, so a value without ``/api/v2`` mints
+            ids that address nothing (DL-07-006).  Defaults to
+            ``"http://localhost:7999/api/v2"``, matching the shape the compose
+            files set, so a local run resolves actors the way a deployed one
+            does.
         log_level: Root log level name.  Must be one of ``DEBUG``, ``INFO``,
             ``WARNING``, ``ERROR``, or ``CRITICAL``.  Defaults to ``"INFO"``.
     """
 
-    base_url: str = "http://localhost:7999"
+    base_url: str = "http://localhost:7999/api/v2"
     log_level: LogLevelName = "INFO"
 
     @field_validator("base_url")
