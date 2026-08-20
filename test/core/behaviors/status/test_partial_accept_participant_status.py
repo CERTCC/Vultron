@@ -959,3 +959,67 @@ class TestMergeSnapshotObjectFields:
         )
         assert merged["caseStatus"] == f"{ASSERTED_STATUS_ID}/cs"
         assert merged["rmState"] == "VALID"
+
+
+# ---------------------------------------------------------------------------
+# RSH-06: RM anomaly detection (BB_RM_ANOMALY)
+# ---------------------------------------------------------------------------
+
+
+class TestRMGapAnomalyFlag:
+    """FilterParticipantStatusDimensionsNode publishes BB_RM_ANOMALY (RSH-06)."""
+
+    def _read_anomaly(self) -> Any:
+        from vultron.core.behaviors.status.nodes.dimension_filter import (
+            BB_RM_ANOMALY,
+        )
+
+        return py_trees.blackboard.Blackboard.storage.get("/" + BB_RM_ANOMALY)
+
+    def test_nonadjacent_forward_jump_sets_gap_anomaly(self, dl, make_payload):
+        """RECEIVED → ACCEPTED (non-adjacent) sets BB_RM_ANOMALY='gap' (RSH-06-001)."""
+        current = _current_status(RM.RECEIVED, CS_vfd.vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.ACCEPTED, CS_vfd.vfd, None)
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+
+        assert result.status == Status.SUCCESS
+        anomaly = self._read_anomaly()
+        assert (
+            anomaly is not None
+        ), "BB_RM_ANOMALY not set for non-adjacent RM gap"
+        assert anomaly["anomaly_type"] == "gap"
+        assert anomaly["from_rm"] == RM.RECEIVED
+        assert anomaly["to_rm"] == RM.ACCEPTED
+
+    def test_adjacent_forward_transition_no_anomaly(self, dl, make_payload):
+        """RECEIVED → VALID (adjacent) sets no BB_RM_ANOMALY (happy path)."""
+        current = _current_status(RM.RECEIVED, CS_vfd.vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vfd.vfd, None)
+        _seed_case(dl, current, asserted)
+
+        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+
+        anomaly = self._read_anomaly()
+        assert (
+            anomaly is None
+        ), f"Expected no anomaly for adjacent transition, got {anomaly}"
+
+    def test_backward_regression_refused_sets_regression_anomaly(
+        self, dl, make_payload
+    ):
+        """ACCEPTED → RECEIVED (backward) sets BB_RM_ANOMALY='regression' (RSH-06-002)."""
+        current = _current_status(RM.ACCEPTED, CS_vfd.vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vfd.vfd, None)
+        _seed_case(dl, current, asserted)
+
+        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+
+        anomaly = self._read_anomaly()
+        assert (
+            anomaly is not None
+        ), "BB_RM_ANOMALY not set for backward regression"
+        assert anomaly["anomaly_type"] == "regression"
+        assert anomaly["from_rm"] == RM.ACCEPTED
+        assert anomaly["to_rm"] == RM.RECEIVED

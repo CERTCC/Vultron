@@ -73,7 +73,7 @@ AddParticipantStatusBT (Sequence)
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
 │   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (AlwaysSucceed)
 ├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
-└─ AutoCloseIfCaseManager               ← unchanged
+└─ EmitRMGapNoteNode                    ← NEW: Add(Note,Case) on RM anomaly (RSH-06-004, ADR-0067)
 ```
 
 ### Per-dimension partial accept (RSH-05, ADR-0061)
