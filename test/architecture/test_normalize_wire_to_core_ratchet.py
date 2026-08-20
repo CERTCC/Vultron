@@ -27,8 +27,9 @@ protection, for the mirror-image reason:
   issue #2232 closed, and it would do so without any test noticing: nothing else
   asserts that a given type is normalised.
 
-Seven types are normalised: the two from #2232 plus the five actor types from
-#2402.  The remaining eight shadowing object types are tracked in issue #2401.
+All fifteen wire classes that shadow a ``CORE_VOCABULARY`` entry are now
+normalised — ten object types via issue #2268, five actor types via issue #2402.
+No remaining entries; ``_NOT_YET_NORMALIZED`` is empty.
 
 Related: issue #2232 (the shape duality), issue #2268 (migrating the rest).
 """
@@ -44,8 +45,9 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 
 # ---------------------------------------------------------------------------
-# Baseline: seven types normalised as of issue #2402 (five actor types added).
-# The remaining eight shadowing object types are tracked in issue #2401.
+# Baseline: seven types normalised as of issue #2402 (five actor types added to
+# the two from #2232).  Combined with the ten object types from issue #2268, all
+# fifteen shadowing types are now covered.
 # ---------------------------------------------------------------------------
 _NORMALIZED_AS_OF_2402: frozenset[str] = frozenset(
     {
@@ -60,26 +62,10 @@ _NORMALIZED_AS_OF_2402: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Shadowing types NOT yet normalised (issue #2401).  This set may only SHRINK:
-# migrating a type moves it out of here and into ``_NORMALIZE_WIRE_TO_CORE``.
-#
-# The eight object types differ from their core counterpart only by key
-# spelling today, so a wire-shaped row is misspelled rather than structurally
-# unreadable.  Each also needs ALL wire classes sharing that ``type_`` string
-# to have ``to_core()`` before the type can be added to ``_NORMALIZE_WIRE_TO_CORE``.
+# Shadowing types NOT yet normalised.  Empty: all fifteen are now covered.
+# If a new shadowing wire class appears, add it here before normalising.
 # ---------------------------------------------------------------------------
-_NOT_YET_NORMALIZED: frozenset[str] = frozenset(
-    {
-        "CaseLedgerEntry",
-        "CaseReference",
-        "CaseStatus",
-        "EmbargoEvent",
-        "EmbargoPolicy",
-        "VulnerabilityCase",
-        "VulnerabilityRecord",
-        "VulnerabilityReport",
-    }
-)
+_NOT_YET_NORMALIZED: frozenset[str] = frozenset()
 
 
 def _shadowing_types() -> dict[str, type]:
