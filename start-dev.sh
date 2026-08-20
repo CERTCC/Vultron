@@ -104,6 +104,7 @@ DOCKER_ARGS=(
     -e VULTRON_MAIN_NAME="$MAIN_NAME"
     -e WIP_NOTES=/app/wip_notes
     -e WIP_OUTPUTS=/app/wip_outputs
+    -e GRAPHIFY_MAX_WORKERS=4
     -v "${MAIN_NAME}-data:/home/vscode/.data"
     # NOTE: .devcontainer is NOT mounted. It is baked into the image and belongs
     # to the container's own working tree. Mounting the host copy over it made
