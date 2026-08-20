@@ -144,17 +144,21 @@ class IsolatedActorApp:
             ``base_url`` (e.g. ``http://actor-name.test``).
         dl: The isolated in-memory ``SqliteDataLayer`` for this actor.
         base_url: The base URL used to construct actor IDs.
+        actor_id: Canonical URI of this app's own actor — the one ``dl`` belongs
+            to. Exposed so a test can address it without rebuilding the URL.
     """
 
     app: FastAPI
     client: TestClient
     dl: SqliteDataLayer
     base_url: str
+    actor_id: str = ""
 
 
 def create_isolated_actor_app(
     base_url: str,
     router: "_TestClientRouter",
+    actor_slug: str = "primary",
 ) -> "IsolatedActorApp":
     """Create an isolated FastAPI app for a single actor in tests.
 
@@ -174,22 +178,61 @@ def create_isolated_actor_app(
             Actor IDs will use this as their URL prefix.
         router: Shared :class:`_TestClientRouter` instance that all apps
             register with so cross-app deliveries are routed correctly.
+        actor_slug: Final path segment of *this app's own* actor. Determines
+            which store ``dl`` addresses, so a test that seeds or asserts through
+            ``dl`` MUST pass the slug it creates its actor under. Routing does not
+            depend on it — every actor gets its own store via the per-actor
+            override below — but ``dl`` has to name one of them.
 
     Returns:
         An :class:`IsolatedActorApp` whose ``client`` context manager has
         *not* been entered yet — callers must use it as a context manager.
     """
-    isolated_dl = SqliteDataLayer(
-        db_url="sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    # This app's own node root. Closed over rather than read from the request,
+    # because production resolves a segment against the *configured* base URL and
+    # this override must not diverge from that — see ISSUE-2238 for why the
+    # configured value and the served URL can disagree.
+    node_root = f"{base_url.rstrip('/')}/api/v2"
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        """Route per actor, in memory.
+
+        Overriding with a single fixed DataLayer pinned every actor id to one
+        store, which is what made this harness unable to find an actor it had
+        just created: ``create_actor`` writes through the per-actor factory
+        (correctly), so creation and lookup landed in different stores and the
+        actor came back ``404 Actor not found`` (ADR-0066 / ISSUE-2238). Only the
+        backing URL is replaced here; which store a segment selects is part of
+        what these tests exercise.
+        """
+        return get_datalayer(
+            canonical_actor_uri(actor_id, base_url=node_root),
+            db_url="sqlite:///:memory:",
+        )
+
     app = create_app(docs_url=None, openapi_url=None)
-    app.dependency_overrides[get_actor_dl] = lambda: isolated_dl
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
+
+    # `dl` is this app's own actor's store, for tests that seed or assert
+    # directly. Built through `get_datalayer` so it is the *same instance* the
+    # override hands the routes, and so the actor registers as hosted here.
+    own_actor_id = f"{base_url.rstrip('/')}/api/v2/actors/{actor_slug}"
+    isolated_dl = get_datalayer(own_actor_id, db_url="sqlite:///:memory:")
+
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
     router.register(base_url, client)
     return IsolatedActorApp(
-        app=app, client=client, dl=isolated_dl, base_url=base_url
+        app=app,
+        client=client,
+        dl=isolated_dl,
+        base_url=base_url,
+        actor_id=own_actor_id,
     )
 
 

@@ -54,11 +54,22 @@ def test_get_datalayer_in_memory_by_default():
 
 @pytest.mark.integration
 def test_get_datalayer_file_backed_with_explicit_url(tmp_path):
-    """Passing an explicit db_url must create a file-backed DataLayer."""
+    """Passing an explicit db_url must create a file-backed DataLayer.
+
+    The actor is mandatory (DL-07-002), and the configured URL is a *template*:
+    the file this opens is derived from it per actor (DL-07-003), so the assertion
+    below is that the derived path is under *this* URL rather than that it equals
+    it.
+    """
+    from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
+
+    actor_id = "https://test.example/api/v2/actors/file-backed-actor"
     db_file = str(tmp_path / "test.sqlite")
     db_url = f"sqlite:///{db_file}"
-    dl = get_datalayer(db_url=db_url)
+    dl = get_datalayer(actor_id, db_url=db_url)
     assert dl.ping()
+    assert str(dl._engine.url) == actor_db_url(db_url, actor_id)
+    assert str(tmp_path) in str(dl._engine.url)
 
 
 def test_get_datalayer_returns_singleton_for_same_actor_id():
