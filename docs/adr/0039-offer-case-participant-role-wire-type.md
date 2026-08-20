@@ -39,32 +39,13 @@ Issue: CONCERN-1674.
    `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)`.
 2. **Keep `Offer(VulnerabilityCase)`; add `strict=True` to the pattern** —
    enforce the target discriminator at the pattern layer without a type change.
+   *Partially adopted as an implementation complement to Option 1 (CONCERN-2322):
+   `ActivityPattern._match_activity_field` hardcodes `strict=False` for `target_`
+   by default; any pattern using `target_` as the sole discriminator MUST set
+   `strict=True` so bare URI strings cannot match typed target constraints.
+   See SE-08-004.*
 3. **Spec-and-notes documentation only** — record the ordering requirement and
    the target-as-discriminator rationale; no wire format change.
-
-## Amendment — `strict=True` for `target_` (CONCERN-2322)
-
-CONCERN-2322 surfaced a second structural gap: even with Option 1 chosen,
-`ActivityPattern._match_activity_field` always treats the `target_` field as
-permissive (`strict=False`), meaning a bare URI string in `target` would match
-any typed target constraint. For the deprecated `Offer(VulnerabilityCase,
-target=CaseParticipant)` format this meant registry ordering was the **sole**
-protection against misrouting when `_rehydrate_fields` had not yet resolved
-the target.
-
-The amendment decision (CONCERN-2322) is:
-
-- **`strict=True` on `ActivityPattern` MUST also gate `target_` matching**:
-  when `strict=True`, a bare string in the `target` field must NOT match a
-  typed target constraint. This is implemented by passing `self.strict` to the
-  `target_` field pair in `_match_activity_field` instead of the hardcoded
-  `False`.
-- **`OFFER_CASE_MANAGER_ROLE` is removed** (not merely deprecated): the
-  backward-compat wire format was never emitted by any supported actor
-  implementation; retaining it as a fallback-only registry entry was a source
-  of registry-ordering fragility. Removed by CONCERN-2322.
-- **`ACCEPT_CASE_PARTICIPANT_ROLE` and `REJECT_CASE_PARTICIPANT_ROLE`** are
-  added to complete the three-way role-offer flow for the canonical wire format.
 
 ## Decision Outcome
 
@@ -77,6 +58,17 @@ Chosen option: **Option 1 — new `as_CaseParticipantRole` object type**, becaus
   generalises naturally to offering any `CVDRole` (VENDOR, COORDINATOR, etc.)
   rather than only CASE_MANAGER.
 - Options 2 and 3 leave the latent misrouting risk in place for external senders.
+
+**Implementation complement (CONCERN-2322)**: Option 2's `strict=True` mechanism
+is also applied as a structural hardening: `ActivityPattern._match_activity_field`
+now respects `self.strict` for the `target_` field pair rather than hardcoding
+`False`, so bare URI strings cannot match typed target constraints when
+`strict=True`. This closes the gap where registry ordering was the sole
+protection against misrouting even with Option 1 in place. Additionally:
+`OFFER_CASE_MANAGER_ROLE` was removed entirely (not merely deprecated) since
+its wire format was never emitted by any supported actor, and
+`ACCEPT_CASE_PARTICIPANT_ROLE` / `REJECT_CASE_PARTICIPANT_ROLE` were added to
+complete the three-way role-offer flow. See SE-08-004, SE-08-005.
 
 ### Consequences
 
