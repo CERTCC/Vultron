@@ -59,28 +59,36 @@ def bridge(dl, factory):
     return BTBridge(datalayer=dl, trigger_activity=factory)
 
 
-def _make_accept_node(**kwargs):
-    defaults = dict(
-        offer_id=OFFER_ID,
-        case_id=CASE_ID,
-        role=CVDRole.CASE_MANAGER,
-        target_actor_id=ACTOR_ID,
-        vendor_id=VENDOR_ID,
+def _make_accept_node(
+    offer_id: str = OFFER_ID,
+    case_id: str = CASE_ID,
+    role: CVDRole = CVDRole.CASE_MANAGER,
+    target_actor_id: str = ACTOR_ID,
+    vendor_id: str = VENDOR_ID,
+) -> AutoAcceptCaseParticipantRoleNode:
+    return AutoAcceptCaseParticipantRoleNode(
+        offer_id=offer_id,
+        case_id=case_id,
+        role=role,
+        target_actor_id=target_actor_id,
+        vendor_id=vendor_id,
     )
-    defaults.update(kwargs)
-    return AutoAcceptCaseParticipantRoleNode(**defaults)
 
 
-def _make_reject_node(**kwargs):
-    defaults = dict(
-        offer_id=OFFER_ID,
-        case_id=CASE_ID,
-        role=CVDRole.CASE_MANAGER,
-        target_actor_id=ACTOR_ID,
-        vendor_id=VENDOR_ID,
+def _make_reject_node(
+    offer_id: str = OFFER_ID,
+    case_id: str = CASE_ID,
+    role: CVDRole = CVDRole.CASE_MANAGER,
+    target_actor_id: str = ACTOR_ID,
+    vendor_id: str = VENDOR_ID,
+) -> EmitRejectCaseParticipantRoleNode:
+    return EmitRejectCaseParticipantRoleNode(
+        offer_id=offer_id,
+        case_id=case_id,
+        role=role,
+        target_actor_id=target_actor_id,
+        vendor_id=vendor_id,
     )
-    defaults.update(kwargs)
-    return EmitRejectCaseParticipantRoleNode(**defaults)
 
 
 class TestAutoAcceptCaseParticipantRoleNode:
