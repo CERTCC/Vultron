@@ -990,7 +990,7 @@ class TestCaseLedgerEntryCreation:
         from vultron.core.models.case import VulnerabilityCase
 
         case_obj = c(VulnerabilityCase, dl.read(CASE_ID))
-        case_obj.case_statuses.append(initial)
+        case_obj.case_statuses.append(str(initial.id_))
         dl.create(initial)
         dl.save(case_obj)
 
