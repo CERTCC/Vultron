@@ -43,12 +43,11 @@ from vultron.wire.as2.factories import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.case import (
-    accept_case_manager_role_activity,
+    accept_case_participant_role_activity,
     accept_case_ownership_transfer_activity,
-    offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
-    reject_case_manager_role_activity,
+    reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -482,35 +481,6 @@ class _ActorsMixin:
             )
         return activity.id_
 
-    def offer_case_manager_role(
-        self,
-        case_id: str,
-        participant_id: str,
-        actor: str,
-        to: list[str] | None = None,
-    ) -> tuple[str, dict]:
-        """Create and persist an ``Offer(as_VulnerabilityCase, target=as_CaseParticipant)``
-        CASE_MANAGER delegation activity.
-
-        Returns ``(activity_id, activity_dict)``.
-        """
-        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
-        activity = offer_case_manager_role_activity(
-            case=case, target=participant, actor=actor, to=to
-        )
-        try:
-            self._dl.create(activity)
-        except ValueError:
-            logger.warning(
-                "offer_case_manager_role: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
-
     def offer_case_participant_role(
         self,
         case_id: str,
@@ -547,36 +517,31 @@ class _ActorsMixin:
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
-    def accept_case_manager_role(
+    def accept_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
+        """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor,
+        )  # noqa: PLC0415
 
-        Ephemerally reconstructs the original Offer from ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id`` so that
-        ``Accept.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
-
-        Returns ``(activity_id, activity_dict)`` where ``activity_dict`` is
-        the full inline serialization captured before the activity is stored,
-        suitable for use as a canonical payload snapshot.
-        """
+        target = as_Actor(id_=target_actor_id)
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
-        offer = offer_case_manager_role_activity(
+        offer = offer_case_participant_role_activity(
+            role=role,
+            target_actor=target,
             case=case,
-            target=participant,
             id_=offer_id,
             actor=vendor_id,
         )
-        activity = accept_case_manager_role_activity(
+        activity = accept_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
         activity_dict = activity.model_dump(**_DUMP_KWARGS)
@@ -584,45 +549,44 @@ class _ActorsMixin:
             self._dl.create(activity)
         except ValueError:
             logger.warning(
-                "accept_case_manager_role: activity '%s' already exists"
+                "accept_case_participant_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )
         return activity.id_, activity_dict
 
-    def reject_case_manager_role(
+    def reject_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+        """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor,
+        )  # noqa: PLC0415
 
-        Ephemerally reconstructs the original Offer from ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id`` so that
-        ``Reject.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
-        """
+        target = as_Actor(id_=target_actor_id)
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
-        offer = offer_case_manager_role_activity(
+        offer = offer_case_participant_role_activity(
+            role=role,
+            target_actor=target,
             case=case,
-            target=participant,
             id_=offer_id,
             actor=vendor_id,
         )
-        activity = reject_case_manager_role_activity(
+        activity = reject_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
         try:
             self._dl.create(activity)
         except ValueError:
             logger.warning(
-                "reject_case_manager_role: activity '%s' already exists"
+                "reject_case_participant_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )

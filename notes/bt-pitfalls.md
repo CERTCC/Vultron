@@ -133,15 +133,15 @@ silently regress.
    that swallows it silently, status can be wrong.
 
 2. **Silent node shadowing** — a more insidious variant occurred during
-   development of `SendOfferCaseManagerRoleNode`: the class body of
-   `EmitCreateCaseActivity` was accidentally embedded *inside*
-   `SendOfferCaseManagerRoleNode` (as a duplicate `__init__`, `setup`, and
-   `update()` defined later in the same class body). Python resolves to the
-   *last* definition, so the correct `update()` was silently replaced by the
-   embedded one. The embedded `setup()` only registered `case_id`, so
-   `get("case_actor_id")` never raised — it was never even called. The node
-   returned `SUCCESS` whenever `case_id` was present, masking the real logic
-   entirely.
+   development of `SendOfferCaseManagerRoleNode` (historical; deleted in
+   issue #2429): the class body of `EmitCreateCaseActivity` was accidentally
+   embedded *inside* `SendOfferCaseManagerRoleNode` (as a duplicate `__init__`,
+   `setup`, and `update()` defined later in the same class body). Python
+   resolves to the *last* definition, so the correct `update()` was silently
+   replaced by the embedded one. The embedded `setup()` only registered
+   `case_id`, so `get("case_actor_id")` never raised — it was never even
+   called. The node returned `SUCCESS` whenever `case_id` was present, masking
+   the real logic entirely.
 
 **Rules**:
 

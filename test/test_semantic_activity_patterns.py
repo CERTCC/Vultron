@@ -12,13 +12,10 @@ from vultron.wire.as2.extractor import (
     ActivityPattern,
 )
 from vultron.wire.as2.factories import (
-    accept_case_manager_role_activity,
     accept_case_participant_role_activity,
     announce_vulnerability_case_activity,
-    offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
-    reject_case_manager_role_activity,
     reject_case_participant_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -31,7 +28,6 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     VulnerabilityCaseStub,
@@ -450,41 +446,10 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
 _VENDOR_URI = "https://example.org/actors/vendor"
 _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
 _CASE_URI = "https://example.org/cases/urn:uuid:test-case-mgr"
-_PARTICIPANT_URI = (
-    "https://example.org/participants/urn:uuid:case-actor-participant"
-)
 
 
 def _make_case_manager_case() -> as_VulnerabilityCase:
     return as_VulnerabilityCase(id_=_CASE_URI, name="CASE-001")
-
-
-def _make_case_actor_participant() -> as_CaseParticipant:
-    return as_CaseParticipant(
-        id_=_PARTICIPANT_URI,
-        attributed_to=_CASE_ACTOR_URI,
-        context=_CASE_URI,
-    )
-
-
-def test_offer_case_manager_role_dispatches_correctly():
-    """Offer(as_VulnerabilityCase, target=as_CaseParticipant) must be classified as
-    OFFER_CASE_MANAGER_ROLE, not OFFER_CASE_OWNERSHIP_TRANSFER.
-
-    DEMOMA-08-002: CASE_MANAGER delegation is a distinct protocol from
-    case-ownership transfer and must not share message semantics.
-    """
-    case = _make_case_manager_case()
-    participant = _make_case_actor_participant()
-    offer = offer_case_manager_role_activity(
-        case,
-        target=participant,
-        actor=_VENDOR_URI,
-    )
-    result = find_matching_semantics(offer)
-    assert (
-        result == MessageSemantics.OFFER_CASE_MANAGER_ROLE
-    ), f"Expected OFFER_CASE_MANAGER_ROLE, got {result}"
 
 
 def test_offer_case_manager_role_not_confused_with_ownership_transfer():
@@ -502,101 +467,6 @@ def test_offer_case_manager_role_not_confused_with_ownership_transfer():
     assert (
         result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
     ), f"Expected OFFER_CASE_OWNERSHIP_TRANSFER, got {result}"
-
-
-def test_accept_case_manager_role_dispatches_correctly():
-    """Accept(Offer(as_VulnerabilityCase, target=as_CaseParticipant)) must be
-    classified as ACCEPT_CASE_MANAGER_ROLE."""
-    case = _make_case_manager_case()
-    participant = _make_case_actor_participant()
-    offer = offer_case_manager_role_activity(
-        case,
-        target=participant,
-        actor=_VENDOR_URI,
-    )
-    accept = accept_case_manager_role_activity(offer, actor=_CASE_ACTOR_URI)
-    result = find_matching_semantics(accept)
-    assert (
-        result == MessageSemantics.ACCEPT_CASE_MANAGER_ROLE
-    ), f"Expected ACCEPT_CASE_MANAGER_ROLE, got {result}"
-
-
-def test_reject_case_manager_role_dispatches_correctly():
-    """Reject(Offer(as_VulnerabilityCase, target=as_CaseParticipant)) must be
-    classified as REJECT_CASE_MANAGER_ROLE."""
-    case = _make_case_manager_case()
-    participant = _make_case_actor_participant()
-    offer = offer_case_manager_role_activity(
-        case,
-        target=participant,
-        actor=_VENDOR_URI,
-    )
-    reject = reject_case_manager_role_activity(offer, actor=_CASE_ACTOR_URI)
-    result = find_matching_semantics(reject)
-    assert (
-        result == MessageSemantics.REJECT_CASE_MANAGER_ROLE
-    ), f"Expected REJECT_CASE_MANAGER_ROLE, got {result}"
-
-
-def test_offer_case_manager_role_rejects_string_case():
-    """offer_case_manager_role_activity must reject a bare string URI as case.
-
-    An inline as_VulnerabilityCase object is required so the recipient can
-    distinguish this activity from other Offer types during pattern matching.
-    """
-    participant = _make_case_actor_participant()
-    with pytest.raises(VultronActivityConstructionError):
-        offer_case_manager_role_activity(
-            "urn:uuid:some-case-id",  # type: ignore[arg-type]
-            participant,
-            actor=_VENDOR_URI,
-        )
-
-
-def test_offer_case_manager_role_rejects_none_target():
-    """offer_case_manager_role_activity must reject a None target.
-
-    A missing target makes this activity indistinguishable from
-    OFFER_CASE_OWNERSHIP_TRANSFER during semantic pattern matching.
-    """
-    case = _make_case_manager_case()
-    with pytest.raises(VultronActivityConstructionError):
-        offer_case_manager_role_activity(
-            case,
-            None,  # type: ignore[arg-type]
-            actor=_VENDOR_URI,
-        )
-
-
-def test_offer_case_manager_role_rejects_string_target():
-    """offer_case_manager_role_activity must reject a bare string IRI as target.
-
-    A string target is not a typed as_CaseParticipant and will not match the
-    CASE_PARTICIPANT constraint in the ActivityPattern, causing the activity
-    to be misclassified as OFFER_CASE_OWNERSHIP_TRANSFER.
-    """
-    case = _make_case_manager_case()
-    with pytest.raises(VultronActivityConstructionError):
-        offer_case_manager_role_activity(
-            case,
-            _PARTICIPANT_URI,  # type: ignore[arg-type]
-            actor=_VENDOR_URI,
-        )
-
-
-def test_accept_case_manager_role_rejects_bare_ownership_offer():
-    """accept_case_manager_role_activity must reject an Offer whose object_ is
-    not an _OfferCaseManagerRoleActivity (e.g., an ownership-transfer offer).
-
-    The accept uses a concrete wire subtype, so passing the wrong Offer kind
-    triggers a Pydantic ValidationError wrapped in VultronActivityConstructionError.
-    """
-    case = _make_case_manager_case()
-    wrong_offer = offer_case_ownership_transfer_activity(
-        case, actor=_VENDOR_URI
-    )
-    with pytest.raises(VultronActivityConstructionError):
-        accept_case_manager_role_activity(wrong_offer, actor=_CASE_ACTOR_URI)
 
 
 # ---------------------------------------------------------------------------
@@ -652,9 +522,6 @@ def test_offer_case_participant_role_not_confused_with_ownership_transfer():
     assert (
         result != MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
     ), "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_OWNERSHIP_TRANSFER"
-    assert (
-        result != MessageSemantics.OFFER_CASE_MANAGER_ROLE
-    ), "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_MANAGER_ROLE"
 
 
 def test_offer_case_participant_role_for_coordinator():
@@ -794,7 +661,6 @@ def test_accept_case_proposal_not_confused_with_other_accept_semantics():
     )
     result = find_matching_semantics(activity)
     assert result not in {
-        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
@@ -964,7 +830,6 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
     )
     result = find_matching_semantics(accept)
     assert result not in {
-        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,

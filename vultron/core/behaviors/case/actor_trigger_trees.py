@@ -32,9 +32,6 @@ from typing import Callable
 
 import py_trees
 
-from vultron.core.behaviors.case.communication_tree import (
-    SendOfferCaseManagerRoleNode,
-)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
 )
@@ -49,7 +46,6 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
 )
-from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 
 logger = logging.getLogger(__name__)
@@ -217,42 +213,6 @@ def accept_actor_recommendation_trigger_bt(
         cp_offer_id,
         case_actor_id,
     )
-    return root
-
-
-def offer_case_manager_role_trigger_bt(
-    captured: dict | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Return the trigger-side BT for the offer-case-manager-role workflow.
-
-    Emits ``Offer(CaseManagerRole)`` from the Case Actor's identity and flushes
-    the activity to the Case Actor's outbox.  This is the manual trigger-side
-    counterpart to the automatic path in ``receive_report_case_tree.py``
-    (DEMOMA-08-007).
-
-    The calling use case MUST pre-populate the blackboard (via
-    ``_extra_execute_kwargs``) with:
-
-    - ``case_id``: ID of the ``VulnerabilityCase``.
-    - ``case_actor_id``: ID of the Case Actor Service.
-    - ``case_actor_participant_id``: ID of the Case Actor's
-      ``CaseParticipant`` record.
-
-    Returns:
-        Sequence containing ``SendOfferCaseManagerRoleNode`` followed by
-        ``UpdateActorOutbox``.
-
-    Per specs/multi-actor-demo.yaml DEMOMA-08-007; BT-15-001.
-    """
-    root = py_trees.composites.Sequence(
-        name="OfferCaseManagerRoleTriggerBT",
-        memory=False,
-        children=[
-            SendOfferCaseManagerRoleNode(captured=captured),
-            UpdateActorOutbox(name="UpdateActorOutbox(Offer)"),
-        ],
-    )
-    logger.debug("Created OfferCaseManagerRoleTriggerBT")
     return root
 
 

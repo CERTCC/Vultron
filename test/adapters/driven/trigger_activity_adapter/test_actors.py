@@ -226,35 +226,6 @@ class TestAddParticipantToCase:
         assert dl.read(activity_id) is not None
 
 
-class TestOfferCaseManagerRole:
-    def test_returns_activity_id_and_dict(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        activity_id, activity_dict = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
-        )
-
-        assert activity_id
-        assert isinstance(activity_dict, dict)
-        assert activity_dict.get("type") == "Offer"
-
-    def test_persists_offer_activity(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        activity_id, _ = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
-            to=[_INVITEE],
-        )
-
-        assert dl.read(activity_id) is not None
-
-
 class TestAcceptCaseParticipantOffer:
     def _make_cp_offer(self, dl) -> str:
         vendor = as_Service(id_=_INVITEE, name="Vendor")
@@ -304,44 +275,90 @@ class TestAcceptCaseParticipantOffer:
         assert obj.get("id") == cp_offer_id
 
 
-class TestAcceptCaseManagerRole:
-    def test_returns_activity_id(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
+_VENDOR = "https://example.org/actors/vendor"
+_CASE_ACTOR = "https://example.org/actors/case-actor"
+_OFFER_ID = "https://example.org/activities/offer-role-1"
 
-        offer_id, _ = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
+
+def _make_role_case(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(id_=_CASE_ID, name="Role Test Case")
+    dl.create(case)
+    return case
+
+
+class TestAcceptCaseParticipantRole:
+    """Tests for accept_case_participant_role adapter method (ADR-0039)."""
+
+    def test_returns_id_and_dict(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        activity_id, activity_dict = adapter.accept_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
         )
 
-        activity_id, _ = adapter.accept_case_manager_role(
-            offer_id=offer_id,
-            case_id=case.id_,
-            participant_id=participant.id_,
-            vendor_id=_ACTOR,
-            actor=_INVITEE,
+        assert activity_id
+        assert isinstance(activity_dict, dict)
+        assert "id" in activity_dict
+
+    def test_persists_accept_activity(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        activity_id, _ = adapter.accept_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
+        )
+
+        assert dl.read(activity_id) is not None
+
+
+class TestRejectCaseParticipantRole:
+    """Tests for reject_case_participant_role adapter method (ADR-0039)."""
+
+    def test_returns_activity_id(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
+
+        activity_id = adapter.reject_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
         )
 
         assert activity_id
 
-    def test_persists_accept_activity(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
+    def test_persists_reject_activity(self, adapter, dl):
+        _make_role_case(dl)
+        from vultron.enums.roles import CVDRole
 
-        offer_id, _ = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
-        )
-
-        activity_id, _ = adapter.accept_case_manager_role(
-            offer_id=offer_id,
-            case_id=case.id_,
-            participant_id=participant.id_,
-            vendor_id=_ACTOR,
-            actor=_INVITEE,
-            to=[_ACTOR],
+        activity_id = adapter.reject_case_participant_role(
+            offer_id=_OFFER_ID,
+            case_id=_CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=_CASE_ACTOR,
+            vendor_id=_VENDOR,
+            actor=_CASE_ACTOR,
+            to=[_VENDOR],
         )
 
         assert dl.read(activity_id) is not None
