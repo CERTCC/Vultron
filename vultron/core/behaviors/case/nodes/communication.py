@@ -23,9 +23,8 @@ Composite subtrees assembling these leaf nodes are defined in the sibling
 
 - ``EmitCreateCaseActivity``
 
-Delegation-related nodes (``ResolveCaseManagerOfferContextNode``,
-``CreateOfferCaseManagerActivityNode``, ``AutoAcceptCaseManagerRoleNode``,
-``EmitRejectCaseManagerRoleNode``) live in the sibling ``delegation.py``
+Delegation-related nodes (``AutoAcceptCaseParticipantRoleNode``,
+``EmitRejectCaseParticipantRoleNode``) live in the sibling ``delegation.py``
 module.
 """
 

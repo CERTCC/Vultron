@@ -375,23 +375,6 @@ class OfferCaseParticipantRoleRequest(BaseModel):
     role: CVDRole = CVDRole.CASE_MANAGER
 
 
-class OfferCaseManagerRoleRequest(BaseModel):
-    """Request body for the offer-case-manager-role trigger endpoint.
-
-    TB-03-001: Must include case_id identifying the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
-    The Case Actor for the case must already exist in the DataLayer.
-
-    .. deprecated::
-        Use ``OfferCaseParticipantRoleRequest`` for the canonical
-        ``Offer(CaseParticipantRole, ...)`` wire format (ADR-0039).
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-
-
 class OfferCaseOwnershipTransferRequest(BaseModel):
     """Request body for the offer-case-ownership-transfer trigger endpoint.
 

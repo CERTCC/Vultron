@@ -4,11 +4,6 @@ from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
-from vultron.core.use_cases.received.actor.case_manager_role import (
-    AcceptCaseManagerRoleReceivedUseCase,
-    OfferCaseManagerRoleReceivedUseCase,
-    RejectCaseManagerRoleReceivedUseCase,
-)
 from vultron.core.use_cases.received.actor.case_participant_role import (
     OfferCaseParticipantRoleReceivedUseCase,
 )

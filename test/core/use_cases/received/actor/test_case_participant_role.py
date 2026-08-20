@@ -113,7 +113,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         trigger = MagicMock()
-        trigger.accept_case_manager_role.return_value = (
+        trigger.accept_case_participant_role.return_value = (
             "https://example.org/activities/accept-1",
             {"type": "Accept", "actor": self._CASE_ACTOR_URI},
         )
@@ -122,7 +122,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             dl, event, trigger_activity=trigger
         ).execute()
 
-        trigger.accept_case_manager_role.assert_called_once()
-        call_kwargs = trigger.accept_case_manager_role.call_args
+        trigger.accept_case_participant_role.assert_called_once()
+        call_kwargs = trigger.accept_case_participant_role.call_args
         assert call_kwargs.kwargs["offer_id"] == offer.id_
         assert call_kwargs.kwargs["vendor_id"] == self._VENDOR_URI

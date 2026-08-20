@@ -226,35 +226,6 @@ class TestAddParticipantToCase:
         assert dl.read(activity_id) is not None
 
 
-class TestOfferCaseManagerRole:
-    def test_returns_activity_id_and_dict(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        activity_id, activity_dict = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
-        )
-
-        assert activity_id
-        assert isinstance(activity_dict, dict)
-        assert activity_dict.get("type") == "Offer"
-
-    def test_persists_offer_activity(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        activity_id, _ = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
-            to=[_INVITEE],
-        )
-
-        assert dl.read(activity_id) is not None
-
-
 class TestAcceptCaseParticipantOffer:
     def _make_cp_offer(self, dl) -> str:
         vendor = as_Service(id_=_INVITEE, name="Vendor")
@@ -302,46 +273,3 @@ class TestAcceptCaseParticipantOffer:
             obj, dict
         ), "object_ must be an inline dict, not a URI"
         assert obj.get("id") == cp_offer_id
-
-
-class TestAcceptCaseManagerRole:
-    def test_returns_activity_id(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        offer_id, _ = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
-        )
-
-        activity_id, _ = adapter.accept_case_manager_role(
-            offer_id=offer_id,
-            case_id=case.id_,
-            participant_id=participant.id_,
-            vendor_id=_ACTOR,
-            actor=_INVITEE,
-        )
-
-        assert activity_id
-
-    def test_persists_accept_activity(self, adapter, dl):
-        case = _make_case(dl)
-        participant = _make_participant(dl, case.id_)
-
-        offer_id, _ = adapter.offer_case_manager_role(
-            case_id=case.id_,
-            participant_id=participant.id_,
-            actor=_ACTOR,
-        )
-
-        activity_id, _ = adapter.accept_case_manager_role(
-            offer_id=offer_id,
-            case_id=case.id_,
-            participant_id=participant.id_,
-            vendor_id=_ACTOR,
-            actor=_INVITEE,
-            to=[_ACTOR],
-        )
-
-        assert dl.read(activity_id) is not None

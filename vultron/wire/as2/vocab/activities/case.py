@@ -35,7 +35,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_participant_role import (
     as_CaseParticipantRole,
 )
@@ -211,49 +210,24 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     )
 
 
-class _OfferCaseManagerRoleActivity(as_Offer):
-    """Vendor offers the CASE_MANAGER role to a Case Actor participant.
+class _AcceptCaseParticipantRoleActivity(as_Accept):
+    """Actor accepts the role delegation offer (ADR-0039).
 
-    Distinct from ``_OfferCaseOwnershipTransferActivity``: the offering actor
-    retains ``CASE_OWNER``; only operational management authority is delegated.
-    The target MUST be the ``CaseParticipant`` record for the Case Actor so
-    that pattern matching can distinguish this activity from a case-ownership
-    transfer (which carries no typed CaseParticipant target).
-
-    object_: as_VulnerabilityCase (inline — not a bare string ID)
-    target: as_CaseParticipant — the Case Actor's participant record
-
-    See DEMOMA-08-002, DEMOMA-08-003.
+    - object_: the ``_OfferCaseParticipantRoleActivity`` being accepted
     """
 
-    object_: as_VulnerabilityCase = Field(
-        ..., validation_alias="object", serialization_alias="object"
-    )
-    target: as_CaseParticipant = Field(
-        ..., validation_alias="target", serialization_alias="target"
-    )
-
-
-class _AcceptCaseManagerRoleActivity(as_Accept):
-    """Case Actor accepts the CASE_MANAGER role delegation offer.
-
-    - object_: the ``_OfferCaseManagerRoleActivity`` being accepted (inline
-      typed object required — bare string IDs are rejected at construction time)
-    """
-
-    object_: _OfferCaseManagerRoleActivity = Field(
+    object_: _OfferCaseParticipantRoleActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
 
-class _RejectCaseManagerRoleActivity(as_Reject):
-    """Case Actor rejects the CASE_MANAGER role delegation offer.
+class _RejectCaseParticipantRoleActivity(as_Reject):
+    """Actor rejects the role delegation offer (ADR-0039).
 
-    - object_: the ``_OfferCaseManagerRoleActivity`` being rejected (inline
-      typed object required — bare string IDs are rejected at construction time)
+    - object_: the ``_OfferCaseParticipantRoleActivity`` being rejected
     """
 
-    object_: _OfferCaseManagerRoleActivity = Field(
+    object_: _OfferCaseParticipantRoleActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
