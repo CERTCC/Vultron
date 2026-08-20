@@ -105,10 +105,20 @@ only `datalayer` and `trigger_activity_factory` between runs:
 | `ledger_payload_object_override` | `FilterParticipantStatusDimensionsNode` | `CommitCaseLedgerEntryNode` |
 
 `ledger_payload_object_override` is defined in
-`vultron/core/behaviors/case/nodes/lifecycle.py` next to its consumer and is
-deliberately generic (`{"object_id", "fields"}`): any receive tree may patch the
-`object` entry of the ledger payload snapshot, and the other receive trees are
-unaffected because the override is opt-in and ID-matched.
+`vultron/core/behaviors/case/nodes/lifecycle.py` next to its consumer. The
+required shape is `{"object_id": <id>, "producer_type": <str>, "fields": {…}}`
+(RSH-05-011). Any receive tree may patch the `object` entry of the ledger
+payload snapshot; the other receive trees are unaffected because the override is
+opt-in and ID-matched.
+
+**Producer contract** (RSH-05-010 through RSH-05-012): every producer MUST (a)
+write `None` to the key unconditionally at the start of every tick before any
+early return (BT-17-003), (b) include `producer_type` identifying the source
+node, and (c) use only wire alias keys recognized by the consumer.
+
+**Consumer validation** (RSH-05-013, RSH-05-014): `CommitCaseLedgerEntryNode`
+hard-fails on any unrecognized wire alias in `fields` (data integrity) and
+warns on an unrecognized `producer_type` (audit hint, not a commit blocker).
 
 It carries a **field patch, not a replacement object** (RSH-05-009). The
 snapshot's `object` is the sender's wire-shaped `ParticipantStatus` — flat
@@ -122,8 +132,9 @@ merging them onto the existing snapshot makes shape preservation structural
 rather than something the guard has to remember:
 
 ```python
-{"object_id": status_id, "fields": {"rmState": "VALID", "vfdState": "VFd",
-                                    "caseStatus": {"pxaState": "Pxa", ...}}}
+{"object_id": status_id, "producer_type": "FilterParticipantStatusDimensionsNode",
+ "fields": {"rmState": "VALID", "vfdState": "VFd",
+            "caseStatus": {"pxaState": "Pxa", ...}}}
 ```
 
 `CommitCaseLedgerEntryNode._resolve_payload_object_override` merges one level

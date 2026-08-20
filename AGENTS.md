@@ -766,6 +766,19 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   > /tmp/unit.log 2>&1; echo $?`. The spec-lint test
   (`test_real_specs_lint_no_hard_errors`) is particularly load-sensitive at ~3s
   against the 5s budget. *Source: ISSUE-2232*
+- **`ledger_payload_object_override` Producers MUST Clear the Key on Every No-Op Tick** —
+  the override key is process-global on the py_trees blackboard.  A producer node
+  that only writes on its active path leaves a stale patch for `CommitCaseLedgerEntryNode`
+  to apply to an unrelated payload snapshot on the next call.  Write `None` (or
+  equivalent `self._publish((), None)`) as the *first* statement in `update()`,
+  before any conditional branch (BT-17-003).  The override dict shape is
+  `{"object_id": …, "producer_type": <node class name>, "fields": {<wire alias>: …}}`
+  (RSH-05-010 through RSH-05-012).  The consumer hard-fails on unrecognized aliases
+  and warns on unknown `producer_type` (RSH-05-013, RSH-05-014).  Once the node is
+  migrated to the typed-Ports base class (ISSUE-1808), the base class SHOULD
+  auto-clear declared output ports in `initialise()`, making the clear structural.
+  See [notes/received-status-authorization.md](notes/received-status-authorization.md)
+  § "Per-dimension partial accept".  *Source: CONCERN-2326*
 - **Never Restate Counts in Cross-References or Long-Lived Docs** — when a
   spec entry, notes file, or AGENTS.md pitfall cross-references another spec,
   omit the count: write "the universal types (DEMOMA-16-001)" not "the five
