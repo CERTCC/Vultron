@@ -37,6 +37,7 @@ from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseManagerRoleActivity,
+    _AcceptCaseParticipantRoleActivity,
     _OfferCaseParticipantRoleActivity,
     _AcceptCaseOwnershipTransferActivity,
     _AddNoteToCaseActivity,
@@ -49,6 +50,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _OfferCaseOwnershipTransferActivity,
     _RejectCaseManagerRoleActivity,
     _RejectCaseOwnershipTransferActivity,
+    _RejectCaseParticipantRoleActivity,
     _RmAcceptInviteToCaseActivity,
     _RmCloseCaseActivity,
     _RmDeferCaseActivity,
@@ -579,6 +581,74 @@ def reject_case_manager_role_activity(
         )
         raise VultronActivityConstructionError(
             "reject_case_manager_role_activity: invalid arguments"
+        ) from exc
+
+
+def accept_case_participant_role_activity(
+    offer: as_Offer,
+    **kwargs,
+) -> as_Accept:
+    """Build an Accept(_OfferCaseParticipantRoleActivity) (ADR-0039).
+
+    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
+    value returned by :func:`offer_case_participant_role_activity`).
+
+    Args:
+        offer: The ``_OfferCaseParticipantRoleActivity`` being accepted.
+        **kwargs: Optional AS2 fields (e.g. ``actor``).
+
+    Returns:
+        An ``as_Accept`` whose ``object_`` is the offer.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _AcceptCaseParticipantRoleActivity(
+            object_=cast(_OfferCaseParticipantRoleActivity, offer),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "accept_case_participant_role_activity: invalid arguments: %s",
+            exc,
+        )
+        raise VultronActivityConstructionError(
+            "accept_case_participant_role_activity: invalid arguments"
+        ) from exc
+
+
+def reject_case_participant_role_activity(
+    offer: as_Offer,
+    **kwargs,
+) -> as_Reject:
+    """Build a Reject(_OfferCaseParticipantRoleActivity) (ADR-0039).
+
+    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
+    value returned by :func:`offer_case_participant_role_activity`).
+
+    Args:
+        offer: The ``_OfferCaseParticipantRoleActivity`` being rejected.
+        **kwargs: Optional AS2 fields (e.g. ``actor``).
+
+    Returns:
+        An ``as_Reject`` whose ``object_`` is the offer.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _RejectCaseParticipantRoleActivity(
+            object_=cast(_OfferCaseParticipantRoleActivity, offer),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "reject_case_participant_role_activity: invalid arguments: %s",
+            exc,
+        )
+        raise VultronActivityConstructionError(
+            "reject_case_participant_role_activity: invalid arguments"
         ) from exc
 
 
