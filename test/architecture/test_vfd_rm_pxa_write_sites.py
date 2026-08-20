@@ -82,10 +82,10 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("report/nodes/rm_transitions.py", "RmDimension"),
         ("report/nodes/rm_transitions.py", "RmDimension"),
         ("report/nodes/rm_transitions.py", "RmDimension"),
-        # FILTER — FilterParticipantStatusDimensionsNode carry-forward
-        ("status/nodes/dimension_filter.py", "PxaDimension"),
-        ("status/nodes/dimension_filter.py", "RmDimension"),
-        ("status/nodes/dimension_filter.py", "VfdDimension"),
+        # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
+        ("status/nodes/_adjudication.py", "PxaDimension"),
+        ("status/nodes/_adjudication.py", "RmDimension"),
+        ("status/nodes/_adjudication.py", "VfdDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
         ("sync/nodes/participant_status_effect.py", "RmDimension"),
     ]
