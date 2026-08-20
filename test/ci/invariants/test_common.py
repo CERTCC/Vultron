@@ -634,6 +634,19 @@ class TestLoadDevlogsManifestHandling:
             common.load_devlogs("fvv")
         assert "run the" in (excinfo.value.msg or "")
 
+    def test_skips_when_unscoped_and_no_files(self, tmp_path, monkeypatch):
+        """Unscoped load_devlogs() (no demo_name) still skips when no ledger files exist.
+
+        The ISSUE-2411 Gap-2 fix adds an ``if demo_name:`` branch so that only
+        named-scenario calls fail on an empty directory; unscoped calls must
+        continue to skip so that running the invariant harness locally against
+        an empty devlogs/ tree does not error.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs()
+        assert "devlogs/" in str(excinfo.value)
+
     def test_fails_when_manifest_reports_no_ledgers(
         self, tmp_path, monkeypatch
     ):
