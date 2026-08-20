@@ -27,11 +27,9 @@ protection, for the mirror-image reason:
   issue #2232 closed, and it would do so without any test noticing: nothing else
   asserts that a given type is normalised.
 
-Fifteen wire classes shadow a ``CORE_VOCABULARY`` entry (their ``type_`` is bare,
-so the ``as_``-prefix guard in ``Record.from_obj`` never fires for them).  Ten are
-normalised today; the remaining five (all actor types) are enumerated below so
-that a *new* shadowing type has to be triaged rather than joining the backlog
-unnoticed.
+All fifteen wire classes that shadow a ``CORE_VOCABULARY`` entry are now
+normalised — ten object types via issue #2268, five actor types via issue #2402.
+No remaining entries; ``_NOT_YET_NORMALIZED`` is empty.
 
 Related: issue #2232 (the shape duality), issue #2268 (migrating the rest).
 """
@@ -47,29 +45,14 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 
 # ---------------------------------------------------------------------------
-# Baseline: the types normalised as of issue #2232.  This set may only GROW.
-# Adding a type here is the second half of migrating it; removing one is a
-# regression, not a refactor.
+# Baseline: seven types normalised as of issue #2402 (five actor types added to
+# the two from #2232).  Combined with the ten object types from issue #2268, all
+# fifteen shadowing types are now covered.
 # ---------------------------------------------------------------------------
-_NORMALIZED_AS_OF_2232: frozenset[str] = frozenset(
+_NORMALIZED_AS_OF_2402: frozenset[str] = frozenset(
     {
         "CaseParticipant",
         "ParticipantStatus",
-    }
-)
-
-# ---------------------------------------------------------------------------
-# Shadowing types NOT yet normalised (issue #2268).  This set may only SHRINK:
-# migrating a type moves it out of here and into ``_NORMALIZE_WIRE_TO_CORE``.
-#
-# The ten object types differ from their core counterpart only by key spelling
-# today, so a wire-shaped row is misspelled rather than structurally unreadable.
-# The five actor types have no ``to_core()`` projection at all, so they cannot be
-# normalised until one exists.
-# ---------------------------------------------------------------------------
-_NOT_YET_NORMALIZED: frozenset[str] = frozenset(
-    {
-        # No to_core() projection exists for these yet.
         "VultronApplication",
         "VultronGroup",
         "VultronOrganization",
@@ -77,6 +60,12 @@ _NOT_YET_NORMALIZED: frozenset[str] = frozenset(
         "VultronService",
     }
 )
+
+# ---------------------------------------------------------------------------
+# Shadowing types NOT yet normalised.  Empty: all fifteen are now covered.
+# If a new shadowing wire class appears, add it here before normalising.
+# ---------------------------------------------------------------------------
+_NOT_YET_NORMALIZED: frozenset[str] = frozenset()
 
 
 def _shadowing_types() -> dict[str, type]:
@@ -96,12 +85,12 @@ def test_registries_are_populated():
 
 
 def test_normalize_set_may_only_grow():
-    """Every type normalised as of #2232 must still be normalised."""
-    missing = _NORMALIZED_AS_OF_2232 - _NORMALIZE_WIRE_TO_CORE
+    """Every type normalised as of #2402 must still be normalised."""
+    missing = _NORMALIZED_AS_OF_2402 - _NORMALIZE_WIRE_TO_CORE
     assert not missing, (
         "_NORMALIZE_WIRE_TO_CORE lost entries"
         f" {sorted(missing)} — the write path would again persist a wire-shaped"
-        " row for those types (issue #2232). The set may only grow."
+        " row for those types (issues #2232, #2402). The set may only grow."
     )
 
 
