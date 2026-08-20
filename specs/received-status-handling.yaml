@@ -402,9 +402,10 @@ groups:
       the receive-side BT. Declaring this as a producer obligation means callers
       can validate at construction time rather than catching a runtime failure.
     note: >
-      The recognized aliases are those present in the `_migrate_flat_fields` /
-      `_SNAKE_TWINS` mechanism in `CommitCaseLedgerEntryNode`
-      (`vultron/core/behaviors/case/nodes/lifecycle.py`).
+      The recognized aliases are those defined in `_SNAKE_TWINS` in
+      `vultron/core/behaviors/case/nodes/lifecycle.py` — the module-level dict
+      that maps each camelCase wire alias to its snake_case twin for
+      `CommitCaseLedgerEntryNode`.
   - id: RSH-05-013
     priority: MUST
     kind: protocol
