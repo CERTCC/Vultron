@@ -348,53 +348,21 @@ def create_guarded_commit_case_ledger_entry_tree(
     """Create a guarded commit subtree for canonical case-ledger entries.
 
     The commit runs only when the executing actor holds ``CVDRole.CASE_MANAGER``
-    for the case. Non-manager actors take the success fallback and skip the
-    canonical commit silently.
-
-    Structure::
-
-        GuardedCommitCaseLedgerEntryBT (Selector)
-        ├── SkipIfNotCaseManager (Sequence)
-        │   └── Inverter(CheckIsCaseManagerNode)  # SUCCESS when NOT case manager
-        └── CommitCaseLedgerEntryNode             # only reached when IS case manager
-
-    Using an ``Inverter`` separates the two distinct FAILURE modes:
-
-    - Actor is NOT the case manager → ``Inverter`` converts FAILURE→SUCCESS,
-      ``SkipIfNotCaseManager`` succeeds, Selector returns SUCCESS (skip).
-    - Actor IS the case manager but commit fails → ``Inverter`` converts
-      SUCCESS→FAILURE, ``SkipIfNotCaseManager`` fails, Selector tries
-      ``CommitCaseLedgerEntryNode`` which returns FAILURE, Selector returns
-      FAILURE (propagates the infrastructure error to abort effect nodes).
-
-    This prevents the old fallback-Success pattern from masking a genuine
-    commit failure as a benign skip.
+    for the case; see :func:`create_case_manager_gated_tree` for the gate's
+    failure-mode semantics.
 
     Called internally by :func:`create_receive_activity_tree`.  Direct callers
     in tree-factory modules are a CLP-10-006 ordering violation; use
     ``create_receive_activity_tree`` instead.
     """
-    from vultron.core.behaviors.case.nodes.conditions import (
-        CheckIsCaseManagerNode,
+    from vultron.core.behaviors.case.nodes.role_gates import (
+        create_case_manager_gated_tree,
     )
 
-    check_node = CheckIsCaseManagerNode(case_id=case_id)
-    return py_trees.composites.Selector(
+    return create_case_manager_gated_tree(
         name="GuardedCommitCaseLedgerEntryBT",
-        memory=False,
-        children=[
-            py_trees.composites.Sequence(
-                name="SkipIfNotCaseManager",
-                memory=False,
-                children=[
-                    py_trees.decorators.Inverter(
-                        name="InvertIsNotCaseManager",
-                        child=check_node,
-                    ),
-                ],
-            ),
-            CommitCaseLedgerEntryNode(case_id=case_id),
-        ],
+        case_id=case_id,
+        children=[CommitCaseLedgerEntryNode(case_id=case_id)],
     )
 
 
