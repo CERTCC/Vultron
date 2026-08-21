@@ -427,7 +427,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 - A **Fuzzer Node** in the simulator is the placeholder form of a **Call-Out Point**.
 - A **Call-Out Point** is fulfilled in production by a **capability** of the appropriate **capability shape**.
-- A **Sentinel** answers a yes/no check; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
+- A **Sentinel** monitors a condition and fires a trigger when the condition is met; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
 - An **Advisory Review Decision** is produced by a **Reviewer** (an Evaluator **capability**) and determines whether an **Advisory** draft requires revision before the BT submits it.
 
 **Status and Dimensions:**
@@ -643,9 +643,8 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 > **Developer:** "And if there's no human reviewer yet, we just leave the **Fuzzer Node** in place?"
 >
 > **Domain Expert:** "Right. The **Fuzzer Node** is the stub — it keeps the BT runnable without a
-> real capability of the required **Capability Shape**. When you're ready, you replace it with a **Retriever** that fetches
-> reviewer feedback, or an **Evaluator** backed by an LLM, or a **Sentinel** that checks an
-> external approval queue."
+> real capability of the required **Capability Shape**. When you're ready, you replace it with a **Retriever** that
+> fetches reviewer feedback from an external system, or an **Evaluator** backed by an LLM."
 
 ### Dimension Objects and Status Example
 

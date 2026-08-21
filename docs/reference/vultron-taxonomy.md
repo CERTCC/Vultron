@@ -150,7 +150,7 @@ Even a monitoring-only actor must track embargo state (PEC) to know what it is p
 
 The Observer capability set includes:
 
-- Track all five state machines (RM, EM, PEC, VFD, PXA)
+- Implement all five state machines (RM, EM, PEC, VFD, PXA) — track state and drive transitions
 - Embargo compliance: accept and decline embargo invitations; track PEC state
 - Receive and process all Vultron message types
 - Report PXA observations (public awareness, exploit public, attacks observed)
@@ -201,11 +201,11 @@ A platform can provide Hosting without holding governance authority.
 
 Common combinations of capability sets have names because they describe real deployment patterns.
 
-| Configuration | Capability sets |
-|---|---|
-| **Hosting Coordinator** (or Autonomous Coordinator) | Observer + Coordinator role + Authority + Hosting |
-| **Self-coordinating Vendor** | Observer + Vendor role + Deployer role + Authority + Hosting |
-| **Bug Bounty Platform** | Observer + Hosting (Authority is optional) |
+| Configuration | Capability sets | Roles |
+|---|---|---|
+| **Hosting Coordinator** (or Autonomous Coordinator) | Observer + Authority + Hosting | Coordinator + Case Owner |
+| **Self-coordinating Vendor** | Observer + Authority + Hosting | Vendor + Deployer + Case Owner |
+| **Bug Bounty Platform** | Observer + Hosting | Case Manager (Authority optional) |
 
 A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER` and `CASE_MANAGER` roles.
 It decides (Authority) and executes (Hosting) without a separate human approval step.
@@ -255,7 +255,7 @@ Examples: `Observer / Vendor`, `Observer + Authority + Hosting / Coordinator + C
 
 | Shape | What it does | Connection type |
 |---|---|---|
-| **Sentinel** | Monitors a condition. Returns success or failure with no side effects. Used as a precondition guard. | Call-in surface (no call-out point node) |
+| **Sentinel** | Independently monitors an external condition; when the condition fires, calls a Vultron trigger endpoint. Not called by the behavior engine. | Call-in surface (no call-out point node) |
 | **Evaluator** | Receives a situation and a set of options. Returns a structured recommendation. Gates downstream execution. | Call-out point |
 | **Retriever** | Receives a query. Returns structured facts from an external source. | Call-out point |
 | **Composer** | Receives context. Generates and records a new content artifact. | Call-out point |
