@@ -243,6 +243,85 @@ class _CreateCaseFromProposalNode(DataLayerAction):
         return Status.SUCCESS
 
 
+class _StoreProposalReportNode(DataLayerAction):
+    """Persist the report the proposal carried inline, if not already stored.
+
+    Nothing else in this tree did, and three downstream nodes need it:
+    ``_AddReporterParticipantNode``, ``_CommitNativeLedgerEntriesNode`` and
+    ``_SeedReporterSignatoryNode`` each ``read(report_id)`` and skip
+    "best-effort" when it is absent. So one missing write degraded silently in
+    three places, and the visible symptom was a participant who never appeared
+    and a replica the reporter never received.
+
+    A shared store hid it: the *vendor* had stored the report when it received
+    the Offer, and that row was visible to everyone. With per-actor stores the
+    CaseActor has its own, and the report only reaches it inline on the proposal
+    (CP-01-004) — so it has to be written here.
+    """
+
+    def __init__(
+        self,
+        report_id: str | None,
+        proposal_dict: dict | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
+        self._proposal_dict = proposal_dict
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if not self._report_id:
+            return Status.SUCCESS
+        if self.datalayer.read(self._report_id) is not None:
+            return Status.SUCCESS
+
+        raw = (self._proposal_dict or {}).get("object")
+        if not isinstance(raw, dict):
+            logger.warning(
+                "%s: proposal carried no inline report for '%s' (got %s), so"
+                " the reporter participant and its ledger entry cannot be"
+                " derived; the proposal should inline it (CP-01-004)",
+                self.name,
+                self._report_id,
+                type(raw).__name__,
+            )
+            return Status.SUCCESS
+
+        try:
+            report = VulnerabilityReport.model_validate(raw)
+        except Exception as exc:
+            logger.warning(
+                "%s: could not reconstruct the inline report '%s' from the"
+                " proposal: %s",
+                self.name,
+                self._report_id,
+                exc,
+            )
+            return Status.SUCCESS
+
+        try:
+            self.datalayer.create(report)
+        except ValueError as exc:
+            logger.debug(
+                "%s: report '%s' already stored: %s",
+                self.name,
+                self._report_id,
+                exc,
+            )
+            return Status.SUCCESS
+
+        logger.info(
+            "%s: stored report '%s' from the inline proposal",
+            self.name,
+            self._report_id,
+        )
+        return Status.SUCCESS
+
+
 class _AddCaseActorParticipantNode(DataLayerAction):
     """Register the CaseActor itself as COORDINATOR + CASE_MANAGER participant.
 
@@ -1664,6 +1743,12 @@ def create_case_proposal_received_tree(
         memory=False,
         children=[
             case_resolution,
+            # Store the inline report first: the reporter participant, its ledger
+            # entry and the SIGNATORY seed are all derived from it, and each of
+            # those nodes skips "best-effort" when it is missing.
+            _StoreProposalReportNode(
+                report_id=report_id, proposal_dict=proposal_dict
+            ),
             # ADR-0041: register CaseActor as COORDINATOR + CASE_MANAGER
             _AddCaseActorParticipantNode(),
             # ADR-0041 AC-1: add vendor as CASE_OWNER at RM.RECEIVED
