@@ -192,7 +192,9 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     payload = response.json()
 
     entry_id = payload["log_entry_id"]
-    peer_entry = peer_iso.dl.read(entry_id)
+    # `peer_dl` above, not the app's default-slug `dl`: the Announce was delivered
+    # to `peer_actor_id`, so that is the replica that received the entry.
+    peer_entry = peer_dl.read(entry_id)
     assert (
         peer_entry is not None
     ), "Expected peer replica to contain the announced as_CaseLedgerEntry."

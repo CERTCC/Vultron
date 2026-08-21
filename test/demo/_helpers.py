@@ -15,6 +15,7 @@
 
 from typing import Any
 
+import httpx2 as httpx
 from fastapi.testclient import TestClient
 
 from vultron.demo.utils import DataLayerClient
@@ -26,6 +27,15 @@ def make_testclient_call(client: TestClient, base: str):
     Translates full-URL paths used by demo scripts into relative paths accepted
     by the TestClient, stripping the base URL prefix and ensuring the /api/v2
     prefix is present.
+
+    An HTTP error raises :class:`httpx.HTTPStatusError`, as the real client does,
+    **not** a bare ``AssertionError``. Production code distinguishes error codes —
+    ``ledger_dump._fetch_entries`` treats a 404 as "this container does not hold
+    this case", which is a legitimate outcome — and it does so by catching
+    ``HTTPStatusError`` and inspecting ``response.status_code``. A double that
+    raises ``AssertionError`` slips past every such handler, so tolerated
+    conditions became hard failures that exist only under test. The message is
+    preserved in the exception so failures read the same as before.
     """
 
     def testclient_call(self, method: str, path: Any, **kwargs) -> Any:
@@ -38,9 +48,11 @@ def make_testclient_call(client: TestClient, base: str):
             url = "/api/v2" + url
         resp = client.request(method.upper(), url, **kwargs)
         if resp.status_code >= 400:
-            raise AssertionError(
+            raise httpx.HTTPStatusError(
                 f"API call failed: {method.upper()} {url} --> "
-                f"{resp.status_code} {resp.text}"
+                f"{resp.status_code} {resp.text}",
+                request=resp.request,
+                response=resp,
             )
         try:
             return resp.json()

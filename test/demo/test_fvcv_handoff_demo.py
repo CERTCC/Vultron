@@ -698,14 +698,25 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
         reload_config()
 
         router = _TestClientRouter()
+        # `actor_slug` decides which actor's store `iso.dl` is. These actors are
+        # created under the module slugs below, and a store belongs to exactly one
+        # actor (ADR-0066), so leaving the default `"primary"` points `dl` at an
+        # empty database — the finder's Announce assertion then reads a store
+        # nothing was ever delivered to.
         vendor_iso = create_isolated_actor_app(
-            base_url=_OTC_VENDOR_BASE, router=router
+            base_url=_OTC_VENDOR_BASE,
+            router=router,
+            actor_slug=_OTC_VENDOR_SLUG,
         )
         coordinator_iso = create_isolated_actor_app(
-            base_url=_OTC_COORDINATOR_BASE, router=router
+            base_url=_OTC_COORDINATOR_BASE,
+            router=router,
+            actor_slug=_OTC_COORDINATOR_SLUG,
         )
         finder_iso = create_isolated_actor_app(
-            base_url=_OTC_FINDER_BASE, router=router
+            base_url=_OTC_FINDER_BASE,
+            router=router,
+            actor_slug=_OTC_FINDER_SLUG,
         )
 
         previous_emitter = get_default_emitter()
