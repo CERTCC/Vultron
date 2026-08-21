@@ -31,7 +31,11 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
     WriteEmStateNode,
 )
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
@@ -42,7 +46,7 @@ from vultron.core.states.em import EM
 from vultron.errors import VultronError
 
 
-class RejectProposedEmbargoLifecycleNode(DataLayerAction):
+class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
     """Apply STRICT reject-invite transition reading embargo_id from the blackboard.
 
     Cascade-path variant of :class:`RejectEmbargoLifecycleNode` used by
@@ -65,12 +69,19 @@ class RejectProposedEmbargoLifecycleNode(DataLayerAction):
         self._case_id_value = case_id
         self._result_out = result_out
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="embargo_id",
-            access=py_trees.common.Access.READ,
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["embargo_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"embargo_id": "/embargo_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.embargo_id: str = self.get_input("embargo_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -78,11 +89,7 @@ class RejectProposedEmbargoLifecycleNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            embargo_id: str = self.blackboard.embargo_id
-        except KeyError:
-            self.feedback_message = "embargo_id not found on blackboard"
-            return Status.FAILURE
+        embargo_id = self.embargo_id
 
         read_node = ReadEmStateNode(
             case_id=self._case_id_value, result_out=self._result_out
@@ -194,16 +201,26 @@ class SendRejectEmbargoActivityNode(_SendEmbargoActivityBase):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(case_id=case_id, name=name)
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="embargo_id",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["embargo_id"] = PortInformation(data_type=str, required=True)
+        ports["case_manager_id"] = PortInformation(
+            data_type=str, required=True
         )
-        self.blackboard.register_key(
-            key="case_manager_id",
-            access=py_trees.common.Access.READ,
-        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "embargo_id": "/embargo_id",
+            "case_manager_id": "/case_manager_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.embargo_id: str = self.get_input("embargo_id")
+        self.case_manager_id: str = self.get_input("case_manager_id")
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
@@ -214,13 +231,7 @@ class SendRejectEmbargoActivityNode(_SendEmbargoActivityBase):
         return Status.FAILURE
 
     def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
-        try:
-            embargo_id: str = self.blackboard.embargo_id
-            case_manager_id: str = self.blackboard.case_manager_id
-        except KeyError as exc:
-            self.feedback_message = f"Required blackboard key missing: {exc}"
-            return Status.FAILURE
-        return embargo_id, case_manager_id
+        return self.embargo_id, self.case_manager_id
 
     def _call_factory(
         self, actor_id: str, embargo_id: str, case_manager_id: str

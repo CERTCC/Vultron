@@ -29,8 +29,10 @@ from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
+    EmitCloseCaseNode,
     _PublicDisclosureSkipConditionNode,
 )
+from vultron.core.behaviors.status.nodes.rm_anomaly import EmitRMGapNoteNode
 from vultron.core.behaviors.status.nodes.threat_termination import (
     _ThreatTerminationSkipConditionNode,
 )
@@ -157,6 +159,49 @@ class TestThreatTerminationSkipConditionNodePorts:
                 status_obj=None,
                 case_id=CASE_ID,
             ),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_success(result)
+
+
+# ---------------------------------------------------------------------------
+# lifecycle.py — EmitCloseCaseNode
+# ---------------------------------------------------------------------------
+
+
+class TestEmitCloseCaseNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = EmitCloseCaseNode(case_id=CASE_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_success_when_factory_absent(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            EmitCloseCaseNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        bt_scenario.assert_success(result)
+
+
+# ---------------------------------------------------------------------------
+# rm_anomaly.py — EmitRMGapNoteNode
+# ---------------------------------------------------------------------------
+
+
+class TestEmitRMGapNoteNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_success_when_no_case_id(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=None),
             actor_id=ACTOR_ID,
         )
         bt_scenario.assert_success(result)

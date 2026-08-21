@@ -15,15 +15,15 @@
 
 """Embargo removal and teardown nodes."""
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
@@ -182,7 +182,7 @@ class ResetParticipantConsentNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ApplyEmbargoTeardownNode(DataLayerAction):
+class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
     """Apply receiver-side embargo teardown.
 
     Performs the ACTIVE/REVISE → EXITED EM state transition, clears
@@ -206,12 +206,25 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
         if self.case_id is None:
-            self.blackboard.register_key(
-                key="activity", access=py_trees.common.Access.READ
-            )
+            try:
+                self._activity = self.get_input("activity")
+            except (NoDataAvailable, NotImplementedError):
+                self._activity = None
+        else:
+            self._activity = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -223,7 +236,7 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
         else:
             from vultron.core.behaviors.sync.nodes import _require_log_entry
 
-            entry = _require_log_entry(self.blackboard.activity, self.name)
+            entry = _require_log_entry(self._activity, self.name)
             case_id = entry.case_id
 
         case = self.datalayer.read(case_id)

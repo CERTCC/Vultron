@@ -20,7 +20,11 @@ from typing import Callable
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.use_cases._helpers import add_activity_to_outbox
@@ -110,18 +114,27 @@ class ConstructActivitiesNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class QueueToOutboxNode(DataLayerAction):
+class QueueToOutboxNode(DataLayerActionWithPorts):
     """Queue each activity ID from the blackboard to the actor's outbox."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity_ids",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity_ids"] = PortInformation(
+            data_type=object, required=True
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity_ids": "/activity_ids"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity_ids: list[str] = self.get_input("activity_ids")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -129,11 +142,7 @@ class QueueToOutboxNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            activity_ids: list[str] = self.blackboard.activity_ids
-        except KeyError:
-            self.feedback_message = "activity_ids not in blackboard"
-            return Status.FAILURE
+        activity_ids = self.activity_ids
 
         try:
             dl = self.datalayer

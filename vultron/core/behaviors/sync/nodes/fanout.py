@@ -26,8 +26,13 @@ from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
@@ -112,30 +117,40 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _SendLogEntryToEachNode(DataLayerAction):
+class _SendLogEntryToEachNode(DataLayerActionWithPorts):
     """Send the log entry to each recipient in ``fanout_recipients``."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="log_entry", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["fanout_recipients"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="fanout_recipients", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="sync_port", access=py_trees.common.Access.READ
-        )
+        ports["sync_port"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "log_entry": "/log_entry",
+            "fanout_recipients": "/fanout_recipients",
+            "sync_port": "/sync_port",
+        }
 
     def initialise(self) -> None:
         super().initialise()
+        self.log_entry = self.get_input("log_entry")
+        self.fanout_recipients: list = self.get_input("fanout_recipients")
         try:
-            self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
-        except (AttributeError, KeyError):
+            self._sync_port = cast(
+                SyncActivityPort, self.get_input("sync_port")
+            )
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
 
     def update(self) -> Status:
@@ -143,8 +158,8 @@ class _SendLogEntryToEachNode(DataLayerAction):
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
-        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
-        recipients = cast(list, self.blackboard.fanout_recipients)
+        entry = cast(VultronCaseLedgerEntry, self.log_entry)
+        recipients = self.fanout_recipients
         if self._sync_port is None:
             self.logger.debug(
                 "%s: sync_port not injected; skipping fan-out for '%s'",

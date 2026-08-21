@@ -55,7 +55,7 @@ def _make_concrete(
 ) -> "_SendEmbargoActivityBase":
     """Create a minimal concrete subclass for contract testing."""
 
-    class _ConcreteNode(_SendEmbargoActivityBase):
+    class _ConcreteNode(_SendEmbargoActivityBase, register=False):
         def _on_factory_unavailable(self) -> Status:
             return factory_missing_returns
 
