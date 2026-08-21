@@ -22,6 +22,8 @@ Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
 
+import logging
+
 import pytest
 
 from test.conftest import seed_case_actor_replica
@@ -181,7 +183,20 @@ class TestSvcInviteActorToCaseUseCase:
         assert stored is not None
         assert isinstance(stored, as_Invite)
 
-    def test_invite_raises_when_invitee_not_in_dl(self):
+    def test_invite_proceeds_when_invitee_not_in_dl_but_warns(self, caplog):
+        """An invitee is named by URI; a local record is not required.
+
+        This asserted a 404 before. Holding a local record was never a protocol
+        requirement — the record was read and discarded, delivery derives the
+        invitee's inbox from its URI alone, and under per-actor storage a peer's
+        record lives in *its* store, not the inviter's (ADR-0066 decision 5). So
+        the old behaviour refused invitations to actors that exist and are
+        reachable, which is every cross-node invitee in a real deployment.
+
+        Absence is still reported at WARNING: actor discovery does not exist yet,
+        so the inability to verify the invitee locally is a real gap and must not
+        pass unremarked.
+        """
         actor, dl = _make_actor_dl("Coordinator")
         # invitee NOT seeded in actor's DL
         missing_id = "https://example.org/actors/nobody"
@@ -195,10 +210,14 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=case.id_,
             invitee_id=missing_id,
         )
-        with pytest.raises(VultronNotFoundError):
-            SvcInviteActorToCaseUseCase(
+        with caplog.at_level(logging.WARNING):
+            result = SvcInviteActorToCaseUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+        assert result is not None
+        assert missing_id in caplog.text
+        assert "no local record for invitee" in caplog.text
 
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")

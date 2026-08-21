@@ -149,9 +149,28 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         owner_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        invitee_raw = self._dl.read(request.invitee_id)
-        if invitee_raw is None:
-            raise VultronNotFoundError("Actor", request.invitee_id)
+        # An invitee is named by URI, and only its URI is used below — the record
+        # read here was discarded, so the lookup was a gate, not a source of
+        # information. Holding a local record is *not* a protocol requirement: a
+        # peer's record lives in the store of whichever actor knows it (ADR-0066
+        # decision 5), delivery derives the invitee's inbox from its URI alone and
+        # never reads the record, and in a real deployment the invitee is on
+        # another node whose record will never be in this store. Demanding it made
+        # inviting a reachable actor fail with "Actor '…' not found".
+        #
+        # Absence is still reported, and at WARNING rather than DEBUG: until actor
+        # discovery exists, not knowing the invitee is a real gap in what this node
+        # can verify, and it must not pass unremarked. Resolving an unknown actor's
+        # details is a directory-service concern, tracked separately as a Retriever
+        # call-out point (ADR-0024); demos seed peers into each other meanwhile.
+        if self._dl.read(request.invitee_id) is None:
+            logger.warning(
+                "invite_actor_to_case: no local record for invitee '%s' —"
+                " proceeding on its URI alone. Actor discovery is not"
+                " implemented, so this actor's details cannot be verified"
+                " locally; seed the peer if the invite needs them.",
+                request.invitee_id,
+            )
 
         self._invitee_id = request.invitee_id
         self._suggested_roles = request.roles
