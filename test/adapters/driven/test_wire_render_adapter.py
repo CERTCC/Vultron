@@ -28,6 +28,7 @@ from datetime import timedelta
 import pytest
 
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
+from vultron.wire.as2.vocab.base.registry import VOCABULARY
 from vultron.core.models.actor import VultronPerson
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
@@ -64,6 +65,12 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
     # camelCase key present (not snake_case)
     # The 'id' field is always emitted by VultronAS2Object
     assert "id" in result, f"Missing 'id' key in wire dict for {expected_type}"
+    # AC-5 / CLP-07-001: output must be receiver-reconstitutable
+    wire_cls = VOCABULARY.get(expected_type)
+    assert (
+        wire_cls is not None
+    ), f"No VOCABULARY entry for {expected_type!r} — cannot verify reconstitutability"
+    wire_cls.model_validate(result)
 
 
 # ---------------------------------------------------------------------------
