@@ -905,3 +905,64 @@ groups:
       impossible to miss.
     adr:
     - ADR-0064
+
+- id: ARCH-22
+  title: Wire→Core Import Boundary Enforcement
+  specs:
+  - id: ARCH-22-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Wire-layer code MUST NOT introduce new direct imports of
+      `vultron.core.models.*` types beyond those enumerated in the
+      wire→core ratchet test's KNOWN_VIOLATIONS set.  Translation from a
+      core object to a wire object MUST go through an explicit translation
+      seam — for example, `as_Foo.from_core(core_obj)` class methods on
+      wire vocab objects — and not by importing the core type into arbitrary
+      wire modules.
+    rationale: >-
+      `VulnerabilityCase` and its siblings are the core domain model; direct
+      import into wire-layer code couples the wire schema to the domain model
+      in ways that bypass the ports-and-adapters boundary.  Each new
+      unmediated import is a ratchet-set expansion that increases the blast
+      radius of future domain-model refactors.  The from_core() class-method
+      seam already exists on every wire vocab object; using it keeps
+      translation localized.
+    adr:
+    - ADR-0017
+    - ADR-0032
+    - ADR-0063
+  - id: ARCH-22-002
+    priority: MUST
+    kind: project
+    statement: >-
+      An architecture test MUST exist that scans all `vultron/wire/` source
+      files for imports of `vultron.core.models`, enumerates the current
+      known violations as an exact frozen set, and fails both when the set
+      grows (new violation) and when a listed violation is resolved without
+      being removed from the set.
+    rationale: >-
+      A ratchet test with an exact set gives a two-sided signal: new
+      violations fail CI immediately, and a resolved violation that was
+      accidentally kept in the set also fails CI — forcing the known set to
+      track the true state of the codebase.  This mirrors the pattern already
+      used in `test/architecture/test_core_no_wire_imports.py` and
+      `test_core_no_adapter_imports.py`.
+    adr:
+    - ADR-0017
+  - id: ARCH-22-003
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The KNOWN_VIOLATIONS set in the wire→core ratchet test SHOULD shrink
+      toward empty over successive releases.  A companion
+      `xfail(strict=True)` goal test SHOULD be added so that fully clearing
+      the violations set fails the build and forces the xfail marker to be
+      deleted, signalling completion.
+    rationale: >-
+      Without a strict goal test the ratchet can reach zero violations
+      silently, and the xfail marker stays forever — the completion signal
+      never fires.  The same pattern is mandated for ARCH-21 violations by
+      ARCH-21-005.
+    adr:
+    - ADR-0017
