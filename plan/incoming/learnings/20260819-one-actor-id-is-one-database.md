@@ -6,7 +6,7 @@ source: ISSUE-2238
 signal: testing-pitfall
 ---
 
-Under ADR-0069 an in-memory store is **named** (`?mode=memory&cache=shared`) and
+Under ADR-0070 an in-memory store is **named** (`?mode=memory&cache=shared`) and
 the engine cache is keyed by `(db_url, actor_id)`. So two `SqliteDataLayer`
 instances constructed with the same `actor_id` are **the same database**, not two
 independent ones.

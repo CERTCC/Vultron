@@ -65,7 +65,7 @@ def _fresh_datalayer(_actor_id):
     """The vendor's own store, with NO pre-seeded vocabulary imports.
 
     Scoped to ``_actor_id`` because the tree executes as that actor and a BT's
-    store follows its executing actor (ADR-0069).
+    store follows its executing actor (ADR-0070).
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 

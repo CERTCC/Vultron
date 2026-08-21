@@ -23,7 +23,7 @@ def client_health():
     """A client for the health router.
 
     No DataLayer is injected: readiness probes the configured storage *location*
-    via ``actor_hosts.storage_ready()``, not any actor's store.  Under ADR-0069
+    via ``actor_hosts.storage_ready()``, not any actor's store.  Under ADR-0070
     there is no shared store to ``ping()``, and a node that has not seeded an
     actor yet is still ready.
     """

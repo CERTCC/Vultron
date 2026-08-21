@@ -359,7 +359,7 @@ async def run_inbox_pipeline(
         body: Raw JSON request body dict, forwarded from the endpoint for
             nested-object re-parsing (preserves domain-specific fields).
         actor_dl: The receiving actor's DataLayer — ingress, dispatch, queues
-            and stored activities alike.  Before ADR-0069 a separate shared
+            and stored activities alike.  Before ADR-0070 a separate shared
             DataLayer was threaded alongside it; the two only differed because
             the shared pool could see every actor's rows.
         actor_id: Canonical URI of the receiving actor.

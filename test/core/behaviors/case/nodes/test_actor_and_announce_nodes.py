@@ -55,7 +55,7 @@ def store_for():
     """Factory: the store belonging to a given actor.
 
     Each test class here executes as a different actor, and a BT's store follows
-    its executing actor (ADR-0069), so the store cannot be a single module-wide
+    its executing actor (ADR-0070), so the store cannot be a single module-wide
     fixture. Classes override ``dl`` with the actor they run as.
 
     Explicitly closed: an unclosed sqlite3 connection is collected at an

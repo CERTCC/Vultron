@@ -12,6 +12,19 @@ description: >
 No implementation work begins until both the agent and the user agree on what
 bug is being fixed and why.
 
+## Phase 0 — Sync
+
+Move the worktree HEAD to `origin/main` before loading any context. Do **not**
+use `git checkout main` — that branch may be checked out in another worktree.
+
+```bash
+git fetch origin main && git reset --hard origin/main
+```
+
+If this fails, stop and investigate before proceeding. On success, `orient-agent`
+reads fresh specs/ADRs/notes, and the task branch created by `claim-issue.sh` in
+Phase 1 will be rooted at the latest `origin/main` commit.
+
 ## Phase 1 — Identify the Bug
 
 1. Invoke `orient-agent` to load baseline context.

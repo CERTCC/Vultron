@@ -138,7 +138,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0066 Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store](0066-outbox-terminal-state.md)
 - [ADR-0067 Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently](0067-rm-nonadj-accept-and-notify.md)
 - [ADR-0068 Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx](0068-inbox-refuse-misaddressed-activities.md)
-- [ADR-0069 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0069-per-actor-storage-isolation.md)
+- [ADR-0069 Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host](0069-vultron-namespace-uri.md) *(provisional)*
+- [ADR-0070 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0070-per-actor-storage-isolation.md)
 
 ## Proposed ADRs
 

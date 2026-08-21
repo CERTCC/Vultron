@@ -330,7 +330,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
     Returns SUCCESS unconditionally (missing trigger port is only a WARNING so
     that the replay still runs in environments without a trigger port).
 
-    Authored as the executing actor, gated on CASE_MANAGER (ADR-0069).
+    Authored as the executing actor, gated on CASE_MANAGER (ADR-0070).
     """
 
     def setup(self, **kwargs: Any) -> None:

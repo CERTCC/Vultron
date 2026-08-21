@@ -1981,7 +1981,7 @@ groups:
       the CaseActor as the authoritative intermediary and breaks the
       CaseLedgerEntry audit trail.
 
-      The mechanism changed in ADR-0069. This entry previously required setting
+      The mechanism changed in ADR-0070. This entry previously required setting
       `self._actor_id = case_actor_id` in `_prepare()`. That is a convention, and
       it conflated three separate ideas CM-24 otherwise keeps apart: the
       activity's `actor` (CM-24-001), its `attributed_to` (CM-24-002), and whose

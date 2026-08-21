@@ -111,7 +111,7 @@ def _names_an_individual_actor(addr: str) -> bool:
 
     An earlier reading asked the receiving actor's own DataLayer whether it knew
     the addressee.  That was already a loose proxy for the question, and under
-    per-actor storage isolation (ADR-0069) it became a vacuous one: a store
+    per-actor storage isolation (ADR-0070) it became a vacuous one: a store
     holds its owner's knowledge, not the node's roster, so a peer is never in it
     and *every* misaddressed Activity naming a real peer fell through to Liberal
     Accept.  IE-11-001 refused nothing.

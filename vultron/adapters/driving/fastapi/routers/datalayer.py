@@ -47,7 +47,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 logger = logging.getLogger(__name__)
 
-# Debug/inspection views are actor-scoped: under ADR-0069 there is no "the"
+# Debug/inspection views are actor-scoped: under ADR-0070 there is no "the"
 # store to inspect, and a node may host several actors (a vendor plus the
 # CaseActors it self-hosts under CP-08-003).  Naming the actor in the path keeps
 # ADR-0058 causal gates honest — a gate must assert that *a named actor* has
@@ -266,7 +266,7 @@ def get_actor_outbox(
     actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     # ``actor_id`` is the raw URL path segment, not an object id.  Resolve it the
-    # same way ``get_actor_dl`` just did (ADR-0069) — reading the store with the
+    # same way ``get_actor_dl`` just did (ADR-0070) — reading the store with the
     # bare segment always misses, and the endpoint would 404 for an actor whose
     # store it is holding open.
     canonical_id = actor_hosts.canonical_actor_uri(actor_id)
@@ -312,7 +312,7 @@ def get_objects(
 def reset_datalayer() -> dict:
     """Clear every hosted actor's store.
 
-    A node-level operation: there is no single store to clear under ADR-0069,
+    A node-level operation: there is no single store to clear under ADR-0070,
     and demo scenarios reset a whole container between runs.  Kept off the
     actor-scoped router so that it cannot be mistaken for one actor reaching
     into another's data.
@@ -323,7 +323,7 @@ def reset_datalayer() -> dict:
     so on a clean node it has nothing to iterate and the seed silently never ran;
     and those example actors are named under ``https://vultron.example/users/…``,
     which is not ``{base_url}actors/{slug}`` and so can never be addressed on this
-    node (ADR-0069 decision 2).  Provisioning an actor is ``POST /actors/``, and
+    node (ADR-0070 decision 2).  Provisioning an actor is ``POST /actors/``, and
     callers that need a populated node call it — see
     ``vultron.demo.utils.seed_exchange_actors``.
     """

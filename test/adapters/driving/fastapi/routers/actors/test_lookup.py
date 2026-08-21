@@ -152,7 +152,7 @@ def test_find_actor_record_does_not_match_a_foreign_actor_by_suffix(datalayer):
     whose id ends in ``/alice``.
 
     That scan was a cross-actor read, and it could return a *peer's* record —
-    an actor this node does not host — which since ADR-0069 decision 5 is exactly
+    an actor this node does not host — which since ADR-0070 decision 5 is exactly
     what an actor's own store is full of.  Resolution is now by computation from
     the node's own base URL, so a foreign id with a colliding last segment is
     correctly invisible.

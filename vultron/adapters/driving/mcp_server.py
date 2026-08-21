@@ -30,7 +30,7 @@ been retired, which is itself a fair indication of how long this has sat.)
 
 **The open question, recorded so it is not rediscovered.** An MCP server has no
 request path to carry an actor identity, so unlike the HTTP adapter it cannot
-derive one per call from ``{actor_id}``. Under ADR-0069 every DataLayer belongs
+derive one per call from ``{actor_id}``. Under ADR-0070 every DataLayer belongs
 to exactly one actor, so an MCP implementation MUST decide how a tool call
 selects its actor before it can touch persistence at all. At least three
 options, none evaluated:
@@ -43,7 +43,7 @@ options, none evaluated:
 
 The previous revision of this module leaned toward (2) — every tool function
 accepted ``actor_id`` — but then called the *unscoped* ``get_datalayer()`` and
-ignored it, which under ADR-0069 no longer exists. That inconsistency is the
+ignored it, which under ADR-0070 no longer exists. That inconsistency is the
 main reason this was converted to an explicit stub rather than mechanically
 migrated: migrating it would have meant inventing a decision nobody has made.
 """

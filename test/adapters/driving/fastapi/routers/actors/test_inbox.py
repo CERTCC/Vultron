@@ -457,7 +457,7 @@ def test_activity_addressed_to_refuses_peer_absent_from_the_receivers_store(
 ):
     """IE-11-001: a peer the receiver's store has never heard of is still a peer.
 
-    Regression for the ADR-0069 interaction: resolvability used to be probed
+    Regression for the ADR-0070 interaction: resolvability used to be probed
     with ``dl.find_actor_by_short_id``, which asks the *receiving actor's own*
     store whether it knows the addressee.  Under per-actor isolation the answer
     is structurally "no" for every peer — a store holds its owner's knowledge,

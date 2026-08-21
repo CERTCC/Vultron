@@ -38,16 +38,19 @@ from __future__ import annotations
 
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
 from pydantic import ValidationError
 
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
 
 _OFFER_CASE_OWNERSHIP_TRANSFER_EVENT = "offer_case_ownership_transfer"
 
 
-class IsOfferOwnershipTransferEventNode(DataLayerCondition):
+class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
     """Precondition: SUCCESS when entry IS an offer_case_ownership_transfer event.
 
     Used as the precondition in the ``OfferOwnershipTransferEffects`` Selector's
@@ -69,24 +72,32 @@ class IsOfferOwnershipTransferEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, CM-21-005, SYNC-02-002, SYNC-12-001.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         from vultron.core.behaviors.sync.nodes.conditions import (
             _require_log_entry,
         )
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _OFFER_CASE_OWNERSHIP_TRANSFER_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
+class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
     """Apply an ``offer_case_ownership_transfer`` ledger entry to the local DataLayer.
 
     When a participant receives ``Announce(CaseLedgerEntry)`` for the
@@ -121,11 +132,19 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
     CM-21-005, ISSUE-2195.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -136,7 +155,7 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerAction):
             _require_log_entry,
         )
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         snapshot = (
             entry.payload_snapshot
             if isinstance(entry.payload_snapshot, dict)

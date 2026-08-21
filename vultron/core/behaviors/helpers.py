@@ -825,14 +825,34 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
     def output_ports(cls) -> dict[str, PortInformation]:
         return {}
 
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Subclasses override to map domain input-port names to absolute blackboard paths.
+
+        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
+        that domain keys declared in ``input_ports()`` resolve to the same global
+        paths written by preceding ``DataLayerAction`` writer nodes.
+        """
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
-            port_remappings={"datalayer": _DL_KEY, "actor_id": _ACTOR_KEY}
+            port_remappings={
+                "datalayer": _DL_KEY,
+                "actor_id": _ACTOR_KEY,
+                **self._domain_port_remappings(),
+            }
         )
 
     def initialise(self) -> None:
-        self.datalayer = self.get_input("datalayer")
-        self.actor_id = self.get_input("actor_id")
+        try:
+            self.datalayer = self.get_input("datalayer")
+        except NotImplementedError:
+            self.datalayer = None
+        try:
+            self.actor_id = self.get_input("actor_id")
+        except NotImplementedError:
+            self.actor_id = None
 
     def _require_datalayer(self) -> Status | None:
         if self.datalayer is None:
@@ -888,23 +908,40 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
     def output_ports(cls) -> dict[str, PortInformation]:
         return {}
 
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Subclasses override to map domain input-port names to absolute blackboard paths.
+
+        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
+        that domain keys declared in ``input_ports()`` resolve to the same global
+        paths written by preceding ``DataLayerAction`` writer nodes.
+        """
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings={
                 "datalayer": _DL_KEY,
                 "actor_id": _ACTOR_KEY,
                 "trigger_activity_factory": "/trigger_activity_factory",
+                **self._domain_port_remappings(),
             }
         )
 
     def initialise(self) -> None:
-        self.datalayer = self.get_input("datalayer")
-        self.actor_id = self.get_input("actor_id")
+        try:
+            self.datalayer = self.get_input("datalayer")
+        except NotImplementedError:
+            self.datalayer = None
+        try:
+            self.actor_id = self.get_input("actor_id")
+        except NotImplementedError:
+            self.actor_id = None
         try:
             self.trigger_activity_factory = self.get_input(
                 "trigger_activity_factory"
             )
-        except NoDataAvailable:
+        except (NoDataAvailable, NotImplementedError):
             self.trigger_activity_factory = None
 
     def _require_datalayer(self) -> Status | None:

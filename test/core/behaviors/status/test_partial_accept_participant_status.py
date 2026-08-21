@@ -208,7 +208,7 @@ def store_for():
 
     These tests split between two executing actors — the asserting participant
     and the case manager — and a BT's store follows its executing actor
-    (ADR-0069), so one shared store cannot serve both. Each test opens the store
+    (ADR-0070), so one shared store cannot serve both. Each test opens the store
     of the actor it runs as.
     """
     created: list[SqliteDataLayer] = []

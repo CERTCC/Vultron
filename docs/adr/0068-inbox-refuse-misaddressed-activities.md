@@ -8,7 +8,7 @@ deciders: sei-ahouseholder
 
 ## Context and Problem Statement
 
-Each Vultron actor has its own isolated DataLayer (ADR-0069, ADR-0012). The
+Each Vultron actor has its own isolated DataLayer (ADR-0070, ADR-0012). The
 DataLayer's owner is the authoritative answer to "whose replica is this?" —
 but only if every Activity stored in that DataLayer was actually addressed to
 its owner. Currently, `POST /actors/{actor_id}/inbox/` returns 202 and
@@ -21,7 +21,7 @@ were directed at it.
 ## Decision Drivers
 
 - Per-actor DataLayer isolation is only trustworthy if the store's owner was
-  the intended recipient of every Activity it contains (ADR-0069).
+  the intended recipient of every Activity it contains (ADR-0070).
 - Liberal Accept (Postel's Law): refuse the narrowest thing that must be
   refused; accept anything uncertain.
 - The refusal must be synchronous so the sender receives a 4xx rather than a
@@ -46,7 +46,7 @@ Chosen option: **"Synchronous 4xx before the 202"**, because:
 
 - It prevents writing a misaddressed Activity to the wrong actor's store at
   all — option 2 would persist it first, which is a mild instance of
-  exactly the cross-actor contamination ADR-0069 removes.
+  exactly the cross-actor contamination ADR-0070 removes.
 - Liberal Accept resolves the "I cannot tell" case in favour of accepting, so
   the two-mechanism split of option 3 is unnecessary: absent addressing
   falls through unchanged, and only provable exclusion triggers the refusal.

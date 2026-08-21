@@ -220,3 +220,41 @@ groups:
     kind: protocol
     statement: Messages that cannot be parsed or whose semantics are unknown MAY still be forwarded to the case event log
       to create an entry for human or agent review
+- id: VM-10
+  title: Vocabulary Namespace and JSON-LD Context
+  specs:
+  - id: VM-10-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Outbound Vultron wire messages MUST declare the Vultron JSON-LD context by setting
+      `@context` to `"https://certcc.github.io/Vultron/ns/context.jsonld"`. Using only
+      the ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`) is not
+      sufficient: Vultron-specific types (`VulnerabilityCase`, `EmbargoEvent`, etc.) are
+      not defined in that namespace and cannot be resolved by receivers without the
+      Vultron context declaration.
+    rationale: >-
+      Derived from ADR-0069 (docs/adr/0069-vultron-namespace-uri.md). The Vultron vocabulary
+      extends ActivityStreams with CVD-specific types; those types must be declared in a
+      dereferenceable JSON-LD context so that external implementations can resolve them.
+      The context document at the Vultron namespace URI imports the AS2 namespace, so
+      implementations need only cite the Vultron context URI.
+    adr:
+    - ADR-0069
+    relationships:
+    - rel_type: refines
+      spec_id: VM-02-002
+  - id: VM-10-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Wire-layer classes whose `_vocab_ns` is `VocabNamespace.VULTRON` MUST default
+      `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)
+      rather than the ActivityStreams namespace URI.
+    rationale: >-
+      `VultronAS2Object` is the base class for all Vultron-specific wire types. Overriding
+      `context_` there ensures that every Vultron object serializes with the correct
+      `@context` without requiring call-site changes.
+    relationships:
+    - rel_type: implements
+      spec_id: VM-10-001

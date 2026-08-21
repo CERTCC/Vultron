@@ -46,7 +46,7 @@ def test_config_db_url_is_in_memory():
 def test_sqlite_datalayer_default_is_in_memory():
     """SqliteDataLayer defaults to in-memory storage for its actor.
 
-    ADR-0069: there is no default *actor*, so actor_id is required even when the
+    ADR-0070: there is no default *actor*, so actor_id is required even when the
     db_url defaults.  A store always belongs to exactly one actor.
     """
     reset_datalayer()

@@ -31,7 +31,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     """TerminateEmbargo transitions ACTIVE → EXITED and clears active_embargo.
 
     Runs in the *owner's* store, because the owner is the requesting actor and a
-    trigger's BT reads and writes the executing actor's own store (ADR-0069).
+    trigger's BT reads and writes the executing actor's own store (ADR-0070).
     The finder is a peer here: its participant record lives in the owner's
     replica of the case, which is what the assertion below reads.
     """

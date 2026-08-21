@@ -168,7 +168,7 @@ def reporter_submits_report(
     # These checks name the receiver explicitly rather than relying on
     # `receiver_client`'s binding. The check text says whose replica it is about,
     # so the read should say so too — and not every caller binds its client, in
-    # which case `dl_path` refuses to guess (ADR-0069).
+    # which case `dl_path` refuses to guess (ADR-0070).
     with demo_check("Report stored in receiver's DataLayer"):
         verify_object_stored(
             receiver_client, report.id_, actor_id=receiver.id_

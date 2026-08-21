@@ -67,7 +67,7 @@ def dl() -> SqliteDataLayer:
     # The case actor's own store. Every test below hands this DataLayer to the
     # retry machinery *as* _CASE_ACTOR_ID's ({_CASE_ACTOR_ID: dl}), so claiming a
     # different owner made the mapping a lie: the re-queue BT executes as the case
-    # actor and would open that actor's real — empty — store (ADR-0069).
+    # actor and would open that actor's real — empty — store (ADR-0070).
     return SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
 
 
@@ -346,7 +346,7 @@ class TestRetryMultipleMarkers:
     def test_markers_across_two_actor_dls(self):
         """Markers in distinct DataLayers are both processed."""
         # Distinct actors, therefore genuinely distinct stores. Both of these
-        # were previously built with the same actor id, which under ADR-0069
+        # were previously built with the same actor id, which under ADR-0070
         # resolves to the *same* named in-memory database — so the test had one
         # store holding both markers and counted each of them twice.
         actor_b = "https://case-actor-b.test/actors/svc-002"
@@ -494,7 +494,7 @@ class TestStartupRecovery:
     def _make_actor_dl():
         """Return the case actor's own store, as startup recovery will find it.
 
-        There is no shared DataLayer to scan any more (ADR-0069).
+        There is no shared DataLayer to scan any more (ADR-0070).
         ``marker_scan_factory`` now yields the *actor ids* discovered from the
         per-actor stores that exist on the node, and recovery opens each one — so
         these tests supply ids, not a store.

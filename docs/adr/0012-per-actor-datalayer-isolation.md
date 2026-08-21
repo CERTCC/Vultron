@@ -77,13 +77,13 @@ Three related design decisions must be made before implementation can begin:
 ## Decision Outcome
 
 **DataLayer isolation: superseded by
-[ADR-0069](0069-per-actor-storage-isolation.md) — one store per actor.**
+[ADR-0070](0070-per-actor-storage-isolation.md) — one store per actor.**
 
 This ADR originally chose *Option B — namespace prefix per actor in one file*.
 That choice did not deliver CM-01-001: a namespace prefix (and its SQLite
 successor, an `actor_id` filter column over a globally unique primary key)
 partitions **reads** only, so one actor's writes could still affect what
-another actor read (issue #2238). ADR-0069 adopts **Option A — one store per
+another actor read (issue #2238). ADR-0070 adopts **Option A — one store per
 actor** instead, making isolation a property of the storage layout rather than
 of each individual query. The rejection of Option A below — that it "creates
 many files and complicates the DataLayer reset endpoint" — was a

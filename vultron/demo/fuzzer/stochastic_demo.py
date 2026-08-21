@@ -181,7 +181,7 @@ def _run_embargo_full_tree(n_ticks: int = N_TICKS) -> None:
     )
 
     # The tree executes as `_DEMO_ACTOR_ID` (below), and a BT reads and writes
-    # its executing actor's own store (ADR-0069), so the store has to be that
+    # its executing actor's own store (ADR-0070), so the store has to be that
     # actor's. Left unscoped, `BTBridge._store_for_actor` would re-scope away
     # from it and the fuzzer would tick against an empty store.
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_DEMO_ACTOR_ID)

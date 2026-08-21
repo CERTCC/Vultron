@@ -177,7 +177,7 @@ def _create_case_from_offer(
         dl: Store to seed into.  Defaults to *actor*'s own store, which is the
             one the downstream BTs read, since a tree executes against the store
             of the actor it runs as (BT-05-005).  There is no shared
-            module-level DataLayer to fall back on any more (ADR-0069), so
+            module-level DataLayer to fall back on any more (ADR-0070), so
             leaving this ``None`` used to seed nothing and fail later with
             ``'NoneType' has no attribute 'read'``.
 

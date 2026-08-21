@@ -14,7 +14,7 @@ than an error:
    case (`actor_participant_index`).
 2. **Who receives the message** — `request.receiving_actor_id`.
 3. **Whose store the tree runs in** — the DataLayer's `actor_id`, which since
-   ADR-0069 is selected by the executing actor.
+   ADR-0070 is selected by the executing actor.
 
 `CommitCaseLedgerEntryNode` is gated on (1) via `CheckIsCaseManagerNode` (CLP-09),
 runs under (2) per BT-17-005, and reads/writes (3). When they disagree the gate

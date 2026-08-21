@@ -414,7 +414,7 @@ def _poll_datalayer_for(
     """Poll the client's own DataLayer until *discriminator_fn* matches.
 
     The path is ``client.dl_path()`` — the *actor-scoped* collection, not the
-    retired unscoped ``/datalayer/``.  Under ADR-0069 there is no store that is
+    retired unscoped ``/datalayer/``.  Under ADR-0070 there is no store that is
     not some actor's own, so a poll must name whose store it is reading.
 
     Scans the full DataLayer dict on each tick and calls *discriminator_fn*

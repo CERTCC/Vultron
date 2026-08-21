@@ -116,7 +116,7 @@ def test_accept_ownership_transfer_commit_is_role_gated(
 
     The scenario is built per parameter rather than taken from the ``bt_scenario``
     fixture, because this test has *two* executing actors and a BT's store follows
-    the actor it executes as (ADR-0069).  One shared store would leave whichever
+    the actor it executes as (ADR-0070).  One shared store would leave whichever
     actor did not own it reading an empty one — the case would be absent, the role
     guard would fail for lack of a case rather than for lack of the role, and the
     "transferee does not commit" half would pass for the wrong reason.

@@ -83,7 +83,7 @@ def dl():
     """The *receiving* actor's own store.
 
     The pipeline under test runs as ``_PEER_ID``, and a BT's store follows its
-    executing actor (ADR-0069), so this has to be that actor's store.  It used to
+    executing actor (ADR-0070), so this has to be that actor's store.  It used to
     be the generic marker actor's, with the peer's store derived by
     ``clone_for_actor`` — which meant the assertions read a store the pipeline
     never wrote to.

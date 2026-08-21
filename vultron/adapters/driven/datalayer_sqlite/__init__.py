@@ -50,7 +50,7 @@ _actor_instances: dict[str, SqliteDataLayer] = {}
 def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
     """Factory that returns (or creates) the DataLayer for *actor_id*.
 
-    Every actor gets its own store (ADR-0069).  There is no shared or
+    Every actor gets its own store (ADR-0070).  There is no shared or
     "admin" DataLayer: an unscoped view would be able to read across actors,
     which CM-01-001 forbids.  Code that needs a node-wide picture must
     enumerate hosted actors and fan out.
@@ -76,7 +76,7 @@ def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
     if not actor_id:
         raise ValueError(
             "get_datalayer requires a canonical actor URI; there is no "
-            "unscoped DataLayer (ADR-0069, CM-01-001)"
+            "unscoped DataLayer (ADR-0070, CM-01-001)"
         )
     _url = db_url if db_url is not None else get_config().database.db_url
     if actor_id not in _actor_instances:

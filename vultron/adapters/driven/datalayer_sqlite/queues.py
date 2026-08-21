@@ -15,7 +15,7 @@
 
 """Inbox/outbox queues, delivery attempt counters and the dead-letter store.
 
-Each of these lives in its owning actor's store (ADR-0069), so none of these
+Each of these lives in its owning actor's store (ADR-0070), so none of these
 functions takes or filters on an ``actor_id``.  That removes a whole class of
 defect in which a queue was written under one spelling of an actor id and read
 under another — the cause of BUG-2026040901 and of the ``outbox_list()``
@@ -265,7 +265,7 @@ def dead_letter_append(
 
     ``entry.actor_id`` is taken from ``dl.actor_id`` rather than from a
     parameter.  The entry describes *this* actor's failed delivery attempt, and
-    under ADR-0069 the store already fixes whose outbox that was — so there is
+    under ADR-0070 the store already fixes whose outbox that was — so there is
     no second identity to pass and none to get wrong.
 
     Args:

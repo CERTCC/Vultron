@@ -314,7 +314,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         ).execute()
 
         # `outbox_handler(actor_id, dl, emitter=None)` — the shared-DataLayer
-        # third positional is gone (ADR-0069), and passing a store where the
+        # third positional is gone (ADR-0070), and passing a store where the
         # emitter is expected made `emit()` be called on a SqliteDataLayer.
         # `anyio.run` cannot forward keywords, hence the partial.
         anyio.run(

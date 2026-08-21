@@ -22,7 +22,11 @@ from typing import Any, Literal, cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
@@ -160,18 +164,26 @@ class ReconstructChainTailNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class UpdateReplicationStateNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class UpdateReplicationStateNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        activity = self.blackboard.activity
+        activity = self.activity
         entry = getattr(activity, "rejected_entry", None)
         if entry is None:
             entry = getattr(activity, "object_", None)
@@ -310,14 +322,28 @@ class CreateLogEntryNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class PersistLogEntryNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="log_entry", access=py_trees.common.Access.READ
+class PersistLogEntryNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["log_entry_preexisting"] = PortInformation(
+            data_type=bool, required=False
         )
-        self.blackboard.register_key(
-            key="log_entry_preexisting", access=py_trees.common.Access.READ
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "log_entry": "/log_entry",
+            "log_entry_preexisting": "/log_entry_preexisting",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.log_entry = self.get_input("log_entry")
+        self.log_entry_preexisting: bool = self.get_input(
+            "log_entry_preexisting", default=False
         )
 
     def update(self) -> Status:
@@ -325,11 +351,8 @@ class PersistLogEntryNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
-        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
-        try:
-            preexisting = bool(self.blackboard.log_entry_preexisting)
-        except KeyError:
-            preexisting = False
+        entry = cast(VultronCaseLedgerEntry, self.log_entry)
+        preexisting = bool(self.log_entry_preexisting)
         if preexisting:
             self.logger.info(
                 "%s: log entry already exists for case_id=%s event_type=%s "

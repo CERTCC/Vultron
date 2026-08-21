@@ -273,7 +273,7 @@ def _bootstrap_and_engage(
     # The owner's own store, not `owner_iso.dl`: this test creates its actor
     # under a per-test slug, while `dl` is the app's default-slug store, so
     # reading `dl` reports an empty store and the assertion fails for the wrong
-    # reason (ADR-0069 — a store is exactly one actor's).
+    # reason (ADR-0070 — a store is exactly one actor's).
     owner_dl = owner_iso.store_for(owner_actor_id)
 
     case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
@@ -316,7 +316,7 @@ def _bootstrap_and_engage(
     # Reporter must have received the case replica before engage-case fires.
     # The reporter's own store, not the app's default-slug `dl`: the actor was
     # created under a per-test slug, and a store belongs to exactly one actor
-    # (ADR-0069), so `dl` is a different (empty) database.
+    # (ADR-0070), so `dl` is a different (empty) database.
     reporter_dl = reporter_iso.store_for(reporter_actor_id)
     reporter_cases = reporter_dl.get_all("VulnerabilityCase")
     assert any(c["id_"] == case_id for c in reporter_cases), (
