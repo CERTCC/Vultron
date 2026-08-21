@@ -33,8 +33,8 @@ a ``HasActiveEmbargoNode`` guard earlier in the BT sequence to enforce the
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
-    DataLayerCondition,
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
@@ -42,7 +42,7 @@ from vultron.core.states.em import EM
 from vultron.errors import VultronValidationError
 
 
-class ReadEmStateNode(DataLayerCondition):
+class ReadEmStateNode(DataLayerConditionWithPorts):
     """Read the current EM state from a case and write it to result_out.
 
     Replaces the inline ``em_before = EM(case.current_status.em_state)`` reads
@@ -107,7 +107,7 @@ class ReadEmStateNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class WriteEmStateNode(DataLayerAction):
+class WriteEmStateNode(DataLayerActionWithPorts):
     """Write a computed EM state back to the case and persist it.
 
     Replaces the inline ``case.current_status.em_state = em_after`` mutations

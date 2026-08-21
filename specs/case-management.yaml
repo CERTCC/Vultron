@@ -1200,11 +1200,11 @@ groups:
     rationale: '`PecDimension.transition()` (ADR-0036, SDO-01-001) validates the trigger against the PEC machine and raises
       `VultronInvalidStateTransitionError` on an illegal transition, making consent writes fail-closed regardless of upstream
       BT guard coverage. Direct assignment to the scalar `embargo_consent_state` field bypasses both the state machine and
-      `_sync_latest_status_metadata()`, so the participant''s latest `ParticipantStatus` retains its previous `consent.state`.
-      Observed on `main` at ten consent-write sites: the participant reads `SIGNATORY` while the emitted ledger snapshot carries
-      the self-contradictory pair `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Three of the ten assign the
-      scalar field with no FSM involvement; the other seven route the trigger through `apply_pec_trigger()` and are still
-      non-conforming, because validating the trigger does not persist the `ParticipantStatus`. Per ADR-0048.'
+      `_sync_latest_status_metadata()`, so the participant''s latest `ParticipantStatus` retains its previous `consent.state`,
+      causing the emitted ledger snapshot to contradict itself (e.g. `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`).
+      The legacy `apply_pec_trigger()` soft-fail helper was removed (CONCERN-1871); all consent-write sites MUST use
+      `CaseParticipant.apply_pec_transition()`, which delegates to `PecDimension.transition()` and syncs the resulting
+      `ParticipantStatus`. Per ADR-0048.'
     relationships:
     - rel_type: refines
       spec_id: CM-18-003

@@ -17,11 +17,11 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.embargo_event import EmbargoEvent
 
 
-class PersistEmbargoEventNode(DataLayerAction):
+class PersistEmbargoEventNode(DataLayerActionWithPorts):
     """Persist the trigger-created embargo event before outbound fan-out."""
 
     def __init__(self, embargo: EmbargoEvent, name: str | None = None) -> None:
