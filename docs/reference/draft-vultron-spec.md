@@ -164,7 +164,7 @@ during implementation (see §6.4) and is fully normative.
 
 !!! note "Informative: ActivityPub roadmap"
     A future version of this specification is expected to raise the conformance
-    floor to ActivityPub at T1 and above. Implementations built against the
+    floor to ActivityPub for all participants. Implementations built against the
     current AS2-only baseline should anticipate that re-evaluation against a
     future ActivityPub-baseline version will be required. The AS2-only profile
     may become a compatibility profile at that point. (See issue #2068.)
@@ -293,6 +293,43 @@ permitted.
 - JSON-LD as the normative serialization
 - Required context declarations
 - *Source: AS2/ActivityPub standards; `specs/message-validation.yaml`*
+
+### 4.6 Transport Layer [N/I]
+
+The transport layer defines how vultron-wire messages move between participants.
+The message schema (§4.1–§4.5) is transport-agnostic: the same JSON payload is
+deliverable over any conformant transport.
+
+This specification recognizes two transport profiles.
+
+#### REST (HTTP) profile [N]
+
+- Each actor exposes an inbox endpoint for receiving inbound Activities.
+- Outbound Activities are delivered by HTTP POST to the recipient's inbox.
+- Authentication and authorization requirements are described in §8.
+- *Source: `specs/vultron-protocol-spec.yaml` VP-18-001; `specs/outbox.yaml`*
+
+#### ActivityPub federation profile [I]
+
+Full ActivityPub conformance — inbox/outbox HTTP delivery, HTTP Signatures,
+WebFinger discovery — is not currently required by this specification.
+See the informative note in §4.1 and Annex E for the ActivityPub roadmap.
+
+#### Participant discovery [I]
+
+Before two actors can exchange messages, they must locate each other.
+WebFinger is the anticipated discovery mechanism, consistent with its use
+alongside ActivityPub in federated systems such as Mastodon.
+A participant discovery specification is not yet included in this document.
+
+!!! note "Transport vs. routing topology"
+    The routing topology rule in §4.4.2 — all case-scoped messages MUST route
+    through the Case Actor — is a vultron-core protocol rule. It applies
+    regardless of which transport carries the messages. The transport layer is
+    responsible for delivery. The protocol layer is responsible for routing
+    authority.
+
+- *Source: §4.1 informative note (ActivityPub roadmap, issue #2068); Annex E*
 
 ---
 
@@ -922,8 +959,50 @@ what lets either be re-policied without touching the other.
 
 ### 6.6 Participant Lifecycle Within a Case
 
-- Invitation, acceptance, role assignment, removal
-- Case ownership and transfer
+#### 6.6.1 Role Assignment [N]
+
+Roles are assigned through a defined authority chain. They are not self-declared.
+
+1. A case starts with a **Case Owner** — the actor who initiated the case.
+2. The Case Owner MAY delegate the **Case Manager** role to another actor via
+   an `Offer(CaseParticipant)` / `Accept` handshake.
+3. The Case Manager assigns actors into process roles (Reporter, Vendor,
+   Coordinator, Deployer, Observer, CNA) via the case participant management flow.
+
+An actor MUST NOT self-assign a role to a case it did not initiate.
+This rule prevents an actor from claiming authority (for example, Coordinator)
+on a case it is not ready to coordinate.
+
+An implementation MAY verify that an actor has the capability prerequisites
+for a role (§7.3.1) before completing a role assignment.
+
+#### 6.6.2 Invitation and Acceptance [N]
+
+- An actor joins a case via `Invite(CaseStub)` from the Case Actor, answered with
+  `Accept(Invite)` or `Reject(Invite)`.
+- `Accept(Invite)` places the actor at `RM.RECEIVED` and, where an embargo is
+  active, implies consent to that embargo (§6.4.7).
+- The suggest-actor path (§4.3, §5.4) allows a Participant to recommend an actor
+  to the Case Owner. The Case Owner decides whether to issue the invitation.
+
+#### 6.6.3 Case Ownership Transfer [N]
+
+The Case Owner MAY transfer ownership to another actor via
+`Offer(VulnerabilityCase)` / `Accept` handshake routed through the Case Actor
+(ADR-0053). On acceptance, the receiving actor acquires Case Owner authority and
+the associated protocol responsibilities.
+
+!!! note "Open: Case Actor identity during ownership transfer"
+    Because the Case Actor URI is the identity anchor for the canonical ledger,
+    ownership transfer raises a re-keying question for future cryptographic
+    identity designs. See §7.3.2 and Open Questions.
+
+#### 6.6.4 Participant Removal [I]
+
+A Case Owner or Case Manager MAY remove a participant from a case.
+The protocol mechanics of removal and the effect on active embargo consent
+are not yet fully specified.
+
 - *Source: `specs/case-management.yaml`; `notes/ownership-transfer.md`*
 
 ---
@@ -932,35 +1011,41 @@ what lets either be re-policied without touching the other.
 
 ### 7.1 Conformance Model Overview
 
-Conformance is two-dimensional: a **capability tier** (what protocol machinery an
+Conformance is two-dimensional: **capability sets** (what protocol machinery an
 implementation provides) and a **role profile** (which roles it claims). A
-conformance claim takes the form:
+conformance claim names capability sets and roles directly:
 
-> `T{n} / Role [+ Role ...]`
+> `CapabilitySet [+ CapabilitySet ...] / Role [+ Role ...]`
 
-Examples: `T1 / Reporter`, `T1 / Vendor`, `T1 / Vendor + Deployer`,
-`T2 / Coordinator + CNA`, `T2 / Coordinator + Case Owner`.
+Examples: `Observer / Reporter`, `Observer / Vendor`, `Observer / Vendor + Deployer`,
+`Observer + Authority + Hosting / Coordinator + Case Owner`.
 
-Capability tiers are cumulative: T2 implies T1.
+The Observer capability set is required for all participation.
 Role obligations are additive and orthogonal: no role subsumes another.
 
-!!! warning "Tiers are not the same as conformance test layers"
-    This project uses two distinct numbered schemes, and they must not be
-    conflated:
+Capability set names and role names come from §7.2 and §7.3 respectively.
 
-    - **Capability tiers (T0–T2)**, defined here, describe *what an
-      implementation provides* — a claim an implementer makes about their
-      software.
+**Roles and capability expectations.** The relationship between roles and
+capabilities is bidirectional. An implementation must have the capability
+prerequisites for a role before it can be assigned that role (§7.3.1).
+Conversely, holding a role in a case creates an expectation that the
+implementation has those capabilities — other participants act on that
+assumption. See §6.6.1 for the role assignment gatekeeping rules.
+
+!!! warning "Capability sets are not the same as conformance test layers"
+    This project uses two distinct schemes, and they must not be conflated:
+
+    - **Capability sets**, defined here, describe *what an implementation
+      provides* — a claim an implementer makes about their software.
     - **Conformance test layers (L1–L4)**, used in the behavioral conformance
       material, describe *what a test verifies* — syntax, semantics, behavior,
-      and internal process structure. These are orthogonal to tiers: a `T1`
+      and internal process structure. These are orthogonal: an Observer
       implementation is tested at layers L1 through L3.
 
-    "T" was chosen over reusing "L" precisely to keep these separable. Earlier
-    drafts of this document used `L0`/`L1`/`L2` for tiers; those labels are
-    superseded.
+    Earlier drafts of this document used `T0`/`T1`/`T2` for capability tiers and
+    `L0`/`L1`/`L2` before that. Both sets of labels are superseded.
 
-### 7.2 Capability Tiers
+### 7.2 Capability Sets
 
 !!! note "What 'implement a state machine' means"
     Implementing a state machine has two components:
@@ -975,29 +1060,14 @@ Role obligations are additive and orthogonal: no role subsumes another.
     state changes. Driving without tracking means you are unaware of the case
     state you are acting on.
 
-#### T0 — Consumer
+#### Observer capability set
 
-- MUST be able to receive and parse all Vultron message types
-- No state machine tracking required; no send obligations
-- The minimum for a monitoring, archival, or display tool that reads case
-  traffic without participating in coordination
+The Observer capability set is the participation floor.
+**Every actor that participates in any Vultron case MUST implement it.**
 
-!!! note "T0 is not case participation"
-    A T0 implementation can consume messages but cannot be a case Participant: it
-    holds no `CaseParticipant` record, has no RM state, and no case is obliged to
-    deliver anything to it. An actor that accepts a case invitation has
-    implicitly committed to T1 behavior — from that point it must track state and
-    notify others of its own transitions.
-
-    T0 is therefore a claim about *software capability*, not a way to sit inside
-    a case passively. See §7.3.3 on why "Observer" is not a T0 concept.
-
-#### T1 — Participant
-
-Meaningful case participation requires all five state machines. An
-implementation that tracks RM but ignores EM cannot correctly gate its own
-embargo behavior; one that ignores CS cannot correctly evaluate disclosure
-timing. The machines are not independent add-ons — they are the protocol.
+There is no sub-Observer participation level. An actor that accepts a case
+invitation has committed to Observer behavior from that point. It must track
+state and notify others of its own transitions.
 
 - MUST implement all five state machines: **RM, EM, PEC, VFD, PXA**
   (track and drive, per the definition above)
@@ -1005,27 +1075,49 @@ timing. The machines are not independent add-ons — they are the protocol.
   transitions occur
 - MUST receive and update local state when notified of other participants'
   transitions
-- MUST participate in embargo negotiation as appropriate to role: responding to
-  `Invite(Event)`, and recording consent or refusal via PEC
+- MUST participate in embargo negotiation: responding to `Invite(Event)`, and
+  recording consent or refusal via PEC
 - MUST route all case-scoped messages through the Case Actor (§4.4.2)
-- Role-specific drive obligations are governed by §7.4
+- MAY report PXA observations; no VFD drive obligations unless a role extension
+  set adds them
+
+!!! note "Why there is no sub-Observer level"
+    A monitoring-only actor might seem to need only message parsing, with no
+    state tracking required. But an actor that cannot track PEC cannot know what
+    it is permitted to display. An actor that cannot track RM has no basis for
+    evaluating case status. Meaningful use of Vultron data requires the full
+    Observer set. A parse-only tool is not a case Participant: it holds no
+    `CaseParticipant` record and no case is obliged to deliver anything to it.
 
 !!! note "Role-specific drive obligations"
-    All T1 participants **track** all five machines. Which transitions a
-    participant **drives** depends on its role: a Vendor drives its own VFD
-    transitions; a Reporter drives RM; any participant may report PXA
+    All Observer participants **track** all five machines. Which transitions a
+    participant **drives** depends on its role extension set: a Vendor drives its
+    own VFD transitions; a Reporter drives RM; any participant may report PXA
     observations. See §7.3 and §7.4.
 
 - *Source: `specs/vultron-protocol-spec.yaml`; `specs/state-machine.yaml`;
   `specs/embargo-policy.yaml`; `specs/case-management.yaml` CM-18*
 
-#### T2 — Coordinator
+#### Authority capability set
 
-A T2 implementation provides multi-party case management on behalf of other
-participants. This is coordination *authority* — not an additional state machine
-requirement, since all five are already required at T1.
+The Authority capability set defines Case Owner governance capabilities.
+It is separable from the Hosting capability set.
 
-- All T1 requirements, plus:
+- Observer capability set, plus:
+- Status updates MUST be adopted without requiring an external approval gate
+  (the Case Owner's own updates are authoritative)
+- MUST be able to drive shared EM transitions
+- MUST be able to transfer case ownership via the `Offer(VulnerabilityCase)` /
+  `Accept` handshake
+
+A human Coordinator typically holds Authority while a service actor provides Hosting.
+
+#### Hosting capability set
+
+The Hosting capability set defines Case Manager infrastructure capabilities.
+It is separable from the Authority capability set.
+
+- Observer capability set, plus:
 - MUST act as or host a **Case Actor**, and therefore MUST implement the
   single-writer authority rules of §4.4.1
 - MUST maintain the authoritative canonical case ledger and replicate it to
@@ -1038,13 +1130,29 @@ requirement, since all five are already required at T1.
 
 !!! note "Ledger replication scope"
     Whether the full ledger replication protocol belongs in this specification or
-    in a companion document is unresolved (see Open Questions). The T2
+    in a companion document is unresolved (see Open Questions). The Hosting
     requirement above is stable regardless: a Case Actor host must replicate the
     ledger. What may move is the *detailed* replication mechanics — ordering,
     hash-chaining, gap recovery — not the obligation.
 
 - *Source: `specs/sync-ledger-replication.yaml`; `specs/case-management.yaml`;
   `specs/received-status-handling.yaml`; `specs/vultron-protocol-spec.yaml` VP-17-001*
+
+#### Named configurations
+
+Common combinations of capability sets have names because they appear frequently
+in real deployments. These names are informative; conformance claims use the
+full capability set list.
+
+| Configuration | Capability sets | Roles |
+|---|---|---|
+| **Hosting Coordinator** | Observer + Authority + Hosting | Coordinator + Case Owner |
+| **Self-coordinating Vendor** | Observer + Authority + Hosting | Vendor + Deployer + Case Owner |
+| **Bug Bounty Platform** | Observer + Hosting | Case Manager (Authority optional) |
+
+A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER`
+and `CASE_MANAGER` roles. It decides and executes without a separate human
+approval step for its own status updates.
 
 ### 7.3 Role Taxonomy
 
@@ -1061,6 +1169,14 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | Coordinator | Drives case participant management; coordinates multi-party disclosure |
 | CNA | May directly assign CVE IDs; a non-CNA delegates to an external CNA service. Orthogonal to other roles — typically co-held with Coordinator or Vendor |
 | Observer † | Holds no drive obligations for VFD; may report PXA observations (§7.4.2) |
+
+**Capability prerequisites.** Every case Participant — whatever its roles — MUST
+implement the Observer capability set (§7.2, §7.3.3). Role extension sets add
+obligations on top of that floor; they do not substitute for it. An implementation
+SHOULD verify that an actor has the capability prerequisites for a role before
+completing a role assignment (§6.6.1). The full capability prerequisites per
+role are under active specification; see `docs/reference/vultron-taxonomy.md`
+§"Open Ideas."
 
 !!! note "† Observer: decided (ADR-0057); Finder: still provisional"
     **Observer** (`CVDRole.OBSERVER`): the rename from `CVDRole.OTHER` is decided
@@ -1110,31 +1226,29 @@ the associated protocol responsibilities.
     The design for ownership transfer across cryptographic boundaries requires
     further work before this aspect can be normative.
 
-#### 7.3.3 Roles and Tiers Are Independent
+#### 7.3.3 Roles and Capability Sets Are Independent
 
-A role is a position within a case. A tier is a property of software. Mixing them
-produces contradictions, so the relationship is stated explicitly:
+A role is a position within a case. A capability set is a property of software.
+Mixing them produces contradictions, so the relationship is stated explicitly:
 
-- Every case Participant — whatever its roles — is at minimum **T1**. Holding a
-  role means having a `CaseParticipant` record, an RM state, and therefore
-  tracking obligations.
-- **T0 is not a role.** A T0 implementation consumes messages without
-  participating; it holds no role and no case owes it delivery.
-- A T2 implementation additionally hosts the Case Actor. T2 is commonly co-held
-  with Coordinator and Case Manager, but the tier is what obliges ledger
-  authority, not the role name.
+- Every case Participant — whatever its roles — MUST implement the **Observer**
+  capability set. Holding a role means having a `CaseParticipant` record, an RM
+  state, and therefore tracking obligations.
+- A parse-only actor is not a case Participant: it holds no role and no case owes
+  it delivery.
+- An implementation holding the Hosting capability set additionally hosts the
+  Case Actor. Hosting is commonly co-held with the Coordinator and Case Manager
+  roles, but it is the Hosting capability set that obliges ledger authority, not
+  the role name.
 
-!!! warning "Observer is a participant role, not a passive tier"
-    An Observer that is *in a case* is a T1 participant: it has an RM state, it is
-    subject to embargo consent, and it may report PXA observations. It is
-    distinguished by holding no VFD drive obligations — not by being exempt from
-    tracking.
+!!! note "Observer is a participant role, not a passive state"
+    An Observer role holder that is *in a case* implements the full Observer
+    capability set: it has an RM state, it is subject to embargo consent, and it
+    may report PXA observations. The Observer role is distinguished by holding no
+    VFD drive obligations — not by being exempt from state tracking.
 
-    How a role-light participant is admitted to a case, and what content it
-    receives, is not fully specified. Presumably admission is by invitation from a
-    Case Owner or Case Manager, on the same `Invite` / `Accept(Invite)` path as
-    any other participant — but the invitation flow for a participant with no
-    functional role has not been worked through. See Open Questions.
+    Observer role admission follows the standard `Invite` / `Accept(Invite)` path.
+    Role semantics are normative per ADR-0057; see the note at §7.3.1.
 
 ### 7.4 Role-Specific Normative Requirements
 
@@ -1188,18 +1302,19 @@ two-seam model in **§6.5.1**. The role rule here — *who may report* — is
 deliberately separate from the authorization rules there — *what the Case Actor
 does with a report*.
 
-!!! note "Informative: the sentinel pattern"
+!!! note "Informative: the Sentinel capability shape"
     A participant that monitors external sources (threat feeds, public
     disclosures, vulnerability databases) and reports what it finds into a case is
-    referred to as a **sentinel**. This is the anticipated mechanism for PXA
-    observations originating outside the case.
+    an instance of the **Sentinel** capability shape (§7.6).
 
-    The sentinel is currently a *design pattern* rather than a specified protocol
-    role: no spec group defines a sentinel's trust relationship to a case, and
-    nothing distinguishes a sentinel's observations from any other participant's.
-    Given that StatusAdoptionGate's default policy is to auto-adopt non-owner reports, an
-    unspecified external reporter is a trust-model question and not merely a
-    naming one. Treat this note as informative.
+    The Sentinel shape is defined as an optional, pluggable capability — not a
+    mandatory protocol role. No spec group yet defines a Sentinel's trust
+    relationship to a case, and nothing in the current protocol distinguishes a
+    Sentinel's observations from any other participant's report.
+    Given that StatusAdoptionGate's default policy is to auto-adopt non-owner
+    reports, an unspecified external reporter is a trust-model question, not
+    merely a naming one. See §7.6 and Open Questions item 16. Treat this note
+    as informative.
 
 - *Source: `specs/cs-behavior.yaml`; ADR-0047 (sentinel pattern);
   §6.5.1 for adoption authorization*
@@ -1251,6 +1366,61 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
 
 - *Source: `notes/behavioral-conformance-specs.md`;
   `specs/rm-behavior.yaml`, `specs/em-behavior.yaml`, `specs/cs-behavior.yaml`*
+
+### 7.6 Capability Shapes [I]
+
+Capability shapes define optional, pluggable capabilities that connect to
+call-out points in the behavior engine. They are orthogonal to the capability
+sets of §7.2: an Observer implementation may have zero capability shapes
+implemented, and a capability that fits a given shape does not require anything
+beyond what the host behavior engine provides.
+
+A capability shape defines a **contract** — what the call-out point accepts and
+what it returns. A concrete implementation that satisfies the contract is a
+Vultron-compatible capability of that shape.
+
+!!! note "Name change"
+    This concept was previously named "agent shape" or "coordination agent
+    taxonomy." The name was changed to "capability shape" because "agent" has
+    acquired strong connotations of LLM-based autonomous systems. The intent was
+    always to describe capability contracts, not autonomous agents specifically.
+    See ADR-0024 (original decision) and `docs/reference/vultron-taxonomy.md`.
+
+#### 7.6.1 The Five Capability Shapes
+
+| Shape | Contract: accepts | Contract: returns | Notes |
+|---|---|---|---|
+| **Sentinel** | A condition to monitor | SUCCESS/FAILURE, no side effects | Operates on the call-in surface; has no call-out point node. Used as a precondition guard. |
+| **Evaluator** | A situation and a set of options | A structured recommendation | Its result gates downstream execution. |
+| **Retriever** | A query | Structured facts from an external source | — |
+| **Composer** | Context | A new content artifact written to the blackboard | The discriminator vs. Actuator: if a content artifact lands on the blackboard, it is a Composer. |
+| **Actuator** | A trigger | SUCCESS when the side effect is confirmed; FAILURE otherwise | Invokes an external system for a side effect. Produces no content artifact. |
+
+!!! warning "Distinguishing Composer from Actuator"
+    Both shapes call external systems. The discriminator is whether a content
+    artifact is written to the blackboard. If the only output is a SUCCESS/FAILURE
+    confirming an external side effect, the shape is **Actuator**, not Composer.
+
+#### 7.6.2 Relationship to Conformance
+
+Capability shapes are not part of the Observer, Authority, or Hosting
+capability set requirements. An implementation at any capability set level
+may implement any number of capability shapes. A conformance claim need not
+state which shapes are implemented.
+
+Where a capability shape is implemented, it MUST satisfy the contract defined
+above. The technology used to fulfill the contract is not specified: a shape
+may be fulfilled by a human, an automated script, an LLM, or any other mechanism.
+
+#### 7.6.3 Relationship to the Reference Implementation
+
+In the Python reference implementation, a capability shape maps to a Port
+(abstract Protocol interface) and a concrete capability maps to an Adapter.
+This mapping is specific to the hexagonal architecture of the reference
+implementation. Other implementations are not required to use this structure.
+
+- *Source: ADR-0024 (original agent shape taxonomy); ADR-0025 (call-out point
+  abstraction); `docs/reference/vultron-taxonomy.md`; `notes/coordination-agents.md`*
 
 ---
 
@@ -1334,12 +1504,12 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
 1. **Namespace URI** — Is there a stable `vultron:` or `https://vultron.example/`
    namespace ready to cite?
 2. **Sync/replication** — Is the ledger replication protocol in scope for this
-   RFC, or a separate companion spec? The T2 obligation to replicate is stable
-   either way (§7.2); what may move is the detailed mechanics.
+   RFC, or a separate companion spec? The Hosting capability set obligation to
+   replicate is stable either way (§7.2); what may move is the detailed mechanics.
 3. ~~**ActivityPub vs. bare AS2**~~ — Resolved for this version. §4.1 states the
    current normative floor as AS2 vocabulary only, with an informative note that
-   a future version is expected to require full ActivityPub conformance at T1+.
-   Tracked in issue #2068.
+   a future version is expected to require full ActivityPub conformance for all
+   participants. Tracked in issue #2068.
 4. **Background material depth** — How much CVD domain background belongs here
    vs. a companion "CVD Concepts" document?
 5. **Finder removal ADR** — Decision to drop the Finder role needs an ADR before
@@ -1364,14 +1534,15 @@ canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
    Operational Rules v4.1.0 criteria inline. Should the RFC cite these as
    normative external requirements, or treat the eligibility checks as
    implementation-defined?
-10. ~~**Capability tier structure**~~ — Resolved (consolidates the former items
-    10–13). All five state machines (RM, EM, PEC, VFD, PXA) are required at T1;
-    the machines are not independent add-ons. T0 = consumer (parse only, not a
-    Participant); T1 = Participant (all machines, role-appropriate drive
-    obligations); T2 = Coordinator (Case Actor hosting, ledger replication, and
-    multi-party case management as one inseparable coordination-authority tier).
-    Tiers were renamed from `L{n}` to `T{n}` to avoid collision with the L1–L4
-    conformance *test layers* (§7.1, §7.5).
+10. ~~**Capability set structure**~~ — Resolved (consolidates the former items
+    10–13, and the T-tier model previously noted here). All five state machines
+    (RM, EM, PEC, VFD, PXA) are required at the Observer level; the machines are
+    not independent add-ons. Observer = participation floor (all machines,
+    role-appropriate drive obligations); Authority = Case Owner governance (status
+    adoption, EM authority, ownership transfer); Hosting = Case Manager
+    infrastructure (Case Actor, ledger, multi-party management). Authority and
+    Hosting are separable. Earlier drafts used `T0`/`T1`/`T2` labels, and before
+    that `L0`/`L1`/`L2`; both sets are superseded by named capability sets.
 11. ~~**Ledger-based status broadcast**~~ — Resolved. `Announce(CaseStatus)` does
     not exist: there is no such `MessageSemantics` value, and
     `Announce(CaseLedgerEntry)` is the only mechanism by which participants learn

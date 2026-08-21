@@ -429,8 +429,7 @@ class TestApplyPecTransition:
         """AC-5: illegal trigger raises VultronInvalidStateTransitionError.
 
         ACCEPT from SIGNATORY is not a valid PEC transition; it must raise
-        rather than silently returning the current state (old apply_pec_trigger
-        soft-fail behaviour was the bug).
+        rather than silently returning the current state.
         """
         from vultron.core.states.participant_embargo_consent import PEC_Trigger
         from vultron.errors import VultronInvalidStateTransitionError

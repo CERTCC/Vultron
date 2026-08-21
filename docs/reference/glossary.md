@@ -202,7 +202,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Capability implementation** | The factory backend fulfilling a **capability** at runtime; may be a Python function, a human workflow, a rules engine, or an LLM agent. The implementation choice is made at deployment time, not at design time. | Backend, factory backend |
 | **Sentinel** | A **capability shape** that monitors a condition over time; when the condition is met, calls a Vultron trigger endpoint. Operates on the call-in surface — it has no BT call-out point. | Guard agent, check agent |
 | **Evaluator** | A **capability shape** that receives a situation and returns a structured recommendation or decision (e.g., `ReviewAdvisoryDraft`); its output gates downstream BT execution | Decision agent, reviewer agent |
-| **Retriever** | A **capability shape** that receives a query and returns structured external facts (e.g., CVE ID lookup, SSVC scoring); also used for binary yes/no external queries | Fetch agent, lookup agent |
+| **Retriever** | A **capability shape** that receives a query and returns structured facts from an external source (e.g., CVE ID lookup, SSVC scoring); also used for binary yes/no external queries | Fetch agent, lookup agent |
 | **Composer** | A **capability shape** that receives context and generates a new content artifact (e.g., drafting advisory text); output is written to the blackboard | Generator agent, authoring agent |
 | **Actuator** | A **capability shape** that receives a trigger and invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise; produces no content artifact | Side-effect agent, executor |
 | **StatusAdoptionGate** | A BT authorization gate that determines whether a received **CaseStatus** update should be adopted by the receiving actor; guards the `add_participant_status_tree` path for received-side status canonicalization (ADR-0046). | Seam 1, StatusUpdateGuard |
@@ -427,7 +427,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 - A **Fuzzer Node** in the simulator is the placeholder form of a **Call-Out Point**.
 - A **Call-Out Point** is fulfilled in production by a **capability** of the appropriate **capability shape**.
-- A **Sentinel** monitors a condition and fires a trigger; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
+- A **Sentinel** monitors a condition and fires a trigger when the condition is met; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
 - An **Advisory Review Decision** is produced by a **Reviewer** (an Evaluator **capability**) and determines whether an **Advisory** draft requires revision before the BT submits it.
 
 **Status and Dimensions:**
@@ -524,7 +524,12 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
      - Misclassification risk: nodes that "do something" to an external system look like Composers if you only notice they dispatch outbound calls. The discriminator is whether a content artifact lands on the blackboard. If not, it is an **Actuator** capability shape.
      - **Recommendation**: Before classifying a node as Composer, verify it writes a content artifact to the blackboard. If the only output is a SUCCESS/FAILURE confirming an external side effect, it is an **Actuator** capability shape.
 
-18. **"Dimension Object" vs. "status field"**:
+18. **"Coordination Agent" vs. "Capability shape"**:
+     - A **Capability shape** is the current term for the abstract interface contract at a call-out point (Sentinel, Evaluator, Retriever, Composer, Actuator).
+     - **Coordination Agent** was the previous term. It is deprecated because "agent" has acquired connotations of LLM-based autonomous systems, which was not the original intent.
+     - **Recommendation**: Use "capability shape" in all new text. When reading older code or docs, treat "Coordination Agent" as a synonym for "capability shape."
+
+19. **"Dimension Object" vs. "status field"**:
      - A **Dimension Object** (per ADR-0036) is an immutable `BaseModel` containing the state of one machine; it is a first-class structured type, not a flat field.
      - "Status field" is informal language that may mean a flat scalar (`rmState: "ACCEPTED"`) or a **Dimension Object** (`rm: {"state": "ACCEPTED"}`); both appear in real ledger snapshots.
      - **Recommendation**: Say "**Dimension Object**" when referring to the structured sub-model; say "flat legacy field" when referring to the pre-ADR-0036 serialization. When extracting state from JSONL, probe both shapes (see 2026-07-22 learning on three nesting shapes).
@@ -625,22 +630,21 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 > **Developer:** "The BT has a `ReviewAdvisoryDraft` node — what actually runs there?"
 >
 > **Domain Expert:** "That's a **Call-Out Point**. In the simulator it's a **Fuzzer Node** that
-> returns SUCCESS or FAILURE probabilistically. In production you wire in an Evaluator
-> **capability** — that reviews the draft and records an **Advisory Review Decision**."
+> returns SUCCESS or FAILURE probabilistically. In production you wire in a **capability** —
+> an Evaluator **capability shape** — that reviews the draft and records an **Advisory Review Decision**."
 >
 > **Developer:** "What does the BT read from that decision? Just `needs_revision`?"
 >
 > **Domain Expert:** "Yes. If `needs_revision=True`, the pipeline routes to the revision arm before
 > submit. If you want to block outright without requesting edits — say, a legal hold — your
-> Evaluator returns `FAILURE` directly from `update()`. That's the universal BT blocking idiom
+> **Evaluator** returns `FAILURE` directly from `update()`. That's the universal BT blocking idiom
 > (BT-18-007)."
 >
 > **Developer:** "And if there's no human reviewer yet, we just leave the **Fuzzer Node** in place?"
 >
 > **Domain Expert:** "Right. The **Fuzzer Node** is the stub — it keeps the BT runnable without a
-> real capability wired in. When you're ready, you replace it with a Retriever capability that
-> fetches reviewer feedback, or an Evaluator backed by an LLM, or a Sentinel capability that
-> checks an external approval queue."
+> real capability of the required **Capability Shape**. When you're ready, you replace it with a **Retriever** that
+> fetches reviewer feedback from an external system, or an **Evaluator** backed by an LLM."
 
 ### Dimension Objects and Status Example
 
@@ -663,7 +667,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 ## Metadata
 
 - **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
-- **Last Updated:** 2026-08-18
+- **Last Updated:** 2026-08-21
 - **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, case actor federation, participant case replicas, trust bootstrap and delegation
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)

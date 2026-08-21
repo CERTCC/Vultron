@@ -714,15 +714,28 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   (recoverable) or `INFO`, not `ERROR`. `ERROR` is for conditions with no recovery
   path. Ask: is there a wired fallback that guarantees convergence? If yes,
   downgrade and name the recovery in the message. *Source: ISSUE-2169*
-- **`reload_config()` MUST Come After `monkeypatch.undo()`, Not Before** —
-  `vultron/config/app.py` holds a module-level `_config_cache`. `reload_config()`
-  re-reads the environment, but `monkeypatch` undoes env changes in fixture
-  teardown **after** its own fixture's body runs. Calling `reload_config()` in
-  the fixture teardown body re-caches the still-patched value; the undo then
-  runs too late. Result: a session-wide config leak that surfaces as flakiness
-  (test ordering matters). Fix: `monkeypatch.undo(); reload_config()`. The
-  autouse guard in `test/demo/conftest.py` contains this, but new demo fixtures
-  must follow the same order. *Source: ISSUE-2086*
+- **Prefer `config_override()` Over `monkeypatch` + `reload_config()` for Config Overrides** —
+  `vultron/config/app.py` exports a `config_override(**env_updates)` context manager that
+  atomically patches env vars, reloads the cache, yields the updated `AppConfig`, and restores
+  env and cache on exit — even on exception. Prefer it over the raw `monkeypatch.setenv()` +
+  `reload_config()` pattern, which is order-sensitive: calling `reload_config()` in fixture
+  teardown before `monkeypatch.undo()` re-caches stale values that leak into subsequent tests
+  as CI flakiness (`pytest-randomly`-dependent). When `config_override()` cannot be used
+  (e.g., session-scoped fixtures that hold `monkeypatch` open), the MUST-follow order is
+  `monkeypatch.undo()` first, then `reload_config()`. The autouse guard
+  `restore_case_actor_url_after_each_test` in `test/demo/conftest.py` detects function-scoped
+  leaks but is NOT a substitute for correct ordering in higher-scoped fixtures.
+  See [notes/configuration.md](notes/configuration.md) § "Testing Pattern". CFG-06-006,
+  CFG-06-007. *Source: ISSUE-2086, CONCERN-2323*
+- **`_TestClientRouter` WARNING for Unregistered Hosts Is a Bug Signal** —
+  `_TestClientRouter.emit` in `test/demo/conftest.py` drops deliveries when no client is
+  registered for the recipient's base URL. Drops to hosts in `_KNOWN_FICTIONAL_HOSTS`
+  (e.g. `vultron.example`) log at `DEBUG` — those are intentionally unreachable. Drops to
+  any *other* unregistered host (e.g. a `.test` host) log at `WARNING` — that is almost
+  always a config leak or fixture bug. A WARNING in the demo-test output means a `Create(
+  CaseProposal)` or similar activity was misaddressed; look for a stale-config leak upstream.
+  See [notes/configuration.md](notes/configuration.md) § "_TestClientRouter WARNING".
+  *Source: CONCERN-2323*
 - **`claim-issue.sh` Requires the Current Branch to Be Up to Date with `origin/main`** —
   the script checks that your branch is ancestor-or-equal to `origin/main`. If
   `main` has moved since you last synced, the check fails with a confusing error.
