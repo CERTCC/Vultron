@@ -10,11 +10,11 @@ deciders: [adh]
 
 Vultron's Behavior Trees contain **call-out points** — nodes where the
 protocol cannot proceed autonomously and must request input from an external
-party (see ADR-0024 for the taxonomy of agent shapes). After FUZZ-01 through
+party (see ADR-0024 for the taxonomy of capability shapes). After FUZZ-01 through
 FUZZ-07 (#860–#866), each call-out point has a probabilistic fuzzer node as
 its stand-in. The fuzzer is not a permanent implementation: it is an adapter
 that will be replaced over time by real data lookups, policy evaluations, or
-coordination agents.
+capability implementations.
 
 Before those replacements can happen, the call-out points must be expressed
 as proper injection seams: the BT tree must be built so that the fuzzer is
@@ -37,9 +37,9 @@ pattern, factory-function conventions, and blackboard contract model?**
   or a real implementation — downstream nodes must be unaffected by the swap
 - Must keep simulation artifacts (`vultron/demo/fuzzer/`) out of
   `vultron/core/behaviors/` (BT-16-001)
-- Must be compatible with the four agent shapes from ADR-0024 (Sentinel,
-  Evaluator, Retriever, Composer), each of which has different input/output
-  semantics
+- Must be compatible with the five capability shapes from ADR-0024 (Sentinel,
+  Evaluator, Retriever, Composer, Actuator), each of which has different
+  input/output semantics
 - Must support partial replacement: a scenario can use real implementations
   for some call-out points and fuzzer backends for others in the same run
 
@@ -95,8 +95,8 @@ The concrete form:
    (or a mapping of factories) as a parameter with the fuzzer factory as
    the default. This is the canonical swap mechanism.
 
-5. The four agent shapes (Evaluator, Retriever, Sentinel, Composer from
-   ADR-0024) each define a **lifecycle pattern** — how the node reads
+5. The five capability shapes (Evaluator, Retriever, Sentinel, Composer, Actuator
+   from ADR-0024) each define a **lifecycle pattern** — how the node reads
    input from the blackboard, dispatches to the backend, and writes output
    back. Concrete call-out point nodes subclass the appropriate shape base
    class and declare their specific I/O keys and types. The shape base
@@ -112,7 +112,7 @@ The concrete form:
 - Good, because fuzzer backends maintain the same blackboard contract as
   real backends, making swap transparent to downstream nodes
 - Good, because the shape base classes document the lifecycle pattern for
-  each agent shape, making the code self-explanatory
+  each capability shape, making the code self-explanatory
 - Neutral, because tree builders gain new parameters (one per call-out
   point or a single registry mapping); this is a small API surface increase
 - Bad/uncertain, because the exact factory signature (positional args,
@@ -169,7 +169,7 @@ The concrete form:
 
 ## Validation
 
-- #1151 implemented one exemplar per agent shape (PR closed).  The factory
+- #1151 implemented one exemplar per capability shape (PR closed).  The factory
   injection pattern, shape mixin classes, and blackboard contract approach
   proved sound across all five ADR-0024 shapes.  ADR status advanced from
   `proposed` to `accepted`.
@@ -290,13 +290,13 @@ design question tracked as a separate type:Idea issue.
 
 ## More Information
 
-- ADR-0024: Coordination Agent Taxonomy (call-out point concept and the four
-  agent shapes)
-- `notes/coordination-agents.md`: design notes for coordination agents
+- ADR-0024: Capability Shape Taxonomy (call-out point concept and the five
+  capability shapes; three-level taxonomy: shape / capability / capability implementation)
+- `notes/coordination-agents.md`: design notes for the capability shapes model
   including the two integration surfaces (call-in vs. call-out)
 - `notes/call-out-configuration.md`: bundle/mode design decisions (2026-07-23)
 - `notes/bt-fuzzer-nodes.md` and sub-files: per-node catalog with automation
-  potential ratings and agent-shape classifications (completed by #1150)
+  potential ratings and capability-shape classifications (completed by #1150)
 - Implementation chain: #1150 (catalog update) → #1151 (exemplars) →
   #1152 (demo scenario wiring) → FUZZ-08d–08g (shape rollout)
 

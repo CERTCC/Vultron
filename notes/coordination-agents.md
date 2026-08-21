@@ -1,10 +1,11 @@
 ---
-title: Coordination Agents Design Notes
+title: Capability Shapes Design Notes
 status: active
 description: >
-  Design guidance for coordination agents — external capabilities (human, skill, or
-  LLM agent) that answer Vultron call-out points. Covers the two-surface integration
-  model, agent type patterns, trust/execution authority, and composite agent design.
+  Design guidance for capability shapes — the five abstract interface contracts that
+  characterise how call-out points interact with the protocol. Covers the three-level
+  taxonomy (shape / capability / capability implementation), the two-surface integration
+  model, shape patterns, trust/execution authority, and composite capability design.
 related_notes:
   - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
@@ -17,16 +18,17 @@ relevant_packages:
   - vultron/core/behaviors
 ---
 
-# Coordination Agents Design Notes
+# Capability Shapes Design Notes
 
 Vultron's Behavior Trees contain **call-out points** — nodes where the protocol
 cannot determine the correct next action autonomously and must request external
-input before it can continue. Coordination agents are the capabilities that
-answer those call-out points.
+input before it can continue. The five **capability shapes** characterise the
+interface contracts that answer those call-out points.
 
-See `CONTEXT.md` § Coordination Agents for the canonical definitions of
-*call-out point*, *Sentinel*, *Evaluator*, *Retriever*, *Composer*, and *Actuator*.
-See ADR-0024 for the decisions behind that taxonomy.
+See `CONTEXT.md` § Capability Shapes for the canonical definitions of
+*call-out point*, *capability shape*, *Sentinel*, *Evaluator*, *Retriever*,
+*Composer*, and *Actuator*.
+See ADR-0024 for the decisions behind the taxonomy.
 
 ---
 
@@ -34,7 +36,7 @@ See ADR-0024 for the decisions behind that taxonomy.
 
 Vultron has two distinct surfaces where external capabilities connect to the
 protocol. Understanding which surface you are working with is the first step
-in any coordination agent design.
+in any capability shape design.
 
 ### Trigger endpoints (call-in surface)
 
@@ -76,7 +78,7 @@ called from the call-out surface.
 
 Every fuzzer node in `vultron/demo/fuzzer/` is a **known call-out point
 candidate**. Fuzzer nodes make randomized choices precisely because the real
-decision logic has not been identified or implemented. Each one represents
+capability logic has not been identified or implemented. Each one represents
 an open question: "What information should actually drive this choice?"
 
 ### Discovery methodology
@@ -85,7 +87,7 @@ For each fuzzer node, ask:
 
 1. What decision or fact is actually needed here?
 2. Is the answer deterministic given data already in the case (no external call)?
-   → ProtocolInternal (no coordination agent required)
+   → ProtocolInternal (no capability needed)
 3. Does it require data from an external system (including binary queries)?
    → **Retriever** call-out point
 4. Does it require judgment/evaluation? → **Evaluator** call-out point
@@ -99,13 +101,13 @@ For each fuzzer node, ask:
 The fuzzer node's `Input category` docstring annotation
 (`Human decision`, `Environmental check`, `System integration`, etc.) and
 `Automation potential` rating (`High` / `Medium` / `Low`) give a starting
-assessment. `High` automation potential with `Environmental check` = no agent
-needed. `Low` automation potential with `Human decision` = Evaluator (or
-human) call-out point.
+assessment. `High` automation potential with `Environmental check` = no
+capability needed. `Low` automation potential with `Human decision` = Evaluator
+(or human) call-out point.
 
 ---
 
-## Agent Type Integration Patterns
+## Capability Shape Integration Patterns
 
 ### Sentinel
 
@@ -196,9 +198,9 @@ integration hooks when protocol state transitions occur.
 ## Trust / Execution Authority
 
 Whether an Evaluator's recommendation is immediately acted on (auto-execute)
-or presented for human confirmation (advisory mode) is **orthogonal to agent
-type**. The same Evaluator implementation can run in either mode depending on
-deployment configuration.
+or presented for human confirmation (advisory mode) is **orthogonal to
+capability shape**. The same Evaluator implementation can run in either mode
+depending on deployment configuration.
 
 This means the BT call-out point should be designed to handle both modes:
 
@@ -216,10 +218,10 @@ recommendation accepted as-is / overridden) enables this trust-building.
 
 ---
 
-## Composite Agent Pattern
+## Composite Capability Pattern
 
-Some coordination tasks require more than one agent type. The worked example
-from the session design is **Participant Discovery** (issue #1142):
+Some coordination tasks require more than one capability shape. The worked
+example from the session design is **Participant Discovery** (issue #1142):
 
 1. **Retriever** phase — search CPE data, supply chain graphs, product
    documentation, web sources, and GitHub for indicators that a vendor or
@@ -230,14 +232,15 @@ from the session design is **Participant Discovery** (issue #1142):
    for similar past cases so future cases can bootstrap from prior experience.
    Bias toward overnotification; adds are more important than deletes.
 
-A composite agent coordinates these steps internally. Its external interface
-remains a single call-out point: input is case context, output is a
+A composite capability coordinates these steps internally. Its external
+interface remains a single call-out point: input is case context, output is a
 recommended participant set. The internal Retriever + Evaluator structure is
 an implementation detail.
 
 This pattern — a bounded, single-purpose workflow that composes two or more
-agent types — is the appropriate scope for a coordination agent. It is NOT
-the same as an "uber-agent" that manages an entire case.
+capability shapes — is the appropriate scope for a composite capability. It is
+NOT the same as an autonomous Actor that manages an entire case (see the
+Agentic Participants epic, #2450).
 
 ---
 
@@ -288,7 +291,7 @@ Blackboard contract requirements are specified in
 
 ### Shape base classes
 
-Each of the five agent shapes (Evaluator, Retriever, Sentinel, Composer, Actuator)
+Each of the five capability shapes (Evaluator, Retriever, Sentinel, Composer, Actuator)
 defines a **lifecycle pattern** for how the node reads input, dispatches, and
 writes output. Concrete call-out point nodes subclass the appropriate shape
 base class. The shape base class is NOT a generic reusable class; it
@@ -316,7 +319,7 @@ four shapes that appear at call-out points.
 
 ```text
 #1150 — Update catalog: add cross-refs (vultron/bt/ → demo/fuzzer/) +
-         agent-shape classification per node [DONE]
+         capability-shape classification per node [DONE]
 
 #1151 — Design exemplar: one call-out point per shape [DONE]
          Delivered:

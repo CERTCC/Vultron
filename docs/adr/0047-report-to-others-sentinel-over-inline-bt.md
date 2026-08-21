@@ -24,7 +24,7 @@ STOCHASTIC fuzzer stub provides.
 
 The design question is: **should party discovery and invitation be an inline
 tick-driven BT subtree, or should it be driven by an external Sentinel
-coordination agent?**
+capability?**
 
 ## Decision Drivers
 
@@ -35,7 +35,7 @@ coordination agent?**
   lookups or LLM evaluation is an inherently external, latency-variable
   operation — poorly suited to a tick-driven inline BT that must return
   quickly
-- The Sentinel coordination agent pattern (ADR-0024, issue #1143) explicitly
+- The Sentinel capability shape pattern (ADR-0024, issue #1143) explicitly
   covers "monitors a condition; when met, calls a trigger endpoint"; this is
   exactly the party-discovery model
 - The existing `create_report_to_others_tree` module (from #1311) has no
@@ -48,7 +48,7 @@ coordination agent?**
    Retriever implementations (CPE/NVD lookups) for `IdentifyX` factories so
    the loop executes against real data on every tick
 2. **External Sentinel** — replace the inline loop entirely; a Sentinel
-   coordination agent that runs periodically or event-triggered, inspects
+   capability that runs periodically or event-triggered, inspects
    the case, and calls `suggest-actor-to-case` for each uninvited candidate
 3. **Hybrid** — inline BT provides a single-pass Retriever seam (one
    call-out that returns all candidates at once); Sentinel calls this subtree;
@@ -57,7 +57,7 @@ coordination agent?**
 ## Decision Outcome
 
 Chosen option: **Option 2 — External Sentinel**, because it matches the
-coordination agent taxonomy (ADR-0024), avoids coupling external I/O latency
+capability shape taxonomy (ADR-0024), avoids coupling external I/O latency
 into the BT tick loop, and the downstream trigger cascade already handles the
 rest. No inline BT loop is needed.
 
@@ -67,7 +67,7 @@ removal (see `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession note").
 
 ### Consequences
 
-- Good, because party discovery becomes a proper coordination agent — observable,
+- Good, because party discovery becomes a proper Sentinel capability — observable,
   auditable, and independently replaceable without changing the BT tree structure
 - Good, because the downstream suggest-actor-to-case cascade already works; no
   new BT machinery is required
@@ -81,11 +81,11 @@ removal (see `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession note").
 
 ## More Information
 
-- ADR-0024: Coordination Agent Taxonomy (Sentinel pattern)
+- ADR-0024: Capability Shape Taxonomy (Sentinel pattern)
 - ADR-0026: CaseActor-Routed Actor Suggestion and Invitation Flow
 - ADR-0029: Notification Loop Collapse (Production Collapse 3)
-- Issue #1143: Sentinel coordination agent design (open)
-- Issue #1147: Coordination Agents epic
+- Issue #1143: Sentinel capability shape design (open)
+- Issue #1147: Capability Shapes epic
 - Issue #1252: Idea planning session that surfaced this decision (closed)
 - `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession note"
 

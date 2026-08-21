@@ -132,7 +132,7 @@ type. No vocabulary change is needed.
 
 ### Close Readiness Monitoring (future — epic #1147 / #1143)
 
-When a future Sentinel coordination agent is implemented, the intended pattern
+When a future Sentinel capability is implemented, the intended pattern
 is:
 
 1. A Sentinel observes protocol state for objective preconditions (e.g.,
@@ -149,8 +149,8 @@ The Sentinel fires into `OtherCloseCriteriaMet` seam in
 `create_close_report_tree`; the Case Owner's subsequent `Leave` flows through
 `create_close_case_trigger_tree` as usual.
 
-Track under epic #1147 (Coordination Agents), linked to #1143 (Sentinel
-agent type).
+Track under epic #1147 (Capability Shapes), linked to #1143 (Sentinel
+capability shape).
 
 ---
 
