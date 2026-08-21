@@ -15,11 +15,8 @@
 
 """Wire-layer vocabulary registration for :class:`PendingCreateCaseActivity`."""
 
-from vultron.core.models.pending_create_case_activity import (
+from vultron.core.models.pending_create_case_activity import (  # noqa: F401
     PendingCreateCaseActivity,
 )
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
-
-VOCABULARY["PendingCreateCaseActivity"] = PendingCreateCaseActivity
 
 __all__ = ["PendingCreateCaseActivity"]

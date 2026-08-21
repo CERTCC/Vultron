@@ -268,7 +268,7 @@ argument that does not survive being weighed against CM-01-001.
 Generated spec requirements: `specs/datalayer.yaml` DL-07-001 through DL-07-008
 (per-actor store isolation); `specs/behavior-tree-integration.yaml` BT-05-005 (a
 BT's store is its executing actor's) and BT-05-006 (role holder, receiving actor
-and store owner are one actor); `specs/em-behavior.yaml` EMB-18 (the teardown
+and store owner are one actor); `specs/em-behavior.yaml` EMB-19 (the teardown
 announcement's author and recipients, unspecified until this change exposed the
 gap).
 

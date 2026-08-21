@@ -94,7 +94,7 @@ def test_file_backed_store_and_retrieve(file_dl):
 #
 # There is no ``record_outbox_item`` counterpart.  Its distinguishing behaviour
 # was firing the callback for an actor *other* than the DataLayer's own, which
-# ADR-0066 removes: the queue is in the owning actor's store, so the only actor
+# ADR-0069 removes: the queue is in the owning actor's store, so the only actor
 # an append can notify is that store's.  Two tests that had been mechanically
 # rewritten to call ``outbox_append`` were left here asserting the old explicit
 # actor, and once corrected were exact duplicates of the two above.

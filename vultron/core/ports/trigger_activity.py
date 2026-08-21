@@ -481,64 +481,42 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
-    def offer_case_manager_role(
-        self,
-        case_id: str,
-        participant_id: str,
-        actor: str,
-        to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Offer(VulnerabilityCase, target=CaseParticipant)``
-        CASE_MANAGER delegation activity.
-
-        ``participant_id`` must refer to an existing ``CaseParticipant`` with
-        ``CASE_MANAGER`` role (the Case Actor participant).
-
-        Returns ``(activity_id, activity_dict)``.
-
-        .. deprecated::
-            Use :meth:`offer_case_participant_role` for the canonical
-            ``Offer(CaseParticipantRole, ...)`` wire format (ADR-0039).
-        """
-        ...
-
-    def accept_case_manager_role(
+    def accept_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
+        """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
         Ephemerally reconstructs the original Offer (using ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id``) before building
-        the Accept so that ``Accept.object_`` is a typed
-        ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
+        ``case_id``, ``role``, ``target_actor_id``, and ``vendor_id``)
+        before building the Accept so that ``Accept.object_`` is a typed
+        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
 
-        Returns ``(activity_id, activity_dict)`` where ``activity_dict`` is
-        the full inline serialization of the Accept (with nested Offer
-        inlined), suitable for use as a canonical payload snapshot.
+        Returns ``(activity_id, activity_dict)``.
         """
         ...
 
-    def reject_case_manager_role(
+    def reject_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+        """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
-        Ephemerally reconstructs the original Offer (using ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id``) before building
-        the Reject so that ``Reject.object_`` is a typed
-        ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
+        Ephemerally reconstructs the original Offer before building the
+        Reject so that ``Reject.object_`` is a typed
+        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
 
         Returns the activity ID.
         """

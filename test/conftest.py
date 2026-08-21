@@ -47,7 +47,7 @@ from vultron.metadata.specs import (  # noqa: E402
 
 #: The actor a test uses when it does not model actor identity at all.
 #:
-#: Every DataLayer belongs to exactly one actor (ADR-0066), so a test that only
+#: Every DataLayer belongs to exactly one actor (ADR-0069), so a test that only
 #: needs "somewhere to put objects" still has to name whose store that is. This
 #: is that name. It is deliberately one shared constant rather than a per-file
 #: literal so the set of tests that don't distinguish actors stays greppable.
@@ -142,7 +142,7 @@ def cleanup_test_datalayer():
 
 @pytest.fixture(autouse=True)
 def _dispose_actor_stores_between_tests():
-    """Drop every per-actor store after each test (ADR-0066).
+    """Drop every per-actor store after each test (ADR-0069).
 
     In-memory stores are **named** — ``actor_db_url`` maps an actor to
     ``sqlite:///file:{base}-{slug}?mode=memory&cache=shared&uri=true`` — so the

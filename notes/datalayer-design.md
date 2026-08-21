@@ -240,8 +240,9 @@ core-shaped case.
 `_NORMALIZE_WIRE_TO_CORE` enumerates the migrated types. It is the write-side
 analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
 **grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). The
-remaining 13 shadowing types differ only by key spelling today and are tracked
-in #2268; five of them (the actor types) have no `to_core()` at all yet.
+remaining 5 shadowing types are all actor types (`VultronApplication`,
+`VultronGroup`, `VultronOrganization`, `VultronPerson`, `VultronService`);
+none has a `to_core()` projection yet — tracked in #2268.
 
 **`StorableRecord` inputs to `create()` and `update()` are also normalised.**
 `crud.create()` and `crud.update()` receive `StorableRecord` from core BT nodes
@@ -316,8 +317,9 @@ activity into the API response; the factory already built the object):
 - `vultron/core/use_cases/triggers/report.py` — `_handle_result` in
   `SvcValidateReportUseCase`, `SvcInvalidateReportUseCase`, `SvcRejectReportUseCase`,
   `SvcCloseReportUseCase` (4 sites).
-- `vultron/core/behaviors/case/nodes/delegation.py:160` — re-reads the
-  just-created `Offer(CaseManagerRole)`.
+- ~~`vultron/core/behaviors/case/nodes/delegation.py`~~ — `CreateOfferCaseManagerActivityNode`
+  re-read the just-created `Offer(CaseManagerRole)`. Deleted in issue #2429 when
+  `OFFER_CASE_MANAGER_ROLE` infrastructure was removed (ADR-0039).
 - *Fix*: `TriggerActivityPort` returns `(activity_id, activity_dict)`; delete the
   re-reads. Not even a semantic read.
 
@@ -421,7 +423,7 @@ Files to investigate:
 
 ## RETIRED: `outbox_list()` Requires `clone_for_actor` in Tests
 
-(ISSUE-1298, 2026-07-10; retired by ADR-0066 / ISSUE-2238, 2026-08-20)
+(ISSUE-1298, 2026-07-10; retired by ADR-0069 / ISSUE-2238, 2026-08-20)
 
 This pitfall no longer exists. It described a writer and a reader disagreeing
 about which `actor_id` string keyed a queue row — `record_outbox_item(actor_id,
@@ -471,7 +473,7 @@ the case where only one of the two required activities was emitted.
 
 ## RETIRED: Dual-DataLayer Isolation Guard in Tests
 
-(ISSUE-1749, 2026-08-08; retired by ADR-0066 / ISSUE-2238, 2026-08-20)
+(ISSUE-1749, 2026-08-08; retired by ADR-0069 / ISSUE-2238, 2026-08-20)
 
 This pattern no longer has anything to guard. It asserted that a BT node had not
 written to the process-global *unscoped* singleton instead of the injected

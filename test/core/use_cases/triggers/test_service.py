@@ -176,7 +176,7 @@ def received_report(dl, actor, report):
 
 @pytest.fixture
 def accepted_report(dl, report, actor):
-    """Seed the report as ready for close: actor holds CASE_OWNER in linked case."""
+    """Seed the report as ready for close: actor holds CASE_OWNER and RM.ACCEPTED."""
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_participant import CaseParticipant
 
@@ -189,6 +189,37 @@ def accepted_report(dl, report, actor):
     case_obj.actor_participant_index[actor.id_] = owner_p.id_
     dl.create(owner_p)
     _add_case_manager(case_obj, dl)
+    # Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001).
+    accepted_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.ACCEPTED),
+    )
+    dl.create(accepted_status)
+    return report
+
+
+@pytest.fixture
+def rejected_report(dl, report, actor):
+    """Seed the report at RM.INVALID — valid predecessor for INVALID→CLOSED."""
+    from vultron.core.models.case import VulnerabilityCase
+
+    case_obj = VulnerabilityCase(
+        id_=f"{actor.id_}/cases/test-case-reject",
+        name="Test Case for Reject",
+        attributed_to=actor.id_,
+        vulnerability_reports=[report.id_],
+    )
+    dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
+    invalid_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    dl.create(invalid_status)
     return report
 
 
@@ -430,7 +461,7 @@ def test_invalidate_report_trigger_non_report_offer_raises_404(
 
 
 def test_reject_report_trigger_returns_activity_dict(
-    dl, actor, offer, received_report
+    dl, actor, offer, rejected_report
 ):
     """reject_report_trigger returns dict with non-None 'activity'."""
     result = TriggerService(
@@ -457,7 +488,7 @@ def test_reject_report_trigger_unknown_offer_raises_404(dl, actor):
 
 
 def test_reject_report_trigger_adds_activity_to_outbox(
-    dl, actor, offer, received_report
+    dl, actor, offer, rejected_report
 ):
     """reject_report_trigger adds a new activity to the actor's outbox."""
     before = set(dl.outbox_list())

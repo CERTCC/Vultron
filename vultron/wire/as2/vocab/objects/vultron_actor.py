@@ -14,15 +14,30 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Annotated, Any, Literal, TypeAlias, Union
+from typing import Annotated, Any, Literal, Type, TypeAlias, Union
 
 from pydantic import Field
 
-from vultron.core.models.actor import CoreActor
+from vultron.core.models.actor import (
+    CoreActor,
+    VultronApplication,
+    VultronGroup,
+    VultronOrganization,
+    VultronPerson,
+    VultronService,
+)
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
+
+_WIRE_ACTOR_TO_CORE: dict[str, Type[CoreActor]] = {
+    as_ActorType.PERSON: VultronPerson,
+    as_ActorType.ORGANIZATION: VultronOrganization,
+    as_ActorType.SERVICE: VultronService,
+    as_ActorType.APPLICATION: VultronApplication,
+    as_ActorType.GROUP: VultronGroup,
+}
 
 
 class VultronActorMixin(as_Actor):
@@ -32,6 +47,17 @@ class VultronActorMixin(as_Actor):
         default=None,
         description="The actor's stated embargo preferences.",
     )
+
+    def to_core(self) -> CoreActor:
+        type_str = self.type_
+        core_cls = (
+            _WIRE_ACTOR_TO_CORE.get(type_str) if type_str is not None else None
+        )
+        if core_cls is None:
+            raise ValueError(
+                f"No core actor type for wire type {self.type_!r}"
+            )
+        return core_cls.model_validate(self.model_dump(mode="json"))
 
 
 class as_VultronPerson(VultronActorMixin):
@@ -74,8 +100,6 @@ class as_VultronGroup(VultronActorMixin):
     )
 
 
-VOCABULARY["Actor"] = CoreActor
-VOCABULARY["CoreActor"] = CoreActor
 VOCABULARY["Person"] = as_VultronPerson
 VOCABULARY["Organization"] = as_VultronOrganization
 VOCABULARY["Service"] = as_VultronService

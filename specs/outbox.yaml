@@ -127,7 +127,7 @@ groups:
     statement: The `object_` field of outbound activities MUST NOT be dehydrated
     relationships:
     - rel_type: depends_on
-      spec_id: MV-09-001
+      spec_id: AKM-03-001
 - id: OX-08
   title: Outbox Addressing
   specs:
@@ -322,22 +322,63 @@ groups:
     kind: project
     statement: >-
       All inter-actor activity delivery MUST occur over the REST inbox/outbox HTTP API
-      (HTTP POST to {actor}/inbox/). Delivery to a co-located actor MUST use the same
-      HTTP path as delivery to a remote actor; there MUST NOT be an in-process delivery
-      shortcut that bypasses HTTP for same-server recipients.
+      (HTTP POST to {actor}/inbox/).
     relationships:
     - rel_type: supersedes
       spec_id: ARCH-17-001
-  - id: OX-12-002
+  - id: OX-12-005
     priority: MUST
     kind: project
     statement: >-
-      The default production ActivityEmitter MUST be the HTTP delivery adapter. The
-      ASGIEmitter in-process delivery adapter MUST NOT be wired as the default emitter
-      and MUST be removed from the codebase.
+      Delivery to a co-located actor MUST use the same HTTP path as delivery to a
+      remote actor.
+    rationale: >-
+      Uniform delivery exposes inter-actor delivery bugs that in-process shortcuts
+      would mask, giving accurate confidence in demos and production. See ADR-0042.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-12-001
+  - id: OX-12-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      There MUST NOT be an in-process delivery shortcut that bypasses HTTP for
+      same-server recipients.
+    rationale: >-
+      An in-process shortcut makes co-located delivery behave differently from
+      remote delivery, masking bugs and giving false confidence. See ADR-0042.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-12-001
+  - id: OX-12-002
+    priority: MUST
+    kind: project
+    statement: The default production ActivityEmitter MUST be the HTTP delivery adapter.
     relationships:
     - rel_type: supersedes
       spec_id: ARCH-17-002
+  - id: OX-12-007
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The ASGIEmitter in-process delivery adapter MUST NOT be wired as the default
+      emitter.
+    rationale: >-
+      Wiring ASGIEmitter as default restores the in-process shortcut prohibited by
+      OX-12-001 and masks inter-actor delivery bugs. See ADR-0042.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-12-002
+  - id: OX-12-008
+    priority: MUST
+    kind: project
+    statement: The ASGIEmitter in-process delivery adapter MUST be removed from the codebase.
+    rationale: >-
+      Retaining dead code invites accidental re-use and contradicts the ADR-0042
+      decision to retire the in-process delivery path entirely.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-12-002
   - id: OX-12-003
     priority: MUST
     kind: project
@@ -377,10 +418,46 @@ groups:
   - id: OX-13-002
     priority: MUST
     kind: project
+    statement: The maximum total delivery attempts MUST be configurable.
+    adr:
+    - ADR-0066
+  - id: OX-13-007
+    priority: MUST
+    kind: project
+    statement: The maximum total delivery attempts MUST have a documented default value.
+    rationale: >-
+      A documented default makes the system's reliability envelope observable and
+      predictable without requiring explicit per-deployment configuration.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-13-002
+    adr:
+    - ADR-0066
+  - id: OX-13-008
+    priority: MUST
+    kind: project
     statement: >-
-      The maximum total delivery attempts MUST be configurable and MUST have a documented
-      default value. When an activity exhausts its total attempt budget, it MUST be moved
-      to a dead-letter store and MUST NOT be requeued.
+      When an activity exhausts its total attempt budget, it MUST be moved to a
+      dead-letter store.
+    rationale: >-
+      Moving exhausted activities to a dead-letter store preserves them for operator
+      inspection and provides an observable signal for the terminal failure state.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-13-002
+    adr:
+    - ADR-0066
+  - id: OX-13-009
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      When an activity exhausts its total attempt budget, it MUST NOT be requeued.
+    rationale: >-
+      Requeuing an exhausted activity restarts the attempt counter, defeating the
+      total-attempt bound and allowing indefinite retries.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-13-002
     adr:
     - ADR-0066
   - id: OX-13-003
@@ -417,17 +494,40 @@ groups:
     adr:
     - ADR-0066
   - id: OX-13-006
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
       A single failing activity in an actor's outbox MUST NOT abort delivery of other
-      activities in the same drain pass. Each activity's per-pass error count MUST be
-      tracked independently; hitting the per-pass cap for one activity MUST skip that
-      activity for the current pass (deferring it to the next drain) without breaking
-      the drain loop.
+      activities in the same drain pass.
     rationale: >-
       The previous err_count was a single function-local variable reset per-pass, so a
       single bad activity could exhaust the cap before healthy activities were reached,
       delaying ledger-entry delivery past scenario timeouts. See CONCERN-2302 §6/§7.
+    adr:
+    - ADR-0066
+  - id: OX-13-010
+    priority: MUST
+    kind: project
+    statement: Each activity's per-pass error count MUST be tracked independently.
+    rationale: >-
+      Independent per-activity tracking prevents a single bad activity from consuming
+      the shared cap and blocking delivery of healthy activities in the same pass.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-13-006
+    adr:
+    - ADR-0066
+  - id: OX-13-011
+    priority: MUST
+    kind: project
+    statement: >-
+      Hitting the per-pass cap for one activity MUST skip that activity for the current
+      pass (deferring it to the next drain) without breaking the drain loop.
+    rationale: >-
+      Skipping rather than aborting keeps the drain loop running so that subsequent
+      activities in the same pass are delivered on schedule.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-13-006
     adr:
     - ADR-0066

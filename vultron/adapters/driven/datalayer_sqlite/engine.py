@@ -87,9 +87,9 @@ def actor_slug(actor_id: str) -> str:
     reversible: given the node's configured base URL, ``slug`` maps back to
     ``{base_url}actors/{slug}``.  That reversibility is what lets the node
     enumerate the actors it hosts from the set of per-actor database files
-    without a separate registry (ADR-0066).
+    without a separate registry (ADR-0069).
 
-    Two actors hosted by one node cannot share a slug, because under ADR-0066
+    Two actors hosted by one node cannot share a slug, because under ADR-0069
     the URL path segment *is* the actor's identity within that node — same
     segment means same actor.
 
@@ -123,7 +123,7 @@ def actor_slug(actor_id: str) -> str:
 def actor_db_url(db_url: str, actor_id: str) -> str:
     """Return the per-actor database URL derived from *db_url*.
 
-    Under ADR-0066 every actor gets its own store, so the configured
+    Under ADR-0069 every actor gets its own store, so the configured
     ``db_url`` is a **template** rather than a location:
 
     - ``sqlite:////app/data/mydb.sqlite`` becomes

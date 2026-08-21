@@ -40,7 +40,7 @@ from vultron.wire.as2.factories import (
 #:
 #: A received-side use case applies an inbound update to the *receiver's* own
 #: replica, and the tree executes under the receiving actor (BT-17-005), which
-#: under ADR-0066 also selects the store. So this names both the store's owner
+#: under ADR-0069 also selects the store. So this names both the store's owner
 #: and the ``receiving_actor_id`` on every event below. The sender stays a
 #: separate identity — the owner-gating tests depend on that distinction.
 RECEIVER_ID = "https://example.org/actors/update-receiver"
@@ -206,7 +206,10 @@ class TestCaseUseCases:
         )
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
-        embargo = as_EmbargoEvent(id_="https://example.org/embargoes/em1")
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/embargoes/em1",
+            context="https://example.org/cases/uc4",
+        )
         dl.create(embargo)
 
         participant = as_CaseParticipant(
@@ -252,7 +255,10 @@ class TestCaseUseCases:
         )
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/bob"
-        embargo = as_EmbargoEvent(id_="https://example.org/embargoes/em2")
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/embargoes/em2",
+            context="https://example.org/cases/uc5",
+        )
         dl.create(embargo)
 
         participant = as_CaseParticipant(
@@ -337,7 +343,10 @@ class TestCaseUseCases:
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/uc6b"
-        embargo = as_EmbargoEvent(id_="https://example.org/embargoes/em6b")
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/embargoes/em6b",
+            context=case_id,
+        )
         dl.create(embargo)
 
         bogus_ref = VultronActivity(
@@ -430,7 +439,7 @@ class TestCaseUseCases:
 
         # The announce is authored by the actor holding CASE_MANAGER — the
         # receiver — and queued in that same actor's store, so both halves of the
-        # emit are readable through the one DataLayer (ADR-0066).
+        # emit are readable through the one DataLayer (ADR-0069).
         queued_ids = dl.outbox_list()
         assert len(queued_ids) == 1
 

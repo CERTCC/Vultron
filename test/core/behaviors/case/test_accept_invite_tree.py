@@ -62,9 +62,9 @@ class TestSignEmbargoConsentLeafNode:
     ) -> None:
         """Regression: invitee starting at NO_EMBARGO must reach SIGNATORY.
 
-        Before the ADR-0048 fix, apply_pec_trigger(NO_EMBARGO, ACCEPT)
-        returned NO_EMBARGO unchanged and the node logged success while
-        leaving consent unrecorded — CM-10-001 violated.
+        Before the ADR-0048 fix the consent write was fail-open, returning
+        NO_EMBARGO unchanged while the node logged success — CM-10-001
+        violated.
         """
         status, participant = _run_sign_node(
             bt_scenario, starting_pec=PEC.NO_EMBARGO
@@ -97,11 +97,9 @@ class TestSignEmbargoConsentLeafNode:
     ) -> None:
         """Participant already SIGNATORY: ACCEPT is an illegal trigger → FAILURE.
 
-        With the fail-closed apply_pec_transition(), ACCEPT from SIGNATORY
-        raises VultronInvalidStateTransitionError; the BTBridge catches it and
+        apply_pec_transition() is fail-closed: ACCEPT from SIGNATORY raises
+        VultronInvalidStateTransitionError; the BTBridge catches it and
         returns FAILURE with the error in feedback_message (AC-5, CM-18-005).
-        The old soft-fail apply_pec_trigger() silently returned the state
-        unchanged — that silent no-op is the bug this test pins down.
         """
         node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
         participant = CaseParticipant(

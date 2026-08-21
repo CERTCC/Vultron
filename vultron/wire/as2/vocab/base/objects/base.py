@@ -15,7 +15,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime, timedelta
-from typing import Any, TypeAlias, cast
+from typing import Any, ClassVar, TypeAlias, cast
 
 import isodate  # type: ignore[import-untyped]
 from pydantic import ConfigDict, field_serializer, field_validator, Field
@@ -41,6 +41,11 @@ class as_Object(as_Base, VultronObject):
     # carries ValidatedAssignmentMixin, so without this override the flag
     # propagates here via the cross-branch MRO.
     model_config = ConfigDict(validate_assignment=False)
+
+    # Wire-branch types must NOT self-register in CORE_TYPE_MAP (issue #2416).
+    # Setting False here propagates to all as_Object subclasses via inheritance,
+    # so VultronObject.__init_subclass__ skips them entirely.
+    _is_core_branch: ClassVar[bool] = False
 
     replies: Any | None = None
     url: Any | None = None

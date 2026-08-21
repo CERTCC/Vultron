@@ -856,9 +856,8 @@ def test_record_participant_consent_illegal_trigger_raises(
 ) -> None:
     """AC-5: illegal trigger raises VultronInvalidStateTransitionError.
 
-    ACCEPT from SIGNATORY is not a valid PEC transition. The old
-    apply_pec_trigger() soft-fail silently returned state unchanged; the
-    new fail-closed apply_pec_transition() raises — this test pins that
+    ACCEPT from SIGNATORY is not a valid PEC transition.
+    apply_pec_transition() is fail-closed and raises; this test pins that
     behavior and confirms record_participant_consent propagates it.
     """
     owner, dl = owner_and_dl

@@ -6,11 +6,11 @@
 #
 # Triggers:
 #   pull_request  — minimum PR validation set (4 scenarios, DEMOCI-06-002);
-#                   targets both `main` and `fix/demo-ci` integration branches
-#   push to main/fix/demo-ci — full 9-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
+#                   targets `main`
+#   push to main — full 9-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
 #   workflow_dispatch — full 9-scenario suite; accepts optional `ref` input
-#                       so the suite can be run against any branch (e.g.
-#                       `fix/demo-ci`) without opening a PR to `main`
+#                       so the suite can be run against any branch without
+#                       opening a PR to `main`
 #
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
@@ -63,8 +63,7 @@ name: Demo Integration
 
 on:
   pull_request:
-    # fix/demo-ci: temporary integration branch — remove when merged (#2144).
-    branches: ["main", "fix/demo-ci"]
+    branches: ["main"]
     paths:
       - "vultron/**"
       - "!vultron/metadata/**"
@@ -82,8 +81,7 @@ on:
       # The scenario matrix itself gates which demos run.
       - ".github/demo-scenarios.json"
   push:
-    # fix/demo-ci: temporary integration branch — remove when merged (#2144).
-    branches: ["main", "fix/demo-ci"]
+    branches: ["main"]
     paths:
       - "vultron/**"
       - "!vultron/metadata/**"
@@ -103,8 +101,7 @@ on:
         description: >-
           Branch, tag, or SHA to check out and run the full demo suite against.
           Defaults to the branch the workflow is dispatched from. Use this to
-          manually validate an integration branch (e.g. fix/demo-ci) before
-          merging it to main.
+          manually validate an integration branch before merging it to main.
         required: false
         default: ""
 
@@ -262,6 +259,9 @@ jobs:
       needs.scenarios.result == 'success'
     strategy:
       fail-fast: false
+      # Intentionally identical to the `demo` job matrix: both jobs must fan
+      # out over the same scenario set.  GitHub Actions does not support YAML
+      # anchors, so the `include:` stanza cannot be deduplicated further.
       matrix:
         include: ${{ fromJSON(needs.scenarios.outputs.matrix) }}
 

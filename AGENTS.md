@@ -338,6 +338,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Inline `EMAdapter` Instantiation Is an Anti-Pattern** — delegate to
   `EmbargoLifecycle` (#538); cascade PEC alongside EM transitions.
   See [notes/embargo-lifecycle.md](notes/embargo-lifecycle.md).
+- **BT Write Nodes Must Validate Transitions at Their Own Boundary** —
+  A BT node that writes CS/VFD/PXA/EM/RM state MUST call the relevant
+  `is_valid_*_transition()` function inside the write node itself, not only
+  in upstream guard or condition nodes. Upstream guards can be absent or
+  bypassed when the write node is reused in a new tree. For VFD writes see
+  CSB-16-001; for PXA writes see CSB-16-002 and SM-09-001; for EM writes
+  route through `EmbargoLifecycle` (EMB-18-001).
+  See [notes/embargo-lifecycle.md](notes/embargo-lifecycle.md). Source: CONCERN-2412.
 - **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — all RM/EM
   transitions are protocol-significant (BT-15-001) and MUST live in BT leaf nodes.
   See [notes/bt-integration.md](notes/bt-integration.md) § "Trigger/Received Parity".
@@ -479,13 +487,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
-- **`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` Share
-  `Offer(VulnerabilityCase)` — Registry Order and Required `target` Field Are
-  the Current Guards** — `OFFER_CASE_MANAGER_ROLE` MUST appear before
-  `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
-  `_validate_registry_order()`). `_OfferCaseManagerRoleActivity.target` MUST
-  remain required. Do NOT add a third `Offer(VulnerabilityCase)` pattern without
-  a distinct object type. See SE-08-001, SE-08-002, ADR-0039,
+- **`ActivityPattern.target_` Is Always Permissive Unless `strict=True`** —
+  `_match_activity_field` follows `self.strict` for the `target_` field pair
+  (permissive by default). When `strict=True`, bare URI strings do NOT match a
+  typed target constraint. When `target_` is the sole discriminator between two
+  competing patterns (same `activity_` + `object_`),
+  set `strict=True` on the more-specific pattern; otherwise an unresolved target
+  URI bypasses the discriminator and makes registry ordering the only guard.
+  Prefer a dedicated object type (SE-08-003) over target-field discrimination
+  whenever possible. See SE-08-001, SE-08-004, ADR-0039, CONCERN-2322,
   [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md)
   § "Target-Field Discriminators".
 - **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix**
@@ -731,15 +741,28 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   (recoverable) or `INFO`, not `ERROR`. `ERROR` is for conditions with no recovery
   path. Ask: is there a wired fallback that guarantees convergence? If yes,
   downgrade and name the recovery in the message. *Source: ISSUE-2169*
-- **`reload_config()` MUST Come After `monkeypatch.undo()`, Not Before** —
-  `vultron/config/app.py` holds a module-level `_config_cache`. `reload_config()`
-  re-reads the environment, but `monkeypatch` undoes env changes in fixture
-  teardown **after** its own fixture's body runs. Calling `reload_config()` in
-  the fixture teardown body re-caches the still-patched value; the undo then
-  runs too late. Result: a session-wide config leak that surfaces as flakiness
-  (test ordering matters). Fix: `monkeypatch.undo(); reload_config()`. The
-  autouse guard in `test/demo/conftest.py` contains this, but new demo fixtures
-  must follow the same order. *Source: ISSUE-2086*
+- **Prefer `config_override()` Over `monkeypatch` + `reload_config()` for Config Overrides** —
+  `vultron/config/app.py` exports a `config_override(**env_updates)` context manager that
+  atomically patches env vars, reloads the cache, yields the updated `AppConfig`, and restores
+  env and cache on exit — even on exception. Prefer it over the raw `monkeypatch.setenv()` +
+  `reload_config()` pattern, which is order-sensitive: calling `reload_config()` in fixture
+  teardown before `monkeypatch.undo()` re-caches stale values that leak into subsequent tests
+  as CI flakiness (`pytest-randomly`-dependent). When `config_override()` cannot be used
+  (e.g., session-scoped fixtures that hold `monkeypatch` open), the MUST-follow order is
+  `monkeypatch.undo()` first, then `reload_config()`. The autouse guard
+  `restore_case_actor_url_after_each_test` in `test/demo/conftest.py` detects function-scoped
+  leaks but is NOT a substitute for correct ordering in higher-scoped fixtures.
+  See [notes/configuration.md](notes/configuration.md) § "Testing Pattern". CFG-06-006,
+  CFG-06-007. *Source: ISSUE-2086, CONCERN-2323*
+- **`_TestClientRouter` WARNING for Unregistered Hosts Is a Bug Signal** —
+  `_TestClientRouter.emit` in `test/demo/conftest.py` drops deliveries when no client is
+  registered for the recipient's base URL. Drops to hosts in `_KNOWN_FICTIONAL_HOSTS`
+  (e.g. `vultron.example`) log at `DEBUG` — those are intentionally unreachable. Drops to
+  any *other* unregistered host (e.g. a `.test` host) log at `WARNING` — that is almost
+  always a config leak or fixture bug. A WARNING in the demo-test output means a `Create(
+  CaseProposal)` or similar activity was misaddressed; look for a stale-config leak upstream.
+  See [notes/configuration.md](notes/configuration.md) § "_TestClientRouter WARNING".
+  *Source: CONCERN-2323*
 - **`claim-issue.sh` Requires the Current Branch to Be Up to Date with `origin/main`** —
   the script checks that your branch is ancestor-or-equal to `origin/main`. If
   `main` has moved since you last synced, the check fails with a confusing error.
@@ -792,6 +815,19 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   > /tmp/unit.log 2>&1; echo $?`. The spec-lint test
   (`test_real_specs_lint_no_hard_errors`) is particularly load-sensitive at ~3s
   against the 5s budget. *Source: ISSUE-2232*
+- **`ledger_payload_object_override` Producers MUST Clear the Key on Every No-Op Tick** —
+  the override key is process-global on the py_trees blackboard.  A producer node
+  that only writes on its active path leaves a stale patch for `CommitCaseLedgerEntryNode`
+  to apply to an unrelated payload snapshot on the next call.  Write `None` (or
+  equivalent `self._publish((), None)`) as the *first* statement in `update()`,
+  before any conditional branch (BT-17-003).  The override dict shape is
+  `{"object_id": …, "producer_type": <node class name>, "fields": {<wire alias>: …}}`
+  (RSH-05-010 through RSH-05-012).  The consumer hard-fails on unrecognized aliases
+  and warns on unknown `producer_type` (RSH-05-013, RSH-05-014).  Once the node is
+  migrated to the typed-Ports base class (ISSUE-1808), the base class SHOULD
+  auto-clear declared output ports in `initialise()`, making the clear structural.
+  See [notes/received-status-authorization.md](notes/received-status-authorization.md)
+  § "Per-dimension partial accept".  *Source: CONCERN-2326*
 - **Never Restate Counts in Cross-References or Long-Lived Docs** — when a
   spec entry, notes file, or AGENTS.md pitfall cross-references another spec,
   omit the count: write "the universal types (DEMOMA-16-001)" not "the five
@@ -801,6 +837,27 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   "there are 4 unimplemented nodes" or "15 xfails" — these are stale snapshots.
   See MS-16-001 and [notes/specs-vs-adrs.md](notes/specs-vs-adrs.md).
   *Source: CONCERN-2277*
+- **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
+  — two distinct failure modes when a boolean field from the matrix (e.g.
+  `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:
+  (1) **Job-level `if:`**: the `matrix` context does not exist yet — GitHub
+  evaluates job-level `if:` conditions *before* expanding the matrix. The
+  workflow is rejected with a startup failure: zero jobs scheduled, no logs, no
+  per-job status, and the run name is reported as the file path. The failure
+  reads as noise, not a regression (DEMOCI-06-004, ISSUE-2118).
+  (2) **Step-level `if:`**: the `matrix` context IS available, but GitHub
+  coerces JSON boolean `false` to the string `"false"`. The comparison
+  `matrix.full_suite_only == false` then always evaluates to `false` because a
+  string never equals a boolean, silently defeating the intended filter
+  (CONCERN-2327).
+  Fix for both: resolve the boolean filter *before* matrix expansion using a
+  dedicated `scenarios` job that calls `jq 'select(.full_suite_only == false)'`
+  on the JSON source and exposes a filtered matrix as a job output. Both
+  downstream jobs expand `fromJSON()` of that output — the boolean comparison
+  lives in `jq`, which understands JSON natively. See DEMOCI-06-004,
+  DEMOCI-06-007, DEMOCI-06-008 and
+  [notes/demo-ci-scenario-coverage.md](notes/demo-ci-scenario-coverage.md).
+  *Source: CONCERN-2327, ISSUE-2118*
 
 ---
 

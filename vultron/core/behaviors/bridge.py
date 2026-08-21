@@ -50,6 +50,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,7 @@ class BTBridge:
         is_leader: Callable[[], bool] = _default_is_leader,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.
@@ -126,17 +128,23 @@ class BTBridge:
                 ``Announce(CaseLedgerEntry)`` activities to participants.
                 Without this, ledger entries committed inside BTs are
                 persisted locally but not replicated.
+            wire_render_port: Optional port for rendering core domain objects
+                to wire-shaped (camelCase) JSON (ARCH-20-001).  When provided
+                it is placed on the py_trees blackboard under the key
+                ``wire_render_port`` so that BT nodes can call it without
+                importing from the wire layer (ARCH-01-001, ARCH-01-004).
         """
         self.datalayer = datalayer
         self.is_leader = is_leader
         self.trigger_activity = trigger_activity
         self.sync_port = sync_port
+        self.wire_render_port = wire_render_port
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}"
         )
 
     def _store_for_actor(self, actor_id: str) -> CasePersistence:
-        """Return the store belonging to *actor_id* (ADR-0066, BT-05-005).
+        """Return the store belonging to *actor_id* (ADR-0069, BT-05-005).
 
         BT-05-002 and BT-05-003 put ``datalayer`` and ``actor_id`` on the
         blackboard as two independent facts.  Under per-actor storage they are
@@ -230,6 +238,13 @@ class BTBridge:
                 access=py_trees.common.Access.WRITE,
             )
             blackboard.sync_port = self.sync_port
+
+        if self.wire_render_port is not None:
+            blackboard.register_key(
+                key="wire_render_port",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.wire_render_port = self.wire_render_port
 
         if activity is not None:
             blackboard.register_key(

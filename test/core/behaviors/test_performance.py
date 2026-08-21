@@ -149,7 +149,7 @@ def mock_datalayer():
     dl.save.side_effect = partial(_mock_store, storage)
     dl.update.return_value = None
     dl.by_type.side_effect = _mock_by_type_helper
-    dl.record_outbox_item.return_value = None
+    dl.outbox_append.return_value = None
 
     return dl
 

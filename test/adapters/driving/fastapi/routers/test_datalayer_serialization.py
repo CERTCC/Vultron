@@ -37,7 +37,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 # The read endpoint is actor-scoped: `/actors/{actor_id}/datalayer/{key}`
-# (ADR-0066 — there is no unscoped `/datalayer/…` view, because it would read
+# (ADR-0069 — there is no unscoped `/datalayer/…` view, because it would read
 # across actors).  The path segment resolves to a canonical URI by computation,
 # so the actor these tests address has to be one this node could host: an id
 # under some other authority resolves to a *different* actor, in a different
@@ -131,7 +131,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     # Verify the field contains the report
     assert isinstance(data["vulnerabilityReports"], list)
     assert len(data["vulnerabilityReports"]) == 1
-    assert data["vulnerabilityReports"][0]["id"] == report.id_
+    assert data["vulnerabilityReports"][0] == report.id_
 
 
 def test_get_vulnerability_case_includes_all_fields(client, datalayer):

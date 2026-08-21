@@ -98,7 +98,7 @@ def _in_memory_actor_dl_override():
 
     Overriding with one fixed DataLayer defeats the routing these tests exercise:
     ``get_actor_dl`` resolves the path segment to a canonical URI and opens *that*
-    actor's store (ADR-0066), so a single-store override makes every actor id
+    actor's store (ADR-0069), so a single-store override makes every actor id
     resolve to the same rows.  Only the backing URL needs replacing — the
     configured ``db_url`` is a file and tests must stay in memory.
     """
@@ -162,7 +162,7 @@ def created_actors(actor_classes):
     """Host one actor per class, each in its own store.
 
     ``GET /actors/`` enumerates the actors this node *hosts*, and hosting means
-    holding that actor's store (ADR-0066) — for an in-memory URL, the in-process
+    holding that actor's store (ADR-0069) — for an in-memory URL, the in-process
     registry that ``get_datalayer`` populates. Writing six actor rows into one
     store would therefore report **one** host, not six.
 

@@ -23,9 +23,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The activity-type dispatch implementation MUST be defensive: it MUST handle missing or
-      null fields without raising unhandled exceptions, MUST treat unrecognized activity types
-      as dispatching to `UNKNOWN`, and MUST NOT propagate internal dispatch errors to callers.
+      The activity-type dispatch implementation MUST handle missing or null fields
+      without raising unhandled exceptions.
+  - id: MV-01-006
+    priority: MUST
+    kind: protocol
+    statement: 'The activity-type dispatch implementation MUST treat unrecognized activity types as dispatching to `UNKNOWN`.'
+    rationale: >-
+      Mapping unknown types to UNKNOWN rather than failing allows the system to log
+      and route unrecognised activities without crashing the dispatch pipeline.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-01-005
+  - id: MV-01-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The activity-type dispatch implementation MUST NOT propagate internal dispatch
+      errors to callers.
+    rationale: >-
+      Propagating internal errors exposes implementation details to senders and can
+      cause the inbox handler to return unexpected error responses.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-01-005
 - id: MV-02
   title: Schema Validation
   specs:
@@ -83,13 +104,6 @@ groups:
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
-  - id: MV-09-001
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
-      Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object
-      — bare string URIs and `as_Link` references are NOT permitted in outbound activities.
   - id: MV-09-002
     priority: MUST
     kind: protocol
@@ -164,13 +178,3 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
-- id: MV-08
-  title: Duplicate Detection
-  specs:
-  - id: MV-08-001
-    priority: SHOULD
-    kind: protocol
-    statement: The system SHOULD detect duplicate activity submissions during validation
-    relationships:
-    - rel_type: depends_on
-      spec_id: ID-02-001

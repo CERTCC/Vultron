@@ -103,9 +103,7 @@ groups:
   - id: UCORG-05-002
     priority: MUST
     kind: project
-    statement: >-
-      Handler (received-side) use cases MUST return `HandlerResult`; trigger use cases MUST
-      return `TriggerResult`; both MUST inherit from `UseCaseResult`
+    statement: 'Handler (received-side) use cases MUST return `HandlerResult`.'
     rationale: Separate subtypes allow callers to distinguish received-side vs. trigger-side results without isinstance checks on the base.
   - id: UCORG-05-003
     priority: MUST
@@ -135,3 +133,23 @@ groups:
       declare `dict` or `dict[str, Any]` as their return type; they MUST declare
       `TriggerResult`
     rationale: Propagating dict past the service boundary defeats the typed contract at the router boundary.
+  - id: UCORG-05-007
+    priority: MUST
+    kind: project
+    statement: 'Trigger use cases MUST return `TriggerResult`.'
+    rationale: >-
+      A dedicated TriggerResult subtype makes trigger-side results structurally
+      distinct from handler-side results without runtime isinstance checks.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-002
+  - id: UCORG-05-008
+    priority: MUST
+    kind: project
+    statement: 'Both `HandlerResult` and `TriggerResult` MUST inherit from `UseCaseResult`.'
+    rationale: >-
+      Inheriting from the common base type ensures that all use-case return values
+      satisfy the UseCaseResult Protocol contract.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-002

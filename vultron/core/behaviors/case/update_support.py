@@ -107,7 +107,7 @@ def broadcast_case_update(
     that was not necessarily the store it had just written the activity to.
     A shared pool hid the mismatch; per-actor stores do not. The authority is
     now a role gate in the tree, so the executing actor *is* the announcer and
-    both halves of the emit land in one store (ADR-0066, CLP-09 precedent).
+    both halves of the emit land in one store (ADR-0069, CLP-09 precedent).
     """
     excluded = excluded_actor_ids or set()
 

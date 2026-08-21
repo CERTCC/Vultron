@@ -30,7 +30,10 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (  # noqa: F401
     RejectProposedEmbargoLifecycleNode,
     SendRejectEmbargoActivityNode,
 )
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+)
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
@@ -51,7 +54,7 @@ from vultron.errors import (
 )
 
 
-class ValidateEmbargoRevisionStateNode(DataLayerAction):
+class ValidateEmbargoRevisionStateNode(DataLayerActionWithPorts):
     """Guard that the case EM state permits a revision proposal.
 
     Returns SUCCESS when EM state is ACTIVE or REVISE.  Returns FAILURE
@@ -101,7 +104,7 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _EmbargoLifecycleNode(DataLayerAction):
+class _EmbargoLifecycleNode(DataLayerActionWithPorts):
     """Base node for EmbargoLifecycle strict-mode transitions.
 
     Orchestrates the em_state read/compute/write cycle via named BT nodes
@@ -405,7 +408,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         return Status.FAILURE
 
 
-class SetEmbargoActiveNode(DataLayerAction):
+class SetEmbargoActiveNode(DataLayerActionWithPorts):
     """Set embargo active on case and transition EM → ACTIVE.
 
     Handles idempotency and state-sync override for non-standard EM

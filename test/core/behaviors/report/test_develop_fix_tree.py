@@ -63,7 +63,7 @@ def bt_scenario():
     """Scenario scoped to VENDOR_ACTOR_ID — the vendor, who develops the fix.
 
     Shadows the harness default so the store belongs to the actor these trees
-    execute as: a BT's store follows its executing actor (ADR-0066).
+    execute as: a BT's store follows its executing actor (ADR-0069).
     """
     return BTTestScenario(VENDOR_ACTOR_ID)
 

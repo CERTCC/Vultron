@@ -70,7 +70,7 @@ class BTTestScenario:
         is_leader: bool = True,
     ) -> None:
         self.actor_id = actor_id
-        # The scenario's store is the acting actor's own (ADR-0066).  A BT's
+        # The scenario's store is the acting actor's own (ADR-0069).  A BT's
         # store follows its executing actor, so seeding into some other actor's
         # store would leave `run()` reading an empty one — and, worse, a
         # multi-actor scenario sharing one store is what hides missing-write
@@ -319,7 +319,7 @@ def bt_scenario(request) -> BTTestScenario:
 
     A test that runs its tree as somebody other than the default declares it with
     ``@pytest.mark.executes_as(ACTOR)``. The scenario then opens *that* actor's
-    store, because a BT's store follows its executing actor (ADR-0066) — seeding
+    store, because a BT's store follows its executing actor (ADR-0069) — seeding
     one actor's store and executing as another leaves the tree reading an empty
     one, and in a multi-actor scenario it is what hides missing-write defects.
 

@@ -130,7 +130,7 @@ groups:
     - behavior-tree
     - persistence
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: BT-05-006
     priority: MUST
     kind: project
@@ -162,7 +162,7 @@ groups:
     - behavior-tree
     - persistence
     adr:
-    - ADR-0066
+    - ADR-0069
 - id: BT-06
   title: Workflow-Specific Trees
   specs:
@@ -210,7 +210,7 @@ groups:
   - id: BT-07-003
     priority: MUST
     kind: protocol
-    statement: State transitions MUST be logged at the appropriate level
+    statement: State transitions MUST be logged at the level specified by SL-04-001
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
@@ -242,10 +242,6 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Actor blackboards MUST NOT share state
-  - id: BT-09-003
-    priority: MUST
-    kind: protocol
-    statement: Actor interaction MUST occur only via protocol messages
 - id: BT-10
   title: CaseActor Management
   specs:
@@ -619,9 +615,7 @@ groups:
   - id: BT-18-004
     priority: MUST
     kind: project
-    statement: A call-out point node MUST be constructed via a backend factory callable. Tree-building functions that contain
-      call-out points MUST accept the backend factory as a parameter (or as an entry in a factory mapping). The fuzzer factory
-      MUST be the default value.
+    statement: A call-out point node MUST be constructed via a backend factory callable.
     rationale: Factory-based injection is the established BT construction pattern in this codebase. Requiring the factory
       as a parameter (rather than hardcoding the fuzzer import) is what makes each call-out point an actual injection seam
       rather than a tightly-coupled stub. Without this, replacing any backend requires editing the tree-building function,
@@ -631,6 +625,19 @@ groups:
       spec_id: BT-04-001
       note: Factory-based injection for call-out points is an application of the existing factory pattern required for all
         BT construction.
+  - id: BT-18-008
+    priority: MUST
+    kind: project
+    statement: Tree-building functions that contain call-out points MUST accept the backend factory as a parameter (or as
+      an entry in a factory mapping).
+    rationale: Accepting the factory as a parameter makes each call-out point an actual injection seam rather than a
+      tightly-coupled stub; replacing a backend then requires no changes to the tree-building function.
+  - id: BT-18-009
+    priority: MUST
+    kind: project
+    statement: The fuzzer factory MUST be the default value for the backend factory parameter of tree-building functions.
+    rationale: A fuzzer default ensures demo scenarios work without explicit backend configuration until a real
+      implementation is available, while still allowing injection of alternative backends at call sites that opt in.
   - id: BT-18-005
     priority: MUST
     kind: project
@@ -655,14 +662,12 @@ groups:
   - id: BT-18-006
     priority: MUST
     kind: project
-    statement: 'A node that queries an external system synchronously and returns only a binary (SUCCESS/FAILURE) result MUST
-      be classified as a Retriever, not a Sentinel. A boolean is the simplest possible structured fact; the defining criterion
-      for Retriever shape is the synchronous on-demand query pattern, not the richness of the returned data. Such a binary-result
-      Retriever has an empty blackboard output-key set: the structured fact is expressed as the BT return value (SUCCESS/FAILURE),
-      not as a blackboard write. BT-18-001 through BT-18-003 apply: the empty output-key set MUST be declared in the node
-      docstring. A Sentinel, by contrast, monitors a condition continuously (or is triggered by an external event) and calls
-      a trigger endpoint when the condition becomes true; the flow direction is Sentinel → trigger endpoint → protocol, not
-      protocol → query → external system.'
+    statement: A node that queries an external system synchronously and returns only a binary (SUCCESS/FAILURE) result MUST
+      be classified as a Retriever, not a Sentinel. The defining criterion for Retriever shape is the synchronous on-demand
+      query pattern, not the richness of the returned data; a boolean is the simplest possible structured fact a Retriever
+      may return. A Sentinel, by contrast, monitors a condition continuously or is triggered by an external event and calls
+      a trigger endpoint when the condition becomes true — the flow direction is Sentinel → trigger endpoint → protocol, not
+      protocol → query → external system.
     rationale: 'The Sentinel vs. Retriever ambiguity surfaced with nodes such as MitigationDeployed, MitigationAvailable,
       and HaveExploit (issue #1240). These nodes appear sentinel-like because they return only SUCCESS/FAILURE, but they are
       invoked synchronously by the BT (on-demand) and query an external system to determine the current status. That is the
@@ -674,6 +679,14 @@ groups:
       spec_id: BT-18-005
       note: BT-18-005 establishes that shape is determined by the seam-structure decision tree; BT-18-006 resolves the specific
         Sentinel vs. Retriever ambiguity for binary-result external queries.
+  - id: BT-18-010
+    priority: MUST
+    kind: project
+    statement: A binary-result Retriever MUST declare an empty blackboard output-key set in the node docstring; the structured
+      fact is expressed as the BT return value (SUCCESS/FAILURE), not as a blackboard write.
+    rationale: BT-18-001 through BT-18-003 require every call-out point to declare its complete blackboard contract. A
+      binary-result Retriever has an empty output-key set; that empty set MUST still be explicitly declared so that the
+      absence of output keys is documented as intentional rather than an oversight, and backend swaps remain transparent.
   - id: BT-18-007
     priority: MUST
     kind: project
@@ -809,7 +822,7 @@ groups:
   - id: BT-20-003
     priority: SHOULD
     kind: project
-    statement: The production report-to-others workflow SHOULD be driven by a Sentinel coordination agent that proactively
+    statement: The production report-to-others workflow SHOULD be driven by a Sentinel capability that proactively
       queries the case for actors who are not yet participants but should be (party discovery), then fires `suggest-actor-to-case`
       for each candidate. The `suggest-actor-to-case` protocol (Offer → CaseActor → CaseOwner → Invite → Accept → Record
       cascade) handles the downstream flow; no inline tick-driven BT loop is needed at the outer level. If an inline subtree
@@ -820,7 +833,7 @@ groups:
       The original Production Collapse 3 design (#1311, ADR-0029) retained a three-typed-sub-loop BT structure whose
       inner blackboard queues (identified_vendors, identified_coordinators, identified_others) had no production
       mechanism to populate them. Planning of #1252 surfaced that the identification step belongs in a Sentinel
-      coordination agent (see #1147/#1143) that periodically or event-triggered inspects the case and asynchronously
+      capability (see #1147/#1143) that periodically or event-triggered inspects the case and asynchronously
       fires suggest-actor-to-case for each uninvited candidate. The downstream accept/invite/bootstrap cascade already
       works; no inline BT loop is required. The tick-driven `create_report_to_others_tree` module from #1311 is an
       implementation artifact of the intermediate design and is tracked for removal in a follow-on Task (see
@@ -849,40 +862,16 @@ groups:
   - id: BT-20-005
     priority: SHOULD
     kind: project
-    statement: >
+    statement: >-
       The production `create_deploy_mitigation_tree` factory SHOULD implement
-      a `DeployMitigationBT` Fallback tree with four arms: (1) a
-      `MitigationDeployed` Retriever call-out for short-circuit success when
-      a mitigation is already active; (2) a `_ShouldStayInRmDeferred` Sequence
-      reusing `RMinStateDeferred` and `CheckNoNewDeploymentInfoNode` from the
-      fix deployment tree; (3) a `_DeployMitigationIfAvailable` Sequence with
-      `CheckDeployerRoleNode`, `CheckRMStateAccepted`, a `MitigationAvailable`
-      Retriever call-out, a `PrioritizeDeployment` Evaluator call-out, and a
-      `DeployMitigation` Evaluator call-out; and (4) a
-      `_MonitorDeploymentIfDesired` Sequence reusing `MonitoringRequirement`
-      and `MonitorDeployment` call-outs from the fix deployment tree. The tree
-      MUST NOT include a CS state transition or protocol activity emission node
-      — mitigation deployment is tracked externally (CMDB or case record) and
-      the protocol has no dedicated mitigation-deployed message type. The shared
-      monitoring/prioritization call-out seams (PrioritizeDeployment,
-      MonitoringRequirement, MonitorDeployment) SHOULD be factored into a
-      `DeploymentMonitoringBundle` base dataclass inherited by both
-      `DeployFixCallOutBundle` and `DeployMitigationCallOutBundle`. A
-      `create_deploy_tree` combinator factory SHOULD compose fix and mitigation
-      arms into an overarching `DeployOrMitigateBT` Fallback (fix arm first).
+      a `DeployMitigationBT` Fallback tree with four arms: a short-circuit arm
+      for already-active mitigations, a deferred-RM arm, a deploy-if-available
+      arm, and a monitor-if-desired arm.
     rationale: >
       Mitigation deployment is the fallback path when a definitive fix is not
       yet available, as noted in the Phase 1 scoping of `create_deploy_fix_tree`
-      (issue #1248). The structural difference from the fix tree — no CS state
-      transition and no protocol emission — follows from the VFD state machine
-      tracking only vendor-aware/fix-ready/fix-deployed bits; there is no
-      mitigation-deployed bit. This makes `MitigationDeployed` and
-      `MitigationAvailable` call-out Retrievers rather than DataLayerCondition
-      nodes. Sharing the monitoring/prioritization seams via a base dataclass
-      follows BT-23-003 (domain bundle pattern) and avoids field duplication
-      across two closely-related bundles. The combinator tree delivers the
-      stated goal of the parent epic (#1285): a composed deployment decision
-      tree that prefers fix deployment over mitigation deployment.
+      (issue #1248). This makes `MitigationDeployed` and `MitigationAvailable`
+      call-out Retrievers rather than DataLayerCondition nodes.
     tracking_issue: '#1826 (planning Idea — peer to #1248)'
     relationships:
     - rel_type: extends
@@ -890,6 +879,30 @@ groups:
       note: >
         DeployMitigationCallOutBundle and DeploymentMonitoringBundle follow the
         domain bundle pattern from BT-23-003.
+  - id: BT-20-006
+    priority: MUST_NOT
+    kind: project
+    statement: The `create_deploy_mitigation_tree` tree MUST NOT include a CS state transition or protocol activity emission
+      node; mitigation deployment is tracked externally (CMDB or case record) and the protocol has no dedicated
+      mitigation-deployed message type.
+    rationale: The VFD state machine tracks only vendor-aware/fix-ready/fix-deployed bits; there is no mitigation-deployed
+      bit. Emitting a CS state transition or protocol activity from the mitigation tree would conflate fix-deployment
+      semantics with mitigation tracking.
+  - id: BT-20-007
+    priority: SHOULD
+    kind: project
+    statement: The shared monitoring/prioritization call-out seams (`PrioritizeDeployment`, `MonitoringRequirement`,
+      `MonitorDeployment`) SHOULD be factored into a `DeploymentMonitoringBundle` base dataclass inherited by both
+      `DeployFixCallOutBundle` and `DeployMitigationCallOutBundle`.
+    rationale: Sharing the monitoring/prioritization seams via a base dataclass follows BT-23-003 (domain bundle pattern)
+      and avoids field duplication across two closely-related bundles.
+  - id: BT-20-008
+    priority: SHOULD
+    kind: project
+    statement: A `create_deploy_tree` combinator factory SHOULD compose fix and mitigation arms into an overarching
+      `DeployOrMitigateBT` Fallback (fix arm first).
+    rationale: The combinator tree delivers the stated goal of the parent epic (#1285) — a composed deployment decision
+      tree that prefers fix deployment over mitigation deployment.
 
 - id: BT-21
   title: Fuzzer Node Replacement Lifecycle
@@ -936,19 +949,30 @@ groups:
     - rel_type: refines
       spec_id: BT-06-001
   - id: BT-22-002
-    priority: MUST
+    priority: MUST_NOT
     kind: architecture
     statement: BT nodes in `vultron/core/behaviors/` MUST NOT import private helpers or functions from
-      `vultron/core/use_cases/`. The dependency direction MUST be `use_cases/ → behaviors/` (use cases create BTs),
-      never `behaviors/ → use_cases/` (BT nodes importing from use cases). If a helper is needed by both a use case
-      and a BT node it MUST be extracted to a shared utility module (e.g., `vultron/core/behaviors/shared/` or a
-      domain-model method) that neither layer owns.
+      `vultron/core/use_cases/`.
     rationale: Importing a use-case helper into a BT node inverts the hexagonal layer boundary and creates circular
       dependency risk. The import direction is the enforcement mechanism for the layer rule. Identified as BT-IDM-02
       in notes/bt-canonical-reference.md.
     relationships:
     - rel_type: refines
       spec_id: BT-06-001
+  - id: BT-22-004
+    priority: MUST
+    kind: architecture
+    statement: The dependency direction between BT nodes and use cases MUST be `use_cases/ → behaviors/` (use cases
+      create BTs), never `behaviors/ → use_cases/` (BT nodes importing from use cases).
+    rationale: The one-way dependency from use cases into behaviors is the structural enforcement of the hexagonal
+      layer boundary; reversing it creates circular dependency risk.
+  - id: BT-22-005
+    priority: MUST
+    kind: architecture
+    statement: If a helper is needed by both a use case and a BT node, it MUST be extracted to a shared utility module
+      (e.g., `vultron/core/behaviors/shared/` or a domain-model method) that neither layer owns.
+    rationale: A shared utility module is the canonical resolution when a helper is needed at both layers; placing it
+      in either layer would invert or entangle the layer boundary.
   - id: BT-22-003
     priority: SHOULD
     kind: architecture
@@ -1001,57 +1025,76 @@ groups:
   - id: BT-23-002
     priority: MUST
     kind: project
-    statement: >
-      The DETERMINISTIC backend for each call-out point MUST be derived from
-      its STOCHASTIC counterpart using the ceiling/floor rule: if the stochastic
-      success probability p > 0.5, the deterministic backend is AlwaysSucceed;
-      if p < 0.5, AlwaysFail; if p == 0.5, AlwaysSucceed (happy-path default).
-    rationale: >
-      Grounding the deterministic backend in the stochastic probability
-      preserves the semantic intent of each node. Nodes that the simulation
-      expects to usually succeed (high p) map to AlwaysSucceed; nodes that
-      usually fail map to AlwaysFail. The p==0.5 tie-breaking rule selects the
-      happy-path direction so that deterministic demo scenarios make forward
-      protocol progress.
+    statement: When the stochastic success probability p > 0.5, the DETERMINISTIC backend for that call-out point MUST
+      be AlwaysSucceed.
+    rationale: Grounding the deterministic backend in the stochastic probability preserves the semantic intent of each
+      node. Nodes that the simulation expects to usually succeed map to AlwaysSucceed so that deterministic demo
+      scenarios make forward protocol progress.
     relationships:
     - rel_type: refines
       spec_id: BT-23-001
+  - id: BT-23-006
+    priority: MUST
+    kind: project
+    statement: When the stochastic success probability p < 0.5, the DETERMINISTIC backend for that call-out point MUST
+      be AlwaysFail.
+    rationale: Nodes that the simulation expects to usually fail map to AlwaysFail, preserving the semantic intent that
+      such a call-out point is unlikely to succeed in a realistic scenario.
+  - id: BT-23-007
+    priority: MUST
+    kind: project
+    statement: When the stochastic success probability p == 0.5, the DETERMINISTIC backend for that call-out point MUST
+      be AlwaysSucceed (happy-path default).
+    rationale: The p == 0.5 tie-breaking rule selects the happy-path direction so that deterministic demo scenarios make
+      forward protocol progress when the simulation assigns equal probability to success and failure.
   - id: BT-23-003
     priority: MUST
     kind: project
-    statement: >
-      Call-out point factories for a domain area MUST be collected into a
-      domain bundle — a frozen @dataclass (one per domain area) whose fields are
-      typed CallOutBackendFactory values. The bundle dataclass and its
-      DETERMINISTIC singleton (e.g. VALIDATION_DETERMINISTIC) MUST be defined in
-      the core layer (vultron/core/behaviors/call_out/bundles/<domain>.py); the
-      STOCHASTIC singleton (e.g. VALIDATION_STOCHASTIC) MUST be defined in the
-      simulation layer (vultron/demo/fuzzer/bundles/<domain>.py). Tree builders
-      that accept call-out factories MUST accept the bundle as a single typed
-      parameter (e.g. call_out: ValidationCallOutBundle) rather than individual
-      per-node factory kwargs, and MUST default it to the core DETERMINISTIC
-      singleton without importing from vultron/demo/ (BT-16-001, ARCH-01-001).
+    statement: Call-out point factories for a domain area MUST be collected into a domain bundle — a frozen @dataclass
+      (one per domain area) whose fields are typed `CallOutBackendFactory` values.
     rationale: >
       Individual per-node factory kwargs accumulate quickly (a tree builder may
       have 5–10 call-out points); a bundle dataclass keeps the tree builder
       signature clean while enforcing completeness (all fields must be supplied).
-      Pre-built singletons avoid non-DRY construction in every demo script and
-      test fixture that wants the standard deterministic or stochastic behaviour.
       The frozen constraint prevents accidental mutation after construction.
-      The bundle dataclass and its DETERMINISTIC default are core concerns: the
-      DETERMINISTIC bundle is the production-usable happy-path backend a real
-      actor uses before a coordination agent is wired in, so a core tree builder
-      must resolve its default without reaching into the simulation layer. Only
-      the probabilistic STOCHASTIC wiring is a simulation artefact and stays in
-      vultron/demo/ (corrects the original 2026-07-23 amendment, which located
-      the dataclass and DETERMINISTIC singleton in vultron/demo/ and thereby
-      inverted the core→demo dependency).
     relationships:
     - rel_type: refines
       spec_id: BT-23-001
     - rel_type: extends
       spec_id: BT-18-004
       note: Replaces the individual factory-kwarg API with the bundle API.
+  - id: BT-23-008
+    priority: MUST
+    kind: project
+    statement: The domain bundle dataclass and its DETERMINISTIC singleton (e.g., `VALIDATION_DETERMINISTIC`) MUST be
+      defined in the core layer (`vultron/core/behaviors/call_out/bundles/<domain>.py`).
+    rationale: The DETERMINISTIC bundle is the production-usable happy-path backend a real actor uses before a
+      capability implementation is wired in, so a core tree builder must resolve its default without reaching into the
+      simulation layer. Locating it in vultron/demo/ inverts the core→demo dependency (corrects the original
+      2026-07-23 amendment).
+  - id: BT-23-009
+    priority: MUST
+    kind: project
+    statement: The STOCHASTIC singleton (e.g., `VALIDATION_STOCHASTIC`) MUST be defined in the simulation layer
+      (`vultron/demo/fuzzer/bundles/<domain>.py`).
+    rationale: The probabilistic STOCHASTIC wiring is a simulation artefact; keeping it in vultron/demo/ respects
+      the BT-16-001 rule that simulation artefacts do not appear in vultron/core/.
+  - id: BT-23-010
+    priority: MUST
+    kind: project
+    statement: >-
+      Tree builders that accept call-out factories MUST accept the bundle as a single typed
+      parameter (e.g., `call_out: ValidationCallOutBundle`) rather than individual per-node
+      factory kwargs.
+    rationale: A bundle parameter keeps the tree builder signature clean and enforces completeness — all fields must
+      be supplied, making missing call-out points a static type error rather than a silent runtime omission.
+  - id: BT-23-011
+    priority: MUST
+    kind: project
+    statement: Tree builders MUST default the bundle parameter to the core DETERMINISTIC singleton without importing
+      from `vultron/demo/` (per BT-16-001 and ARCH-01-001).
+    rationale: Pre-built singletons avoid non-DRY construction in every demo script and test fixture. Defaulting to
+      the core DETERMINISTIC singleton ensures the tree builder has no simulation-layer import dependency.
   - id: BT-23-004
     priority: MUST
     kind: project

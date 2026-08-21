@@ -126,12 +126,7 @@ groups:
     statement: >-
       When the discovered entries span more than one case (distinct `case_id`
       values — as when the default `devlogs/` root accumulates multiple demo
-      runs), the tool MUST partition the timeline by `case_id` and MUST NOT
-      interleave events from different cases. The distilled event model MUST
-      carry the `case_id`, ordering MUST be case-contiguous (group by `case_id`,
-      then by `log_index` ascending within each case), the replica-presence
-      matrix MUST be computed per case, and each renderer MUST present one
-      clearly labelled section (or table) per case.
+      runs), the tool MUST partition the timeline by `case_id`.
     rationale: >-
       `log_index` restarts at 0 for each case and same-named actor directories
       recur across demo runs, so a single merged timeline over multiple cases
@@ -164,13 +159,7 @@ groups:
     statement: >-
       Each distilled event MUST carry the per-participant Embargo Consent state
       (`pec_state`) extracted from the `ParticipantStatus` payload snapshot,
-      where present. The extractor MUST handle the ADR-0036 dimension-object
-      shape (`{"consent": {"state": "SIGNATORY"}}`), the legacy flat camelCase
-      alias (`emConsentState`), the legacy flat snake_case alias
-      (`em_consent_state`), the camelCase long form (`embargoConsentState`), and
-      the snake_case long form (`embargo_consent_state`). Both renderers MUST
-      include a `PEC` column in the event table and populate it from
-      `pec_state`.
+      where present.
     rationale: >-
       The case-level EM column shows only the shared embargo state (NONE,
       PROPOSED, ACTIVE, REVISE, EXITED).  Per-participant embargo consent
@@ -181,6 +170,88 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DRPT-02-002
+
+  - id: DRPT-02-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When the discovered entries span more than one case, the tool MUST NOT
+      interleave events from different cases.
+    rationale: >-
+      Interleaving events from distinct cases produces a meaningless merged
+      timeline because `log_index` is case-local and replica presence is
+      case-specific.
+    testable: true
+
+  - id: DRPT-02-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The distilled event model MUST carry the `case_id` field.
+    rationale: >-
+      Downstream partitioning and per-case rendering require each event to
+      identify which case it belongs to.
+    testable: true
+
+  - id: DRPT-02-011
+    priority: MUST
+    kind: project
+    statement: >-
+      Timeline ordering MUST be case-contiguous: events MUST be grouped by
+      `case_id` and ordered by `log_index` ascending within each case group.
+    rationale: >-
+      Case-contiguous ordering preserves the causal sequence within each case
+      while preventing cross-case log_index comparisons.
+    testable: true
+
+  - id: DRPT-02-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The replica-presence matrix MUST be computed per case.
+    rationale: >-
+      Replica presence is meaningful only within a single case; computing it
+      across cases conflates unrelated actor participation.
+    testable: true
+
+  - id: DRPT-02-013
+    priority: MUST
+    kind: project
+    statement: >-
+      Each renderer MUST present one clearly labelled section (or table) per
+      case.
+    rationale: >-
+      Separate per-case sections make case boundaries visible to the reader
+      and prevent misinterpretation of per-case metadata such as time range
+      and replica presence.
+    testable: true
+
+  - id: DRPT-02-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The `pec_state` extractor MUST handle the ADR-0036 dimension-object
+      shape (`{"consent": {"state": "SIGNATORY"}}`), the legacy flat camelCase
+      alias (`emConsentState`), the legacy flat snake_case alias
+      (`em_consent_state`), the camelCase long form (`embargoConsentState`),
+      and the snake_case long form (`embargo_consent_state`).
+    rationale: >-
+      Multiple field shapes exist due to evolving serialisation conventions;
+      tolerating all known aliases ensures correct extraction across ledger
+      files produced by different protocol versions.
+    testable: true
+
+  - id: DRPT-02-015
+    priority: MUST
+    kind: project
+    statement: >-
+      Both renderers MUST include a `PEC` column in the event table and
+      populate it from `pec_state`.
+    rationale: >-
+      A dedicated PEC column makes per-participant embargo consent transitions
+      visible in rendered output.
+    testable: true
+
 - id: DRPT-03
   title: Friendly Naming
   specs:
@@ -205,11 +276,6 @@ groups:
       by scanning all payload snapshots for actor objects (type
       `Organization`, `Person`, `Service`, `Application`, `Group`, `Actor`,
       `CaseActor`) that carry both an `id` (URI) and a non-empty `name` field.
-      Actor labels MUST use the resolved display name when available, and MUST
-      fall back to the URI path-segment heuristic only when no entry is found
-      in the map. This ensures that UUID-based actor URIs (e.g.
-      `actors/9e580519-…`) resolve to semantic names (e.g. "Vendor", "Finder")
-      rather than hex-fragment labels.
     rationale: >-
       Actor URIs may be UUID-based when the actor was created with a generated
       identifier rather than a slug.  Without name resolution, `friendly_actor_name`
@@ -227,10 +293,6 @@ groups:
       Event summaries MUST map the event type to a concise active-voice phrase
       (subject verb object) by looking up the matching `SemanticEntry` in
       `SEMANTIC_REGISTRY` and rendering `entry.phrase` via `str.format_map()`.
-      The tool MUST NOT maintain a local phrase table parallel to the registry.
-      When no registry entry exists for an event type (e.g. data from a future
-      protocol version), the tool MUST fall back to a humanized form of the raw
-      event-type string.
     rationale: >-
       Replaces the tool-local `_EVENT_PHRASES` dict (Concern #1675). Deriving
       phrases directly from `SemanticEntry.phrase` (SE-07-001) guarantees that
@@ -256,6 +318,53 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DRPT-03-002
+
+  - id: DRPT-03-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The tool MUST NOT maintain a local phrase table parallel to the
+      `SEMANTIC_REGISTRY`.
+    rationale: >-
+      A local duplicate phrase table diverges from the registry over time;
+      prohibiting it ensures all phrase coverage comes from `SemanticEntry`
+      definitions per SE-07-001.
+    testable: true
+
+  - id: DRPT-03-006
+    priority: MUST
+    kind: project
+    statement: >-
+      When no `SEMANTIC_REGISTRY` entry exists for an event type (e.g. data
+      from a future protocol version), the tool MUST fall back to a humanized
+      form of the raw event-type string.
+    rationale: >-
+      Graceful fallback prevents rendering failures when new event types are
+      introduced before the registry is updated.
+    testable: true
+
+  - id: DRPT-03-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Actor labels MUST use the resolved display name from the
+      URI-to-display-name map when available.
+    rationale: >-
+      Resolved display names prevent opaque UUID-based actor labels in output,
+      satisfying DRPT-03-001's prohibition on bare identifiers.
+    testable: true
+
+  - id: DRPT-03-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Actor labels MUST fall back to the URI path-segment heuristic only when
+      no entry is found in the URI-to-display-name map.
+    rationale: >-
+      The heuristic fallback provides a best-effort human-readable label for
+      actors whose name was not captured in any payload snapshot.
+    testable: true
+
 - id: DRPT-04
   title: Rendering
   specs:
@@ -307,12 +416,7 @@ groups:
       Each per-case section SHOULD display the time range of its events as
       `Time range: {first} – {last}`, where `{first}` and `{last}` are the
       minimum and maximum `receivedAt` timestamps (full ISO 8601 strings) among
-      the case's canonical events. The line MUST be omitted when no events in
-      the case carry a `receivedAt` timestamp. When all events share the same
-      timestamp, both bounds MUST be shown (`{ts} – {ts}`). In markdown, the
-      time range MUST appear as a bullet line between the case heading and the
-      event table. In HTML, it MUST appear as a `<p class="meta">` element
-      between the `<h2>` heading and the `<table>`.
+      the case's canonical events.
     rationale: >-
       When reviewing reports from CI runs or comparing across scenarios,
       knowing the time range at a glance (e.g. "15:31:20Z – 15:31:27Z") is
@@ -328,17 +432,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The Time column header MUST be labelled "ΔT". Each cell MUST display a
-      delta from the previous row's `receivedAt` timestamp as an adaptive
-      duration string: `+Ns` when under 60 seconds, `+Nm Ns` when under one
-      hour, and `+Nh Nm Ns` for one hour or more (no day component; large gaps
-      appear as e.g. `+26h 3m 2s`). The first row that carries a `receivedAt`
-      timestamp MUST show `+0s`; rows without a `receivedAt` MUST show `—`.
-      In the HTML renderer, the full ISO 8601 `receivedAt` string MUST be
-      retained as a `title=` tooltip on the `<td>` element. In the markdown
-      renderer, the absolute timestamp MUST NOT appear in the table cell body
-      (the per-case time-range line from DRPT-04-006 serves as the
-      absolute-time anchor).
+      The Time column header MUST be labelled "ΔT".
     rationale: >-
       Absolute timestamps repeat the date and timezone on every row, making it
       hard to see the pacing of events. A delta-T column lets readers
@@ -353,6 +447,107 @@ groups:
       spec_id: DRPT-04-002
     - rel_type: extends
       spec_id: DRPT-04-006
+
+  - id: DRPT-04-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The time range line MUST be omitted when no events in the case carry a
+      `receivedAt` timestamp.
+    rationale: >-
+      Rendering a time range with no data would display a meaningless or
+      error-prone placeholder.
+    testable: true
+
+  - id: DRPT-04-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When all events in a case share the same `receivedAt` timestamp, both
+      time range bounds MUST be shown (`{ts} – {ts}`).
+    rationale: >-
+      Showing both bounds even when equal makes the format unambiguous and
+      avoids special-casing that could hide single-event cases.
+    testable: true
+
+  - id: DRPT-04-010
+    priority: MUST
+    kind: project
+    statement: >-
+      In markdown output, the time range MUST appear as a bullet line between
+      the case heading and the event table.
+    rationale: >-
+      Consistent placement ensures the time range is visible as a
+      section-level annotation rather than embedded in the table.
+    testable: true
+
+  - id: DRPT-04-011
+    priority: MUST
+    kind: project
+    statement: >-
+      In HTML output, the time range MUST appear as a `<p class="meta">`
+      element between the `<h2>` heading and the `<table>`.
+    rationale: >-
+      The `meta` class allows consistent styling of section-level metadata
+      across cases in the HTML report.
+    testable: true
+
+  - id: DRPT-04-012
+    priority: MUST
+    kind: project
+    statement: >-
+      Each Time cell MUST display a delta from the previous row's `receivedAt`
+      timestamp as an adaptive duration string: `+Ns` when under 60 seconds,
+      `+Nm Ns` when under one hour, and `+Nh Nm Ns` for one hour or more (no
+      day component).
+    rationale: >-
+      Adaptive formatting makes small and large deltas equally readable without
+      wasting space on zero-valued time components.
+    testable: true
+
+  - id: DRPT-04-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The first row that carries a `receivedAt` timestamp MUST show `+0s` in
+      the Time cell.
+    rationale: >-
+      The first timed row anchors the delta sequence; showing `+0s` makes the
+      anchor explicit rather than leaving the first cell empty.
+    testable: true
+
+  - id: DRPT-04-014
+    priority: MUST
+    kind: project
+    statement: >-
+      Rows without a `receivedAt` value MUST show `—` in the Time cell.
+    rationale: >-
+      An em-dash distinguishes missing-timestamp rows from rows with a genuine
+      zero delta.
+    testable: true
+
+  - id: DRPT-04-015
+    priority: MUST
+    kind: project
+    statement: >-
+      In the HTML renderer, the full ISO 8601 `receivedAt` string MUST be
+      retained as a `title=` tooltip on the Time `<td>` element.
+    rationale: >-
+      The tooltip preserves the absolute timestamp for hover inspection without
+      cluttering the table cell.
+    testable: true
+
+  - id: DRPT-04-016
+    priority: MUST
+    kind: project
+    statement: >-
+      In the markdown renderer, the absolute `receivedAt` timestamp MUST NOT
+      appear in the Time column table cell body.
+    rationale: >-
+      The per-case time-range line (DRPT-04-006) provides the absolute-time
+      anchor; repeating full timestamps in every cell is redundant.
+    testable: true
+
 - id: DRPT-05
   title: Testing
   specs:
@@ -400,10 +595,28 @@ groups:
       anchor), assert `—` when `received_at` is `None`, assert `—` when both
       are `None`, and assert correct adaptive formatting for sub-minute
       (`+Ns`), sub-hour (`+Nm Ns`), and multi-hour (`+Nh Nm Ns`) deltas.
-      Renderer tests MUST assert that the Time column in the table body
-      contains delta strings (e.g. `+0s`) rather than ISO 8601 timestamps.
-      HTML renderer tests MUST assert that the full ISO timestamp is retained
-      as a `title=` tooltip on the Time `<td>`.
     relationships:
     - rel_type: verifies
       spec_id: DRPT-04-007
+
+  - id: DRPT-05-006
+    priority: MUST
+    kind: project
+    statement: >-
+      Renderer tests MUST assert that the Time column in the table body
+      contains delta strings (e.g. `+0s`) rather than ISO 8601 timestamps.
+    rationale: >-
+      Verifies that neither renderer leaks absolute timestamps into the Time
+      cell body, per DRPT-04-016.
+    testable: true
+
+  - id: DRPT-05-007
+    priority: MUST
+    kind: project
+    statement: >-
+      HTML renderer tests MUST assert that the full ISO 8601 `receivedAt`
+      timestamp is retained as a `title=` tooltip on the Time `<td>` element.
+    rationale: >-
+      Verifies DRPT-04-015: the absolute timestamp is preserved for hover
+      inspection even though it does not appear in the cell body.
+    testable: true

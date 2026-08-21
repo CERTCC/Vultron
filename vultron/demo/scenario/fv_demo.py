@@ -448,35 +448,36 @@ def _phase_report_submission(
         offer=offer,
     )
 
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_count=3,
-    )
-
-    with demo_check(
-        "Finder's DataLayer received case via Vendor outbox delivery"
-    ):
-        wait_for_finder_case(
-            finder_client=finder_client,
+    with demo_gate("participant count ≥3 before M1 verify_case_active"):
+        wait_for_case_participants(
+            vendor_client=vendor_client,
             case_id=case.id_,
-        )
-        logger.info(
-            "Case %s confirmed in Finder's DataLayer (outbox delivery verified)",
-            case.id_,
+            expected_count=3,
         )
 
-    with demo_check(
-        "M1: required participants (vendor + finder + case-actor, ≥3), "
-        "EM.ACTIVE, finder has case replica"
-    ):
-        verify_case_active(
-            receiver_client=vendor_client,
-            reporter_client=finder_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-            reporter_actor_id=finder.id_,
-        )
+        with demo_check(
+            "Finder's DataLayer received case via Vendor outbox delivery"
+        ):
+            wait_for_finder_case(
+                finder_client=finder_client,
+                case_id=case.id_,
+            )
+            logger.info(
+                "Case %s confirmed in Finder's DataLayer (outbox delivery verified)",
+                case.id_,
+            )
+
+        with demo_check(
+            "M1: required participants (vendor + finder + case-actor, ≥3), "
+            "EM.ACTIVE, finder has case replica"
+        ):
+            verify_case_active(
+                receiver_client=vendor_client,
+                reporter_client=finder_client,
+                case_id=case.id_,
+                receiver_actor_id=vendor.id_,
+                reporter_actor_id=finder.id_,
+            )
 
     case = as_VulnerabilityCase.model_validate(
         vendor_client.get(vendor_client.dl_path(case.id_))
@@ -568,42 +569,42 @@ def _phase_sync_verification(
     # than accepted, extending the time needed to reach full coverage.  Failing
     # here fast surfaces the real problem instead of a confusing coverage timeout
     # (SYNC-15-001, issue #1873).
-    with demo_check(
-        "Finder case seeded before ledger coverage wait (SYNC-15)"
-    ):
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
         wait_for_case_on_container(
             client=finder_client,
             case_id=case.id_,
         )
 
-    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-    if vendor_entries:
-        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_index: int = vendor_tail["log_index"]
-        logger.info(
-            "Waiting for finder to replicate all vendor entries (0…%d)",
-            vendor_tail_index,
-        )
-        with demo_check("Finder ledger coverage (sync-verification phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=finder_client,
-                case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
+        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+        if vendor_entries:
+            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+            vendor_tail_index: int = vendor_tail["log_index"]
+            logger.info(
+                "Waiting for finder to replicate all vendor entries (0…%d)",
+                vendor_tail_index,
             )
+            with demo_gate("Finder ledger coverage (sync-verification phase)"):
+                wait_for_contiguous_ledger_coverage(
+                    client=finder_client,
+                    case_id=case.id_,
+                    expected_tail_index=vendor_tail_index,
+                )
 
-    logger.info(
-        "Verifying LedgerFanout replication by comparing vendor ↔ finder replica"
-        " state (ADR-0019: synthetic entries omitted from canonical ledger)"
-    )
+                logger.info(
+                    "Verifying LedgerFanout replication by comparing vendor ↔ finder replica"
+                    " state (ADR-0019: synthetic entries omitted from canonical ledger)"
+                )
 
-    with demo_check("Finder replica state matches authoritative Vendor state"):
-        verify_finder_replica_state(
-            finder_client=finder_client,
-            vendor_client=vendor_client,
-            case_id=case.id_,
-            vendor_actor_id=vendor.id_,
-            reporter_actor_id=finder.id_,
-        )
+                with demo_check(
+                    "Finder replica state matches authoritative Vendor state"
+                ):
+                    verify_finder_replica_state(
+                        finder_client=finder_client,
+                        vendor_client=vendor_client,
+                        case_id=case.id_,
+                        vendor_actor_id=vendor.id_,
+                        reporter_actor_id=finder.id_,
+                    )
 
     with demo_check(
         "Dedicated external CaseActor container holds no case data "
@@ -796,29 +797,27 @@ def _phase_case_closure(
     #
     # Bug B fix: wait for close_case entry on the authoritative actor before
     # reading the tail, so we don't snapshot a tail that omits close_case.
-    with demo_check(
-        "close_case entry present on authoritative actor (vendor)"
-    ):
+    with demo_gate("close_case entry present on authoritative actor (vendor)"):
         wait_for_event_type_in_ledger(
             client=vendor_client,
             case_id=case.id_,
             event_type="close_case",
         )
-    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-    if vendor_entries:
-        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_index: int = vendor_tail["log_index"]
-        logger.info(
-            "Waiting for finder to replicate all vendor entries after closure"
-            " (0…%d)",
-            vendor_tail_index,
-        )
-        with demo_check("Finder ledger coverage (close phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=finder_client,
-                case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
+        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+        if vendor_entries:
+            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+            vendor_tail_index: int = vendor_tail["log_index"]
+            logger.info(
+                "Waiting for finder to replicate all vendor entries after closure"
+                " (0…%d)",
+                vendor_tail_index,
             )
+            with demo_gate("Finder ledger coverage (close phase)"):
+                wait_for_contiguous_ledger_coverage(
+                    client=finder_client,
+                    case_id=case.id_,
+                    expected_tail_index=vendor_tail_index,
+                )
 
 
 # ---------------------------------------------------------------------------

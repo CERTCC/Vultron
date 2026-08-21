@@ -43,13 +43,32 @@ groups:
   - id: IE-03-002
     priority: MUST
     kind: protocol
-    statement: >-
-      The endpoint MUST enforce a configurable maximum request body size; requests exceeding this
-      limit MUST be rejected with HTTP 413. The default maximum MUST be documented in the deployment
-      configuration reference.
+    statement: The endpoint MUST enforce a configurable maximum request body size.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-02-001
+  - id: IE-03-003
+    priority: MUST
+    kind: protocol
+    statement: Requests exceeding the maximum request body size MUST be rejected with HTTP 413.
+    rationale: >-
+      Rejecting oversized payloads with an explicit 413 prevents resource exhaustion
+      and signals the limit violation to the sender.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-03-002
+  - id: IE-03-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The default maximum request body size MUST be documented in the deployment
+      configuration reference.
+    rationale: >-
+      Operators need to know the default limit to tune it for their deployment
+      environment.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-03-002
 - id: IE-04
   title: Activity Validation
   specs:
@@ -95,7 +114,12 @@ groups:
   - id: IE-07-001
     priority: MUST
     kind: protocol
-    statement: 'The endpoint MUST return HTTP 202 for successfully accepted activities, HTTP 400 for malformed requests, HTTP 405 for non-POST methods, HTTP 413 for oversized request bodies, and HTTP 422 for activities that fail schema validation.'
+    statement: >-
+      The endpoint MUST return HTTP 202 for successfully accepted activities,
+      HTTP 400 for malformed requests or Activities whose addressing provably
+      excludes the receiving actor (IE-11-001), HTTP 405 for non-POST methods,
+      HTTP 413 for oversized request bodies, and HTTP 422 for activities that
+      fail schema validation.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
@@ -133,3 +157,52 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ID-05-002
+- id: IE-11
+  title: Activity Addressing
+  specs:
+  - id: IE-11-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The inbox endpoint MUST refuse with HTTP 400 any Activity whose addressing
+      fields (to, cc, bto, bcc) are all non-empty and none of them names the
+      receiving actor. The refusal MUST be synchronous, before the HTTP 202 is
+      returned, and MUST NOT write anything to the receiving actor's store.
+    rationale: >-
+      Per-actor DataLayer isolation (ADR-0069) makes each actor's store the
+      authoritative answer to "whose replica is this?". That invariant is only
+      trustworthy if the store's owner was the intended recipient of every
+      Activity it processed. A synchronous 4xx is itself the signal to the sender,
+      avoiding silent cross-actor data contamination.
+    adr:
+    - ADR-0068
+  - id: IE-11-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The inbox endpoint MUST accept Activities whose addressing fields
+      (to, cc, bto, bcc) are all absent or unresolvable (Liberal Accept).
+      An address is unresolvable if it cannot be confirmed to refer to a
+      specific individual actor — for example, a collection URI such as
+      ``{case_id}/participants``.
+    rationale: >-
+      Requiring explicit addressing would break flows where Activities are sent
+      without formal addressing (e.g., internal relay, legacy senders). The
+      narrowest thing that can be refused is provable exclusion; uncertainty
+      defaults to acceptance. Fan-out deliveries using collection URIs (e.g.
+      ``{case_id}/participants``) cannot be resolved to individual actors at
+      inbox processing time and must therefore be accepted.
+    adr:
+    - ADR-0068
+  - id: IE-11-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The inbox endpoint MUST consider all four addressing fields — to, cc,
+      bto, bcc — when determining whether the receiving actor is named as a
+      recipient. A match on any one field is sufficient.
+    rationale: >-
+      Several protocol flows rely on cc-to-self loopback delivery. Checking
+      only the to field would incorrectly refuse legitimately addressed Activities.
+    adr:
+    - ADR-0068

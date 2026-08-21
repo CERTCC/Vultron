@@ -39,6 +39,11 @@ Issue: CONCERN-1674.
    `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)`.
 2. **Keep `Offer(VulnerabilityCase)`; add `strict=True` to the pattern** —
    enforce the target discriminator at the pattern layer without a type change.
+   *Partially adopted as an implementation complement to Option 1 (CONCERN-2322):
+   `ActivityPattern._match_activity_field` hardcodes `strict=False` for `target_`
+   by default; any pattern using `target_` as the sole discriminator MUST set
+   `strict=True` so bare URI strings cannot match typed target constraints.
+   See SE-08-004.*
 3. **Spec-and-notes documentation only** — record the ordering requirement and
    the target-as-discriminator rationale; no wire format change.
 
@@ -53,6 +58,17 @@ Chosen option: **Option 1 — new `as_CaseParticipantRole` object type**, becaus
   generalises naturally to offering any `CVDRole` (VENDOR, COORDINATOR, etc.)
   rather than only CASE_MANAGER.
 - Options 2 and 3 leave the latent misrouting risk in place for external senders.
+
+**Implementation complement (CONCERN-2322)**: Option 2's `strict=True` mechanism
+is also applied as a structural hardening: `ActivityPattern._match_activity_field`
+now respects `self.strict` for the `target_` field pair rather than hardcoding
+`False`, so bare URI strings cannot match typed target constraints when
+`strict=True`. This closes the gap where registry ordering was the sole
+protection against misrouting even with Option 1 in place. Additionally:
+`OFFER_CASE_MANAGER_ROLE` was removed entirely (not merely deprecated) since
+its wire format was never emitted by any supported actor, and
+`ACCEPT_CASE_PARTICIPANT_ROLE` / `REJECT_CASE_PARTICIPANT_ROLE` were added to
+complete the three-way role-offer flow. See SE-08-004, SE-08-005.
 
 ### Consequences
 
@@ -77,12 +93,15 @@ Chosen option: **Option 1 — new `as_CaseParticipantRole` object type**, becaus
 
 ## More Information
 
-- Interim protection while the migration is in flight: `SE-08-001` through
-  `SE-08-002` mandate registry ordering and required target field until the
-  wire type migration is complete.
+- `SE-08-001` through `SE-08-002` mandate registry ordering and required target
+  field for any pattern that discriminates by target.
 - `SE-08-003` records the SHOULD preference for dedicated object types over
   target-field discrimination.
-- Implementation issue: tracked as a GitHub Task issue blocked by CONCERN-1674.
+- `SE-08-004` mandates `strict=True` on patterns that use `target_` as the
+  sole discriminator (amended by CONCERN-2322).
+- `SE-08-005` records the removal of the `OFFER_CASE_MANAGER_ROLE` backward-compat
+  format (CONCERN-2322).
+- Implementation issues: tracked as GitHub Task issues blocked by CONCERN-2322.
 
 Generated spec requirements: `specs/semantic-extraction.yaml` SE-08-001,
-SE-08-002, SE-08-003.
+SE-08-002, SE-08-003, SE-08-004, SE-08-005.

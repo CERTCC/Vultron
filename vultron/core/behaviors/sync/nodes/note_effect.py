@@ -54,7 +54,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
     dangling reference of exactly the kind the Actor Knowledge Model exists to
     prevent.  A shared store hid this: the author's note row was visible to
     every actor, so nobody noticed the recipient never stored one
-    (ADR-0066, CM-01-001).
+    (ADR-0069, CM-01-001).
 
     Lenient on missing data: if the case replica is absent, the note ID is
     not present in the snapshot, or the snapshot is malformed, the node

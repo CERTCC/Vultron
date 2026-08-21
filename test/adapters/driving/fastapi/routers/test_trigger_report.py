@@ -166,8 +166,15 @@ def received_report(dl, actor, report):
 
 
 @pytest.fixture
-def invalid_report(report):
-    """Put the report into RM.RECEIVED state (for invalidate/reject triggers)."""
+def invalid_report(dl, report, actor):
+    """Pre-seed RM.INVALID for reject triggers (INVALID→CLOSED is valid per BTND-10-001)."""
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    dl.create(status)
     return report
 
 
@@ -197,8 +204,15 @@ def _seed_owner_case(dl, actor_id, report_id):
 
 @pytest.fixture
 def accepted_report(dl, report, actor):
-    """Report in an acceptable state for close-case (actor is CASE_OWNER in linked case)."""
+    """Report ready for close: actor is CASE_OWNER and RM.ACCEPTED is seeded (BTND-10-001)."""
     _seed_owner_case(dl, actor.id_, report.id_)
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.ACCEPTED),
+    )
+    dl.create(status)
     return report
 
 

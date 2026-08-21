@@ -49,16 +49,10 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import (
-    PxaDimension,
-    RmDimension,
-    VfdDimension,
-)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.states.cs import (
-    is_monotonic_pxa_forward,
-    is_monotonic_vfd_forward,
+from vultron.core.behaviors.status.nodes._adjudication import (
+    _adjudicate_dimensions,
 )
 from vultron.core.states.rm import (
     RM,
@@ -72,6 +66,13 @@ logger = logging.getLogger(__name__)
 #: nodes downstream (``ResolveAndPersistStatusObjectNode``,
 #: ``ValidateRMTransitionNode``).  ``None`` when nothing was filtered.
 BB_DIMENSION_FILTER = "append_status_dimension_filter"
+
+#: Blackboard key for RM transition anomaly info published by
+#: :class:`FilterParticipantStatusDimensionsNode` (non-adjacent forward jump)
+#: and :class:`~vultron.core.behaviors.status.nodes.rm_validation.ValidateRMTransitionNode`
+#: (backward regression on the standalone path).  ``None`` when no anomaly.
+#: When set: ``{"anomaly_type": "gap"|"regression", "from_rm": RM, "to_rm": RM}``.
+BB_RM_ANOMALY = "rm_transition_anomaly"
 
 
 def _accepted_wire_patch(filtered: ParticipantStatus) -> dict[str, Any]:
@@ -175,78 +176,6 @@ def _dimension_state(status: ParticipantStatus, dimension: str) -> Any:
     return None
 
 
-def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
-    """Return True if *asserted* is an acceptable RM value given *current*.
-
-    ``RM.CLOSED`` is terminal (DEMOMA-07-003): once a participant has closed,
-    no further RM value — not even ``CLOSED`` again — is acceptable.  Otherwise
-    a status confirmation (no change), a valid adjacent transition, or a
-    non-adjacent but monotone forward jump are all acceptable; the sender is
-    authoritative about its own RM progress.
-    """
-    if current == RM.CLOSED:
-        return False
-    if asserted == current:
-        return True
-    return is_valid_rm_transition(
-        current, asserted
-    ) or is_monotonic_rm_forward(current, asserted)
-
-
-def _adjudicate_dimensions(
-    current: ParticipantStatus, asserted: ParticipantStatus
-) -> tuple[list[str], dict[str, Any]]:
-    """Adjudicate ``rm``, ``vfd`` and ``pxa`` independently.
-
-    Returns the names of the refused dimensions and the ``model_copy`` update
-    that carries the current value forward for each of them.  ``em``,
-    ``consent``, ``case_engagement``, ``embargo_adherence``, ``cvd_role`` and
-    ``tracking_id`` are not adjudicated here — ``em`` in particular belongs to
-    EmbargoTeardownAuthorizationGate (ADR-0046, ISSUE-2256).
-
-    The two return values are deliberately not the same set.  ``refused`` names
-    the dimensions whose *asserted* value was rejected; ``update_fields`` also
-    carries dimensions the sender said nothing about, which must be preserved
-    rather than dropped.  An inbound status with no ``case_status`` at all is
-    the common case: it asserts nothing about ``pxa``/``em``, so the
-    participant's current ``case_status`` is carried forward instead of letting
-    the omission erase state the receiver already holds (RSH-05-002).
-    """
-    refused: list[str] = []
-    update_fields: dict[str, Any] = {}
-
-    if not _rm_is_acceptable(current.rm.state, asserted.rm.state):
-        refused.append("rm")
-        update_fields["rm"] = RmDimension(state=current.rm.state)
-
-    current_vfd = current.vfd.state
-    asserted_vfd = asserted.vfd.state
-    if asserted_vfd != current_vfd and not is_monotonic_vfd_forward(
-        current_vfd, asserted_vfd
-    ):
-        refused.append("vfd")
-        update_fields["vfd"] = VfdDimension(state=current_vfd)
-
-    asserted_cs = asserted.case_status
-    current_cs = current.case_status
-    if asserted_cs is None and current_cs is not None:
-        # Nothing asserted about pxa/em — carry the receiver's own view
-        # forward.  Persisting the assertion as-is would blank both.
-        update_fields["case_status"] = current_cs.model_copy(deep=True)
-    elif asserted_cs is not None and current_cs is not None:
-        current_pxa = current_cs.pxa.state
-        asserted_pxa = asserted_cs.pxa.state
-        if asserted_pxa != current_pxa and not is_monotonic_pxa_forward(
-            current_pxa, asserted_pxa
-        ):
-            refused.append("pxa")
-            update_fields["case_status"] = asserted_cs.model_copy(
-                update={"pxa": PxaDimension(state=current_pxa)}
-            )
-
-    return refused, update_fields
-
-
 class FilterParticipantStatusDimensionsNode(DataLayerCondition):
     """Adjudicate each dimension of an inbound ParticipantStatus separately.
 
@@ -297,16 +226,21 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
             access=py_trees.common.Access.WRITE,
         )
+        self.blackboard.register_key(
+            key=BB_RM_ANOMALY,
+            access=py_trees.common.Access.WRITE,
+        )
 
     def _publish(
         self,
         refused: tuple[str, ...],
         filtered: ParticipantStatus | None,
+        rm_anomaly: dict | None = None,
     ) -> None:
         """Publish (or clear) the filter outcome on the blackboard.
 
         The py_trees blackboard is process-global and is not cleared between
-        executions, so both keys are written on *every* tick — including with
+        executions, so all keys are written on *every* tick — including with
         ``None`` when no filtering applies — to prevent a previous run's
         override from leaking into this one.
         """
@@ -315,6 +249,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             self.blackboard.set(
                 BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None, overwrite=True
             )
+            self.blackboard.set(BB_RM_ANOMALY, None, overwrite=True)
             return
 
         self.blackboard.set(
@@ -331,10 +266,49 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
             {
                 "object_id": self.status_id,
+                "producer_type": self.__class__.__name__,
                 "fields": _accepted_wire_patch(filtered),
             },
             overwrite=True,
         )
+        self.blackboard.set(BB_RM_ANOMALY, rm_anomaly, overwrite=True)
+
+    def _detect_rm_anomaly(
+        self,
+        refused: list[str],
+        current_rm: RM,
+        asserted_rm: RM,
+    ) -> dict | None:
+        """Return an anomaly dict when an RM transition anomaly is detected.
+
+        Returns ``None`` when there is nothing anomalous to record.
+        """
+        if "rm" in refused:
+            return {
+                "anomaly_type": "regression",
+                "from_rm": current_rm,
+                "to_rm": asserted_rm,
+            }
+        if (
+            current_rm != RM.CLOSED
+            and asserted_rm != current_rm
+            and not is_valid_rm_transition(current_rm, asserted_rm)
+            and is_monotonic_rm_forward(current_rm, asserted_rm)
+        ):
+            self.logger.warning(
+                "%s: non-adjacent forward RM jump %s → %s for participant"
+                " '%s'; accepting sender-authoritative state (RSH-06-001)",
+                self.name,
+                current_rm,
+                asserted_rm,
+                self.participant_id,
+            )
+            return {
+                "anomaly_type": "gap",
+                "from_rm": current_rm,
+                "to_rm": asserted_rm,
+            }
+        return None
 
     def _resolve_asserted(self) -> ParticipantStatus | None:
         """Return the asserted status as a core model, DataLayer first."""
@@ -379,7 +353,14 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             return Status.SUCCESS
 
         refused, update_fields = _adjudicate_dimensions(current, asserted)
+        rm_anomaly = self._detect_rm_anomaly(
+            refused, current.rm.state, asserted.rm.state
+        )
+
         if not update_fields:
+            # No dimension filtering needed; publish the anomaly flag only.
+            if rm_anomaly is not None:
+                self.blackboard.set(BB_RM_ANOMALY, rm_anomaly, overwrite=True)
             return Status.SUCCESS
 
         # ``name`` on a ParticipantStatus is a derived state summary (the wire
@@ -403,9 +384,13 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             self._publish((), None)
+            # Still publish the anomaly even on a wholly-refused assertion:
+            # the receiver detected an anomaly and must emit a note (RSH-06).
+            if rm_anomaly is not None:
+                self.blackboard.set(BB_RM_ANOMALY, rm_anomaly, overwrite=True)
             return Status.FAILURE
 
-        self._publish(tuple(refused), filtered)
+        self._publish(tuple(refused), filtered, rm_anomaly=rm_anomaly)
         self.feedback_message = (
             f"Partially accepted status '{self.status_id}' for participant"
             f" '{self.participant_id}': {self._carry_summary(refused)}"

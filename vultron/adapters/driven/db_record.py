@@ -25,6 +25,10 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronValidationError
+from vultron.wire.as2.enums import (
+    as_IntransitiveActivityType,
+    as_TransitiveActivityType,
+)
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
@@ -44,13 +48,26 @@ _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 # ``ParticipantStatus`` and ``CaseParticipant`` are normalised because their
 # two shapes are structurally incompatible: core nests ``rm: RmDimension``
 # while wire uses a flat ``rm_state``, so a wire-shaped row silently yields
-# ``None`` for ``status.rm.state``.  The other thirteen shadowing types
-# (``VulnerabilityCase``, ``VulnerabilityReport``, the actor types, …) differ
-# only by key spelling today and are not yet normalised — tracked in #2268.
+# ``None`` for ``status.rm.state``.  All fifteen shadowing types are now
+# normalised — the five actor types via issue #2402, the remaining ten object
+# types via issue #2268.
 _NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
     {
+        "CaseLedgerEntry",
         "CaseParticipant",
+        "CaseReference",
+        "CaseStatus",
+        "EmbargoEvent",
+        "EmbargoPolicy",
         "ParticipantStatus",
+        "VulnerabilityCase",
+        "VulnerabilityRecord",
+        "VulnerabilityReport",
+        "VultronApplication",
+        "VultronGroup",
+        "VultronOrganization",
+        "VultronPerson",
+        "VultronService",
     }
 )
 
@@ -77,40 +94,9 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
 # Announce envelope), so dehydrating them would make rehydration impossible on
 # read-back and cause MV-09-001 outbox-gate failures.
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
-    {
-        # as_TransitiveActivityType values
-        "Accept",
-        "Add",
-        "Announce",
-        "Block",
-        "Create",
-        "Delete",
-        "Dislike",
-        "Flag",
-        "Follow",
-        "Ignore",
-        "Invite",
-        "Join",
-        "Leave",
-        "Like",
-        "Listen",
-        "Move",
-        "Offer",
-        "Read",
-        "Reject",
-        "Remove",
-        "TentativeAccept",
-        "TentativeReject",
-        "Undo",
-        "Update",
-        "View",
-        # as_IntransitiveActivityType values
-        "Arrive",
-        "Question",
-        "Travel",
-        # Vultron-specific type kept inline for the same reason
-        "CaseLedgerEntry",
-    }
+    {e.value for e in as_TransitiveActivityType}
+    | {e.value for e in as_IntransitiveActivityType}
+    | {"CaseLedgerEntry"}
 )
 
 # Fields that hold a *list* of object references (ID strings or inline
@@ -301,6 +287,13 @@ def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
     model = _project_shadowing_wire_obj(obj)
     updates: dict[str, Any] = {}
     for field_name in type(model).model_fields:
+        if field_name in _AS_OBJECT_REF_FIELDS:
+            # These fields are dehydrated to ID strings by _dehydrate_data; their
+            # in-memory shape is irrelevant to the stored row.  Skipping them
+            # prevents spurious to_core() calls on stub/reference objects (e.g.
+            # VulnerabilityCaseStub in Invite.target) that are never stored
+            # standalone and have no full core projection.
+            continue
         value = getattr(model, field_name, None)
         if isinstance(value, BaseModel):
             projected = _project_shadowing_wire_obj(value)

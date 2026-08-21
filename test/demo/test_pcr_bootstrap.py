@@ -212,7 +212,7 @@ def _bootstrap_case_for_participant(
     participant_tc,
     owner_slug: str,
     participant_slug: str,
-) -> str:
+) -> tuple[str, str, str]:
     """Set up a case on owner's app and deliver Announce to participant.
 
     Exercises the full bootstrap sequence for PCR-07-006 AC-1:
@@ -301,7 +301,7 @@ def _bootstrap_case_for_participant(
     # The owner's own store, not `owner_iso.dl`: this test creates its actor
     # under a per-test slug, while `dl` is the app's default-slug store, so
     # reading `dl` reports an empty store and the assertion fails for the wrong
-    # reason (ADR-0066 — a store is exactly one actor's).
+    # reason (ADR-0069 — a store is exactly one actor's).
     owner_dl = owner_iso.store_for(owner_actor_id)
 
     case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
@@ -395,7 +395,7 @@ class TestBootstrapSequence:
         # ran and processed the Announce (dispatch chain completed).
         # The participant's own store, not the app's default-slug `dl`: the actor
         # is created under a per-test slug, and a store belongs to exactly one
-        # actor (ADR-0066), so `dl` is a different (empty) database.
+        # actor (ADR-0069), so `dl` is a different (empty) database.
         actor_dl = participant_iso.store_for(participant_actor_id)
         # No `close()` on it.  This is the participant's *live* store, shared with
         # the running app — not a throwaway clone.  An in-memory store is named, so
@@ -494,7 +494,7 @@ class TestBootstrapSequence:
         _post_to_inbox(participant_tc, _actor_slug(actor_id), announce)
         # The store of the actor just created, not the app's default-slug `dl`:
         # the Announce was delivered to `actor_id`, so that is the replica it
-        # seeded (ADR-0066).
+        # seeded (ADR-0069).
         actor_dl = participant_iso.store_for(actor_id)
         assert (
             actor_dl.read(_DIRECT_CASE_ID) is not None

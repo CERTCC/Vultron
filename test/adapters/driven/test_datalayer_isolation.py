@@ -59,7 +59,7 @@ def reset_instances():
 
 
 class TestActorIdScoping:
-    """Every DataLayer belongs to exactly one actor (ADR-0066)."""
+    """Every DataLayer belongs to exactly one actor (ADR-0069)."""
 
     def test_actor_id_is_required(self):
         """There is no unscoped DataLayer to construct.
@@ -304,7 +304,7 @@ class TestOutboxIsPerActorStore:
     existed so an *unscoped* DataLayer could name whose queue to touch, and its
     tests asserted that alice's DL could write into bob's queue.  With a
     mandatory actor scope the method is exactly ``outbox_append`` and the
-    cross-actor write it enabled is gone (ADR-0066).
+    cross-actor write it enabled is gone (ADR-0069).
 
     This also retires BUG-2026040901 structurally: there is one store per actor,
     so a queue can no longer be written under one spelling of an actor id and
@@ -380,7 +380,7 @@ class TestGetDatalayerFactory:
 
         This replaces ``test_shared_instance_has_no_actor_id``, which asserted
         that ``get_datalayer`` could hand back an instance whose ``_actor_id``
-        was ``None``.  That was the shared DataLayer, and ADR-0066 deletes it:
+        was ``None``.  That was the shared DataLayer, and ADR-0069 deletes it:
         the argument is mandatory and is always the instance's own actor, so the
         old assertion described a state the factory can no longer reach.
         """

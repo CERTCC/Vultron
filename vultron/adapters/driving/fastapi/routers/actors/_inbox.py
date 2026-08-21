@@ -23,11 +23,16 @@ to background processing. No route handlers here.
 import json
 import logging
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 
+from vultron.adapters.driven.actor_hosts import (
+    ACTORS_SEGMENT as _ACTORS_SEGMENT,
+)
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
@@ -77,6 +82,89 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
+
+
+def _collect_addresses(activity: as_Activity) -> list[str]:
+    """Collect all addressee URIs from to/cc/bto/bcc fields."""
+    result: list[str] = []
+    for field_name in ("to", "cc", "bto", "bcc"):
+        val = getattr(activity, field_name, None)
+        if val is None:
+            continue
+        items: list[Any] = val if isinstance(val, list) else [val]
+        for item in items:
+            if isinstance(item, str):
+                result.append(item)
+            elif hasattr(item, "id_") and item.id_ is not None:
+                result.append(item.id_)
+    return result
+
+
+def _names_an_individual_actor(addr: str) -> bool:
+    """Return True if *addr* refers to one specific actor rather than a group.
+
+    IE-11-002 makes resolvability a question about the *address*: an address is
+    unresolvable when it "cannot be confirmed to refer to a specific individual
+    actor", the given example being a collection URI such as
+    ``{case_id}/participants``.  So this asks about the address's shape, and
+    deliberately consults no store.
+
+    An earlier reading asked the receiving actor's own DataLayer whether it knew
+    the addressee.  That was already a loose proxy for the question, and under
+    per-actor storage isolation (ADR-0069) it became a vacuous one: a store
+    holds its owner's knowledge, not the node's roster, so a peer is never in it
+    and *every* misaddressed Activity naming a real peer fell through to Liberal
+    Accept.  IE-11-001 refused nothing.
+
+    Recognised as individual: a bare short id (``"bob"``), and an absolute URI
+    whose path ends in ``/actors/{slug}`` — the canonical actor URI shape this
+    node mints (``canonical_actor_uri``).  Anything else — a collection URI, a
+    sub-collection like ``{actor_id}/followers``, the public addressing
+    constant, or a remote node's unfamiliar layout — is unresolvable and so
+    falls through to Liberal Accept.
+    """
+    if not addr:
+        return False
+    path = urlsplit(addr).path if urlsplit(addr).scheme else addr
+    segments = [seg for seg in path.split("/") if seg]
+    if len(segments) == 1 and not urlsplit(addr).scheme:
+        # A bare short id names one actor, and AC-4 requires it to count.
+        return True
+    return len(segments) >= 2 and segments[-2] == _ACTORS_SEGMENT
+
+
+def _activity_addressed_to(
+    activity: as_Activity,
+    canonical_actor_id: str,
+    dl: DataLayer | None = None,
+) -> bool:
+    """Return True if the Activity addresses canonical_actor_id.
+
+    Absent addressing returns True (Liberal Accept — AC-3, IE-11-002). A
+    non-empty address set is checked against the canonical URI and the
+    short-ID suffix, so both spellings satisfy the check (AC-4).
+
+    An address that does not name a specific individual actor (e.g. a collection
+    URI like ``{case_id}/participants``) is unresolvable and also falls through
+    to Liberal Accept (IE-11-002); see :func:`_names_an_individual_actor`.
+
+    ``dl`` is accepted for call-compatibility and is unused: resolvability is a
+    property of the address, not of any one actor's store.
+    """
+    addresses = _collect_addresses(activity)
+    if not addresses:
+        return True
+    canonical_short = strip_id_prefix(canonical_actor_id)
+    for addr in addresses:
+        if (
+            addr == canonical_actor_id
+            or strip_id_prefix(addr) == canonical_short
+        ):
+            return True
+    # Refuse only on provable exclusion: every address must be one we can
+    # confirm names some *other* individual actor.  One unresolvable address is
+    # enough uncertainty to accept the whole thing.
+    return not all(_names_an_individual_actor(addr) for addr in addresses)
 
 
 def _activity_already_received(actor: CoreActor, activity_id: str) -> bool:

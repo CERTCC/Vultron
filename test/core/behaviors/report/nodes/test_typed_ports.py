@@ -35,6 +35,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateValid,
     CheckRMStateReceivedOrInvalid,
     EnsureEmbargoExists,
+    EvaluateReportCredibility,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoValid,
@@ -390,3 +391,20 @@ class TestTransitionRMtoValidPorts:
 
         result = node.update()
         assert result == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# AC-4 (issue #1884): isolated-port NoDataAvailable tests for newly migrated
+# report-domain nodes.
+# ---------------------------------------------------------------------------
+
+
+class TestEvaluateReportCredibilityPorts:
+    """EvaluateReportCredibility — Type-A migration NoDataAvailable tests."""
+
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        """BTND-03-011: get_input('datalayer') raises NoDataAvailable when absent."""
+        node = EvaluateReportCredibility(report_id=REPORT_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")

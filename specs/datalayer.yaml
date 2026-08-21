@@ -2,7 +2,7 @@ id: DL
 title: DataLayer Port
 description: Behavioural contract that all DataLayer adapter implementations MUST satisfy. Covers auto-rehydration on read,
   type-safe write operations, and port isolation.
-version: 1.3.0
+version: 1.4.0
 scope:
 - prototype
 - production
@@ -123,7 +123,7 @@ groups:
       documented architectural smell rather than normal design.'
     rationale: >-
       Makes outbound side effects explicit and highlights mixed inbound-plus-broadcast handlers for later
-      refactoring. `record_outbox_item(actor_id, ...)` was removed from this surface by ADR-0066: it existed
+      refactoring. `record_outbox_item(actor_id, ...)` was removed from this surface by ADR-0069: it existed
       so that an unscoped DataLayer could name the actor explicitly, and every one of its call sites passed
       the executing actor's own id, so under a mandatory actor scope it was exactly `outbox_append`. Keeping
       both would have preserved a way to write to a queue that is not the store's own.
@@ -161,13 +161,11 @@ groups:
   - id: DL-05-002
     priority: MUST
     kind: project
-    statement: The DataLayer adapter MUST own the wire↔core translation for persistence and MUST maintain its own
-      `type_`→core-class mapping (via `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry; the wire
-      vocabulary registry MUST NOT be the mechanism by which core objects are reconstructed on the read path.
+    statement: The DataLayer adapter MUST own the wire↔core translation for persistence.
     rationale: >-
-      The wire registry is a wire-layer concern (DL-03-002). Making the adapter reconstruct core objects from a core
-      registry decouples DataLayer storage from the wire type system so the wire layer can evolve without breaking
-      persistence.
+      The wire registry is a wire-layer concern (DL-03-002). Making the adapter own translation
+      decouples DataLayer storage from the wire type system so the wire layer can evolve without
+      breaking persistence.
     relationships:
     - rel_type: implements
       spec_id: DL-03-002
@@ -205,6 +203,81 @@ groups:
     - persistence
     - testing
     - wire-format
+  - id: DL-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      An architecture ratchet test MUST assert that `_NORMALIZE_WIRE_TO_CORE` in
+      `vultron/adapters/driven/db_record.py` covers every wire vocabulary class whose bare `type_`
+      shadows a `CORE_VOCABULARY` entry; the set may only grow, as shrinking re-opens the
+      write-path shape duality.
+    rationale: >-
+      Prevents regression on the write path: a wire-shaped row MUST NOT be persisted in a
+      core-typed DataLayer table. The write-side ratchet is the mirror-image of DL-05-004 and
+      enforces the persistence-boundary backstop described in ADR-0062. Source concern #2268.
+    relationships:
+    - rel_type: implements
+      spec_id: DL-05-001
+    tags:
+    - persistence
+    - testing
+    - wire-format
+    adr:
+    - ADR-0062
+  - id: DL-05-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The DataLayer adapter MUST maintain its own `type_`→core-class mapping (via
+      `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry.
+    rationale: >-
+      An independent adapter-owned mapping decouples DataLayer storage from the wire type system
+      so the wire layer can evolve without breaking persistence (DL-03-002).
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-007
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The wire vocabulary registry MUST NOT be the mechanism by which core objects are
+      reconstructed on the DataLayer read path.
+    rationale: >-
+      Using the wire registry for core object reconstruction leaks wire-layer concerns into the
+      adapter read path, violating DL-03-002.
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-008
+    priority: MUST
+    kind: project
+    statement: >-
+      When all shadowing types are migrated, the companion `_NOT_YET_NORMALIZED` enumeration in
+      `vultron/adapters/driven/db_record.py` MUST be empty.
+    rationale: >-
+      An empty `_NOT_YET_NORMALIZED` set confirms that all wire-shaped rows have been migrated
+      to core-typed persistence, completing the write-path normalization described in ADR-0062.
+    tags:
+    - persistence
+    - testing
+    - wire-format
+    adr:
+    - ADR-0062
+  - id: DL-05-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The architecture ratchet test MUST enforce that no wire vocabulary class shadowing a
+      `CORE_VOCABULARY` entry in `_NORMALIZE_WIRE_TO_CORE` is left uncovered.
+    rationale: >-
+      Ensures the ratchet is closed-form: every shadowing type must be explicitly handled, with
+      no silent gaps that would allow wire-shaped rows to slip through.
+    tags:
+    - persistence
+    - testing
+    - wire-format
+    adr:
+    - ADR-0062
 - id: DL-06
   title: Activity Read-Back and the Semantic/Envelope Split
   description: >-
@@ -333,7 +406,7 @@ groups:
       primary key, so reads were partitioned and writes were not: `save()` on one actor's DataLayer
       overwrote another actor's row while leaving it owned by the original actor, and `create()`
       raised a spurious duplicate error for the second actor. Both are unreachable when the layout —
-      not the WHERE clause — carries the isolation. Decided in ADR-0066; source issue #2238.
+      not the WHERE clause — carries the isolation. Decided in ADR-0069; source issue #2238.
     relationships:
     - rel_type: implements
       spec_id: CM-01-001
@@ -344,7 +417,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: DL-07-002
     priority: MUST
     kind: project
@@ -367,7 +440,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: DL-07-003
     priority: MUST
     kind: project
@@ -386,7 +459,7 @@ groups:
     - persistence
     - configuration
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: DL-07-004
     priority: MUST
     kind: project
@@ -407,7 +480,7 @@ groups:
     - persistence
     - testing
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: DL-07-005
     priority: MUST
     kind: project
@@ -424,7 +497,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: DL-07-006
     priority: MUST
     kind: project
@@ -443,7 +516,7 @@ groups:
     - persistence
     - protocol
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: DL-07-007
     priority: MUST
     kind: project
@@ -463,7 +536,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: DL-07-008
     priority: MUST
     kind: project
@@ -485,4 +558,4 @@ groups:
     - persistence
     - messaging
     adr:
-    - ADR-0066
+    - ADR-0069

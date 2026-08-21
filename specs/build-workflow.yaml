@@ -90,7 +90,7 @@ groups:
         kind: process
         statement: >-
           The `update-plan` skill MUST write observations and open questions
-          directly to appropriate `notes/*.md` files. It MUST NOT use
+          to the `notes/*.md` file whose topic matches the content. It MUST NOT use
           `plan/incoming/learnings/` as an intermediate staging area.
         relationships:
           - rel_type: refines
@@ -141,9 +141,10 @@ groups:
         kind: process
         statement: >-
           When the `learn` skill processes `plan/incoming/learnings/`, each
-          file MUST be promoted to the appropriate durable destination
-          (`specs/*.yaml`, `notes/*.md`, or `AGENTS.md`) before being
-          archived via `uv run append-history --from-file <path>`.
+          file MUST be promoted to the durable destination matching the content
+          type — requirements to `specs/*.yaml`, design insights to `notes/*.md`,
+          agent guidance to `AGENTS.md` — before being archived via
+          `uv run append-history --from-file <path>`.
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-002

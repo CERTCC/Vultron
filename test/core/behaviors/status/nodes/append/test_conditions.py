@@ -23,6 +23,8 @@ ValidateRMTransitionNode from ``nodes.rm_validation``.
 Per DEMOMA-07-003 step 2.
 """
 
+import logging
+
 import py_trees
 from py_trees.common import Status
 
@@ -34,6 +36,7 @@ from vultron.core.behaviors.status.nodes.append import (
     ResolveAndPersistStatusObjectNode,
     SkipIfIdempotentNode,
 )
+from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
@@ -191,6 +194,146 @@ class TestValidateRMTransitionNode:
         )
         result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
+
+    def test_forward_gap_succeeds_with_warning_and_anomaly(
+        self, populated_dl, caplog
+    ):
+        """Non-adjacent forward RM jump: SUCCESS + WARNING log + anomaly flag (RSH-06-001, RSH-06-003)."""
+        received_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/received",
+            context=CASE_ID,
+            rm_state=RM.RECEIVED,
+        )
+        populated_dl.create(received_status)
+        p = populated_dl.read(PARTICIPANT_ID)
+        p.participant_statuses.append(received_status)
+        populated_dl.save(p)
+
+        # RECEIVED → ACCEPTED is a non-adjacent forward jump (skips VALID)
+        accepted_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/accepted",
+            context=CASE_ID,
+            rm_state=RM.ACCEPTED,
+        )
+        populated_dl.create(accepted_status)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        resolve = ResolveAndPersistStatusObjectNode(
+            status_id=accepted_status.id_, status_obj_fallback=None
+        )
+        validate = ValidateRMTransitionNode(
+            participant_id=PARTICIPANT_ID, status_id=accepted_status.id_
+        )
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[load, resolve, validate],
+        )
+
+        with caplog.at_level(logging.WARNING):
+            result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        # RSH-06-003: must log at WARNING level
+        assert any(
+            r.levelno == logging.WARNING for r in caplog.records
+        ), "Expected WARNING log for non-adjacent forward RM jump"
+        # RSH-06: anomaly flag must be set on blackboard
+        anomaly = py_trees.blackboard.Blackboard.storage.get(
+            "/" + BB_RM_ANOMALY
+        )
+        assert anomaly is not None, "BB_RM_ANOMALY not set for forward gap"
+        assert anomaly["anomaly_type"] == "gap"
+        assert anomaly["from_rm"] == RM.RECEIVED
+        assert anomaly["to_rm"] == RM.ACCEPTED
+
+    def test_backward_regression_sets_anomaly(self, populated_dl):
+        """Backward RM regression: FAILURE + anomaly flag set (RSH-06-002, RSH-06-003)."""
+        accepted_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/accepted",
+            context=CASE_ID,
+            rm_state=RM.ACCEPTED,
+        )
+        populated_dl.create(accepted_status)
+        p = populated_dl.read(PARTICIPANT_ID)
+        p.participant_statuses.append(accepted_status)
+        populated_dl.save(p)
+
+        # ACCEPTED → RECEIVED is a backward regression
+        regression_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/regression",
+            context=CASE_ID,
+            rm_state=RM.RECEIVED,
+        )
+        populated_dl.create(regression_status)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        resolve = ResolveAndPersistStatusObjectNode(
+            status_id=regression_status.id_, status_obj_fallback=None
+        )
+        validate = ValidateRMTransitionNode(
+            participant_id=PARTICIPANT_ID, status_id=regression_status.id_
+        )
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[load, resolve, validate],
+        )
+        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+
+        assert result.status == Status.FAILURE
+        anomaly = py_trees.blackboard.Blackboard.storage.get(
+            "/" + BB_RM_ANOMALY
+        )
+        assert anomaly is not None, "BB_RM_ANOMALY not set for regression"
+        assert anomaly["anomaly_type"] == "regression"
+        assert anomaly["from_rm"] == RM.ACCEPTED
+        assert anomaly["to_rm"] == RM.RECEIVED
+
+    def test_adjacent_transition_clears_anomaly_flag(self, populated_dl):
+        """Valid adjacent RM transition: no anomaly flag set (happy path)."""
+        received_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/received",
+            context=CASE_ID,
+            rm_state=RM.RECEIVED,
+        )
+        populated_dl.create(received_status)
+        p = populated_dl.read(PARTICIPANT_ID)
+        p.participant_statuses.append(received_status)
+        populated_dl.save(p)
+
+        # RECEIVED → VALID is a valid adjacent transition
+        valid_status = as_ParticipantStatus(
+            id_="https://example.org/cases/case-01/statuses/valid",
+            context=CASE_ID,
+            rm_state=RM.VALID,
+        )
+        populated_dl.create(valid_status)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        resolve = ResolveAndPersistStatusObjectNode(
+            status_id=valid_status.id_, status_obj_fallback=None
+        )
+        validate = ValidateRMTransitionNode(
+            participant_id=PARTICIPANT_ID, status_id=valid_status.id_
+        )
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[load, resolve, validate],
+        )
+        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        anomaly = py_trees.blackboard.Blackboard.storage.get(
+            "/" + BB_RM_ANOMALY
+        )
+        assert (
+            anomaly is None
+        ), f"Expected no anomaly for adjacent transition, got {anomaly}"
 
 
 # ---------------------------------------------------------------------------

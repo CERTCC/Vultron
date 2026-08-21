@@ -700,7 +700,7 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
         router = _TestClientRouter()
         # `actor_slug` decides which actor's store `iso.dl` is. These actors are
         # created under the module slugs below, and a store belongs to exactly one
-        # actor (ADR-0066), so leaving the default `"primary"` points `dl` at an
+        # actor (ADR-0069), so leaving the default `"primary"` points `dl` at an
         # empty database — the finder's Announce assertion then reads a store
         # nothing was ever delivered to.
         vendor_iso = create_isolated_actor_app(
@@ -1318,3 +1318,99 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             f"got {body.get('offer_id')!r} — Bug #2178: original offer ID "
             f"{original_offer_id!r} is never stored in Coordinator's DataLayer"
         )
+
+
+class TestFvcvHandoffCausalGates:
+    """Verify causal demo_gate sites skip dependent steps on timeout.
+
+    Each test simulates an async-commit timeout at the precondition and
+    confirms the dependent step is never reached.
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_report_submission_skips_case_on_container_when_participants_never_ready(
+        self,
+    ):
+        """demo_gate skips wait_for_case_on_container when wait_for_case_participants times out."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        case_actor_client = self._client()
+        vendor2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor2 = self._actor("urn:test:vendor2")
+        case = self._case()
+
+        case_on_container_called = MagicMock()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvcv",
+                return_value=(finder, vendor, coordinator, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[vendor_in_vendor, coordinator_in_coordinator],
+            ),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock()),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(
+                demo,
+                "wait_for_case_participants",
+                side_effect=AssertionError(
+                    "timed out waiting for participants"
+                ),
+            ),
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=case_on_container_called,
+            ),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
+                vendor2_client=vendor2_client,
+                finder_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+            )
+
+        case_on_container_called.assert_not_called()

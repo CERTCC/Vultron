@@ -92,7 +92,7 @@ class SqliteDataLayer:
 
         Args:
             db_url: The configured SQLAlchemy URL **template**.  Each actor
-                gets its own store derived from it (ADR-0066), so this names a
+                gets its own store derived from it (ADR-0069), so this names a
                 family of stores rather than one location.
             actor_id: The actor's canonical URI.  Required and keyword-only:
                 there is no unscoped DataLayer, so there is no such thing as a
@@ -114,7 +114,7 @@ class SqliteDataLayer:
         """The canonical URI of the actor whose store this is.
 
         Public because callers legitimately need to ask *whose* store they
-        hold: under ADR-0066 a store is never anonymous, so "which actor" is
+        hold: under ADR-0069 a store is never anonymous, so "which actor" is
         part of a DataLayer's identity rather than an implementation detail.
         :class:`~vultron.core.behaviors.bridge.BTBridge` uses it to keep the
         blackboard's ``datalayer`` and ``actor_id`` in agreement.
@@ -133,7 +133,7 @@ class SqliteDataLayer:
     def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
         """Return a DataLayer for *actor_id*, backed by that actor's own store.
 
-        Under ADR-0066 this opens a **different** store rather than applying a
+        Under ADR-0069 this opens a **different** store rather than applying a
         filter to a shared one, so nothing the returned instance writes can be
         read through this instance, and vice versa.  Cloning for the actor this
         instance already serves returns an equivalent instance sharing the same
@@ -191,7 +191,7 @@ class SqliteDataLayer:
         """Convert a domain object to a storage row.
 
         No ``actor_id`` column is written: the store *is* the actor's, so
-        stamping ownership on each row would be redundant (ADR-0066).
+        stamping ownership on each row would be redundant (ADR-0069).
         """
         rec = Record.from_obj(obj)
         return VultronObjectRecord(

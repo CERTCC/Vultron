@@ -184,12 +184,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Handlers processing EM state transitions MUST update the appropriate EM state field as follows:
-      (a) when the accepting actor is the case owner, MUST update CaseStatus.em_state;
-      (b) when the accepting actor is any other participant, MUST update that participant's
-      ParticipantStatus.embargo_adherence;
-      (c) a handler MUST update at most one of these fields per accept event unless both conditions
-      apply simultaneously (see CM-13-001 through CM-13-003 for the full decision logic).
+      When processing an EM state transition and the accepting actor is the case owner,
+      the handler MUST update CaseStatus.em_state.
     relationships:
     - rel_type: implements
       spec_id: VP-06-001
@@ -239,6 +235,27 @@ groups:
       records, trigger broadcast, or create new case-ledger entries.
     rationale: Checking equality first can let duplicate close retries flow into downstream append/broadcast paths as fresh
       state changes.
+  - id: CM-04-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When processing an EM state transition and the accepting actor is any participant other
+      than the case owner, the handler MUST update only that participant's
+      ParticipantStatus.embargo_adherence.
+    rationale: >-
+      Non-owner participants do not advance the shared EM state; their individual acceptance
+      updates only their own consent record.
+  - id: CM-04-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A handler processing an EM state transition accept event MUST update at most one of
+      CaseStatus.em_state or ParticipantStatus.embargo_adherence per accept event, except when
+      the accepting actor simultaneously satisfies both the case-owner and non-owner conditions
+      (see CM-13-001 through CM-13-003 for the full decision logic).
+    rationale: >-
+      Updating both fields unconditionally would conflate the shared embargo state with a
+      participant's individual consent state, corrupting the EM state machine.
 - id: CM-05
   title: Object Model Relationships
   specs:
@@ -272,9 +289,7 @@ groups:
   - id: CM-05-005
     priority: MUST
     kind: protocol
-    statement: '`CaseReference` objects MUST include at minimum a `url` field; SHOULD include a `name` field (human-readable
-      title); MAY include a `tags` field (array of one or more type descriptors, e.g., `"patch"`, `"vendor-advisory"`, `"third-party-advisory"`,
-      `"exploit"`, `"release-notes"`)'
+    statement: '`CaseReference` objects MUST include at minimum a `url` field.'
   - id: CM-05-006
     priority: MAY
     kind: protocol
@@ -303,6 +318,21 @@ groups:
     kind: protocol
     statement: When a `VulnerabilityRecord` is a `CVERecord` (i.e., it carries a CVE ID), its data MUST conform to the CVE
       JSON schema (<https://github.com/CVEProject/cve-schema>)
+  - id: CM-05-011
+    priority: SHOULD
+    kind: protocol
+    statement: '`CaseReference` objects SHOULD include a `name` field containing a human-readable title.'
+    rationale: A human-readable title makes references easier to identify in case summaries and reports.
+  - id: CM-05-012
+    priority: MAY
+    kind: protocol
+    statement: >-
+      `CaseReference` objects MAY include a `tags` field (array of one or more type
+      descriptors, e.g., "patch", "vendor-advisory", "third-party-advisory", "exploit",
+      "release-notes").
+    rationale: >-
+      Type descriptor tags allow consumers to filter or categorise references without
+      parsing the URL or name.
 - id: CM-06
   title: Case Update Broadcast
   specs:
@@ -652,15 +682,13 @@ groups:
   - id: CM-14-001
     priority: MUST
     kind: protocol
-    statement: 'The case initialization sequence MUST execute in the following order: (1) create the `VulnerabilityCase` with
-      the receiving actor set as `attributed_to`; (2) create the case-owner `VultronParticipant` (RM.RECEIVED, `CVDRole.CASE_OWNER`);
-      (3) initialize the default embargo to `EM.ACTIVE` and seed the case owner as `SIGNATORY`, if a default embargo policy
-      is configured; (4) queue a `Create(Case)` activity addressed to the reporter and flush the outbox; (5) add the reporter
-      as a `VultronParticipant` (RM.ACCEPTED, `CVDRole.FINDER`/`REPORTER`) and seed them as `SIGNATORY` on any active embargo;
-      (6) commit a case ledger entry (triggering `Announce(CaseLedgerEntry)` fan-out to all participants).'
-    rationale: Step 2 precedes step 3 so that the embargo is always created by a participant (the case owner). The Create(Case)
-      notification in step 4 is flushed before the reporter is added in step 5 so the reporter's system receives the case
-      object before any subsequent Announce(CaseLedgerEntry) fan-out that references it.
+    statement: >-
+      The case initialization sequence MUST execute exactly 6 ordered steps
+      (CM-14-008 through CM-14-013) before the case is considered fully initialized.
+      No step may be omitted or reordered.
+    rationale: Step CM-14-009 precedes CM-14-010 so that the embargo is always created by a participant (the case owner). The
+      Create(Case) notification in CM-14-011 is flushed before the reporter is added in CM-14-012 so the reporter's system
+      receives the case object before any subsequent Announce(CaseLedgerEntry) fan-out that references it.
     note: >-
       Superseded by CM-22 (ADR-0041) for multi-actor deployments: in the
       CaseActor-authoritative model the `VulnerabilityCase` is created by the
@@ -749,6 +777,58 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
+  - id: CM-14-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Step 1 of the case initialization sequence MUST create the `VulnerabilityCase`
+      with the receiving actor set as `attributed_to`.
+    rationale: Creating the case object first establishes the anchor to which all subsequent
+      initialization steps (participants, embargo, ledger) are attached.
+  - id: CM-14-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Step 2 of the case initialization sequence MUST create the case-owner
+      `VultronParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
+    rationale: The case-owner participant must exist before the default embargo can be
+      initialized, so that the embargo is always associated with an existing participant.
+  - id: CM-14-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Step 3 of the case initialization sequence MUST initialize the default embargo to
+      `EM.ACTIVE` and seed the case owner as `SIGNATORY`, if a default embargo policy is
+      configured.
+    rationale: If a default embargo policy is active it must be in place before any
+      participant other than the case owner is added, so that all subsequent participants
+      are subject to the embargo from the moment they join.
+  - id: CM-14-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Step 4 of the case initialization sequence MUST queue a `Create(Case)` activity
+      addressed to the reporter and flush the outbox.
+    rationale: The reporter's system must receive and store the case object before any
+      Announce(CaseLedgerEntry) fan-out that references it.
+  - id: CM-14-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Step 5 of the case initialization sequence MUST add the reporter as a
+      `VultronParticipant` with `RM.ACCEPTED` and `CVDRole.FINDER`/`REPORTER`, and seed
+      them as `SIGNATORY` on any active embargo.
+    rationale: The reporter is added after the Create(Case) notification is flushed
+      (CM-14-011) so that the case object exists on the reporter's system before the
+      fan-out of the ledger entry that records their participation.
+  - id: CM-14-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Step 6 of the case initialization sequence MUST commit a case ledger entry,
+      triggering `Announce(CaseLedgerEntry)` fan-out to all participants.
+    rationale: The ledger entry commits the completed initialization as a single
+      protocol-significant event and notifies all participants atomically.
 - id: CM-15
   title: Case Creation Policy
   description: Requirements for the configurable auto_create_case policy on ActorConfig, which controls whether a VulnerabilityCase
@@ -757,23 +837,55 @@ groups:
   - id: CM-15-001
     priority: MUST
     kind: protocol
-    statement: 'ActorConfig MUST expose an `auto_create_case` boolean field (default: True). When a receiver''s auto_create_case
-      is False, processing an inbound Offer(Report) MUST store the VulnerabilityReport and the Offer(Report) activity but
-      MUST NOT create a VulnerabilityCase and MUST leave the receiver''s outbox unchanged. The gate MAY be enforced either
-      as a routing-level short-circuit in SubmitReportReceivedUseCase or as an in-tree condition node at the root of create_receive_report_case_tree;
-      the observable outcome (no case, no outbound activities) is what is normative, not the enforcement location.'
+    statement: 'ActorConfig MUST expose an `auto_create_case` boolean field with a default value of `True`.'
     rationale: Receivers that follow the Option 3 protocol path (send Read(Offer(Report)) before deciding to accept or reject)
       require the ability to delay case creation. The default (True) preserves the original ADR-0015 Option 4 "always create
-      at RM.RECEIVED" behavior for all existing actors and demos. Case creation is protocol-significant behavior (BT-15-001),
-      so the canonical gate lives in the behavior tree as a condition node; the use-case short-circuit is an equivalent optimization
-      that avoids invoking the BT for a decision already known at dispatch time. Either placement yields the same observable
-      outcome, so the requirement is specified in terms of behavior rather than call path.
+      at RM.RECEIVED" behavior for all existing actors and demos.
     relationships:
     - rel_type: refines
       spec_id: CM-12-001
     adr:
     - ADR-0015
     - ADR-0041
+  - id: CM-15-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a receiver's `auto_create_case` is `False`, processing an inbound
+      `Offer(Report)` MUST store the `VulnerabilityReport` and the `Offer(Report)`
+      activity in the DataLayer.
+    rationale: The report materials must be persisted even when case creation is suppressed
+      so that they can be retrieved if the operator later enables case creation or reviews
+      the offer manually.
+  - id: CM-15-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When a receiver's `auto_create_case` is `False`, processing an inbound
+      `Offer(Report)` MUST NOT create a `VulnerabilityCase`.
+    rationale: The purpose of the flag is to suppress automatic case creation; creating a
+      case anyway would make the flag meaningless.
+  - id: CM-15-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a receiver's `auto_create_case` is `False`, processing an inbound
+      `Offer(Report)` MUST leave the receiver's outbox unchanged (no outbound activities
+      are enqueued).
+    rationale: Suppressing case creation also suppresses the associated outbound activities
+      (e.g., Create(Case) to the reporter); the observable outcome is no outbound messages.
+  - id: CM-15-005
+    priority: MAY
+    kind: protocol
+    statement: >-
+      The `auto_create_case` gate MAY be enforced as a routing-level short-circuit in
+      `SubmitReportReceivedUseCase` or as an in-tree condition node at the root of
+      `create_receive_report_case_tree`; the observable outcome (no case, no outbound
+      activities) is normative, not the enforcement location.
+    rationale: Case creation is protocol-significant behavior (BT-15-001), so the canonical
+      gate lives in the behavior tree as a condition node; the use-case short-circuit is an
+      equivalent optimization that avoids invoking the BT for a decision already known at
+      dispatch time. Either placement yields the same observable outcome.
 - id: CM-16
   title: Actor Suggestion Routing (Recommend-Actor Flow)
   specs:
@@ -802,10 +914,10 @@ groups:
   - id: CM-16-003
     priority: MUST
     kind: project
-    statement: 'After recording the received `Offer(Actor)`, the CaseActor MUST assign a non-empty default role list for the
-      suggested actor via an Evaluator BT node (ADR-0024 shape: Evaluator). The Evaluator MUST return FAILURE if it cannot
-      produce a non-empty role list; the downstream consumer node MUST NOT silently substitute a default for an empty list
-      written by the Evaluator (ADR-0032 BT-HELPER-01).'
+    statement: >-
+      After recording the received `Offer(Actor)`, the CaseActor MUST assign a non-empty
+      default role list for the suggested actor via an Evaluator BT node (ADR-0024 shape:
+      Evaluator).
     note: 'The Evaluator node is a call-out point (ADR-0025 abstraction; ADR-0024 shape: Evaluator) that MAY be replaced by
       a more sophisticated role-inference implementation in future. The non-empty invariant is enforced at write time so the
       downstream consumer never needs to treat an empty list as a sentinel. See CM-16-011 and CM-16-012 for the recommended
@@ -864,11 +976,10 @@ groups:
   - id: CM-16-008
     priority: MUST
     kind: protocol
-    statement: When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is still outstanding (no
-      Accept or Reject yet received from the Case Owner), the CaseActor MUST record the duplicate recommendation in the ledger
-      and MUST send a `Note` to the Case Owner's inbox indicating that a reinforcing suggestion was received, including the
-      second recommender's identity and any `content` from the Offer. The CaseActor MUST NOT send a second transformed Offer
-      to the Case Owner.
+    statement: >-
+      When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
+      still outstanding (no Accept or Reject yet received from the Case Owner), the CaseActor
+      MUST record the duplicate recommendation in the ledger.
   - id: CM-16-009
     priority: MUST
     kind: protocol
@@ -883,6 +994,41 @@ groups:
       AFTER the corresponding message has been sent or received, never before.
     rationale: Pre-announcing a decision in the ledger before communicating the decision creates a window where the ledger
       shows an effect without its cause.
+  - id: CM-16-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The Evaluator BT node assigned to default role list assignment MUST return `FAILURE`
+      if it cannot produce a non-empty role list.
+    rationale: A FAILURE return forces the enclosing BT subtree to handle the empty-list
+      case explicitly rather than propagating an empty list to downstream consumers.
+  - id: CM-16-015
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The downstream consumer node of the Evaluator BT node MUST NOT silently substitute a
+      default for an empty list written by the Evaluator (ADR-0032 BT-HELPER-01).
+    rationale: Silent substitution by the consumer hides Evaluator failures and produces
+      participants with unexpected role assignments.
+  - id: CM-16-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
+      still outstanding, the CaseActor MUST send a `Note` to the Case Owner's inbox
+      indicating that a reinforcing suggestion was received, including the second
+      recommender's identity and any `content` from the Offer.
+    rationale: Notifying the Case Owner of reinforcing suggestions provides additional
+      context for the pending decision without creating a duplicate offer workflow.
+  - id: CM-16-017
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
+      still outstanding, the CaseActor MUST NOT send a second transformed
+      `Offer(CaseParticipant)` to the Case Owner.
+    rationale: Sending a duplicate transformed Offer would create a second pending decision
+      for the same actor, leading to conflicting state if the Case Owner responds to both.
 - id: CM-17
   title: Invitation Flow — Enrichment and Roles
   specs:
@@ -905,14 +1051,9 @@ groups:
   - id: CM-17-003
     priority: MUST
     kind: project
-    statement: 'The `Invite` activity MUST embed the intended `case_roles: list[CVDRole]` for the invitee. Roles reach `EmitInviteActorToCaseNode`
-      via the blackboard key ``suggested_roles`` (flat, unnamespaced). There are two distinct source paths: (1) **Direct-trigger
-      path** — the Case Owner explicitly calls `invite-actor-to-case` with a `roles` list; `SvcInviteActorToCaseUseCase` writes
-      that list to ``suggested_roles`` via `_extra_execute_kwargs()` before BT execution. (2) **Suggest-actor received path**
-      — the CaseActor receives `Accept(Offer(CaseParticipant))`; `AcceptOfferCaseParticipantReceivedUseCase` does NOT write
-      ``suggested_roles``; the `Invite` is emitted with `roles=None` and the invitee''s `CaseParticipant.case_roles` is populated
-      on `Accept(Invite)` by reading roles from the persisted Invite wire object (CM-17-004). In the suggest-actor path, roles
-      originate from the Case Owner''s Accept response (CM-16-006) or the CaseActor''s default role assignment (CM-16-003).'
+    statement: >-
+      The `Invite` activity MUST embed the intended `case_roles: list[CVDRole]` for the
+      invitee so that `EmitInviteActorToCaseNode` can include them in the wire activity.
     rationale: 'All invited participants getting `caseRoles=[]` is a protocol defect (issue #1288). The participant record
       created on `Accept(Invite)` MUST reflect the roles the Case Owner intended, whether those roles arrived via a direct
       trigger request or via the suggest-actor round-trip.'
@@ -956,6 +1097,31 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CLP-10-006
+  - id: CM-17-007
+    priority: MUST
+    kind: project
+    statement: >-
+      In the direct-trigger path (the Case Owner calls `invite-actor-to-case` with a
+      `roles` list), `SvcInviteActorToCaseUseCase` MUST write that list to the blackboard
+      key `suggested_roles` via `_extra_execute_kwargs()` before BT execution so that
+      `EmitInviteActorToCaseNode` can read it.
+    rationale: >-
+      Without writing to `suggested_roles` before BT execution, `EmitInviteActorToCaseNode`
+      has no roles to embed and will emit the Invite with `roles=None`, producing the
+      `caseRoles=[]` defect described in CM-17-003.
+  - id: CM-17-008
+    priority: MUST
+    kind: project
+    statement: >-
+      In the suggest-actor received path (the CaseActor receives
+      `Accept(Offer(CaseParticipant))`), the invitee's `CaseParticipant.case_roles` MUST
+      be populated on `Accept(Invite)` by reading roles from the persisted `Invite` wire
+      object (CM-17-004), with roles originating from the Case Owner's Accept response
+      (CM-16-006) or the CaseActor's default role assignment (CM-16-003).
+    rationale: >-
+      In this path `AcceptOfferCaseParticipantReceivedUseCase` does not write
+      `suggested_roles`; the Invite is emitted with `roles=None`. The persisted wire object
+      is the only place the originally intended roles are available at Accept(Invite) time.
 - id: CM-18
   title: Participant Embargo Consent State Machine
   specs:
@@ -997,10 +1163,11 @@ groups:
   - id: CM-18-003
     priority: MUST
     kind: project
-    statement: 'The valid PEC state transitions are: `NO_EMBARGO | LAPSED | DECLINED → INVITED` (INVITE trigger); `NO_EMBARGO
-      | INVITED | LAPSED → SIGNATORY` (ACCEPT trigger); `NO_EMBARGO | INVITED | LAPSED → DECLINED` (DECLINE trigger);
-      `SIGNATORY → LAPSED` (REVISE trigger); and `* → NO_EMBARGO` (RESET trigger, embargo terminated). Any other transition
-      MUST be rejected as a protocol error.'
+    statement: >-
+      The PEC state machine MUST implement exactly the following valid triggers:
+      INVITE (from NO_EMBARGO, LAPSED, or DECLINED), ACCEPT (from NO_EMBARGO,
+      INVITED, or LAPSED), DECLINE (from NO_EMBARGO, INVITED, or LAPSED),
+      REVISE (from SIGNATORY only), and RESET (from any state).
     rationale: 'The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or declined can be re-invited
       (e.g., when embargo terms change). `SIGNATORY → LAPSED` occurs when the embargo enters REVISE and the participant''s
       prior consent no longer covers the revised terms. Per ADR-0048, `ACCEPT` and `DECLINE` are valid directly from
@@ -1033,11 +1200,11 @@ groups:
     rationale: '`PecDimension.transition()` (ADR-0036, SDO-01-001) validates the trigger against the PEC machine and raises
       `VultronInvalidStateTransitionError` on an illegal transition, making consent writes fail-closed regardless of upstream
       BT guard coverage. Direct assignment to the scalar `embargo_consent_state` field bypasses both the state machine and
-      `_sync_latest_status_metadata()`, so the participant''s latest `ParticipantStatus` retains its previous `consent.state`.
-      Observed on `main` at ten consent-write sites: the participant reads `SIGNATORY` while the emitted ledger snapshot carries
-      the self-contradictory pair `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Three of the ten assign the
-      scalar field with no FSM involvement; the other seven route the trigger through `apply_pec_trigger()` and are still
-      non-conforming, because validating the trigger does not persist the `ParticipantStatus`. Per ADR-0048.'
+      `_sync_latest_status_metadata()`, so the participant''s latest `ParticipantStatus` retains its previous `consent.state`,
+      causing the emitted ledger snapshot to contradict itself (e.g. `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`).
+      The legacy `apply_pec_trigger()` soft-fail helper was removed (CONCERN-1871); all consent-write sites MUST use
+      `CaseParticipant.apply_pec_transition()`, which delegates to `PecDimension.transition()` and syncs the resulting
+      `ParticipantStatus`. Per ADR-0048.'
     relationships:
     - rel_type: refines
       spec_id: CM-18-003
@@ -1046,14 +1213,12 @@ groups:
   - id: CM-18-006
     priority: MUST
     kind: project
-    statement: A PEC state change that is protocol-significant MUST be recorded in the canonical case ledger as an
-      `Add(ParticipantStatus)` entry whose `payloadSnapshot` carries the participant's post-transition PEC value. The snapshot's
-      `emConsentState` MUST agree with the participant's `embargo_consent_state`, and `embargoAdherence` MUST be `true` if and
-      only if that state is `SIGNATORY`.
+    statement: >-
+      A PEC state change that is protocol-significant MUST be recorded in the canonical case
+      ledger as an `Add(ParticipantStatus)` entry whose `payloadSnapshot` carries the
+      participant's post-transition PEC value.
     rationale: 'PEC state lives on `ParticipantStatus.consent`, so `Add(ParticipantStatus)` is the correct ledger entry type
-      for a consent change; no separate embargo-event entry type is needed. Requiring agreement between the snapshot and the
-      participant record prevents the contradictory-snapshot defect described in CM-18-005 from reaching ledger consumers,
-      which read `emConsentState` to render per-participant consent (DRPT-02-008). Per ADR-0048.'
+      for a consent change; no separate embargo-event entry type is needed. Per ADR-0048.'
     relationships:
     - rel_type: depends_on
       spec_id: CM-18-005
@@ -1063,10 +1228,10 @@ groups:
   - id: CM-18-007
     priority: MUST
     kind: project
-    statement: 'The case-initialization sequence MUST establish the default embargo before fixing each participant''s PEC state,
-      so that each participant''s initial `ParticipantStatus` carries its true post-initialization consent value. Case
-      initialization MUST commit exactly one `add_participant_status_to_participant` ledger entry per participant: it MUST NOT
-      commit a `NO_EMBARGO` placeholder entry followed by a corrective consent entry.'
+    statement: >-
+      The case-initialization sequence MUST establish the default embargo before setting each
+      participant's PEC state, so that each participant's initial `ParticipantStatus` carries
+      its true post-initialization consent value.
     rationale: 'Because `ACCEPT` is valid directly from `NO_EMBARGO` (CM-18-003, ADR-0048), an initialization participant reaches
       its consent state in a single transition, so a placeholder entry is unnecessary. Emitting two entries per participant would
       also shift every downstream `log_index`; PR #1746 was reverted for exactly that, having broken `fvcv-extension` VFD
@@ -1082,10 +1247,10 @@ groups:
   - id: CM-18-008
     priority: MUST
     kind: project
-    statement: '`ParticipantStatus.embargo_adherence` MUST be implemented as a computed property (e.g., Pydantic `@computed_field`)
-      that returns `True` if and only if `consent.state == PEC.SIGNATORY`. It MUST NOT be declared as a stored field. The wire
-      projection (`as_ParticipantStatus.from_core()`) MUST derive the value from the consent state rather than copying a stored
-      field.'
+    statement: >-
+      `ParticipantStatus.embargo_adherence` MUST be implemented as a computed property
+      (e.g., Pydantic `@computed_field`) that returns `True` if and only if
+      `consent.state == PEC.SIGNATORY`.
     rationale: >
       A stored boolean field can drift from the PEC state it is meant to project and its fail-open default (`True`)
       violates the principle that unset consent should not be treated as active consent. Making `embargo_adherence` a
@@ -1094,6 +1259,106 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-18-006
+    adr:
+    - ADR-0056
+  - id: CM-18-009
+    priority: MUST
+    kind: project
+    statement: >-
+      Any PEC state transition not listed in CM-18-003 MUST be rejected as a protocol error.
+    rationale: Rejecting unlisted transitions fail-closes the PEC state machine, preventing
+      consent-state corruption from malformed or unexpected triggers.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-003
+    adr:
+    - ADR-0048
+  - id: CM-18-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The ledger entry snapshot's `emConsentState` field MUST agree with the participant's
+      `embargo_consent_state` at the time of recording.
+    rationale: >-
+      Disagreement between the snapshot and the participant record produces the
+      contradictory-snapshot defect described in CM-18-005, causing ledger consumers to
+      read an incorrect consent state (DRPT-02-008).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-006
+    adr:
+    - ADR-0048
+  - id: CM-18-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The ledger entry snapshot's `embargoAdherence` field MUST be `true` if and only if
+      `embargo_consent_state` is `SIGNATORY`.
+    rationale: >-
+      `embargoAdherence` is a projection of the PEC state; allowing it to be `true` for
+      any state other than `SIGNATORY` would grant content-delivery access to participants
+      who have not consented to the embargo.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-006
+    adr:
+    - ADR-0048
+  - id: CM-18-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The case initialization sequence MUST commit exactly one
+      `add_participant_status_to_participant` ledger entry per participant.
+    rationale: >-
+      Emitting two entries per participant shifts every downstream `log_index`; PR #1746
+      was reverted for exactly that, having broken `fvcv-extension` VFD replication timing.
+      Holding initialization to one entry per participant keeps `log_index` order stable.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-18-007
+    adr:
+    - ADR-0048
+  - id: CM-18-013
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The case initialization sequence MUST NOT commit a `NO_EMBARGO` placeholder ledger
+      entry for a participant followed by a corrective consent entry for the same
+      participant.
+    rationale: >-
+      Because `ACCEPT` is valid directly from `NO_EMBARGO` (CM-18-003, ADR-0048), an
+      initialization participant reaches its consent state in a single transition, making a
+      placeholder entry unnecessary and harmful to `log_index` stability.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-18-012
+    adr:
+    - ADR-0048
+  - id: CM-18-014
+    priority: MUST_NOT
+    kind: project
+    statement: '`ParticipantStatus.embargo_adherence` MUST NOT be declared as a stored field.'
+    rationale: >-
+      A stored field can drift from the PEC state it projects and its fail-open default
+      (`True`) would treat unset consent as active consent.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-008
+    adr:
+    - ADR-0056
+  - id: CM-18-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The wire projection (`as_ParticipantStatus.from_core()`) MUST derive the
+      `embargoAdherence` value from the consent state rather than copying a stored field.
+    rationale: >-
+      Deriving from consent state at projection time ensures the wire value is always
+      consistent with the authoritative PEC state, eliminating the drift risk that arises
+      when a stored boolean is copied.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-008
     adr:
     - ADR-0056
 - id: CM-19
@@ -1130,10 +1395,9 @@ groups:
   - id: CM-20-001
     priority: MUST
     kind: protocol
-    statement: A Coordinator invited to a case as a regular participant MUST hold `CVDRole.COORDINATOR` in their `case_roles`
-      list and MUST NOT hold `CVDRole.CASE_MANAGER`. The `CASE_MANAGER` role is reserved for the CaseActor service (CBT-01-003)
-      and MUST NOT be assigned to any organizational or human participant joining a case as a facilitation actor rather than
-      as the case management service.
+    statement: >-
+      A Coordinator invited to a case as a regular participant MUST hold
+      `CVDRole.COORDINATOR` in their `case_roles` list.
     rationale: '`CASE_OWNER` is the role that confers case administration authority (CM-02-001, CM-02-004, CM-02-005). `CASE_MANAGER`
       is a distinct role reserved exclusively for the CaseActor service; it grants write authority to the canonical ledger
       (CLP-09) and MUST NOT be held by any participant actor regardless of their organizational role. These two constraints
@@ -1174,6 +1438,29 @@ groups:
       spec_id: CM-20-001
     adr:
     - ADR-0026
+  - id: CM-20-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A Coordinator invited to a case as a regular participant MUST NOT hold
+      `CVDRole.CASE_MANAGER` in their `case_roles` list.
+    rationale: '`CVDRole.CASE_MANAGER` is reserved exclusively for the CaseActor service (CBT-01-003); it grants write authority
+      to the canonical ledger and MUST NOT be held by any organizational or human participant.'
+    relationships:
+    - rel_type: refines
+      spec_id: CM-20-001
+  - id: CM-20-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      `CVDRole.CASE_MANAGER` MUST NOT be assigned to any organizational or human participant
+      joining a case as a facilitation actor rather than as the CaseActor service
+      (CBT-01-003).
+    rationale: '`CVDRole.CASE_MANAGER` grants write authority to the canonical ledger (CLP-09). Assigning it to a human or
+      organizational participant would allow them to author ledger entries that the CaseActor is the sole authorized author of.'
+    relationships:
+    - rel_type: refines
+      spec_id: CM-20-004
 - id: CM-21
   title: Ownership Transfer Protocol Effects
   specs:
@@ -1227,11 +1514,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When an `Accept(Offer(VulnerabilityCase))` ownership-transfer activity
-      is processed, the system MUST remove `CVDRole.CASE_OWNER` from the
-      previous owner's `CaseParticipant.case_roles`.  The previous owner
-      MUST retain any other roles they held (e.g. `CVDRole.COORDINATOR`,
-      `CVDRole.VENDOR`) and MUST remain a participant in the case.
+      When an `Accept(Offer(VulnerabilityCase))` ownership-transfer activity is processed,
+      the system MUST remove `CVDRole.CASE_OWNER` from the previous owner's
+      `CaseParticipant.case_roles`.
     rationale: >-
       Transferring ownership does not evict the previous owner from the case;
       they continue to participate but no longer hold administrative authority.
@@ -1332,6 +1617,33 @@ groups:
       spec_id: CM-21-006
     adr:
     - ADR-0053
+  - id: CM-21-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an ownership transfer is processed, the previous owner MUST retain any other
+      roles they held (e.g., `CVDRole.COORDINATOR`, `CVDRole.VENDOR`) in their
+      `CaseParticipant.case_roles`.
+    rationale: >-
+      Stripping only `CASE_OWNER` (and not other roles) preserves the previous owner's
+      standing as a Coordinator, Vendor, or other role while satisfying the at-most-one
+      `CASE_OWNER` invariant (CM-21-001).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-003
+  - id: CM-21-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an ownership transfer is processed, the previous owner MUST remain a participant
+      in the case.
+    rationale: >-
+      Ownership transfer is not case departure. The previous owner has institutional
+      knowledge of the case and continues to participate; only their administrative
+      authority is transferred.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-003
 - id: CM-22
   title: CaseActor-Authoritative Case Creation
   description: >-
@@ -1518,18 +1830,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For the Case Actor's CaseParticipant, the RM states have the following
-      case-actor-specific meanings:
-      RM.RECEIVED = a CaseProposal has been received and is being evaluated;
-      RM.VALID = the CaseProposal is correctly formatted and actionable by this
-      Case Actor, and case creation has begun;
-      RM.ACCEPTED = the case has been successfully created and is being
-      coordinated;
-      RM.CLOSED = the Case Owner has left the case and the case is fully closed.
+      For the Case Actor's CaseParticipant, `RM.RECEIVED` MUST denote that a CaseProposal
+      has been received and is being evaluated.
     rationale: >-
-      The RM state machine models a lifecycle that applies to any actor
-      processing a case, but its transition labels (RECEIVED, VALID, ACCEPTED,
-      CLOSED) map to case-level events for the coordinator rather than to
+      The RM state machine models a lifecycle that applies to any actor processing a case,
+      but its transition labels map to case-level events for the coordinator rather than to
       report-validation events as for other participants.  See ADR-0051.
     relationships:
     - rel_type: refines
@@ -1557,6 +1862,51 @@ groups:
       spec_id: CM-23-005
     - rel_type: refines
       spec_id: CM-02-009
+    adr:
+    - ADR-0051
+  - id: CM-23-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      For the Case Actor's CaseParticipant, `RM.VALID` MUST denote that the CaseProposal
+      is correctly formatted and actionable by this Case Actor, and that case creation has
+      begun.
+    rationale: >-
+      `RM.VALID` is the Case Actor's signal that the proposal passed structural validation
+      and that initialization is in progress; it distinguishes a validated-but-incomplete
+      case from one still under evaluation.  See ADR-0051.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-006
+    adr:
+    - ADR-0051
+  - id: CM-23-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      For the Case Actor's CaseParticipant, `RM.ACCEPTED` MUST denote that the case has
+      been successfully created and is being coordinated.
+    rationale: >-
+      `RM.ACCEPTED` marks the end of the initialization phase and the start of active
+      coordination; it is the Case Actor's counterpart to a reporter's or vendor's
+      RM.ACCEPTED (engagement decision).  See ADR-0051.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-006
+    adr:
+    - ADR-0051
+  - id: CM-23-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      For the Case Actor's CaseParticipant, `RM.CLOSED` MUST denote that the Case Owner
+      has left the case and the case is fully closed.
+    rationale: >-
+      `RM.CLOSED` on the Case Actor's own participant record is the terminal state; it
+      signals that no further ledger entries will be authored for this case.  See ADR-0051.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-006
     adr:
     - ADR-0051
 
@@ -1631,7 +1981,7 @@ groups:
       the CaseActor as the authoritative intermediary and breaks the
       CaseLedgerEntry audit trail.
 
-      The mechanism changed in ADR-0066. This entry previously required setting
+      The mechanism changed in ADR-0069. This entry previously required setting
       `self._actor_id = case_actor_id` in `_prepare()`. That is a convention, and
       it conflated three separate ideas CM-24 otherwise keeps apart: the
       activity's `actor` (CM-24-001), its `attributed_to` (CM-24-002), and whose
@@ -1692,12 +2042,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An Observer MUST be admitted via the standard Invite/Accept flow (CM-17).
-      The `Invite` activity sent by the CaseActor MUST embed
-      `case_roles=[CVDRole.OBSERVER]`. An empty `case_roles` list MUST NOT be
-      used for Observer invitations; `[]` is indistinguishable from the
-      `caseRoles=[]` admission defect (issue #1288) and violates the CM-16-003
-      non-empty invariant.
+      An Observer MUST be admitted to a case via the standard `Invite`/`Accept` flow
+      defined in CM-17.
     rationale: >-
       Requiring a non-empty `case_roles` value is load-bearing: the participant
       record created on `Accept(Invite)` (CM-17-004 step 3) reads roles from
@@ -1774,6 +2120,37 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-03-005
+    adr:
+    - ADR-0057
+  - id: CM-25-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Invite` activity sent by the CaseActor for an Observer MUST embed
+      `case_roles=[CVDRole.OBSERVER]`.
+    rationale: >-
+      The participant record created on `Accept(Invite)` reads roles from the persisted
+      Invite wire object; omitting `CVDRole.OBSERVER` would create a participant with an
+      empty role list, indistinguishable from the `caseRoles=[]` defect (issue #1288).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-25-002
+    adr:
+    - ADR-0057
+  - id: CM-25-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An empty `case_roles` list MUST NOT be used for Observer invitations; `[]` is
+      indistinguishable from the `caseRoles=[]` admission defect (issue #1288) and
+      violates the CM-16-003 non-empty invariant.
+    rationale: >-
+      `[]` provides no role information to the CaseActor's participant-creation path on
+      `Accept(Invite)`, producing a participant record that violates the non-empty role
+      invariant enforced by CM-16-003.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-25-006
     adr:
     - ADR-0057
 
@@ -1867,23 +2244,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor holding `CVDRole.CASE_MANAGER` MUST be the enforcement
-      authority for embargo invite expiry. Expiry MUST be evaluated lazily:
-      lapse is derived from `(end_time, now)` whenever a participant's PEC state
-      is read or an inbound `Accept`/`Reject` for the invitation is processed.
-      Implementations MUST NOT require a scheduler or Sentinel runtime for
-      correctness.
+      The CaseActor holding `CVDRole.CASE_MANAGER` MUST be the enforcement authority for
+      embargo invite expiry.
     note: >-
       The `EmbargoTimerExpired` Sentinel (#1893) is an OPTIONAL proactive
       accelerator that narrows the gap between the deadline and the recorded
       lapse. It MUST NOT be a prerequisite for CM-28 conformance.
     rationale: >-
-      No scheduler exists in production, and `notes/coordination-agents.md`
-      still lists the Sentinel invocation and authentication model as open
-      questions. Lazy derivation from an explicit deadline is deterministic and
-      requires no new infrastructure. Centralising enforcement at the CaseActor
-      matches the case-communication model (PCR-08) and the CaseActor's role as
-      canonical ledger author (ADR-0019, ADR-0021). See ADR-0065.
+      Centralising enforcement at the CaseActor matches the case-communication model
+      (PCR-08) and the CaseActor's role as canonical ledger author (ADR-0019, ADR-0021).
+      See ADR-0065.
     adr:
     - ADR-0065
   - id: CM-28-004
@@ -1910,17 +2280,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The lapse MUST be distinguishable from an explicit refusal in the
-      canonical case ledger. The CaseActor MUST author a ledger entry recording
-      the lapse, distinct from the `Reject(Invite(EmbargoEvent))` entry that
-      records an explicit refusal. The provenance MUST NOT be duplicated onto
-      `PecDimension` as a reason field.
+      A lapsed embargo invitation MUST be distinguishable from an explicit refusal in the
+      canonical case ledger.
     rationale: >-
       The canonical ledger is the project's history mechanism (ADR-0019), so
       lapse-versus-refusal is recoverable from it without a state or a parallel
-      field. A `reason` discriminator on `PecDimension` — which currently holds
-      only `state` — would be a second source of truth able to drift from the
-      ledger. See ADR-0065.
+      field. See ADR-0065.
     adr:
     - ADR-0065
   - id: CM-28-006
@@ -1944,6 +2309,68 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CS-13-001
+    adr:
+    - ADR-0065
+  - id: CM-28-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Embargo invite expiry MUST be evaluated lazily: lapse is derived from
+      `(end_time, now)` whenever a participant's PEC state is read or an inbound
+      `Accept`/`Reject` for the invitation is processed.
+    rationale: >-
+      Lazy derivation from an explicit deadline is deterministic and requires no new
+      infrastructure. No scheduler exists in production, and the Sentinel invocation
+      model remains an open question (notes/coordination-agents.md). See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-003
+    adr:
+    - ADR-0065
+  - id: CM-28-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      Implementations MUST NOT require a scheduler or Sentinel runtime for embargo invite
+      expiry correctness.
+    rationale: >-
+      No scheduler exists in production; making correctness depend on one would render
+      conformance impossible without new infrastructure. The Sentinel is an optional
+      accelerator only. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-003
+    adr:
+    - ADR-0065
+  - id: CM-28-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST author a distinct ledger entry to record a lapsed invitation,
+      different from the `Reject(Invite(EmbargoEvent))` entry used to record an explicit
+      refusal.
+    rationale: >-
+      The ledger entry is the mechanism that makes lapse-versus-refusal distinguishable
+      (CM-28-005); authoring a single entry type for both events would conflate them and
+      make the distinction unrecoverable from the ledger. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-005
+    adr:
+    - ADR-0065
+  - id: CM-28-010
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The lapse-versus-refusal provenance MUST NOT be duplicated onto `PecDimension` as
+      a reason field.
+    rationale: >-
+      A `reason` discriminator on `PecDimension` — which currently holds only `state` —
+      would be a second source of truth able to drift from the ledger. The canonical
+      ledger is the sole record of provenance (ADR-0019). See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-005
     adr:
     - ADR-0065
 

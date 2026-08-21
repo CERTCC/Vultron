@@ -18,55 +18,52 @@ invite/accept/reject to case, and vulnerability case announcements.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.models.events.actor import (
-    AcceptCaseManagerRoleReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
+    AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
     AcceptOfferCaseParticipantReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
     OfferActorToCaseReceivedEvent,
-    OfferCaseManagerRoleReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
-    RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
+    RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.received.actor import (
-    AcceptCaseManagerRoleReceivedUseCase,
     AcceptCaseOwnershipTransferReceivedUseCase,
+    AcceptCaseParticipantRoleReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
     AcceptOfferCaseParticipantReceivedUseCase,
     AnnounceVulnerabilityCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
     OfferActorToCaseReceivedUseCase,
-    OfferCaseManagerRoleReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
     OfferCaseParticipantRoleReceivedUseCase,
-    RejectCaseManagerRoleReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
+    RejectCaseParticipantRoleReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
     AcceptActorRecommendationPattern,
-    AcceptCaseManagerRolePattern,
     AcceptCaseOwnershipTransferActivityPattern,
+    AcceptCaseParticipantRolePattern,
     AcceptInviteActorToCasePattern,
     AnnounceVulnerabilityCasePattern,
     InviteActorToCasePattern,
     OfferActorToCasePattern,
-    OfferCaseManagerRolePattern,
     OfferCaseOwnershipTransferActivityPattern,
     OfferCaseParticipantRolePattern,
     RejectActorRecommendationPattern,
-    RejectCaseManagerRolePattern,
     RejectCaseOwnershipTransferActivityPattern,
+    RejectCaseParticipantRolePattern,
     RejectInviteActorToCasePattern,
 )
 from vultron.wire.as2.extractor._instances import SuggestActorToCasePattern
@@ -77,14 +74,13 @@ from vultron.wire.as2.vocab.activities.actor import (
     _RejectCaseParticipantOfferActivity,
 )
 from vultron.wire.as2.vocab.activities.case import (
-    _AcceptCaseManagerRoleActivity,
     _AcceptCaseOwnershipTransferActivity,
+    _AcceptCaseParticipantRoleActivity,
     _AnnounceVulnerabilityCaseActivity,
-    _OfferCaseManagerRoleActivity,
     _OfferCaseOwnershipTransferActivity,
     _OfferCaseParticipantRoleActivity,
-    _RejectCaseManagerRoleActivity,
     _RejectCaseOwnershipTransferActivity,
+    _RejectCaseParticipantRoleActivity,
     _RmAcceptInviteToCaseActivity,
     _RmInviteToCaseActivity,
     _RmRejectInviteToCaseActivity,
@@ -130,8 +126,6 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_RejectCaseParticipantOfferActivity,
         include_activity=True,
     ),
-    # ADR-0039: canonical role-delegation wire format (placed before the
-    # deprecated OFFER_CASE_MANAGER_ROLE entry per SE-08-001)
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
         pattern=OfferCaseParticipantRolePattern,
@@ -141,33 +135,22 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_OfferCaseParticipantRoleActivity,
         include_activity=True,
     ),
-    # Deprecated: use OFFER_CASE_PARTICIPANT_ROLE for new role-delegation
-    # traffic. Retained for pre-ADR-0039 actor interoperability (ADR-0039).
     SemanticEntry(
-        semantics=MessageSemantics.OFFER_CASE_MANAGER_ROLE,
-        pattern=OfferCaseManagerRolePattern,
-        event_class=OfferCaseManagerRoleReceivedEvent,
-        use_case_class=OfferCaseManagerRoleReceivedUseCase,
-        phrase="{actor} offered the case-manager role to {object}",
-        wire_activity_class=_OfferCaseManagerRoleActivity,
+        semantics=MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE,
+        pattern=AcceptCaseParticipantRolePattern,
+        event_class=AcceptCaseParticipantRoleReceivedEvent,
+        use_case_class=AcceptCaseParticipantRoleReceivedUseCase,
+        phrase="{actor} accepted the role offer",
+        wire_activity_class=_AcceptCaseParticipantRoleActivity,
         include_activity=True,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
-        pattern=AcceptCaseManagerRolePattern,
-        event_class=AcceptCaseManagerRoleReceivedEvent,
-        use_case_class=AcceptCaseManagerRoleReceivedUseCase,
-        phrase="{actor} accepted the case-manager role",
-        wire_activity_class=_AcceptCaseManagerRoleActivity,
-        include_activity=True,
-    ),
-    SemanticEntry(
-        semantics=MessageSemantics.REJECT_CASE_MANAGER_ROLE,
-        pattern=RejectCaseManagerRolePattern,
-        event_class=RejectCaseManagerRoleReceivedEvent,
-        use_case_class=RejectCaseManagerRoleReceivedUseCase,
-        phrase="{actor} declined the case-manager role",
-        wire_activity_class=_RejectCaseManagerRoleActivity,
+        semantics=MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE,
+        pattern=RejectCaseParticipantRolePattern,
+        event_class=RejectCaseParticipantRoleReceivedEvent,
+        use_case_class=RejectCaseParticipantRoleReceivedUseCase,
+        phrase="{actor} declined the role offer",
+        wire_activity_class=_RejectCaseParticipantRoleActivity,
     ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,

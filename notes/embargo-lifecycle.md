@@ -202,6 +202,10 @@ When implementing any code that transitions embargo state:
 
 1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle.py`).
    Never instantiate `create_em_machine()` + `EMAdapter` inline.
+   BT nodes MUST NOT directly assign `EmDimension` to `case.current_status.em`
+   and call `dl.save(case)` as a substitute — route through `EmbargoLifecycle`
+   instead (EMB-18-001). Warning-only `is_valid_em_transition()` guards that
+   proceed regardless of result MUST NOT be used (EMB-18-002).
 2. **P/X/A precondition**: STRICT mode guards `propose_embargo()` and
    `accept_embargo_invite()` (owner-only) against PXA-set cases.  If your
    caller receives `VultronInvalidStateTransitionError`, the case is no longer

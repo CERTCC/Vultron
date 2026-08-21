@@ -177,7 +177,7 @@ def _create_case_from_offer(
         dl: Store to seed into.  Defaults to *actor*'s own store, which is the
             one the downstream BTs read, since a tree executes against the store
             of the actor it runs as (BT-05-005).  There is no shared
-            module-level DataLayer to fall back on any more (ADR-0066), so
+            module-level DataLayer to fall back on any more (ADR-0069), so
             leaving this ``None`` used to seed nothing and fail later with
             ``'NoneType' has no attribute 'read'``.
 
@@ -859,10 +859,12 @@ class TestVerifyFinderReplicaState:
 
 
 def _setup_case_with_3_participants(base: str):
-    """Helper: seed, submit report, validate, and return (finder, vendor, case).
+    """Helper: seed, submit report, validate, engage, and return (finder, vendor, case).
 
     Returns a tuple of (finder_client, vendor_client, finder, vendor, case).
-    The shared DataLayer will have 3 participants (Vendor + Finder + Case Actor).
+    The shared DataLayer will have 3 participants (Vendor + Finder + Case Actor)
+    and the vendor's RM state will be at RM.ACCEPTED (the minimum required for
+    fix-ready assertions per CSB-18-001).
     """
     finder_client = make_client(base)
     vendor_client = make_client(base)
@@ -878,13 +880,22 @@ def _setup_case_with_3_participants(base: str):
         finder=finder,
         vendor=vendor_in_vendor,
     )
+    # ADR-0041: no case after validate-report; create one directly for setup.
+    # validate-report requires a live case (EnsureEmbargoExists needs an active
+    # embargo), so create the case first, then run the RM triage sequence.
+    case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
+    # Advance vendor RM: RECEIVED → VALID (validate-report) → ACCEPTED (engage-case).
+    # CSB-18-001: VFd (F bit set) requires RM ∈ {ACCEPTED, DEFERRED, CLOSED}.
     demo.vendor_validates_report(
         vendor_client=vendor_client,
         vendor=vendor_in_vendor,
         offer_id=offer.id_,
     )
-    # ADR-0041: no case after validate-report; create one directly for setup.
-    case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
+    demo.vendor_engages_case(
+        vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
+        case_id=case.id_,
+    )
     return finder_client, vendor_client, finder, vendor_in_vendor, case
 
 
@@ -2177,3 +2188,219 @@ class TestFvMilestoneAssertions:
                 case=case,
             )
         mock_m7.assert_called()
+
+
+class TestFvCausalGates:
+    """Verify that causal demo_gate sites skip dependent steps on timeout.
+
+    Each test simulates an async-commit timeout (AssertionError) at the
+    precondition and confirms the dependent step is never called.
+    """
+
+    import contextlib
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_report_submission_skips_verify_case_active_when_participants_never_ready(
+        self,
+    ):
+        """demo_gate skips verify_case_active when wait_for_case_participants times out."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        case = self._case()
+
+        verify_case_active_called = MagicMock()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers",
+                return_value=(finder, vendor),
+            ),
+            patch.object(
+                demo, "get_actor_by_id", return_value=vendor_in_vendor
+            ),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock()),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(
+                demo,
+                "wait_for_case_participants",
+                side_effect=AssertionError(
+                    "timed out waiting for participants"
+                ),
+            ),
+            patch.object(
+                demo,
+                "verify_case_active",
+                side_effect=verify_case_active_called,
+            ),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                case_actor_client=None,
+                finder_id=None,
+                vendor_id=None,
+            )
+
+        verify_case_active_called.assert_not_called()
+
+    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
+        self,
+    ):
+        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        coverage_wait_called = MagicMock()
+
+        with (
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=AssertionError(
+                    "timed out waiting for case on container"
+                ),
+            ),
+            patch.object(
+                demo,
+                "wait_for_contiguous_ledger_coverage",
+                side_effect=coverage_wait_called,
+            ),
+        ):
+            demo._phase_sync_verification(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor=vendor,
+                finder=finder,
+                case=case,
+                case_actor_client=None,
+            )
+
+        coverage_wait_called.assert_not_called()
+
+    def test_sync_verification_skips_replica_check_when_ledger_coverage_times_out(
+        self,
+    ):
+        """Inner demo_gate skips verify_finder_replica_state when ledger coverage times out."""
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        replica_check_called = MagicMock()
+
+        with (
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(
+                demo,
+                "_get_log_entries_for_case",
+                return_value=[{"log_index": 0}],
+            ),
+            patch.object(
+                demo,
+                "wait_for_contiguous_ledger_coverage",
+                side_effect=AssertionError(
+                    "timed out waiting for ledger coverage"
+                ),
+            ),
+            patch.object(
+                demo,
+                "verify_finder_replica_state",
+                side_effect=replica_check_called,
+            ),
+        ):
+            demo._phase_sync_verification(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor=vendor,
+                finder=finder,
+                case=case,
+                case_actor_client=None,
+            )
+
+        replica_check_called.assert_not_called()
+
+    def test_case_closure_skips_coverage_wait_when_close_case_entry_absent(
+        self,
+    ):
+        """demo_gate skips ledger coverage wait when wait_for_event_type_in_ledger times out."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        coverage_wait_called = MagicMock()
+
+        with (
+            patch.object(demo, "actor_closes_case"),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed"),
+            patch.object(
+                demo,
+                "wait_for_event_type_in_ledger",
+                side_effect=AssertionError(
+                    "timed out waiting for close_case entry"
+                ),
+            ),
+            patch.object(
+                demo,
+                "wait_for_contiguous_ledger_coverage",
+                side_effect=coverage_wait_called,
+            ),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                case=case,
+            )
+
+        coverage_wait_called.assert_not_called()

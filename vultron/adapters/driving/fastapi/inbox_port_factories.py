@@ -155,7 +155,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate) can dispatch TerminateEmbargo
         # activities when P/X/A is set (RSH-03-001, ADR-0046).
         MessageSemantics.ADD_CASE_STATUS_TO_CASE,
-        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
         MessageSemantics.OFFER_ACTOR_TO_CASE,
         MessageSemantics.OFFER_CASE_PARTICIPANT,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
@@ -183,7 +182,6 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
         # REJECT_CASE_LEDGER_ENTRY needs trigger_activity so that

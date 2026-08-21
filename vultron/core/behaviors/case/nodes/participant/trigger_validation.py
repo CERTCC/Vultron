@@ -32,8 +32,8 @@ steps).
 
 Per specs/behavior-tree-node-design.yaml BTND-10-001,
 specs/status-dimension-objects.yaml SDO-02-004,
-specs/cs-behavior.yaml CSB-16-001, CSB-16-002.
-Closes #2081 (AC-1, AC-2, AC-3, AC-6), #1903 (AC-1, AC-2, AC-3).
+specs/cs-behavior.yaml CSB-16-001, CSB-16-002, CSB-18-001.
+Closes #2081 (AC-1, AC-2, AC-3, AC-6), #1903 (AC-1, AC-2, AC-3), #2236.
 """
 
 import logging
@@ -46,6 +46,9 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.cross_machine_invariants import (
+    violation_rm_vfd_entailment,
+)
 from vultron.core.states.cs import (
     CS_pxa,
     CS_vfd,
@@ -88,11 +91,13 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
     descriptive ``feedback_message`` when any dimension would be an illegal
     jump; returns ``SUCCESS`` otherwise.
 
-    Rules (per BTND-10-001):
+    Rules (per BTND-10-001, CSB-18-001):
 
     - ``None`` target → skip that dimension (AC-5).
     - ``target == current`` → same-state confirmation, always valid (AC-4).
     - ``target != current`` and invalid adjacent step → ``FAILURE`` (AC-1/2/3).
+    - VFD has F bit (VFd/VFD) and effective RM ∉ {ACCEPTED, DEFERRED, CLOSED}
+      → ``FAILURE`` (CSB-18-001, #2236).
 
     When the participant has no current status (first write) the initial states
     ``RM.START``, ``CS_vfd.vfd``, ``CS_pxa.pxa`` are used as the baseline, so
@@ -179,5 +184,22 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
                 )
                 self.logger.info("%s: %s", self.name, self.feedback_message)
                 return Status.FAILURE
+
+        # --- Cross-machine: RM ↔ VFD entailment (CSB-18-001, #2236) ---
+        # Fix readiness (F bit) requires RM ∈ {ACCEPTED, DEFERRED, CLOSED}.
+        # Both RM and VFD are per-actor attributes, so a contradictory
+        # combination is an error at the emitter.
+        effective_rm = (
+            self._rm_state if self._rm_state is not None else current_rm
+        )
+        effective_vfd = (
+            self._vfd_state if self._vfd_state is not None else current_vfd
+        )
+        if (
+            msg := violation_rm_vfd_entailment(effective_rm, effective_vfd)
+        ) is not None:
+            self.feedback_message = msg
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         return Status.SUCCESS

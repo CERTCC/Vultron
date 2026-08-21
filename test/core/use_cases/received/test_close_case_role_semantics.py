@@ -109,7 +109,7 @@ def _make_full_dl(
     *store_owner_id* defaults to the CaseActor, which holds the canonical ledger
     the Leave-side tests commit to.  The fan-out tests override it: they simulate
     a *replica* receiving the CaseActor's broadcast, so the tree executes as that
-    replica's actor and therefore reads and writes that actor's store (ADR-0066).
+    replica's actor and therefore reads and writes that actor's store (ADR-0069).
     Leaving it as the CaseActor's left those trees running against an empty store,
     where nothing advances — which reads as a passing test when the assertion is
     that a participant was *not* advanced.

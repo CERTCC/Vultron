@@ -160,7 +160,7 @@ def init_dispatcher() -> None:
     The vestigial ``dl`` parameter is gone.  It had already been unused for
     some time (the DataLayer is passed at dispatch time via :func:`dispatch`),
     and its one remaining caller reached for the unscoped ``get_datalayer()``
-    to satisfy it — which ADR-0066 removes.
+    to satisfy it — which ADR-0069 removes.
     """
     global _DISPATCHER
     _DISPATCHER = make_dispatcher()
@@ -353,7 +353,7 @@ async def inbox_handler(
     After processing, triggers outbox delivery for any outbound activities
     created during dispatch, using *emitter* when provided.
 
-    There is no shared DataLayer any more (ADR-0066): every store belongs to
+    There is no shared DataLayer any more (ADR-0069): every store belongs to
     exactly one actor. *dl* and *actor_dl* are therefore normally the same store —
     this actor's — and the pair survives only so existing callers keep working.
     Prefer passing *dl* alone.

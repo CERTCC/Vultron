@@ -29,7 +29,7 @@ engagement: participants, embargo status, report management state, and the canon
 A participant in the Vultron protocol — a person, organization, or automated service that sends
 and receives protocol messages. Actors have persistent identities (URIs) and maintain their own
 DataLayer.
-*Avoid*: user, agent (in the protocol-participant sense; see Coordination Agent below)
+*Avoid*: user, agent (in the protocol-participant sense; see Capability Shapes below)
 
 **Case Actor**:
 A special-purpose service actor that owns the canonical ledger for a case, coordinates
@@ -43,49 +43,66 @@ vulnerability until a specified date or condition.
 
 ---
 
-## Coordination Agents
+## Capability Shapes
 
 Vultron's Behavior Trees include **call-out points** — locations where the protocol cannot
-proceed automatically and must request input from an external party. Coordination agents are
-the capabilities that answer those call-out points.
+proceed automatically and must request input from an external party. Capability shapes are
+abstract interface contracts that characterise how those call-out points interact with the
+protocol.
 
 **Call-out point**:
 A location in a Vultron workflow where the protocol cannot determine the correct next action
 on its own and must request input — a fact, a decision, or content — from an external party
-(a human, an agent, or an external system) before it can continue.
+(a human, a function, or an external system) before it can continue.
 *Avoid*: decision point (reserved for SSVC scoring trees), touchpoint, integration point
 
-**Coordination agent**:
-An external capability — a skill, a set of skills with light orchestration, or a human — that
-answers a call-out point. A coordination agent has a narrow responsibility, explicit inputs,
-and explicit outputs. No single coordination agent is responsible for managing an entire case.
-*Avoid*: agent (alone; too broad), uber-agent
+**Capability shape**:
+One of the five abstract interface contracts (Sentinel, Evaluator, Retriever, Composer,
+Actuator) that characterises the interaction pattern between a call-out point and the protocol.
+A capability shape does not prescribe the implementation — the implementation (function, human
+workflow, LLM agent) is a deployment-time decision.
+*Avoid*: Coordination Agent (retired; see ADR-0024)
 
-The four canonical shapes a coordination agent can take:
+**Capability**:
+A specific named call-out point with its own blackboard contract (e.g., `EvaluateReportCredibility`).
+A capability implements one capability shape for a particular domain context.
+
+**Capability implementation**:
+The factory backend fulfilling a capability at runtime. May be a Python function, a human
+workflow, a rules engine, or an LLM agent — any callable that honours the blackboard contract.
+
+The five canonical capability shapes:
 
 **Sentinel**:
-A coordination agent that monitors a condition and, when the condition is met, calls a Vultron
+A capability shape that monitors a condition and, when the condition is met, calls a Vultron
 trigger endpoint to initiate a protocol action. Sentinels are proactive — they loop or watch;
-they are not called by the protocol.
-*Avoid*: watcher, monitor (as standalone agent names)
+they are not called by the protocol. A Sentinel has no BT call-out point.
+*Avoid*: watcher, monitor (as standalone shape names)
 
 **Evaluator**:
-A coordination agent that is called by the protocol (or by an orchestrator) with a described
-situation and a set of options, and returns a structured recommendation or decision. The output
-shapes what the Behavior Tree does next.
-*Avoid*: advisor, scorer (these are valid sub-types but not the canonical type name)
+A capability shape that is called by the protocol with a described situation and a set of
+options, and returns a structured recommendation or decision. The output shapes what the
+Behavior Tree does next.
+*Avoid*: advisor, scorer (these are valid sub-types but not the canonical shape name)
 
 **Retriever**:
-A coordination agent that is called with a query and returns structured facts from an external
+A capability shape that is called with a query and returns structured facts from an external
 source — vendor records, CPE entries, EPSS scores, threat intel, asset inventory, or similar.
-The Retriever fetches what already exists; it does not generate new content.
+Boolean/binary results (yes/no queries) are also Retriever capabilities. The Retriever fetches
+what already exists; it does not generate new content.
 *Avoid*: lookup, fetcher
 
 **Composer**:
-A coordination agent that is called with context (case state, participants, prior decisions)
+A capability shape that is called with context (case state, participants, prior decisions)
 and generates a new content artifact — a notification draft, an advisory, a case summary, a
 participant invitation. The Composer produces something that did not exist before.
 *Avoid*: drafter, writer
+
+**Actuator**:
+A capability shape that receives a trigger and context, invokes an external system to cause a
+side effect (notification dispatch, state write, queue mutation, API call), and returns SUCCESS
+when the side effect is confirmed. Does not produce a content artifact on the blackboard.
+*Avoid*: executor, dispatcher (these are valid sub-types but not the canonical shape name)
 
 ---
 

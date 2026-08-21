@@ -216,7 +216,7 @@ class CreateCaseReceivedUseCase:
         # The *receiving* actor, not the sender (BT-17-005). `actor_id` here is
         # the case creator, deliberately so for `_find_report_case_link` above,
         # but the node seeds the reporter's participant into the receiver's own
-        # replica — and under ADR-0066 the executing actor selects that store, so
+        # replica — and under ADR-0069 the executing actor selects that store, so
         # passing the sender would look for the report in the creator's store and
         # find nothing.
         BTBridge(datalayer=self._dl).execute_with_setup(

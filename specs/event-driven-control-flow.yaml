@@ -93,10 +93,11 @@ groups:
     statement: When a cascade reaches a point where the actor cannot proceed autonomously, the stopping point MUST be represented
       as an explicit external decision node in the BT.
   - id: EDF-04-002
-    priority: MUST_NOT
+    priority: MUST
     kind: project
-    statement: An external decision node MUST return `py_trees.common.Status.RUNNING` while awaiting input; it MUST NOT silently
-      succeed or fail, and MUST NOT be modeled as an absence of code.
+    statement: >-
+      An external decision node MUST return `py_trees.common.Status.RUNNING` while
+      awaiting input.
   - id: EDF-04-003
     priority: MUST
     kind: architecture
@@ -105,8 +106,32 @@ groups:
   - id: EDF-04-004
     priority: MUST
     kind: project
-    statement: Trigger endpoints that correspond to external decision node resolutions MUST be documented as such; their role
-      is to supply the missing input, not to choreograph a cascade that should be automatic.
+    statement: >-
+      Trigger endpoints that correspond to external decision node resolutions MUST be
+      documented as such; their role is to supply the missing input, not to choreograph
+      a cascade that should be automatic.
+  - id: EDF-04-005
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      An external decision node MUST NOT silently succeed or fail while awaiting
+      input.
+    rationale: >-
+      Silent success or failure hides the fact that input was not received, causing
+      the BT to proceed as if the decision was made when it was not.
+    relationships:
+    - rel_type: refines
+      spec_id: EDF-04-002
+  - id: EDF-04-006
+    priority: MUST_NOT
+    kind: project
+    statement: An external decision node MUST NOT be modeled as an absence of code.
+    rationale: >-
+      An absent node makes the waiting point invisible to the BT structure, preventing
+      inspection and making the decision requirement undetectable.
+    relationships:
+    - rel_type: refines
+      spec_id: EDF-04-002
 - id: EDF-05
   title: Demo Constraints
   specs:

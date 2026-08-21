@@ -14,23 +14,17 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-CASE_MANAGER delegation action nodes for case behavior trees.
+CaseParticipantRole delegation action nodes for case behavior trees (ADR-0039).
 
-Provides action nodes for the CASE_MANAGER role delegation workflow:
-offering, auto-accepting, and explicitly rejecting the delegation.
+Provides action nodes for the role delegation workflow:
+auto-accepting and explicitly rejecting the delegation.
 
-Composite subtrees assembling these leaf nodes are defined in the sibling
-``communication_tree.py`` module at the process-area root per BTND-07-003:
-
-- ``SendOfferCaseManagerRoleNode``
-
-See DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1067.
+See SE-08-003, ADR-0039.
 """
 
 import logging
-from typing import Any, cast
+from typing import cast
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
@@ -39,216 +33,46 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
-class ResolveCaseManagerOfferContextNode(DataLayerAction):
-    """Validate blackboard context and stage Offer recipients."""
+class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
+    """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
 
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
+    When the local actor receives an ``Offer(CaseParticipantRole)`` it MUST
+    auto-accept so the offering Vendor receives confirmation.  This node
+    creates the ``Accept`` activity via ``trigger_activity_factory`` and
+    queues it in the local actor's outbox.
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="offer_case_manager_to", access=py_trees.common.Access.WRITE
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        if (
-            not isinstance(case_id, str)
-            or not isinstance(case_actor_id, str)
-            or not isinstance(participant_id, str)
-        ):
-            self.logger.error(
-                f"{self.name}: case_id, case_actor_id, or"
-                " case_actor_participant_id missing from blackboard"
-            )
-            return Status.FAILURE
-
-        self.blackboard.offer_case_manager_to = [case_actor_id]
-        return Status.SUCCESS
-
-
-class CreateOfferCaseManagerActivityNode(DataLayerAction):
-    """Create Offer(CaseManagerRole) via trigger_activity_factory."""
-
-    def __init__(
-        self,
-        captured: dict | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._captured = captured
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="offer_case_manager_to", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.WRITE
-        )
-
-    def _read_blackboard_ids(
-        self,
-    ) -> tuple[str, str, str, list] | None:
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        recipients = self.blackboard.get("offer_case_manager_to")
-        if (
-            not isinstance(case_id, str)
-            or not isinstance(case_actor_id, str)
-            or not isinstance(participant_id, str)
-            or not isinstance(recipients, list)
-        ):
-            self.logger.error(
-                "%s: case_id, case_actor_id, or"
-                " case_actor_participant_id missing from blackboard",
-                self.name,
-            )
-            return None
-        return case_id, case_actor_id, participant_id, recipients
-
-    def _emit(
-        self,
-        case_id: str,
-        case_actor_id: str,
-        participant_id: str,
-        recipients: list,
-    ) -> str:
-        assert self.trigger_activity_factory is not None
-        activity_id, activity_dict = (
-            self.trigger_activity_factory.offer_case_manager_role(
-                case_id=case_id,
-                participant_id=participant_id,
-                actor=case_actor_id,
-                to=recipients,
-            )
-        )
-        if self._captured is not None:
-            self._captured["activity"] = activity_dict
-        return activity_id
-
-    def _validate_context(self) -> Status | None:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(
-                "%s: trigger_activity_factory not available", self.name
-            )
-            return f
-        return None
-
-    def update(self) -> Status:
-        if (f := self._validate_context()) is not None:
-            return f
-
-        ids = self._read_blackboard_ids()
-        if ids is None:
-            return Status.FAILURE
-        case_id, case_actor_id, participant_id, recipients = ids
-
-        try:
-            activity_id = self._emit(
-                case_id, case_actor_id, participant_id, recipients
-            )
-            self.blackboard.activity_id = activity_id
-            self.logger.info(
-                "%s: Queued Offer(CaseManagerRole) '%s' to Case Actor '%s'"
-                " for case '%s'",
-                self.name,
-                activity_id,
-                case_actor_id,
-                case_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
-                "%s: Error sending Offer(CaseManagerRole): %s", self.name, e
-            )
-            return Status.FAILURE
-
-
-class AutoAcceptCaseManagerRoleNode(DataLayerAction):
-    """Auto-accept a CASE_MANAGER role delegation offer on behalf of the local actor.
-
-    When the local actor (the Case Actor entity) receives an
-    ``Offer(CaseManagerRole)`` it MUST auto-accept so the offering Vendor
-    receives confirmation.  This node creates the ``Accept`` activity via
-    ``trigger_activity_factory`` and queues it in the local actor's outbox.
-
-    Returns ``FAILURE`` when ``trigger_activity_factory`` is not available
-    so that the enclosing Sequence propagates the failure rather than
-    silently continuing.  Callers that want the guarded-commit subtree to
-    run regardless of auto-accept status should wrap this node in a
-    ``Selector`` with a ``Success`` fallback.
-
-    See DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1021.
+    See SE-08-003, ADR-0039.
     """
 
     def __init__(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         name: str | None = None,
     ) -> None:
-        """Initialise the node.
-
-        Args:
-            offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
-            case_id: ID of the VulnerabilityCase referenced by the offer.
-            participant_id: ID of the CaseParticipant being offered the role.
-            vendor_id: Actor ID of the offering Vendor (recipient of Accept).
-            name: Optional custom node name.
-        """
         super().__init__(name=name or self.__class__.__name__)
         self.offer_id = offer_id
         self.case_id = case_id
-        self.participant_id = participant_id
+        self.role = role
+        self.target_actor_id = target_actor_id
         self.vendor_id = vendor_id
 
     def _call_factory(self) -> tuple[str, dict]:
-        """Create the Accept activity. Returns (id, inline_dict). Raises on failure."""
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
-        return self.trigger_activity_factory.accept_case_manager_role(
+        return self.trigger_activity_factory.accept_case_participant_role(
             offer_id=self.offer_id,
             case_id=self.case_id,
-            participant_id=self.participant_id,
+            role=self.role,
+            target_actor_id=self.target_actor_id,
             vendor_id=self.vendor_id,
             actor=self.actor_id,
             to=[self.vendor_id],
@@ -257,8 +81,9 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
     def _enqueue_accept(self, accept_id: str) -> None:
         # The Accept is now persisted.  Outbox enqueue MUST NOT return FAILURE
         # here — the AcceptOrReject Selector would fall through to
-        # EmitRejectCaseManagerRoleNode, producing contradictory protocol state
-        # (Accept stored, Reject sent).  Let the exception propagate instead.
+        # EmitRejectCaseParticipantRoleNode, producing contradictory protocol
+        # state (Accept stored, Reject sent).  Let the exception propagate
+        # instead.
         cast(CaseOutboxPersistence, self.datalayer).outbox_append(  # type: ignore[union-attr]
             accept_id
         )
@@ -276,9 +101,9 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
                 self.offer_id,
             )
             return f
-        if not self.case_id or not self.participant_id:
+        if not self.case_id or not self.target_actor_id:
             self.logger.warning(
-                "%s: missing case_id/participant_id for offer '%s' — skip",
+                "%s: missing case_id/target_actor_id for offer '%s' — skip",
                 self.name,
                 self.offer_id,
             )
@@ -288,26 +113,15 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
     def _commit_accept_to_ledger(
         self, accept_id: str, payload_snapshot: dict
     ) -> bool:
-        """Commit the Accept(CaseManagerRole) activity to the case ledger.
-
-        ``payload_snapshot`` is the inline serialization of the Accept captured
-        at creation time (before DL storage may flatten nested objects).
-
-        Returns True on success.  Callers MUST check the return value and
-        propagate FAILURE when False — a missing ledger entry breaks the
-        hash chain and violates DEMOMA-08-009.
-        """
         assert self.datalayer is not None
         assert self.actor_id is not None
-        # Normalize context to case_id (CLP-10-006: payloadSnapshot.context
-        # must equal the case URI for canonical recorded entries).
         if payload_snapshot.get("context") != self.case_id:
             payload_snapshot = dict(payload_snapshot)
             payload_snapshot["context"] = self.case_id
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=accept_id,
-            event_type="accept_case_manager_role",
+            event_type="accept_case_participant_role",
             payload_snapshot=payload_snapshot,
             disposition="recorded",
         )
@@ -354,58 +168,49 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class EmitRejectCaseManagerRoleNode(DataLayerAction):
-    """Emit a Reject(Offer(CaseManagerRole)) to the offering Vendor.
+class EmitRejectCaseParticipantRoleNode(DataLayerAction):
+    """Emit a Reject(Offer(CaseParticipantRole)) to the offering Vendor (ADR-0039).
 
-    Used as the fallback branch of the ``AcceptOrReject`` Selector after
-    :class:`AutoAcceptCaseManagerRoleNode`.  When the Case Actor cannot
-    auto-accept the role delegation offer (for example, the accept call fails
-    due to a business constraint), this node sends an explicit ``Reject`` so
-    the offering Vendor is notified rather than receiving silence.
+    Fallback branch of the ``AcceptOrReject`` Selector after
+    :class:`AutoAcceptCaseParticipantRoleNode`.  When the local actor cannot
+    auto-accept the role delegation offer, this node sends an explicit
+    ``Reject`` so the offering Vendor is notified rather than receiving silence.
 
     Returns ``FAILURE`` on any error so callers can observe the failure.
 
-    See DEMOMA-08-002, DEMOMA-08-003; Issue #1067.
+    See SE-08-003, ADR-0039.
     """
 
     def __init__(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         name: str | None = None,
     ) -> None:
-        """Initialise the node.
-
-        Args:
-            offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
-            case_id: ID of the VulnerabilityCase referenced by the offer.
-            participant_id: ID of the CaseParticipant being offered the role.
-            vendor_id: Actor ID of the offering Vendor (recipient of Reject).
-            name: Optional custom node name.
-        """
         super().__init__(name=name or self.__class__.__name__)
         self.offer_id = offer_id
         self.case_id = case_id
-        self.participant_id = participant_id
+        self.role = role
+        self.target_actor_id = target_actor_id
         self.vendor_id = vendor_id
 
     def _call_factory(self) -> str:
-        """Create the Reject activity. Raises on error."""
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
-        return self.trigger_activity_factory.reject_case_manager_role(
+        return self.trigger_activity_factory.reject_case_participant_role(
             offer_id=self.offer_id,
             case_id=self.case_id,
-            participant_id=self.participant_id,
+            role=self.role,
+            target_actor_id=self.target_actor_id,
             vendor_id=self.vendor_id,
             actor=self.actor_id,
             to=[self.vendor_id],
         )
 
     def _emit(self) -> None:
-        """Call factory and enqueue; raises on any error."""
         reject_id = self._call_factory()
         cast(CaseOutboxPersistence, self.datalayer).outbox_append(  # type: ignore[union-attr]
             reject_id
@@ -431,9 +236,9 @@ class EmitRejectCaseManagerRoleNode(DataLayerAction):
                 self.offer_id,
             )
             return f
-        if not self.case_id or not self.participant_id:
+        if not self.case_id or not self.target_actor_id:
             self.logger.warning(
-                "%s: missing case_id or participant_id for offer '%s'"
+                "%s: missing case_id or target_actor_id for offer '%s'"
                 " — cannot emit Reject",
                 self.name,
                 self.offer_id,

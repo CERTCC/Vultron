@@ -93,7 +93,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
 - [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
 - [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor Initialization](0023-case-proposal-protocol.md)
-- [ADR-0024 Coordination Agent Taxonomy](0024-coordination-agent-taxonomy.md)
+- [ADR-0024 Capability Shape Taxonomy](0024-coordination-agent-taxonomy.md)
 - [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with Typed Backends](0025-call-out-point-abstraction-layer.md)
 - [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation Flow](0026-caseactor-routed-actor-suggestion.md)
 - [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes → EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md)
@@ -135,8 +135,10 @@ General information about architectural decision records is available at <https:
 - [ADR-0063 Render Core Objects to Wire JSON Through a Driven Port; Remove `alias_generator` From All Core-Branch Types](0063-wire-rendering-port-for-core-objects.md)
 - [ADR-0064 Enforce Post-Construction Type Safety on the Core Branch Only, in Three Ratcheted Steps](0064-core-branch-validate-assignment.md)
 - [ADR-0065 Carry the Embargo Invite RSVP Deadline on `Invite.end_time`](0065-embargo-invite-rsvp-deadline.md) *(provisional)*
-- [ADR-0066 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0066-per-actor-storage-isolation.md) — supersedes the DataLayer isolation strategy of 0012
 - [ADR-0066 Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store](0066-outbox-terminal-state.md)
+- [ADR-0067 Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently](0067-rm-nonadj-accept-and-notify.md)
+- [ADR-0068 Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx](0068-inbox-refuse-misaddressed-activities.md)
+- [ADR-0069 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0069-per-actor-storage-isolation.md)
 
 ## Proposed ADRs
 

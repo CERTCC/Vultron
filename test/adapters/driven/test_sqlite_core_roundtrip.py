@@ -216,9 +216,9 @@ def _insert_raw_row(dl, id_, type_, data):
     normalisation (issue #2283).
     """
     with Session(dl._engine) as session:
-        session.add(
-            VultronObjectRecord(id_=id_, type_=type_, actor_id=None, data=data)
-        )
+        # No actor_id: the column went away with ADR-0069 — every row in this
+        # store belongs to the store's actor by construction.
+        session.add(VultronObjectRecord(id_=id_, type_=type_, data=data))
         session.commit()
 
 

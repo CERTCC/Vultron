@@ -39,7 +39,8 @@ EmbargoTeardownAuthorizationGate; ``add_participant_status_tree`` does not execu
     ├─ StatusAdoptionGate (Selector)           # StatusAdoptionGate authorization (RSH-01-002)
     │   ├─ CheckIsCaseOwnerNode               # Hard bypass: CASE_OWNER gospel (RSH-01-002)
     │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
-    └─ EmitAddCaseStatusToSelfNode            # StatusAdoptionGate emit → triggers EmbargoTeardownAuthorizationGate (RSH-01-003)
+    ├─ EmitAddCaseStatusToSelfNode            # StatusAdoptionGate emit → triggers EmbargoTeardownAuthorizationGate (RSH-01-003)
+    └─ EmitRMGapNoteNode                      # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
 
 ``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
 ``pxa`` independently before the commit, so an unacceptable value in one
@@ -74,6 +75,7 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
 )
 from vultron.core.behaviors.status.nodes import (
     EmitAddCaseStatusToSelfNode,
+    EmitRMGapNoteNode,
     FilterParticipantStatusDimensionsNode,
     VerifySenderIsParticipantNode,
 )
@@ -186,12 +188,18 @@ def add_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,
+                validate_rm=False,
             ),
             status_adoption_gate,
             EmitAddCaseStatusToSelfNode(
                 participant_status_id=status_id,
                 case_id=tree_case_id,
                 name="EmitAddCaseStatusToSelf",
+            ),
+            EmitRMGapNoteNode(
+                sender_actor_id=actor_id,
+                case_id=tree_case_id,
+                name="EmitRMGapNote",
             ),
         ],
     )

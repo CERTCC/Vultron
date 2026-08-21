@@ -43,45 +43,37 @@ class OfferCaseParticipantRoleReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class OfferCaseManagerRoleReceivedEvent(VultronEvent):
-    """Vendor offered the CASE_MANAGER role to a Case Actor participant.
+class AcceptCaseParticipantRoleReceivedEvent(VultronEvent):
+    """Offering actor received Accept(Offer(CaseParticipantRole, ...)).
 
-    Distinct from ``OfferCaseOwnershipTransferReceivedEvent``: the offering
-    actor retains ``CASE_OWNER``; only operational management authority is
-    delegated.  See DEMOMA-08-002, DEMOMA-08-003.
-
-    .. deprecated::
-        Use ``OfferCaseParticipantRoleReceivedEvent`` for the canonical
-        ``Offer(CaseParticipantRole, ...)`` wire format (ADR-0039).
+    The ADR-0039 canonical role-delegation acceptance: the target Actor (or
+    their CaseActor representative) accepted the role offer.
+    See SE-08-003, ADR-0039.
     """
 
-    semantic_type: Literal[MessageSemantics.OFFER_CASE_MANAGER_ROLE] = (
-        MessageSemantics.OFFER_CASE_MANAGER_ROLE
-    )
-    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-
-
-class AcceptCaseManagerRoleReceivedEvent(VultronEvent):
-    """Case Actor accepted the CASE_MANAGER role delegation offer."""
-
-    semantic_type: Literal[MessageSemantics.ACCEPT_CASE_MANAGER_ROLE] = (
-        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE
+    semantic_type: Literal[MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE] = (
+        MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE
     )
 
     @property
-    def case_id(self) -> str | None:
-        return self.inner_object_id
+    def offer_id(self) -> str | None:
+        return self.object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_object)
+    def offer(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
 
 
-class RejectCaseManagerRoleReceivedEvent(VultronEvent):
-    """Case Actor rejected the CASE_MANAGER role delegation offer."""
+class RejectCaseParticipantRoleReceivedEvent(VultronEvent):
+    """Offering actor received Reject(Offer(CaseParticipantRole, ...)).
 
-    semantic_type: Literal[MessageSemantics.REJECT_CASE_MANAGER_ROLE] = (
-        MessageSemantics.REJECT_CASE_MANAGER_ROLE
+    The ADR-0039 canonical role-delegation rejection: the target Actor (or
+    their CaseActor representative) declined the role offer.
+    See SE-08-003, ADR-0039.
+    """
+
+    semantic_type: Literal[MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE] = (
+        MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE
     )
 
     @property

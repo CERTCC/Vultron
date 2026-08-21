@@ -92,10 +92,7 @@ groups:
   - id: PCR-03-002
     priority: MUST_NOT
     kind: protocol
-    statement: >-
-      The case owner actor MUST follow the same replica rules as all other participants: it
-      MUST NOT write directly to its own local case copy; it MUST route all case-state changes
-      through the CaseActor.
+    statement: The case owner actor MUST NOT write directly to its own local case copy.
     relationships:
     - rel_type: refines
       spec_id: CM-02-010
@@ -122,6 +119,26 @@ groups:
       spec_id: PCR-03-001
     - rel_type: refines
       spec_id: PCR-02-003
+  - id: PCR-03-005
+    priority: MUST
+    kind: protocol
+    statement: The case owner actor MUST follow the same replica rules as all other participants.
+    rationale: >-
+      Exempting the case owner from replica rules would create an inconsistent
+      update path that bypasses the CaseActor consistency checks.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-03-002
+  - id: PCR-03-006
+    priority: MUST
+    kind: protocol
+    statement: The case owner actor MUST route all case-state changes through the CaseActor.
+    rationale: >-
+      Routing through the CaseActor ensures all case-state mutations go through the
+      single-writer authority and are recorded in the case ledger.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-03-002
 - id: PCR-04
   title: Case Context Routing
   specs:

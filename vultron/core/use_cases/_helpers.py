@@ -226,7 +226,7 @@ def resolve_receiving_actor_id(
     under (BT-17-005).  ``receiving_actor_id`` is set by the inbox adapter and
     is authoritative when present.  When it is absent — CLI dispatch, replay,
     tests — the answer is *the actor whose store we were handed*: under
-    ADR-0066 a DataLayer is always some specific actor's own, and a received-
+    ADR-0069 a DataLayer is always some specific actor's own, and a received-
     side use case is by construction invoked with the receiving actor's store
     (CM-01-001).
 
@@ -681,7 +681,7 @@ def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
     *actor_id* is retained for call-site readability and logging symmetry only;
     *dl* is already that actor's store, so it does not select the queue.  The
     former ``hasattr(dl, "outbox_list_for_actor")`` branch is gone: both arms
-    now resolve to the same call (ADR-0066).
+    now resolve to the same call (ADR-0069).
 
     Args:
         actor_id: The actor whose outbox is being queried. Not used to select
@@ -703,7 +703,7 @@ def add_activity_to_outbox(
     Appends to *dl*'s own outbox.  This previously used
     ``record_outbox_item(actor_id, …)`` to enqueue against *actor_id*
     explicitly, bypassing any actor-scope on *dl* — necessary when *dl* could
-    be a shared, unscoped instance.  Under ADR-0066 it cannot be.
+    be a shared, unscoped instance.  Under ADR-0069 it cannot be.
 
     Args:
         actor_id: The actor whose outbox receives the activity. Used only for

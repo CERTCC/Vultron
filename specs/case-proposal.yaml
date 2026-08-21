@@ -116,8 +116,8 @@ groups:
   - id: CP-05-002
     priority: MUST
     kind: protocol
-    statement: '`CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and either accept or reject it, emitting the
-      appropriate response activity.'
+    statement: '`CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and either accept or reject it, emitting an
+      `Accept(CaseProposal)` or `Reject(CaseProposal)` activity accordingly.'
   - id: CP-05-003
     priority: MUST
     kind: protocol
@@ -204,10 +204,7 @@ groups:
     statement: >-
       Every actor that may trigger the `engage-case` BT path (i.e., any actor that
       creates a `VulnerabilityCase` on behalf of another actor) MUST supply a
-      `case_actor_service_url` value in its `ActorConfig`. The field MUST be a valid
-      `HttpUrl`; absence MUST produce a runtime `FAILURE` at `ResolveCaseActorUrlsNode`
-      with a clear error message identifying the missing configuration, not a
-      silently mis-routed proposal.
+      `case_actor_service_url` value in its `ActorConfig`.
     rationale: >-
       `ResolveCaseActorUrlsNode` previously derived the CaseActor service URL by
       prepending `server_base_url` (the running container's own base URL) to a
@@ -222,19 +219,63 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CP-01-005
+  - id: CP-08-004
+    priority: MUST
+    kind: project
+    statement: The `case_actor_service_url` field in `ActorConfig` MUST be a valid `HttpUrl`.
+    rationale: >-
+      A non-URL value cannot be used to construct a valid inbox endpoint address, so
+      validation at configuration load time is required to surface errors early.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
+  - id: CP-08-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Absence of `case_actor_service_url` in `ActorConfig` MUST produce a runtime
+      `FAILURE` at `ResolveCaseActorUrlsNode` with a clear error message identifying
+      the missing configuration, not a silently mis-routed proposal.
+    rationale: >-
+      Silent mis-routing sends the proposal to the wrong endpoint without any
+      observable error signal, making the failure hard to diagnose.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
   - id: CP-08-002
     priority: MUST
     kind: project
     statement: >-
       `ResolveCaseActorUrlsNode` MUST read `case_actor_service_url` from
       `ActorConfig` (via `get_config().actor.case_actor_service_url`) to derive the
-      CaseActor service URL. It MUST NOT use `server_base_url` from the blackboard
-      or from the server configuration to construct `case_actor_id`. The
-      `server_base_url` blackboard key MUST NOT be registered or read in
-      `ResolveCaseActorUrlsNode.setup()`.
+      CaseActor service URL.
     relationships:
     - rel_type: refines
       spec_id: CP-08-001
+  - id: CP-08-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      `ResolveCaseActorUrlsNode` MUST NOT use `server_base_url` from the blackboard
+      or from the server configuration to construct `case_actor_id`.
+    rationale: >-
+      Using `server_base_url` hard-wires a co-location assumption; in a multi-container
+      topology the CaseActor has its own container and URL.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-002
+  - id: CP-08-007
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The `server_base_url` blackboard key MUST NOT be registered or read in
+      `ResolveCaseActorUrlsNode.setup()`.
+    rationale: >-
+      Reading `server_base_url` in setup() would reintroduce the co-location coupling
+      that CP-08-002 and CP-08-006 prohibit.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-002
   - id: CP-08-003
     priority: MUST
     kind: project
@@ -242,9 +283,6 @@ groups:
       In all multi-container demo scenarios, every actor whose BT may run the
       `engage-case` path MUST have `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` set
       in its Docker Compose environment block (or equivalent config mechanism).
-      The value MUST be the full base URL of the dedicated CaseActor container
-      (e.g., `http://case-actor:7999/api/v2`). Demo scripts MUST NOT rely on
-      `server_base_url` derivation for the CaseActor identity.
     rationale: >-
       Demo containers are "omniscient" about all actor URLs in the deployment at
       boot time (in lieu of a directory service, issues #1189, #1092). The env-var
@@ -253,6 +291,28 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-001
+  - id: CP-08-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` value MUST be the full base URL of
+      the dedicated CaseActor container (e.g., `http://case-actor:7999/api/v2`).
+    rationale: >-
+      A partial URL or path-only value cannot be used to construct a valid inbox
+      endpoint; the full base URL is required to route proposals correctly.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
+  - id: CP-08-009
+    priority: MUST_NOT
+    kind: project
+    statement: Demo scripts MUST NOT rely on `server_base_url` derivation for the CaseActor identity.
+    rationale: >-
+      `server_base_url` is the running container's own base URL and does not identify a
+      separate CaseActor container; relying on it silently routes proposals to the wrong endpoint.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
 - id: CP-09
   title: CaseActor-Authoritative Initialization on Accept(CaseProposal)
   description: >-
@@ -285,11 +345,7 @@ groups:
       When the CaseActor creates the `VulnerabilityCase` on proposal acceptance,
       it MUST add the report receiver as a `CASE_OWNER` participant at
       `RM.RECEIVED` and the reporter as a participant at `RM.ACCEPTED` in the
-      CaseActor's DataLayer.  These participant records MUST be created before
-      the CaseActor emits `Create(VulnerabilityCase)` to the receiver.  Any
-      additional CVD roles the receiver holds MUST come from
-      `ActorConfig.default_case_roles` (CFG-07-002) and MUST NOT be inferred —
-      a report receiver may be a coordinator rather than a vendor.
+      CaseActor's DataLayer.
     rationale: >-
       The receiver's replica is seeded from the embedded participant objects in
       `Create(VulnerabilityCase)`.  If participants are absent at emission time
@@ -300,6 +356,42 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-001
+  - id: CP-09-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The report receiver and reporter participant records MUST be created in the
+      CaseActor's DataLayer before the CaseActor emits `Create(VulnerabilityCase)`
+      to the receiver.
+    rationale: >-
+      The receiver's replica is seeded from participant objects embedded in
+      `Create(VulnerabilityCase)`; participants absent at emission time leave the
+      replica without the records required for role guards and embargo consent.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
+  - id: CP-09-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Any additional CVD roles the report receiver holds MUST come from
+      `ActorConfig.default_case_roles` (CFG-07-002).
+    rationale: >-
+      Explicit role configuration is the only reliable source; a report receiver
+      may be a coordinator rather than a vendor, so role inference is unsound.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
+  - id: CP-09-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: Additional CVD roles for the report receiver MUST NOT be inferred.
+    rationale: >-
+      Inferring roles (e.g. hard-coding `CVDRole.VENDOR`) mislabels coordinators
+      and causes VFD fix-lifecycle checks to demand a fix they never produce.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
   - id: CP-09-003
     priority: MUST
     kind: protocol

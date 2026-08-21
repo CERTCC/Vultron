@@ -73,7 +73,7 @@ AddParticipantStatusBT (Sequence)
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
 │   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (AlwaysSucceed)
 ├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
-└─ AutoCloseIfCaseManager               ← unchanged
+└─ EmitRMGapNoteNode                    ← NEW: Add(Note,Case) on RM anomaly (RSH-06-004, ADR-0067)
 ```
 
 ### Per-dimension partial accept (RSH-05, ADR-0061)
@@ -92,7 +92,9 @@ DataLayer (CLP-10-006), so it can run before `GuardedCommitOrSkip` and the
 canonical entry snapshots the accepted portion rather than the raw claim.
 
 `em` is deliberately **not** adjudicated here — embargo state belongs to EmbargoTeardownAuthorizationGate
-(ISSUE-2256).
+(ISSUE-2256). The EM adjudication node introduced by ISSUE-2256 will be a second producer of
+`ledger_payload_object_override`; ISSUE-2256's body documents the required producer contract
+(RSH-05-010 through RSH-05-014).
 
 Two blackboard keys carry the handoff. Both are written on *every* tick (with
 `None` when nothing was filtered) and matched by object ID on read, because the
@@ -105,10 +107,20 @@ only `datalayer` and `trigger_activity_factory` between runs:
 | `ledger_payload_object_override` | `FilterParticipantStatusDimensionsNode` | `CommitCaseLedgerEntryNode` |
 
 `ledger_payload_object_override` is defined in
-`vultron/core/behaviors/case/nodes/lifecycle.py` next to its consumer and is
-deliberately generic (`{"object_id", "fields"}`): any receive tree may patch the
-`object` entry of the ledger payload snapshot, and the other receive trees are
-unaffected because the override is opt-in and ID-matched.
+`vultron/core/behaviors/case/nodes/lifecycle.py` next to its consumer. The
+required shape is `{"object_id": <id>, "producer_type": <str>, "fields": {…}}`
+(RSH-05-011). Any receive tree may patch the `object` entry of the ledger
+payload snapshot; the other receive trees are unaffected because the override is
+opt-in and ID-matched.
+
+**Producer contract** (RSH-05-010 through RSH-05-012): every producer MUST (a)
+write `None` to the key unconditionally at the start of every tick before any
+early return (BT-17-003), (b) include `producer_type` identifying the source
+node, and (c) use only wire alias keys recognized by the consumer.
+
+**Consumer validation** (RSH-05-013, RSH-05-014): `CommitCaseLedgerEntryNode`
+hard-fails on any unrecognized wire alias in `fields` (data integrity) and
+warns on an unrecognized `producer_type` (audit hint, not a commit blocker).
 
 It carries a **field patch, not a replacement object** (RSH-05-009). The
 snapshot's `object` is the sender's wire-shaped `ParticipantStatus` — flat
@@ -122,8 +134,9 @@ merging them onto the existing snapshot makes shape preservation structural
 rather than something the guard has to remember:
 
 ```python
-{"object_id": status_id, "fields": {"rmState": "VALID", "vfdState": "VFd",
-                                    "caseStatus": {"pxaState": "Pxa", ...}}}
+{"object_id": status_id, "producer_type": "FilterParticipantStatusDimensionsNode",
+ "fields": {"rmState": "VALID", "vfdState": "VFd",
+            "caseStatus": {"pxaState": "Pxa", ...}}}
 ```
 
 `CommitCaseLedgerEntryNode._resolve_payload_object_override` merges one level

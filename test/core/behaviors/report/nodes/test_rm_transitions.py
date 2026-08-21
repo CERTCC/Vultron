@@ -36,6 +36,8 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.models.activity import VultronOffer
 from vultron.core.states.rm import RM
@@ -208,6 +210,17 @@ def test_transition_rm_to_closed_context_is_case_uri(
     case: VulnerabilityCase,
 ) -> None:
     """TransitionRMtoClosed sets ParticipantStatus.context to the case URI."""
+    # Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001).
+    bt_scenario.seed(
+        ParticipantStatus(
+            id_=_report_phase_status_id(
+                actor.id_, report.id_, RM.INVALID.value
+            ),
+            context=case.id_,
+            attributed_to=actor.id_,
+            rm=RmDimension(state=RM.INVALID),
+        )
+    )
     result = bt_scenario.run(
         TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,

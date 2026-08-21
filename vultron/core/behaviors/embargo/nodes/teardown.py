@@ -20,7 +20,11 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
@@ -33,7 +37,7 @@ from vultron.core.use_cases._helpers import (
 )
 
 
-class HasEmbargoActiveNode(DataLayerCondition):
+class HasEmbargoActiveNode(DataLayerConditionWithPorts):
     """Condition: EM state is ACTIVE or REVISE (embargo is active).
 
     Returns SUCCESS when ``case.current_status.em.state`` is not EXITED
@@ -72,7 +76,7 @@ class HasEmbargoActiveNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class ClearActiveEmbargoNode(DataLayerAction):
+class ClearActiveEmbargoNode(DataLayerActionWithPorts):
     """Apply EM → EXITED transition and clear active_embargo.
 
     Reads the current EM state via ``ReadEmStateNode``, transitions
@@ -148,7 +152,7 @@ class ClearActiveEmbargoNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class ResetParticipantConsentNode(DataLayerAction):
+class ResetParticipantConsentNode(DataLayerActionWithPorts):
     """Reset all participant embargo consent states to NO_EMBARGO.
 
     Calls ``reset_case_participant_embargo_consent`` for the given case.
@@ -371,7 +375,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         return Status.SUCCESS
 
 
-class RemoveFromProposedEmbargoesNode(DataLayerAction):
+class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
     """Remove the embargo from the case's proposed_embargoes list.
 
     Idempotent cleanup: returns SUCCESS if embargo successfully removed or was

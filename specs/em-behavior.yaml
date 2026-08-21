@@ -1301,11 +1301,7 @@ groups:
     statement: >-
       The inbound embargo-response decision seam MUST default to accepting a
       well-formed embargo overture (Flow A: EP proposing terms; Flow B:
-      InviteToEmbargoOnCase). When no external adjudication backend is injected,
-      the EvaluateEmbargoProposal Evaluator call-out point MUST return SUCCESS
-      so the actor accepts by default, delegating to the existing acceptance
-      mechanism (accept_embargo_trigger_bt for Flow A;
-      accept_invite_to_embargo_tree for Flow B).
+      InviteToEmbargoOnCase).
     rationale: >-
       The recommended CVD behavior is to accept an offered embargo and negotiate
       revisions separately rather than block coordination. A deterministic
@@ -1344,18 +1340,27 @@ groups:
     - rel_type: refines
       spec_id: CM-18-003
       note: Flow B acceptance advances the PEC state machine (INVITED → SIGNATORY)
+  - id: EMB-15-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When no external adjudication backend is injected, the EvaluateEmbargoProposal
+      Evaluator call-out point MUST return SUCCESS so the actor accepts by default,
+      delegating to the existing acceptance mechanism (`accept_embargo_trigger_bt`
+      for Flow A; `accept_invite_to_embargo_tree` for Flow B).
+    rationale: >-
+      A deterministic accept-by-default keeps actors runnable without a human in
+      the loop; the DETERMINISTIC call-out bundle (BT-23) supplies the default.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-001
 
   - id: EMB-15-002
     priority: MUST
     kind: protocol
     statement: >-
       The decision seam MUST include a CASE_OWNER hard-bypass arm ahead of the
-      adjudication call-out point: when the deciding actor holds
-      CVDRole.CASE_OWNER, the owner's stated response is authoritative and the
-      seam MUST NOT require external approval. Non-owner actors (e.g. a CaseActor
-      processing an overture on the owner's behalf) MUST route through the
-      CaseOwnerApprovesEmbargoResponse call-out point, which defaults to SUCCESS
-      under the DETERMINISTIC bundle.
+      adjudication call-out point.
     rationale: >-
       This mirrors the two-seam authorization model (ADR-0046) and the
       case_proposal_received_tree pattern: the CASE_OWNER is the human
@@ -1387,6 +1392,31 @@ groups:
       spec_id: BT-18-004
     - rel_type: refines
       spec_id: EMB-15-001
+  - id: EMB-15-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the deciding actor holds `CVDRole.CASE_OWNER`, the owner's stated
+      response is authoritative and the seam MUST NOT require external approval.
+    rationale: >-
+      The CASE_OWNER is the human decision-maker whose choice is gospel; requiring
+      external approval for the owner's response would violate the authorization model.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-002
+  - id: EMB-15-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Non-owner actors (e.g., a CaseActor processing an overture on the owner's
+      behalf) MUST route through the `CaseOwnerApprovesEmbargoResponse` call-out
+      point, which defaults to SUCCESS under the DETERMINISTIC bundle.
+    rationale: >-
+      Non-owner actors need an adjudication seam that a UI or LLM agent can later
+      fulfil; defaulting to SUCCESS keeps them runnable without an external backend.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-002
 
   - id: EMB-15-003
     priority: SHOULD
@@ -1613,8 +1643,7 @@ groups:
       When the accepted embargo is NOT the case's current embargo (for example
       the embargo was revised or replaced after the invitation was sent), the
       CaseActor MUST issue a fresh `Invite(EmbargoEvent)` to the accepting actor
-      carrying the case's current embargo. It MUST NOT record the stale Accept as
-      consent to the current terms, and it MUST NOT reject the accepting actor.
+      carrying the case's current embargo.
     rationale: >-
       Recording the stale Accept as consent would make the participant a
       signatory to terms they never saw. Rejecting them would discard a
@@ -1643,14 +1672,41 @@ groups:
       spec_id: EMB-17-001
     adr:
     - ADR-0065
+  - id: EMB-17-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the accepted embargo is not the case's current embargo, the CaseActor
+      MUST NOT record the stale Accept as consent to the current terms.
+    rationale: >-
+      Recording the stale Accept as consent would make the participant a signatory
+      to terms they never saw. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    adr:
+    - ADR-0065
+  - id: EMB-17-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the accepted embargo is not the case's current embargo, the CaseActor
+      MUST NOT reject the accepting actor.
+    rationale: >-
+      Rejecting a willing participant discards coordination capacity; re-inviting
+      to the current terms is the correct response. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    adr:
+    - ADR-0065
   - id: EMB-17-004
     priority: MUST
     kind: protocol
     statement: >-
       When the case has no current embargo (EM state is EXITED or NONE),
       the CaseActor MUST acknowledge the late Accept as a no-op on embargo state,
-      leaving the participant's PEC state at NONE. It MUST NOT issue a
-      fresh invitation, and it MUST NOT remove the accepting actor from the case.
+      leaving the participant's PEC state at NONE.
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
       case whose CS state is public, exploit-public, or attacks-observed. This
@@ -1688,14 +1744,92 @@ groups:
         after EM EXITED when CS is not yet P/X/A
     adr:
     - ADR-0065
+  - id: EMB-17-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE), the
+      CaseActor MUST NOT issue a fresh embargo invitation to the accepting actor.
+    rationale: >-
+      There is no active embargo to invite the actor to; a fresh invitation would
+      manufacture a negotiation nobody requested. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0065
+  - id: EMB-17-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE), the
+      CaseActor MUST NOT remove the accepting actor from the case.
+    rationale: >-
+      Case participation is independent of embargo consent; the actor's
+      willingness to coordinate must not result in their removal. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0065
+
 - id: EMB-18
+  title: EM Write-Boundary Consolidation
+  description: >-
+    Requirements ensuring that all EM state transitions are executed through
+    the EmbargoLifecycle service layer rather than written directly to
+    case.current_status.em in BT nodes or helpers. Identified by audit in
+    CONCERN-2412: three BT nodes (EmActivateEmbargo, ClearEmbargo,
+    SetDefaultActiveEmbargoNode) bypass EmbargoLifecycle with direct
+    EmDimension assignment. Complements SM-04-001 (general write-boundary guard
+    requirement) with an EM-specific routing rule.
+  specs:
+  - id: EMB-18-001
+    priority: MUST
+    kind: architecture
+    statement: >-
+      All EM state transitions MUST be executed through EmbargoLifecycle
+      (specifically _drive_em_transition() or its public wrappers such as
+      propose_embargo(), accept_embargo_invite(), reject_embargo_invite(), and
+      terminate_active_embargo()). BT nodes and helper functions MUST NOT
+      directly assign a new EmDimension to case.current_status.em and then
+      call dl.save(case) as a substitute for routing through EmbargoLifecycle.
+    rationale: >-
+      EmbargoLifecycle is the sole service-layer authority for EM state writes.
+      It validates the transition (raising VultronInvalidStateTransitionError in
+      STRICT mode) and cascades any required PEC side-effects. Bypassing it via
+      direct EmDimension assignment — even when paired with a non-blocking
+      is_valid_em_transition() warning log — allows invalid EM transitions to be
+      persisted silently and skips PEC cascade logic. Source: CONCERN-2412 audit.
+    relationships:
+    - rel_type: refines
+      spec_id: SM-04-001
+  - id: EMB-18-002
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A BT node or helper MUST NOT use is_valid_em_transition() as a
+      non-blocking warning-only guard and then proceed to write EM state
+      regardless of the validation result. A failed EM transition check MUST
+      either raise or cause the node to return Status.FAILURE without writing
+      to the DataLayer.
+    rationale: >-
+      Warning-only guards create the illusion of validation while allowing
+      invalid states to be persisted. The correct pattern is to route through
+      EmbargoLifecycle (EMB-18-001), which enforces fail-closed behavior in
+      STRICT mode. Source: CONCERN-2412.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+
+- id: EMB-19
   title: Embargo Teardown Announcement
   description: >-
     Who authors the `Announce(EmbargoEvent)` that follows an embargo teardown, and
     who receives it. Added by ISSUE-2238 after the recipients were found to be
     unspecified, which is how they came to disagree with the tree's role gate.
   specs:
-  - id: EMB-18-001
+  - id: EMB-19-001
     priority: MUST
     kind: protocol
     statement: >-
@@ -1719,7 +1853,7 @@ groups:
     tags:
     - protocol
     - messaging
-  - id: EMB-18-002
+  - id: EMB-19-002
     priority: MUST
     kind: protocol
     statement: >-
@@ -1731,7 +1865,7 @@ groups:
       consistent with the announcement being best-effort — a notification gap MUST NOT block a teardown.
     relationships:
     - rel_type: refines
-      spec_id: EMB-18-001
+      spec_id: EMB-19-001
     tags:
     - protocol
     - messaging

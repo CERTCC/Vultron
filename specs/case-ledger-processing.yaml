@@ -48,8 +48,8 @@ groups:
   - id: CLP-02-003
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a normalized immutable snapshot of it, sufficient
-      for deterministic replay'
+    statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a normalized immutable snapshot of it, containing
+      all fields required for deterministic replay'
   - id: CLP-02-004
     priority: MUST
     kind: protocol
@@ -62,14 +62,35 @@ groups:
   - id: CLP-02-006
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MUST include a `log_index` field corresponding to SYNC-01-002; this field MUST be set by
-      the CaseActor''s single authoritative write path and MUST NOT be assigned by external parties'
-  - id: CLP-02-007
+    statement: '`CaseLedgerEntry` MUST include a `log_index` field corresponding to SYNC-01-002.'
+  - id: CLP-02-008
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MAY include an optional `term` field reserved for Raft cluster use; in single-node deployments
-      this field SHOULD be omitted or set to `null`; in multi-node CaseActor cluster deployments this field MUST be populated
-      with the current Raft term at time of append'
+    statement: The `log_index` field of a `CaseLedgerEntry` MUST be set by the CaseActor's single authoritative write path.
+    rationale: Centralising log_index assignment in the single authoritative write path prevents gaps, duplicates, and
+      out-of-order index values that would break hash-chain integrity.
+  - id: CLP-02-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: The `log_index` field of a `CaseLedgerEntry` MUST NOT be assigned by external parties.
+    rationale: Allowing external parties to set log_index would enable index spoofing, enabling forked or replayed
+      ledger entries that corrupt the canonical append-only history.
+  - id: CLP-02-007
+    priority: MAY
+    kind: protocol
+    statement: '`CaseLedgerEntry` MAY include an optional `term` field reserved for Raft cluster use.'
+  - id: CLP-02-010
+    priority: SHOULD
+    kind: protocol
+    statement: In single-node deployments, the `term` field of a `CaseLedgerEntry` SHOULD be omitted or set to `null`.
+    rationale: A single-node deployment has no Raft cluster; populating `term` in that context adds noise without meaning.
+  - id: CLP-02-011
+    priority: MUST
+    kind: protocol
+    statement: In multi-node CaseActor cluster deployments, the `term` field of a `CaseLedgerEntry` MUST be populated
+      with the current Raft term at time of append.
+    rationale: The Raft term anchors each ledger entry to the leader epoch in which it was written, enabling followers
+      to detect stale leader writes during leader-change scenarios.
 - id: CLP-03
   title: Audit Scope and Continuity
   specs:
@@ -176,8 +197,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: A `CaseLedgerEntry` committed to the canonical case ledger MUST correspond to exactly one CaseActor-accepted
-      protocol-significant assertion; the entry's `payloadSnapshot` MUST be the verbatim AS2 activity that was asserted, or
-      a deterministic canonical normalization of it, and MUST NOT be empty for non-rejection entries
+      protocol-significant assertion.
+  - id: CLP-07-011
+    priority: MUST
+    kind: protocol
+    statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST be the verbatim AS2 activity that was asserted, or a
+      deterministic canonical normalization of it.
+    rationale: The payload snapshot is the replication substrate; receivers must be able to reconstitute the asserted
+      activity from the snapshot alone without an out-of-band lookup.
+  - id: CLP-07-012
+    priority: MUST_NOT
+    kind: protocol
+    statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST NOT be empty for non-rejection entries.
+    rationale: An empty payload snapshot for a recorded entry breaks deterministic replay and makes it impossible for
+      replica nodes to reconstruct the case state from the canonical log.
   - id: CLP-07-002
     priority: MUST
     kind: protocol
@@ -292,10 +325,19 @@ groups:
   - id: CLP-08-006
     priority: MUST
     kind: protocol
-    statement: The non-spoofability guarantee of the per-case genesis hash is satisfied by a domain-bound case URI (e.g.,
-      `https://example.org/cases/<uuid>`) whose path segment contains a cryptographically random UUID component; implementations
-      MUST NOT use sequentially predictable or human-chosen path segments when origin-binding integrity is required; see `notes/case-ledger-authority.md`
-      for future improvement paths (secret nonce, CaseActor keypairs)
+    statement: The case URI used for origin-binding MUST contain a cryptographically random UUID component in its path
+      segment to satisfy the non-spoofability guarantee of the per-case genesis hash (e.g.,
+      `https://example.org/cases/<uuid>`).
+    rationale: A cryptographically random path segment makes the genesis hash unique and unguessable per case, so a
+      ledger with all entries stripped is distinguishable from a legitimately new empty ledger.
+  - id: CLP-08-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: Implementations MUST NOT use sequentially predictable or human-chosen path segments in the case URI when
+      origin-binding integrity is required.
+    rationale: >-
+      Predictable or human-chosen path segments allow an attacker to pre-compute a valid genesis hash and construct a
+      forged chain. See `notes/case-ledger-authority.md` for future improvement paths (secret nonce, CaseActor keypairs).
 - id: CLP-09
   title: Commit Authorization and Coverage
   specs:
@@ -420,9 +462,10 @@ groups:
       under a different actor identity for the commit — literal actor-switching, reproducing the "post-BT procedural cascade"
       anti-pattern (see `notes/bt-integration.md`) for the commit step specifically; in `embargo.py`''s case the main tree
       already (uselessly) embeds the same guarded-commit branch under the wrong actor, so the first execution is a guaranteed
-      no-op. (2) `note.py` and `actor/case_manager_role.py` call the commit factory exactly once but precede it with domain-significant
-      procedural code (DataLayer mutation, broadcast, trigger-activity calls) for the main operation, outside any BT — `execute()`
-      is not "build one tree, run it, handle the result" even though only one `execute_with_setup()` call exists. (3) `case/lifecycle.py`
+      no-op. (2) `note.py` and `actor/case_manager_role.py` (deleted, issue #2429) called the commit factory exactly once but
+      preceded it with domain-significant procedural code (DataLayer mutation, broadcast, trigger-activity calls) for the main
+      operation, outside any BT — `execute()` was not "build one tree, run it, handle the result" even though only one
+      `execute_with_setup()` call existed. (3) `case/lifecycle.py`
       already executes a single tree under the correct actor but constructs it ad hoc inside `execute()` instead of via a
       `behaviors/` factory function. See ADR-0022 for the full per-site breakdown.'
     verification: '`test/architecture/test_single_bt_execution_received_side.py` greps every module under `vultron/core/use_cases/`
@@ -455,12 +498,27 @@ groups:
   - id: CLP-10-006
     priority: MUST
     kind: project
-    statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT` subtree (composed via `create_guarded_commit_case_ledger_entry_tree`),
-      the commit subtree MUST appear after any pure precondition-guard nodes (nodes that only read state and return FAILURE
-      on mismatch, making no writes) and BEFORE any protocol-effect nodes. A "protocol-effect node" is any node that writes
-      to the DataLayer, mutates actor or participant state, or enqueues an outbox item. The ordering MUST be: (1) precondition
-      guards, (2) commit, (3) all protocol effects. A tree that applies any protocol effect before committing the triggering
-      activity inverts causal ordering and MUST be corrected.'
+    statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT` subtree (composed via
+      `create_guarded_commit_case_ledger_entry_tree`), the commit subtree MUST appear after all pure precondition-guard
+      nodes and before any protocol-effect nodes. A precondition-guard node is one that only reads state and returns
+      FAILURE on mismatch, making no writes; a protocol-effect node is any node that writes to the DataLayer, mutates
+      actor or participant state, or enqueues an outbox item.'
+  - id: CLP-10-010
+    priority: MUST
+    kind: project
+    statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT` subtree, the ordering
+      MUST be: (1) precondition guards, (2) commit, (3) all protocol effects.'
+    rationale: The canonical case ledger records the cause (the received activity) and replicates it to all
+      participants. Recording cause before applying effects ensures the audit log is causally coherent.
+  - id: CLP-10-011
+    priority: MUST
+    kind: project
+    statement: A receive-side BT tree that applies any protocol effect before committing the triggering activity inverts
+      causal ordering and MUST be corrected.
+    rationale: >-
+      Audit issue #1068 found inverted ordering consistently across receive-side BTs. Participants replicating via
+      Announce(CaseLedgerEntry) would observe effect entries with no prior cause entry, making forensic and audit use
+      of the ledger unreliable.
     rationale: 'The canonical case ledger records the cause (the received activity) and replicates it to all participants.
       If protocol effects (state transitions, outbox enqueues, participant updates) run before the ledger records the triggering
       activity, the case ledger may show effects without the causes that produced them. Participants replicating the ledger
@@ -474,6 +532,38 @@ groups:
       wrapping it), the test asserts that no sibling node appearing before the commit node in the `children` list is a protocol-effect
       node (i.e., any node whose class name does not match the known precondition-guard allowlist). The test fails if any
       receive-side tree violates commit-first ordering.
+  - id: CLP-10-009
+    priority: MUST
+    kind: project
+    statement: 'In a receive-side BT composed via `create_receive_activity_tree`, every node that can return FAILURE to
+      refuse an inbound assertion (a rejection validator) MUST appear in `precondition_guards`; a rejection validator
+      placed in `effect_nodes` aborts the Sequence after GuardedCommit has already written a canonical ledger entry,
+      producing canonical/replica divergence (ISSUE-2254).'
+  - id: CLP-10-012
+    priority: MUST_NOT
+    kind: project
+    statement: A separate `ValidateRMTransitionNode` in `effect_nodes` MUST NOT be used in the receive-side path;
+      `FilterParticipantStatusDimensionsNode` satisfies the per-dimension adjudication requirement for an inbound
+      `ParticipantStatus` and a redundant validator after the commit creates divergence.
+    rationale: >-
+      `add_participant_status_tree` previously contained `ValidateRMTransitionNode` after `GuardedCommit`, masked by a
+      `_rm_was_carried_forward()` workaround. Both were corrected in ISSUE-2254.
+  - id: CLP-10-013
+    priority: MUST
+    kind: project
+    statement: Every receive-side tree that uses `create_receive_activity_tree` MUST also pass `case_id` so that a
+      canonical ledger entry is committed for each accepted activity.
+    rationale: A tree that omits `case_id` omits the cause entry from the ledger, breaking the causal completeness
+      guarantee that the canonical log is supposed to provide.
+    rationale: 'A rejection validator (FAILURE-on-mismatch, read-only) belongs before the commit; an effects node (writes,
+      enqueues, state mutations) belongs after. Mixing the two — placing a rejection validator in effect_nodes — creates a
+      window where the ledger records receipt of an activity the local actor then refuses to apply, violating the audit guarantee
+      that every ledger entry corresponds to a locally applied protocol event. `add_participant_status_tree` previously
+      contained `ValidateRMTransitionNode` after `GuardedCommit`, masked by a `_rm_was_carried_forward()` workaround.
+      `add_case_status_tree` previously used a plain `py_trees.Sequence` with no commit at all. Both were corrected in ISSUE-2254.'
+    relationships:
+      - rel_type: refines
+        spec_id: CLP-10-006
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair (e.g., Offer(CaseParticipant) → Accept/Reject)

@@ -53,11 +53,12 @@ class ActivityPattern(BaseModel):
 
         # object_ strictness is per-pattern (self.strict).  Strict patterns
         # reject bare string refs; permissive patterns (default) accept them.
-        # context_, to_, target_ are always permissive: string URIs (e.g.
-        # case context URIs) are intentional and accepted as valid matches.
+        # context_ and to_ are always permissive: string URIs (e.g. case
+        # context URIs) are intentional and accepted as valid matches.
+        # target_ follows self.strict (permissive by default).
         field_pairs = (
             (self.object_, getattr(activity, "object_", None), self.strict),
-            (self.target_, getattr(activity, "target", None), False),
+            (self.target_, getattr(activity, "target", None), self.strict),
             (self.context_, getattr(activity, "context", None), False),
             (self.to_, getattr(activity, "to", None), False),
             (

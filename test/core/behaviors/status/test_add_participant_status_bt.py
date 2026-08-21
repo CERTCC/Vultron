@@ -60,12 +60,14 @@ from vultron.core.behaviors.status.nodes import (
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
     EmitAddCaseStatusToSelfNode,
+    EmitRMGapNoteNode,
     LoadParticipantNode,
     PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
     VerifySenderIsParticipantNode,
 )
+from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -105,7 +107,7 @@ def executing_actor_id(request):
 
     Declared per test with ``@pytest.mark.executes_as(...)``; defaults to
     ``ACTOR_ID``. Every store fixture below derives from it, because a BT's store
-    follows its executing actor (ADR-0066) — so declaring the actor once keeps the
+    follows its executing actor (ADR-0069) — so declaring the actor once keeps the
     whole fixture chain (``dl`` → ``bridge`` → ``populated_dl`` →
     ``populated_bridge``) consistent without threading it through each signature.
     """
@@ -1388,3 +1390,312 @@ class TestStatusAuthorizationCallOutBundle:
         bundle = StatusAuthorizationCallOutBundle()
         with pytest.raises((AttributeError, dataclasses.FrozenInstanceError)):
             bundle.status_adoption_gate_factory = lambda name: None  # type: ignore[method-assign]
+
+
+# ---------------------------------------------------------------------------
+# Regression: CLP-10-009 / ISSUE-2254 — validators in preconditions
+# ---------------------------------------------------------------------------
+
+
+class TestRejectionValidatorBeforeCommit:
+    """CLP-10-009 / ISSUE-2254 regression.
+
+    ValidateRMTransitionNode must NOT fire after GuardedCommit in the
+    receive-side path.  Before the fix it did, causing canonical/replica
+    divergence for a participant at RM.CLOSED whose update was partially
+    accepted (vfd or other dimension advanced).
+
+    The fix is validate_rm=False in add_participant_status_tree, delegating
+    rm adjudication entirely to FilterParticipantStatusDimensionsNode
+    (precondition guard).  The _rm_was_carried_forward() workaround was
+    removed; this test proves it is not needed.
+    """
+
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_partial_accept_with_closed_rm_succeeds_and_produces_ledger_entry(
+        self, make_payload
+    ):
+        """Participant is RM.CLOSED; incoming status advances vfd but asserts
+        a backwards rm (VALID ≺ CLOSED).
+
+        FilterParticipantStatusDimensionsNode refuses rm and carries CLOSED
+        forward; vfd advance is accepted (partial accept → SUCCESS).
+        GuardedCommit fires and produces one CaseLedgerEntry.
+        ValidateRMTransitionNode is SKIPPED (validate_rm=False), so the
+        carried-forward CLOSED rm no longer causes a post-commit FAILURE.
+
+        This test FAILS on pre-fix code where ValidateRMTransitionNode ran
+        after GuardedCommit and the _rm_was_carried_forward() workaround had
+        been removed (demonstrating the latent divergence risk).
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.core.states.cs import CS_vfd
+        from vultron.enums.roles import CVDRole
+
+        # The tree runs as the case manager, so this is the case manager's
+        # own store (BT-05-005, ADR-0069).
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
+        cm_participant = as_CaseParticipant(
+            id_=CM_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        # attributed_to seeds the per-case genesis hash (CLP-08-003)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="Fix1 Regression", attributed_to=CASE_MANAGER_ID
+        )
+        case.add_participant(cm_participant)
+
+        existing_status = as_ParticipantStatus(
+            id_=f"{STATUS_ID}/existing",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+            vfd_state=CS_vfd.vfd,
+        )
+        vendor_participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        vendor_participant.participant_statuses.append(existing_status)
+        case.add_participant(vendor_participant)
+
+        dl.create(case)
+        dl.create(cm_participant)
+        dl.create(vendor_participant)
+        dl.create(existing_status)
+
+        # Incoming status: rm=VALID (backwards from CLOSED), vfd advances to Vfd
+        incoming_status = as_ParticipantStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            rm_state=RM.VALID,
+            vfd_state=CS_vfd.Vfd,
+        )
+        dl.create(incoming_status)
+
+        activity = add_status_to_participant_activity(
+            status=incoming_status,
+            target=vendor_participant,
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Regression"),
+        )
+        event = make_payload(activity).model_copy(
+            update={"activity": activity}
+        )
+
+        bridge = self._bridge_with_factory(dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS, (
+            "Partial accept (rm refused, vfd accepted) must succeed — "
+            "ValidateRMTransitionNode must NOT abort after GuardedCommit (CLP-10-009)"
+        )
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 1, (
+            "One CaseLedgerEntry must be committed for the partial accept "
+            "(rm refused → carried forward, vfd accepted)"
+        )
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_fully_rejected_update_produces_no_ledger_entry(
+        self, make_payload
+    ):
+        """All dimensions refused by FilterParticipantStatusDimensionsNode →
+        FAILURE before GuardedCommit → zero CaseLedgerEntries (CLP-10-009).
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.core.states.cs import CS_vfd
+        from vultron.enums.roles import CVDRole
+
+        # The tree runs as the case manager, so this is the case manager's
+        # own store (BT-05-005, ADR-0069).
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
+        cm_participant = as_CaseParticipant(
+            id_=CM_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        # attributed_to seeds the per-case genesis hash (CLP-08-003)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="Fix1 Full Reject", attributed_to=CASE_MANAGER_ID
+        )
+        case.add_participant(cm_participant)
+
+        existing_status = as_ParticipantStatus(
+            id_=f"{STATUS_ID}/existing",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+            vfd_state=CS_vfd.Vfd,
+        )
+        vendor_participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        vendor_participant.participant_statuses.append(existing_status)
+        case.add_participant(vendor_participant)
+
+        dl.create(case)
+        dl.create(cm_participant)
+        dl.create(vendor_participant)
+        dl.create(existing_status)
+
+        # Incoming status: rm backwards AND vfd backwards → all dimensions refused
+        incoming_status = as_ParticipantStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            rm_state=RM.VALID,
+            vfd_state=CS_vfd.vfd,
+        )
+        dl.create(incoming_status)
+
+        activity = add_status_to_participant_activity(
+            status=incoming_status,
+            target=vendor_participant,
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Full Reject"),
+        )
+        event = make_payload(activity)
+
+        bridge = self._bridge_with_factory(dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        )
+        assert (
+            result.status == Status.FAILURE
+        ), "A fully rejected update must fail before GuardedCommit"
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 0, (
+            "A fully rejected update must produce zero CaseLedgerEntries"
+            " (CLP-10-009)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# EmitRMGapNoteNode (RSH-06)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestEmitRMGapNoteNode:
+    """EmitRMGapNoteNode emits Add(Note,Case) on RM anomaly (RSH-06-004).
+
+    Every test here runs the node as the case manager, so ``dl`` — and the
+    ``populated_dl`` built on it — must be the *case manager's* store: a BT's
+    store follows its executing actor (BT-05-005, ADR-0069), and the node
+    enqueues to whichever store it was handed.
+    """
+
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    def _set_anomaly(self, anomaly_type: str, from_rm: RM, to_rm: RM) -> None:
+        """Write BB_RM_ANOMALY directly to blackboard storage for the test."""
+        import py_trees
+
+        py_trees.blackboard.Blackboard.storage["/" + BB_RM_ANOMALY] = {
+            "anomaly_type": anomaly_type,
+            "from_rm": from_rm,
+            "to_rm": to_rm,
+        }
+
+    def test_no_anomaly_is_noop_success(self, populated_dl):
+        """BB_RM_ANOMALY=None → SUCCESS with no outbox entry (happy path)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        outbox = populated_dl.outbox_list()
+        assert len(outbox) == 0, "No anomaly → no outbox entry expected"
+
+    def test_gap_anomaly_emits_note(self, populated_dl):
+        """BB_RM_ANOMALY=gap → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        # Pre-populate anomaly flag as if FilterParticipantStatusDimensionsNode ran
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = populated_dl.outbox_list()
+        assert (
+            len(outbox) == 1
+        ), "Gap anomaly should emit exactly one Add(Note,Case)"
+
+    def test_regression_anomaly_emits_note(self, populated_dl):
+        """BB_RM_ANOMALY=regression → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        self._set_anomaly("regression", RM.ACCEPTED, RM.RECEIVED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = populated_dl.outbox_list()
+        assert (
+            len(outbox) == 1
+        ), "Regression anomaly should emit exactly one Add(Note,Case)"
+
+    def test_no_case_id_is_noop_success(self, populated_dl):
+        """case_id=None → SUCCESS with no outbox entry (no case context)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=None,
+        )
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        outbox = populated_dl.outbox_list()
+        assert len(outbox) == 0, "No case_id → no outbox entry expected"
+
+    def test_no_factory_is_success_noop(self, populated_bridge):
+        """No TriggerActivityPort → SUCCESS (degrades gracefully — SHOULD not MUST)."""
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+        # populated_bridge has no trigger_activity_factory
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS

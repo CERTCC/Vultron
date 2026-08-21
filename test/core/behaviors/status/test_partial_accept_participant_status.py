@@ -208,7 +208,7 @@ def store_for():
 
     These tests split between two executing actors — the asserting participant
     and the case manager — and a BT's store follows its executing actor
-    (ADR-0066), so one shared store cannot serve both. Each test opens the store
+    (ADR-0069), so one shared store cannot serve both. Each test opens the store
     of the actor it runs as.
     """
     created: list[SqliteDataLayer] = []
@@ -992,3 +992,110 @@ class TestMergeSnapshotObjectFields:
         )
         assert merged["caseStatus"] == f"{ASSERTED_STATUS_ID}/cs"
         assert merged["rmState"] == "VALID"
+
+
+# ---------------------------------------------------------------------------
+# RSH-06: RM anomaly detection (BB_RM_ANOMALY)
+# ---------------------------------------------------------------------------
+
+
+class TestRMGapAnomalyFlag:
+    """FilterParticipantStatusDimensionsNode publishes BB_RM_ANOMALY (RSH-06)."""
+
+    def _read_anomaly(self) -> Any:
+        from vultron.core.behaviors.status.nodes.dimension_filter import (
+            BB_RM_ANOMALY,
+        )
+
+        return py_trees.blackboard.Blackboard.storage.get("/" + BB_RM_ANOMALY)
+
+    def test_nonadjacent_forward_jump_sets_gap_anomaly(
+        self, store_for, make_payload
+    ):
+        """RECEIVED → ACCEPTED (non-adjacent) sets BB_RM_ANOMALY='gap' (RSH-06-001)."""
+        dl = store_for(ACTOR_ID)
+        current = _current_status(RM.RECEIVED, CS_vfd.vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.ACCEPTED, CS_vfd.vfd, None)
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+
+        assert result.status == Status.SUCCESS
+        anomaly = self._read_anomaly()
+        assert (
+            anomaly is not None
+        ), "BB_RM_ANOMALY not set for non-adjacent RM gap"
+        assert anomaly["anomaly_type"] == "gap"
+        assert anomaly["from_rm"] == RM.RECEIVED
+        assert anomaly["to_rm"] == RM.ACCEPTED
+
+    def test_adjacent_forward_transition_no_anomaly(
+        self, store_for, make_payload
+    ):
+        """RECEIVED → VALID (adjacent) sets no BB_RM_ANOMALY (happy path)."""
+        dl = store_for(ACTOR_ID)
+        current = _current_status(RM.RECEIVED, CS_vfd.vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vfd.vfd, None)
+        _seed_case(dl, current, asserted)
+
+        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+
+        anomaly = self._read_anomaly()
+        assert (
+            anomaly is None
+        ), f"Expected no anomaly for adjacent transition, got {anomaly}"
+
+    def test_backward_regression_refused_sets_regression_anomaly(
+        self, store_for, make_payload
+    ):
+        """ACCEPTED → RECEIVED (backward) sets BB_RM_ANOMALY='regression' (RSH-06-002)."""
+        dl = store_for(ACTOR_ID)
+        current = _current_status(RM.ACCEPTED, CS_vfd.vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vfd.vfd, None)
+        _seed_case(dl, current, asserted)
+
+        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+
+        anomaly = self._read_anomaly()
+        assert (
+            anomaly is not None
+        ), "BB_RM_ANOMALY not set for backward regression"
+        assert anomaly["anomaly_type"] == "regression"
+        assert anomaly["from_rm"] == RM.ACCEPTED
+        assert anomaly["to_rm"] == RM.RECEIVED
+
+
+# ---------------------------------------------------------------------------
+# RSH-05-011: producer_type in ledger_payload_object_override
+# ---------------------------------------------------------------------------
+
+
+class TestOverrideIncludesProducerType:
+    """AC-1: FilterParticipantStatusDimensionsNode publishes producer_type (RSH-05-011)."""
+
+    def test_published_override_includes_producer_type(
+        self, store_for, make_payload
+    ):
+        """The override dict written to BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE must carry producer_type."""
+        dl = store_for(ACTOR_ID)
+        current = _current_status(RM.VALID, CS_vfd.Vfd, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vfd.VFd, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+
+        reader = py_trees.blackboard.Client(name="override-shape-reader")
+        reader.register_key(
+            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
+            access=py_trees.common.Access.READ,
+        )
+
+        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        assert result.status == Status.SUCCESS
+
+        override = reader.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE)
+        assert isinstance(
+            override, dict
+        ), "override must be a dict after partial accept"
+        assert (
+            override.get("producer_type")
+            == "FilterParticipantStatusDimensionsNode"
+        ), "RSH-05-011: producer_type must identify the producing node"

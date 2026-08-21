@@ -37,7 +37,7 @@ async def readiness():
     """Returns 200 if the service is ready to accept requests (OB-05-002).
 
     Probes the configured storage *location* rather than any single actor's
-    store. Under ADR-0066 each actor has its own store, so there is no shared
+    store. Under ADR-0069 each actor has its own store, so there is no shared
     store to ``ping()`` — and a node with no actors seeded yet is still ready.
     """
     try:

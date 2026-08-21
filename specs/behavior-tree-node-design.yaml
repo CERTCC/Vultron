@@ -137,7 +137,7 @@ groups:
     kind: project
     statement: A decomposed BT leaf node that encounters a domain-layer error MUST write the error to the `result_out["error"]`
       blackboard key before returning `FAILURE`, and MUST re-raise the original exception in `execute()` after the write so
-      that the bridge layer can translate it into an appropriate HTTP or protocol response.
+      that the bridge layer can map it to the corresponding HTTP error response.
     rationale: Without a written error key the bridge layer sees only `FAILURE` with no diagnostic context; the error is silently
       swallowed. Writing to `result_out["error"]` ensures the error propagates to the caller via the result channel even when
       the BT stops traversal at the failing leaf.
@@ -149,7 +149,7 @@ groups:
     kind: project
     statement: A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a `FAILURE` status and MUST NOT
       allow the `KeyError` to propagate uncaught to the bridge layer. The leaf is responsible for catching `KeyError` in its
-      `update()` method and returning `FAILURE` with an appropriate diagnostic message.
+      `update()` method and returning `FAILURE` with a diagnostic message naming the missing key.
     rationale: A `KeyError` propagating to the bridge results in an unhandled 500-level error for the caller. At the leaf
       level the semantics of "key not present" are known — this is a precondition failure, not an unexpected crash, so `FAILURE`
       is the correct BT response.
@@ -253,12 +253,12 @@ groups:
   - id: BTND-05-002
     priority: MUST
     kind: project
-    statement: The BT node for creating the initial case participant MUST be role-agnostic. It MUST NOT assume any specific
-      CVD role (e.g., Vendor). It MUST treat the actor as the case owner regardless of their CVD role(s). The correct node
-      is `CreateCaseOwnerParticipant`.
-    rationale: '"Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer, or other role may
-      equally receive a report and become the case owner. The node MUST NOT know or care which CVD role the actor plays —
-      only that they are the case owner.'
+    statement: >-
+      The BT node for creating the initial case participant MUST be role-agnostic; the correct
+      node for this purpose is `CreateCaseOwnerParticipant`.
+    rationale: >-
+      "Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer, or
+      other role may equally receive a report and become the case owner.
     relationships:
     - rel_type: refines
       spec_id: BTND-01-001
@@ -282,6 +282,24 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-05-001
+  - id: BTND-05-005
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The BT node for creating the initial case participant MUST NOT assume any specific CVD role
+      (e.g., Vendor).
+    rationale: >-
+      Any CVD actor (coordinator, deployer, vendor, etc.) may receive a report and become the
+      case owner; hardcoding a role couples the node to a single scenario.
+  - id: BTND-05-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The BT node for creating the initial case participant MUST treat the actor as the case
+      owner regardless of their CVD role(s).
+    rationale: >-
+      Case ownership is orthogonal to CVD role. The node must apply the `CASE_OWNER` flag without
+      requiring or checking any specific CVD role value.
 - id: BTND-06
   title: Idiomatic BT Construction Patterns
   specs:
@@ -355,10 +373,11 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      Use the following granularity guidelines when deciding whether a behavior should be a leaf node or a subtree:
-      (1) a leaf node is appropriate when the action is atomic and has no observable sub-steps;
-      (2) a subtree is appropriate when the behavior can be decomposed into independently verifiable pre/post-condition pairs;
-      (3) extract a subtree when the same multi-step pattern appears in more than one place (see BTND-02-001).
+      A behavior SHOULD be implemented as a leaf node when the action is atomic and has no
+      observable sub-steps.
+    rationale: >-
+      Leaf nodes are the appropriate granularity for indivisible actions; decomposing them further
+      adds structural complexity without improving testability.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -376,6 +395,24 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-06-001
+  - id: BTND-06-009
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A behavior SHOULD be decomposed into a subtree when it can be split into independently
+      verifiable pre/post-condition pairs.
+    rationale: >-
+      Decomposing into subtrees with explicit pre/post-condition pairs makes each step
+      individually testable and follows the PPA pattern (BTND-06-003).
+  - id: BTND-06-010
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A subtree SHOULD be extracted when the same multi-step pattern appears in more than one
+      place (see BTND-02-001).
+    rationale: >-
+      Extracting repeated patterns into a shared subtree reduces duplication and ensures fixes
+      and improvements apply consistently across all use sites.
 - id: BTND-07
   title: BT Node Module Organization
   specs:
@@ -460,24 +497,55 @@ groups:
   - id: BTND-07-005
     priority: MUST
     kind: project
-    statement: 'Before implementing guard, validation, or factory-call boilerplate in a new BT leaf node''s `update()` method,
-      the implementer MUST search `vultron/core/behaviors/` for an existing base class or helper that already provides that
-      boilerplate and inherit or reuse it. In particular: (1) `DataLayerAction` already provides `self.datalayer`, `self.actor_id`,
-      and `self.trigger_activity_factory` resolution — do not re-implement these lookups inline; (2) existing emit-node base
-      classes (e.g., `_EmitCaseActorReportActivityBase`) already implement the standard guard + factory-dispatch + outbox-write
-      pattern — subclass them and override `_call_factory()` rather than writing a new `update()` from scratch; (3) if no
-      suitable base class exists, extract the shared pattern into one and document it for future reuse.'
-    rationale: The most common cause of god-node `update()` methods is copy-paste of guard and factory-call boilerplate from
-      prior nodes. Each copy drifts independently, accumulates line count, and must be fixed separately. A shared base class
-      keeps `update()` methods to a single try-block orchestration with all logic in overridable hooks, satisfying BTND-07-003
+    statement: >-
+      Before implementing guard, validation, or factory-call boilerplate in a new BT leaf
+      node's `update()` method, the implementer MUST search `vultron/core/behaviors/` for an
+      existing base class or helper that already provides that boilerplate and inherit or reuse it.
+    rationale: >-
+      The most common cause of god-node `update()` methods is copy-paste of guard and
+      factory-call boilerplate from prior nodes. Each copy drifts independently, accumulates line
+      count, and must be fixed separately. A shared base class keeps `update()` methods to a
+      single try-block orchestration with all logic in overridable hooks, satisfying BTND-07-003
       and the DRY principle simultaneously.
     relationships:
     - rel_type: refines
       spec_id: BTND-07-003
-    verification: When reviewing a new or modified BT leaf node, confirm that its `update()` method does not re-implement
-      boilerplate already available in a parent class or shared helper. Flag any inline `if self.datalayer is None`, `if self.actor_id
-      is None`, or `if self.trigger_activity_factory is None` guard blocks that duplicate logic already present in an existing
-      base class.
+    verification: >-
+      When reviewing a new or modified BT leaf node, confirm that its `update()` method does not
+      re-implement boilerplate already available in a parent class or shared helper. Flag any
+      inline `if self.datalayer is None`, `if self.actor_id is None`, or
+      `if self.trigger_activity_factory is None` guard blocks that duplicate logic already present
+      in an existing base class.
+  - id: BTND-07-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A new BT leaf node MUST NOT re-implement `self.datalayer`, `self.actor_id`, or
+      `self.trigger_activity_factory` resolution inline; `DataLayerAction` already provides these
+      lookups.
+    rationale: >-
+      Inline resolution duplicates logic from `DataLayerAction`, drifts independently, and
+      increases line count without benefit.
+  - id: BTND-07-009
+    priority: MUST
+    kind: project
+    statement: >-
+      A new BT leaf node that follows the standard guard + factory-dispatch + outbox-write pattern
+      MUST subclass an existing emit-node base class (e.g., `_EmitCaseActorReportActivityBase`)
+      and override `_call_factory()` rather than writing a new `update()` from scratch.
+    rationale: >-
+      Subclassing an existing emit-node base class reuses the standard pattern and ensures fixes
+      and improvements propagate to all subclasses automatically.
+  - id: BTND-07-010
+    priority: MUST
+    kind: project
+    statement: >-
+      If no suitable base class exists for the boilerplate pattern needed by a new BT leaf node,
+      the implementer MUST extract the shared pattern into a new base class and document it for
+      future reuse.
+    rationale: >-
+      Extracting the pattern prevents future copy-paste proliferation and makes the shared
+      abstraction explicit and discoverable.
 - id: BTND-08
   title: Positive-Precondition Condition Node Naming
   specs:

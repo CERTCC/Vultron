@@ -38,6 +38,27 @@ different adapter implementations.
 
 ---
 
+## Exception: Synchronous Route-Level Guards
+
+IO-03-003b says the FastAPI inbox path MUST NOT contain inbox policy logic.
+There is one narrow exception: a **synchronous guard that refuses an Activity
+before the HTTP 202 is returned** may live at the route level.
+
+The addressing check added in IE-11-001 is the canonical example. That check
+must be synchronous — the sender needs a 4xx response, not a silent discard —
+and must execute before `BackgroundTasks` schedules the handler. Both
+constraints require route-level placement. ADR-0068 documents the tradeoff.
+
+Rules for any future route-level guard:
+
+- It must produce a synchronous HTTP response (not just set a flag for a
+  downstream BT node).
+- It must not duplicate orchestration logic that belongs in the core BT
+  pipeline.
+- The justification must be recorded in an ADR that acknowledges IO-03-003b.
+
+---
+
 ## Two-Adapter Seam Design
 
 `process_payload` accepts exactly two injected adapters:

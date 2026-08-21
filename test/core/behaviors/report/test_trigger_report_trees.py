@@ -113,6 +113,36 @@ def closed_status(
 
 
 @pytest.fixture
+def invalid_status(
+    scenario: BTTestScenario, report: VultronReport
+) -> ParticipantStatus:
+    """Pre-seed RM.INVALID — valid predecessor for INVALID→CLOSED."""
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=ACTOR_ID,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    scenario.dl.create(status)
+    return status
+
+
+@pytest.fixture
+def accepted_status(
+    scenario: BTTestScenario, report: VultronReport
+) -> ParticipantStatus:
+    """Pre-seed RM.ACCEPTED — valid predecessor for ACCEPTED→CLOSED."""
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.ACCEPTED.value),
+        context=report.id_,
+        attributed_to=ACTOR_ID,
+        rm=RmDimension(state=RM.ACCEPTED),
+    )
+    scenario.dl.create(status)
+    return status
+
+
+@pytest.fixture
 def case_with_owner(
     scenario: BTTestScenario, report: VultronReport
 ) -> VulnerabilityCase:
@@ -230,9 +260,18 @@ class TestInvalidateReportTriggerTree:
 
 class TestRejectReportTriggerTree:
     def test_success_emits_activity_and_sets_rm_closed(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        invalid_status: ParticipantStatus,
     ):
-        """SUCCESS: emits activity and persists RM.CLOSED ParticipantStatus."""
+        """SUCCESS: emits activity and persists RM.CLOSED ParticipantStatus.
+
+        Requires RM.INVALID to be pre-seeded — BTND-10-001 forbids
+        RECEIVED→CLOSED; the shortest valid path is RECEIVED→INVALID→CLOSED.
+        """
         tree = create_reject_report_trigger_tree(
             offer_id=offer.id_, report_id=report.id_
         )
@@ -241,7 +280,12 @@ class TestRejectReportTriggerTree:
         scenario.assert_rm_state(report.id_, RM.CLOSED)
 
     def test_success_adds_to_outbox(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        invalid_status: ParticipantStatus,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
         before = set(scenario.dl.outbox_list())
@@ -298,8 +342,13 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
+        accepted_status: ParticipantStatus,
     ):
-        """SUCCESS: emits activity and persists RM.CLOSED ParticipantStatus."""
+        """SUCCESS: emits activity and persists RM.CLOSED ParticipantStatus.
+
+        Requires RM.ACCEPTED to be pre-seeded — BTND-10-001 forbids
+        RECEIVED→CLOSED; close-case follows ACCEPTED→CLOSED.
+        """
         result_out: dict = {}
         tree = create_close_case_trigger_tree(
             actor_id=ACTOR_ID,
@@ -320,6 +369,7 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
+        accepted_status: ParticipantStatus,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
         before = set(scenario.dl.outbox_list())
@@ -438,6 +488,7 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
+        accepted_status: ParticipantStatus,
     ):
         """SUCCESS: a custom call_out bundle's pre_close_action_factory is invoked."""
         from vultron.core.behaviors.call_out.bundles.close_report import (

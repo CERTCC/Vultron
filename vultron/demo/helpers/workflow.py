@@ -33,6 +33,7 @@ from vultron.demo.utils import (
     seed_case_actor_for_report,
     DataLayerClient,
     demo_check,
+    demo_gate,
     demo_step,
     get_offer_from_datalayer,
     log_case_state,
@@ -167,7 +168,7 @@ def reporter_submits_report(
     # These checks name the receiver explicitly rather than relying on
     # `receiver_client`'s binding. The check text says whose replica it is about,
     # so the read should say so too — and not every caller binds its client, in
-    # which case `dl_path` refuses to guess (ADR-0066).
+    # which case `dl_path` refuses to guess (ADR-0069).
     with demo_check("Report stored in receiver's DataLayer"):
         verify_object_stored(
             receiver_client, report.id_, actor_id=receiver.id_
@@ -460,7 +461,7 @@ def run_direct_path_rm_triage(
     # case-object-presence alone races the async commit (TransitionParticipant
     # RMtoAccepted 422).  RM.ACCEPTED is accepted too in case the state has
     # already advanced by the time we poll.
-    with demo_check(f"{receiver.id_} reached RM.VALID before engage-case"):
+    with demo_gate(f"{receiver.id_} reached RM.VALID before engage-case"):
         wait_for_participant_rm_state(
             client=receiver_client,
             case_id=case.id_,
@@ -468,23 +469,23 @@ def run_direct_path_rm_triage(
             expected_states={RM.VALID, RM.ACCEPTED},
             timeout_seconds=timeout_seconds,
         )
-    logger.info("✓ %s RM state reached VALID", receiver.id_)
+        logger.info("✓ %s RM state reached VALID", receiver.id_)
 
-    receiver_engages_case(
-        receiver_client=receiver_client,
-        receiver=receiver,
-        case_id=case.id_,
-    )
-
-    with demo_check(f"{receiver.id_} reached RM.ACCEPTED"):
-        wait_for_participant_rm_state(
-            client=receiver_client,
+        receiver_engages_case(
+            receiver_client=receiver_client,
+            receiver=receiver,
             case_id=case.id_,
-            actor_id=receiver.id_,
-            expected_states={RM.ACCEPTED},
-            timeout_seconds=timeout_seconds,
         )
-    logger.info("✓ %s RM state reached ACCEPTED", receiver.id_)
+
+        with demo_check(f"{receiver.id_} reached RM.ACCEPTED"):
+            wait_for_participant_rm_state(
+                client=receiver_client,
+                case_id=case.id_,
+                actor_id=receiver.id_,
+                expected_states={RM.ACCEPTED},
+                timeout_seconds=timeout_seconds,
+            )
+        logger.info("✓ %s RM state reached ACCEPTED", receiver.id_)
 
     return case
 

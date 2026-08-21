@@ -354,7 +354,7 @@ needs external input (data, a decision, or content). This file explains the
 entry format, automation potential categories, and the fuzzer base-type
 probability table, then indexes the per-domain sub-files.
 **Load when**: understanding what fuzzer nodes are and why they exist; mapping
-fuzzer nodes to coordination agent types; jump directly to a sub-file for the
+fuzzer nodes to capability shapes; jump directly to a sub-file for the
 actual catalog entries.
 
 **`bt-fuzzer-nodes-vul-discovery.md`**
@@ -747,15 +747,15 @@ CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
 why the CaseActor must be the intermediary for ownership transfers.
 
 **`coordination-agents.md`**
-Design guidance for coordination agents — external capabilities (human, skill,
-or LLM agent) that answer Vultron call-out points. Covers the two-surface
-integration model (trigger endpoints = call-in; call-out points = call-out),
-the four agent type patterns (Sentinel, Evaluator, Retriever, Composer), the
-trust/execution-authority axis, composite agent design, and the fuzzer-node
-discovery methodology.
-**Load when**: designing a new coordination agent or call-out point integration,
-working on the fuzzer-to-agent replacement roadmap, or explaining the
-coordination agent concept to new contributors.
+Design guidance for capability shapes — the five abstract interface contracts
+(Sentinel, Evaluator, Retriever, Composer, Actuator) that answer Vultron
+call-out points. Covers the two-surface integration model (trigger endpoints =
+call-in; call-out points = call-out), the three-level taxonomy (shape /
+capability / capability implementation), the trust/execution-authority axis,
+composite capability design, and the fuzzer-node discovery methodology.
+**Load when**: designing a new capability or call-out point integration,
+working on the fuzzer-to-capability replacement roadmap, or explaining the
+capability shape concept to new contributors.
 
 **`agents-md-structure.md`**
 Routing policy for `AGENTS.md` content: the decision tree for whether new

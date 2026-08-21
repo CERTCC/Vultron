@@ -103,13 +103,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `SyncActivityPort` MUST be defined as a `typing.Protocol` in `vultron/core/ports/sync_activity.py`
-      with two fire-and-forget methods: `send_reject_log_entry(entry, tail_hash, actor_id, to)` and
-      `send_announce_log_entry(entry, actor_id, to)`. The concrete adapter (`SyncActivityAdapter`)
-      MUST be implemented in `vultron/adapters/driven/sync_activity_adapter.py` and own the full
-      domain → wire → persist → outbox pipeline. Core use cases and BT nodes MUST call only the port
-      methods and MUST NOT import wire types (`CaseLedgerEntry`, `WireCaseLedgerEntry`) or wire factory
-      functions (`announce_log_entry_activity`, `reject_log_entry_activity`).
+      `SyncActivityPort` MUST be defined as a `typing.Protocol` in
+      `vultron/core/ports/sync_activity.py` with two fire-and-forget methods:
+      `send_reject_log_entry(entry, tail_hash, actor_id, to)` and
+      `send_announce_log_entry(entry, actor_id, to)`.
     rationale: 'The incremental fix for ARCH-01-001 violations in `received/sync.py` and `triggers/sync.py`. The "baton-pass"
       pattern: core hands domain objects to the port; the adapter handles wire conversion unidirectionally.'
     relationships:
@@ -119,6 +116,42 @@ groups:
     - rel_type: implements
       spec_id: ARCH-01-001
       note: Eliminates wire imports from core sync use cases
+  - id: ARCH-04-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The concrete adapter (`SyncActivityAdapter`) MUST be implemented in
+      `vultron/adapters/driven/sync_activity_adapter.py` and own the full
+      domain → wire → persist → outbox pipeline.
+    rationale: >-
+      Concentrating the full domain → wire → persist → outbox pipeline in the
+      adapter keeps wire concerns out of core and satisfies the baton-pass pattern.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-04-002
+  - id: ARCH-04-004
+    priority: MUST
+    kind: project
+    statement: Core use cases and BT nodes MUST call only the `SyncActivityPort` methods.
+    rationale: >-
+      Calling only port methods enforces the hexagonal boundary and enables
+      testing core logic with mock adapters.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-04-002
+  - id: ARCH-04-005
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Core use cases and BT nodes MUST NOT import wire types (`CaseLedgerEntry`,
+      `WireCaseLedgerEntry`) or wire factory functions (`announce_log_entry_activity`,
+      `reject_log_entry_activity`).
+    rationale: >-
+      Wire type imports in core violate the hexagonal boundary; all wire concerns
+      are handled exclusively by the SyncActivityAdapter.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-04-002
 - id: ARCH-05
   title: Connector Plugins
   specs:
@@ -198,8 +231,8 @@ groups:
       `datetime`). Core-branch types MUST NOT carry wire-specific concerns: `alias_generator=to_camel`, hardcoded AS2 `@context`
       namespace, or VOCABULARY registration are forbidden in core-branch types.'
     verification: 'No `CoreObject` subclass declares `alias_generator` in its `model_config`, references `to_camel`, or assigns
-      to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` in `test/architecture/test_hierarchy_invariants.py`,
-      which MUST NOT be marked `xfail`.'
+      to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` and `test_all_vocabulary_are_as_base_subclasses`
+      in `test/architecture/test_hierarchy_invariants.py`, both of which MUST NOT be marked `xfail`.'
     rationale: 'An `alias_generator` on a core type gives one `type_` two accepted key spellings, so whichever class reads a
       row decides what the data means (issue #2232). It is also insufficient for its intended purpose: a core `model_dump(by_alias=True)`
       cannot produce the wire shape for a type whose branches differ structurally, which is why a hand-patched `consent`→`emConsentState`
@@ -211,11 +244,71 @@ groups:
     adr:
     - ADR-0063
   - id: ARCH-12-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for
+      AS2 serialization shape (field aliases, `@context`, lenient `Any | None` types).
+    rationale: >-
+      `CORE_VOCABULARY` is the DataLayer primary reconstruction path (used by `_from_row()` in `SqliteDataLayer`);
+      every entry must be a `CoreObject` subclass. `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()` in the
+      wire registry layer, catching core types that are not `CoreObject` subclasses (e.g. `VultronOfferRecord`,
+      `VultronPendingCaseInbox`). These types extend `VultronObject` directly and carry Vultron-specific domain state
+      not representable via `CoreObject`. Contaminating `CORE_TYPE_MAP` with wire types (issue #2416) would silently
+      allow wire-shaped objects to be reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary
+      path and contradicting ARCH-12-003.
+    verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
+      module class appears in `CORE_TYPE_MAP`) and `test_vultron_object_direct_types_in_core_type_map` (asserts the five
+      `VultronObject`-direct core types are reachable by class name and Literal value) in
+      `test/architecture/test_hierarchy_invariants.py`. Both MUST NOT be marked `xfail`.'
+  - id: ARCH-12-008
     priority: MUST
     kind: project
-    statement: The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for AS2 serialization
-      shape (field aliases, `@context`, lenient `Any | None` types). Wire-branch types MUST register in `VOCABULARY`; core-branch
-      types MUST register in `CORE_VOCABULARY`.
+    statement: Wire-branch types MUST register in `VOCABULARY`.
+    rationale: >-
+      The `VOCABULARY` registry is the wire layer's type-dispatch table; omitting a wire type
+      prevents correct AS2 vocabulary lookup and object reconstruction.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
+  - id: ARCH-12-009
+    priority: MUST
+    kind: project
+    statement: >-
+      `CoreObject` subclasses MUST register in `CORE_VOCABULARY` as the DataLayer primary
+      reconstruction path.
+    rationale: >-
+      `CORE_VOCABULARY` is used by `_from_row()` in `SqliteDataLayer`; every entry must be a
+      `CoreObject` subclass to guarantee correct domain-object reconstruction from stored rows.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
+  - id: ARCH-12-010
+    priority: MUST
+    kind: project
+    statement: >-
+      `VultronObject`-direct subclasses that do not extend `CoreObject` MUST register in
+      `CORE_TYPE_MAP` as the wire-layer fallback path consulted by `find_in_vocabulary()`.
+    rationale: >-
+      `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()`, catching core types (e.g.
+      `VultronOfferRecord`, `VultronPendingCaseInbox`) that extend `VultronObject` directly and
+      carry domain state not representable via `CoreObject`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
+  - id: ARCH-12-011
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Wire-branch types MUST NOT register in either core registry (`CORE_VOCABULARY` or
+      `CORE_TYPE_MAP`).
+    rationale: >-
+      Contaminating either core registry with wire types would allow wire-shaped objects to be
+      reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary path and
+      contradicting ARCH-12-003.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
   - id: ARCH-12-005
     priority: MUST
     kind: project
@@ -406,12 +499,12 @@ groups:
     superseded_by: DL-07-002
     statement: This requirement is superseded by DL-07-002; there is no unscoped DataLayer to keep away from queue operations.
     rationale: >-
-      The rule policed a hazard that ADR-0066 removed rather than mitigated. It distinguished a "shared"
+      The rule policed a hazard that ADR-0069 removed rather than mitigated. It distinguished a "shared"
       DataLayer from an actor-scoped one and forbade passing the former to queue operations; with every
       DataLayer belonging to exactly one actor, the distinction has no referent and the rule is vacuous.
       Retiring it is the point: the decision *deletes* guard rails instead of adding them.
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: ARCH-13-002
     priority: MUST
     kind: project
@@ -423,7 +516,7 @@ groups:
       distinct. With no unscoped mode the refinement was merged back into `DataLayer`, and queue rows no
       longer carry an `actor_id` column to address at all — the queue lives in its owner's store.
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: ARCH-13-003
     priority: MUST
     kind: project
@@ -433,7 +526,7 @@ groups:
       Where a request carries a path segment, it MUST be resolved to the canonical URI before the store
       is opened.
     rationale: >-
-      Two spellings of one actor must not name two stores. This entry survives ADR-0066 — it is the
+      Two spellings of one actor must not name two stores. This entry survives ADR-0069 — it is the
       reason `get_actor_dl` resolves the segment by computation before opening anything — but its
       wording did not: it referred to constructing an `ActorScopedDataLayer` and justified itself by
       `record_outbox_item` writing rows keyed by the string it received, and both of those are gone.
@@ -449,7 +542,7 @@ groups:
       short path segment to the canonical URI and that the resulting store can read the outbox entries
       that actor's own writes went to.
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: ARCH-13-004
     priority: MUST
     kind: project
@@ -462,7 +555,7 @@ groups:
       actor's own id, so with a mandatory actor scope it was exactly `outbox_append`. With one identity
       instead of two there is nothing left to keep in agreement.
     adr:
-    - ADR-0066
+    - ADR-0069
   - id: ARCH-13-005
     priority: SHOULD
     kind: project
@@ -475,7 +568,7 @@ groups:
       unscoped — so the refinement had no referent and was merged back into `DataLayer`. Retired
       alongside ARCH-13-001/002/004 rather than kept as an unimplementable SHOULD.
     adr:
-    - ADR-0066
+    - ADR-0069
 - id: ARCH-16
   title: App State Isolation
   specs:
@@ -551,12 +644,21 @@ groups:
   - id: ARCH-19-001
     priority: MUST
     kind: architecture
-    statement: 'Outbound delivery MUST be modelled as a three-stage pipeline: (1) **Emission** — the use-case or handler writes
-      the activity to the outbox; (2) **Transport delivery** — the outbox worker retrieves the activity and delivers it to
-      the recipient''s inbox endpoint; (3) **Recipient acceptance** — the recipient''s adapter processes the delivered activity.
-      Each stage has distinct error semantics and MUST NOT be conflated.'
+    statement: >-
+      Outbound delivery MUST be modelled as a three-stage pipeline consisting
+      of Emission, Transport delivery, and Recipient acceptance.
     rationale: 'Conflating stages (e.g., treating a transport timeout as a recipient rejection) leads to incorrect retry logic
       and protocol-state divergence. The three-stage model is the foundation for correct at-least-once delivery. Source: `notes/architecture-adapters.md`.'
+  - id: ARCH-19-006
+    priority: MUST_NOT
+    kind: architecture
+    statement: Each stage of the outbound delivery pipeline has distinct error semantics and MUST NOT be conflated with another stage.
+    rationale: >-
+      Treating a transport timeout (stage 2) as a recipient rejection (stage 3) leads to incorrect
+      retry logic and protocol-state divergence.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-19-001
   - id: ARCH-19-002
     priority: MUST
     kind: architecture
@@ -699,9 +801,9 @@ groups:
   - id: ARCH-20-007
     priority: MUST_NOT
     kind: project
-    statement: Core code MUST NOT normalise a wire object into its core counterpart by dumping it with `by_alias=True` and
-      revalidating through the core class ("dump-and-revalidate"). Wire→core conversion MUST use the wire class's `to_core()`
-      boundary projection, or the object MUST be obtained already-normalised from the DataLayer port (DL-05-001).
+    statement: >-
+      Core code MUST NOT normalise a wire object into its core counterpart by dumping it with
+      `by_alias=True` and revalidating through the core class ("dump-and-revalidate").
     rationale: 'Dump-and-revalidate only works while the core class tolerates wire spellings — precisely the ARCH-12-003 violation
       being removed. `FilterParticipantStatusDimensionsNode._to_core_status` documents this dependency explicitly ("The core
       model''s `_migrate_flat_fields` validator accepts that shape, so a dump-and-revalidate normalises both"), so the shim
@@ -713,6 +815,35 @@ groups:
       spec_id: ARCH-20-001
     - rel_type: refines
       spec_id: SDO-03-005
+    adr:
+    - ADR-0063
+  - id: ARCH-20-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Wire-to-core conversion MUST use the wire class's `to_core()` boundary projection when
+      one is provided.
+    rationale: >-
+      `to_core()` is the authoritative projection and handles structural differences (e.g.
+      flat `emConsentState` → nested `PecDimension`). Using it avoids the lossy dump-and-revalidate
+      path prohibited by ARCH-20-007.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-007
+    adr:
+    - ADR-0063
+  - id: ARCH-20-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When no `to_core()` boundary projection is provided, the normalised core object MUST be
+      obtained already-normalised from the DataLayer port (DL-05-001).
+    rationale: >-
+      The DataLayer port returns objects that have already passed through the normalisation
+      boundary, making dump-and-revalidate unnecessary and avoiding the prohibited idiom.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-007
     adr:
     - ADR-0063
 - id: ARCH-21

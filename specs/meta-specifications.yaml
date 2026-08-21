@@ -232,12 +232,46 @@ groups:
     tags:
     - documentation
   - id: MS-10-003
-    priority: SHOULD
+    priority: MUST
     kind: process
-    statement: Spec files SHOULD be testable with verifiable acceptance criteria per requirement.
-    rationale: Untestable specs cannot be reliably implemented.
+    statement: >-
+      Spec files MUST be testable with verifiable acceptance criteria per
+      requirement; every `priority: MUST` requirement MUST include a
+      `verification:` field.
+    rationale: >-
+      Untestable specs cannot be reliably implemented; a MUST requirement with no
+      verification field provides no contract for reviewers or agents. Upgraded
+      from SHOULD to MUST (CONCERN-2382) to align with MS-05-003 and enable
+      progressive linter enforcement. See MS-10-005 for the current enforcement
+      mechanism.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-05-003
     tags:
     - documentation
+    - tooling
+  - id: MS-10-005
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST emit an advisory warning ([WARN]) for any `priority: MUST`
+      requirement whose `verification:` field is null or absent, until that
+      requirement has been backfilled.
+    rationale: >-
+      MS-05-003 and MS-10-003 require MUST requirements to carry measurable
+      acceptance criteria. The linter cannot impose a hard error on the existing
+      backlog immediately, but a visible advisory signal (a) prevents the
+      backlog from growing, (b) makes the gap visible in CI output without
+      blocking merges, and (c) provides the foundation for a future hard-error
+      upgrade once the backlog is addressed. Tracked by CONCERN-2382.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-05-003
+    - rel_type: implements
+      spec_id: MS-10-003
+    tags:
+    - documentation
+    - tooling
   - id: MS-10-004
     priority: SHOULD
     kind: process
@@ -544,30 +578,55 @@ groups:
   title: Spec Statements Must Not Reference Phantom Paths
   specs:
   - id: MS-15-001
-    priority: MUST
+    priority: MUST_NOT
     kind: process
     statement: >-
-      A spec item's `statement` MUST NOT reference a file path that does not
-      exist, and MUST NOT use an absolute path or a `..` segment. A path rooted
-      at a top-level repo directory is resolved repo-relatively; any other path
-      is resolved as a suffix of some file in the tree, so a package-relative
-      illustration is permitted but a mistyped leading segment is not. A
-      spec-first requirement that deliberately names a file yet to be created
-      MUST either use a placeholder form (e.g. `test_XXX_invariants.py`) or opt
-      out with `lint_suppress: [phantom_path_ref]`. Enforced as a hard error by
-      spec-lint.
+      A spec item's `statement` and `verification` fields MUST NOT reference a
+      file path that does not exist.
     rationale: >-
       A normative statement naming non-existent infrastructure is a stale-premise
       landmine: the implementing agent either invents something inconsistent with
       the codebase or silently ignores a MUST, and the spec stops describing the
       system. DEMOMA-19-008 named a `conftest.py` registry that had never existed
       (CONCERN-2004); an audit found 18 such clauses across 13 phantom paths.
-      Only `statement` is checked — `rationale` narrates history by design and
-      legitimately cites paths that are gone.
+      `statement` and `verification` are checked — `verification` names live
+      test infrastructure and must refer to real paths. `rationale` narrates
+      history by design and legitimately cites paths that are gone.
     relationships:
     - rel_type: derives_from
       spec_id: MS-04-001
       note: extends spec-authoring rules with a path-existence guarantee
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-002
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A spec item's `statement` and `verification` fields MUST NOT use an absolute
+      path or a `..` segment.
+    rationale: >-
+      Absolute paths and parent-traversal segments are deployment-specific and will
+      not resolve correctly in the repo-relative context used by spec-lint.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-003
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec-first requirement that deliberately names a file yet to be created MUST
+      either use a placeholder form (e.g. `test_XXX_invariants.py`) or opt out with
+      `lint_suppress: [phantom_path_ref]`.
+    rationale: >-
+      The placeholder or lint_suppress mechanism makes the spec-first intent explicit
+      rather than silently passing a phantom-path check by accident.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
     tags:
     - documentation
     - tooling

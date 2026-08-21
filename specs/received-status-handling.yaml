@@ -356,3 +356,168 @@ groups:
       nested object's own `id` and remaining fields. A patched alias also drops
       any stale snake_case twin of the same field, so a consumer that prefers
       the snake_case spelling cannot read the value the receiver refused.
+  - id: RSH-05-010
+    priority: MUST
+    kind: protocol
+    statement: >
+      A producer of `ledger_payload_object_override` MUST write `None` to the
+      key unconditionally at the start of every tick — before any early return
+      — so that a stale value from a previous execution cannot bleed into the
+      current one.
+    rationale: >
+      The py_trees blackboard is process-global. `BTBridge.execute_with_setup`
+      does not reset application-level keys between runs, so a producer that
+      only writes on its active path leaves the key at its previous value on
+      every no-op tick. `CommitCaseLedgerEntryNode` would then apply that stale
+      patch to a different payload snapshot. BT-17-003.
+    note: >
+      Pattern: call the unconditional clear (e.g. `self._publish((), None)`) as
+      the first statement in `update()`, before any conditional branch. Once
+      the producer node is migrated to the typed-Ports base class (ISSUE-1808),
+      the base class SHOULD auto-clear declared output ports in `initialise()`,
+      making this obligation structural.
+  - id: RSH-05-011
+    priority: MUST
+    kind: protocol
+    statement: >
+      A producer of `ledger_payload_object_override` MUST include a
+      `producer_type` field in the override dict. The required shape is
+      `{"object_id": <id>, "producer_type": <str>, "fields": {<wire alias>: <value>}}`.
+    rationale: >
+      Multiple producers are anticipated (ISSUE-2256 adds EM adjudication in
+      `EmbargoTeardownAuthorizationGate` as a second producer). Naming the
+      source node in the dict enables targeted audit logging and per-producer
+      diagnostics without out-of-band context. RSH-05-014 uses `producer_type`
+      to emit a warning on unrecognized producers without failing the commit.
+  - id: RSH-05-012
+    priority: MUST
+    kind: protocol
+    statement: >
+      The `fields` value of `ledger_payload_object_override` MUST contain only
+      wire alias keys recognized by `CommitCaseLedgerEntryNode`. Publishing an
+      unrecognized key is a protocol error.
+    rationale: >
+      The consumer hard-fails on any unrecognized alias (RSH-05-013). An unknown
+      alias applied to the canonical snapshot would abort the commit, blocking
+      the receive-side BT. Declaring this as a producer obligation means callers
+      can validate at construction time rather than catching a runtime failure.
+    note: >
+      The recognized aliases are those defined in `_SNAKE_TWINS` in
+      `vultron/core/behaviors/case/nodes/lifecycle.py` — the module-level dict
+      that maps each camelCase wire alias to its snake_case twin for
+      `CommitCaseLedgerEntryNode`.
+  - id: RSH-05-013
+    priority: MUST
+    kind: protocol
+    statement: >
+      `CommitCaseLedgerEntryNode` MUST raise a hard failure — not a warning —
+      if the `fields` dict of `ledger_payload_object_override` contains a key
+      that is not a recognized wire alias for the snapshot object type.
+    rationale: >
+      An unrecognized alias applied to the canonical snapshot would silently add
+      unexpected content to the hash-chained ledger entry, which every replica
+      and the invariant harness would then apply. Data integrity requires a hard
+      stop; the correct response is to fix the producer (RSH-05-012), not to log
+      and continue.
+  - id: RSH-05-014
+    priority: SHOULD
+    kind: protocol
+    statement: >
+      `CommitCaseLedgerEntryNode` SHOULD emit a WARNING when
+      `ledger_payload_object_override` carries an unrecognized `producer_type`
+      value, and MUST NOT fail the commit on that basis alone.
+    rationale: >
+      An unrecognized `producer_type` may indicate a newer node type operating
+      against an older consumer. Logging preserves auditability without
+      blocking a structurally valid override. Field-name validation (RSH-05-013)
+      is the data-integrity guard; `producer_type` is an audit hint only.
+
+- id: RSH-06
+  title: RM Anomaly Notification Policy (non-adjacent jumps and backward regressions)
+  description: >
+    When the receiver detects an RM transition anomaly — either a non-adjacent
+    forward jump (sender skipped intermediate states) or a backward regression
+    (sender reports a state earlier on the RM progress scale than the receiver
+    has already observed) — it must act correctly *and* non-silently.  Because
+    CVD is inherently asynchronous, anomalies are detected at receipt time
+    (t₁ > t₀ when the event occurred), and silence at that point breaks
+    observability for both parties.
+    Derived from ISSUE-2258 and ADR-0067.
+  specs:
+  - id: RSH-06-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      carries a non-adjacent forward RM jump (i.e. `is_monotonic_rm_forward` is
+      True but `is_valid_rm_transition` is False) MUST accept the reported `rm`
+      state.
+    rationale: >
+      The sender is authoritative about its own RM progress. Refusing a
+      non-adjacent forward jump would leave the receiver's replica permanently
+      wrong, because the sender will not resend intermediate transitions it
+      never reported. Liberal accept (ISSUE-2229): accept everything acceptable.
+    note: >
+      Implemented by `FilterParticipantStatusDimensionsNode._rm_is_acceptable()`
+      in the production path and by `ValidateRMTransitionNode` in the standalone
+      path. Both paths MUST accept with the same policy.
+  - id: RSH-06-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      carries a backward RM regression (i.e. the reported `rm` state is earlier
+      on the RM progress scale than the receiver's current value) MUST refuse
+      the `rm` dimension and carry the current value forward (RSH-05-002).
+    rationale: >
+      RM is monotonic: a sender cannot un-validate, un-accept, or un-close a
+      report. A backward assertion indicates either a protocol error or a
+      divergent replica state; neither should update the receiver's record.
+    note: >
+      The refusal is per-dimension only (RSH-05-001). Other dimensions of the
+      same status snapshot are still adjudicated and accepted if valid.
+  - id: RSH-06-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      Neither a non-adjacent forward jump acceptance nor a backward regression
+      refusal MUST be silent. In both cases the receiver MUST log a WARNING
+      that names the sender, the observed `rm` state before and after, and
+      identifies the anomaly type (gap or regression).
+    rationale: >
+      Because CVD is inherently asynchronous, protocol anomalies are detected
+      at receipt time (t₁ > t₀ when the event occurred). Silent handling makes
+      diagnosis impossible for both parties and breaks protocol observability.
+  - id: RSH-06-004
+    priority: SHOULD
+    kind: protocol
+    statement: >
+      On the production `add_participant_status_tree` path (where a case context
+      is available), the receiver SHOULD emit `Add(Note, VulnerabilityCase)`
+      when an RM anomaly is detected, requesting the sender to clarify the
+      path it took between the two observed states.
+    rationale: >
+      The original BT protocol design included an `RE` (Report Management Error)
+      message type for exactly this scenario. Until `RE` is formalised in
+      `MessageSemantics` (ADR-0049), `Add(Note, VulnerabilityCase)` is the
+      pragmatic substitute. The note makes the anomaly visible at the protocol
+      level, not just in local logs.
+    note: >
+      Implemented by `EmitRMGapNoteNode` in `effect_nodes` of
+      `add_participant_status_tree`. The standalone `append_participant_status_tree`
+      path (test-only, no production callers) has no case context; it MUST log
+      (RSH-06-003) but MUST NOT attempt to emit a note.
+  - id: RSH-06-005
+    priority: MUST
+    kind: protocol
+    statement: >
+      The `Add(Note, VulnerabilityCase)` emitted under RSH-06-004 MUST include:
+      the sending actor's identifier, the `rm` state before the anomaly, the
+      `rm` state after the anomaly, and a human-readable description identifying
+      whether the anomaly was a non-adjacent forward jump or a backward
+      regression.
+    rationale: >
+      Without these fields the note cannot be acted on by a human or an
+      automated remediation process. The request for clarification is only
+      meaningful if the recipient can identify what they are being asked to
+      clarify.

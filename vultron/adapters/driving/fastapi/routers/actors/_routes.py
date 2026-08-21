@@ -66,6 +66,7 @@ from vultron.wire.as2.vocab.base.objects.collections import (
 )
 
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    _activity_addressed_to,
     _activity_already_received,
     _get_body,
     _record_inbox_receipt,
@@ -94,11 +95,11 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
 def get_actors():
     """Returns the actors this node hosts.
 
-    Under ADR-0066 this enumerates hosted actors and reads each one's record
+    Under ADR-0069 this enumerates hosted actors and reads each one's record
     from its own store.  It previously scanned a shared pool for every
     actor-typed row, which also returned the node's *peers* — actors it merely
     holds an address for.  A peer is not hosted here, so peers are no longer
-    listed (ADR-0066 decision 4).
+    listed (ADR-0069 decision 4).
     """
     objects: list[AnyActor] = []
     for actor_id in actor_hosts.hosted_actor_ids():
@@ -174,11 +175,11 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     adopting it. The record's id then named an endpoint this node does not serve,
     so its store was reachable under one id and ``GET /actors/{slug}`` resolved to
     another. Handing the canonicalizer a bare slug is what makes the id and the
-    serving endpoint the same string by construction (ADR-0066 decision 2).
+    serving endpoint the same string by construction (ADR-0069 decision 2).
 
     A client-supplied id under another authority is not rejected here, but note
     that it names a process *elsewhere* — a peer, whose address a hosted actor may
-    know (ADR-0066 decision 5). It is canonicalized to this node's namespace
+    know (ADR-0069 decision 5). It is canonicalized to this node's namespace
     rather than adopted verbatim, because this node cannot serve an endpoint it
     does not own.
 
@@ -345,7 +346,7 @@ def get_actor_inbox(
     from vultron.core.models.base import CoreObject as _CoreObject
 
     # 404 if this node does not host the addressed actor.  No clone is needed:
-    # the injected DataLayer already *is* this actor's store (ADR-0066).
+    # the injected DataLayer already *is* this actor's store (ADR-0069).
     _resolve_actor_or_404(actor_id, datalayer)
     items = cast(
         list[as_Object | as_Link | str | _CoreObject | None],
@@ -393,6 +394,17 @@ def post_actor_inbox(
     """
     actor = _resolve_actor_or_404(actor_id, dl)
     canonical_actor_id = actor.id_
+
+    if not _activity_addressed_to(activity, canonical_actor_id, dl=dl):
+        logger.warning(
+            "Activity %s is not addressed to actor %s; refusing (IE-11-001).",
+            activity.id_,
+            canonical_actor_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Activity is not addressed to actor {canonical_actor_id}.",
+        )
 
     if _activity_already_received(actor, activity.id_):
         logger.debug(

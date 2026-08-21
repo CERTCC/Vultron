@@ -140,6 +140,63 @@ def test_get_actor_profile_not_found_returns_404(client_actors):
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
+# ---------------------------------------------------------------------------
+# IE-11: Activity Addressing — route-level HTTP responses
+# ---------------------------------------------------------------------------
+
+
+def test_post_inbox_returns_400_when_activity_addressed_to_other_actor(
+    client_actors, created_actors
+):
+    """AC-1/IE-11-001: Activity whose addressing excludes receiving actor → 400."""
+    actor = created_actors[0]
+    other_id = created_actors[1].id_
+
+    note = as_Note(content="not for you")
+    activity = as_Create(object_=note, actor=other_id)
+    activity.to = other_id  # explicitly addressed to a different actor
+
+    payload = jsonable_encoder(activity, exclude_none=True)
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+    )
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_post_inbox_returns_202_when_activity_addressed_to_actor(
+    client_actors, created_actors
+):
+    """AC-2/IE-11-001: Activity explicitly addressed to receiving actor → 202."""
+    actor = created_actors[0]
+
+    note = as_Note(content="this is for you")
+    activity = as_Create(object_=note, actor=actor.id_)
+    activity.to = actor.id_
+
+    payload = jsonable_encoder(activity, exclude_none=True)
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_post_inbox_returns_202_when_activity_has_no_addressing(
+    client_actors, created_actors
+):
+    """AC-3/IE-11-002: Activity with absent addressing → Liberal Accept → 202."""
+    actor = created_actors[0]
+
+    note = as_Note(content="no addressing")
+    activity = as_Create(object_=note, actor=actor.id_)
+    # no to/cc/bto/bcc set
+
+    payload = jsonable_encoder(activity, exclude_none=True)
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
 def test_get_actors_does_not_log_raw_records_at_info_level(
     client_actors, created_actors, caplog
 ):
@@ -384,7 +441,7 @@ def test_get_actor_by_final_path_segment_returns_actor(client_actors):
 
     Retitled from "surrogate key". There is no surrogate: the segment is simply
     the tail of the actor's id, and ``base_url + "actors/" + segment`` reassembles
-    the id exactly (ADR-0066). The previous version stored an actor under a
+    the id exactly (ADR-0069). The previous version stored an actor under a
     *foreign* authority and expected this node to return it, which conflated
     "an actor I know the address of" with "an actor I host".
     """

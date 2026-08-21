@@ -15,12 +15,12 @@
 
 """RM-transition guards for the append-participant-status path.
 
-Both nodes here adjudicate the ``rm`` dimension *alone* and refuse the whole
-snapshot when it is unacceptable.  That is correct for the standalone
-``append_participant_status_tree``, where the caller has already decided which
-status to append, but it is the wrong shape for a receive-side seam — see
-:mod:`vultron.core.behaviors.status.nodes.dimension_filter` and ADR-0061
-(RSH-05, ISSUE-2235).
+``ValidateRMTransitionNode`` adjudicates the ``rm`` dimension alone and is
+appropriate for standalone use of ``append_participant_status_tree``.  When
+called from ``add_participant_status_tree`` the rm dimension has already been
+adjudicated by ``FilterParticipantStatusDimensionsNode`` in
+``precondition_guards`` (CLP-10-009, RSH-05), so ``validate_rm=False`` is
+passed to skip this node and avoid a redundant post-commit check.
 """
 
 import logging
@@ -30,10 +30,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition, read_rm_states
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    BB_DIMENSION_FILTER,
-    resolve_dimension_filter,
-)
+from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import (
@@ -89,26 +86,14 @@ class ValidateRMTransitionNode(DataLayerCondition):
             access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
-            key=BB_DIMENSION_FILTER,
-            access=py_trees.common.Access.READ,
+            key=BB_RM_ANOMALY,
+            access=py_trees.common.Access.WRITE,
         )
 
-    def _rm_was_carried_forward(
-        self, current_rm: RM, new_rm_state: RM
-    ) -> bool:
-        """Return True if the filter node refused ``rm`` and carried *current*.
-
-        Only a filtered status that actually restates the current RM value is
-        honoured; anything else falls through to the normal checks.
-        """
-        if not self.status_id:
-            return False
-        filtered = resolve_dimension_filter(self.blackboard, self.status_id)
-        if filtered is None or "rm" not in filtered["refused"]:
-            return False
-        return current_rm == new_rm_state
-
     def update(self) -> Status:
+        # Clear on every tick so a previous run's flag never leaks forward.
+        self.blackboard.set(BB_RM_ANOMALY, None, overwrite=True)
+
         participant = self.blackboard.get("append_status_participant")
         status_obj = self.blackboard.get("append_status_status_obj")
 
@@ -128,13 +113,6 @@ class ValidateRMTransitionNode(DataLayerCondition):
         if states is None:
             return Status.FAILURE
         new_rm_state, current_rm = states
-        if self._rm_was_carried_forward(current_rm, new_rm_state):
-            self.logger.debug(
-                "ValidateRMTransitionNode: rm was refused upstream and"
-                " carried forward as %s — accepting (RSH-05)",
-                current_rm,
-            )
-            return Status.SUCCESS
 
         if current_rm == RM.CLOSED:
             self.feedback_message = (
@@ -165,23 +143,43 @@ class ValidateRMTransitionNode(DataLayerCondition):
             return Status.SUCCESS
 
         if is_monotonic_rm_forward(current_rm, new_rm_state):
-            self.logger.info(
+            # RSH-06-001: accept; RSH-06-003: must not be silent.
+            self.logger.warning(
                 "ValidateRMTransitionNode: non-adjacent forward RM"
                 " transition %s → %s for participant '%s';"
-                " accepting sender-authoritative state",
+                " accepting sender-authoritative state (RSH-06-001)",
                 current_rm,
                 new_rm_state,
                 self.participant_id,
             )
+            self.blackboard.set(
+                BB_RM_ANOMALY,
+                {
+                    "anomaly_type": "gap",
+                    "from_rm": current_rm,
+                    "to_rm": new_rm_state,
+                },
+                overwrite=True,
+            )
             return Status.SUCCESS
 
+        # RSH-06-002: backward regression — refuse; RSH-06-003: not silent.
         self.feedback_message = (
             f"Backwards RM transition {current_rm} → {new_rm_state}"
             f" for participant '{self.participant_id}'"
         )
         self.logger.warning(
-            "ValidateRMTransitionNode: %s — rejecting",
+            "ValidateRMTransitionNode: %s — rejecting (RSH-06-002)",
             self.feedback_message,
+        )
+        self.blackboard.set(
+            BB_RM_ANOMALY,
+            {
+                "anomaly_type": "regression",
+                "from_rm": current_rm,
+                "to_rm": new_rm_state,
+            },
+            overwrite=True,
         )
         return Status.FAILURE
 

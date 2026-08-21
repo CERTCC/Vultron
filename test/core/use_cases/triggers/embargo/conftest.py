@@ -192,7 +192,7 @@ def _actor_and_own_store(
     """Yield an actor and *its own* store.
 
     Which actor owns the store is not decoration: a trigger's BT executes as the
-    requesting actor and its store follows that actor (ADR-0066), so a test whose
+    requesting actor and its store follows that actor (ADR-0069), so a test whose
     request names actor A while holding B's store leaves the tree reading an
     empty one and the case "not found".  Pick the fixture that matches the
     ``actor_id`` on the request under test.

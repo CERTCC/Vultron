@@ -111,6 +111,30 @@ def ref_id(value: object) -> str | None:
 
 
 @contextmanager
+def _demo_accumulate(
+    description: str,
+    start: str,
+    on_pass: str,
+    on_fail: str,
+    prefix: str,
+) -> Generator[None, None, None]:
+    """Shared try/except/log backbone for demo context managers.
+
+    Logs *start* on entry, *on_pass* on clean exit, *on_fail* + exc on
+    exception.  Exceptions are caught, logged, appended to
+    ``_demo_failures`` as ``"<prefix>: <description> — <exc>"``, and
+    suppressed so callers continue after the block.
+    """
+    logger.info(f"{start} {description}")
+    try:
+        yield
+        logger.info(f"{on_pass} {description}")
+    except Exception as exc:
+        logger.error(f"{on_fail} {description}: {exc}", exc_info=True)
+        _demo_failures.append(f"{prefix}: {description} — {exc}")
+
+
+@contextmanager
 def demo_step(description: str) -> Generator[None, None, None]:
     """Context manager for declaring workflow steps in demo logs.
 
@@ -120,13 +144,8 @@ def demo_step(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    logger.info(f"🚥 {description}")
-    try:
+    with _demo_accumulate(description, "🚥", "🟢", "🔴", "STEP FAILED"):
         yield
-        logger.info(f"🟢 {description}")
-    except Exception as exc:
-        logger.error(f"🔴 {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"STEP FAILED: {description} — {exc}")
 
 
 @contextmanager
@@ -139,13 +158,8 @@ def demo_check(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    logger.info(f"📋 {description}")
-    try:
+    with _demo_accumulate(description, "📋", "✅", "❌", "CHECK FAILED"):
         yield
-        logger.info(f"✅ {description}")
-    except Exception as exc:
-        logger.error(f"❌ {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"CHECK FAILED: {description} — {exc}")
 
 
 @contextmanager
@@ -181,13 +195,8 @@ def demo_gate(description: str) -> Generator[None, None, None]:
 
     See DEMOCI-01-007, EDF-06-005, ADR-0058.
     """
-    logger.info(f"🚧 {description}")
-    try:
+    with _demo_accumulate(description, "🚧", "🔓", "🔒", "GATE FAILED"):
         yield
-        logger.info(f"🔓 {description}")
-    except Exception as exc:
-        logger.error(f"🔒 {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"GATE FAILED: {description} — {exc}")
 
 
 def logfmt(obj: object) -> str:
@@ -215,7 +224,7 @@ class DataLayerClient(BaseModel):
 
     ``base_url`` addresses a *container*; ``actor_id`` names which of the actors
     that container hosts a DataLayer read is about.  Both are needed under
-    ADR-0066: a container hosts an actor plus the CaseActors it self-hosts
+    ADR-0069: a container hosts an actor plus the CaseActors it self-hosts
     (CP-08-003), so ``/datalayer/{case_id}`` alone no longer says whose replica
     to read.  Use :meth:`dl_path` to build inspection paths rather than
     hand-writing ``/datalayer/...``.
@@ -248,7 +257,7 @@ class DataLayerClient(BaseModel):
         Returns:
             ``/actors/{segment}/datalayer/{key}``, where *segment* is the
             actor's final URI path segment.  The server recomputes the canonical
-            URI from its own base URL (ADR-0066), which is why the short segment
+            URI from its own base URL (ADR-0069), which is why the short segment
             is what travels — the same convention already used for inbox and
             trigger paths.
 
@@ -262,7 +271,7 @@ class DataLayerClient(BaseModel):
         if not actor:
             raise ValueError(
                 "DataLayerClient.dl_path requires an actor_id: DataLayer reads "
-                "are per-actor (ADR-0066). Set actor_id on the client or pass "
+                "are per-actor (ADR-0069). Set actor_id on the client or pass "
                 "it explicitly."
             )
         segment = parse_id(actor)["object_id"]
@@ -364,7 +373,7 @@ def reset_datalayer(client: DataLayerClient) -> dict:
     logger.debug("Resetting data layer...")
     # Node-level, not actor-scoped: resetting is an operation on the node's
     # storage rather than a read of one actor's replica, so it deliberately does
-    # *not* go through `dl_path` (ADR-0066 moved it to /admin/).
+    # *not* go through `dl_path` (ADR-0069 moved it to /admin/).
     return client.delete("/admin/datalayer/reset/")
 
 
@@ -498,7 +507,7 @@ def verify_object_stored(
         client: DataLayerClient for the container to read from.
         obj_id: Id of the object to fetch.
         actor_id: Whose replica to look in.  Defaults to *client*'s own actor.
-            "Is this object stored?" has no answer under ADR-0066 without naming
+            "Is this object stored?" has no answer under ADR-0069 without naming
             an actor, so pass this whenever the read is about an actor other than
             the one the client is bound to — typically because the activity was
             delivered to a different recipient's inbox.
@@ -588,7 +597,7 @@ def log_case_state(
 #: ``(slug, name, actor_type)``.
 #:
 #: Slugs, not absolute URIs: ``POST /actors/`` canonicalizes a bare slug into
-#: ``{base_url}actors/{slug}`` (ADR-0066 decision 2), so the id names the very
+#: ``{base_url}actors/{slug}`` (ADR-0069 decision 2), so the id names the very
 #: endpoint this node serves.  A hard-coded absolute id would instead name an
 #: actor on some *other* node — the mistake the retired example actors made, and
 #: the reason they could not be addressed here.
@@ -633,7 +642,7 @@ def seed_exchange_actors(
     # large majority of them.  Reads about the finder's or coordinator's replica
     # pass `actor_id=` explicitly at the call site, which is what makes those
     # reads legible as cross-actor rather than silently answering from the wrong
-    # store (ADR-0066 decision 7).
+    # store (ADR-0069 decision 7).
     client.actor_id = vendor.id_
     logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
 
@@ -647,7 +656,7 @@ def setup_clean_environment(
 
     Clears every store on the node, then creates the Finder, Vendor and
     Coordinator actors.  The seeding step is explicit because clearing a node
-    leaves it hosting nothing at all: under ADR-0066 there is no store that
+    leaves it hosting nothing at all: under ADR-0069 there is no store that
     outlives the reset for a server-side ``init`` to populate.
 
     Returns:
@@ -745,7 +754,7 @@ def seed_case_actor_for_report(
     In the exchange demos one container plays both the participant node and the
     CaseActor service, so that container is the one that must host it.  Going
     through ``POST /actors/`` is what puts the record in the CaseActor's own
-    store, since the route opens the store the id names (ADR-0066).
+    store, since the route opens the store the id names (ADR-0069).
 
     Spawning a CaseActor on demand for an unknown-in-advance case is a separate
     protocol question (CP-08-003, #1700); this helper deliberately only does what

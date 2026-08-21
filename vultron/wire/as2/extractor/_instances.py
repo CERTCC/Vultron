@@ -183,7 +183,7 @@ RejectCaseProposalPattern = ActivityPattern(
 )
 
 # ---------------------------------------------------------------------------
-# Actor-suggestion and case-manager-role patterns
+# Actor-suggestion and role-offer patterns
 # ---------------------------------------------------------------------------
 
 SuggestActorToCasePattern = ActivityPattern(
@@ -239,28 +239,23 @@ OfferCaseParticipantRolePattern = ActivityPattern(
     object_=VOtype.CASE_PARTICIPANT_ROLE,
     context_=VOtype.VULNERABILITY_CASE,
 )
-OfferCaseManagerRolePattern = ActivityPattern(
+AcceptCaseParticipantRolePattern = ActivityPattern(
     description=(
-        "Vendor offers the CASE_MANAGER role to a Case Actor participant. "
-        "Distinct from OFFER_CASE_OWNERSHIP_TRANSFER: the offering actor "
-        "retains CASE_OWNER; only operational management authority is "
-        "delegated. Identified by target being a CASE_PARTICIPANT record. "
-        "Deprecated in favour of OfferCaseParticipantRolePattern (ADR-0039). "
-        "See DEMOMA-08-002, DEMOMA-08-003."
+        "Accept(Offer(CaseParticipantRole, ...)) — acceptance of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the offering actor "
+        "when the target actor accepts the role. See SE-08-003."
     ),
-    activity_=TAtype.OFFER,
-    object_=VOtype.VULNERABILITY_CASE,
-    target_=VOtype.CASE_PARTICIPANT,
-)
-AcceptCaseManagerRolePattern = ActivityPattern(
-    description="Case Actor accepted the CASE_MANAGER role delegation offer.",
     activity_=TAtype.ACCEPT,
-    object_=OfferCaseManagerRolePattern,
+    object_=OfferCaseParticipantRolePattern,
 )
-RejectCaseManagerRolePattern = ActivityPattern(
-    description="Case Actor rejected the CASE_MANAGER role delegation offer.",
+RejectCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Reject(Offer(CaseParticipantRole, ...)) — rejection of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the offering actor "
+        "when the target actor declines the role. See SE-08-003."
+    ),
     activity_=TAtype.REJECT,
-    object_=OfferCaseManagerRolePattern,
+    object_=OfferCaseParticipantRolePattern,
 )
 
 # ---------------------------------------------------------------------------

@@ -52,6 +52,7 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em1/embargo_events/e1",
             content="Embargo test",
+            context=case.id_,
         )
         # Start from PROPOSED — the standard pre-condition for activation.
         case.current_status.em_state = EM.PROPOSED
@@ -97,6 +98,7 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em1_warn/embargo_events/e1",
             content="Embargo test",
+            context=case.id_,
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
         dl.create(case)
