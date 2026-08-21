@@ -1,7 +1,7 @@
 """Use cases for vulnerability report activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from py_trees.common import Status
 
@@ -29,34 +29,45 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _store_dependency_idempotently(
+    dl: CasePersistence, obj: Any, obj_id: str | None, label: str
+) -> None:
+    """Store *obj* unless it is already present, distinguishing "already there".
+
+    ``create()`` raises ``ValueError`` for two unrelated reasons: the id is taken,
+    and the object cannot be converted to a storage record at all (no ``type_``,
+    or a wire-prefixed one). Catching both and logging "already exists" made a
+    malformed object indistinguishable from a benign duplicate — a silent drop of
+    the very object the use case exists to persist (ARCH-15-001).
+
+    So presence is checked first, and a ``create()`` failure on something we just
+    established was absent is re-raised.
+    """
+    if obj_id and dl.read(obj_id) is not None:
+        logger.debug("%s %s already present — skipping store", label, obj_id)
+        return
+    dl.create(obj)
+    logger.info("Stored %s with ID: %s", label, obj_id)
+
+
 def _store_submit_report_dependencies(
     dl: CasePersistence, request: SubmitReportReceivedEvent
 ) -> None:
     if request.report is not None:
-        try:
-            dl.create(request.report)
-            logger.info(
-                "Stored VulnerabilityReport with ID: %s", request.report_id
-            )
-        except ValueError as e:
-            logger.debug(
-                "VulnerabilityReport %s already exists (pre-stored by inbox endpoint): %s",
-                request.report_id,
-                e,
-            )
+        _store_dependency_idempotently(
+            dl, request.report, request.report_id, "VulnerabilityReport"
+        )
 
     if request.activity is None:
         return
 
     try:
-        dl.create(request.activity)
-        logger.info(
-            "Stored SubmitReport activity with ID: %s",
-            request.activity_id,
+        _store_dependency_idempotently(
+            dl, request.activity, request.activity_id, "SubmitReport activity"
         )
     except ValueError as e:
         logger.debug(
-            "SubmitReport activity %s already exists (pre-stored by inbox endpoint): %s",
+            "SubmitReport activity %s could not be stored: %s",
             request.activity_id,
             e,
         )
