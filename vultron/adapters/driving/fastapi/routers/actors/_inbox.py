@@ -28,6 +28,7 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
@@ -77,6 +78,56 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
+
+
+def _collect_addresses(activity: as_Activity) -> list[str]:
+    """Collect all addressee URIs from to/cc/bto/bcc fields."""
+    result: list[str] = []
+    for field_name in ("to", "cc", "bto", "bcc"):
+        val = getattr(activity, field_name, None)
+        if val is None:
+            continue
+        items: list[Any] = val if isinstance(val, list) else [val]
+        for item in items:
+            if isinstance(item, str):
+                result.append(item)
+            elif hasattr(item, "id_") and item.id_ is not None:
+                result.append(item.id_)
+    return result
+
+
+def _activity_addressed_to(
+    activity: as_Activity,
+    canonical_actor_id: str,
+    dl: DataLayer | None = None,
+) -> bool:
+    """Return True if the Activity addresses canonical_actor_id.
+
+    Absent addressing returns True (Liberal Accept — AC-3, IE-11-002). A
+    non-empty address set is checked against the canonical URI and the
+    short-ID suffix, so both spellings satisfy the check (AC-4).
+
+    When ``dl`` is supplied, any address that does not resolve to a known
+    actor in the DataLayer (e.g. a collection URI like
+    ``{case_id}/participants``) is also treated as unresolvable and falls
+    through to Liberal Accept (IE-11-002). Without ``dl`` the legacy
+    short-ID-only check applies.
+    """
+    addresses = _collect_addresses(activity)
+    if not addresses:
+        return True
+    canonical_short = strip_id_prefix(canonical_actor_id)
+    for addr in addresses:
+        if (
+            addr == canonical_actor_id
+            or strip_id_prefix(addr) == canonical_short
+        ):
+            return True
+    if dl is not None:
+        for addr in addresses:
+            if dl.find_actor_by_short_id(strip_id_prefix(addr)) is None:
+                return True
+    return False
 
 
 def _activity_already_received(actor: CoreActor, activity_id: str) -> bool:

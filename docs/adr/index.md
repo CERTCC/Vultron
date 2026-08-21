@@ -137,6 +137,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0065 Carry the Embargo Invite RSVP Deadline on `Invite.end_time`](0065-embargo-invite-rsvp-deadline.md) *(provisional)*
 - [ADR-0066 Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store](0066-outbox-terminal-state.md)
 - [ADR-0067 Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently](0067-rm-nonadj-accept-and-notify.md)
+- [ADR-0068 Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx](0068-inbox-refuse-misaddressed-activities.md)
 
 ## Proposed ADRs
 

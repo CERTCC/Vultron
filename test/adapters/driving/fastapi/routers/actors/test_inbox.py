@@ -24,7 +24,9 @@ from fastapi import HTTPException
 from typing import cast
 
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    _activity_addressed_to,
     _activity_already_received,
+    _collect_addresses,
     _get_body,
     _record_inbox_receipt,
     _reparse_as_specific_type,
@@ -291,3 +293,160 @@ def test_record_inbox_receipt_is_noop_when_inbox_has_no_items_attr(datalayer):
     actor = CoreActor(id_=_ACTOR_URI, name="Alice", inbox="https://inbox.url")
     # Should not raise
     _record_inbox_receipt(datalayer, actor, _ACTIVITY_URI, _ACTOR_URI)
+
+
+# ---------------------------------------------------------------------------
+# _collect_addresses
+# ---------------------------------------------------------------------------
+
+_OTHER_ACTOR_URI = "https://example.org/actors/bob"
+
+
+def test_collect_addresses_returns_empty_when_all_fields_absent():
+    activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
+    assert _collect_addresses(activity) == []
+
+
+def test_collect_addresses_returns_uri_from_to_string():
+    activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
+    activity.to = _ACTOR_URI
+    assert _ACTOR_URI in _collect_addresses(activity)
+
+
+def test_collect_addresses_returns_uris_from_list():
+    activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
+    activity.to = [_ACTOR_URI, _OTHER_ACTOR_URI]
+    addrs = _collect_addresses(activity)
+    assert _ACTOR_URI in addrs
+    assert _OTHER_ACTOR_URI in addrs
+
+
+def test_collect_addresses_extracts_id_from_object():
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    actor_obj = as_Organization(id_=_ACTOR_URI, name="Alice")
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = actor_obj
+    assert _ACTOR_URI in _collect_addresses(activity)
+
+
+def test_collect_addresses_covers_all_four_fields():
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = "https://example.org/actors/to"
+    activity.cc = "https://example.org/actors/cc"
+    activity.bto = "https://example.org/actors/bto"
+    activity.bcc = "https://example.org/actors/bcc"
+    addrs = _collect_addresses(activity)
+    assert len(addrs) == 4
+
+
+# ---------------------------------------------------------------------------
+# _activity_addressed_to  (AC-1 through AC-4)
+# ---------------------------------------------------------------------------
+
+
+def test_activity_addressed_to_returns_true_when_absent_addressing():
+    """AC-3: absent addressing → Liberal Accept."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+
+def test_activity_addressed_to_returns_true_when_in_to():
+    """AC-2: actor named in to → accepted."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = _ACTOR_URI
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+
+def test_activity_addressed_to_returns_true_when_in_cc():
+    """AC-2: actor named in cc → accepted."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.cc = _ACTOR_URI
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+
+def test_activity_addressed_to_returns_true_when_in_bto():
+    """AC-2: actor named in bto → accepted."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.bto = _ACTOR_URI
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+
+def test_activity_addressed_to_returns_true_when_in_bcc():
+    """AC-2: actor named in bcc → accepted."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.bcc = _ACTOR_URI
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+
+def test_activity_addressed_to_returns_false_when_addressed_exclusively_to_other():
+    """AC-1: Activity addressed only to another actor → refused."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = _OTHER_ACTOR_URI
+    assert _activity_addressed_to(activity, _ACTOR_URI) is False
+
+
+def test_activity_addressed_to_returns_false_when_list_has_only_other_actors():
+    """AC-1: list-form addressing that excludes actor → refused."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = [_OTHER_ACTOR_URI, "https://example.org/actors/charlie"]
+    assert _activity_addressed_to(activity, _ACTOR_URI) is False
+
+
+def test_activity_addressed_to_returns_true_with_canonical_uri_in_list():
+    """AC-2: canonical actor URI in a list is accepted."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = [_OTHER_ACTOR_URI, _ACTOR_URI]
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+
+def test_activity_addressed_to_returns_true_when_short_id_matches():
+    """AC-4: short-ID form of actor URI is treated as a match."""
+    # _ACTOR_URI = "https://example.org/actors/alice"
+    # strip_id_prefix("alice") == strip_id_prefix(_ACTOR_URI) == "alice"
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = "alice"
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+
+def test_activity_addressed_to_short_id_of_other_actor_does_not_match():
+    """AC-4 negative: short ID of a different actor does not satisfy the check."""
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = "bob"  # strip_id_prefix(_OTHER_ACTOR_URI) == "bob"
+    assert _activity_addressed_to(activity, _ACTOR_URI) is False
+
+
+def test_activity_addressed_to_returns_true_for_collection_uri_with_dl(
+    datalayer,
+):
+    """IE-11-002: collection URI (unresolvable) → Liberal Accept when DL is present."""
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    actor = as_Organization(id_=_ACTOR_URI, name="Alice")
+    datalayer.create(object_to_record(actor))
+
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    # Collection URI — the last segment "participants" won't resolve to any actor
+    activity.to = "https://example.org/cases/case-001/participants"
+    assert _activity_addressed_to(activity, _ACTOR_URI, dl=datalayer) is True
+
+
+def test_activity_addressed_to_returns_false_when_all_addresses_are_known_other_actors(
+    datalayer,
+):
+    """IE-11-001: all addresses resolve to known actors, none the receiver → refuse."""
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    # Persist the receiving actor and the "other" actor
+    alice = as_Organization(id_=_ACTOR_URI, name="Alice")
+    bob = as_Organization(id_=_OTHER_ACTOR_URI, name="Bob")
+    datalayer.create(object_to_record(alice))
+    datalayer.create(object_to_record(bob))
+
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = (
+        _OTHER_ACTOR_URI  # addressed exclusively to bob (a known actor)
+    )
+    assert _activity_addressed_to(activity, _ACTOR_URI, dl=datalayer) is False

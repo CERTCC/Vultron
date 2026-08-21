@@ -158,7 +158,14 @@ groups:
     kind: project
     statement: >-
       The FastAPI inbox path MUST NOT contain inbox policy logic; all such logic MUST reside in the
-      core inbox orchestration module.
+      core inbox orchestration module. Exception: a synchronous guard that refuses an inbound
+      Activity before the HTTP 202 is returned (and before the background task is scheduled) MAY
+      live at the route level when synchronous refusal is required — see IE-11-001 and ADR-0068.
+    rationale: >-
+      Policy in the router violates ADR-0009 Rule 1 and makes the orchestration untestable without
+      a running FastAPI app. The narrow exception for synchronous pre-202 guards exists because such
+      guards must act before the background task is scheduled, which requires route-level placement.
+      ADR-0068 documents this tradeoff.
     relationships:
     - rel_type: refines
       spec_id: IO-03-003
@@ -166,6 +173,7 @@ groups:
     - tooling
     adr:
     - ADR-0009
+    - ADR-0068
 - id: IO-04
   title: Caller Interface
   specs:
