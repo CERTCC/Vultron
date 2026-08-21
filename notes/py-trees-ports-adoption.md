@@ -29,7 +29,7 @@ adopting, what is deferred, the known technical mismatch, and the issue
 sequence — so each implementing agent starts from evidence rather than the
 Idea's optimistic framing.
 
-## Current state (migration in progress — verified 2026-08-14)
+## Current state (migration in progress — verified 2026-08-21)
 
 - **Dependency**: `pyproject.toml` already pins `py-trees>=2.5.0`. The Idea's
   "evaluate the upgrade path from the current pin" step is already satisfied —
@@ -41,10 +41,19 @@ Idea's optimistic framing.
   `vultron/core/behaviors/helpers.py` and migrated a first tranche of
   `report/nodes/`. The pattern is now the standard base for all new nodes
   (ADR-0044, BTND-03-009 through BTND-03-011).
-- **Migration progress**: Part 1/5 (#1883) migrated **41 Type-A nodes** across
-  `case/`, `status/`, and `note/` domains — all trivial base-only reparents
-  with no domain-specific `register_key()` calls. Remaining legacy nodes in
-  these and other domains are tracked under the #1809 chain (parts 2–5).
+- **Migration progress**:
+  - Part 1/5 (#1883) migrated **41 Type-A nodes** across `case/`, `status/`,
+    and `note/` domains — all trivial base-only reparents with no
+    domain-specific `register_key()` calls.
+  - Part 2/5 (#1884) migrated **36 Type-A nodes** across `report/nodes/` and
+    `embargo/nodes/`. `_SendEmbargoActivityBase` and its two subclasses
+    (`SendTerminateEmbargoActivityNode`, `SendRejectEmbargoActivityNode`) are
+    deferred to Part 3 (#1885) — they access `self.blackboard` directly
+    (Type-B). **Headroom note**: `report/nodes/deploy_fix.py` is now exactly
+    500 lines (the BTND-07-004 hard limit); split it before the next change
+    (see `plan/incoming/learnings/20260821-deploy-fix-line-count-margin.md`).
+  - Remaining Type-B nodes across all domains are tracked under #1809
+    (parts 3–5).
 - **XML parser**: `py_trees.parsers.behaviour_tree_xml` exists but is documented
   as **experimental** ("the parser is experimental and its API may change
   between releases"). It instantiates only classes registered in a
