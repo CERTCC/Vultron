@@ -49,7 +49,11 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_case_manager_id,
     resolve_participant_state_from_dl,
 )
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerCondition,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import VfdDimension
 from vultron.core.ports.case_persistence import (
@@ -61,10 +65,9 @@ from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
 
-# Blackboard key written by the upstream NewDeploymentInfoSentinel (FUZZ-08f).
-# When present and truthy, new deployment-relevant information has arrived and
-# the deployer should re-evaluate rather than stay deferred.  When the key is
-# absent, CheckNoNewDeploymentInfoNode defaults to SUCCESS (no new info).
+# Blackboard key written by NewDeploymentInfoSentinel (FUZZ-08f). When present
+# and truthy, the deployer re-evaluates rather than staying deferred.
+# When absent, CheckNoNewDeploymentInfoNode defaults to SUCCESS (no new info).
 NEW_DEPLOYMENT_INFO_KEY = "new_deployment_info"
 
 
@@ -92,7 +95,7 @@ def _resolve_vfd_state(
     return vfd_state
 
 
-class CSinStateFixDeployed(DataLayerCondition):
+class CSinStateFixDeployed(DataLayerConditionWithPorts):
     """Short-circuit guard: fix already deployed means nothing to do.
 
     Returns ``SUCCESS`` when the actor's VFD state is already fix-deployed
@@ -148,7 +151,7 @@ class CSinStateFixDeployed(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckCSFixNotYetDeployed(DataLayerCondition):
+class CheckCSFixNotYetDeployed(DataLayerConditionWithPorts):
     """Guard: fix must be READY but NOT yet deployed (VFD state == ``VFd``).
 
     Returns ``SUCCESS`` only when the actor's VFD state is fix-ready and the
@@ -220,7 +223,7 @@ class CheckCSFixNotYetDeployed(DataLayerCondition):
         return Status.SUCCESS
 
 
-class RMinStateDeferred(DataLayerCondition):
+class RMinStateDeferred(DataLayerConditionWithPorts):
     """Guard: actor RM state must be DEFERRED (stay-deferred arm).
 
     Returns ``SUCCESS`` when the actor's latest RM state is ``RM.DEFERRED``.
@@ -330,7 +333,7 @@ class CheckNoNewDeploymentInfoNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class TransitionCStoFixDeployed(DataLayerAction):
+class TransitionCStoFixDeployed(DataLayerActionWithPorts):
     """Persist a VFD ParticipantStatus snapshot for the actor in this case.
 
     Advances the actor's VFD dimension to ``CS_vfd.VFD`` (fix deployed) and
@@ -392,7 +395,7 @@ class TransitionCStoFixDeployed(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitCDActivity(DataLayerAction):
+class EmitCDActivity(DataLayerActionWithPorts):
     """Emit a CD (Fix Deployed) ``Add(ParticipantStatus)`` to the Case Actor.
 
     Calls ``trigger_activity_factory.add_participant_status_to_participant``

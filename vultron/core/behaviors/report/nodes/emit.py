@@ -19,14 +19,14 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
 
-class _EmitCaseActorReportActivityBase(DataLayerAction):
+class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
     """Base class for emit nodes that route report-phase activities to the CaseActor.
 
     Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
@@ -331,7 +331,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
         )
 
 
-class EmitSubmitReportActivity(DataLayerAction):
+class EmitSubmitReportActivity(DataLayerActionWithPorts):
     """Create Offer(VulnerabilityReport) and queue in actor outbox.
 
     Calls ``trigger_activity_factory.submit_report()`` and queues the

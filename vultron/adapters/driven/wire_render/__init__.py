@@ -13,29 +13,17 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Embargo persistence BT nodes."""
+"""Adapter implementing
+:class:`~vultron.core.ports.wire_render.WireRenderPort`.
 
-from py_trees.common import Status
+Renders a core domain object to wire-shaped (camelCase) JSON without
+the core layer importing from the wire layer (ARCH-01-001).
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.embargo_event import EmbargoEvent
+See also:
+    - ``vultron/core/ports/wire_render.py`` — port Protocol
+    - ``docs/adr/0063-wire-rendering-port-for-core-objects.md`` — ADR
+"""
 
+from .as2 import As2WireRenderAdapter
 
-class PersistEmbargoEventNode(DataLayerActionWithPorts):
-    """Persist the trigger-created embargo event before outbound fan-out."""
-
-    def __init__(self, embargo: EmbargoEvent, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._embargo = embargo
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        try:
-            self.datalayer.create(self._embargo)
-        except ValueError:
-            self.logger.warning(
-                "EmbargoEvent '%s' already exists", self._embargo.id_
-            )
-        return Status.SUCCESS
+__all__ = ["As2WireRenderAdapter"]

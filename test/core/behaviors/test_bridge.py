@@ -562,3 +562,75 @@ def test_only_one_completion_record_per_failure(bridge, test_actor_id, caplog):
         bridge.execute_with_setup(tree=AlwaysFail(), actor_id=test_actor_id)
 
     assert len(_completion_records(caplog)) == 1
+
+
+# ---------------------------------------------------------------------------
+# wire_render_port injection tests (AC-4)
+# ---------------------------------------------------------------------------
+
+
+class _StubWireRenderPort:
+    """Minimal stub that satisfies the WireRenderPort Protocol."""
+
+    def render(self, obj):
+        return {"type": "stub"}
+
+
+class CheckWireRenderPort(py_trees.behaviour.Behaviour):
+    """BT node that verifies wire_render_port is on the blackboard."""
+
+    def setup(self, **kwargs) -> None:
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key(
+            key="wire_render_port", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        try:
+            port = self.blackboard.wire_render_port
+            if port is None:
+                self.feedback_message = "wire_render_port is None"
+                return Status.FAILURE
+            self.feedback_message = "wire_render_port present"
+            return Status.SUCCESS
+        except KeyError as e:
+            self.feedback_message = f"Missing key: {e}"
+            return Status.FAILURE
+
+
+def test_bridge_wire_render_port_published_to_blackboard(
+    datalayer, test_actor_id
+):
+    """AC-4: wire_render_port is placed on the blackboard when provided."""
+    stub = _StubWireRenderPort()
+    bridge = BTBridge(datalayer=datalayer, wire_render_port=stub)
+
+    tree = CheckWireRenderPort(name="CheckWireRenderPort")
+    result = bridge.execute_with_setup(tree=tree, actor_id=test_actor_id)
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+
+
+def test_bridge_wire_render_port_not_on_blackboard_when_absent(
+    bridge, test_actor_id
+):
+    """AC-4: wire_render_port key is absent from the blackboard when not provided."""
+    storage = py_trees.blackboard.Blackboard.storage
+    # Run without wire_render_port
+    bridge.execute_with_setup(tree=AlwaysSucceed(), actor_id=test_actor_id)
+    assert "/wire_render_port" not in storage
+
+
+def test_bridge_wire_render_port_is_correct_object(datalayer, test_actor_id):
+    """The blackboard receives the exact port object passed to BTBridge."""
+    stub = _StubWireRenderPort()
+    bridge = BTBridge(datalayer=datalayer, wire_render_port=stub)
+
+    bt = bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
+    bt.setup()
+
+    blackboard = py_trees.blackboard.Client(name="test-wire-render")
+    blackboard.register_key(
+        key="wire_render_port", access=py_trees.common.Access.READ
+    )
+    assert blackboard.wire_render_port is stub
