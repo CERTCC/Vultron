@@ -19,6 +19,8 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import cast
 
+import functools
+
 import anyio
 import pytest
 
@@ -156,9 +158,16 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     case.actor_participant_index[case_actor_id] = case_actor_participant.id_
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
 
-    case_actor_iso.dl.save(case_actor_participant)
-    case_actor_iso.dl.save(peer_participant)
-    case_actor_iso.dl.save(case)
+    # Each actor's *own* store, not the app's default-slug `dl`: the actors above
+    # are created under per-test slugs, and a BT runs against the store of the
+    # actor executing it (BT-05-005).  Saving into `dl` left the case actor's own
+    # store without the case, so the commit could not derive the per-case genesis
+    # hash and was refused (CLP-08-005) — surfacing as "Log entry commit did not
+    # persist".
+    case_actor_dl = case_actor_iso.store_for(case_actor_id)
+    case_actor_dl.save(case_actor_participant)
+    case_actor_dl.save(peer_participant)
+    case_actor_dl.save(case)
 
     # The peer must already hold the case replica (with its genesis hash) before
     # it can validate a replicated CaseLedgerEntry: ReconstructChainTail anchors
@@ -166,9 +175,10 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     # precondition was masked because the ingress adapter pre-stored the inline
     # entry directly; that write is now forbidden (SYNC-13-002), so seed the peer
     # with the case as a participant realistically would have it.
-    peer_iso.dl.save(case_actor_participant)
-    peer_iso.dl.save(peer_participant)
-    peer_iso.dl.save(case)
+    peer_dl = peer_iso.store_for(peer_actor_id)
+    peer_dl.save(case_actor_participant)
+    peer_dl.save(peer_participant)
+    peer_dl.save(case)
 
     response = case_actor_tc.post(
         f"/api/v2/actors/{_actor_slug(case_actor_id)}/demo/sync-log-entry",
@@ -213,6 +223,13 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     peer_actor_id = _create_actor(
         peer_tc, peer_base_api, "peer-sync-902", "Organization"
     )
+
+    # Each actor's own store, not the app's default-slug `dl`: the actors are
+    # created under per-test slugs and a BT runs against the store of the actor
+    # executing it (BT-05-005), so `dl` is a different database (BT-05-005,
+    # CLP-08-005).
+    case_actor_dl = case_actor_iso.store_for(case_actor_id)
+    peer_dl = peer_iso.store_for(peer_actor_id)
     # Cross-register actors so each app can route to the other.
     _create_actor(
         case_actor_tc, peer_base_api, "peer-sync-902", "Organization"
@@ -236,18 +253,18 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case.case_participants.append(peer_participant.id_)
     case.actor_participant_index[case_actor_id] = case_actor_participant.id_
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
-    case_actor_iso.dl.save(case_actor_participant)
-    case_actor_iso.dl.save(peer_participant)
-    case_actor_iso.dl.save(case)
-    case_actor_iso.dl.save(as_CaseActor(id_=case_actor_id, context=case.id_))
+    case_actor_dl.save(case_actor_participant)
+    case_actor_dl.save(peer_participant)
+    case_actor_dl.save(case)
+    case_actor_dl.save(as_CaseActor(id_=case_actor_id, context=case.id_))
 
     entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_902_base")
     entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_902_mid")
     entry2 = _make_log_entry(case.id_, 2, entry1.entry_hash, "sync_902_tail")
-    case_actor_iso.dl.save(entry0)
-    case_actor_iso.dl.save(entry1)
-    case_actor_iso.dl.save(entry2)
-    peer_iso.dl.save(entry0)
+    case_actor_dl.save(entry0)
+    case_actor_dl.save(entry1)
+    case_actor_dl.save(entry2)
+    peer_dl.save(entry0)
 
     wire_entry2 = WireCaseLedgerEntry.model_validate(
         entry2.model_dump(mode="json")
@@ -257,18 +274,16 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         actor=case_actor_id,
         to=[peer_actor_id],
     )
-    peer_actor_dl = peer_iso.dl.clone_for_actor(peer_actor_id)
-    case_actor_dl = case_actor_iso.dl.clone_for_actor(case_actor_id)
     try:
         handle_inbox_item(
             actor_id=peer_actor_id,
             obj=out_of_chain_announce,
-            dl=peer_iso.dl,
+            dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
         )
         peer_reject_events = [
             cast(RejectLogEntryReceivedEvent, extract_event(activity))
-            for activity in peer_iso.dl.list_objects("Reject")
+            for activity in peer_dl.list_objects("Reject")
         ]
         assert (
             peer_reject_events
@@ -276,7 +291,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         emitted_reject_event = peer_reject_events[-1]
         assert emitted_reject_event.actor_id == peer_actor_id
         assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
-        assert peer_iso.dl.read(entry2.id_) is None
+        assert peer_dl.read(entry2.id_) is None
 
         reject_for_case_actor = cast(
             RejectLogEntryReceivedEvent,
@@ -291,40 +306,49 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         )
 
         RejectLedgerEntryReceivedUseCase(
-            case_actor_iso.dl,
+            case_actor_dl,
             reject_for_case_actor,
-            sync_port=SyncActivityAdapter(case_actor_iso.dl),
+            sync_port=SyncActivityAdapter(case_actor_dl),
         ).execute()
 
+        # `outbox_handler(actor_id, dl, emitter=None)` — the shared-DataLayer
+        # third positional is gone (ADR-0066), and passing a store where the
+        # emitter is expected made `emit()` be called on a SqliteDataLayer.
+        # `anyio.run` cannot forward keywords, hence the partial.
         anyio.run(
-            outbox_handler,
-            case_actor_id,
-            case_actor_dl,
-            case_actor_iso.dl,
-            getattr(case_actor_iso.app.state, "emitter", None),
+            functools.partial(
+                outbox_handler,
+                case_actor_id,
+                case_actor_dl,
+                emitter=getattr(case_actor_iso.app.state, "emitter", None),
+            )
         )
         anyio.run(
             inbox_handler,
             peer_actor_id,
-            peer_iso.dl,
-            peer_actor_dl,
+            peer_dl,
+            peer_dl,
             getattr(peer_iso.app.state, "emitter", None),
             peer_iso.app.state.dispatcher,
         )
     finally:
-        case_actor_dl.close()
-        peer_actor_dl.close()
+        # Deliberately no `close()` here. These are the actors' *live* stores,
+        # shared with the running apps — not the throwaway clones this block used
+        # to build. Closing disposes the engine, and because an in-memory store is
+        # named, that destroys the database every other holder is using: the next
+        # read fails with "no such table: vultron_objects".
+        pass
 
     state_id = VultronReplicationState(
         case_id=case.id_, peer_id=peer_actor_id
     ).id_
-    replication_state = case_actor_iso.dl.read(state_id)
+    replication_state = case_actor_dl.read(state_id)
     assert replication_state is not None
     assert replication_state.last_acknowledged_hash == entry0.entry_hash
 
-    assert peer_iso.dl.read(entry1.id_) is not None
-    assert peer_iso.dl.read(entry2.id_) is not None
-    assert case_actor_iso.dl is not peer_iso.dl
+    assert peer_dl.read(entry1.id_) is not None
+    assert peer_dl.read(entry2.id_) is not None
+    assert case_actor_dl is not peer_dl
 
 
 @pytest.mark.spec("SYNC-03-003")
@@ -351,6 +375,13 @@ def test_sync_duplicate_delivery_idempotency(
         peer_tc, peer_base_api, "peer-sync-903", "Organization"
     )
 
+    # Each actor's own store, not the app's default-slug `dl`: the actors are
+    # created under per-test slugs and a BT runs against the store of the actor
+    # executing it (BT-05-005), so `dl` is a different database (BT-05-005,
+    # CLP-08-005).
+    case_actor_dl = case_actor_iso.store_for(case_actor_id)
+    peer_dl = peer_iso.store_for(peer_actor_id)
+
     case = as_VulnerabilityCase(
         name="SYNC-903 duplicate delivery integration case"
     )
@@ -374,19 +405,19 @@ def test_sync_duplicate_delivery_idempotency(
 
     # Peer needs the case and participants in its DataLayer to process inbound
     # Announce(as_CaseLedgerEntry) as a participant, not as a as_CaseActor owner.
-    peer_iso.dl.save(case_actor_participant)
-    peer_iso.dl.save(peer_participant)
-    peer_iso.dl.save(case)
+    peer_dl.save(case_actor_participant)
+    peer_dl.save(peer_participant)
+    peer_dl.save(case)
 
     saved_case_ledger_entry_ids: list[str] = []
-    original_save = peer_iso.dl.save
+    original_save = peer_dl.save
 
     def save_spy(obj, *args, **kwargs):
         if getattr(obj, "type_", None) == "CaseLedgerEntry":
             saved_case_ledger_entry_ids.append(getattr(obj, "id_", ""))
         return original_save(obj, *args, **kwargs)
 
-    monkeypatch.setattr(peer_iso.dl, "save", save_spy)
+    monkeypatch.setattr(peer_dl, "save", save_spy)
 
     entry = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_903_dup")
     wire_entry = WireCaseLedgerEntry.model_validate(
@@ -403,7 +434,7 @@ def test_sync_duplicate_delivery_idempotency(
         handle_inbox_item(
             actor_id=peer_actor_id,
             obj=announce,
-            dl=peer_iso.dl,
+            dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
         )
 
@@ -412,7 +443,7 @@ def test_sync_duplicate_delivery_idempotency(
     # Peer replica must contain exactly one copy (idempotent behavior).
     stored_entries = [
         e
-        for e in peer_iso.dl.list_objects("CaseLedgerEntry")
+        for e in peer_dl.list_objects("CaseLedgerEntry")
         if getattr(e, "case_id", None) == case.id_
     ]
     assert (
@@ -421,4 +452,4 @@ def test_sync_duplicate_delivery_idempotency(
     assert stored_entries[0].id_ == entry.id_
 
     # AC-4 guard: each actor app must use its own isolated DataLayer.
-    assert case_actor_iso.dl is not peer_iso.dl
+    assert case_actor_dl is not peer_dl

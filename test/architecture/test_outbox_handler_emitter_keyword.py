@@ -53,21 +53,33 @@ def _is_outbox_handler_ref(node: ast.expr) -> bool:
     )
 
 
+#: Callables that take ``outbox_handler`` by reference and forward the rest of
+#: their positional arguments to it.  Each is an evasion route for a check that
+#: only looks at direct calls: the reference form is not an ``ast.Call`` on
+#: ``outbox_handler`` at all.  ``anyio.run`` was exactly that hole — a stale
+#: four-positional ``anyio.run(outbox_handler, actor_id, dl, dl, emitter)``
+#: survived in the demo suite because nothing matched it.
+_FORWARDING_CALLEES = frozenset({"add_task", "run", "run_sync", "create_task"})
+
+
 def _positional_args_to_outbox_handler(tree: ast.AST):
     """Yield (node, positional_args) for every call that runs outbox_handler.
 
-    Two shapes reach it: a direct call, and scheduling it as a background task
-    via ``background_tasks.add_task(outbox_handler, ...)``, where add_task
-    forwards its remaining positional arguments.
+    Two shapes reach it: a direct call, and being handed to a forwarder that
+    passes its remaining positional arguments through — ``add_task``,
+    ``anyio.run`` and friends (see ``_FORWARDING_CALLEES``).
     """
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         if _is_outbox_handler_ref(node.func):
             yield node, node.args
-        elif (
-            isinstance(node.func, ast.Attribute)
-            and node.func.attr == "add_task"
+            continue
+        callee = getattr(node.func, "attr", None) or getattr(
+            node.func, "id", None
+        )
+        if (
+            callee in _FORWARDING_CALLEES
             and node.args
             and _is_outbox_handler_ref(node.args[0])
         ):
