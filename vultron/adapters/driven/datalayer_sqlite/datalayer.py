@@ -16,7 +16,7 @@
 """Main SqliteDataLayer class implementation."""
 
 import logging
-from typing import Any, Callable, cast
+from typing import Any, Callable, cast, get_args
 
 from pydantic import BaseModel, ValidationError
 from sqlmodel import SQLModel
@@ -45,6 +45,37 @@ from .engine import dispose_actor_engines, get_actor_engine
 from . import crud, queries, queues
 
 logger = logging.getLogger(__name__)
+
+
+def _field_admits_object(obj: Any, field_name: str) -> bool:
+    """True when *field_name* on *obj* can legitimately hold a nested object.
+
+    ``_AS_OBJECT_REF_FIELDS`` names fields that are *usually* references, but the
+    same name can be declared as a plain URI on a particular model (for instance
+    ``as_CaseProposal.target``, required by CP-01-005 to be the case-actor's URI).
+    Expanding such a field yields a model that violates its own annotation —
+    ``model_copy`` does not validate, so the breach surfaces later and elsewhere.
+
+    Unknown fields are treated as expandable, preserving the previous behaviour
+    for models that do not declare the field at all.
+    """
+    # ``PersistableModel`` is a Protocol, so ``model_fields`` is reached
+    # defensively rather than assumed.
+    model_fields = getattr(type(obj), "model_fields", None)
+    field = model_fields.get(field_name) if model_fields else None
+    if field is None:
+        return True
+    annotation = field.annotation
+    if annotation is None:
+        return True
+    candidates = list(get_args(annotation)) or [annotation]
+    for candidate in candidates:
+        # Unwrap one more level for containers such as ``Ref[as_Foo]``.
+        parts = list(get_args(candidate)) or [candidate]
+        for part in parts:
+            if isinstance(part, type) and issubclass(part, BaseModel):
+                return True
+    return False
 
 
 class SqliteDataLayer:
@@ -346,6 +377,17 @@ class SqliteDataLayer:
         ``target`` would remain a bare string URI and break semantic dispatch
         that relies on the resolved type (e.g. Organisation ≠ CaseParticipant
         for ``OfferCaseManagerRolePattern`` vs ``OfferCaseOwnershipTransfer``).
+
+        Expansion respects the field's **declared type**.  ``_AS_OBJECT_REF_FIELDS``
+        is a flat list applied to every object, but some models declare one of
+        those names as a plain URI rather than a reference — ``as_CaseProposal
+        .target`` is required by CP-01-005 to be the case-actor's URI, not an
+        inline actor.  Expanding it produced a model whose ``target`` was a dict,
+        which ``model_copy`` accepts silently (it does not validate) and which then
+        failed the next ``model_validate`` far away, in outbound delivery: the
+        proposal could not be re-hydrated, the recipient saw a dehydrated object,
+        matched no semantics, and never sent its ``Accept``. Nothing raised at the
+        point of damage.
         """
         updates: dict[str, object] = {}
         for field_name in _AS_OBJECT_REF_FIELDS:
@@ -354,6 +396,14 @@ class SqliteDataLayer:
                 continue
             if isinstance(value, str):
                 if not value:
+                    continue
+                if not _field_admits_object(obj, field_name):
+                    logger.debug(
+                        "Field %r on %r is declared as a plain URI; leaving its"
+                        " reference unexpanded.",
+                        field_name,
+                        type(obj).__name__,
+                    )
                     continue
                 nested = self.read(value)
                 if nested is None:

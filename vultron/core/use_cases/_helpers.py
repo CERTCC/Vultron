@@ -266,6 +266,20 @@ def _idempotent_create(
     and returns without storing.  Otherwise stores *obj* (if not ``None``) via
     ``dl.create``.
 
+    An object carrying an id but **no ``type_``** is a *reference*, not something
+    that can be stored: ``type_`` is what selects the storage table, so
+    ``Record.from_obj`` refuses it outright.  The extractor produces exactly such
+    a stub — ``VultronObject(id_=…, type_=None)`` — when an inbound activity names
+    its object by bare URI, or by an object with no type.  That stub is load
+    bearing: ``event.object_id`` is *derived* from ``object_``, so it is how the id
+    survives at all; it simply is not a storable record.
+
+    Storing it was attempted anyway, which aborted the enclosing BT
+    (``CreateReportReceivedBT`` among them).  Such a reference is skipped here with
+    a warning naming it as one, because there is nothing to store — this is the
+    "Bare Object URI" case the Actor Knowledge Model describes, where the sender
+    should have inlined the object and the recipient legitimately has no copy.
+
     Args:
         dl: The DataLayer to read/write.
         type_key: Object type used as the DataLayer collection key.
@@ -281,11 +295,21 @@ def _idempotent_create(
         # (SL-04-007).  Fires on essentially every received-side activity.
         logger.debug("'%s' already stored — skipping (idempotent)", id_key)
         return
-    if obj is not None:
-        dl.create(obj)
-        logger.info("Stored %s '%s'", label, id_key)
-    else:
+    if obj is None:
         logger.warning("no %s object for event '%s'", label, activity_id)
+        return
+    if getattr(obj, "type_", None) is None:
+        logger.warning(
+            "%s '%s' arrived as a bare reference with no type (activity '%s'):"
+            " the sender named it by URI instead of inlining it, so there is no"
+            " object to store — recording nothing (Actor Knowledge Model)",
+            label,
+            id_key,
+            activity_id,
+        )
+        return
+    dl.create(obj)
+    logger.info("Stored %s '%s'", label, id_key)
 
 
 def resolve_case(case_id: str, dl: CasePersistence):
