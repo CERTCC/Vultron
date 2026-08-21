@@ -35,6 +35,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor import CoreActor
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -149,28 +150,33 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         owner_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        # An invitee is named by URI, and only its URI is used below — the record
-        # read here was discarded, so the lookup was a gate, not a source of
-        # information. Holding a local record is *not* a protocol requirement: a
-        # peer's record lives in the store of whichever actor knows it (ADR-0066
-        # decision 5), delivery derives the invitee's inbox from its URI alone and
-        # never reads the record, and in a real deployment the invitee is on
-        # another node whose record will never be in this store. Demanding it made
-        # inviting a reachable actor fail with "Actor '…' not found".
+        # Being named by URI is enough to be invited: a peer's record lives in the
+        # store of whichever actor knows it (ADR-0066 decision 5), and in a real
+        # deployment the invitee is on another node whose record will never be
+        # here. Refusing with "Actor '…' not found" therefore refused every
+        # cross-node invitee.
         #
-        # Absence is still reported, and at WARNING rather than DEBUG: until actor
-        # discovery exists, not knowing the invitee is a real gap in what this node
-        # can verify, and it must not pass unremarked. Resolving an unknown actor's
-        # details is a directory-service concern, tracked separately as a Retriever
-        # call-out point (ADR-0024); demos seed peers into each other meanwhile.
+        # But the record cannot simply be *absent*, and this is subtler than it
+        # looks. The outbound Invite must carry its object fully inline
+        # (MV-09-001); storage dehydrates ``object_`` to an id, and rehydration
+        # reconstitutes it by reading that id back. With no record to read, the
+        # object stays a bare string and delivery refuses the activity — after
+        # exhausting its retries, far from here. So the invitee is *recorded* from
+        # the invitation instead of demanded in advance.
+        #
+        # Recording it is also the honest Actor Knowledge Model move: this actor
+        # has now been told about that peer, so it legitimately knows it. What it
+        # does not have is the peer's details; resolving those is a
+        # directory-service concern, tracked as a Retriever call-out (ADR-0024).
+        # The WARNING marks that gap rather than letting it pass silently.
         if self._dl.read(request.invitee_id) is None:
             logger.warning(
                 "invite_actor_to_case: no local record for invitee '%s' —"
-                " proceeding on its URI alone. Actor discovery is not"
-                " implemented, so this actor's details cannot be verified"
-                " locally; seed the peer if the invite needs them.",
+                " recording it from the invitation. Actor discovery is not"
+                " implemented, so only its URI is known, not its details.",
                 request.invitee_id,
             )
+            self._dl.create(CoreActor(id_=request.invitee_id))
 
         self._invitee_id = request.invitee_id
         self._suggested_roles = request.roles

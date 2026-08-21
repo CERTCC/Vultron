@@ -62,6 +62,7 @@ from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -269,6 +270,17 @@ def _bootstrap_case(
         actor=reporter_actor_id,
         target=owner_actor_id,
         to=owner_actor_id,
+    )
+    # Provision the CaseActor the case-creation flow will address.  Its id is
+    # *derived* from the report (ResolveCaseActorUrlsNode) and the owner is the
+    # case-actor service in this setup, so the owner's node must host it or the
+    # Announce/Invite deliveries to it answer 404.  Spawning one on demand for an
+    # as-yet-unknown case is #2469 / #1700.
+    _create_actor(
+        owner_tc,
+        owner_base_api,
+        _actor_slug(case_actor_id_for_report(str(report.id_))),
+        "Case Actor",
     )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
