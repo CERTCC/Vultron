@@ -347,17 +347,21 @@ async def inbox_handler(
 ) -> None:
     """Process the inbox for the given actor.
 
-    Reads pending activity IDs from the actor-scoped DataLayer inbox queue,
-    rehydrates each one into a full AS2 Activity object using the shared
-    DataLayer, and dispatches it.
+    Reads pending activity IDs from the actor's inbox queue, rehydrates each one
+    into a full AS2 Activity object, and dispatches it.
 
     After processing, triggers outbox delivery for any outbound activities
     created during dispatch, using *emitter* when provided.
 
+    There is no shared DataLayer any more (ADR-0066): every store belongs to
+    exactly one actor. *dl* and *actor_dl* are therefore normally the same store —
+    this actor's — and the pair survives only so existing callers keep working.
+    Prefer passing *dl* alone.
+
     Args:
         actor_id: The short ID of the Actor whose inbox is being processed.
-        dl: The shared DataLayer for activity storage and use-case dispatch.
-        actor_dl: The actor-scoped DataLayer for inbox queue management.
+        dl: This actor's DataLayer, for activity storage and use-case dispatch.
+        actor_dl: Deprecated alias for *dl*; defaults to it when omitted.
             Defaults to ``dl`` when not provided (backward-compatible).
         emitter: Optional ``ActivityEmitter`` to use for outbox delivery.
             When provided (e.g. from ``request.app.state.emitter`` in a

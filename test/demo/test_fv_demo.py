@@ -200,8 +200,10 @@ def _create_case_from_offer(
     case_id = _find_case_for_report(client, report_id)
 
     if not case_id:
-        # CaseProposal round-trip hasn't completed (nested ASGI depth guard in
-        # single-server mode).  Create the case manually via the trigger.
+        # The CaseProposal round-trip has not completed.  Not because nested
+        # delivery is blocked — no such guard exists, see the note on this
+        # helper's docstring — so treat this fallback as covering a *bug*, not a
+        # property of the harness.  Create the case manually via the trigger.
         actor_slug = (
             actor.id_.rstrip("/").rsplit("/", 1)[-1] if actor.id_ else ""
         )
@@ -1201,11 +1203,16 @@ class TestRunTwoActorDemo:
         # a temp directory so it does not land in the repo-root devlogs/.
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        # In single-server test mode the CaseProposal round-trip (triggered by
-        # run_direct_path_rm_triage) does not complete because the loopback
-        # delivery is blocked at depth > 0 (same TestClient portal). Replace it
-        # with the manual fallback that creates the case directly and drives RM
-        # state through the same validate/engage sequence.
+        # The CaseProposal round-trip (triggered by run_direct_path_rm_triage)
+        # does not complete here.  This used to be attributed to loopback
+        # delivery being "blocked at depth > 0" in a shared TestClient portal;
+        # no such guard exists (`_TestClientRouter` dispatches via
+        # `anyio.to_thread.run_sync` precisely so nested sends cannot deadlock,
+        # and multi-hop deliveries complete with 202s).  So this fallback stands
+        # in for defects, not for a harness limit — see #2456 for one of them.
+        # Replace the round-trip with the manual fallback that creates the case
+        # directly and drives RM state through the same validate/engage
+        # sequence.
         from vultron.core.states.rm import RM as _RM
 
         def _single_server_rm_triage(receiver_client, receiver, offer):
