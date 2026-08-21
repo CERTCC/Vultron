@@ -177,11 +177,11 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
             outbox queue and the activity objects).
         case_actor_id: Full ID of the CaseActor.
     """
-    case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
-    try:
-        asyncio.run(outbox_handler(case_actor_id, case_actor_dl))
-    finally:
-        case_actor_dl.close()
+    # The CaseActor's own store, and no close(): it is the app's live store,
+    # and an in-memory store is named, so disposing the engine destroys the
+    # database every other holder shares.
+    case_actor_dl = owner_iso.store_for(case_actor_id)
+    asyncio.run(outbox_handler(case_actor_id, case_actor_dl))
 
 
 def _bootstrap_and_engage(
@@ -205,7 +205,9 @@ def _bootstrap_and_engage(
          (queued by ``EngageCaseBT → BroadcastCaseUpdateNode``) reaches reporter.
 
     Returns:
-        Tuple of (case_id, owner_actor_id).
+        Tuple of (case_id, owner_actor_id, reporter_actor_id).  The actor ids
+        are returned so callers can open each actor's own store rather than
+        rebuilding a per-test slug.
     """
     owner_base_api = owner_iso.base_url + "/api/v2"
     reporter_base_api = reporter_iso.base_url + "/api/v2"
@@ -300,7 +302,11 @@ def _bootstrap_and_engage(
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Reporter must have received the case replica before engage-case fires.
-    reporter_cases = reporter_iso.dl.get_all("VulnerabilityCase")
+    # The reporter's own store, not the app's default-slug `dl`: the actor was
+    # created under a per-test slug, and a store belongs to exactly one actor
+    # (ADR-0066), so `dl` is a different (empty) database.
+    reporter_dl = reporter_iso.store_for(reporter_actor_id)
+    reporter_cases = reporter_dl.get_all("VulnerabilityCase")
     assert any(c["id_"] == case_id for c in reporter_cases), (
         f"Reporter did not receive a case replica for '{case_id}' after "
         f"CaseActor outbox drain.  The Create(VulnerabilityCase) path may "
@@ -325,7 +331,7 @@ def _bootstrap_and_engage(
     # reporter's DataLayer (CBT-05-004, #572, #573).
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
-    return case_id, owner_actor_id
+    return case_id, owner_actor_id, reporter_actor_id
 
 
 # ---------------------------------------------------------------------------
@@ -364,7 +370,7 @@ class TestEngageCaseParticipantExpansion:
         """
         owner_iso, reporter_iso, owner_tc, reporter_tc = two_app_setup
 
-        case_id, owner_actor_id = _bootstrap_and_engage(
+        case_id, owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
             owner_iso,
             reporter_iso,
             owner_tc,
@@ -374,7 +380,9 @@ class TestEngageCaseParticipantExpansion:
         )
 
         participants_in_reporter_dl = list(
-            reporter_iso.dl.list_objects("CaseParticipant")
+            reporter_iso.store_for(reporter_actor_id).list_objects(
+                "CaseParticipant"
+            )
         )
         owner_participant_ids = [
             getattr(p, "attributed_to", None)
@@ -405,7 +413,7 @@ class TestEngageCaseParticipantExpansion:
         """
         owner_iso, reporter_iso, owner_tc, reporter_tc = two_app_setup
 
-        case_id, owner_actor_id = _bootstrap_and_engage(
+        case_id, owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
             owner_iso,
             reporter_iso,
             owner_tc,
@@ -414,18 +422,13 @@ class TestEngageCaseParticipantExpansion:
             reporter_slug="reporter-pcr-572-ac2",
         )
 
-        # Locate the reporter actor's ID so we can inspect their inbox queue.
-        reporter_actors = list(reporter_iso.dl.list_objects("Organization"))
-        assert (
-            reporter_actors
-        ), "No Organization actors found in reporter's DataLayer."
-        reporter_actor_id = str(reporter_actors[0].id_)
-        reporter_actor_dl = reporter_iso.dl.clone_for_actor(reporter_actor_id)
-
-        try:
-            pending = reporter_actor_dl.inbox_list()
-        finally:
-            reporter_actor_dl.close()
+        # The reporter's id comes back from the bootstrap helper; scanning its
+        # store for "the first Organization" was a guess that also happened to
+        # read the wrong (default-slug) store.
+        reporter_actor_dl = reporter_iso.store_for(reporter_actor_id)
+        # No close(): this is the app's live store, and an in-memory store is
+        # named, so disposing the engine destroys the database the app shares.
+        pending = reporter_actor_dl.inbox_list()
         assert pending == [], (
             f"Reporter actor inbox queue is not empty after "
             f"Join(VulnerabilityCase) processing.  "

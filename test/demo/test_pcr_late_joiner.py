@@ -329,7 +329,7 @@ def _bootstrap_case(
         resp.status_code == 202
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
-    return case_id
+    return case_id, owner_actor_id
 
 
 def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
@@ -353,11 +353,11 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
             outbox queue and the activity objects).
         case_actor_id: Full ID of the CaseActor.
     """
-    case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
-    try:
-        asyncio.run(outbox_handler(case_actor_id, case_actor_dl))
-    finally:
-        case_actor_dl.close()
+    # The CaseActor's own store, and no close(): it is the app's live store,
+    # and an in-memory store is named, so disposing the engine destroys the
+    # database every other holder shares.
+    case_actor_dl = owner_iso.store_for(case_actor_id)
+    asyncio.run(outbox_handler(case_actor_id, case_actor_dl))
 
 
 def _run_late_joiner_sequence(
@@ -401,7 +401,7 @@ def _run_late_joiner_sequence(
         Tuple of (case_id, lj_actor_id).
     """
     # Step 1: bootstrap the case
-    case_id = _bootstrap_case(
+    case_id, owner_actor_id = _bootstrap_case(
         owner_iso,
         reporter_iso,
         owner_tc,
@@ -434,7 +434,9 @@ def _run_late_joiner_sequence(
     # CaseActor's outbox (not the owner's), so drain it explicitly here.
     # The background task triggered by the invite endpoint only drains the
     # owner's outbox; the CaseActor's outbox must be processed separately.
-    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
+    case_actor_id = _find_case_actor_id(
+        owner_iso.store_for(owner_actor_id), case_id
+    )
     assert case_actor_id is not None, (
         f"Could not find CaseActor for case '{case_id}' in owner's "
         f"DataLayer.  CreateCaseActorNode may not have run during "
@@ -443,7 +445,7 @@ def _run_late_joiner_sequence(
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Step 4: retrieve invite_id from late-joiner's DataLayer
-    invites = late_joiner_iso.dl.list_objects("Invite")
+    invites = late_joiner_iso.store_for(lj_actor_id).list_objects("Invite")
     assert len(invites) >= 1, (
         "Expected at least one Invite in late-joiner's DataLayer after "
         "owner triggered invite-actor-to-case.  The Invite may not have "
@@ -508,7 +510,17 @@ class TestLateJoinerSequence:
             late_joiner_tc,
         ) = three_app_setup
 
-        assert late_joiner_iso.dl.get_all("VulnerabilityCase") == [], (
+        # Named up front so the precondition can be checked against the store the
+        # sequence will actually use.  Read through the app's default-slug `dl`
+        # this was vacuous: that store is empty whatever happens, so the check
+        # could not fail (ADR-0066 — a store belongs to exactly one actor).
+        lj_slug = "late-joiner-pcr-007-ac1"
+        lj_actor_id = f"{_LATE_JOINER_BASE}/api/v2/actors/{lj_slug}"
+
+        assert (
+            late_joiner_iso.store_for(lj_actor_id).get_all("VulnerabilityCase")
+            == []
+        ), (
             "Prerequisite: late-joiner's DataLayer must have no cases before "
             "the late-joiner sequence begins."
         )
@@ -522,22 +534,22 @@ class TestLateJoinerSequence:
             late_joiner_tc,
             owner_slug="owner-pcr-007-ac1",
             reporter_slug="reporter-pcr-007-ac1",
-            lj_slug="late-joiner-pcr-007-ac1",
+            lj_slug=lj_slug,
         )
 
         # The late-joiner actor's inbox queue must be empty: the inbox handler
         # ran and processed the Announce (dispatch chain completed).
-        lj_actor_dl = late_joiner_iso.dl.clone_for_actor(lj_actor_id)
-        try:
-            assert lj_actor_dl.inbox_list() == [], (
-                "Late-joiner actor's inbox queue was not drained after "
-                "processing Announce(VulnerabilityCase).  The inbox handler "
-                "may not have run (PCR-07-007 AC-1)."
-            )
-        finally:
-            lj_actor_dl.close()
+        lj_actor_dl = late_joiner_iso.store_for(lj_actor_id)
+        # No close(): this is the app's live store, and an in-memory store is
+        # named, so disposing the engine destroys the database every other holder
+        # shares — the read below would fail "no such table".
+        assert lj_actor_dl.inbox_list() == [], (
+            "Late-joiner actor's inbox queue was not drained after "
+            "processing Announce(VulnerabilityCase).  The inbox handler "
+            "may not have run (PCR-07-007 AC-1)."
+        )
 
-        replica = late_joiner_iso.dl.read(case_id)
+        replica = lj_actor_dl.read(case_id)
         assert replica is not None, (
             f"Expected VulnerabilityCase '{case_id}' in late-joiner's "
             f"DataLayer after Announce(VulnerabilityCase) delivery, but "
@@ -577,7 +589,7 @@ class TestLateJoinerSequence:
             lj_slug="late-joiner-pcr-007-ac2",
         )
 
-        replica = late_joiner_iso.dl.read(case_id)
+        replica = late_joiner_iso.store_for(lj_actor_id).read(case_id)
         assert replica is not None, (
             f"No VulnerabilityCase replica found for '{case_id}' in "
             "late-joiner's DataLayer after the late-joiner sequence."
