@@ -94,7 +94,7 @@ The `learn` skill's `signal: spec-gap` path must apply this test before
 promoting an observation to `specs/`. If the behavior is not externally
 observable, the correct destination is `AGENTS.md` (recurring pitfall) or
 `notes/` (design decision), not a new MUST requirement in `specs/`. See also
-`notes/specs-vs-adrs.md` and the anti-pattern list in `specs/AGENTS.md`.
+the anti-pattern list in `specs/AGENTS.md`.
 
 ---
 
