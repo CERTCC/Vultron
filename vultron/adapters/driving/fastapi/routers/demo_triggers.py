@@ -409,12 +409,24 @@ def demo_sync_log_entry(
             sync_port=sync_port,
         )
 
+    # Read back from the store the commit ran *in*, not the requester's.  The
+    # tree executes as the case actor (only the CASE_MANAGER may append to the
+    # canonical log, CLP-09), and a BT's store follows its executing actor
+    # (BT-05-005) — so the entry was written to the case actor's store.  Looking
+    # for it in `cop` finds nothing whenever the requester is not itself the case
+    # actor, and the route then reports a successful commit as a 500.
+    commit_dl = cop
+    if case_actor_id and case_actor_id != getattr(cop, "actor_id", None):
+        commit_dl = cast(
+            CaseOutboxPersistence, cop.clone_for_actor(case_actor_id)
+        )
+
     entry = _find_equivalent_recorded_entry(
         case_id=case_id,
         object_id=object_id,
         event_type=event_type,
         payload_snapshot=payload_snapshot,
-        dl=cop,
+        dl=commit_dl,
     )
 
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)

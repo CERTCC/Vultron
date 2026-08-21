@@ -155,13 +155,20 @@ def _create_case_from_offer(
 ) -> as_VulnerabilityCase:
     """Return a VulnerabilityCase with actor as CASE_OWNER+VENDOR participant.
 
-    Under ADR-0041, validate-report sends a CaseProposal to the CaseActor but
-    in single-server tests the CaseProposal round-trip cannot complete (nested
-    ASGI delivery is blocked at depth > 0 to prevent deadlocks).  This helper
-    creates the case via trigger/create-case and then seeds the actor as
-    CASE_OWNER + VENDOR participant directly in the DataLayer so that
-    downstream BT nodes (CheckVendorRoleNode, ResolveCaseManagerNode, etc.)
-    find the expected participant state.
+    Under ADR-0041, validate-report sends a CaseProposal to the CaseActor but the
+    round-trip does not complete here.  This helper creates the case via
+    trigger/create-case and then seeds the actor as CASE_OWNER + VENDOR
+    participant directly in the DataLayer so that downstream BT nodes
+    (CheckVendorRoleNode, ResolveCaseManagerNode, etc.) find the expected
+    participant state.
+
+    This docstring used to blame "nested ASGI delivery is blocked at depth > 0 to
+    prevent deadlocks".  That is not so: nothing implements such a guard, and
+    ``_TestClientRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
+    precisely so nested sends cannot deadlock — multi-hop deliveries are
+    observably completing with 202s.  What actually stops the round-trip is
+    ordinary bugs in what the sender queues, so do not treat the incompleteness
+    here as a fixed property of the harness.
 
     Args:
         client: DataLayerClient for the vendor container.
@@ -219,9 +226,8 @@ def _create_case_from_offer(
         case_id = next(reversed(cases_data))
 
     # Seed vendor, reporter, and CaseActor participants directly in the DataLayer.
-    # Under ADR-0041 the CaseActor normally creates participants via
-    # case_proposal_received_tree, but nested ASGI delivery is blocked in
-    # single-server tests (depth > 0 guard prevents deadlocks).
+    # Under ADR-0041 the CaseActor normally creates these when it accepts a
+    # CaseProposal; the round-trip does not complete here, so they are seeded.
     seed_case_participants_for_demo(
         case_id=case_id,
         vendor_actor_id=actor.id_,
@@ -229,6 +235,14 @@ def _create_case_from_offer(
         report_id=report_id,
         dl=dl,
     )
+
+    # Give every other participant — the CaseActor above all — its own replica.
+    # A BT runs against the store of the actor executing it (BT-05-005), so the
+    # CaseActor cannot commit a ledger entry for a case its own store does not
+    # hold: it fails to derive the per-case genesis hash and the commit is
+    # refused (CLP-08-005). Seeding here rather than at each call site means
+    # every test building a case this way gets a coherent set of replicas.
+    seed_replicas_for_case_participants(dl, str(case_id))
 
     case_data = client.get(client.dl_path(case_id))
     return as_VulnerabilityCase.model_validate(case_data)
@@ -513,16 +527,6 @@ class TestFinderAsksQuestion:
         )
         # ADR-0041: no case after validate-report; create one directly for setup.
         case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
-
-        # Every participant needs its own replica before it can act on the case:
-        # a BT runs against the store of the actor executing it (BT-05-005), so
-        # the finder resolves CASE_MANAGER from the finder's store and the
-        # CaseActor reads the case from its own before it will commit anything.
-        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
-
-        seed_replicas_for_case_participants(
-            get_datalayer(vendor.id_), case.id_
-        )
 
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         case = as_VulnerabilityCase(**case_data)
