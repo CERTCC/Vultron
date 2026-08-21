@@ -30,6 +30,7 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_rm_state,
 )
 from vultron.demo.utils import (
+    seed_case_actor_for_report,
     DataLayerClient,
     demo_check,
     demo_step,
@@ -158,6 +159,10 @@ def reporter_submits_report(
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
+            # Provision the CaseActor this report's proposal will be
+            # addressed to; its id is derived from the report and this
+            # node hosts it in single-container demo mode (#2469).
+            seed_case_actor_for_report(receiver_client, report.id_)
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
     with demo_check("Report stored in receiver's DataLayer"):
         verify_object_stored(receiver_client, report.id_)
@@ -509,12 +514,16 @@ def _report_id_from_offer_data(
 def _load_case_from_datalayer(
     client: DataLayerClient,
     item: str | dict[str, object],
+    actor_id: str | None = None,
 ) -> as_VulnerabilityCase | None:
     """Load a as_VulnerabilityCase from the DataLayer, handling both IDs and dicts.
 
     Args:
         client: DataLayerClient for the container to query.
         item: Either a full case URI string or a raw dict to validate.
+        actor_id: Whose replica to read.  Defaults to *client*'s own actor; must
+            match the store the enclosing listing came from, or the id fetched
+            here will be looked for in a different replica than it was found in.
 
     Returns:
         The ``as_VulnerabilityCase``, or ``None`` if the fetch fails.
@@ -524,7 +533,7 @@ def _load_case_from_datalayer(
 
     try:
         return as_VulnerabilityCase.model_validate(
-            client.get(client.dl_path(item))
+            client.get(client.dl_path(item, actor_id=actor_id))
         )
     except Exception as exc:
         logger.warning("Could not fetch case %s: %s", item, exc)
@@ -534,22 +543,33 @@ def _load_case_from_datalayer(
 def find_case_by_report_id(
     client: DataLayerClient,
     report_id: str,
+    actor_id: str | None = None,
 ) -> Optional[as_VulnerabilityCase]:
     """Find the first ``as_VulnerabilityCase`` referencing *report_id*.
 
     Args:
         client: DataLayerClient connected to the container holding the case.
         report_id: Full URI of the ``as_VulnerabilityReport``.
+        actor_id: Whose replica to search.  Defaults to *client*'s own actor.
+            Note that under ADR-0041 the **CaseActor** authors the canonical case,
+            so a caller looking for the case a report produced — rather than for
+            its own replica of one — should pass the CaseActor
+            (:func:`~vultron.demo.utils.case_actor_id_for_report`).  Searching the
+            reporter's or vendor's store instead finds nothing until the
+            CaseActor's ``Create(VulnerabilityCase)`` has been delivered and
+            processed.
 
     Returns:
         The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
-    cases_data = client.get(client.dl_path("VulnerabilityCases/"))
+    cases_data = client.get(
+        client.dl_path("VulnerabilityCases/", actor_id=actor_id)
+    )
     if not cases_data:
         return None
 
     for item in cases_data:
-        case = _load_case_from_datalayer(client, item)
+        case = _load_case_from_datalayer(client, item, actor_id=actor_id)
         if case is None:
             continue
 
