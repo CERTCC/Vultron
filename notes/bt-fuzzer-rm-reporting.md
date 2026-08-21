@@ -541,7 +541,7 @@ no real implementation path. The `SuggestXTrigger` factories fire
 only the stub provides in STOCHASTIC mode.
 
 **The correct production model** (resolved during #1252 planning): the party
-identification and invitation step belongs in a **Sentinel coordination agent**
+identification and invitation step belongs in a **Sentinel capability**
 (see #1147 / #1143) that:
 
 1. Periodically or event-triggered inspects the case for actors who are known

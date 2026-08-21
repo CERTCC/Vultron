@@ -745,7 +745,7 @@ groups:
   - id: BT-20-003
     priority: SHOULD
     kind: project
-    statement: The production report-to-others workflow SHOULD be driven by a Sentinel coordination agent that proactively
+    statement: The production report-to-others workflow SHOULD be driven by a Sentinel capability that proactively
       queries the case for actors who are not yet participants but should be (party discovery), then fires `suggest-actor-to-case`
       for each candidate. The `suggest-actor-to-case` protocol (Offer → CaseActor → CaseOwner → Invite → Accept → Record
       cascade) handles the downstream flow; no inline tick-driven BT loop is needed at the outer level. If an inline subtree
@@ -756,7 +756,7 @@ groups:
       The original Production Collapse 3 design (#1311, ADR-0029) retained a three-typed-sub-loop BT structure whose
       inner blackboard queues (identified_vendors, identified_coordinators, identified_others) had no production
       mechanism to populate them. Planning of #1252 surfaced that the identification step belongs in a Sentinel
-      coordination agent (see #1147/#1143) that periodically or event-triggered inspects the case and asynchronously
+      capability (see #1147/#1143) that periodically or event-triggered inspects the case and asynchronously
       fires suggest-actor-to-case for each uninvited candidate. The downstream accept/invite/bootstrap cascade already
       works; no inline BT loop is required. The tick-driven `create_report_to_others_tree` module from #1311 is an
       implementation artifact of the intermediate design and is tracked for removal in a follow-on Task (see
@@ -992,7 +992,7 @@ groups:
     statement: The domain bundle dataclass and its DETERMINISTIC singleton (e.g., `VALIDATION_DETERMINISTIC`) MUST be
       defined in the core layer (`vultron/core/behaviors/call_out/bundles/<domain>.py`).
     rationale: The DETERMINISTIC bundle is the production-usable happy-path backend a real actor uses before a
-      coordination agent is wired in, so a core tree builder must resolve its default without reaching into the
+      capability implementation is wired in, so a core tree builder must resolve its default without reaching into the
       simulation layer. Locating it in vultron/demo/ inverts the core→demo dependency (corrects the original
       2026-07-23 amendment).
   - id: BT-23-009

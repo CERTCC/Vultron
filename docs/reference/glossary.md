@@ -196,13 +196,15 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Protocol-Significant Behavior** | Any action that affects protocol-observable state (emitting an **Activity**, transitioning RM/EM/CS, cascading consequences); MUST be implemented as BT nodes/subtrees, never as procedural code outside the tree | Domain logic, tree-resident behavior |
 | **Cascading Consequences** | Automated downstream behaviors triggered by primary protocol events via BT subtrees; examples include submit-report → case creation → participant setup → embargo initialization → notifications (anti-pattern: post-BT procedural calls) | Event cascade, automation chain |
 | **Call-Out Point** | A BT node location where automated protocol execution cannot proceed without external input from a human, skill, or LLM agent; implemented as a **Fuzzer Node** stub in the simulator layer | Decision point, human-in-the-loop seam |
-| **Fuzzer Node** | A stub BT node in the legacy simulation (`vultron/bt/`) that stands in for unimplemented real-world decision logic by returning probabilistic SUCCESS/FAILURE; each represents a **Call-Out Point** awaiting a real **Coordination Agent** | Stub node, random node |
-| **Coordination Agent** | An external capability (human, skill, or LLM agent) that fulfills a **Call-Out Point** by providing a decision, data, or content; five subtypes: **Sentinel**, **Evaluator**, **Retriever**, **Composer**, **Actuator** | External agent, decision agent |
-| **Sentinel** | A **Coordination Agent** subtype that checks external state and returns SUCCESS/FAILURE without side effects; used as a BT precondition guard | Guard agent, check agent |
-| **Evaluator** | A **Coordination Agent** subtype that makes a domain decision and records it (e.g., `ReviewAdvisoryDraft`); its `update()` method gates downstream BT execution | Decision agent, reviewer agent |
-| **Retriever** | A **Coordination Agent** subtype that fetches external data needed by the BT (e.g., CVE ID lookup, SSVC scoring) | Fetch agent, lookup agent |
-| **Composer** | A **Coordination Agent** subtype that assembles content from domain state (e.g., drafting advisory text) | Generator agent, authoring agent |
-| **Actuator** | A **Coordination Agent** subtype that invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise; produces no content artifact | Side-effect agent, executor |
+| **Fuzzer Node** | A stub BT node in the legacy simulation (`vultron/bt/`) that stands in for unimplemented real-world decision logic by returning probabilistic SUCCESS/FAILURE; each represents a **Call-Out Point** awaiting a real **capability** | Stub node, random node |
+| **Capability shape** | One of five abstract interface contracts that characterise how a **Call-Out Point** interacts with the protocol; describes the interaction pattern without prescribing the implementation. A concrete **capability** may be a function, a human workflow, or an LLM agent. The five shapes are **Sentinel**, **Evaluator**, **Retriever**, **Composer**, and **Actuator**. See ADR-0024. | Coordination Agent (deprecated) |
+| **Capability** | A specific named call-out point with its own blackboard contract (input keys, output keys, and types); implements a **capability shape** for a particular domain context. Example: `EvaluateReportCredibility` is an Evaluator capability. | Call-out node, capability instance |
+| **Capability implementation** | The factory backend fulfilling a **capability** at runtime; may be a Python function, a human workflow, a rules engine, or an LLM agent. The implementation choice is made at deployment time, not at design time. | Backend, factory backend |
+| **Sentinel** | A **capability shape** that monitors a condition over time; when the condition is met, calls a Vultron trigger endpoint. Operates on the call-in surface — it has no BT call-out point. | Guard agent, check agent |
+| **Evaluator** | A **capability shape** that receives a situation and returns a structured recommendation or decision (e.g., `ReviewAdvisoryDraft`); its output gates downstream BT execution | Decision agent, reviewer agent |
+| **Retriever** | A **capability shape** that receives a query and returns structured external facts (e.g., CVE ID lookup, SSVC scoring); also used for binary yes/no external queries | Fetch agent, lookup agent |
+| **Composer** | A **capability shape** that receives context and generates a new content artifact (e.g., drafting advisory text); output is written to the blackboard | Generator agent, authoring agent |
+| **Actuator** | A **capability shape** that receives a trigger and invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise; produces no content artifact | Side-effect agent, executor |
 | **StatusAdoptionGate** | A BT authorization gate that determines whether a received **CaseStatus** update should be adopted by the receiving actor; guards the `add_participant_status_tree` path for received-side status canonicalization (ADR-0046). | Seam 1, StatusUpdateGuard |
 | **EmbargoTeardownAuthorizationGate** | A BT authorization gate that determines whether an incoming status update should trigger **Embargo** teardown; guards the `add_case_status_tree` path alongside `ThreatTerminationBranchNode` for received-side CaseStatus canonicalization (ADR-0046). | Seam 2, SideEffectsGuard |
 | **GuardedCommit** | A Behavior Tree subtree pattern that gates case ledger entry persistence on a CASE_MANAGER role check, ensuring only the actor holding the CASE_MANAGER role commits entries to the canonical log. | — |
@@ -227,7 +229,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Observer** | A **CVDRole** value (`CVDRole.OBSERVER`) representing a case participant with no vendor-fix-deployment obligations; the base role — lowest non-null privilege set — admitted via standard Invite/Accept (CM-25). Formerly `CVDRole.OTHER`; renamed in ADR-0057. A participant holding OBSERVER alongside VENDOR or DEPLOYER retains VFD obligations from those roles (CM-26). | Watcher, monitor, OTHER (deprecated) |
 | **Dimension Object** | A small immutable `BaseModel` capturing the state of exactly one state machine (RM, EM, VFD, or PXA) at a point in time; replaces flat fields in `CaseStatus`/`ParticipantStatus` per ADR-0036 | Status sub-object, state fragment |
 | **Advisory** | A public disclosure document summarizing a vulnerability's details, remediation, and affected parties; produced by the publication pipeline via a Draft → Review → Submit sequence | Security advisory, disclosure document, bulletin |
-| **Advisory Review Decision** | A record produced by a **Reviewer** (Evaluator-type **Coordination Agent**) capturing whether an **Advisory** draft needs revision; the `needs_revision` flag gates the BT pipeline; to block submission for any reason, the Evaluator MUST return `Status.FAILURE` (BT-18-007) | Review result, review outcome |
+| **Advisory Review Decision** | A record produced by a **Reviewer** (Evaluator **capability**) capturing whether an **Advisory** draft needs revision; the `needs_revision` flag gates the BT pipeline; to block submission for any reason, the Evaluator MUST return `Status.FAILURE` (BT-18-007) | Review result, review outcome |
 | **Publication Intent** | A domain object recording a participant's decision about *how* and *when* to disclose a vulnerability (e.g., which advisory platform, embargo exit condition); gates the BT publish pipeline | Disclosure intent, publish intent |
 | **CVDRolesFlag** | Legacy bitmask-based Flag enum using bitwise arithmetic to represent combined roles; retained for backward compatibility with the `vultron.bt` simulator layer only; **do not use in new code** — use `list[CVDRole]` instead | Bitmask roles, legacy roles |
 | **CASE_OWNER** | A **CVDRole** value marking a participant as the human decision-maker who owns and administers the VulnerabilityCase (BTND-05-001); distinct from CASE_MANAGER which is the service actor | Owner role |
@@ -421,12 +423,12 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 - A **Participant** has zero or more **CVDRoles** (represented as `list[CVDRole]`).
 - A **BT Node** reads from and writes to the **Blackboard** and may emit **Outbound Activities**.
 
-**Call-Out Points and Coordination:**
+**Call-Out Points and Capability Shapes:**
 
 - A **Fuzzer Node** in the simulator is the placeholder form of a **Call-Out Point**.
-- A **Call-Out Point** is fulfilled in production by a **Coordination Agent** of the appropriate subtype.
-- A **Sentinel** answers a yes/no check; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
-- An **Advisory Review Decision** is produced by a **Reviewer** (an **Evaluator** subtype) and determines whether an **Advisory** draft requires revision before the BT submits it.
+- A **Call-Out Point** is fulfilled in production by a **capability** of the appropriate **capability shape**.
+- A **Sentinel** monitors a condition and fires a trigger; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
+- An **Advisory Review Decision** is produced by a **Reviewer** (an Evaluator **capability**) and determines whether an **Advisory** draft requires revision before the BT submits it.
 
 **Status and Dimensions:**
 
@@ -513,14 +515,14 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 16. **"Call-Out Point" vs. "Fuzzer Node"**:
      - A **Call-Out Point** is the abstract concept — a BT location requiring external input.
-     - A **Fuzzer Node** is the concrete simulator-layer stub that occupies that location until a real **Coordination Agent** is wired in.
+     - A **Fuzzer Node** is the concrete simulator-layer stub that occupies that location until a real **capability** is wired in.
      - **Recommendation**: Use "**Call-Out Point**" when discussing design or integration seams; use "**Fuzzer Node**" only when discussing the simulator implementation.
 
-17. **"Composer" vs. "Actuator"**:
+17. **"Composer" vs. "Actuator"** (capability shape classification):
      - A **Composer** reads context, runs a generation process, and writes a content artifact to the blackboard (e.g., advisory draft text).
      - An **Actuator** receives a trigger, calls an external system, and confirms the side effect; no artifact is placed on the blackboard.
-     - Misclassification risk: nodes that "do something" to an external system look like Composers if you only notice they dispatch outbound calls. The discriminator is whether a content artifact lands on the blackboard. If not, it is an **Actuator**.
-     - **Recommendation**: Before classifying a node as Composer, verify it writes a content artifact to the blackboard. If the only output is a SUCCESS/FAILURE confirming an external side effect, it is an **Actuator**.
+     - Misclassification risk: nodes that "do something" to an external system look like Composers if you only notice they dispatch outbound calls. The discriminator is whether a content artifact lands on the blackboard. If not, it is an **Actuator** capability shape.
+     - **Recommendation**: Before classifying a node as Composer, verify it writes a content artifact to the blackboard. If the only output is a SUCCESS/FAILURE confirming an external side effect, it is an **Actuator** capability shape.
 
 18. **"Dimension Object" vs. "status field"**:
      - A **Dimension Object** (per ADR-0036) is an immutable `BaseModel` containing the state of one machine; it is a first-class structured type, not a flat field.
@@ -618,27 +620,27 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 > organization deployed the fix. You update your model of the **Case State** and potentially make your
 > own decisions based on that new information."
 
-### Call-Out Points and Coordination Agents Example
+### Call-Out Points and Capability Shapes Example
 
 > **Developer:** "The BT has a `ReviewAdvisoryDraft` node — what actually runs there?"
 >
 > **Domain Expert:** "That's a **Call-Out Point**. In the simulator it's a **Fuzzer Node** that
-> returns SUCCESS or FAILURE probabilistically. In production you wire in a **Coordination Agent** —
-> an **Evaluator** subtype — that reviews the draft and records an **Advisory Review Decision**."
+> returns SUCCESS or FAILURE probabilistically. In production you wire in an Evaluator
+> **capability** — that reviews the draft and records an **Advisory Review Decision**."
 >
 > **Developer:** "What does the BT read from that decision? Just `needs_revision`?"
 >
 > **Domain Expert:** "Yes. If `needs_revision=True`, the pipeline routes to the revision arm before
 > submit. If you want to block outright without requesting edits — say, a legal hold — your
-> **Evaluator** returns `FAILURE` directly from `update()`. That's the universal BT blocking idiom
+> Evaluator returns `FAILURE` directly from `update()`. That's the universal BT blocking idiom
 > (BT-18-007)."
 >
 > **Developer:** "And if there's no human reviewer yet, we just leave the **Fuzzer Node** in place?"
 >
 > **Domain Expert:** "Right. The **Fuzzer Node** is the stub — it keeps the BT runnable without a
-> real **Coordination Agent**. When you're ready, you replace it with a **Retriever** that fetches
-> reviewer feedback, or an **Evaluator** backed by an LLM, or a **Sentinel** that checks an
-> external approval queue."
+> real capability wired in. When you're ready, you replace it with a Retriever capability that
+> fetches reviewer feedback, or an Evaluator backed by an LLM, or a Sentinel capability that
+> checks an external approval queue."
 
 ### Dimension Objects and Status Example
 
