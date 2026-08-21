@@ -346,9 +346,20 @@ class Record(StorableRecord):
             Record: The created Record.
         """
         obj_type = obj.type_
-        if obj_type is None or obj_type.startswith("as_"):
+        # Two distinct faults, reported distinctly.  They were previously raised
+        # with one message naming only the ``as_`` case, which sent a reader
+        # hunting for a wire class when the object simply had no ``type_`` —
+        # ``type_`` selects the table, so neither can be stored.
+        if obj_type is None:
             raise ValueError(
-                "Object 'type_' attribute cannot start with 'as_' for Record conversion"
+                f"Object of class {type(obj).__name__!r} (id={obj.id_!r}) has no"
+                " 'type_' attribute, which is what selects the storage table;"
+                " it cannot be converted to a Record"
+            )
+        if obj_type.startswith("as_"):
+            raise ValueError(
+                f"Object 'type_' attribute {obj_type!r} cannot start with 'as_'"
+                " for Record conversion"
             )
 
         # Wire ``type_`` values are bare, so the guard above cannot catch a
