@@ -41,14 +41,11 @@ for self-determined embargoes and implicit-consent cases (CM-14-005).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import logging
 from enum import StrEnum, auto
 
-from transitions import Machine, MachineError
+from transitions import Machine
 
 from vultron.core.states.common import TransitionBase, mermaid_machine
-
-logger = logging.getLogger(__name__)
 
 
 class PEC(StrEnum):
@@ -121,13 +118,6 @@ _transitions: list[dict] = [
 ]
 
 
-class PECAdapter:
-    """Adapter for applying PEC transitions to a plain ``.state`` attribute."""
-
-    def __init__(self, initial: PEC) -> None:
-        self.state = initial
-
-
 def create_pec_machine() -> Machine:
     """Create a new Participant Embargo Consent state machine instance."""
     return Machine(
@@ -137,27 +127,6 @@ def create_pec_machine() -> Machine:
         auto_transitions=False,
         name="PEC FSM",
     )
-
-
-def apply_pec_trigger(current_state: PEC, trigger: PEC_Trigger) -> PEC:
-    """Apply a PEC trigger to a state and return the resulting state.
-
-    Returns the unchanged state when the transition is not valid (logs a
-    warning instead of raising).
-    """
-    adapter = PECAdapter(current_state)
-    machine = create_pec_machine()
-    machine.add_model(adapter, initial=current_state)
-    try:
-        getattr(adapter, trigger)()
-        return PEC(adapter.state)
-    except MachineError:
-        logger.warning(
-            "Invalid PEC transition: state='%s' trigger='%s' — ignored",
-            current_state,
-            trigger,
-        )
-        return current_state
 
 
 if __name__ == "__main__":

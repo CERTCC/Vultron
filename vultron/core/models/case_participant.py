@@ -197,8 +197,7 @@ class CaseParticipant(CoreObject):
 
         This is the single authoritative consent-write path (CM-18-005,
         CM-18-006, ADR-0048).  All sites that record a PEC change MUST call
-        this method instead of assigning ``embargo_consent_state`` directly or
-        using the ``apply_pec_trigger()`` helper.
+        this method instead of assigning ``embargo_consent_state`` directly.
         """
         current_pec = coerce_em_consent_state(self.embargo_consent_state)
         if current_pec is None:
