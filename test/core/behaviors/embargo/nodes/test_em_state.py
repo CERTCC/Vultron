@@ -30,7 +30,10 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
     ReadEmStateNode,
     WriteEmStateNode,
 )
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
@@ -47,12 +50,12 @@ class TestReadEmStateNodeInheritance:
     """ReadEmStateNode follows the DataLayerCondition base class pattern (AC-2)."""
 
     def test_is_data_layer_condition(self):
-        """ReadEmStateNode inherits from DataLayerCondition."""
+        """ReadEmStateNode inherits from DataLayerConditionWithPorts."""
         node = ReadEmStateNode(
             case_id="https://example.org/cases/test",
             result_out={},
         )
-        assert isinstance(node, DataLayerCondition)
+        assert isinstance(node, DataLayerConditionWithPorts)
 
 
 class TestReadEmStateNode:
@@ -165,12 +168,12 @@ class TestWriteEmStateNodeInheritance:
     """WriteEmStateNode follows the DataLayerAction base class pattern (AC-2)."""
 
     def test_is_data_layer_action(self):
-        """WriteEmStateNode inherits from DataLayerAction."""
+        """WriteEmStateNode inherits from DataLayerActionWithPorts."""
         node = WriteEmStateNode(
             case_id="https://example.org/cases/test",
             result_out={},
         )
-        assert isinstance(node, DataLayerAction)
+        assert isinstance(node, DataLayerActionWithPorts)
 
 
 class TestWriteEmStateNode:

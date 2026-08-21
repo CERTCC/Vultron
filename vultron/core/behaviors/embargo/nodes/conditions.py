@@ -18,14 +18,17 @@
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerCondition,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.models._helpers import has_case_statuses
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.errors import VultronInvalidStateTransitionError
 
 
-class ValidateCaseExistsNode(DataLayerCondition):
+class ValidateCaseExistsNode(DataLayerConditionWithPorts):
     """Check that the target case exists in the DataLayer.
 
     Returns SUCCESS if the case is found and is a ``VulnerabilityCase``.
@@ -54,7 +57,7 @@ class ValidateCaseExistsNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class IsActiveEmbargoNode(DataLayerCondition):
+class IsActiveEmbargoNode(DataLayerConditionWithPorts):
     """Check that the given embargo is the active embargo on the case.
 
     Returns SUCCESS if ``case.active_embargo`` resolves to ``embargo_id``.
@@ -245,7 +248,7 @@ class OptionalLookupParticipantNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class HasActiveEmbargoNode(DataLayerCondition):
+class HasActiveEmbargoNode(DataLayerConditionWithPorts):
     """Guard that the case has an active embargo set.
 
     Returns SUCCESS when ``case.active_embargo`` is non-None.
@@ -294,7 +297,7 @@ class HasActiveEmbargoNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class IsProposedEmbargoNode(DataLayerCondition):
+class IsProposedEmbargoNode(DataLayerConditionWithPorts):
     """Check that the case EM state is PROPOSED.
 
     Returns SUCCESS when ``case.current_status.em.state == EM.PROPOSED``.
@@ -337,7 +340,7 @@ class IsProposedEmbargoNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class HasCaseStatusesNode(DataLayerCondition):
+class HasCaseStatusesNode(DataLayerConditionWithPorts):
     """Guard that the case has at least one CaseStatus entry.
 
     Returns SUCCESS when ``case.case_statuses`` is non-empty.

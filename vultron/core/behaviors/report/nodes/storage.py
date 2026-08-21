@@ -35,11 +35,11 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.use_cases._helpers import _idempotent_create
 
 
-class StoreReportNode(DataLayerAction):
+class StoreReportNode(DataLayerActionWithPorts):
     """Idempotently store a VulnerabilityReport in the DataLayer.
 
     Returns SUCCESS (no-op) when ``report_id`` is empty or ``report_obj`` is
@@ -89,7 +89,7 @@ class StoreReportNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class StoreActivityNode(DataLayerAction):
+class StoreActivityNode(DataLayerActionWithPorts):
     """Idempotently store an inbound protocol activity in the DataLayer.
 
     Returns SUCCESS (no-op) when ``activity_id`` is empty or
