@@ -293,6 +293,82 @@ async def info(config: AppConfig = Depends(get_config)):
 
 ## Testing Pattern
 
+### Preferred: `config_override()` context manager (CFG-06-006)
+
+Use `config_override()` when a test needs to override `AppConfig` values.  It
+atomically patches `os.environ`, reloads the cache, and restores both on exit —
+even when the body raises.  This makes the incorrect reload-before-undo ordering
+impossible by construction (CONCERN-2323):
+
+```python
+from vultron.config import config_override
+
+def test_env_override():
+    with config_override(VULTRON_SERVER__BASE_URL="http://myserver:8080") as cfg:
+        assert cfg.server.base_url == "http://myserver:8080"
+    # env and cache are restored here, regardless of exception
+```
+
+For tests that only need to reset the cache (no env override), null
+`_config_cache` directly in teardown rather than calling `reload_config()`:
+
+```python
+import vultron.config.app as _cfg_module
+
+@pytest.fixture(autouse=True)
+def reset_config():
+    yield
+    # Null the cache directly — calling reload_config() would re-read the env
+    # while monkeypatch patches are still active, baking stale values in.
+    _cfg_module._config_cache = None
+```
+
+### The `reload_config()` ordering footgun
+
+`_config_cache` is a module-level singleton.  `reload_config()` clears it and
+immediately calls `get_config()`, which re-reads `os.environ` at that instant.
+`pytest`'s `monkeypatch` undoes env changes in fixture **teardown**, *after* the
+teardown body runs.
+
+```text
+BAD teardown order:
+    reload_config()      ← re-reads env while patches are still active
+    monkeypatch.undo()   ← too late: stale value is already cached
+
+CORRECT teardown order:
+    monkeypatch.undo()   ← patches gone before reload
+    reload_config()      ← re-reads clean env
+
+BEST: use config_override() — ordering is correct by construction
+```
+
+A leaked stale value causes every subsequent test that reads `get_config()` to
+see the wrong host.  In the demo suite this surfaces as "no routable recipients"
+failures whose order dependency looks random under `pytest-randomly` (ISSUE-2086).
+
+The session-scoped `restore_case_actor_url_after_each_test` autouse fixture in
+`test/demo/conftest.py` detects and repairs function-scoped leaks, but
+module/class/session-scoped fixtures must still use correct ordering themselves.
+
+### `_TestClientRouter` WARNING for unexpected drops
+
+`_TestClientRouter.emit` (in `test/demo/conftest.py`) drops deliveries when no
+client is registered for the recipient's base URL.  This is intentional for
+known-fictional external URLs such as `vultron.example` — those MUST NOT become
+real HTTP requests.
+
+However, the same silence swallows *unintentional* misrouting.  A stale-config
+leak that causes `Create(CaseProposal)` to be addressed to an unregistered
+`.test` host vanishes without any WARNING.  The failure surfaces several steps
+downstream ("no routable recipients") with no pointer to the real cause.
+
+The fix: maintain a `_KNOWN_FICTIONAL_HOSTS` allowlist in `test/demo/conftest.py`
+(e.g. `{"vultron.example"}`).  Drops matching the allowlist keep `DEBUG` logging;
+drops outside it upgrade to `WARNING` — a `.test` host that was not registered
+is almost always a config bug.
+
+### Legacy pattern (raw monkeypatch + explicit test_config.py)
+
 ```python
 # test/test_config.py
 import pytest
