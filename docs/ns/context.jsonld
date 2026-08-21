@@ -1,0 +1,22 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    {
+      "vultron": "https://certcc.github.io/Vultron/ns#",
+      "CaseActor": "vultron:CaseActor",
+      "CaseLedgerEntry": "vultron:CaseLedgerEntry",
+      "CaseParticipant": "vultron:CaseParticipant",
+      "CaseParticipantRole": "vultron:CaseParticipantRole",
+      "CaseProposal": "vultron:CaseProposal",
+      "CaseReference": "vultron:CaseReference",
+      "CaseStatus": "vultron:CaseStatus",
+      "EmbargoEvent": "vultron:EmbargoEvent",
+      "EmbargoPolicy": "vultron:EmbargoPolicy",
+      "ParticipantStatus": "vultron:ParticipantStatus",
+      "VulnerabilityCase": "vultron:VulnerabilityCase",
+      "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
+      "VulnerabilityRecord": "vultron:VulnerabilityRecord",
+      "VulnerabilityReport": "vultron:VulnerabilityReport"
+    }
+  ]
+}
