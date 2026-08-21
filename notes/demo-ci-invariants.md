@@ -167,13 +167,36 @@ existing nine:
    "Artifact Availability on Failure" above.
 3. Declare `_CHAIN_ACTORS` (scenario-role names, not docker service names) and
    `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
-4. Call the shared check functions from `common.py`; keep scenario-specific
-   assertions in the scenario file.
-5. Include `test_invariant_per_actor_replica_divergence` calling
-   `check_per_actor_replica_divergence(replicas)`.  Pass
-   `check_fix_ready=False` for scenarios where no Vendor ever becomes a case
-   participant (currently only `fcv-reject`), mirroring the canonical
+4. Define the module-scoped fixture (e.g. `fv_replicas`) that calls
+   `load_devlogs(demo_name=_DEMO_NAME)`.
+5. Inject the 16 universal invariant tests by calling:
+
+   ```python
+   from test.ci.invariants.universal_harness import make_universal_invariant_tests
+
+   globals().update(
+       make_universal_invariant_tests(
+           replicas_fixture="<scenario>_replicas",
+           chain_actors=_CHAIN_ACTORS,
+           expected_event_types=_<SCENARIO>_EXPECTED_EVENT_TYPES,
+       )
+   )
+   ```
+
+   Pass `check_fix_ready=False` for scenarios where no Vendor ever becomes a
+   case participant (currently only `fcv-reject`), mirroring the canonical
    `test_invariant_15_cs_state_transitions_observed` rule (ISSUE-2411 Gap 1).
+
+6. Add only the **scenario-specific** assertions below the injection call —
+   count checks, late-joiner checks, and any protocol-path constraints unique
+   to this scenario.
+
+`test/ci/invariants/universal_harness.py` defines `make_universal_invariant_tests()`.
+It generates the 16 standard test functions (Invariants 1–15, clp13, per_actor)
+as closures that retrieve the scenario's replicas fixture at runtime via
+`request.getfixturevalue(replicas_fixture)`. Each function has its `__module__`
+set to the calling harness so pytest's fixture lookup resolves to the harness
+module's own fixtures (ISSUE-2007, AC-1).
 
 **The scenario→harness registry is the CI matrix**, not a Python module. The
 `demo:` / `test_file:` pairs in `.github/demo-scenarios.json` (read by the
@@ -191,11 +214,6 @@ and must be kept in step.
 > holds synthetic in-memory JSONL fixtures for unit-testing the check functions
 > in `common.py` — it carries no scenario mapping. Do not bolt scenario routing
 > onto it.
-
-Known duplication: all nine harnesses re-implement the same ~14 universal
-invariant tests as near-identical thin wrappers over `common.py`. Extracting
-them is tracked separately; the per-file `_DEMO_NAME` + `load_devlogs` idiom is
-not the duplication worth fixing.
 
 ---
 
