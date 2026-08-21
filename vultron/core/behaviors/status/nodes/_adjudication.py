@@ -85,6 +85,11 @@ def _adjudicate_dimensions(
 
     current_vfd = current.vfd.state
     asserted_vfd = asserted.vfd.state
+    # Intentionally uses the weaker monotone check rather than strict adjacency
+    # (is_valid_vfd_transition): a remote peer may have advanced through multiple
+    # VFD steps between status messages (e.g. vfd→VFD in one update), which is
+    # legitimate on the received-wire path.  The strict adjacency guard belongs
+    # only at local write nodes (CSB-16-001, enforced by CreateParticipantStatusNode).
     if asserted_vfd != current_vfd and not is_monotonic_vfd_forward(
         current_vfd, asserted_vfd
     ):

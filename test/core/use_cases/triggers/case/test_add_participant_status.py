@@ -766,6 +766,93 @@ class TestCreateParticipantStatusNode:
 
         assert not self._rm_narrative_records(caplog)
 
+    # ------------------------------------------------------------------
+    # AC-4: write-boundary validation (CSB-16-001, CSB-15-001/002) — these
+    # tests call _run_node() directly, bypassing ValidateTriggerTransitionsNode
+    # ------------------------------------------------------------------
+
+    def _seed_participant_vfd_state(self, vfd_target: CS_vfd) -> None:
+        """Directly persist a ParticipantStatus to advance the actor to vfd_target."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.models.dimensions import RmDimension, VfdDimension
+
+        seed = ParticipantStatus(
+            context=self.case.id_,
+            attributed_to=self.actor.id_,
+            rm=RmDimension(state=RM.START),
+            vfd=VfdDimension(state=vfd_target),
+        )
+        self.dl.create(seed)
+        participant = self.dl.read(self.actor_participant.id_)
+        if isinstance(participant, CaseParticipant):
+            participant.add_participant_status(seed)
+            self.dl.save(participant)
+
+    def test_invalid_vfd_jump_blocked_at_write_node(self):
+        """CSB-16-001: illegal multi-step VFD jump is rejected at the write boundary.
+
+        vfd → VFD skips two intermediate states; CreateParticipantStatusNode must
+        return FAILURE without writing, independent of upstream guard coverage (AC-4).
+        """
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFD, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+    def test_same_state_vfd_write_allowed_at_write_node(self):
+        """CSB-16-001: same-state VFD write (no actual transition) is allowed."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.vfd, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        assert "status_id" in result_out
+
+    def test_fix_ready_requires_vendor_role_at_write_node(self):
+        """CSB-15-001: VFd target is blocked when the actor has no VENDOR role.
+
+        The adjacent transition Vfd → VFd is structurally valid; the node must
+        still refuse it because the FINDER actor lacks the required VENDOR role.
+        """
+        from py_trees.common import Status
+
+        # Seed actor to Vfd so the transition check passes; role check fires next.
+        self._seed_participant_vfd_state(CS_vfd.Vfd)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFd, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+        assert "CSB-15-001" in bt_result.feedback_message
+
+    def test_fix_deployed_requires_deployer_role_at_write_node(self):
+        """CSB-15-002: VFD target is blocked when the actor has no DEPLOYER role.
+
+        The adjacent transition VFd → VFD is structurally valid; the node must
+        still refuse it because the FINDER actor lacks the required DEPLOYER role.
+        """
+        from py_trees.common import Status
+
+        # Seed actor to VFd so the transition check passes; role check fires next.
+        self._seed_participant_vfd_state(CS_vfd.VFd)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFD, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+        assert "CSB-15-002" in bt_result.feedback_message
+
 
 # ---------------------------------------------------------------------------
 # ValidateTriggerTransitionsNode — AC-1 through AC-6 (issues #2081, #1903)

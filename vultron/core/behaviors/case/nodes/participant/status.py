@@ -40,9 +40,15 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfdDimension,
 )
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import (
+    CS_pxa,
+    CS_vfd,
+    is_valid_pxa_transition,
+    is_valid_vfd_transition,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -112,6 +118,71 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         self._pxa_state = pxa_state
         self._result_out = result_out
 
+    def _check_vfd_preconditions(
+        self, current_vfd: CS_vfd, participant_obj: object
+    ) -> "Status | None":
+        """CSB-16-001 / CSB-15-001/002: validate VFD transition and role before writing."""
+        if self._vfd_state is not None and self._vfd_state != current_vfd:
+            if not is_valid_vfd_transition(current_vfd, self._vfd_state):
+                self.logger.warning(
+                    "%s: invalid VFD transition %s → %s for actor '%s'",
+                    self.name,
+                    current_vfd,
+                    self._vfd_state,
+                    self._actor_id,
+                )
+                self.feedback_message = f"Invalid VFD transition {current_vfd!r} → {self._vfd_state!r}"
+                return Status.FAILURE
+        actor_roles = (
+            participant_obj.roles  # type: ignore[attr-defined]
+            if isinstance(participant_obj, CaseParticipant)
+            else []
+        )
+        if self._vfd_state == CS_vfd.VFd and CVDRole.VENDOR not in actor_roles:
+            self.logger.warning(
+                "%s: actor '%s' lacks VENDOR role required for VFd (CSB-15-001)",
+                self.name,
+                self._actor_id,
+            )
+            self.feedback_message = (
+                "VENDOR role required for VFd target (CSB-15-001)"
+            )
+            return Status.FAILURE
+        if (
+            self._vfd_state == CS_vfd.VFD
+            and CVDRole.DEPLOYER not in actor_roles
+        ):
+            self.logger.warning(
+                "%s: actor '%s' lacks DEPLOYER role required for VFD (CSB-15-002)",
+                self.name,
+                self._actor_id,
+            )
+            self.feedback_message = (
+                "DEPLOYER role required for VFD target (CSB-15-002)"
+            )
+            return Status.FAILURE
+        return None
+
+    def _check_pxa_precondition(self, pxa_before: CS_pxa) -> "Status | None":
+        """CSB-16-002: validate PXA transition before writing."""
+        if self._pxa_state is None:
+            return None
+        if self._pxa_state != pxa_before and not is_valid_pxa_transition(
+            pxa_before, self._pxa_state
+        ):
+            self.logger.warning(
+                "%s: invalid PXA transition %s → %s for actor '%s'",
+                self.name,
+                pxa_before,
+                self._pxa_state,
+                self._actor_id,
+            )
+            self.feedback_message = (
+                f"Invalid PXA transition {pxa_before!r} → {self._pxa_state!r}"
+            )
+            return Status.FAILURE
+        return None
+
     def update(self) -> Status:
         dl = self.datalayer
         if dl is None:
@@ -148,10 +219,17 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         )
         participant_obj = dl.read(participant_id)
 
+        guard = self._check_vfd_preconditions(current_vfd, participant_obj)
+        if guard is not None:
+            return guard
+
         case_status: CaseStatus | None = None
         pxa_before: CS_pxa | None = None
         if self._pxa_state is not None:
             pxa_before = _resolve_pxa_state(case, participant_obj)
+            guard = self._check_pxa_precondition(pxa_before)
+            if guard is not None:
+                return guard
             case_status = CaseStatus(
                 context=self._case_id,
                 attributed_to=self._actor_id,
