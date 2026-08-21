@@ -13,11 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for ``CheckVendorRoleNode`` and ``CheckDeployerRoleNode``.
+"""Unit tests for VFD role-guard nodes.
 
-Both nodes gate VFD state transitions per CSB-15-001 and CSB-15-002:
 - CheckVendorRoleNode: gates f→F (vfd_state=VFd); actor must hold CVDRole.VENDOR
+  (CSB-15-001)
 - CheckDeployerRoleNode: gates d→D (vfd_state=VFD); actor must hold CVDRole.DEPLOYER
+  (CSB-15-002)
+- CheckNotSoleObserverVfdNode: gates v→V (vfd_state=Vfd); sole-OBSERVER actors
+  MUST NOT emit VFD transitions (CM-25-005)
 """
 
 import pytest
@@ -26,6 +29,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
+    CheckNotSoleObserverVfdNode,
     CheckVendorRoleNode,
 )
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
@@ -35,6 +39,8 @@ CASE_ID = "https://example.org/cases/case-001"
 VENDOR_ACTOR_ID = "https://example.org/actors/vendor"
 DEPLOYER_ACTOR_ID = "https://example.org/actors/deployer"
 COORDINATOR_ACTOR_ID = "https://example.org/actors/coordinator"
+OBSERVER_ACTOR_ID = "https://example.org/actors/observer"
+OBSERVER_VENDOR_ACTOR_ID = "https://example.org/actors/observer-vendor"
 
 
 @pytest.fixture
@@ -253,6 +259,159 @@ def test_deployer_guard_failure_when_actor_not_in_case(
     unknown_actor = "https://example.org/actors/unknown"
     result = bt_scenario.run(
         CheckDeployerRoleNode(case_id=CASE_ID, actor_id=unknown_actor),
+        actor_id=unknown_actor,
+    )
+    assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# CheckNotSoleObserverVfdNode (CM-25-005: gates v→V for sole-OBSERVER actors)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def observer_participant() -> VultronParticipant:
+    return VultronParticipant(
+        id_="https://example.org/participants/observer-cp-001",
+        attributed_to=OBSERVER_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.OBSERVER],
+    )
+
+
+@pytest.fixture
+def observer_vendor_participant() -> VultronParticipant:
+    return VultronParticipant(
+        id_="https://example.org/participants/observer-vendor-cp-001",
+        attributed_to=OBSERVER_VENDOR_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.OBSERVER, CVDRole.VENDOR],
+    )
+
+
+@pytest.fixture
+def case_with_observer_actors(
+    bt_scenario: BTTestScenario,
+    observer_participant: VultronParticipant,
+    observer_vendor_participant: VultronParticipant,
+    vendor_participant: VultronParticipant,
+    coordinator_participant: VultronParticipant,
+) -> VultronCase:
+    case = VultronCase(
+        id_=CASE_ID,
+        name="Test Case",
+        case_participants=[
+            observer_participant.id_,
+            observer_vendor_participant.id_,
+            vendor_participant.id_,
+            coordinator_participant.id_,
+        ],
+        actor_participant_index={
+            OBSERVER_ACTOR_ID: observer_participant.id_,
+            OBSERVER_VENDOR_ACTOR_ID: observer_vendor_participant.id_,
+            VENDOR_ACTOR_ID: vendor_participant.id_,
+            COORDINATOR_ACTOR_ID: coordinator_participant.id_,
+        },
+    )
+    bt_scenario.seed(
+        observer_participant,
+        observer_vendor_participant,
+        vendor_participant,
+        coordinator_participant,
+        case,
+    )
+    return case
+
+
+def test_not_sole_observer_failure_for_sole_observer_actor(
+    bt_scenario: BTTestScenario,
+    case_with_observer_actors: VultronCase,
+) -> None:
+    """FAILURE when actor holds only CVDRole.OBSERVER — v→V blocked (CM-25-005)."""
+    result = bt_scenario.run(
+        CheckNotSoleObserverVfdNode(
+            case_id=case_with_observer_actors.id_,
+            actor_id=OBSERVER_ACTOR_ID,
+        ),
+        actor_id=OBSERVER_ACTOR_ID,
+    )
+    assert result.status == Status.FAILURE
+
+
+def test_not_sole_observer_success_for_observer_plus_vendor(
+    bt_scenario: BTTestScenario,
+    case_with_observer_actors: VultronCase,
+) -> None:
+    """SUCCESS when actor holds OBSERVER + VENDOR — CM-26-001 union rule applies."""
+    result = bt_scenario.run(
+        CheckNotSoleObserverVfdNode(
+            case_id=case_with_observer_actors.id_,
+            actor_id=OBSERVER_VENDOR_ACTOR_ID,
+        ),
+        actor_id=OBSERVER_VENDOR_ACTOR_ID,
+    )
+    assert result.status == Status.SUCCESS
+
+
+def test_not_sole_observer_success_for_vendor_only_actor(
+    bt_scenario: BTTestScenario,
+    case_with_observer_actors: VultronCase,
+) -> None:
+    """SUCCESS when actor holds CVDRole.VENDOR (no OBSERVER)."""
+    result = bt_scenario.run(
+        CheckNotSoleObserverVfdNode(
+            case_id=case_with_observer_actors.id_,
+            actor_id=VENDOR_ACTOR_ID,
+        ),
+        actor_id=VENDOR_ACTOR_ID,
+    )
+    assert result.status == Status.SUCCESS
+
+
+def test_not_sole_observer_success_for_coordinator_actor(
+    bt_scenario: BTTestScenario,
+    case_with_observer_actors: VultronCase,
+) -> None:
+    """SUCCESS when actor holds CVDRole.COORDINATOR (no OBSERVER)."""
+    result = bt_scenario.run(
+        CheckNotSoleObserverVfdNode(
+            case_id=case_with_observer_actors.id_,
+            actor_id=COORDINATOR_ACTOR_ID,
+        ),
+        actor_id=COORDINATOR_ACTOR_ID,
+    )
+    assert result.status == Status.SUCCESS
+
+
+def test_not_sole_observer_failure_when_case_missing(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """FAILURE when the case record is absent from the DataLayer."""
+    result = bt_scenario.run(
+        CheckNotSoleObserverVfdNode(
+            case_id=CASE_ID, actor_id=OBSERVER_ACTOR_ID
+        ),
+        actor_id=OBSERVER_ACTOR_ID,
+    )
+    assert result.status == Status.FAILURE
+
+
+def test_not_sole_observer_failure_when_actor_not_in_case(
+    bt_scenario: BTTestScenario,
+    observer_participant: VultronParticipant,
+) -> None:
+    """FAILURE when actor_id is not present in actor_participant_index."""
+    case = VultronCase(
+        id_=CASE_ID,
+        name="Test Case",
+        case_participants=[observer_participant.id_],
+        actor_participant_index={OBSERVER_ACTOR_ID: observer_participant.id_},
+    )
+    bt_scenario.seed(observer_participant, case)
+
+    unknown_actor = "https://example.org/actors/unknown"
+    result = bt_scenario.run(
+        CheckNotSoleObserverVfdNode(case_id=CASE_ID, actor_id=unknown_actor),
         actor_id=unknown_actor,
     )
     assert result.status == Status.FAILURE

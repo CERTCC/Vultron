@@ -118,6 +118,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckIsCaseOwnerNode,
+    CheckNotSoleObserverVfdNode,
     CheckVendorRoleNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
@@ -190,6 +191,7 @@ __all__ = [
     # vfd_role_guards (condition nodes)
     "CheckVendorRoleNode",
     "CheckDeployerRoleNode",
+    "CheckNotSoleObserverVfdNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",

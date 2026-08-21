@@ -44,7 +44,10 @@ class CVDRole(StrEnum):
         VENDOR: Supplier of the affected product or service.
         DEPLOYER: Entity that deploys the fix.
         COORDINATOR: Entity that coordinates the CVD process.
-        OTHER: Any other CVD role not captured above.
+        OBSERVER: Monitoring participant with no vendor-fix-deployment
+            obligations; the base (lowest non-null privilege) CVD role.
+            Admitted via standard Invite/Accept (CM-25). Formerly ``OTHER``;
+            renamed in ADR-0057.
         CASE_OWNER: Actor who owns and manages a VulnerabilityCase (BTND-05-001).
         CASE_MANAGER: The ActivityStreams Actor that performs ongoing case
             replica synchronisation and manages the case on behalf of the case
@@ -65,7 +68,7 @@ class CVDRole(StrEnum):
     VENDOR = auto()
     DEPLOYER = auto()
     COORDINATOR = auto()
-    OTHER = auto()
+    OBSERVER = auto()
     CASE_OWNER = auto()
     CASE_MANAGER = auto()
     CVE_NUMBERING_AUTHORITY = auto()
