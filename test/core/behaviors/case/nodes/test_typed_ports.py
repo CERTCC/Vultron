@@ -25,10 +25,12 @@ from py_trees.ports import NoDataAvailable
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
 )
+from vultron.core.behaviors.case.nodes.embargo import AttachEmbargoToCaseNode
 from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     ActorAlreadyParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
+    BroadcastCaseUpdateNode,
     CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
@@ -183,5 +185,61 @@ class TestCheckCaseUpdateOwnerNodePorts:
         bt_scenario.seed(case)
         result = bt_scenario.run(
             CheckCaseUpdateOwnerNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        bt_scenario.assert_failure(result)
+
+
+# ---------------------------------------------------------------------------
+# embargo.py — AttachEmbargoToCaseNode
+# ---------------------------------------------------------------------------
+
+
+class TestAttachEmbargoToCaseNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = AttachEmbargoToCaseNode()
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_case_id_raises_no_data_available(self) -> None:
+        node = AttachEmbargoToCaseNode()
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("case_id")
+
+    def test_missing_default_embargo_id_raises_no_data_available(
+        self,
+    ) -> None:
+        node = AttachEmbargoToCaseNode()
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("default_embargo_id")
+
+
+# ---------------------------------------------------------------------------
+# update.py — BroadcastCaseUpdateNode
+# ---------------------------------------------------------------------------
+
+
+class TestBroadcastCaseUpdateNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = BroadcastCaseUpdateNode(case_id=CASE_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_excluded_actor_ids_raises_no_data_available(
+        self,
+    ) -> None:
+        node = BroadcastCaseUpdateNode(case_id=CASE_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("excluded_actor_ids")
+
+    def test_failure_when_case_absent(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            BroadcastCaseUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
         )
         bt_scenario.assert_failure(result)

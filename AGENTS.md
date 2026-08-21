@@ -297,6 +297,13 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core)** — all classes
   in `vultron/wire/as2/vocab/objects/` use `as_` prefix. Bare name = core type.
   See ARCH-14-001.
+- **Never add a new `from vultron.core.models import …` inside `vultron/wire/`** —
+  wire code that needs to convert a core object to wire form MUST use the
+  `as_Foo.from_core(core_obj)` class method already present on every wire vocab
+  object (e.g. `as_VulnerabilityCase.from_core(vc)`). Adding a raw core-model
+  import in wire code expands the KNOWN_VIOLATIONS set in
+  `test/architecture/test_wire_no_core_model_imports.py` and fails CI. See
+  ARCH-22-001 and ARCH-22-002.
 - **Never Reach for `alias_generator` or `by_alias=True` in Core to Get camelCase**
   — core needs wire-shaped JSON only for `CaseLedgerEntry.payloadSnapshot`, and it
   MUST get it from the `WireRenderPort` driven port, not from the domain model.
@@ -810,6 +817,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   "there are 4 unimplemented nodes" or "15 xfails" — these are stale snapshots.
   See MS-16-001 and [notes/specs-vs-adrs.md](notes/specs-vs-adrs.md).
   *Source: CONCERN-2277*
+- **Outbound `@context` MUST Cite the Vultron Namespace, Not Only the AS2 Namespace** —
+  `VultronAS2Object.context_` MUST default to the Vultron JSON-LD context URI
+  (`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
+  ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
+  namespace does not declare Vultron-specific types (`VulnerabilityCase`,
+  `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those
+  type names. The Vultron context document imports AS2 internally, so citing
+  only the Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
+  *Source: CONCERN-2105*
 - **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
   — two distinct failure modes when a boolean field from the matrix (e.g.
   `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:

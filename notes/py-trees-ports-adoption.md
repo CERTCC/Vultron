@@ -44,16 +44,21 @@ Idea's optimistic framing.
 - **Migration progress**:
   - Part 1/5 (#1883) migrated **41 Type-A nodes** across `case/`, `status/`,
     and `note/` domains — all trivial base-only reparents with no
-    domain-specific `register_key()` calls.
+    domain-specific `register_key()` calls. ✓
   - Part 2/5 (#1884) migrated **36 Type-A nodes** across `report/nodes/` and
-    `embargo/nodes/`. `_SendEmbargoActivityBase` and its two subclasses
-    (`SendTerminateEmbargoActivityNode`, `SendRejectEmbargoActivityNode`) are
-    deferred to Part 3 (#1885) — they access `self.blackboard` directly
-    (Type-B). **Headroom note**: `report/nodes/deploy_fix.py` is now exactly
-    500 lines (the BTND-07-004 hard limit); split it before the next change
-    (see `plan/incoming/learnings/20260821-deploy-fix-line-count-margin.md`).
-  - Remaining Type-B nodes across all domains are tracked under #1809
-    (parts 3–5).
+    `embargo/nodes/`. **Headroom note**: `report/nodes/deploy_fix.py` is now
+    exactly 500 lines (the BTND-07-004 hard limit); split it before the next
+    change (see `plan/incoming/learnings/20260821-deploy-fix-line-count-margin.md`).
+  - Part 3/5 (#1885) migrated **Type-B nodes** (extra READ-only inputs) across
+    `sync/`, `sender/`, `embargo/`, `case/`, and `status/` domains — adds
+    `input_ports()` + `_domain_port_remappings()` + `get_input()` in
+    `initialise()`. Also extracted `SendTerminateEmbargoActivityNode` from
+    `lifecycle.py` to restore BTND-07-004, and fixed
+    `DataLayerConditionWithPorts`/`DataLayerActionWithPorts.initialise()` to
+    catch `NotImplementedError` from py_trees when a blackboard key stores
+    explicit `None`. ✓ (2026-08-21)
+  - Remaining Type-C/D nodes (WRITE-handoff and finalization) are tracked under
+    #1809 (parts 4–5).
 - **XML parser**: `py_trees.parsers.behaviour_tree_xml` exists but is documented
   as **experimental** ("the parser is experimental and its API may change
   between releases"). It instantiates only classes registered in a

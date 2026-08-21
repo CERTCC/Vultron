@@ -28,10 +28,10 @@ from vultron.core.behaviors.case.update_support import (
     find_excluded_actor_ids,
 )
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     DataLayerCondition,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models._helpers import _as_id
@@ -154,18 +154,28 @@ class ApplyCaseUpdateNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class BroadcastCaseUpdateNode(DataLayerAction):
+class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
     """Broadcast the updated case to eligible participants."""
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="excluded_actor_ids", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["excluded_actor_ids"] = PortInformation(
+            data_type=object, required=True
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"excluded_actor_ids": "/excluded_actor_ids"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.excluded_actor_ids: set = self.get_input("excluded_actor_ids")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -182,26 +192,10 @@ class BroadcastCaseUpdateNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        try:
-            excluded_actor_ids = self.blackboard.get("excluded_actor_ids")
-        except KeyError:
-            self.feedback_message = (
-                "excluded_actor_ids not found in blackboard"
-            )
-            self.logger.error(
-                "%s: excluded_actor_ids not found in blackboard", self.name
-            )
-            return Status.FAILURE
-
-        if not isinstance(excluded_actor_ids, set):
-            self.feedback_message = "excluded_actor_ids is not a set"
-            self.logger.error("%s: excluded_actor_ids is not a set", self.name)
-            return Status.FAILURE
-
         broadcast_case_update(
             self.datalayer,
             self.case_id,
             case,
-            excluded_actor_ids=excluded_actor_ids,
+            excluded_actor_ids=self.excluded_actor_ids,
         )
         return Status.SUCCESS

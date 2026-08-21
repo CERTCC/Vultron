@@ -29,7 +29,9 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+)
 from vultron.config.actor import ActorConfig
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
@@ -290,11 +292,15 @@ class PersistOwnerCaseNode(DataLayerAction):
             key=self._participant_case_key, access=py_trees.common.Access.READ
         )
 
+    def initialise(self) -> None:
+        super().initialise()
+        self._stored_case = self.blackboard.get(self._participant_case_key)
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        stored_case = self.blackboard.get(self._participant_case_key)
+        stored_case = self._stored_case
         if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: %s missing in blackboard",
@@ -338,21 +344,26 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
             key=self._participant_case_key, access=py_trees.common.Access.READ
         )
 
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._case_id: str | None = self.blackboard.get("case_id")
+            if not isinstance(self._case_id, str):
+                self._case_id = None
+        except KeyError:
+            self._case_id = None
+        self._stored_case = self.blackboard.get(self._participant_case_key)
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        try:
-            case_id_obj = self.blackboard.get("case_id")
-        except KeyError:
-            case_id_obj = None
-        case_id = case_id_obj if isinstance(case_id_obj, str) else None
+        case_id = self._case_id
         if case_id is None:
-            stored_case = self.blackboard.get(self._participant_case_key)
             case_id = (
-                stored_case.id_
-                if isinstance(stored_case, VulnerabilityCase)
+                self._stored_case.id_
+                if isinstance(self._stored_case, VulnerabilityCase)
                 else None
             )
         if case_id is None:
@@ -405,13 +416,18 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
             access=py_trees.common.Access.READ,
         )
 
+    def initialise(self) -> None:
+        super().initialise()
+        self._stored_case = self.blackboard.get(self._participant_case_key)
+        self._participant = self.blackboard.get(self._new_case_participant_key)
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        stored_case = self.blackboard.get(self._participant_case_key)
-        participant = self.blackboard.get(self._new_case_participant_key)
+        stored_case = self._stored_case
+        participant = self._participant
         if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
             participant, VultronParticipant
         ):

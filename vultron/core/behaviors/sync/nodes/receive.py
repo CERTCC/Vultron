@@ -21,8 +21,13 @@ from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
@@ -49,15 +54,23 @@ def _require_log_entry(
     )
 
 
-class LogDeliveryConfirmationNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class LogDeliveryConfirmationNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         self.logger.debug(
             "%s: received round-trip delivery confirmation for log entry '%s'",
             self.name,
@@ -66,18 +79,26 @@ class LogDeliveryConfirmationNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class PersistReceivedLogEntryNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         self.datalayer.save(entry)
         self.logger.info(
             "%s: stored received log entry '%s' for case '%s'",
@@ -88,25 +109,31 @@ class PersistReceivedLogEntryNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CheckHashMatchesNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="tail_hash", access=py_trees.common.Access.READ
-        )
+class CheckHashMatchesNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["tail_hash"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity", "tail_hash": "/tail_hash"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+        self.tail_hash: str = self.get_input("tail_hash")
 
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        tail_hash = self.blackboard.tail_hash
-        if entry.prev_log_hash == tail_hash:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.prev_log_hash == self.tail_hash:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class BufferOutOfOrderEntryNode(DataLayerAction):
+class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
     """Hold a forward-gap ledger entry so it is not permanently dropped.
 
     When a received entry's ``prev_log_hash`` does not match the local tail
@@ -133,47 +160,52 @@ class BufferOutOfOrderEntryNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._gap_buffer: LedgerGapBuffer | None = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="tail_index", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="gap_buffer", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["tail_index"] = PortInformation(data_type=int, required=False)
+        ports["gap_buffer"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "tail_index": "/tail_index",
+            "gap_buffer": "/gap_buffer",
+        }
 
     def initialise(self) -> None:
         super().initialise()
+        self.activity = self.get_input("activity")
+        try:
+            self.tail_index: int | None = self.get_input("tail_index")
+        except (NoDataAvailable, NotImplementedError):
+            self.tail_index = None
         try:
             self._gap_buffer = cast(
-                LedgerGapBuffer, self.blackboard.gap_buffer
+                LedgerGapBuffer, self.get_input("gap_buffer")
             )
-        except (AttributeError, KeyError):
+        except (NoDataAvailable, NotImplementedError):
             self._gap_buffer = None
 
     def update(self) -> Status:
-        if self._gap_buffer is None:
+        if self._gap_buffer is None or self.tail_index is None:
             return Status.FAILURE
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        try:
-            tail_index = cast(int, self.blackboard.tail_index)
-        except (AttributeError, KeyError):
-            return Status.FAILURE
+        entry = _require_log_entry(self.activity, self.name)
 
         # Only buffer genuine *forward* gaps.  An entry at or behind the tail
         # index is stale, a duplicate, or a fork — not a reorder we can heal by
         # waiting, so let it fall through to the rejection path.
-        if entry.log_index <= tail_index + 1:
+        if entry.log_index <= self.tail_index + 1:
             self.logger.debug(
                 "%s: entry index=%d is not a forward gap (tail_index=%d) — "
                 "not buffering",
                 self.name,
                 entry.log_index,
-                tail_index,
+                self.tail_index,
             )
             return Status.FAILURE
 
@@ -189,7 +221,7 @@ class BufferOutOfOrderEntryNode(DataLayerAction):
         return Status.FAILURE
 
 
-class BufferPreGenesisEntryNode(DataLayerAction):
+class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
     """Hold a ledger entry that arrived before its ``VulnerabilityCase`` seed.
 
     This is the *pre-genesis* companion to :class:`BufferOutOfOrderEntryNode`.
@@ -224,29 +256,32 @@ class BufferPreGenesisEntryNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._gap_buffer: LedgerGapBuffer | None = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="gap_buffer", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["gap_buffer"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity", "gap_buffer": "/gap_buffer"}
 
     def initialise(self) -> None:
         super().initialise()
+        self.activity = self.get_input("activity")
         try:
             self._gap_buffer = cast(
-                LedgerGapBuffer, self.blackboard.gap_buffer
+                LedgerGapBuffer, self.get_input("gap_buffer")
             )
-        except (AttributeError, KeyError):
+        except (NoDataAvailable, NotImplementedError):
             self._gap_buffer = None
 
     def update(self) -> Status:
         if self._gap_buffer is None:
             return Status.FAILURE
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if self._gap_buffer.buffer(entry):
             self.logger.info(
                 "%s: buffered pre-genesis entry '%s' (index=%d) for case '%s' "
@@ -260,28 +295,36 @@ class BufferPreGenesisEntryNode(DataLayerAction):
         return Status.FAILURE
 
 
-class SendRejectLogEntryNode(DataLayerAction):
+class SendRejectLogEntryNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="tail_hash", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="sync_port", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["tail_hash"] = PortInformation(data_type=str, required=True)
+        ports["sync_port"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "tail_hash": "/tail_hash",
+            "sync_port": "/sync_port",
+        }
 
     def initialise(self) -> None:
         super().initialise()
+        self.activity = self.get_input("activity")
+        self.tail_hash: str = self.get_input("tail_hash")
         try:
-            self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
-        except (AttributeError, KeyError):
+            self._sync_port = cast(
+                SyncActivityPort, self.get_input("sync_port")
+            )
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
 
     def update(self) -> Status:
@@ -289,10 +332,9 @@ class SendRejectLogEntryNode(DataLayerAction):
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        tail_hash = self.blackboard.tail_hash
+        entry = _require_log_entry(self.activity, self.name)
 
-        sender_id = getattr(self.blackboard.activity, "actor_id", None)
+        sender_id = getattr(self.activity, "actor_id", None)
         if self._sync_port is None:
             raise VultronError(
                 f"{self.name}: sync_port must be injected to send rejection"
@@ -308,11 +350,11 @@ class SendRejectLogEntryNode(DataLayerAction):
             self.name,
             entry.id_,
             entry.prev_log_hash,
-            tail_hash,
+            self.tail_hash,
         )
         self._sync_port.send_reject_log_entry(
             entry=entry,
-            tail_hash=tail_hash,
+            tail_hash=self.tail_hash,
             actor_id=self.actor_id,
             to=[sender_id],
         )

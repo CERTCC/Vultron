@@ -31,15 +31,16 @@ from typing import cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
     terminate_embargo_bt,
 )
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models.case import VulnerabilityCase
@@ -365,7 +366,7 @@ class EmitAddCaseStatusToSelfNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class EmitCloseCaseNode(DataLayerAction):
+class EmitCloseCaseNode(DataLayerActionWithPorts):
     """Step 5 emit: Queue a ``Leave(VulnerabilityCase)`` to the Case Manager.
 
     Reads ``case_manager_id`` from the blackboard (written by the preceding
@@ -389,12 +390,26 @@ class EmitCloseCaseNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_manager_id",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_manager_id"] = PortInformation(
+            data_type=str, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_manager_id": "/case_manager_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.case_manager_id: str | None = self.get_input(
+                "case_manager_id"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self.case_manager_id = None
 
     def update(self) -> Status:
         if self.datalayer is None or not self.case_id:
@@ -408,12 +423,7 @@ class EmitCloseCaseNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        try:
-            case_manager_id: str | None = self.blackboard.get(
-                "case_manager_id"
-            )
-        except KeyError:
-            case_manager_id = None
+        case_manager_id = self.case_manager_id
         if not case_manager_id:
             self.feedback_message = (
                 f"EmitCloseCase: case_manager_id not set on blackboard"
