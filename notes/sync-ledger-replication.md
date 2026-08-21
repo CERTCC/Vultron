@@ -604,7 +604,7 @@ implementation references for the ledger replication protocol.
 A separate **external-facing companion document** (suitable for reviewers
 outside the project alongside the main Vultron protocol RFC) covers the same
 protocol mechanics — see `docs/reference/draft-vultron-replication-spec.md`
-(tracked in issue #2107).
+(tracked in issue #2495).
 
 The external companion and the internal SYNC spec cover the same protocol but
 serve different audiences. When the SYNC spec requirements change, the companion
@@ -614,7 +614,7 @@ reader-friendly rendering, not an independent source of truth.
 
 The document-boundary decision — why the replication mechanics live in a
 companion document rather than the main RFC — is recorded in
-`docs/adr/0069-ledger-replication-companion-spec.md` (tracked in issue #2107).
+`docs/adr/0069-ledger-replication-companion-spec.md` (tracked in issue #2494).
 
 ## Related
 
