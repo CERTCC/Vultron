@@ -182,6 +182,36 @@ groups:
     priority: MUST
     kind: project
     statement: Tests MUST verify that the application starts successfully with all defaults (no file, no env vars set).
+  - id: CFG-06-006
+    priority: MUST
+    kind: project
+    statement: >-
+      `vultron/config/app.py` MUST export a `config_override(**env_updates)` context manager that
+      atomically sets the given environment variables, calls `reload_config()`, yields the updated
+      `AppConfig`, and then restores the original environment values and calls `reload_config()`
+      again — including when the body raises an exception (i.e., the restore MUST happen in a
+      `finally` block).
+    rationale: >-
+      Calling `reload_config()` in fixture teardown while env patches are still active bakes
+      stale values into the module-level `_config_cache` for subsequent tests (ISSUE-2086,
+      CONCERN-2323). `config_override()` owns both the env mutation and the cache lifecycle, making
+      the incorrect reload-before-undo ordering impossible by construction.
+  - id: CFG-06-007
+    priority: SHOULD
+    kind: project
+    statement: >-
+      Test fixtures that need to override `AppConfig` values SHOULD use `config_override()`
+      instead of combining `monkeypatch.setenv()` with explicit `reload_config()` calls. Where
+      `monkeypatch` is used directly (e.g., in session-scoped fixtures), `monkeypatch.undo()` MUST
+      precede any `reload_config()` call in teardown (CFG-06-003).
+    rationale: >-
+      `config_override()` (CFG-06-006) eliminates the ordering footgun: the correct
+      undo-then-reload sequence is impossible to get wrong. The explicit ordering rule
+      is still required for code that cannot adopt `config_override()`.
+    relationships:
+    - rel_type: refines
+      spec_id: CFG-06-003
+      note: config_override() is the preferred mechanism; CFG-06-003 applies when it cannot be used
 - id: CFG-07
   title: Actor Configuration
   specs:
