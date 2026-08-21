@@ -36,7 +36,7 @@ class CVDRolesFlag(Flag):
     VENDOR = auto()
     DEPLOYER = auto()
     COORDINATOR = auto()
-    OTHER = auto()
+    OBSERVER = auto()
     CASE_OWNER = auto()
 
     # shorthand
@@ -45,7 +45,7 @@ class CVDRolesFlag(Flag):
     V = VENDOR
     D = DEPLOYER
     C = COORDINATOR
-    O = OTHER  # noqa: E741
+    O = OBSERVER  # noqa: E741
 
     # frequent combinations
     FINDER_REPORTER = FINDER | REPORTER
