@@ -259,6 +259,9 @@ jobs:
       needs.scenarios.result == 'success'
     strategy:
       fail-fast: false
+      # Intentionally identical to the `demo` job matrix: both jobs must fan
+      # out over the same scenario set.  GitHub Actions does not support YAML
+      # anchors, so the `include:` stanza cannot be deduplicated further.
       matrix:
         include: ${{ fromJSON(needs.scenarios.outputs.matrix) }}
 
