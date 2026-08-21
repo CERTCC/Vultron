@@ -817,6 +817,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   "there are 4 unimplemented nodes" or "15 xfails" — these are stale snapshots.
   See MS-16-001 and [notes/specs-vs-adrs.md](notes/specs-vs-adrs.md).
   *Source: CONCERN-2277*
+- **Outbound `@context` MUST Cite the Vultron Namespace, Not Only the AS2 Namespace** —
+  `VultronAS2Object.context_` MUST default to the Vultron JSON-LD context URI
+  (`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
+  ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
+  namespace does not declare Vultron-specific types (`VulnerabilityCase`,
+  `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those
+  type names. The Vultron context document imports AS2 internally, so citing
+  only the Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
+  *Source: CONCERN-2105*
 - **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
   — two distinct failure modes when a boolean field from the matrix (e.g.
   `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:

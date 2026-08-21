@@ -158,6 +158,7 @@ during implementation (see §6.4) and is fully normative.
 - Vultron messages are ActivityStreams 2.0 Activities
 - Required fields: `type`, `actor`, `object`, `id`
 - Extended types defined by the Vultron vocabulary namespace
+  (`https://certcc.github.io/Vultron/ns`)
 - Implementations MUST use the Vultron AS2 vocabulary for message structure;
   full ActivityPub server semantics (inbox/outbox HTTP delivery, WebFinger
   discovery, HTTP Signatures) are not currently required by this specification
@@ -291,8 +292,27 @@ permitted.
 ### 4.5 Serialization
 
 - JSON-LD as the normative serialization
-- Required context declarations
-- *Source: AS2/ActivityPub standards; `specs/message-validation.yaml`*
+- Outbound Vultron messages MUST set `@context` to the Vultron JSON-LD context
+  document URI: `https://certcc.github.io/Vultron/ns/context.jsonld`. This
+  context document imports the ActivityStreams 2.0 namespace and declares all
+  Vultron-specific type names, so implementations need cite only the Vultron
+  URI.
+
+    ```json
+    {
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "type": "VulnerabilityCase",
+      ...
+    }
+    ```
+
+!!! note "Provisional namespace URI"
+    The namespace is currently hosted on GitHub Pages
+    (`certcc.github.io/Vultron`). A permanent namespace URI may be registered
+    in a future version of this specification. See ADR-0069.
+
+- *Source: AS2/ActivityPub standards; `specs/vocabulary-model.yaml`
+  (VM-10-001, VM-10-002); ADR-0069*
 
 ### 4.6 Transport Layer [N/I]
 
@@ -1450,8 +1470,13 @@ implementation. Other implementations are not required to use this structure.
 
 ## 9. IANA / Namespace Considerations [I]
 
-- Vultron vocabulary namespace registration (future)
-- AS2 extension type naming conventions
+- **Vultron vocabulary namespace**: `https://certcc.github.io/Vultron/ns`
+  (initial, provisional — hosted on GitHub Pages). A permanent URI registration
+  (e.g., `w3id.org` redirect) is planned for a future version of this
+  specification. See ADR-0069.
+- **JSON-LD context document**: `https://certcc.github.io/Vultron/ns/context.jsonld`
+- AS2 extension type naming conventions: Vultron type names use PascalCase
+  without an `as_` prefix in wire output (e.g., `"type": "VulnerabilityCase"`)
 
 ---
 
@@ -1501,8 +1526,10 @@ implementation. Other implementations are not required to use this structure.
 
 ## Open Questions (to resolve before circulating)
 
-1. **Namespace URI** — Is there a stable `vultron:` or `https://vultron.example/`
-   namespace ready to cite?
+1. ~~**Namespace URI**~~ — Resolved. The Vultron vocabulary namespace is
+   `https://certcc.github.io/Vultron/ns`; the JSON-LD context document is at
+   `https://certcc.github.io/Vultron/ns/context.jsonld`. See §4.5 and ADR-0069.
+   A permanent namespace URI may be registered in a future version.
 2. **Sync/replication** — Is the ledger replication protocol in scope for this
    RFC, or a separate companion spec? The Hosting capability set obligation to
    replicate is stable either way (§7.2); what may move is the detailed mechanics.
