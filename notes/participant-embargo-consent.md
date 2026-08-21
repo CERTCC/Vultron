@@ -142,21 +142,13 @@ consent writes fail-closed regardless of whether the upstream BT guard is
 correct — the fail-open concern raised for `CreateParticipantStatusNode` in
 ISSUE-1825.
 
-**Corollary — `apply_pec_trigger` returns the state unchanged on an invalid
-trigger.** It logs a warning and does *not* raise. Code that ignores the return
-value will report success while recording nothing. This is exactly how
-`_SignEmbargoConsentLeafNode` came to log `"signed embargo consent for
-invitee"` while leaving the participant at `NO_EMBARGO`.
+Note: `apply_pec_trigger()` (the legacy soft-fail helper that returned the
+current state unchanged on an invalid trigger instead of raising) has been
+removed from `participant_embargo_consent.py` (CONCERN-1871). Use
+`apply_pec_transition()` on `CaseParticipant`, which delegates to
+`PecDimension.transition()` and is fail-closed.
 
-**Routing through `apply_pec_trigger` is necessary but not sufficient.** It
-validates the trigger, but the write it feeds is still
-`participant.embargo_consent_state = <new state>` — a scalar assignment that
-does not sync `ParticipantStatus`. So an `apply_pec_trigger`-based site has the
-*machine* right and the *snapshot* wrong, and still violates CM-18-006. Both
-halves are required: validate the trigger **and** persist the resulting
-`ParticipantStatus`.
-
-Consent-write sites after CM-18-005 (all ten route through `apply_pec_transition()`):
+Consent-write sites (all ten route through `apply_pec_transition()`):
 
 | Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
