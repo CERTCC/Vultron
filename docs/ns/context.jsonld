@@ -3,7 +3,6 @@
     "https://www.w3.org/ns/activitystreams",
     {
       "vultron": "https://certcc.github.io/Vultron/ns#",
-      "CaseActor": "vultron:CaseActor",
       "CaseLedgerEntry": "vultron:CaseLedgerEntry",
       "CaseParticipant": "vultron:CaseParticipant",
       "CaseParticipantRole": "vultron:CaseParticipantRole",

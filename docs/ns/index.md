@@ -19,7 +19,6 @@ extends the AS2 core vocabulary with CVD-specific object types.
 
 | Type name | Description |
 |-----------|-------------|
-| `CaseActor` | ActivityStreams Service actor created during case initialization |
 | `CaseLedgerEntry` | Entry in the canonical append-only case ledger |
 | `CaseParticipant` | Actor-in-role binding within a specific case |
 | `CaseParticipantRole` | A CVD role being offered to an actor in a case context |
