@@ -276,7 +276,7 @@ A capability shape defines the contract. A concrete implementation that satisfie
 **Relationship to other concepts.**
 
 - Capability shapes are orthogonal to capability sets. An Observer implementation may have zero capability shapes implemented. A Sentinel capability does not require anything beyond what the host behavior engine provides.
-- Capability shapes are the taxonomy for the optional capabilities in [Vultron-compatible capabilities](#vultron-compatible-capabilities).
+- Capability shapes are the taxonomy for the optional capabilities in [Vultron capability sets](#vultron-capability-sets).
 - In the reference implementation, a capability shape maps to a Port (abstract interface). A concrete capability implementation maps to an Adapter. This mapping is specific to the hexagonal architecture of the Python codebase and is not required of other implementations.
 
 ---
