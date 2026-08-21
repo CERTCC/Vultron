@@ -235,7 +235,10 @@ def _bootstrap_case_for_participant(
         participant_slug: Short slug for the participant actor.
 
     Returns:
-        The ``id_`` of the ``as_VulnerabilityCase`` created on owner's app.
+        ``(case_id, owner_actor_id)``.  The owner's id is returned as well as the
+        case's because a caller wanting the owner's *view* of the case has to open
+        the owner's own store, and the actor is created here under a per-test
+        slug that the caller would otherwise have to reconstruct.
     """
     owner_base_api = owner_iso.base_url + "/api/v2"
     participant_base_api = participant_iso.base_url + "/api/v2"
@@ -294,12 +297,18 @@ def _bootstrap_case_for_participant(
     # Under ADR-0041, case_proposal_received_tree creates the canonical case
     # when Create(as_CaseProposal) is processed; trigger/create-case above
     # may add a second case — find by report_id to avoid ambiguity.
-    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    # The owner's own store, not `owner_iso.dl`: this test creates its actor
+    # under a per-test slug, while `dl` is the app's default-slug store, so
+    # reading `dl` reports an empty store and the assertion fails for the wrong
+    # reason (ADR-0066 — a store is exactly one actor's).
+    owner_dl = owner_iso.store_for(owner_actor_id)
+
+    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
     case_id: str
     if case_from_proposal is not None:
         case_id = str(case_from_proposal.id_)
     else:
-        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        all_cases = owner_dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, (
             "Expected at least one as_VulnerabilityCase in owner's DataLayer "
             "after trigger/create-case, but none was found."
@@ -318,7 +327,7 @@ def _bootstrap_case_for_participant(
         resp.status_code == 202
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
-    return case_id
+    return case_id, owner_actor_id
 
 
 # ---------------------------------------------------------------------------
@@ -357,7 +366,7 @@ class TestBootstrapSequence:
             "the bootstrap sequence begins."
         )
 
-        case_id = _bootstrap_case_for_participant(
+        case_id, owner_actor_id = _bootstrap_case_for_participant(
             owner_iso,
             participant_iso,
             owner_tc,
@@ -397,7 +406,7 @@ class TestBootstrapSequence:
         """
         owner_iso, participant_iso, owner_tc, participant_tc = two_app_setup
 
-        case_id = _bootstrap_case_for_participant(
+        case_id, owner_actor_id = _bootstrap_case_for_participant(
             owner_iso,
             participant_iso,
             owner_tc,
@@ -412,7 +421,7 @@ class TestBootstrapSequence:
             "participant's DataLayer after bootstrap sequence."
         )
 
-        owner_case = owner_iso.dl.read(case_id)
+        owner_case = owner_iso.store_for(owner_actor_id).read(case_id)
         expected_name = getattr(owner_case, "name", None)
         # Under ADR-0041 the CaseActor creates the case without a name;
         # field-preservation still holds (None == None is valid).

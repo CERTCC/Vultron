@@ -256,12 +256,18 @@ def _bootstrap_and_engage(
     # Find the canonical case by report_id to avoid picking up the extra
     # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
     # also creates one via case_proposal_received_tree).
-    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    # The owner's own store, not `owner_iso.dl`: this test creates its actor
+    # under a per-test slug, while `dl` is the app's default-slug store, so
+    # reading `dl` reports an empty store and the assertion fails for the wrong
+    # reason (ADR-0066 — a store is exactly one actor's).
+    owner_dl = owner_iso.store_for(owner_actor_id)
+
+    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
     case_id: str
     if case_from_proposal is not None:
         case_id = str(case_from_proposal.id_)
     else:
-        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        all_cases = owner_dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, (
             "Expected at least one VulnerabilityCase in owner's DataLayer "
             "after trigger/create-case."
@@ -270,11 +276,11 @@ def _bootstrap_and_engage(
 
     # In this test the owner acts as the CaseActor.  Register that identity
     # in the VultronReportCaseLink so _find_case_actor_id resolves correctly.
-    for link in owner_iso.dl.list_objects("ReportCaseLink"):
+    for link in owner_dl.list_objects("ReportCaseLink"):
         if isinstance(link, VultronReportCaseLink):
             link.case_id = case_id
             link.trusted_case_actor_id = owner_actor_id
-            owner_iso.dl.save(link)
+            owner_dl.save(link)
             break
 
     # Validate the report → CaseActor queues Create(VulnerabilityCase).
@@ -287,7 +293,7 @@ def _bootstrap_and_engage(
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
     # Drain CaseActor's outbox so Create(VulnerabilityCase) reaches reporter.
-    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
+    case_actor_id = _find_case_actor_id(owner_dl, case_id)
     assert (
         case_actor_id is not None
     ), f"Could not find CaseActor for case '{case_id}' in owner's DataLayer."

@@ -23,7 +23,10 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    _resolve_case_manager_id,
+)
 
 
 class _EmitCaseActorReportActivityBase(DataLayerAction):
@@ -198,9 +201,19 @@ def _compute_report_addressees(
     Per ADR-0035 DL-06-001: the offer submitter ID is read from the core
     ``VultronOfferRecord``, not from the stored wire Offer activity.
 
+    The Case Actor is **not** excluded from being addressed when it is itself the
+    sender.  CLP-10-001 is explicit that "the CaseActor is a participant with
+    extra duties; it is not excluded" — an activity it originates still has to
+    reach its own inbox, because that is what triggers its received-side use case
+    and fires ``GuardedCommitCaseLedgerEntryBT`` in the right inbox context via
+    HTTP loopback self-delivery (OX-12-004).  Dropping the self-address left a
+    report activity with no recipients at all, which fails the emit node and
+    surfaces as "no routable recipients" — so an actor that both participates and
+    manages the case could not validate a report.
+
     Args:
         report_id: VulnerabilityReport ID used to locate the linked case.
-        actor_id: Sender's actor ID (excluded from recipient list).
+        actor_id: Sender's actor ID.
         offer_record: Core offer record capturing the submitter's actor ID.
         dl: DataLayer for case lookup.
 
@@ -209,8 +222,17 @@ def _compute_report_addressees(
     """
     case = dl.find_case_by_report_id(report_id)
     if isinstance(case, VulnerabilityCase):
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id and case_manager_id != actor_id:
+        # The case's own participant list is authoritative once bootstrap has
+        # populated it.  Before that it is empty, so fall back to the trust
+        # anchor recorded on the ``ReportCaseLink`` — the same resolution
+        # `_find_case_actor_id` performs for every other case-scoped path, and
+        # the reason it exists (CBT-01-006).  Without the fallback a case created
+        # before its participants are registered has no addressable manager, and
+        # the report activity fails as unroutable.
+        case_manager_id = _resolve_case_manager_id(case, dl) or (
+            _find_case_actor_id(dl, case.id_)
+        )
+        if case_manager_id:
             return [case_manager_id]
         return None
 
