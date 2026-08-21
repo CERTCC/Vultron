@@ -111,7 +111,10 @@ nav:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
     - 'reference/index.md'
-    - Ubiquitous Language: 'reference/glossary.md'
+    - Protocol Architecture:
+      - Concept Taxonomy: 'reference/vultron-taxonomy.md'
+      - Ubiquitous Language: 'reference/glossary.md'
+      - Draft Protocol Specification: 'reference/draft-vultron-spec.md'
     - Terms and Definitions: 'reference/terms.md'
     - Notation: 'reference/notation.md'
     - Versioning: 'reference/versioning.md'
@@ -315,6 +318,7 @@ validation:
     omitted_files: warn
 draft_docs: |
   draft-*.md
+  !reference/draft-vultron-spec.md
   docs/developer/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
