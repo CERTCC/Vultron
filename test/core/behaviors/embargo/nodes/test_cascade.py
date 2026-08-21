@@ -18,6 +18,8 @@
 import logging
 
 import py_trees
+import pytest
+from py_trees.ports import NoDataAvailable
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.cascade import (
@@ -39,17 +41,8 @@ def _make_core_embargo(suffix: str = "1") -> CoreEmbargoEvent:
 
 
 def _setup_blackboard_null_dl() -> None:
-    """Populate blackboard with datalayer=None to exercise null-DL guards."""
+    """Enable activity stream without populating datalayer (port absent)."""
     py_trees.blackboard.Blackboard.enable_activity_stream()
-    blackboard = py_trees.blackboard.Client(name="test-null-dl")
-    blackboard.register_key(
-        key="datalayer", access=py_trees.common.Access.WRITE
-    )
-    blackboard.register_key(
-        key="actor_id", access=py_trees.common.Access.WRITE
-    )
-    blackboard.datalayer = None
-    blackboard.actor_id = None
 
 
 class TestPersistEmbargoEventNode:
@@ -89,14 +82,12 @@ class TestPersistEmbargoEventNode:
         assert any("already exists" in r.message for r in caplog.records)
 
     def test_returns_failure_when_datalayer_unavailable(self):
-        """Node returns FAILURE when the DataLayer is None on the blackboard."""
+        """NoDataAvailable raised when datalayer port has no data (BTND-03-011)."""
         embargo = _make_core_embargo("pen3")
 
         _setup_blackboard_null_dl()
 
         node = PersistEmbargoEventNode(embargo=embargo)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.FAILURE
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")

@@ -33,7 +33,10 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_case_manager_id,
     resolve_participant_state_from_dl,
@@ -85,7 +88,7 @@ def _resolve_actor_roles(
     return list(participant.roles) if participant.roles else []
 
 
-class CheckIsVendorRoleNode(DataLayerCondition):
+class CheckIsVendorRoleNode(DataLayerConditionWithPorts):
     """Gate: actor MUST hold CVDRole.VENDOR to proceed with fix development.
 
     Returns ``SUCCESS`` when the actor holds ``CVDRole.VENDOR`` — allowing
@@ -142,7 +145,7 @@ class CheckIsVendorRoleNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class CheckCSFixNotYetReady(DataLayerCondition):
+class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
     """Short-circuit guard: fix already ready means nothing to do.
 
     Returns ``SUCCESS`` when the actor's VFD state is already fix-ready
@@ -206,7 +209,7 @@ class CheckCSFixNotYetReady(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckRMStateAccepted(DataLayerCondition):
+class CheckRMStateAccepted(DataLayerConditionWithPorts):
     """Guard: actor RM state must be ACCEPTED to create a fix.
 
     Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
@@ -267,7 +270,7 @@ class CheckRMStateAccepted(DataLayerCondition):
         return Status.FAILURE
 
 
-class TransitionCStoFixReady(DataLayerAction):
+class TransitionCStoFixReady(DataLayerActionWithPorts):
     """Persist a VFd ParticipantStatus snapshot for the actor in this case.
 
     Advances the actor's VFD dimension to ``CS_vfd.VFd`` (fix developed) and
@@ -329,7 +332,7 @@ class TransitionCStoFixReady(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitCFActivity(DataLayerAction):
+class EmitCFActivity(DataLayerActionWithPorts):
     """Emit a CF (Fix Readiness) ``Add(ParticipantStatus)`` to the Case Actor.
 
     Calls ``trigger_activity_factory.add_participant_status_to_participant``

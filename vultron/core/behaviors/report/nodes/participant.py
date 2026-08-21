@@ -17,12 +17,12 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import update_participant_rm_state
 
 
-class TransitionParticipantRMtoAccepted(DataLayerAction):
+class TransitionParticipantRMtoAccepted(DataLayerActionWithPorts):
     """
     Transition actor's RM state to ACCEPTED in the specified case.
 
@@ -76,7 +76,7 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
             return Status.FAILURE
 
 
-class TransitionParticipantRMtoDeferred(DataLayerAction):
+class TransitionParticipantRMtoDeferred(DataLayerActionWithPorts):
     """
     Transition actor's RM state to DEFERRED in the specified case.
 

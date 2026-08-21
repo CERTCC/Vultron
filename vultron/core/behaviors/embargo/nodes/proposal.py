@@ -18,7 +18,10 @@
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
@@ -147,7 +150,7 @@ class CreateAndStoreInviteNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class RecordParticipantAcceptanceNode(DataLayerAction):
+class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
     """Record participant acceptance of embargo via EmbargoLifecycle.
 
     Uses EmbargoLifecycle.accept_embargo_invite(OBSERVED) to record the

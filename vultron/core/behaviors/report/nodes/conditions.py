@@ -18,7 +18,6 @@
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerCondition,
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
@@ -200,7 +199,7 @@ class EnsureEmbargoExists(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class EvaluateReportCredibility(DataLayerCondition):
+class EvaluateReportCredibility(DataLayerConditionWithPorts):
     """
     Evaluate report credibility using policy.
 
@@ -234,7 +233,7 @@ class EvaluateReportCredibility(DataLayerCondition):
         return Status.SUCCESS
 
 
-class EvaluateReportValidity(DataLayerCondition):
+class EvaluateReportValidity(DataLayerConditionWithPorts):
     """
     Evaluate report technical validity using policy.
 
@@ -268,7 +267,7 @@ class EvaluateReportValidity(DataLayerCondition):
         return Status.SUCCESS
 
 
-class EvaluateCasePriority(DataLayerCondition):
+class EvaluateCasePriority(DataLayerConditionWithPorts):
     """
     Evaluate whether to engage or defer a case using prioritization policy.
 
@@ -337,7 +336,7 @@ class CheckParticipantExists(FindParticipantByActorIdNode):
         )
 
 
-class CheckReportNotClosed(DataLayerCondition):
+class CheckReportNotClosed(DataLayerConditionWithPorts):
     """Check that the report does NOT already have an RM.CLOSED status record.
 
     Returns SUCCESS when the report is not yet closed (the transition is

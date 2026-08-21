@@ -18,7 +18,6 @@
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
 )
 from vultron.core.models.dimensions import PecDimension, RmDimension
@@ -65,7 +64,7 @@ def _current_report_phase_rm_state(dl, actor_id: str, report_id: str) -> RM:
 
 
 def _transition_case_participant_rm(
-    node: "DataLayerAction",
+    node: "DataLayerActionWithPorts",
     report_id: str | None,
     new_rm_state: RM,
 ) -> "Status":
@@ -249,7 +248,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class TransitionRMtoInvalid(DataLayerAction):
+class TransitionRMtoInvalid(DataLayerActionWithPorts):
     """
     Transition report to RM.INVALID.
 
@@ -337,7 +336,7 @@ class TransitionRMtoInvalid(DataLayerAction):
             return Status.FAILURE
 
 
-class TransitionRMtoClosed(DataLayerAction):
+class TransitionRMtoClosed(DataLayerActionWithPorts):
     """
     Transition report to RM.CLOSED (report-phase ParticipantStatus).
 
@@ -424,7 +423,7 @@ class TransitionRMtoClosed(DataLayerAction):
             return Status.FAILURE
 
 
-class TransitionCaseParticipantRMtoClosed(DataLayerAction):
+class TransitionCaseParticipantRMtoClosed(DataLayerActionWithPorts):
     """Transition the actor's RM state to CLOSED in the case for a report.
 
     Looks up the VulnerabilityCase by ``report_id`` and advances the actor's
@@ -460,7 +459,7 @@ class TransitionCaseParticipantRMtoClosed(DataLayerAction):
         return _transition_case_participant_rm(self, self.report_id, RM.CLOSED)
 
 
-class TransitionCaseParticipantRMtoInvalid(DataLayerAction):
+class TransitionCaseParticipantRMtoInvalid(DataLayerActionWithPorts):
     """Transition the actor's RM state to INVALID in the case for a report.
 
     Looks up the VulnerabilityCase by ``report_id`` and advances the actor's
