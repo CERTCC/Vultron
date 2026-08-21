@@ -92,7 +92,9 @@ DataLayer (CLP-10-006), so it can run before `GuardedCommitOrSkip` and the
 canonical entry snapshots the accepted portion rather than the raw claim.
 
 `em` is deliberately **not** adjudicated here — embargo state belongs to EmbargoTeardownAuthorizationGate
-(ISSUE-2256).
+(ISSUE-2256). The EM adjudication node introduced by ISSUE-2256 will be a second producer of
+`ledger_payload_object_override`; ISSUE-2256's body documents the required producer contract
+(RSH-05-010 through RSH-05-014).
 
 Two blackboard keys carry the handoff. Both are written on *every* tick (with
 `None` when nothing was filtered) and matched by object ID on read, because the
