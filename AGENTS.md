@@ -789,6 +789,27 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   "there are 4 unimplemented nodes" or "15 xfails" — these are stale snapshots.
   See MS-16-001 and [notes/specs-vs-adrs.md](notes/specs-vs-adrs.md).
   *Source: CONCERN-2277*
+- **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
+  — two distinct failure modes when a boolean field from the matrix (e.g.
+  `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:
+  (1) **Job-level `if:`**: the `matrix` context does not exist yet — GitHub
+  evaluates job-level `if:` conditions *before* expanding the matrix. The
+  workflow is rejected with a startup failure: zero jobs scheduled, no logs, no
+  per-job status, and the run name is reported as the file path. The failure
+  reads as noise, not a regression (DEMOCI-06-004, ISSUE-2118).
+  (2) **Step-level `if:`**: the `matrix` context IS available, but GitHub
+  coerces JSON boolean `false` to the string `"false"`. The comparison
+  `matrix.full_suite_only == false` then always evaluates to `false` because a
+  string never equals a boolean, silently defeating the intended filter
+  (CONCERN-2327).
+  Fix for both: resolve the boolean filter *before* matrix expansion using a
+  dedicated `scenarios` job that calls `jq 'select(.full_suite_only == false)'`
+  on the JSON source and exposes a filtered matrix as a job output. Both
+  downstream jobs expand `fromJSON()` of that output — the boolean comparison
+  lives in `jq`, which understands JSON natively. See DEMOCI-06-004,
+  DEMOCI-06-007, DEMOCI-06-008 and
+  [notes/demo-ci-scenario-coverage.md](notes/demo-ci-scenario-coverage.md).
+  *Source: CONCERN-2327, ISSUE-2118*
 
 ---
 
