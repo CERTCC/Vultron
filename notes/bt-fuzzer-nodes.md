@@ -62,7 +62,7 @@ Each fuzzer node entry in the sub-files has these fields:
   in the py_trees-based prototype (added in FUZZ-08a / PR #1179); N/A for
   simulation-only nodes not ported to the new architecture
 - **Call-out point shape**: Evaluator, Retriever, Sentinel, Composer, or
-  ProtocolInternal — per the agent shape taxonomy in
+  ProtocolInternal — per the capability shape taxonomy in
   `docs/adr/0024-coordination-agent-taxonomy.md` (added in FUZZ-08a / PR
   #1179; reclassified in issue #1188). Use `ProtocolInternal` only for
   nodes that are terminal placeholders or structural composites with no
