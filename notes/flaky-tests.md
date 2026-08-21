@@ -113,7 +113,7 @@ No open entries.
 | `fv Invariant Harness` | #2422 | 2026-08-20 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
-| `fcvcv Demo Integration` | #2376 | 2026-08-20 |
+| `fcvcv Demo Integration` | #2376 | 2026-08-21 |
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
