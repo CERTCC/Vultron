@@ -291,6 +291,14 @@ class _StoreProposalReportNode(DataLayerAction):
             )
             return Status.SUCCESS
 
+        # Core-shaped validation only: core MUST NOT import the wire layer
+        # (ARCH-03-001). A wire-serialised report reaches here spelled
+        # `attributedTo`, which this core model drops under `extra="ignore"` —
+        # producing a stored report with no reporter and a downstream "has no
+        # attributed_to" that points nowhere near the cause. Ingress therefore
+        # pre-stores the inline report itself, where wire types are allowed
+        # (`_store_second_level_inline_objects`), and this node is the fallback
+        # for the paths that do not go through ingress.
         try:
             report = VulnerabilityReport.model_validate(raw)
         except Exception as exc:

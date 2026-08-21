@@ -158,24 +158,42 @@ class FastAPIIngressAdapter:
         hydrated in place (:meth:`DataLayer.hydrate` expands any scalar/list ID
         references) and returned, so routing sees the typed ``CaseLedgerEntry``
         without the adapter ever writing the ledger.
+
+        The same hazard bit ``Create(CaseProposal)``, which inlines the
+        vulnerability report inside the proposal (CP-01-004): the report was never
+        pre-stored, so the by-ID re-read collapsed it and the receiver had no report
+        (#2482). That is fixed by making ingress pre-store second-level inline
+        objects (``_store_second_level_inline_objects``) rather than by adding
+        another branch here — the re-read is correct once the store actually holds
+        what the sender inlined.
+
+        Resist adding activity types to the exception above. An in-place hydration
+        skips the wire→core normalisation the by-ID path performs, so routing
+        downstream sees `as_`-prefixed types and fails with "Expected
+        VulnerabilityCase, got as_VulnerabilityCase". Fix the missing write, not the
+        read.
         """
         if _is_inline_ledger_entry_announce(activity):
-            try:
-                hydrated = self._dl.hydrate(activity)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning(
-                    "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
-                    " returning parsed activity unchanged.",
-                    exc,
-                )
-                return activity
-            if isinstance(hydrated, as_Activity):
-                return hydrated
-            return activity
+            return self._hydrate_in_place(activity)
 
         result = rehydrate(activity.id_, dl=self._dl)
         if isinstance(result, as_Activity):
             return result
+        return activity
+
+    def _hydrate_in_place(self, activity: as_Activity) -> as_Activity:
+        """Expand reference fields on the *parsed* activity, without a re-read."""
+        try:
+            hydrated = self._dl.hydrate(activity)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
+                " returning parsed activity unchanged.",
+                exc,
+            )
+            return activity
+        if isinstance(hydrated, as_Activity):
+            return hydrated
         return activity
 
 
