@@ -16,6 +16,7 @@
 """Embargo removal and teardown nodes."""
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
@@ -220,7 +221,7 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
         if self.case_id is None:
             try:
                 self._activity = self.get_input("activity")
-            except Exception:
+            except (NoDataAvailable, NotImplementedError):
                 self._activity = None
         else:
             self._activity = None

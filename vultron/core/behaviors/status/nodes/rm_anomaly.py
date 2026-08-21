@@ -26,6 +26,7 @@ import logging
 from typing import cast
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -81,7 +82,7 @@ class EmitRMGapNoteNode(DataLayerActionWithPorts):
         super().initialise()
         try:
             self.rm_anomaly = self.get_input(BB_RM_ANOMALY)
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self.rm_anomaly = None
 
     def update(self) -> Status:

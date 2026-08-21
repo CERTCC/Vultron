@@ -26,6 +26,7 @@ from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
@@ -149,7 +150,7 @@ class _SendLogEntryToEachNode(DataLayerActionWithPorts):
             self._sync_port = cast(
                 SyncActivityPort, self.get_input("sync_port")
             )
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
 
     def update(self) -> Status:

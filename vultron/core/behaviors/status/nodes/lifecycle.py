@@ -31,6 +31,7 @@ from typing import cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
@@ -407,7 +408,7 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
             self.case_manager_id: str | None = self.get_input(
                 "case_manager_id"
             )
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self.case_manager_id = None
 
     def update(self) -> Status:

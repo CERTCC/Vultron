@@ -42,6 +42,7 @@ from typing import cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.case.nodes import (
     create_receive_activity_tree,
@@ -664,13 +665,13 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
             self._sync_port = cast(
                 SyncActivityPort, self.get_input("sync_port")
             )
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
         try:
             self._pre_commit_backfill_target = self.get_input(
                 "pre_commit_backfill_target"
             )
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self._pre_commit_backfill_target = None
 
     def _resolve_backfill_target(self, entries: list[CaseLedgerEntry]) -> int:

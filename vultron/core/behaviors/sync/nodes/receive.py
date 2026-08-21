@@ -21,6 +21,7 @@ from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -180,13 +181,13 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
         self.activity = self.get_input("activity")
         try:
             self.tail_index: int | None = self.get_input("tail_index")
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self.tail_index = None
         try:
             self._gap_buffer = cast(
                 LedgerGapBuffer, self.get_input("gap_buffer")
             )
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self._gap_buffer = None
 
     def update(self) -> Status:
@@ -273,7 +274,7 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
             self._gap_buffer = cast(
                 LedgerGapBuffer, self.get_input("gap_buffer")
             )
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self._gap_buffer = None
 
     def update(self) -> Status:
@@ -323,7 +324,7 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             self._sync_port = cast(
                 SyncActivityPort, self.get_input("sync_port")
             )
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
 
     def update(self) -> Status:
