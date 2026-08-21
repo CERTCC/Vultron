@@ -25,17 +25,19 @@ Per specs/received-status-handling.yaml RSH-06-004, RSH-06-005.
 import logging
 from typing import cast
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 
 logger = logging.getLogger(__name__)
 
 
-class EmitRMGapNoteNode(DataLayerAction):
+class EmitRMGapNoteNode(DataLayerActionWithPorts):
     """Emit ``Add(Note, VulnerabilityCase)`` when an RM transition anomaly is detected.
 
     Reads the ``rm_transition_anomaly`` blackboard key written by
@@ -63,21 +65,30 @@ class EmitRMGapNoteNode(DataLayerAction):
         self.sender_actor_id = sender_actor_id
         self.case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key=BB_RM_ANOMALY,
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports[BB_RM_ANOMALY] = PortInformation(
+            data_type=object, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.rm_anomaly = self.get_input(BB_RM_ANOMALY)
+        except Exception:
+            self.rm_anomaly = None
 
     def update(self) -> Status:
         if not self.case_id:
             return Status.SUCCESS
 
-        try:
-            anomaly = self.blackboard.get(BB_RM_ANOMALY)
-        except KeyError:
-            anomaly = None
+        anomaly = self.rm_anomaly
         if anomaly is None:
             return Status.SUCCESS
 

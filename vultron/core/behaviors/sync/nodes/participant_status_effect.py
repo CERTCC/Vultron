@@ -27,12 +27,15 @@ specs/sync-ledger-replication.yaml SYNC-02-002.
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import cast
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction, read_rm_states
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+    read_rm_states,
+)
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -74,7 +77,7 @@ def _ratchet_rm(
     )
 
 
-class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
+class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
     """Apply an ``add_participant_status_to_participant`` ledger entry locally.
 
     When a non-Case-Actor participant receives
@@ -111,11 +114,19 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
     specs/sync-ledger-replication.yaml SYNC-02-002.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def _apply_rm_ratchet(
         self,
@@ -165,7 +176,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
             _require_log_entry,
         )
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         snapshot = entry.payload_snapshot
 
         status_data = snapshot.get("object")

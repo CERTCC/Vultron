@@ -36,7 +36,11 @@ import isodate  # type: ignore[import-untyped]
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType
@@ -295,43 +299,44 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class AttachEmbargoToCaseNode(DataLayerAction):
+class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
     """Ensure case.active_embargo references the initialized embargo event."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        ports["default_embargo_initialized"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="default_embargo_initialized",
-            access=py_trees.common.Access.READ,
+        ports["default_embargo_id"] = PortInformation(
+            data_type=str, required=True
         )
-        self.blackboard.register_key(
-            key="default_embargo_initialized",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="default_embargo_id",
-            access=py_trees.common.Access.READ,
-        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "default_embargo_initialized": "/default_embargo_initialized",
+            "default_embargo_id": "/default_embargo_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.bb_case_id: str = self.get_input("case_id")
+        self.bb_default_embargo_id: str = self.get_input("default_embargo_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        case_id = self.blackboard.get("case_id")
-        embargo_id = self.blackboard.get("default_embargo_id")
-        if not isinstance(case_id, str) or not isinstance(embargo_id, str):
-            self.logger.error(
-                "%s: case_id/default_embargo_id not found in blackboard",
-                self.name,
-            )
-            return Status.FAILURE
+        case_id = self.bb_case_id
+        embargo_id = self.bb_default_embargo_id
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
         if not isinstance(stored_case, VulnerabilityCase):
@@ -364,20 +369,33 @@ class AttachEmbargoToCaseNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class SeedOwnerAsSignatoryNode(DataLayerAction):
+class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
     """Seed the case-owner participant as SIGNATORY (CM-14-003)."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        ports["default_embargo_initialized"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="default_embargo_initialized",
-            access=py_trees.common.Access.READ,
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "default_embargo_initialized": "/default_embargo_initialized",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.bb_case_id: str = self.get_input("case_id")
+        self.embargo_initialized = self.get_input(
+            "default_embargo_initialized"
         )
 
     def update(self) -> Status:
@@ -386,14 +404,8 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case_id = self.blackboard.get("case_id")
-        if not isinstance(case_id, str):
-            self.logger.error("%s: case_id not found in blackboard", self.name)
-            return Status.FAILURE
-
-        embargo_initialized = self.blackboard.get(
-            "default_embargo_initialized"
-        )
+        case_id = self.bb_case_id
+        embargo_initialized = self.embargo_initialized
         if embargo_initialized is False:
             return Status.SUCCESS
 
