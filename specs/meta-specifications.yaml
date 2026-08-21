@@ -232,12 +232,46 @@ groups:
     tags:
     - documentation
   - id: MS-10-003
-    priority: SHOULD
+    priority: MUST
     kind: process
-    statement: Spec files SHOULD be testable with verifiable acceptance criteria per requirement.
-    rationale: Untestable specs cannot be reliably implemented.
+    statement: >-
+      Spec files MUST be testable with verifiable acceptance criteria per
+      requirement; every `priority: MUST` requirement MUST include a
+      `verification:` field.
+    rationale: >-
+      Untestable specs cannot be reliably implemented; a MUST requirement with no
+      verification field provides no contract for reviewers or agents. Upgraded
+      from SHOULD to MUST (CONCERN-2382) to align with MS-05-003 and enable
+      progressive linter enforcement. See MS-10-005 for the current enforcement
+      mechanism.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-05-003
     tags:
     - documentation
+    - tooling
+  - id: MS-10-005
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST emit an advisory warning ([WARN]) for any `priority: MUST`
+      requirement whose `verification:` field is null or absent, until that
+      requirement has been backfilled.
+    rationale: >-
+      MS-05-003 and MS-10-003 require MUST requirements to carry measurable
+      acceptance criteria. The linter cannot impose a hard error on the existing
+      backlog immediately, but a visible advisory signal (a) prevents the
+      backlog from growing, (b) makes the gap visible in CI output without
+      blocking merges, and (c) provides the foundation for a future hard-error
+      upgrade once the backlog is addressed. Tracked by CONCERN-2382.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-05-003
+    - rel_type: implements
+      spec_id: MS-10-003
+    tags:
+    - documentation
+    - tooling
   - id: MS-10-004
     priority: SHOULD
     kind: process

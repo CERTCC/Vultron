@@ -80,6 +80,25 @@ When updating specs per LEARN_prompt instructions:
 - **Maintain verification criteria**: Every requirement needs a test
 - **Follow existing conventions**: Match style and structure of other specs
 
+**Do NOT add spec entries for** (route to `AGENTS.md` instead):
+
+- File paths, module locations, or package layouts (e.g., "factory functions
+  MUST live in `vultron/wire/as2/factories/`")
+- Demo scenario step ordering, file layout, or script structure
+- Agent or skill behavior instructions (e.g., "the agent MUST confirm the
+  selected bug with the user")
+- Naming conventions already enforced by `code-style.yaml`
+- Coding practices or conventions internal to this Python codebase
+
+**Gate test before adding to `specs/`**: Ask "Would a participant running a
+different implementation of the Vultron protocol notice if this requirement
+were violated?" If **no**, the requirement is an internal convention — route
+it to `AGENTS.md`, not `specs/`. This test operationalizes MS-05-004
+(declarative requirements) and the four-tier taxonomy (MS-12): if it fails
+the protocol or architecture tier tests, it belongs in `project` or `process`
+kind — and if it also fails the externally-visible test, it belongs in
+`AGENTS.md` rather than specs at all.
+
 ---
 
 ### Valid `rel_type` Values in Spec Relationships

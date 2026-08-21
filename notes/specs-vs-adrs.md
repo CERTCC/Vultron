@@ -49,6 +49,55 @@ Use this self-check before committing a change:
 
 ---
 
+## The Externally-Observable Behavior Test
+
+Before writing a new `specs/` requirement for any behavior observed during
+implementation, apply this gate:
+
+> **Would a participant running a different implementation of the Vultron
+> protocol notice if this requirement were violated?**
+
+| Answer | Route to | Examples |
+|---|---|---|
+| **Yes** — the behavior is externally-observable or protocol-visible | `specs/` | Message semantics, state-machine invariants, wire format constraints, compliance-visible output |
+| **No** — the behavior is an internal implementation convention | `AGENTS.md` | File paths, naming conventions, agent guidance, demo step ordering, coding practices |
+
+This gate operationalizes two existing rules:
+
+- **MS-05-004**: Requirements must be declarative — describing *what* the
+  system must do, not *how* it is implemented internally.
+- **MS-12** (four-tier taxonomy): A requirement that cannot pass the
+  `protocol` or `architecture` tier tests is `project` or `process` kind.
+  If it also fails the externally-visible test — i.e., only this codebase
+  cares about it — it belongs in `AGENTS.md` rather than `specs/` entirely.
+
+### Common Misrouted Requirements
+
+These patterns commonly appear in `specs/` but belong in `AGENTS.md`:
+
+- **File/module paths**: "Factory functions MUST live in
+  `vultron/wire/as2/factories/`" — only this codebase has this layout.
+- **Demo step ordering**: "Step 3 MUST follow step 2 in the demo script" —
+  a different implementation would have no demo, let alone this step order.
+- **Agent instructions**: "The agent MUST confirm the selected bug with the
+  user before fixing it" — describes agent workflow, not protocol compliance.
+- **Naming conventions**: "Test files MUST be named `test_*.py`" — already
+  enforced by pytest discovery config; not protocol-relevant.
+- **Ambiguous `project`/`process` kind requirements**: If a requirement would
+  be kind `project` (MS-12-002) *and* only an internal convention, it belongs
+  in `AGENTS.md`. The `specs/` corpus should capture what an independent
+  conformance checker would verify; internal conventions belong in agent guidance.
+
+### How This Relates to the `learn` Skill
+
+The `learn` skill's `signal: spec-gap` path must apply this test before
+promoting an observation to `specs/`. If the behavior is not externally
+observable, the correct destination is `AGENTS.md` (recurring pitfall) or
+`notes/` (design decision), not a new MUST requirement in `specs/`. See also
+`notes/specs-vs-adrs.md` and the anti-pattern list in `specs/AGENTS.md`.
+
+---
+
 ## Worked Examples
 
 ### ADR only
