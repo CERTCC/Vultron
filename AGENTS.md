@@ -344,7 +344,8 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   in upstream guard or condition nodes. Upstream guards can be absent or
   bypassed when the write node is reused in a new tree. For VFD writes see
   CSB-16-001; for PXA writes see CSB-16-002 and SM-09-001; for EM writes
-  route through `EmbargoLifecycle` (EMB-18-001). Source: CONCERN-2412.
+  route through `EmbargoLifecycle` (EMB-18-001).
+  See [notes/embargo-lifecycle.md](notes/embargo-lifecycle.md). Source: CONCERN-2412.
 - **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — all RM/EM
   transitions are protocol-significant (BT-15-001) and MUST live in BT leaf nodes.
   See [notes/bt-integration.md](notes/bt-integration.md) § "Trigger/Received Parity".
