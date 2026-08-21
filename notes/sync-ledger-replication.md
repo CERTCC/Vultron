@@ -596,6 +596,26 @@ Spec: SYNC-15-003. Regression tests:
 reproduced there as 240 replays where 24 were correct). These run in-process in
 seconds rather than requiring a 20-minute demo-integration cycle (#1970).
 
+## Document Boundary: Internal Spec vs. External Companion
+
+This file and `specs/sync-ledger-replication.yaml` are the **internal**
+implementation references for the ledger replication protocol.
+
+A separate **external-facing companion document** (suitable for reviewers
+outside the project alongside the main Vultron protocol RFC) covers the same
+protocol mechanics — see `docs/reference/draft-vultron-replication-spec.md`
+(tracked in issue #2107).
+
+The external companion and the internal SYNC spec cover the same protocol but
+serve different audiences. When the SYNC spec requirements change, the companion
+document MUST be updated to stay consistent. Normative requirements always
+originate in `specs/sync-ledger-replication.yaml`; the companion document is a
+reader-friendly rendering, not an independent source of truth.
+
+The document-boundary decision — why the replication mechanics live in a
+companion document rather than the main RFC — is recorded in
+`docs/adr/0069-ledger-replication-companion-spec.md` (tracked in issue #2107).
+
 ## Related
 
 - `specs/sync-ledger-replication.yaml` — normative requirements
