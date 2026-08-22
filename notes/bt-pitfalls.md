@@ -1172,44 +1172,47 @@ governing spec.
 
 ---
 
-## State-Validation Bypass: `CreateParticipantStatusNode` Does Not Validate Transitions
+## VFD/PXA Write-Boundary Validation in `CreateParticipantStatusNode`
 
-(ISSUE-1825, 2026-07-30; see also `notes/case-state-model.md`)
+(ISSUE-1825, 2026-07-30; ISSUE-2478, 2026-08-22; see also `notes/case-state-model.md`)
 
-`CreateParticipantStatusNode.update()` constructs `VfdDimension(state=<target>)`
-and persists it directly without calling `VfdDimension.transition()` or
-`is_valid_vfd_transition`. **State validity is enforced entirely by upstream BT
-guard nodes** — nothing at the persistence boundary rejects an invalid jump
-(e.g., `vfd → VFD`).
+**Current state (PR #2503 / ISSUE-2478, 2026-08-22)**: `CreateParticipantStatusNode`
+now validates VFD and PXA transitions inline at the write boundary before any
+`dl.create()` / `dl.save()` call:
 
-This is a known fragility (GitHub concern #1896): if a guard node is too weak
-(see "Guard Name Must Match the State-Machine Transition Precondition" above),
-an invalid status snapshot can be persisted silently. The same issue applies
-to RM and PXA dimension writes through this node.
+- `_check_vfd_preconditions()` calls `is_valid_vfd_transition(current, target)` and
+  enforces role preconditions (CVDRole.VENDOR for `VFd`, CVDRole.DEPLOYER for `VFD`).
+  Same-state writes pass through. Invalid jumps return `Status.FAILURE` (CSB-16-001,
+  CSB-15-001/002).
+- `_check_pxa_precondition()` calls `is_valid_pxa_transition(current, target)`.
+  Invalid backward moves return `Status.FAILURE` (CSB-16-002).
 
-**Status (PR #2307, 2026-08-14)**: the fragility is now mitigated for all
-known write paths:
+This closes the fragility identified in concern #1896: guard bypass or a missing
+upstream guard can no longer silently persist an illegal VFD/PXA snapshot.
 
-- **Trigger path** (`add_participant_status_trigger_bt`): guarded by
-  `ValidateTriggerTransitionsNode` (new in PR #2307, issues #2081 / #1903).
-  Fail-closed: an invalid RM/VFD/PXA jump raises `VultronValidationError` and
-  no snapshot is written.
-- **Received wire path** (`add_participant_status_tree`): guarded by
-  `FilterParticipantStatusDimensionsNode` + `ValidateRMTransitionNode`
-  (in place since `a17d7649`). Partial-accept: refused dimensions carry forward
-  the current value so other dimensions still land.
+**Defence layers as of PR #2503:**
 
-`CreateParticipantStatusNode` itself still does not validate inline.
-`test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet, also
-added in PR #2307) AST-audits every `VfdDimension`/`RmDimension`/`PxaDimension`
-constructor call in `vultron/core/behaviors/` and fails immediately on any new
-unclassified site, forcing an explicit audit before merge.
+- **Write node** (`CreateParticipantStatusNode`): fail-closed inline validation for
+  VFD adjacency, VFD role preconditions, and PXA monotonicity (primary boundary).
+- **Trigger path** (`add_participant_status_trigger_bt`): upstream
+  `ValidateTriggerTransitionsNode` raises `VultronValidationError` before the BT
+  write node is reached (added in PR #2307 / issues #2081, #1903).
+- **Received wire path** (`add_participant_status_tree`): `FilterParticipantStatusDimensionsNode`
+  - `ValidateRMTransitionNode` guard upstream (in place since `a17d7649`). Uses the weaker
+  `is_monotonic_vfd_forward` check intentionally — remote peers may advance through
+  multiple VFD steps between status messages; strict adjacency applies only to local
+  write nodes (CSB-16-001, AC-3).
+- **Architecture ratchet** (`test/architecture/test_vfd_rm_pxa_write_sites.py`): AST-audits
+  every `VfdDimension`/`RmDimension`/`PxaDimension` constructor call in `vultron/core/behaviors/`
+  and fails on any new unclassified site (added in PR #2307).
 
 **When writing or reviewing guard nodes that precede `CreateParticipantStatusNode`**:
-treat the guard as the *only* line of defence for transition validity and verify
-it against the state-machine transitions defined in `vultron/core/states/`.
+the write node is now a second line of defence, but upstream guards still matter —
+they surface invalid requests with richer error context (`VultronValidationError`) before
+the BT write node is reached, and they protect RM dimension writes (not validated by
+`CreateParticipantStatusNode` inline).
 
-<!-- Source: ISSUE-1825; GitHub concern #1896; PR #2307 -->
+<!-- Source: ISSUE-1825; GitHub concern #1896; PR #2307; ISSUE-2478; PR #2503 -->
 
 ---
 
