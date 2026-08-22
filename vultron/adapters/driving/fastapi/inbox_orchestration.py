@@ -162,16 +162,17 @@ class FastAPIIngressAdapter:
         The same hazard bit ``Create(CaseProposal)``, which inlines the
         vulnerability report inside the proposal (CP-01-004): the report was never
         pre-stored, so the by-ID re-read collapsed it and the receiver had no report
-        (#2482). That is fixed by making ingress pre-store second-level inline
-        objects (``_store_second_level_inline_objects``) rather than by adding
-        another branch here — the re-read is correct once the store actually holds
-        what the sender inlined.
+        (#2482). That is fixed neither here nor at ingress, but in *storage*: the
+        proposal declares ``object_`` in ``inline_required_refs``, so persistence
+        keeps the report inline instead of dehydrating it to an id that nothing
+        could resolve. The re-read is correct once the store is faithful to what
+        the sender inlined.
 
         Resist adding activity types to the exception above. An in-place hydration
         skips the wire→core normalisation the by-ID path performs, so routing
         downstream sees `as_`-prefixed types and fails with "Expected
-        VulnerabilityCase, got as_VulnerabilityCase". Fix the missing write, not the
-        read.
+        VulnerabilityCase, got as_VulnerabilityCase". Fix what the store keeps, not
+        the read.
         """
         if _is_inline_ledger_entry_announce(activity):
             return self._hydrate_in_place(activity)

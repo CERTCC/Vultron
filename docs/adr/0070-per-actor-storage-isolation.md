@@ -266,11 +266,20 @@ argument that does not survive being weighed against CM-01-001.
   topologies that exposed the defect.
 
 Generated spec requirements: `specs/datalayer.yaml` DL-07-001 through DL-07-008
-(per-actor store isolation); `specs/behavior-tree-integration.yaml` BT-05-005 (a
-BT's store is its executing actor's) and BT-05-006 (role holder, receiving actor
-and store owner are one actor); `specs/em-behavior.yaml` EMB-19 (the teardown
-announcement's author and recipients, unspecified until this change exposed the
-gap).
+(per-actor store isolation) and DL-08-001/DL-08-002 (storage must keep a
+reference inline where the model requires the object to be carried);
+`specs/behavior-tree-integration.yaml` BT-05-005 (a BT's store is its executing
+actor's) and BT-05-006 (role holder, receiving actor and store owner are one
+actor); `specs/em-behavior.yaml` EMB-19 (the teardown announcement's author and
+recipients, unspecified until this change exposed the gap).
+
+DL-08 is here because isolation is what exposed it (#2482). A `CaseProposal`
+must carry its report inline (CP-01-004), but persistence dehydrated the
+reference like any other, and only the *first* level of an inbound activity's
+nesting is given a record — so the report collapsed to an id nothing could
+resolve. A shared store had hidden it: the vendor stored the report when it
+received the Offer, and that row was visible to the CaseActor too. With per-actor
+stores the CaseActor has only what it is sent.
 
 Retires `specs/architecture.yaml` ARCH-13-001, ARCH-13-002, ARCH-13-004 and
 ARCH-13-005 as vacuous. ARCH-13-005 was not in the original plan: it asks for the

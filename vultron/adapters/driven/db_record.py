@@ -109,7 +109,9 @@ _AS_LIST_REF_FIELDS: frozenset[str] = frozenset(
 )
 
 
-def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
+def _dehydrate_data(
+    data: dict[str, Any], obj: "PersistableModel | BaseModel | None" = None
+) -> dict[str, Any]:
     """Replace ``as_ObjectRef``-typed fields with their ID string.
 
     Only fields whose names are in ``_AS_OBJECT_REF_FIELDS`` are
@@ -121,16 +123,43 @@ def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
     reference to the nested object instead of an inline copy, eliminating
     redundant storage.
 
+    Two things are never collapsed:
+
+    - a nested value whose ``type_`` is in ``_KEEP_INLINE_NESTED_TYPES``;
+    - a field named in *obj*'s ``inline_required_refs``, for models whose
+      protocol contract is to carry the object rather than reference it.
+
+    Both exist for the same reason: dehydration is only reversible when the
+    nested object has a record of its own to be read back from.  It often does
+    not — ingress gives a record only to the *first* level of an inbound
+    activity's nesting — and a collapse with no counterpart write is silent
+    data loss that surfaces far away (#2482).
+
     Args:
         data: Serialised (``model_dump(mode="json")``) field dict of a
               domain object.
+        obj: The object *data* was serialised from, consulted for its
+             ``inline_required_refs`` declaration.  Optional so that callers
+             testing the dict transform alone need not construct a model;
+             omitting it only forgoes the per-model exemption.
 
     Returns:
         A shallow copy of *data* with qualifying nested object dicts
         replaced by ID strings.
     """
+    inline_required: frozenset[str] = frozenset()
+    if obj is not None:
+        declared = getattr(type(obj), "inline_required_refs", None)
+        if isinstance(declared, frozenset | set):
+            inline_required = frozenset(declared)
+
     result: dict[str, Any] = {}
     for key, value in data.items():
+        if key in inline_required:
+            # The model declares this ref is carried, not referenced. Collapsing
+            # it would store a URI that nothing can resolve.
+            result[key] = value
+            continue
         if key in _AS_OBJECT_REF_FIELDS and isinstance(value, dict):
             # Keep Activity-type and CaseLedgerEntry nested objects inline.
             # These may not have independent DataLayer records (e.g. a
@@ -369,8 +398,11 @@ class Record(StorableRecord):
             # object_ typed only as the base union on the parent model would be
             # serialized against the base schema and lose its domain fields —
             # breaking read/replay reconstruction (SYNC-13-004).
+            # ``obj`` is passed so its ``inline_required_refs`` are honoured.
+            # Note this is the *post*-``_normalize_to_core`` object, so a core
+            # counterpart of a wire type must carry the declaration too.
             data_=_dehydrate_data(
-                obj.model_dump(mode="json", serialize_as_any=True)
+                obj.model_dump(mode="json", serialize_as_any=True), obj
             ),
         )
         return record

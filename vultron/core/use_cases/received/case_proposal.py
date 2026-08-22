@@ -31,6 +31,7 @@ Three use cases covering the full CP message flow (ADR-0023):
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from typing import Any
 
 from py_trees.common import Status
 
@@ -50,6 +51,7 @@ from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
     RejectCaseProposalReceivedEvent,
 )
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -85,6 +87,47 @@ class CreateCaseProposalReceivedUseCase:
         # alongside CVDRole.CASE_OWNER come from the local actor config, not a
         # hard-coded assumption that every report receiver is a vendor.
         self._actor_config = actor_config
+
+    @staticmethod
+    def _core_inline_report(
+        activity_obj: Any, proposal_id: str
+    ) -> VulnerabilityReport | None:
+        """Return the proposal's inline report in its core shape, if present.
+
+        The proposal dict handed to the tree is deliberately wire-spelled — the
+        ``Accept`` must carry the proposal inline on the wire (CP-05-003,
+        MV-09-001) — and that is exactly why the report cannot be rebuilt from
+        it: ``by_alias=True`` writes the reporter as ``attributedTo``, while the
+        core ``VulnerabilityReport`` declares ``attributed_to`` and sets
+        ``extra="ignore"``. Validating that dict dropped the reporter without
+        complaint, the report stored fine, and the three things derived from it —
+        the reporter participant, its ledger entry, the SIGNATORY seed — each
+        skipped "best-effort" (#2482).
+
+        Mapping the spellings is the wire layer's own job, via ``to_core()``.
+        Duck-typed for the same reason ``model_dump`` is at the call site: core
+        MUST NOT import wire (ARCH-03-001).
+        """
+        raw_report = getattr(
+            getattr(activity_obj, "object_", None), "object_", None
+        )
+        to_core = getattr(raw_report, "to_core", None)
+        if not callable(to_core):
+            return None
+        try:
+            candidate = to_core()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "create_case_proposal_received: could not convert the inline"
+                " report of proposal '%s' to its core shape: %s — falling back"
+                " to the proposal dict",
+                proposal_id,
+                exc,
+            )
+            return None
+        return (
+            candidate if isinstance(candidate, VulnerabilityReport) else None
+        )
 
     def execute(self) -> None:
         request = self._request
@@ -139,12 +182,15 @@ class CreateCaseProposalReceivedUseCase:
                     by_alias=True, serialize_as_any=True
                 )
 
+        inline_report = self._core_inline_report(activity_obj, proposal_id)
+
         tree = create_case_proposal_received_tree(
             report_id=report_id,
             proposal_id=proposal_id,
             vendor_uri=vendor_uri,
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
+            inline_report=inline_report,
         )
         result = BTBridge(datalayer=self._dl).execute_with_setup(
             tree=tree,

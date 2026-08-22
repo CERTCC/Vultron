@@ -27,6 +27,7 @@ AC-4: Verifies that
 """
 
 import logging
+from typing import Any, cast
 from unittest.mock import patch
 
 import py_trees
@@ -1987,3 +1988,109 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
             "VulnerabilityCase must not appear in the vendor's store — the case"
             " actor creates the case in its own store only (CM-01-001)"
         )
+
+
+# ---------------------------------------------------------------------------
+# #2482: the stored report keeps its reporter
+# ---------------------------------------------------------------------------
+
+_REPORTER_URI_2482 = "https://example.org/actors/finder-2482"
+_REPORT_URI_2482 = "urn:uuid:report-2482-0000-0000-000000000001"
+
+
+def _proposal_with_inline_report() -> as_CaseProposal:
+    """A proposal carrying its report inline, as CP-01-004 requires."""
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        id_=_REPORT_URI_2482,
+        name="ISSUE-2482",
+        content="the vulnerability the proposal is about",
+        attributed_to=_REPORTER_URI_2482,
+    )
+    return as_CaseProposal(
+        id_=_PROPOSAL_URI,
+        attributed_to=_VENDOR_URI,
+        object_=report,
+        target=_CASE_ACTOR_URI,
+    )
+
+
+def test_store_proposal_report_keeps_the_reporter(caplog):
+    """#2482: the report is stored *with* its ``attributed_to``.
+
+    The reporter is the whole point of storing the report: three downstream
+    nodes derive the reporter participant, its ledger entry and the embargo
+    SIGNATORY seed from ``report.attributed_to``. Each skips "best-effort" when
+    it is missing, so losing it costs the reporter a case replica and raises
+    nothing.
+
+    It was lost to a spelling mismatch. The tree received the proposal as a
+    ``by_alias=True`` wire dump — needed because the ``Accept`` must carry the
+    proposal inline (CP-05-003, MV-09-001) — in which the reporter is spelled
+    ``attributedTo``. Rebuilding the report by validating that dict against the
+    *core* model, which declares ``attributed_to`` and sets
+    ``extra="ignore"``, dropped the key silently and reported "has no
+    attributed_to" from three nodes away.
+    """
+    from vultron.core.behaviors.case.case_proposal_received_tree import (
+        _StoreProposalReportNode,
+    )
+    from vultron.core.models.report import VulnerabilityReport
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    proposal = _proposal_with_inline_report()
+
+    node = _StoreProposalReportNode(
+        report_id=_REPORT_URI_2482,
+        # by_alias=True is what the real use case passes.
+        proposal_dict=proposal.model_dump(
+            by_alias=True, serialize_as_any=True
+        ),
+        inline_report=cast(Any, proposal.object_).to_core(),
+    )
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree=node, actor_id=_CASE_ACTOR_URI
+    )
+    assert result.status == py_trees.common.Status.SUCCESS
+
+    stored = dl.read(_REPORT_URI_2482)
+    assert isinstance(
+        stored, VulnerabilityReport
+    ), f"the report must be stored; got {type(stored).__name__}"
+    assert stored.attributed_to == _REPORTER_URI_2482, (
+        "the reporter must survive into the store — it is who becomes a"
+        f" participant; got {stored.attributed_to!r}"
+    )
+    assert stored.content == "the vulnerability the proposal is about"
+
+
+def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
+    """Without a pre-converted report the node still stores what it can.
+
+    Paths that do not come through the received-side use case (replay, CLI)
+    have only the proposal dict. That fallback must keep working, so the
+    reporter-preserving path is an addition rather than a replacement.
+    """
+    from vultron.core.behaviors.case.case_proposal_received_tree import (
+        _StoreProposalReportNode,
+    )
+    from vultron.core.models.report import VulnerabilityReport
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    proposal = _proposal_with_inline_report()
+
+    node = _StoreProposalReportNode(
+        report_id=_REPORT_URI_2482,
+        # Core spelling, as a non-wire caller would already have.
+        proposal_dict=proposal.model_dump(serialize_as_any=True),
+    )
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree=node, actor_id=_CASE_ACTOR_URI
+    )
+    assert result.status == py_trees.common.Status.SUCCESS
+    assert isinstance(dl.read(_REPORT_URI_2482), VulnerabilityReport)

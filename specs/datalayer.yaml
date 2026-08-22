@@ -559,3 +559,54 @@ groups:
     - messaging
     adr:
     - ADR-0070
+- id: DL-08
+  title: Storage Fidelity for Inline-Required References
+  description: >-
+    Persistence dehydrates AS2 reference fields to their id to avoid storing a nested object twice.
+    Some references must not be dehydrated, because the protocol requires the object to be *carried*
+    rather than referenced and nothing else ever gives it a record to be read back from. Added by
+    ISSUE-2482, where the round-trip silently emptied a `Create(CaseProposal)` of its report.
+  specs:
+  - id: DL-08-001
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      Persistence MUST NOT dehydrate a reference field to its id when the declaring model requires that
+      field to carry the object inline. A model MUST be able to declare such fields, and the storage
+      layer MUST consult that declaration rather than enumerating the affected types itself.
+    rationale: >-
+      Dehydration is only reversible when the nested object has a record of its own, and inbound
+      activities are given records only one level deep — so a second-level inline object collapses to
+      an id that no read can expand. CP-01-004 requires `as_CaseProposal` to carry its
+      `as_VulnerabilityReport` inline for exactly the reason that makes the collapse unrecoverable: the
+      receiver may not hold the report and no dereferencing mechanism is specified (AKM-03-001). The
+      declaration belongs on the model because that is where the invariant is, and because a lookup
+      table in the storage layer is action at a distance from the field it governs.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-004
+    - rel_type: refines
+      spec_id: AKM-03-001
+    verification: >-
+      `test/adapters/driven/test_db_record.py` asserts a stored `as_CaseProposal` keeps its report as an
+      inline object and that the report round-trips typed, with its `attributed_to` intact.
+    tags:
+    - persistence
+    adr:
+    - ADR-0070
+  - id: DL-08-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A type annotation MUST NOT be relied on as the record of an inline-only requirement when that
+      annotation also admits a URI string.
+    rationale: >-
+      `ActivityStreamRequiredRef[T]` expands to `T | as_Link | str`, so a bare URI type-checks and
+      `model_validate` accepts a dehydrated object without complaint. CP-01-004 was therefore recorded
+      only in prose, and the storage layer had nothing to consult; the resulting collapse surfaced as
+      three unrelated "best-effort" skips several layers away, none of which named the cause.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-08-001
+    tags:
+    - persistence

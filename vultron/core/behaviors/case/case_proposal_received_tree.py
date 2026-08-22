@@ -257,17 +257,64 @@ class _StoreProposalReportNode(DataLayerAction):
     the Offer, and that row was visible to everyone. With per-actor stores the
     CaseActor has its own, and the report only reaches it inline on the proposal
     (CP-01-004) — so it has to be written here.
+
+    Prefers *inline_report*, a report already converted to the core shape by the
+    caller. The fallback — validating the proposal's serialised ``object`` — can
+    only be as good as that dict's spelling, and the dict the received-side use
+    case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
+    the proposal inline on the wire (CP-05-003, MV-09-001). In wire spelling the
+    reporter is ``attributedTo``; this core model declares ``attributed_to`` and
+    sets ``extra="ignore"``, so validating that dict quietly produced a report
+    with no reporter, and the complaint surfaced three nodes later as "has no
+    attributed_to" (#2482). Converting is the wire layer's job — it owns
+    ``to_core()`` — and core MUST NOT import wire to do it itself (ARCH-03-001),
+    so the caller converts and passes the result down.
     """
 
     def __init__(
         self,
         report_id: str | None,
         proposal_dict: dict | None,
+        inline_report: VulnerabilityReport | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
         self._proposal_dict = proposal_dict
+        self._inline_report = inline_report
+
+    def _report_from_proposal_dict(self) -> VulnerabilityReport | None:
+        """Rebuild the report from the proposal's serialised inline object.
+
+        Accepts either spelling of the key: ``object`` is the wire alias and
+        ``object_`` the field name, and which one a caller has depends on
+        whether its dump used ``by_alias``.
+        """
+        proposal = self._proposal_dict or {}
+        raw = proposal.get("object")
+        if not isinstance(raw, dict):
+            raw = proposal.get("object_")
+        if not isinstance(raw, dict):
+            logger.warning(
+                "%s: proposal carried no inline report for '%s' (got %s), so"
+                " the reporter participant and its ledger entry cannot be"
+                " derived; the proposal should inline it (CP-01-004)",
+                self.name,
+                self._report_id,
+                type(raw).__name__,
+            )
+            return None
+        try:
+            return VulnerabilityReport.model_validate(raw)
+        except Exception as exc:
+            logger.warning(
+                "%s: could not reconstruct the inline report '%s' from the"
+                " proposal: %s",
+                self.name,
+                self._report_id,
+                exc,
+            )
+            return None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -279,37 +326,21 @@ class _StoreProposalReportNode(DataLayerAction):
         if self.datalayer.read(self._report_id) is not None:
             return Status.SUCCESS
 
-        raw = (self._proposal_dict or {}).get("object")
-        if not isinstance(raw, dict):
+        report = self._inline_report or self._report_from_proposal_dict()
+        if report is None:
+            return Status.SUCCESS
+        if not report.attributed_to:
+            # Worth saying out loud: the report is storable but useless for the
+            # three things derived from it, and each of those will otherwise
+            # report the absence separately and much further from the cause.
             logger.warning(
-                "%s: proposal carried no inline report for '%s' (got %s), so"
-                " the reporter participant and its ledger entry cannot be"
-                " derived; the proposal should inline it (CP-01-004)",
+                "%s: the inline report '%s' has no attributed_to, so the"
+                " reporter participant, its ledger entry and the SIGNATORY"
+                " seed cannot be derived from it (CP-01-004 requires a report"
+                " attributed to its reporter)",
                 self.name,
                 self._report_id,
-                type(raw).__name__,
             )
-            return Status.SUCCESS
-
-        # Core-shaped validation only: core MUST NOT import the wire layer
-        # (ARCH-03-001). A wire-serialised report reaches here spelled
-        # `attributedTo`, which this core model drops under `extra="ignore"` —
-        # producing a stored report with no reporter and a downstream "has no
-        # attributed_to" that points nowhere near the cause. Ingress therefore
-        # pre-stores the inline report itself, where wire types are allowed
-        # (`_store_second_level_inline_objects`), and this node is the fallback
-        # for the paths that do not go through ingress.
-        try:
-            report = VulnerabilityReport.model_validate(raw)
-        except Exception as exc:
-            logger.warning(
-                "%s: could not reconstruct the inline report '%s' from the"
-                " proposal: %s",
-                self.name,
-                self._report_id,
-                exc,
-            )
-            return Status.SUCCESS
 
         try:
             self.datalayer.create(report)
@@ -573,6 +604,19 @@ class _AddReporterParticipantNode(DataLayerAction):
     No-ops gracefully when the report cannot be found (logs a warning, returns
     SUCCESS) so the overall flow is not blocked by a missing reporter.
 
+    **Why degrading is right here, and where it went wrong.** The case is valid
+    without this participant: a proposal names the vendor and the case actor
+    directly, and refusing the whole case because one *derived* participant could
+    not be built would lose more than it protects. So SUCCESS is correct.
+
+    What was wrong was that this node, ``_CommitNativeLedgerEntriesNode`` and
+    ``_SeedReporterSignatoryNode`` each independently discovered the same missing
+    write and each logged its own symptom, so one lost report read as three
+    unrelated shrugs and nothing named the cause (#2482 AC-4). The write belongs
+    to ``_StoreProposalReportNode``, which now says so loudly and in one place;
+    these three name it in their warnings so a reader lands on the cause rather
+    than on the third symptom.
+
     Reads ``case_id`` from the blackboard.
     """
 
@@ -595,8 +639,11 @@ class _AddReporterParticipantNode(DataLayerAction):
         raw_report = self.datalayer.read(report_id)
         if not isinstance(raw_report, VulnerabilityReport):
             logger.warning(
-                "%s: report '%s' not found — skipping reporter participant"
-                " (best-effort)",
+                "%s: report '%s' not found, so the reporter cannot be"
+                " identified — skipping reporter participant (best-effort)."
+                " The report is written by _StoreProposalReportNode from the"
+                " copy the proposal carries inline (CP-01-004); if that node"
+                " logged nothing, the proposal arrived without one",
                 self.name,
                 report_id,
             )
@@ -792,8 +839,11 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
             raw_report = self.datalayer.read(report_id)
             if not isinstance(raw_report, VulnerabilityReport):
                 logger.warning(
-                    "%s: report '%s' not found — skipping add_report_to_case"
-                    " (best-effort)",
+                    "%s: report '%s' not found — skipping"
+                    " add_report_to_case (best-effort). The report is written"
+                    " by _StoreProposalReportNode from the copy the proposal"
+                    " carries inline (CP-01-004); if that node logged nothing,"
+                    " the proposal arrived without one",
                     self.name,
                     report_id,
                 )
@@ -1133,8 +1183,12 @@ class _SeedReporterSignatoryNode(DataLayerAction):
         raw_report = self.datalayer.read(report_id)
         if not isinstance(raw_report, VulnerabilityReport):
             logger.warning(
-                "%s: report '%s' not found — skipping reporter SIGNATORY"
-                " seed (best-effort)",
+                "%s: report '%s' not found, so the reporter cannot be"
+                " identified — skipping reporter SIGNATORY seed"
+                " (best-effort). The report is written by"
+                " _StoreProposalReportNode from the copy the proposal carries"
+                " inline (CP-01-004); if that node logged nothing, the"
+                " proposal arrived without one",
                 self.name,
                 report_id,
             )
@@ -1658,6 +1712,7 @@ def create_case_proposal_received_tree(
     vendor_uri: str,
     proposal_dict: dict | None = None,
     actor_config: ActorConfig | None = None,
+    inline_report: VulnerabilityReport | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
@@ -1755,7 +1810,9 @@ def create_case_proposal_received_tree(
             # entry and the SIGNATORY seed are all derived from it, and each of
             # those nodes skips "best-effort" when it is missing.
             _StoreProposalReportNode(
-                report_id=report_id, proposal_dict=proposal_dict
+                report_id=report_id,
+                proposal_dict=proposal_dict,
+                inline_report=inline_report,
             ),
             # ADR-0041: register CaseActor as COORDINATOR + CASE_MANAGER
             _AddCaseActorParticipantNode(),
