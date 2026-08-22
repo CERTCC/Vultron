@@ -219,35 +219,119 @@ class TestSnapshotsPassCanonicalGuard:
         )
 
 
+class TestSnapshotObjectWireReconstitutable:
+    """AC-7: every payloadSnapshot object dict revalidates through its wire vocabulary class."""
+
+    def test_create_case_object_wire_reconstitutable(self, case, port):
+        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+
+        snap = build_create_case_snapshot(case, CASE_ACTOR_ID, CASE_ID, port)
+        obj = snap["object"]
+        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls.model_validate(obj)
+
+    def test_add_report_object_wire_reconstitutable(self, report, case, port):
+        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+
+        snap = build_add_report_to_case_snapshot(
+            report, case, CASE_ACTOR_ID, CASE_ID, port
+        )
+        obj = snap["object"]
+        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls.model_validate(obj)
+
+    def test_add_participant_status_object_wire_reconstitutable(
+        self, participant, port
+    ):
+        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+
+        snap = build_add_participant_status_snapshot(
+            participant.participant_statuses[0],
+            participant,
+            CASE_ACTOR_ID,
+            CASE_ID,
+            port,
+        )
+        obj = snap["object"]
+        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls.model_validate(obj)
+
+    def test_add_case_status_object_wire_reconstitutable(self, case, port):
+        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+
+        raw_status = case.case_statuses[0]
+        snap = build_add_case_status_snapshot(
+            raw_status, case, VENDOR_ID, CASE_ID, port
+        )
+        obj = snap["object"]
+        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls.model_validate(obj)
+
+
+# Allow-listed camelCase dict-literal keys in vultron/core/ that are
+# documented as intentional (not snapshot construction):
+#   _SNAKE_TWINS in lifecycle.py — wire→snake reverse-lookup table
+#   case_states/patterns/ — state pattern strings, not wire keys
+_AC8_ALLOW_LISTED: frozenset[str] = frozenset(
+    {
+        "rmState",
+        "vfdState",
+        "emState",
+        "pxaState",
+        "emConsentState",
+        "caseStatus",
+        # case_states pattern strings (contain uppercase but are not wire keys)
+        "v..P..",
+        "v..pX.",
+        "vF....",
+        "vfdP..",
+        "vfd..A",
+        "vfd.X.",
+    }
+)
+
+
 class TestSnapshotsNoCoreCamelCaseKeys:
-    """AC-8: no core module assigns camelCase keys into snapshot dicts directly.
+    """AC-8: no vultron/core/ module constructs snapshot dicts with camelCase keys.
 
     The builders must produce wire-shaped output via the port — not by
-    constructing dicts with hardcoded camelCase key strings.
+    constructing dicts with hardcoded camelCase key strings.  Uses an AST
+    dict-literal key scan (narrower than a constant scan) to avoid false
+    positives from Pydantic field aliases and registry lookups.
     """
 
-    def test_no_camel_case_in_create_case(self, case, port):
+    def test_no_camel_case_dict_keys_in_core(self):
         import ast
-        import inspect
+        import pathlib
 
-        build_create_case_snapshot(case, CASE_ACTOR_ID, CASE_ID, port)
-        import vultron.core.behaviors.case.ledger_snapshots as mod
+        import vultron.core
 
-        src = inspect.getsource(mod)
-        tree = ast.parse(src)
-        camel_keys = [
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and len(node.value) > 1
-            and node.value[0].islower()
-            and any(c.isupper() for c in node.value[1:])
-            and node.value not in ("setdefault", "offerId", "offerActorId")
-        ]
-        assert (
-            camel_keys == []
-        ), f"camelCase string literals found in ledger_snapshots.py: {camel_keys}"
+        core_dir = pathlib.Path(vultron.core.__file__).parent
+        violations: list[tuple[str, str]] = []
+        for py in sorted(core_dir.rglob("*.py")):
+            try:
+                tree = ast.parse(py.read_text())
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Dict):
+                    continue
+                for key in node.keys:
+                    if not isinstance(key, ast.Constant):
+                        continue
+                    v = key.value
+                    if (
+                        isinstance(v, str)
+                        and len(v) > 1
+                        and v[0].islower()
+                        and any(c.isupper() for c in v[1:])
+                        and v not in _AC8_ALLOW_LISTED
+                    ):
+                        violations.append((str(py.relative_to(core_dir)), v))
+        assert violations == [], (
+            "Unexpected camelCase dict-literal keys in vultron/core/ "
+            f"(add to _AC8_ALLOW_LISTED if intentional): {violations}"
+        )
 
 
 def test_native_init_signatures_are_canonical_and_case_authored():
