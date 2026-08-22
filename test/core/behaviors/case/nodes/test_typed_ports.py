@@ -22,6 +22,12 @@ execution via BTTestScenario for one representative node per case sub-module.
 import pytest
 from py_trees.ports import NoDataAvailable
 
+import py_trees
+
+from vultron.core.behaviors.case.nodes.communication import (
+    CollectCaseAddresseesNode,
+    CreateAndPersistCaseActivityNode,
+)
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
 )
@@ -243,3 +249,80 @@ class TestBroadcastCaseUpdateNodePorts:
             BroadcastCaseUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
         )
         bt_scenario.assert_failure(result)
+
+
+# ---------------------------------------------------------------------------
+# communication.py — CollectCaseAddresseesNode output ports (AC-4, BTND-03-012)
+# ---------------------------------------------------------------------------
+
+
+class TestCollectCaseAddresseesNodeOutputPorts:
+    def test_writes_create_case_obj_on_success(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
+        )
+        bt_scenario.seed(case)
+        result = bt_scenario.run(
+            CollectCaseAddresseesNode(), actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+        bt_scenario.assert_success(result)
+        written = py_trees.blackboard.Blackboard.storage.get(
+            "/create_case_obj"
+        )
+        assert written is not None
+        assert written.id_ == CASE_ID
+
+    def test_writes_create_case_addressees_on_success(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
+        )
+        bt_scenario.seed(case)
+        result = bt_scenario.run(
+            CollectCaseAddresseesNode(), actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+        bt_scenario.assert_success(result)
+        written = py_trees.blackboard.Blackboard.storage.get(
+            "/create_case_addressees"
+        )
+        assert written is not None
+        assert isinstance(written, list)
+
+
+# ---------------------------------------------------------------------------
+# communication.py — CreateAndPersistCaseActivityNode output port (AC-4)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateAndPersistCaseActivityNodeOutputPorts:
+    def test_writes_activity_id_on_success(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
+        )
+        bt_scenario.seed(case)
+        # Inject upstream port values directly so the node can read them
+        result = bt_scenario.run(
+            CreateAndPersistCaseActivityNode(),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            create_case_obj=case,
+            create_case_addressees=[],
+        )
+        bt_scenario.assert_success(result)
+        activity_id = py_trees.blackboard.Blackboard.storage.get(
+            "/activity_id"
+        )
+        assert activity_id is not None
+        assert isinstance(activity_id, str)
+        assert len(activity_id) > 0

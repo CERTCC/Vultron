@@ -152,9 +152,15 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"{self.name}: 'create_case_obj' not on blackboard"
             )
-        self.create_case_addressees_bb: list = self.get_input(
-            "create_case_addressees"
-        )
+        try:
+            self.create_case_addressees_bb: list = self.get_input(
+                "create_case_addressees"
+            )
+        except NoDataAvailable:
+            self.create_case_addressees_bb = []
+            self.feedback_message = (
+                f"{self.name}: 'create_case_addressees' not on blackboard"
+            )
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
