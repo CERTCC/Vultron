@@ -31,6 +31,7 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM, is_valid_em_transition
 from vultron.core.use_cases._helpers import (
     _as_id,
+    case_addressees,
     reset_case_participant_embargo_consent,
     _resolve_case_manager_id,
 )
@@ -311,6 +312,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._embargo_id = embargo_id
+        self._recipients: list[str] = []
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
@@ -345,6 +347,22 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
+        # Recipients are every *other* participant, not the Case Manager.  This
+        # node runs inside `remove_embargo_from_case_tree`, whose ledger commit
+        # is gated on CASE_MANAGER, so the executing actor *is* the manager —
+        # addressing the announce to the manager addressed it to itself and the
+        # teardown reached nobody.  The Case Manager is still resolved above,
+        # because "the case has a manager" remains the precondition for
+        # announcing canonical case state at all.
+        self._recipients = case_addressees(case, self.actor_id or "")
+        if not self._recipients:
+            self.feedback_message = (
+                f"No other participants on case '{self._case_id}'"
+                " — Announce(EmbargoEvent) skipped"
+            )
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
         return self._embargo_id, case_manager_id
 
     def _call_factory(
@@ -355,7 +373,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            to=[case_manager_id],
+            to=self._recipients,
         )
 
     def _on_outbox_write_failure(

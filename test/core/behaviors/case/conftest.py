@@ -32,9 +32,16 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 
 @pytest.fixture
-def datalayer():
-    """In-memory SQLite data layer for testing."""
-    return SqliteDataLayer("sqlite:///:memory:")
+def datalayer(actor_id):
+    """The vendor's own store — the actor these trees execute as (ADR-0070).
+
+    Scoped to ``actor_id`` rather than a generic test actor because a BT's store
+    follows its executing actor: these trees run as the vendor, so the vendor's
+    store is the one they read and write.  ``reporter_actor_id`` appears here
+    only as a peer being addressed; a test that needs the *reporter* to act must
+    give it its own store rather than reuse this one.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 @pytest.fixture

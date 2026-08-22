@@ -188,6 +188,10 @@ class TestCreateCaseParticipantNode:
         assert participant.embargo_consent_state == PEC.SIGNATORY
         assert embargo.id_ in participant.accepted_embargo_ids
 
+    # Runs as the *finder*, not the class default, so the scenario store must be
+    # the finder's: a BT's store follows its executing actor (ADR-0070), and the
+    # node resolves the case from the report inside that store.
+    @pytest.mark.executes_as("https://example.org/actors/finder")
     def test_preserves_existing_accepted_status_consent_state(
         self,
         bt_scenario: BTTestScenario,
@@ -223,6 +227,10 @@ class TestCreateCaseParticipantNode:
             refreshed.consent.state if refreshed.consent else None
         ) == PEC.SIGNATORY
 
+    # Runs as the *finder*, not the class default, so the scenario store must be
+    # the finder's: a BT's store follows its executing actor (ADR-0070), and the
+    # node resolves the case from the report inside that store.
+    @pytest.mark.executes_as("https://example.org/actors/finder")
     def test_backfills_context_to_case_uri_for_existing_status(
         self,
         bt_scenario: BTTestScenario,

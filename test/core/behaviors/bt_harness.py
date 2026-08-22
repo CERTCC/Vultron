@@ -70,7 +70,14 @@ class BTTestScenario:
         is_leader: bool = True,
     ) -> None:
         self.actor_id = actor_id
-        self.dl = dl or SqliteDataLayer("sqlite:///:memory:")
+        # The scenario's store is the acting actor's own (ADR-0070).  A BT's
+        # store follows its executing actor, so seeding into some other actor's
+        # store would leave `run()` reading an empty one — and, worse, a
+        # multi-actor scenario sharing one store is what hides missing-write
+        # defects, because the reader finds the writer's row.
+        self.dl = dl or SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=actor_id
+        )
         self.bridge = BTBridge(
             datalayer=self.dl,
             is_leader=lambda: is_leader,
@@ -307,8 +314,22 @@ class BTTestScenario:
 
 
 @pytest.fixture
-def bt_scenario() -> BTTestScenario:
-    """Return a BTTestScenario with a fresh in-memory DataLayer."""
+def bt_scenario(request) -> BTTestScenario:
+    """Return a BTTestScenario whose store belongs to the acting actor.
+
+    A test that runs its tree as somebody other than the default declares it with
+    ``@pytest.mark.executes_as(ACTOR)``. The scenario then opens *that* actor's
+    store, because a BT's store follows its executing actor (ADR-0070) — seeding
+    one actor's store and executing as another leaves the tree reading an empty
+    one, and in a multi-actor scenario it is what hides missing-write defects.
+
+    Declaring it on the test rather than threading a parameter through every
+    fixture keeps the whole chain consistent and puts the declaration where a
+    reader looks for it.
+    """
+    marker = request.node.get_closest_marker("executes_as")
+    if marker and marker.args:
+        return BTTestScenario(marker.args[0])
     return BTTestScenario()
 
 
@@ -344,7 +365,10 @@ def shared_dl_actors() -> tuple[BTTestScenario, BTTestScenario]:
     """
     from vultron.core.models.case_actor import VultronCaseActor
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     vendor_id = "https://example.org/actors/vendor"
     reporter_id = "https://example.org/actors/reporter"
 

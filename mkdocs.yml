@@ -290,6 +290,7 @@ nav:
       - 'Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently': 'adr/0067-rm-nonadj-accept-and-notify.md'
       - 'Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx': 'adr/0068-inbox-refuse-misaddressed-activities.md'
       - 'Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host': 'adr/0069-vultron-namespace-uri.md'
+      - Give Each Actor Its Own Store; Delete the Unscoped DataLayer: 'adr/0070-per-actor-storage-isolation.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -297,6 +298,8 @@ nav:
     - License: 'about/license.md'
 not_in_nav: |
   _*.md
+  # Published at the namespace URI and reached by that URI, not by browsing.
+  ns/index.md
   adr/archived/*.md
   _*/**/*.md
   includes/*

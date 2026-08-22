@@ -34,6 +34,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor import CoreActor
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -147,9 +148,33 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         owner_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        invitee_raw = self._dl.read(request.invitee_id)
-        if invitee_raw is None:
-            raise VultronNotFoundError("Actor", request.invitee_id)
+        # Being named by URI is enough to be invited: a peer's record lives in the
+        # store of whichever actor knows it (ADR-0070 decision 5), and in a real
+        # deployment the invitee is on another node whose record will never be
+        # here. Refusing with "Actor '…' not found" therefore refused every
+        # cross-node invitee.
+        #
+        # But the record cannot simply be *absent*, and this is subtler than it
+        # looks. The outbound Invite must carry its object fully inline
+        # (MV-09-001); storage dehydrates ``object_`` to an id, and rehydration
+        # reconstitutes it by reading that id back. With no record to read, the
+        # object stays a bare string and delivery refuses the activity — after
+        # exhausting its retries, far from here. So the invitee is *recorded* from
+        # the invitation instead of demanded in advance.
+        #
+        # Recording it is also the honest Actor Knowledge Model move: this actor
+        # has now been told about that peer, so it legitimately knows it. What it
+        # does not have is the peer's details; resolving those is a
+        # directory-service concern, tracked as a Retriever call-out (ADR-0024).
+        # The WARNING marks that gap rather than letting it pass silently.
+        if self._dl.read(request.invitee_id) is None:
+            logger.warning(
+                "invite_actor_to_case: no local record for invitee '%s' —"
+                " recording it from the invitation. Actor discovery is not"
+                " implemented, so only its URI is known, not its details.",
+                request.invitee_id,
+            )
+            self._dl.create(CoreActor(id_=request.invitee_id))
 
         self._invitee_id = request.invitee_id
         self._suggested_roles = request.roles

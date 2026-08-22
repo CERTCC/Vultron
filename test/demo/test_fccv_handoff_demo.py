@@ -162,11 +162,11 @@ class TestResetContainersFccv:
 
         reset_mock.assert_has_calls(
             [
-                call(client=finder_client, init=False),
-                call(client=c1_client, init=False),
-                call(client=c2_client, init=False),
-                call(client=case_actor_client, init=False),
-                call(client=vendor_client, init=False),
+                call(client=finder_client),
+                call(client=c1_client),
+                call(client=c2_client),
+                call(client=case_actor_client),
+                call(client=vendor_client),
             ]
         )
 
@@ -233,12 +233,19 @@ class TestWaitForObjectStored:
 
         client = MagicMock()
         client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
+        client.dl_path.side_effect = (
+            lambda key="": f"/actors/an-actor/datalayer/{key}"
+        )
         wait_for_object_stored(
             client=client,
             obj_id=self.OBJ_ID,
             timeout_seconds=1.0,
         )
-        client.get.assert_called_with(f"/datalayer/{self.OBJ_ID}")
+        # The read must be actor-scoped, and must ask the client to build the
+        # path rather than hand-writing it (ADR-0070): a MagicMock would happily
+        # accept any string, so assert the delegation too.
+        client.dl_path.assert_called_with(self.OBJ_ID)
+        client.get.assert_called_with(client.dl_path(self.OBJ_ID))
 
     def test_raises_on_timeout_when_object_absent(self):
         from vultron.demo.helpers.polling import wait_for_object_stored

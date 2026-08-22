@@ -22,58 +22,114 @@ than overriding per-router local functions.
 
 Functions
 ---------
+get_actor_dl
+    Return the DataLayer belonging to the actor named by the ``{actor_id}``
+    path segment.  This is the single actor-scoping seam for all routes.
 get_trigger_dl
-    Return the shared (non-actor-scoped) DataLayer for trigger use cases.
+    Alias of :func:`get_actor_dl`, kept as a distinct override point for
+    trigger-route tests.
 get_canonical_actor_dl
-    Return the actor-scoped DataLayer keyed by the actor's canonical URI.
+    Alias of :func:`get_actor_dl`.
 get_trigger_service
     Construct and return a :class:`~vultron.core.use_cases.triggers.service.TriggerService`.
+
+Under ADR-0070 there is no shared DataLayer to inject, so every one of these
+resolves the path segment to a canonical actor URI by computation and returns
+that actor's own store.  The ``{actor_id}`` path parameter is no longer
+"accepted but unused".
 """
 
-from fastapi import Depends, Path
+from fastapi import Depends, Path, Request
 from typing import cast
 
-from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 from vultron.core.use_cases.triggers.service import TriggerService
 
 
-def get_trigger_dl(
-    actor_id: str = Path(...),  # noqa: ARG001
-    dl: DataLayer = Depends(get_shared_dl),
-) -> DataLayer:
-    """FastAPI dependency: return the shared DataLayer for trigger use cases.
+def node_base_url(request: Request | None) -> str | None:
+    """Return the base URL of the node serving *request*, if it declares one.
 
-    Operational data (actors, offers, reports, cases) is stored in the
-    shared DataLayer.  The ``actor_id`` path parameter is accepted but unused
-    so that ``app.dependency_overrides[get_trigger_dl]`` works in tests
-    (ADR-0012).
+    An actor's canonical URI is ``{node base URL}/actors/{slug}``, so resolving a
+    path segment needs to know which node is answering.  Process-global
+    configuration is the right answer in deployment, where one process is one
+    node.  It is the wrong answer in a harness that runs several nodes in one
+    process: every app would resolve segments into the same node's namespace.
+
+    So the value is *app*-scoped — fixed when the app is built (``create_app``)
+    and read from ``app.state`` here.  Deliberately not derived from the incoming
+    request's URL: that would let a client change which store the node opens by
+    changing its ``Host`` header, and would break every test that reaches an app
+    through ``TestClient``'s ``http://testserver`` default.
+
+    Returns ``None`` when the app declares nothing, leaving callers to fall back
+    to configuration — which keeps production behaviour unchanged.
     """
-    return dl
+    if request is None:
+        return None
+    value = getattr(request.app.state, "node_base_url", None)
+    return value if isinstance(value, str) and value else None
+
+
+def get_actor_dl(
+    actor_id: str = Path(...),
+    request: Request = None,  # type: ignore[assignment]
+) -> DataLayer:
+    """FastAPI dependency: the DataLayer belonging to the addressed actor.
+
+    Resolves the ``{actor_id}`` path segment to a canonical actor URI by
+    computation and returns that actor's own store (ADR-0070).
+
+    This replaces the previous two-step dance — inject the shared DataLayer,
+    scan it to turn a short id into a canonical URI, then ``clone_for_actor`` —
+    which existed only because actor identity had to be *discovered* from a
+    shared pool.  It also retires BUG-2026040901 structurally: there is only
+    one store for an actor, so a queue can no longer be written under one
+    spelling of its id and read under another.
+
+    The segment is resolved against the *serving app's* base URL when it declares
+    one (see :func:`node_base_url`), so a harness hosting several nodes in one
+    process resolves each app's segments into that app's own namespace.
+    """
+    return cast(
+        DataLayer,
+        get_datalayer(
+            canonical_actor_uri(actor_id, base_url=node_base_url(request))
+        ),
+    )
+
+
+def get_trigger_dl(
+    actor_id: str = Path(...),
+    request: Request = None,  # type: ignore[assignment]
+) -> DataLayer:
+    """FastAPI dependency: the addressed actor's DataLayer for trigger routes.
+
+    Kept as a separate name from :func:`get_actor_dl` purely so that trigger
+    routes remain independently overridable in tests
+    (``app.dependency_overrides[get_trigger_dl]``).
+    """
+    return get_actor_dl(actor_id, request)
 
 
 def get_canonical_actor_dl(
     actor_id: str = Path(...),
-    dl: DataLayer = Depends(get_trigger_dl),
-) -> ActorScopedDataLayer:
-    """FastAPI dependency: actor-scoped DataLayer keyed by canonical URI.
+    request: Request = None,  # type: ignore[assignment]
+) -> DataLayer:
+    """FastAPI dependency: alias of :func:`get_actor_dl`.
 
-    Resolves *actor_id* (which may be a short UUID from the URL path) to the
-    actor's full canonical URI via the shared DataLayer, then returns the
-    actor-scoped DataLayer instance keyed by that URI.  This ensures that
-    ``outbox_handler`` reads from the same ``{canonical_uri}_outbox`` table
-    that ``record_outbox_item`` wrote to during use-case execution
-    (BUG-2026040901).
+    Retained so existing trigger routes and their test overrides keep working;
+    the "canonical" qualifier is now redundant because every actor DataLayer is
+    keyed by the canonical URI.
     """
-    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    canonical_id = actor.id_ if actor and hasattr(actor, "id_") else actor_id
-    return dl.clone_for_actor(canonical_id)
+    return get_actor_dl(actor_id, request)
 
 
 def get_trigger_service(

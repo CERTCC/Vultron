@@ -41,20 +41,26 @@ def test_datalayer_empty(client):
     assert len(data) == 0
 
 
-def test_datalayer_get_nonexistent_actor(client):
+def test_datalayer_get_nonexistent_actor(client, dl_route_key):
     """Test retrieving an actor that does not exist"""
-    response = client.get("/datalayer/Actors/nonexistent-actor")
+    response = client.get(
+        f"/actors/{dl_route_key}/datalayer/Actors/nonexistent-actor"
+    )
     assert response.status_code == 404
 
 
-def test_datalayer_get_existing_actor(client, datalayer):
+def test_datalayer_get_existing_actor(
+    client, datalayer, dl_route_key, hosted_actor
+):
     """Test retrieving an existing actor from the Actors endpoint"""
     actor = as_Person(
         name="Test Person",
     )
     datalayer.create(object_to_record(actor))
 
-    response = client.get(f"/datalayer/Actors/{actor.id_}")
+    response = client.get(
+        f"/actors/{dl_route_key}/datalayer/Actors/{actor.id_}"
+    )
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == actor.id_
@@ -63,14 +69,16 @@ def test_datalayer_get_existing_actor(client, datalayer):
     assert as_Person.model_validate(data) == actor
 
 
-def test_datalayer_get_existing_actor_by_id(client, datalayer):
+def test_datalayer_get_existing_actor_by_id(
+    client, datalayer, dl_route_key, hosted_actor
+):
     """Test retrieving an existing actor directly by ID"""
     actor = as_Person(
         name="Test Person",
     )
     datalayer.create(object_to_record(actor))
 
-    response = client.get(f"/datalayer/{actor.id_}")
+    response = client.get(f"/actors/{dl_route_key}/datalayer/{actor.id_}")
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == actor.id_

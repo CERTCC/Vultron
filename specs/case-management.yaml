@@ -1972,13 +1972,27 @@ groups:
     statement: >-
       Trigger use cases that emit delegated Activities MUST queue the
       constructed Activity in the CaseActor's outbox, not in the requesting
-      participant's outbox.  self._actor_id MUST be set to case_actor_id in
-      _prepare() so that the BT bridge runs under the CaseActor's identity.
+      participant's outbox.  The emit MUST sit inside a composite gated on the
+      executing actor holding `CVDRole.CASE_MANAGER` for the case; code MUST NOT
+      instead compare `actor_id` against a computed `case_actor_id`.
     rationale: >-
       The CaseActor's outbox is the delivery path to other participants.
       Queuing a delegated Activity in the requesting actor's outbox bypasses
       the CaseActor as the authoritative intermediary and breaks the
       CaseLedgerEntry audit trail.
+
+      The mechanism changed in ADR-0070. This entry previously required setting
+      `self._actor_id = case_actor_id` in `_prepare()`. That is a convention, and
+      it conflated three separate ideas CM-24 otherwise keeps apart: the
+      activity's `actor` (CM-24-001), its `attributed_to` (CM-24-002), and whose
+      store this is. Spelling the first and third with one variable made a local
+      write look like a foreign one, and it left the identity comparison as the
+      only guard — but the authority is a *role* held in the case, and its holder
+      may be any Actor type. Once the emit is role-gated the executing actor *is*
+      the case manager, so both the activity and its outbox entry land in one
+      store by construction (BT-05-006). Ungated, the helper is identity
+      spoofing: any actor reaching it could emit an `Announce` authored as the
+      CaseActor to every participant.
     relationships:
     - rel_type: refines
       spec_id: CM-24-001

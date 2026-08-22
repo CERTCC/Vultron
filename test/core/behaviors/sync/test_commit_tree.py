@@ -47,7 +47,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def datalayer():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=OWNER_ACTOR_ID,
+    )
 
 
 @pytest.fixture

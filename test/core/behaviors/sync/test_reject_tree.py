@@ -42,7 +42,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def datalayer():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=OWNER_ACTOR_ID,
+    )
 
 
 @pytest.fixture
@@ -59,6 +62,43 @@ def case_actor(datalayer):
     )
     datalayer.create(actor)
     return actor
+
+
+@pytest.fixture
+def case_manager_case(datalayer):
+    """A case in which OWNER_ACTOR_ID holds CASE_MANAGER.
+
+    ``AnnounceCaseOnGenesisRejectNode`` sits inside
+    ``GuardedAnnounceCaseOnGenesisRejectBT``, whose guard is the *role* (CLP-09)
+    and not an identity comparison — the holder may be any Actor type.  With no
+    case naming a CASE_MANAGER the guard's selector falls through to
+    ``AnnounceCaseSkippedNotCaseManager``: the tree still reports SUCCESS while
+    the announce never fires, so a test without this fixture asserts nothing.
+
+    Note that the role is modelled as a ``CaseParticipant`` carrying
+    ``case_roles``, not as the ``VultronCaseActor`` service entity — those are
+    different things, and only the former satisfies the gate.
+    """
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    participant = as_CaseParticipant(
+        id_=f"{CASE_ID}/participants/owner",
+        context=CASE_ID,
+        attributed_to=OWNER_ACTOR_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    datalayer.create(participant)
+    case = as_VulnerabilityCase(id_=CASE_ID, name="Sync Case")
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
+    datalayer.create(case)
+    return case
 
 
 def _make_entry(
@@ -152,7 +192,7 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
 
 
 def test_genesis_reject_queues_announce_vulnerability_case(
-    datalayer, case_actor
+    datalayer, case_actor, case_manager_case
 ):
     """When last_accepted_hash='', AnnounceVulnerabilityCase is sent before
     entry replay so the peer can anchor its hash chain (SYNC-15-002).
@@ -209,7 +249,7 @@ def test_genesis_reject_without_trigger_port_still_succeeds(
 
 
 def test_non_genesis_reject_skips_announce_vulnerability_case(
-    datalayer, case_actor
+    datalayer, case_actor, case_manager_case
 ):
     """When last_accepted_hash is non-empty the node is a no-op — the peer
     already has the case and does not need re-seeding (SYNC-15-002).

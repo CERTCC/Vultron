@@ -39,6 +39,7 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.models.case import VulnerabilityCase
 from test.core.behaviors.bt_harness import BTTestScenario
 
+SENDER_ID = "https://example.org/actors/update-sender"
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"
 PARTICIPANT_ID = "https://example.org/participants/p-001"
@@ -160,21 +161,29 @@ class TestCheckCaseUpdateOwnerNodePorts:
         )
         bt_scenario.assert_failure(result)
 
-    def test_success_when_actor_owns_case(
+    def test_success_when_sender_owns_case(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        """The gate authorizes the *sender*, not the executing actor.
+
+        The executing actor here is the receiver applying the update to its own
+        replica; whether it happens to own the case is irrelevant.
+        """
         case = VulnerabilityCase(
             id_=CASE_ID,
             name="Test Case",
-            attributed_to=ACTOR_ID,
+            attributed_to=SENDER_ID,
         )
         bt_scenario.seed(case)
         result = bt_scenario.run(
-            CheckCaseUpdateOwnerNode(case_id=CASE_ID), actor_id=ACTOR_ID
+            CheckCaseUpdateOwnerNode(
+                case_id=CASE_ID, sender_actor_id=SENDER_ID
+            ),
+            actor_id=ACTOR_ID,
         )
         bt_scenario.assert_success(result)
 
-    def test_failure_when_actor_is_not_owner(
+    def test_failure_when_sender_is_not_owner(
         self, bt_scenario: BTTestScenario
     ) -> None:
         case = VulnerabilityCase(
@@ -184,7 +193,33 @@ class TestCheckCaseUpdateOwnerNodePorts:
         )
         bt_scenario.seed(case)
         result = bt_scenario.run(
-            CheckCaseUpdateOwnerNode(case_id=CASE_ID), actor_id=ACTOR_ID
+            CheckCaseUpdateOwnerNode(
+                case_id=CASE_ID, sender_actor_id=SENDER_ID
+            ),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_failure_when_receiver_owns_case_but_sender_does_not(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Owning the case does not authorize applying someone else's update.
+
+        This is the case the pre-fix gate got backwards: it compared the
+        executing actor, so a receiver that owned the case accepted an update
+        from *any* sender.
+        """
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
+        )
+        bt_scenario.seed(case)
+        result = bt_scenario.run(
+            CheckCaseUpdateOwnerNode(
+                case_id=CASE_ID, sender_actor_id=SENDER_ID
+            ),
+            actor_id=ACTOR_ID,
         )
         bt_scenario.assert_failure(result)
 

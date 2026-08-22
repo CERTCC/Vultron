@@ -44,14 +44,13 @@ async def lifespan(application: FastAPI):
     """
     from vultron.adapters.driving.fastapi.app import configure_logging
     from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
-    from vultron.adapters.driven.datalayer import get_datalayer
     from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
     from vultron.adapters.driving.fastapi.outbox_handler import (
         configure_default_emitter,
     )
 
     configure_logging()
-    init_dispatcher(dl=get_datalayer())
+    init_dispatcher()
     configure_default_emitter(HttpDeliveryAdapter())
     yield
 

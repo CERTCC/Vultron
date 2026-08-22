@@ -10,6 +10,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
     CheckIsOwnCaseActorNode,
     CheckLedgerFreshnessNode,
@@ -84,6 +85,15 @@ def test_check_is_own_case_actor_succeeds_for_case_owner(bridge, case_actor):
     )
 
     assert result.status == Status.SUCCESS
+
+
+@pytest.fixture
+def datalayer():
+    """The owner's own store: every tree in this file executes as the owner.
+
+    Shadows the package fixture, which is the participant's store.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
 
 
 class TestCheckLedgerFreshnessNodeWithCaseIdArg:

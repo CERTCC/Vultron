@@ -85,7 +85,10 @@ class TestInviteActorUseCases:
         """InviteActorToCaseReceivedUseCase persists the Invite activity to the DataLayer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
@@ -109,7 +112,10 @@ class TestInviteActorUseCases:
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invitee_id = "https://example.org/users/coordinator"
         sender_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/case1"
@@ -144,7 +150,10 @@ class TestInviteActorUseCases:
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
@@ -168,7 +177,10 @@ class TestInviteActorUseCases:
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
@@ -209,9 +221,11 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
         case_id = "https://example.org/cases/case-reject-ri1"
         case_actor_id = f"{case_id}/actor"
+        # The ledger commit is role-gated to the CASE_MANAGER, which here is
+        # the case actor — so the tree runs in the case actor's store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         invitee_id = "https://example.org/users/coordinator"
 
         case = as_VulnerabilityCase(
@@ -279,7 +293,10 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Organization(id_=invitee_id)
         case = as_VulnerabilityCase(
@@ -326,7 +343,10 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Organization(id_=invitee_id)
         case = as_VulnerabilityCase(
@@ -390,7 +410,10 @@ class TestInviteActorUseCases:
         )
         from vultron.core.states.rm import RM
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invitee_id = "https://example.org/users/coordinator_rm1"
         invitee = as_Organization(id_=invitee_id)
         owner_id = "https://example.org/users/owner"
@@ -446,7 +469,10 @@ class TestInviteActorUseCases:
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invitee_id = "https://example.org/users/coordinator_rm2"
         invitee = as_Organization(id_=invitee_id)
         owner_id = "https://example.org/users/owner"
@@ -536,7 +562,12 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/cases/caseIA3/actor",
+        )
         invitee_id = "https://example.org/users/coordinator"
         case_actor_id = "https://example.org/cases/caseIA3/actor"
         invitee = as_Organization(id_=invitee_id)
@@ -610,7 +641,12 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj1",
+        )
         invitee_id = "https://example.org/users/late-joiner"
         case_actor_id = "https://example.org/actors/case-actor-lj1"
         invitee = as_Organization(id_=invitee_id)
@@ -730,7 +766,12 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj2",
+        )
         invitee_id = "https://example.org/users/late-joiner-retry"
         case_actor_id = "https://example.org/actors/case-actor-lj2"
         invitee = as_Organization(id_=invitee_id)
@@ -868,7 +909,12 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj3",
+        )
         invitee_id = "https://example.org/users/late-joiner-nomarker"
         case_actor_id = "https://example.org/actors/case-actor-lj3"
         invitee = as_Organization(id_=invitee_id)
@@ -975,7 +1021,12 @@ class TestInviteActorUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The canonical ledger belongs to the case actor, so the backfill
+            # runs in the case actor's store.
+            actor_id="https://example.org/actors/case-actor-lj4",
+        )
         invitee_id = "https://example.org/users/late-joiner-noannounce"
         case_actor_id = "https://example.org/actors/case-actor-lj4"
         invitee = as_Organization(id_=invitee_id)
@@ -1070,7 +1121,10 @@ class TestAcceptInviteRolesAC4:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invitee_id = "https://example.org/users/vendor2"
         invitee = as_Organization(id_=invitee_id)
         case = as_VulnerabilityCase(
@@ -1113,7 +1167,10 @@ class TestAcceptInviteRolesAC4:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         invitee_id = "https://example.org/users/vendor3"
         invitee = as_Organization(id_=invitee_id)
         case = as_VulnerabilityCase(

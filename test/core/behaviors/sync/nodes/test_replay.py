@@ -5,7 +5,10 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
+import pytest
 from py_trees.common import Status
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
@@ -49,6 +52,15 @@ def _make_reject_event(
         to=[OWNER_ACTOR_ID],
     )
     return cast(RejectLogEntryReceivedEvent, extract_event(activity))
+
+
+@pytest.fixture
+def datalayer():
+    """The owner's own store: replay runs as the owner (OWNER_ACTOR_ID).
+
+    Shadows the package fixture, which is the participant's store.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
 
 
 def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():

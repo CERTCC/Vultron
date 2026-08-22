@@ -27,7 +27,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -144,17 +144,42 @@ class IsolatedActorApp:
             ``base_url`` (e.g. ``http://actor-name.test``).
         dl: The isolated in-memory ``SqliteDataLayer`` for this actor.
         base_url: The base URL used to construct actor IDs.
+        actor_id: Canonical URI of this app's own actor — the one ``dl`` belongs
+            to. Exposed so a test can address it without rebuilding the URL.
     """
 
     app: FastAPI
     client: TestClient
     dl: SqliteDataLayer
     base_url: str
+    actor_id: str = ""
+
+    def store_for(self, actor_id: str) -> SqliteDataLayer:
+        """Return the store of *actor_id* as hosted by this app.
+
+        ``dl`` is only ever *one* actor's store — the app's own, named by
+        ``actor_slug`` at construction.  A container may host more actors than
+        that (a participant plus the CaseActors it self-hosts, CP-08-003), and a
+        test that creates its actor under a per-test slug is asking about a
+        different store than ``dl``.  Reading ``dl`` in that case reports an empty
+        store and the assertion fails for the wrong reason.
+
+        Built through ``get_datalayer`` with the same in-memory ``db_url`` the
+        app's ``get_actor_dl`` override uses, so it is the *same instance* the
+        routes are handed.
+
+        Args:
+            actor_id: Canonical URI of an actor hosted by this app.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        return get_datalayer(actor_id, db_url="sqlite:///:memory:")
 
 
 def create_isolated_actor_app(
     base_url: str,
     router: "_TestClientRouter",
+    actor_slug: str = "primary",
 ) -> "IsolatedActorApp":
     """Create an isolated FastAPI app for a single actor in tests.
 
@@ -174,19 +199,61 @@ def create_isolated_actor_app(
             Actor IDs will use this as their URL prefix.
         router: Shared :class:`_TestClientRouter` instance that all apps
             register with so cross-app deliveries are routed correctly.
+        actor_slug: Final path segment of *this app's own* actor. Determines
+            which store ``dl`` addresses, so a test that seeds or asserts through
+            ``dl`` MUST pass the slug it creates its actor under. Routing does not
+            depend on it — every actor gets its own store via the per-actor
+            override below — but ``dl`` has to name one of them.
 
     Returns:
         An :class:`IsolatedActorApp` whose ``client`` context manager has
         *not* been entered yet — callers must use it as a context manager.
     """
-    isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
-    app = create_app(docs_url=None, openapi_url=None)
-    app.dependency_overrides[get_shared_dl] = lambda: isolated_dl
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    # This app's own node root, declared on the app so every dependency resolves
+    # segments into *this* node's namespace rather than the process-global
+    # configured one — several of these apps run in one process, so there is no
+    # single configured answer that is right for all of them (ISSUE-2238).
+    node_root = f"{base_url.rstrip('/')}/api/v2"
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        """Route per actor, in memory.
+
+        Overriding with a single fixed DataLayer pinned every actor id to one
+        store, which is what made this harness unable to find an actor it had
+        just created: ``create_actor`` writes through the per-actor factory
+        (correctly), so creation and lookup landed in different stores and the
+        actor came back ``404 Actor not found`` (ADR-0070 / ISSUE-2238). Only the
+        backing URL is replaced here; which store a segment selects is part of
+        what these tests exercise.
+        """
+        return get_datalayer(
+            canonical_actor_uri(actor_id, base_url=node_root),
+            db_url="sqlite:///:memory:",
+        )
+
+    app = create_app(docs_url=None, openapi_url=None, node_base_url=node_root)
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
+
+    # `dl` is this app's own actor's store, for tests that seed or assert
+    # directly. Built through `get_datalayer` so it is the *same instance* the
+    # override hands the routes, and so the actor registers as hosted here.
+    own_actor_id = f"{base_url.rstrip('/')}/api/v2/actors/{actor_slug}"
+    isolated_dl = get_datalayer(own_actor_id, db_url="sqlite:///:memory:")
+
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
     router.register(base_url, client)
     return IsolatedActorApp(
-        app=app, client=client, dl=isolated_dl, base_url=base_url
+        app=app,
+        client=client,
+        dl=isolated_dl,
+        base_url=base_url,
+        actor_id=own_actor_id,
     )
 
 
@@ -219,7 +286,20 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.integration)
 
 
-_CASE_ACTOR_SERVICE_URL = "http://localhost:7999/api/v2"
+#: Where demo tests expect to find a CaseActor service.
+#:
+#: This is ``TestClient``'s own base, not the configured ``localhost:7999``,
+#: because it must name the node that actually *serves* these tests.
+#: ``ResolveCaseActorUrlsNode`` derives a CaseActor's id from this value, and the
+#: inbox route resolves an incoming path segment against the serving app's base
+#: URL.  Point the two at different hosts and the case's CASE_MANAGER participant
+#: names one CaseActor while the route opens another's store — so
+#: ``CheckIsCaseManagerNode`` finds no match, the guarded commit skips silently,
+#: no ``Announce(CaseLedgerEntry)`` is queued, and the fan-out that carries notes
+#: and status to the other participants never happens. Nothing raises.
+#:
+#: Tests using ``create_isolated_actor_app`` override this with their own host.
+_CASE_ACTOR_SERVICE_URL = "http://testserver/api/v2"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -458,8 +538,20 @@ def client():
         previous_app_emitter = getattr(api_app.state, "emitter", None)
         configure_default_emitter(router)  # type: ignore[arg-type]
         api_app.state.emitter = router  # type: ignore[assignment]
+
+        # Tell the serving app which node it is. These tests address actors as
+        # `{TestClient base}/api/v2/actors/{slug}` — TestClient's base_url, not
+        # the configured one — so without this the routes resolve a segment into
+        # the *configured* namespace and open a different (empty) store than the
+        # one `POST /actors/` wrote to. `app_v2` is what carries it because
+        # `main.app` mounts it, so `request.app` inside a route is the sub-app.
+        from vultron.adapters.driving.fastapi.app import app_v2
+
+        previous_node_base_url = getattr(app_v2.state, "node_base_url", None)
+        app_v2.state.node_base_url = f"{tc_base}/api/v2"
         try:
             yield test_client
         finally:
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
             api_app.state.emitter = previous_app_emitter
+            app_v2.state.node_base_url = previous_node_base_url

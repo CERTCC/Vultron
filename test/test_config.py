@@ -67,7 +67,7 @@ def reset_config(monkeypatch, tmp_path):
 
 def test_defaults_server_base_url():
     cfg = get_config()
-    assert cfg.server.base_url == "http://localhost:7999"
+    assert cfg.server.base_url == "http://localhost:7999/api/v2"
 
 
 def test_defaults_server_log_level():
@@ -207,7 +207,7 @@ def test_missing_config_file_raises_when_vultron_config_set(monkeypatch):
 def test_no_config_file_no_env_uses_defaults():
     # tmp_path + no VULTRON_CONFIG → defaults only
     cfg = get_config()
-    assert cfg.server.base_url == "http://localhost:7999"
+    assert cfg.server.base_url == "http://localhost:7999/api/v2"
     assert cfg.database.db_url == "sqlite:///vultron.db"
 
 

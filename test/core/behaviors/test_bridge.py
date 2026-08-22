@@ -126,7 +126,10 @@ class ExceptionNode(py_trees.behaviour.Behaviour):
 @pytest.fixture
 def datalayer():
     """Provide in-memory TinyDB data layer."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture
@@ -153,23 +156,56 @@ def test_setup_tree_basic(bridge, test_actor_id):
     assert bt.root == tree
 
 
-def test_setup_tree_populates_blackboard(bridge, datalayer, test_actor_id):
-    """Test blackboard populated with datalayer and actor_id."""
-    tree = CheckBlackboard()
-    bt = bridge.setup_tree(tree=tree, actor_id=test_actor_id)
-
-    # Setup tree to initialize nodes
-    bt.setup()
-
-    # Verify blackboard accessible via global blackboard
+def _read_blackboard():
+    """Return a client that can read the blackboard's datalayer and actor_id."""
     blackboard = py_trees.blackboard.Client(name="test")
     blackboard.register_key(
         key="datalayer", access=py_trees.common.Access.READ
     )
     blackboard.register_key(key="actor_id", access=py_trees.common.Access.READ)
+    return blackboard
 
-    assert blackboard.datalayer == datalayer
+
+def test_setup_tree_blackboard_datalayer_is_the_executing_actors_store(
+    bridge, datalayer, test_actor_id
+):
+    """BT-05-005: the blackboard datalayer is the store of the blackboard actor_id.
+
+    This used to assert ``blackboard.datalayer == datalayer`` — that the store
+    put on the blackboard is exactly the one handed to the bridge.  Under
+    ADR-0070 that is the wrong invariant, and asserting it would forbid the fix:
+    ``datalayer`` and ``actor_id`` were two independent facts that could
+    disagree, which is how a delegated emit created an activity in the
+    requester's store and queued it in the CaseActor's outbox.  The store now
+    follows the executing actor, so what must hold is that the two agree.
+    """
+    bt = bridge.setup_tree(tree=CheckBlackboard(), actor_id=test_actor_id)
+    bt.setup()
+
+    blackboard = _read_blackboard()
     assert blackboard.actor_id == test_actor_id
+    assert blackboard.datalayer.actor_id == test_actor_id
+    # The injected store belonged to a different actor, so it was re-scoped.
+    assert datalayer.actor_id != test_actor_id
+    assert blackboard.datalayer is not datalayer
+
+
+def test_setup_tree_keeps_the_injected_store_when_it_already_matches(
+    datalayer,
+):
+    """No needless cloning: an already-correct store is passed through as-is.
+
+    The complement of the test above.  Without it, ``_store_for_actor`` could
+    satisfy BT-05-005 by cloning unconditionally, which would discard any
+    caller-configured state on the injected instance.
+    """
+    bridge = BTBridge(datalayer=datalayer)
+    bt = bridge.setup_tree(tree=CheckBlackboard(), actor_id=datalayer.actor_id)
+    bt.setup()
+
+    blackboard = _read_blackboard()
+    assert blackboard.actor_id == datalayer.actor_id
+    assert blackboard.datalayer is datalayer
 
 
 def test_setup_tree_with_activity(bridge, test_actor_id):

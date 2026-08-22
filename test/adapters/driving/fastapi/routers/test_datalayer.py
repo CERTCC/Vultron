@@ -19,16 +19,24 @@ from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 
-def test_get_offers_returns_empty_dict_when_no_offers(client_datalayer):
-    response = client_datalayer.get("/datalayer/Offers/")
+def test_get_offers_returns_empty_dict_when_no_offers(
+    client_datalayer, dl_route_key
+):
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Offers/"
+    )
     assert response.status_code == status.HTTP_200_OK
     assert isinstance(response.json(), dict)
     assert len(response.json()) == 0
 
 
-def test_get_offers_includes_created_offer(client_datalayer, datalayer, offer):
+def test_get_offers_includes_created_offer(
+    client_datalayer, datalayer, offer, dl_route_key
+):
     datalayer.create(object_to_record(offer))
-    response = client_datalayer.get("/datalayer/Offers/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Offers/"
+    )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
@@ -36,11 +44,12 @@ def test_get_offers_includes_created_offer(client_datalayer, datalayer, offer):
 
 
 def test_get_offer_by_id_returns_offer_fields(
-    client_datalayer, datalayer, offer
+    client_datalayer, datalayer, offer, dl_route_key
 ):
     datalayer.create(object_to_record(offer))
     response = client_datalayer.get(
-        "/datalayer/Offer/", params={"object_id": offer.id_}
+        f"/actors/{dl_route_key}/datalayer/Offer/",
+        params={"object_id": offer.id_},
     )
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
@@ -50,19 +59,23 @@ def test_get_offer_by_id_returns_offer_fields(
 
 
 def test_get_vulnerability_reports_returns_empty_dict_when_no_reports(
-    client_datalayer,
+    client_datalayer, dl_route_key
 ):
-    response = client_datalayer.get("/datalayer/VulnerabilityReports/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/VulnerabilityReports/"
+    )
     assert response.status_code == status.HTTP_200_OK
     assert isinstance(response.json(), dict)
     assert len(response.json()) == 0
 
 
 def test_get_vulnerability_reports_includes_created_report(
-    client_datalayer, datalayer, report
+    client_datalayer, datalayer, report, dl_route_key
 ):
     datalayer.create(report)
-    response = client_datalayer.get("/datalayer/VulnerabilityReports/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/VulnerabilityReports/"
+    )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
@@ -70,27 +83,31 @@ def test_get_vulnerability_reports_includes_created_report(
 
 
 def test_reports_shortcut_endpoint_returns_same_results(
-    client_datalayer, datalayer, report
+    client_datalayer, datalayer, report, dl_route_key
 ):
     datalayer.create(report)
-    response = client_datalayer.get("/datalayer/Reports/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Reports/"
+    )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
     assert report.id_ in data
 
 
-def test_get_report_by_id_returns_report(client_datalayer, datalayer, report):
+def test_get_report_by_id_returns_report(
+    client_datalayer, datalayer, report, dl_route_key
+):
     datalayer.create(report)
     response = client_datalayer.get(
-        "/datalayer/Report/", params={"id": report.id_}
+        f"/actors/{dl_route_key}/datalayer/Report/", params={"id": report.id_}
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["id"] == report.id_
 
 
 def test_reset_endpoint_clears_all_data(
-    client_datalayer, datalayer, report, offer
+    client_datalayer, datalayer, report, offer, dl_route_key
 ):
     datalayer.create(object_to_record(offer))
     datalayer.create(report)
@@ -99,14 +116,18 @@ def test_reset_endpoint_clears_all_data(
     assert datalayer.by_type("Offer") is not None
     assert datalayer.by_type("VulnerabilityReport") is not None
 
-    resp = client_datalayer.delete("/datalayer/reset/")
+    resp = client_datalayer.delete("/admin/datalayer/reset/")
     assert resp.status_code == status.HTTP_200_OK
 
-    resp_offers = client_datalayer.get("/datalayer/Offers/")
+    resp_offers = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Offers/"
+    )
     assert resp_offers.status_code == status.HTTP_200_OK
     assert len(resp_offers.json()) == 0
 
-    resp_reports = client_datalayer.get("/datalayer/Reports/")
+    resp_reports = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Reports/"
+    )
     assert resp_reports.status_code == status.HTTP_200_OK
     assert len(resp_reports.json()) == 0
 
@@ -121,7 +142,7 @@ _HTTP_PARTICIPANT_ID = (
 
 
 def test_get_by_http_url_key_returns_stored_record(
-    client_datalayer, datalayer
+    client_datalayer, datalayer, dl_route_key
 ):
     """GET /datalayer/{url-encoded-http-id} must return the stored record.
 
@@ -132,26 +153,34 @@ def test_get_by_http_url_key_returns_stored_record(
     datalayer.create(object_to_record(participant))
 
     encoded = quote(_HTTP_PARTICIPANT_ID, safe="")
-    response = client_datalayer.get(f"/datalayer/{encoded}")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/{encoded}"
+    )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["id"] == _HTTP_PARTICIPANT_ID
 
 
-def test_get_by_http_url_key_not_found_returns_404(client_datalayer):
+def test_get_by_http_url_key_not_found_returns_404(
+    client_datalayer, dl_route_key
+):
     """Non-existent HTTP URL key returns 404 (not a routing error)."""
     encoded = quote(
         "http://vendor:7999/api/v2/actors/missing/participant", safe=""
     )
-    response = client_datalayer.get(f"/datalayer/{encoded}")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/{encoded}"
+    )
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_specific_routes_not_shadowed_by_catch_all(
-    client_datalayer, datalayer, offer
+    client_datalayer, datalayer, offer, dl_route_key
 ):
     """Specific routes (e.g. /Offers/) still resolve correctly after fix."""
     datalayer.create(object_to_record(offer))
-    response = client_datalayer.get("/datalayer/Offers/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Offers/"
+    )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert offer.id_ in data
@@ -163,23 +192,34 @@ def test_specific_routes_not_shadowed_by_catch_all(
 # ---------------------------------------------------------------------------
 
 
-def test_get_actor_outbox_returns_404_for_unknown_actor(client_datalayer):
+def test_get_actor_outbox_returns_404_for_unknown_actor(
+    client_datalayer, dl_route_key
+):
     """Non-existent actor returns 404."""
-    response = client_datalayer.get("/datalayer/Actors/no-such-actor/outbox/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Actors/no-such-actor/outbox/"
+    )
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_get_actor_outbox_returns_empty_items_when_queue_is_empty(
-    client_datalayer, datalayer
+    client_datalayer, datalayer, dl_actor_id, dl_route_key
 ):
-    """Existing actor with no queued outbox items returns an empty items list."""
+    """Existing actor with no queued outbox items returns an empty items list.
+
+    An outbox is addressed as the path actor's *own* — there is no
+    ``Actors/{other}/outbox/`` form, because a store holds exactly one actor's
+    queue (ADR-0070). So the actor under test is the store's own actor.
+    """
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-    actor = as_Service(name="test-empty-outbox")
+    actor = as_Service(id_=dl_actor_id, name="test-empty-outbox")
     datalayer.create(object_to_record(actor))
 
-    response = client_datalayer.get(f"/datalayer/Actors/{actor.id_}/outbox/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/outbox/"
+    )
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
     assert body.get("type") == "OrderedCollection"
@@ -187,7 +227,7 @@ def test_get_actor_outbox_returns_empty_items_when_queue_is_empty(
 
 
 def test_get_actor_outbox_returns_queued_activity_ids(
-    client_datalayer, datalayer, offer
+    client_datalayer, datalayer, offer, dl_actor_id, dl_route_key
 ):
     """After enqueuing an activity for an actor, the endpoint must return it.
 
@@ -198,14 +238,16 @@ def test_get_actor_outbox_returns_queued_activity_ids(
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-    actor = as_Service(name="test-nonempty-outbox")
+    actor = as_Service(id_=dl_actor_id, name="test-nonempty-outbox")
     datalayer.create(object_to_record(actor))
 
     # Persist the activity and record it in the actor's outbox queue.
     datalayer.create(object_to_record(offer))
-    datalayer.record_outbox_item(actor.id_, offer.id_)
+    datalayer.outbox_append(offer.id_)
 
-    response = client_datalayer.get(f"/datalayer/Actors/{actor.id_}/outbox/")
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/outbox/"
+    )
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
     assert body.get("type") == "OrderedCollection"

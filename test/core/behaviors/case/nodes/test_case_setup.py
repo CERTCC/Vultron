@@ -532,7 +532,10 @@ class TestResolveCaseActorUrlsNode:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         bridge = BTBridge(datalayer=dl)
         node = ResolveCaseActorUrlsNode()
         bt = bridge.setup_tree(node, actor_id=actor_id, case_id=case_obj.id_)
@@ -679,9 +682,7 @@ class TestProposeCaseToActorNode:
             ProposeCaseToActorNode,
         )
 
-        outbox_before = list(
-            bt_scenario.dl.outbox_list_for_actor(actor_id) or []
-        )
+        outbox_before = list(bt_scenario.dl.outbox_list() or [])
         result = bt_scenario.run(
             ProposeCaseToActorNode(),
             actor_id=actor_id,
@@ -690,9 +691,7 @@ class TestProposeCaseToActorNode:
         )
         bt_scenario.assert_success(result)
 
-        outbox_after = list(
-            bt_scenario.dl.outbox_list_for_actor(actor_id) or []
-        )
+        outbox_after = list(bt_scenario.dl.outbox_list() or [])
         assert len(outbox_after) > len(
             outbox_before
         ), "ProposeCaseToActorNode must enqueue an activity to the outbox"
@@ -850,7 +849,10 @@ class TestProposeCaseToActorNode:
         )
 
         # Build a bridge with NO trigger_activity_factory injected.
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         dl.create(actor)
         dl.create(report)
         dl.create(case_obj)

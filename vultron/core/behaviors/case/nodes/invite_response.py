@@ -71,8 +71,8 @@ class EmitAcceptCaseInviteNode(DataLayerActionWithPorts):
 
         try:
             activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
@@ -122,8 +122,8 @@ class EmitRejectCaseInviteNode(DataLayerActionWithPorts):
 
         try:
             activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict

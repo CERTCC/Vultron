@@ -589,3 +589,94 @@ def test_embargo_event_without_context_raises_on_persist():
 
     with pytest.raises(VultronValidationError):
         object_to_record(cast(Any, no_context))
+
+
+# ---------------------------------------------------------------------------
+# CP-01-004: a ref field the model requires to be inline is never dehydrated
+# ---------------------------------------------------------------------------
+
+
+def _inline_proposal():
+    """An ``as_CaseProposal`` carrying its report inline, as CP-01-004 requires."""
+    from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        id_="urn:uuid:rpt-cp01004-0000-0000-000000000001",
+        name="CP-01-004-REPORT",
+        content="the vulnerability being proposed for coordination",
+        attributed_to="https://example.org/actors/finder-cp01004",
+    )
+    return as_CaseProposal(
+        id_="urn:uuid:prop-cp01004-0000-0000-000000000001",
+        attributed_to="https://example.org/actors/vendor-cp01004",
+        object_=report,
+        target="https://example.org/actors/case-actor-cp01004",
+    )
+
+
+def test_case_proposal_object_survives_storage_as_an_inline_report():
+    """CP-01-004: storing a CaseProposal MUST NOT collapse its report to an id.
+
+    Regression for #2482.  ``object_`` is in ``_AS_OBJECT_REF_FIELDS``, so it was
+    dehydrated like any other reference — but CP-01-004 requires the report to be
+    carried inline, and ingress stores only the *first* level of nesting, so the
+    report had no record of its own to rehydrate from.  The by-ID re-read at
+    delivery therefore handed the receiver a bare URI, and every consequence of
+    the report (participant, ledger entries, signatory seed) degraded to a
+    best-effort skip.  Nothing raised.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    proposal = _inline_proposal()
+    record = object_to_record(cast(Any, proposal))
+
+    stored = record.data_["object_"]
+    assert isinstance(stored, dict), (
+        "CP-01-004 requires the report inline; storage collapsed it to"
+        f" {stored!r}, which no read can undo because the report was never"
+        " given a record of its own"
+    )
+    report = proposal.object_
+    assert isinstance(report, as_VulnerabilityReport)
+    assert stored["id_"] == report.id_
+    assert (
+        stored["attributed_to"] == "https://example.org/actors/finder-cp01004"
+    )
+
+
+def test_case_proposal_round_trips_with_a_typed_report():
+    """The report comes back typed, not as a dict or an id (#2482)."""
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    proposal = _inline_proposal()
+    back = record_to_object(object_to_record(cast(Any, proposal)))
+    restored = getattr(back, "object_", None)
+
+    assert isinstance(
+        restored, as_VulnerabilityReport
+    ), f"expected a typed report on read-back, got {type(restored).__name__}"
+    assert restored.attributed_to == (
+        "https://example.org/actors/finder-cp01004"
+    ), "the reporter must survive the round-trip — it is who becomes a participant"
+    assert restored.content == (
+        "the vulnerability being proposed for coordination"
+    )
+
+
+def test_case_proposal_declares_object_as_an_inline_required_ref():
+    """The invariant lives on the model, not in a storage-layer lookup table.
+
+    ``_dehydrate_data`` consults this declaration, so a model that requires a
+    ref inline says so once, next to the field, rather than being enumerated in
+    the adapter that would otherwise collapse it.
+    """
+    from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
+
+    assert "object_" in as_CaseProposal.inline_required_refs

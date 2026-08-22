@@ -21,6 +21,9 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.use_cases._helpers import (
+    resolve_receiving_actor_id,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -47,7 +50,11 @@ class CreateNoteReceivedUseCase:
             return
 
         case_id: str | None = note.context
-        actor_id = request.actor_id
+        # The *receiving* actor, not the sender (BT-17-005): a received Note is
+        # stored in the receiver's own replica.
+        actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         bridge = BTBridge(datalayer=self._dl)
         tree = create_note_tree(note_obj=note, case_id=case_id)

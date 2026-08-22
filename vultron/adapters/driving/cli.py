@@ -16,6 +16,7 @@ import sys
 
 import click
 
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
@@ -46,7 +47,9 @@ def deliver(actor_id: str, activity_json) -> None:
     ACTIVITY_JSON  Path to a JSON file (or '-' for stdin).
     """
     raw = json.load(activity_json)
-    dl = get_datalayer()
+    # The receiving actor is named on the command line, so its own store is
+    # what this pipeline must read and write (ADR-0070).
+    dl = get_datalayer(canonical_actor_uri(actor_id))
     init_dispatcher()
 
     try:

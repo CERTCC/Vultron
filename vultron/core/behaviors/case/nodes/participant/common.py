@@ -301,9 +301,7 @@ def _queue_participant_add_notification(
         actor=sender_actor_id,
         to=[participant_actor_id],
     )
-    cast(CaseOutboxPersistence, dl).record_outbox_item(
-        sender_actor_id, add_notification_id
-    )
+    cast(CaseOutboxPersistence, dl).outbox_append(add_notification_id)
     node_logger.info(
         "Queued Add(CaseParticipant '%s' for actor '%s' to case '%s') "
         "activity '%s' to actor '%s' outbox",

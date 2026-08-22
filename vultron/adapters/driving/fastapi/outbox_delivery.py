@@ -216,13 +216,20 @@ def _recover_typed_inline_object_from_dict(
 
     try:
         full_obj = model_class.model_validate(activity_object)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        # Report *why*, and what was offered.  Without them this warning says only
+        # that hydration was skipped, which is the symptom; the recipient then
+        # cannot extract the activity's semantics and the protocol step silently
+        # does not happen, far from here.
         logger.warning(
-            "Failed to reconstruct %s model for %s activity '%s';"
-            " hydration will be skipped.",
+            "Failed to reconstruct %s model for %s activity '%s' from keys %s:"
+            " %s. Hydration will be skipped, so the recipient will see a"
+            " dehydrated object and may not match this activity's semantics.",
             obj_type,
             activity_type,
             activity_id,
+            sorted(activity_object.keys()),
+            exc,
         )
         return activity_object
 

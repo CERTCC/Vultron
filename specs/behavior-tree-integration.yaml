@@ -99,6 +99,70 @@ groups:
     priority: SHOULD
     kind: project
     statement: Bridge SHOULD execute tree and return execution result
+  - id: BT-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A behavior tree's blackboard `datalayer` MUST be the store of its blackboard `actor_id`. The
+      bridge MUST reconcile the two rather than accepting whatever store the caller injected.
+    rationale: >-
+      BT-05-002 and BT-05-003 put the store and the executing actor on the blackboard as two
+      independent facts, so they could disagree. Under per-actor storage they are one fact: a store is
+      always some actor's own, so the executing actor's identity *determines* which store the tree
+      operates on. The delegated-emit pattern is where the divergence bites — a trigger emitting on the
+      CaseActor's behalf runs with `actor_id` set to the CaseActor while the injected DataLayer belongs
+      to the *requesting* actor, so the activity is created in one store and queued in the other's
+      outbox: the CaseActor never delivers it, and its outbox names an activity its own store does not
+      hold. Reconciling once in the bridge makes every node write correct by construction rather than
+      correct only when the caller remembered to inject a matching DataLayer. This was chosen over
+      fixing only the trigger seam, for the same reason isolation must not depend on every query
+      remembering a filter.
+    relationships:
+    - rel_type: implements
+      spec_id: DL-07-001
+    - rel_type: refines
+      spec_id: BT-05-002
+    verification: >-
+      `test/core/behaviors/test_bridge.py` asserts that the blackboard's `datalayer.actor_id` equals
+      the blackboard's `actor_id`, and — as the complement — that an injected store which already
+      belongs to the executing actor is passed through un-cloned.
+    tags:
+    - behavior-tree
+    - persistence
+    adr:
+    - ADR-0070
+  - id: BT-05-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The executing actor of a role-gated tree MUST hold the gating role, and the tree's store MUST be
+      that actor's. Where a tree is gated on a role held in the case, the role holder, the receiving
+      actor and the store owner MUST be one actor.
+    rationale: >-
+      These are three separately-specified identities, and letting any two drift produces a silent skip
+      rather than an error: the gate evaluates against an actor that holds no role, returns
+      SUCCESS-by-skip, and nothing is written. This is the invariant that made the delegated-emit defect
+      class possible in the first place. Stated as a MUST rather than a note because production
+      satisfying it today is not the same as it being required — without one, a future BT node can
+      re-separate the three identities and the failure mode is again a silent skip. A static
+      architecture ratchet was considered and rejected: role holding is data-dependent, so a check
+      could only approximate it and would be noisy.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-05-005
+    - rel_type: refines
+      spec_id: CLP-09-001
+    exceptions:
+    - >-
+      A test may deliberately let the three differ in order to assert the *skip* path, in which case it
+      MUST assert the skip rather than a commit.
+    references:
+    - plan/incoming/learnings/20260819-role-holder-receiver-store-must-agree.md
+    tags:
+    - behavior-tree
+    - persistence
+    adr:
+    - ADR-0070
 - id: BT-06
   title: Workflow-Specific Trees
   specs:
@@ -426,10 +490,13 @@ groups:
     kind: project
     statement: >-
       A received-side use case that executes a BT containing
-      `GuardedCommitCaseLedgerEntryBT` MUST call `execute_with_setup` with
-      `actor_id=request.receiving_actor_id`, not `request.actor_id`. When a BT
-      node inside that tree also needs to target the sender's participant (e.g.
-      to advance their RM state), it MUST store the sender's ID in a private
+      `GuardedCommitCaseLedgerEntryBT` MUST call `execute_with_setup` with the
+      *receiving* actor, never with `request.actor_id` (the sender). When
+      `request.receiving_actor_id` is absent, the receiving actor MUST be taken to
+      be the owner of the store the use case was handed, and the call MUST fail
+      rather than proceed if neither source yields an identity. When a BT node
+      inside that tree also needs to target the sender's participant (e.g. to
+      advance their RM state), it MUST store the sender's ID in a private
       attribute (e.g. `_target_actor_id`) that `DataLayerAction.setup()` does
       not overwrite.
     rationale: >-
@@ -440,6 +507,16 @@ groups:
       the guarded commit never fires, and the ledger entry is silently skipped.
       `EngageCaseReceivedUseCase` and `DeferCaseReceivedUseCase` both carried
       this defect until issue #2300 corrected them.
+
+      The fallback clause is a correction made in #2238. An earlier form of this
+      entry named `request.receiving_actor_id` as the required argument outright,
+      which forbade the fallback it should require: falling back to
+      `request.actor_id` when the field is absent reinstates the sender, and under
+      per-actor storage `actor_id` selects the *store*, so a fabricated or
+      borrowed identity silently routes every read and write into a store other
+      than the one whose replica is being updated. The store the use case was
+      handed is the only defensible answer, because a received-side use case is by
+      construction invoked with the receiving actor's store.
     verification: >-
       Search all received-side use-case call sites of `execute_with_setup` that
       contain a `GuardedCommitCaseLedgerEntryBT`; assert each passes

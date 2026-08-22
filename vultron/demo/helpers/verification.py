@@ -66,12 +66,12 @@ def _fetch_participant(
         record is not found.
     """
     try:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         case = as_VulnerabilityCase.model_validate(case_data)
         participant_id = case.actor_participant_index.get(actor_id)
         if participant_id is None:
             return None
-        p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
+        p_data = client.get(client.dl_path(_dl_key(participant_id)))
         return as_CaseParticipant(**p_data)
     except (httpx.HTTPStatusError, AssertionError):
         return None
@@ -83,7 +83,7 @@ def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
     Re-raises for any non-404 error so failures are not silently swallowed.
     """
     try:
-        return client.get(f"/datalayer/{_dl_key(p_id)}")
+        return client.get(client.dl_path(_dl_key(p_id)))
     except httpx.HTTPStatusError as e:
         if e.response is not None and e.response.status_code == 404:
             return None
@@ -143,7 +143,7 @@ def _assert_vendor_participant_state(
             RM state is not ``RM.ACCEPTED``.
     """
     participant = as_CaseParticipant(
-        **vendor_client.get(f"/datalayer/{_dl_key(participant_id)}")
+        **vendor_client.get(vendor_client.dl_path(_dl_key(participant_id)))
     )
     latest = participant.participant_status
     if latest is None:
@@ -392,8 +392,12 @@ def verify_activity_in_inbox(
 
     Args:
         client: DataLayerClient for the target container.
-        actor_id: Full URI of the actor whose inbox to check (used for
-            logging only; the DataLayer lookup is ID-based).
+        actor_id: Full URI of the actor whose inbox to check.  This *selects the
+            store* read: an activity delivered to one actor is absent from every
+            other actor's store (CM-01-001), so a lookup by id alone has no
+            answer.  It was logging-only when a container had a single shared
+            store, which made "not in the finder's inbox" report on whichever
+            actor the client happened to be bound to.
         activity_id: Full URI of the activity to find.
 
     Returns:
@@ -401,7 +405,7 @@ def verify_activity_in_inbox(
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
     try:
-        client.get(f"/datalayer/{activity_id}")
+        client.get(client.dl_path(activity_id, actor_id=actor_id))
         logger.info(
             "✓ Activity %s found in DataLayer (actor %s)",
             activity_id,
@@ -450,7 +454,7 @@ def verify_receiver_case_state(
         AssertionError: If any invariant is violated.
     """
     final_case = as_VulnerabilityCase(
-        **receiver_client.get(f"/datalayer/{case_id}")
+        **receiver_client.get(receiver_client.dl_path(case_id))
     )
 
     # Verify required participants are present by ID rather than a raw count,
@@ -516,7 +520,9 @@ def verify_case_actor_unused(
     if case_actor_client is None:
         return
 
-    case_actor_cases = case_actor_client.get("/datalayer/VulnerabilityCases/")
+    case_actor_cases = case_actor_client.get(
+        case_actor_client.dl_path("VulnerabilityCases/")
+    )
     if case_id in case_actor_cases:
         raise AssertionError(
             "Dedicated case-actor container unexpectedly persisted the D5-2"

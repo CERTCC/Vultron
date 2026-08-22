@@ -265,7 +265,10 @@ def test_load_outbound_activity_preserves_suggested_roles():
     from vultron.wire.as2.factories.actor import recommend_actor_activity
     from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     suggested = as_Actor(
         id_="https://example.org/actors/v2", name="V2", type_="Organization"
     )
@@ -300,7 +303,10 @@ def test_load_outbound_activity_preserves_roles():
     from vultron.wire.as2.factories.case import rm_invite_to_case_activity
     from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     invitee = as_Actor(
         id_="https://example.org/actors/v2", name="V2", type_="Organization"
     )

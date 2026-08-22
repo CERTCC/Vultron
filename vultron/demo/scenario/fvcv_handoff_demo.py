@@ -165,7 +165,7 @@ def _wait_for_case_attributed_to(
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         try:
-            case_data = client.get(f"/datalayer/{case_id}")
+            case_data = client.get(client.dl_path(case_id))
             if isinstance(case_data, dict):
                 attributed_to = case_data.get("attributedTo") or case_data.get(
                     "attributed_to"
@@ -277,7 +277,7 @@ def _phase_report_submission(
             )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        vendor_client.get(vendor_client.dl_path(case.id_))
     )
     return (
         finder,
@@ -446,7 +446,7 @@ def _phase_ownership_handoff(
     )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        vendor_client.get(vendor_client.dl_path(case.id_))
     )
     return case
 

@@ -36,6 +36,44 @@ from vultron.wire.as2.factories import (
     update_case_activity,
 )
 
+#: The actor receiving these Update(VulnerabilityCase) messages.
+#:
+#: A received-side use case applies an inbound update to the *receiver's* own
+#: replica, and the tree executes under the receiving actor (BT-17-005), which
+#: under ADR-0070 also selects the store. So this names both the store's owner
+#: and the ``receiving_actor_id`` on every event below. The sender stays a
+#: separate identity — the owner-gating tests depend on that distinction.
+RECEIVER_ID = "https://example.org/actors/update-receiver"
+
+
+def _make_receiver_the_case_manager(dl, case, receiver_id=None):
+    """Give *receiver_id* the CASE_MANAGER role on *case*, in ``dl``.
+
+    ``GuardedBroadcastCaseUpdateBT`` gates the announce on
+    ``CheckIsCaseManagerNode``, which reads the **role** resolved from the case —
+    not the presence of a ``VultronCaseActor`` service entity. A service-only
+    fixture makes the gate correctly *skip*, so nothing is announced and the test
+    proves nothing (BT-17-005).
+
+    Because the gate passes only when the executing actor holds the role, the
+    announce is authored as that actor and ``outbox_append()`` puts it in that
+    actor's own store — which is the point of the Phase 3b role gate: both halves
+    of the emit land in one store.
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    receiver_id = receiver_id or RECEIVER_ID
+    manager = CaseParticipant(
+        id_=f"{case.id_}/participants/case-manager",
+        attributed_to=receiver_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(manager)
+    case.actor_participant_index[receiver_id] = manager.id_
+    return manager
+
 
 class TestCaseUseCases:
     """Tests for update_case handler."""
@@ -44,7 +82,10 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case applies name/summary/content updates from a full object."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc1",
@@ -60,7 +101,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         def _mock_rehydrate_applies(obj, **kwargs):
             if obj == case.id_:
@@ -85,7 +126,10 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case ledgers a warning and skips if actor is not the case owner."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         non_owner_id = "https://example.org/users/other"
         case = as_VulnerabilityCase(
@@ -101,7 +145,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = update_case_activity(updated_case, actor=non_owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()
@@ -114,7 +158,10 @@ class TestCaseUseCases:
 
     def test_update_case_idempotent(self, monkeypatch, make_payload):
         """update_case with same data produces the same result (last-write-wins)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc3",
@@ -129,7 +176,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         def _mock_rehydrate_idempotent(obj, **kwargs):
             if obj == case.id_:
@@ -153,7 +200,10 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case ledgers WARNING per CM-10-004 when a participant has not accepted the active embargo."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
         embargo = as_EmbargoEvent(
@@ -185,7 +235,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()
@@ -199,7 +249,10 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/bob"
         embargo = as_EmbargoEvent(
@@ -231,7 +284,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()
@@ -242,7 +295,10 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case does NOT warn when there is no active embargo (CM-10-004)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/carol"
 
@@ -269,7 +325,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()
@@ -280,7 +336,10 @@ class TestCaseUseCases:
         self, make_payload
     ):
         """Non-participant objects referenced by the case must not be excluded."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/uc6b"
@@ -312,6 +371,7 @@ class TestCaseUseCases:
             active_embargo=embargo.id_,
         )
         case.actor_participant_index[actor_id] = bogus_ref.id_
+        _make_receiver_the_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -320,11 +380,11 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        outbox_items = dl.outbox_list()
         assert len(outbox_items) == 1
 
         broadcast_id = outbox_items[0]
@@ -342,7 +402,10 @@ class TestCaseUseCases:
         self, make_payload
     ):
         """After a case update, the CaseActor outbox contains an Announce."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         participant_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/bc1"
@@ -363,17 +426,21 @@ class TestCaseUseCases:
         case.actor_participant_index[participant_id] = (
             "https://example.org/participants/p-bc1"
         )
+        _make_receiver_the_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        # The announce is authored by the actor holding CASE_MANAGER — the
+        # receiver — and queued in that same actor's store, so both halves of the
+        # emit are readable through the one DataLayer (ADR-0070).
+        queued_ids = dl.outbox_list()
         assert len(queued_ids) == 1
 
         broadcast_id = queued_ids[0]
@@ -381,18 +448,16 @@ class TestCaseUseCases:
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
         assert broadcast.type_ == "Announce"
-        assert broadcast.actor == case_actor.id_
+        assert broadcast.actor == RECEIVER_ID
         assert broadcast.to is not None
         assert participant_id in broadcast.to
 
-        # Verify the broadcast is also enqueued for delivery by outbox_handler
-        scoped_dl = dl.clone_for_actor(case_actor.id_)
-        queued_ids = scoped_dl.outbox_list()
-        assert broadcast_id in queued_ids
-
     def test_update_case_no_broadcast_when_no_case_actor(self, make_payload):
         """Broadcast is skipped gracefully when no CaseActor exists."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc2"
 
@@ -405,7 +470,7 @@ class TestCaseUseCases:
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         # Should not raise
         UpdateCaseReceivedUseCase(dl, event).execute()
@@ -417,7 +482,10 @@ class TestCaseUseCases:
 
     def test_update_case_no_broadcast_when_no_participants(self, make_payload):
         """Broadcast is skipped gracefully when the case has no participants."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc3"
 
@@ -438,7 +506,7 @@ class TestCaseUseCases:
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
@@ -449,7 +517,10 @@ class TestCaseUseCases:
         self, make_payload
     ):
         """Broadcast Announce.to includes every participant actor ID."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=RECEIVER_ID,
+        )
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc4"
         alice = "https://example.org/users/alice"
@@ -472,20 +543,25 @@ class TestCaseUseCases:
         case.actor_participant_index[bob] = (
             "https://example.org/participants/p-bc4-bob"
         )
+        _make_receiver_the_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        queued_ids = dl.outbox_list()
         broadcast_id = queued_ids[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
         assert broadcast.to is not None
-        assert set(broadcast.to) == {alice, bob}
+        # RECEIVER_ID is in the set because holding CASE_MANAGER makes it a
+        # participant too — the role is held *in the case*, so its holder is
+        # necessarily indexed there. Kept exact rather than loosened to a subset,
+        # so a future change to the recipient set still fails here.
+        assert set(broadcast.to) == {alice, bob, RECEIVER_ID}

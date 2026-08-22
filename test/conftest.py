@@ -45,6 +45,21 @@ from vultron.metadata.specs import (  # noqa: E402
     warn_unknown_spec_id,
 )
 
+#: The actor a test uses when it does not model actor identity at all.
+#:
+#: Every DataLayer belongs to exactly one actor (ADR-0070), so a test that only
+#: needs "somewhere to put objects" still has to name whose store that is. This
+#: is that name. It is deliberately one shared constant rather than a per-file
+#: literal so the set of tests that don't distinguish actors stays greppable.
+#:
+#: A test that *does* distinguish actors MUST NOT use it for more than one of
+#: them. Two logical actors sharing one store is the condition that hides
+#: missing-write defects: the reader finds the writer's row and the test passes
+#: for the wrong reason. Give each actor its own store instead — the BT's store
+#: follows its executing actor, so running a tree as actor X against Y's store
+#: now reads an empty store rather than silently borrowing Y's data.
+TEST_ACTOR_ID = "https://test.example/api/v2/actors/test-actor"
+
 #: Per-test timeout for ``@pytest.mark.integration`` tests, in seconds.
 #:
 #: The global ``timeout = 30`` in ``pyproject.toml`` is sized for the unit
@@ -123,3 +138,51 @@ def cleanup_test_datalayer():
     reset_datalayer()
     yield
     reset_datalayer()
+
+
+@pytest.fixture(autouse=True)
+def _dispose_actor_stores_between_tests():
+    """Drop every per-actor store after each test (ADR-0070).
+
+    In-memory stores are **named** — ``actor_db_url`` maps an actor to
+    ``sqlite:///file:{base}-{slug}?mode=memory&cache=shared&uri=true`` — so the
+    engine cache is keyed by that URL rather than by engine-object identity.
+    Two tests using the same actor id therefore reach the *same* in-memory
+    database, and without disposal the first test's rows leak into the second
+    (seen as ``ValueError: record with id_=... already exists``).
+
+    Naming the database is what makes store identity live entirely in the URL
+    (the property that stops two in-process applications sharing a store), so
+    the disposal duty is the price of that guarantee rather than an accident.
+    Disposing closes the last connection, which is what actually destroys an
+    in-memory database.
+
+    Autouse and session-wide: individual tests should not have to remember, and
+    forgetting produces cross-test contamination that presents as a confusing
+    duplicate-id error far from its cause.
+    """
+    yield
+    from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+
+    reset_datalayer()
+
+
+def seed_case_actor_replica(dl, case_actor_id, case, *extra):
+    """Give the CaseActor its own replica of *case*, and return its store.
+
+    A delegated emit (CM-24-001) is authored as the CaseActor and committed to the
+    CaseActor's ledger, so the tree runs in the **CaseActor's** store. That store
+    must therefore hold the case: ``CommitCaseLedgerEntryNode`` anchors the chain
+    on the case's deterministic per-case genesis hash (CLP-08-001/002), and
+    without the case there is nothing to anchor to — the commit fails with
+    "ledger is empty and per-case genesis hash is unavailable".
+
+    In production the CaseActor always has the case; it is the actor that manages
+    it. Only the tests were seeding a single store, which a shared pool made
+    sufficient.
+    """
+    case_actor_dl = dl.clone_for_actor(case_actor_id)
+    case_actor_dl.create(case)
+    for obj in extra:
+        case_actor_dl.create(obj)
+    return case_actor_dl

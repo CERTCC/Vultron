@@ -26,13 +26,19 @@ from .conftest import (
 
 
 def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
-    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """TerminateEmbargo transitions ACTIVE → EXITED and clears active_embargo."""
-    finder, finder_dl = finder_actor_and_dl
-    owner = _persist_actor(finder_dl, "Vendor Co")
+    """TerminateEmbargo transitions ACTIVE → EXITED and clears active_embargo.
+
+    Runs in the *owner's* store, because the owner is the requesting actor and a
+    trigger's BT reads and writes the executing actor's own store (ADR-0070).
+    The finder is a peer here: its participant record lives in the owner's
+    replica of the case, which is what the assertion below reads.
+    """
+    owner, owner_dl = owner_actor_and_dl
+    finder = _persist_actor(owner_dl, "Finder Co")
     case, _, participant_id = _build_active_embargo_case(
-        finder_dl, owner.id_, finder.id_
+        owner_dl, owner.id_, finder.id_
     )
     request = TerminateEmbargoTriggerRequest(
         actor_id=owner.id_,
@@ -40,13 +46,13 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     )
 
     result = SvcTerminateEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        owner_dl, request, trigger_activity=TriggerActivityAdapter(owner_dl)
     ).execute()
 
     assert "activity" in result
-    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
+    updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     updated_participant = cast(
-        as_CaseParticipant, finder_dl.read(participant_id)
+        as_CaseParticipant, owner_dl.read(participant_id)
     )
     assert updated_case.current_status.em.state == EM.EXITED
     assert updated_case.active_embargo is None
@@ -54,16 +60,15 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
 
 
 def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
-    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
     """HasActiveEmbargoNode raises VultronInvalidStateTransitionError when no active embargo.
 
     Verifies that the guard previously in _prepare() is now enforced by the BT
     node (AC-5 / LST-05): the use-case layer no longer checks case state inline.
     """
-    _, finder_dl = finder_actor_and_dl
-    owner = _persist_actor(finder_dl, "Vendor Co")
-    case = _build_no_embargo_case_with_case_manager(finder_dl, owner.id_)
+    owner, owner_dl = owner_actor_and_dl
+    case = _build_no_embargo_case_with_case_manager(owner_dl, owner.id_)
     request = TerminateEmbargoTriggerRequest(
         actor_id=owner.id_,
         case_id=case.id_,
@@ -71,7 +76,7 @@ def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
 
     with pytest.raises(VultronInvalidStateTransitionError):
         SvcTerminateEmbargoUseCase(
-            finder_dl,
+            owner_dl,
             request,
-            trigger_activity=TriggerActivityAdapter(finder_dl),
+            trigger_activity=TriggerActivityAdapter(owner_dl),
         ).execute()

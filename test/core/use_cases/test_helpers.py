@@ -61,7 +61,10 @@ _ALT_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-alt"
 
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture()
@@ -240,7 +243,10 @@ _VENDOR_PARTICIPANT_ID = f"{_CM_CASE_ID}/participants/vendor-002"
 
 @pytest.fixture()
 def cm_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture()

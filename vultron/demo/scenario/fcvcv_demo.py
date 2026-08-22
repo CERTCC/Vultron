@@ -364,7 +364,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        c1_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(c1_client.dl_path(case.id_))
     )
     return (
         finder,

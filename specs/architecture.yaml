@@ -495,43 +495,80 @@ groups:
   - id: ARCH-13-001
     priority: MUST
     kind: project
-    statement: 'The base `DataLayer` protocol MUST be used only for shared object storage operations (read, write, save, list).
-      It MUST NOT be passed to functions that perform inbox or outbox queue operations.'
-    rationale: 'Inbox and outbox queue operations are actor-scoped; using the shared DataLayer (actor_id=None) silently operates
-      on a phantom queue keyed by the empty string ("") rather than the actor''s real queue, causing reads to appear empty
-      and writes to be unreadable by the correct actor.'
+    deprecated: true
+    superseded_by: DL-07-002
+    statement: This requirement is superseded by DL-07-002; there is no unscoped DataLayer to keep away from queue operations.
+    rationale: >-
+      The rule policed a hazard that ADR-0070 removed rather than mitigated. It distinguished a "shared"
+      DataLayer from an actor-scoped one and forbade passing the former to queue operations; with every
+      DataLayer belonging to exactly one actor, the distinction has no referent and the rule is vacuous.
+      Retiring it is the point: the decision *deletes* guard rails instead of adding them.
+    adr:
+    - ADR-0070
   - id: ARCH-13-002
     priority: MUST
     kind: project
-    statement: 'Inbox and outbox queue operations (inbox_list, inbox_pop, inbox_append, outbox_list, outbox_pop, outbox_append)
-      MUST be performed on an `ActorScopedDataLayer` instance — a DataLayer whose actor_id is set to a non-empty canonical
-      URI.'
-    rationale: 'Queue rows are stored with actor_id as a column key; an unscoped DataLayer (actor_id=None) cannot address
-      per-actor queue rows correctly.'
+    deprecated: true
+    superseded_by: DL-07-001
+    statement: This requirement is superseded by DL-07-001; queue operations have no unscoped alternative to be required away from.
+    rationale: >-
+      Named `ActorScopedDataLayer`, a protocol refinement that existed only to mark the scoped case as
+      distinct. With no unscoped mode the refinement was merged back into `DataLayer`, and queue rows no
+      longer carry an `actor_id` column to address at all — the queue lives in its owner's store.
+    adr:
+    - ADR-0070
   - id: ARCH-13-003
     priority: MUST
     kind: project
-    statement: 'The actor_id used when constructing an `ActorScopedDataLayer` MUST be the actor''s canonical URI (the value
-      of actor.id_), not a short ID, UUID path segment, or any other derived identifier.'
-    rationale: 'record_outbox_item writes queue rows keyed by the actor_id string it receives. If outbox_list is called on
-      a DataLayer scoped to a different string (e.g., a short UUID when the writer used a full URI), the queue appears empty
-      and outbound activities are silently dropped (see BUG-2026040901).'
+    statement: >-
+      The actor identity a DataLayer is opened under MUST be the actor's canonical URI — the value of
+      `actor.id_` — and MUST NOT be a short ID, a URL path segment, or any other derived identifier.
+      Where a request carries a path segment, it MUST be resolved to the canonical URI before the store
+      is opened.
+    rationale: >-
+      Two spellings of one actor must not name two stores. This entry survives ADR-0070 — it is the
+      reason `get_actor_dl` resolves the segment by computation before opening anything — but its
+      wording did not: it referred to constructing an `ActorScopedDataLayer` and justified itself by
+      `record_outbox_item` writing rows keyed by the string it received, and both of those are gone.
+      The original failure mode was BUG-2026040901, where a queue written under the canonical URI was
+      read under the short id and the activities vanished. That specific mechanism is now unreachable —
+      queues are not keyed by an id string — but the requirement still binds, because the canonical URI
+      is what *selects the store*, so a short id opens a different and empty one.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-006
+    verification: >-
+      `test/adapters/driving/fastapi/test_deps.py` asserts that `get_canonical_actor_dl` resolves a
+      short path segment to the canonical URI and that the resulting store can read the outbox entries
+      that actor's own writes went to.
+    adr:
+    - ADR-0070
   - id: ARCH-13-004
     priority: MUST
     kind: project
-    statement: 'The actor_id argument passed to record_outbox_item MUST match exactly the actor_id used to construct the `ActorScopedDataLayer`
-      that will later call outbox_list or outbox_pop for that actor.'
-    rationale: 'The queue key is a plain string equality check. Any mismatch — including full-URI vs. short-UUID — produces
-      a silent empty read.'
+    deprecated: true
+    superseded_by: DL-07-001
+    statement: This requirement is superseded by DL-07-001; the two identities it required to match no longer both exist.
+    rationale: >-
+      It required the `actor_id` passed to `record_outbox_item` to equal the one used to construct the
+      reading DataLayer. `record_outbox_item` is gone: every one of its call sites passed the executing
+      actor's own id, so with a mandatory actor scope it was exactly `outbox_append`. With one identity
+      instead of two there is nothing left to keep in agreement.
+    adr:
+    - ADR-0070
   - id: ARCH-13-005
     priority: SHOULD
     kind: project
-    statement: 'The `ActorScopedDataLayer` protocol type SHOULD be defined in `vultron/core/ports/datalayer.py` as a refinement
-      of `DataLayer` so that type-checkers (mypy, pyright) can enforce scope boundaries at function-signature level. It is
-      currently implemented there with methods: `inbox_append(activity_id: str) -> None`, `inbox_list() -> list[str]`, `inbox_pop()
-      -> str | None`, `outbox_append(activity_id: str) -> None`, `outbox_list() -> list[str]`, `outbox_pop() -> str | None`.'
-    rationale: 'An explicit Protocol type converts a convention-only rule into a compile-time-enforced boundary, making violations
-      visible without running the code.'
+    deprecated: true
+    superseded_by: DL-07-002
+    statement: This requirement is superseded by DL-07-002; the `ActorScopedDataLayer` protocol it asked for has been deleted.
+    rationale: >-
+      It asked for a Protocol refinement so type-checkers could enforce the scope boundary at
+      signature level. The boundary is now enforced by construction instead — a DataLayer cannot exist
+      unscoped — so the refinement had no referent and was merged back into `DataLayer`. Retired
+      alongside ARCH-13-001/002/004 rather than kept as an unimplementable SHOULD.
+    adr:
+    - ADR-0070
 - id: ARCH-16
   title: App State Isolation
   specs:

@@ -401,7 +401,7 @@ class EmitCDActivity(DataLayerActionWithPorts):
     Calls ``trigger_activity_factory.add_participant_status_to_participant``
     with the status and participant IDs written to *result_out* by
     :class:`TransitionCStoFixDeployed` and queues the resulting activity ID
-    via ``record_outbox_item``.
+    via ``outbox_append``.
 
     Per ADR-0021 CLP-10-001: trigger trees MUST address fix-deployment
     activities to the Case Actor (CASE_MANAGER) so the CaseActor can commit
@@ -471,8 +471,8 @@ class EmitCDActivity(DataLayerActionWithPorts):
                 actor=self._actor_id,
                 to=to,
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self._actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: CD activity '%s' emitted for actor '%s' in case '%s'",

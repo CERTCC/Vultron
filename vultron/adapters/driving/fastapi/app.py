@@ -19,6 +19,8 @@ Vultron API v2 Application
 import logging
 from contextlib import asynccontextmanager
 
+from uuid import uuid4
+
 from fastapi import FastAPI
 
 from vultron.adapters.driving.fastapi.routers import router
@@ -73,42 +75,72 @@ def configure_logging() -> None:
 
 
 def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
-    """Auto-inject an in-memory DataLayer if none is already registered.
+    """Auto-inject per-actor in-memory DataLayers if none are registered.
 
     Called during :func:`_make_lifespan` startup when ``configure_globals``
     is ``False``.  If the caller has already registered an override (e.g. a
-    test fixture's ``SqliteDataLayer``), it is left untouched.  Otherwise a
-    fresh in-memory database is created and stored on ``app.state.shared_dl``
-    so it can be closed on shutdown.
-    """
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    test fixture), it is left untouched.
 
-    if get_shared_dl in application.dependency_overrides:
+    Two dimensions of isolation are in play and both must hold:
+
+    - **Per application** (issue #534): several ``create_app()`` instances in
+      one process must not share storage.  Each app therefore gets its own
+      *named* in-memory deployment, so the resolved URL differs per app.
+      Without the name every app would resolve to the same store and
+      cross-app leakage would return — along a different axis than the one
+      ADR-0070 closed, but the same class of bug.
+    - **Per actor** (ADR-0070, CM-01-001): within an app, each actor gets its
+      own store.  The override is therefore a *factory* keyed on the requested
+      actor, not one shared instance.
+    """
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
+
+    if get_actor_dl in application.dependency_overrides:
         return
 
+    from fastapi import Path as _Path
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
-    application.dependency_overrides[get_shared_dl] = lambda: isolated_dl
-    application.state.shared_dl = isolated_dl
+    db_url = (
+        f"sqlite:///file:app-{uuid4().hex}"
+        "?mode=memory&cache=shared&uri=true"
+    )
+    registry: dict[str, SqliteDataLayer] = {}
+
+    def _isolated_actor_dl(actor_id: str = _Path(...)) -> SqliteDataLayer:
+        canonical = canonical_actor_uri(actor_id)
+        if canonical not in registry:
+            registry[canonical] = SqliteDataLayer(
+                db_url=db_url, actor_id=canonical
+            )
+        return registry[canonical]
+
+    application.dependency_overrides[get_actor_dl] = _isolated_actor_dl
+    application.state.actor_dls = registry
+    application.state.db_url = db_url
 
 
 def _teardown_per_app_state(application: FastAPI) -> None:
     """Clean up per-app dispatcher and DataLayer state on lifespan shutdown."""
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
-    # Clear dispatcher BEFORE the early return: even when the DataLayer was
-    # supplied by a pre-registered override (app.state.shared_dl is None),
+    # Clear dispatcher BEFORE the early return: even when the DataLayers were
+    # supplied by a pre-registered override (app.state.actor_dls is None),
     # the per-app dispatcher was still created by this lifespan and must be
     # released so it cannot leak across lifespan restarts on the same app.
     application.state.dispatcher = None
-    dl_to_close = getattr(application.state, "shared_dl", None)
-    if dl_to_close is None:
+    registry = getattr(application.state, "actor_dls", None)
+    if registry is None:
         return
-    application.state.shared_dl = None
-    if get_shared_dl in application.dependency_overrides:
-        del application.dependency_overrides[get_shared_dl]
-    dl_to_close.close()
+    application.state.actor_dls = None
+    if get_actor_dl in application.dependency_overrides:
+        del application.dependency_overrides[get_actor_dl]
+    # Closing every actor's store drops this app's named in-memory databases:
+    # an in-memory database lives only while a connection to it is open.
+    for actor_dl in registry.values():
+        actor_dl.close()
 
 
 def _make_lifespan(*, configure_globals: bool = True):
@@ -230,6 +262,7 @@ def create_app(
     version: str = "0.2.0",
     docs_url: str | None = "/docs",
     openapi_url: str | None = "/openapi/v2.json",
+    node_base_url: str | None = None,
 ) -> FastAPI:
     """Factory that creates a fresh, isolated FastAPI application instance.
 
@@ -239,19 +272,23 @@ def create_app(
     - Creates a per-app inbox dispatcher (stored on ``app.state.dispatcher``)
       so that multiple ``create_app()`` instances in the same process never
       share the module-level ``_DISPATCHER`` global (issue #534).
-    - Injects a fresh in-memory ``SqliteDataLayer`` via
-      ``app.dependency_overrides[get_shared_dl]`` when no override has
-      already been registered, giving each instance its own isolated
-      storage (issue #534).
+    - Injects per-actor in-memory ``SqliteDataLayer`` instances via
+      ``app.dependency_overrides[get_actor_dl]`` when no override has already
+      been registered.  Each app gets its own *named* in-memory deployment, so
+      instances never share storage (issue #534), and within an app each actor
+      gets its own store (ADR-0070, CM-01-001).
 
-    If you need a specific DataLayer (e.g. a file-backed SQLite database or
-    a test-fixture instance), register the override *before* the lifespan
-    starts (i.e. before calling ``TestClient.__enter__()``):
+    If you need specific DataLayers (e.g. file-backed SQLite, or test-fixture
+    instances), register the override *before* the lifespan starts (i.e. before
+    calling ``TestClient.__enter__()``).  The override receives the requested
+    ``actor_id`` path segment, so it must return that actor's store:
 
     .. code-block:: python
 
         app = create_app(docs_url=None, openapi_url=None)
-        app.dependency_overrides[get_shared_dl] = lambda: my_dl
+        app.dependency_overrides[get_actor_dl] = (
+            lambda actor_id: my_dls[canonical_actor_uri(actor_id)]
+        )
         with TestClient(app) as client:
             ...
 
@@ -260,6 +297,13 @@ def create_app(
         version: OpenAPI version string.
         docs_url: URL for the Swagger UI (``None`` to disable).
         openapi_url: URL for the OpenAPI schema (``None`` to disable).
+        node_base_url: Base URL at which *this* app is reached, used to resolve
+            actor path segments to canonical URIs.  Leave ``None`` to use
+            ``ServerConfig.base_url``, which is correct whenever one process is
+            one node.  Set it when several apps run in one process and each must
+            resolve segments into its own namespace — otherwise an actor created
+            under one app's base URL is looked up under another's and reported
+            missing.  See ``deps.node_base_url``.
 
     Returns:
         A new :class:`FastAPI` instance with the Vultron router included.
@@ -273,6 +317,7 @@ def create_app(
         openapi_url=openapi_url,
         lifespan=_make_lifespan(configure_globals=False),
     )
+    application.state.node_base_url = node_base_url
     if get_config().mode == RunMode.PROTOTYPE:
         from vultron.adapters.driving.fastapi.routers import demo_triggers
 

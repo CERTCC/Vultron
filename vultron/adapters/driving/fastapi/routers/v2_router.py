@@ -39,9 +39,27 @@ def get_version(request: Request):
     return {"version": request.app.version}
 
 
-router.include_router(actors.router)
-
+# Order matters, and this pair is the reason.
+#
+# The actors router serves `GET /actors/{actor_id:path}`, and the `:path`
+# converter is greedy — it matches slashes.  The debug/inspection router now
+# lives under `/actors/{actor_id}/datalayer/...` (ADR-0070 moved it there when
+# the unscoped `/datalayer/...` view was deleted).  Starlette matches in
+# registration order, so with the actors router first, a request for
+# `/actors/vendor/datalayer/urn:uuid:x` matched `GET /actors/{actor_id:path}`
+# with `actor_id = "vendor/datalayer/urn:uuid:x"` and answered
+# `404 Actor not found` — indistinguishable from a genuinely missing actor,
+# which is why every route in the datalayer router was unreachable without
+# anything looking broken.
+#
+# The specific prefix therefore goes first.  Its `{actor_id}` is deliberately
+# *not* a `:path`: a path segment is resolved to a canonical URI by computation
+# (ADR-0070 decision 2), so a single segment is the addressable form.
+# See test/adapters/driving/fastapi/routers/test_datalayer_route_reachable.py.
 router.include_router(datalayer.router)
+router.include_router(datalayer.admin_router)
+
+router.include_router(actors.router)
 
 router.include_router(examples.router)
 

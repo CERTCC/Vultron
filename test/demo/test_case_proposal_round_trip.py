@@ -76,6 +76,7 @@ from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -165,11 +166,16 @@ def two_app_setup(monkeypatch):
     reload_config()
 
     router = _TestClientRouter()
+    # `actor_slug` matters: it decides which actor's store `iso.dl` is.  These
+    # tests create their actors under the module slugs below, and a store belongs
+    # to exactly one actor (ADR-0070), so leaving the default `"primary"` would
+    # point `dl` at an empty database and the assertions would fail for the wrong
+    # reason.
     vendor_iso = create_isolated_actor_app(
-        base_url=_VENDOR_BASE, router=router
+        base_url=_VENDOR_BASE, router=router, actor_slug=_VENDOR_SLUG
     )
     reporter_iso = create_isolated_actor_app(
-        base_url=_REPORTER_BASE, router=router
+        base_url=_REPORTER_BASE, router=router, actor_slug=_REPORTER_SLUG
     )
 
     # Register the configured base URL so CaseActor deliveries route to
@@ -240,6 +246,17 @@ class TestCaseProposalRoundTrip:
             actor=reporter_actor_id,
             to=vendor_actor_id,
         )
+        # Provision the CaseActor the proposal will be addressed to.  Its id is
+        # *derived* from the report (ResolveCaseActorUrlsNode), and the vendor is
+        # the case-actor service here, so the vendor's node must host it — or the
+        # Create(CaseProposal) delivery answers 404 and the round-trip never
+        # begins.  Spawning one on demand for an unknown case is #1700.
+        _create_actor(
+            vendor_tc,
+            vendor_base_api,
+            _actor_slug(case_actor_id_for_report(str(report.id_))),
+            "Case Actor CP",
+        )
         _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 
         # Verify a CaseProposal object was created and stored by
@@ -288,6 +305,17 @@ class TestCaseProposalRoundTrip:
             report,
             actor=reporter_actor_id,
             to=vendor_actor_id,
+        )
+        # Provision the CaseActor the proposal will be addressed to.  Its id is
+        # *derived* from the report (ResolveCaseActorUrlsNode), and the vendor is
+        # the case-actor service here, so the vendor's node must host it — or the
+        # Create(CaseProposal) delivery answers 404 and the round-trip never
+        # begins.  Spawning one on demand for an unknown case is #1700.
+        _create_actor(
+            vendor_tc,
+            vendor_base_api,
+            _actor_slug(case_actor_id_for_report(str(report.id_))),
+            "Case Actor CP",
         )
         _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 

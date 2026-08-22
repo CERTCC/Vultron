@@ -50,7 +50,13 @@ def clear_blackboard():
 
 @pytest.fixture
 def datalayer():
-    return SqliteDataLayer("sqlite:///:memory:")
+    """The participant's own replica store (ADR-0070).
+
+    Almost every tree here executes as PARTICIPANT_ACTOR_ID, applying an
+    announced ledger entry to that participant's replica.  ``case_actor.id_``
+    passed to ``_make_event`` is the entry's *author*, not the executing actor.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=PARTICIPANT_ACTOR_ID)
 
 
 @pytest.fixture
@@ -131,9 +137,14 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
     datalayer.save(entry)
     event = _make_event(entry, actor_id=case_actor.id_)
 
+    # Runs as the replica holder whose store this is.  Neither this test nor
+    # the spoofed-sender one below is about *which* participant receives the
+    # announcement — they are about not re-persisting a known entry and about
+    # rejecting an unauthorised author — so the receiver is the participant,
+    # matching every other tree in this file.
     result = bridge.execute_with_setup(
         tree=create_announce_log_entry_tree(),
-        actor_id=OWNER_ACTOR_ID,
+        actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
     )
 
@@ -150,7 +161,7 @@ def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_actor):
 
     result = bridge.execute_with_setup(
         tree=create_announce_log_entry_tree(),
-        actor_id=OWNER_ACTOR_ID,
+        actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
     )
 

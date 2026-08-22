@@ -67,6 +67,7 @@ from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_activity_in_inbox,
 )  # noqa: F401
+from vultron.demo.utils import case_actor_id_for_report
 from vultron.demo.helpers.workflow import find_case_by_report_id
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -77,6 +78,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     get_offer_from_datalayer,
     logfmt,
     post_to_inbox_and_wait,
+    seed_case_actor_for_report,
     postfmt,
     verify_object_stored,
     setup_demo_logging,
@@ -129,7 +131,12 @@ def find_case_by_report(
     Returns:
         The matching case, or ``None`` if not found.
     """
-    return find_case_by_report_id(client, report_id)
+    # The CaseActor's store: under ADR-0041 it authors the canonical case, so the
+    # case a report produced lives there, not in the vendor's replica — the
+    # vendor only gets one once Create(VulnerabilityCase) has been delivered.
+    return find_case_by_report_id(
+        client, report_id, actor_id=case_actor_id_for_report(report_id)
+    )
 
 
 def demo_validate_report(
@@ -164,6 +171,11 @@ def demo_validate_report(
         )
         logger.info(f"Created report: {logfmt(report)}")
         report_offer = make_submit_offer(finder, vendor, report)
+        # Provision the CaseActor this report's proposal will be addressed to.
+        # Its id is derived from the report, and this node hosts it in
+        # single-container demo mode; without it the Create(CaseProposal)
+        # delivery 404s and no canonical case is ever created (#2469).
+        seed_case_actor_for_report(client, report.id_)
         submit_to_inbox(
             client=client, vendor_id=vendor.id_, activity=report_offer
         )
@@ -180,7 +192,7 @@ def demo_validate_report(
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
         with demo_check("ValidateReport activity stored"):
-            response = client.get(f"/datalayer/{validate_activity.id_}")
+            response = client.get(client.dl_path(validate_activity.id_))
             logger.info(
                 f"ValidateReport stored: {json.dumps(response, indent=2)}"
             )
@@ -246,6 +258,11 @@ def demo_invalidate_report(
         )
         logger.info(f"Created report: {logfmt(report)}")
         report_offer = make_submit_offer(finder, vendor, report)
+        # Provision the CaseActor this report's proposal will be addressed to.
+        # Its id is derived from the report, and this node hosts it in
+        # single-container demo mode; without it the Create(CaseProposal)
+        # delivery 404s and no canonical case is ever created (#2469).
+        seed_case_actor_for_report(client, report.id_)
         submit_to_inbox(
             client=client, vendor_id=vendor.id_, activity=report_offer
         )
@@ -265,7 +282,7 @@ def demo_invalidate_report(
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
         with demo_check("InvalidateReport activity stored"):
             invalidate_response = client.get(
-                f"/datalayer/{invalidate_activity.id_}"
+                client.dl_path(invalidate_activity.id_)
             )
             logger.info(
                 f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
@@ -329,6 +346,11 @@ def demo_invalidate_and_close_report(
         )
         logger.info(f"Created report: {logfmt(report)}")
         report_offer = make_submit_offer(finder, vendor, report)
+        # Provision the CaseActor this report's proposal will be addressed to.
+        # Its id is derived from the report, and this node hosts it in
+        # single-container demo mode; without it the Create(CaseProposal)
+        # delivery 404s and no canonical case is ever created (#2469).
+        seed_case_actor_for_report(client, report.id_)
         submit_to_inbox(
             client=client, vendor_id=vendor.id_, activity=report_offer
         )
@@ -350,12 +372,12 @@ def demo_invalidate_and_close_report(
         post_to_inbox_and_wait(client, vendor.id_, close_activity)
         with demo_check("InvalidateReport and CloseReport activities stored"):
             invalidate_response = client.get(
-                f"/datalayer/{invalidate_activity.id_}"
+                client.dl_path(invalidate_activity.id_)
             )
             logger.info(
                 f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
             )
-            close_response = client.get(f"/datalayer/{close_activity.id_}")
+            close_response = client.get(client.dl_path(close_activity.id_))
             logger.info(
                 f"CloseReport stored: {json.dumps(close_response, indent=2)}"
             )

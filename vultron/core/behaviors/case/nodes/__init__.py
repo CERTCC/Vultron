@@ -115,6 +115,9 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
     EmitOfferCaseOwnershipTransferNode,
 )
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckIsCaseOwnerNode,
@@ -188,6 +191,8 @@ __all__ = [
     # ownership_transfer (leaf nodes)
     "EmitOfferCaseOwnershipTransferNode",
     "EmitAcceptCaseOwnershipTransferNode",
+    # role_gates (gated composites)
+    "create_case_manager_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckVendorRoleNode",
     "CheckDeployerRoleNode",

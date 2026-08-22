@@ -213,12 +213,12 @@ class TestInvalidateReportTriggerTree:
         self, scenario: BTTestScenario, actor, report, offer
     ):
         """SUCCESS: activity is added to the actor's outbox."""
-        before = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        before = set(scenario.dl.outbox_list())
         tree = create_invalidate_report_trigger_tree(
             offer_id=offer.id_, report_id=report.id_
         )
         scenario.run(tree)
-        after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        after = set(scenario.dl.outbox_list())
         assert len(after - before) >= 1
 
     def test_failure_no_trigger_activity_factory(
@@ -288,12 +288,12 @@ class TestRejectReportTriggerTree:
         invalid_status: ParticipantStatus,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
-        before = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        before = set(scenario.dl.outbox_list())
         tree = create_reject_report_trigger_tree(
             offer_id=offer.id_, report_id=report.id_
         )
         scenario.run(tree)
-        after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        after = set(scenario.dl.outbox_list())
         assert len(after - before) >= 1
 
     def test_no_pre_close_guard(
@@ -372,7 +372,7 @@ class TestCloseCaseTriggerTree:
         accepted_status: ParticipantStatus,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
-        before = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        before = set(scenario.dl.outbox_list())
         result_out: dict = {}
         tree = create_close_case_trigger_tree(
             actor_id=ACTOR_ID,
@@ -382,7 +382,7 @@ class TestCloseCaseTriggerTree:
             result_out=result_out,
         )
         scenario.run(tree, case_id=case_with_owner.id_)
-        after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        after = set(scenario.dl.outbox_list())
         assert len(after - before) >= 1
 
     def test_failure_non_case_owner_blocked(

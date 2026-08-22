@@ -16,11 +16,12 @@
 """Main SqliteDataLayer class implementation."""
 
 import logging
-from typing import Any, Callable, cast
+from typing import Any, Callable, cast, get_args
 
 from pydantic import BaseModel, ValidationError
 from sqlmodel import SQLModel
 
+from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
 from vultron.adapters.driven.db_record import (
     Record,
     _AS_LIST_REF_FIELDS,
@@ -40,10 +41,41 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 from .schema import VultronObjectRecord
-from .engine import make_engine
+from .engine import dispose_actor_engines, get_actor_engine
 from . import crud, queries, queues
 
 logger = logging.getLogger(__name__)
+
+
+def _field_admits_object(obj: Any, field_name: str) -> bool:
+    """True when *field_name* on *obj* can legitimately hold a nested object.
+
+    ``_AS_OBJECT_REF_FIELDS`` names fields that are *usually* references, but the
+    same name can be declared as a plain URI on a particular model (for instance
+    ``as_CaseProposal.target``, required by CP-01-005 to be the case-actor's URI).
+    Expanding such a field yields a model that violates its own annotation —
+    ``model_copy`` does not validate, so the breach surfaces later and elsewhere.
+
+    Unknown fields are treated as expandable, preserving the previous behaviour
+    for models that do not declare the field at all.
+    """
+    # ``PersistableModel`` is a Protocol, so ``model_fields`` is reached
+    # defensively rather than assumed.
+    model_fields = getattr(type(obj), "model_fields", None)
+    field = model_fields.get(field_name) if model_fields else None
+    if field is None:
+        return True
+    annotation = field.annotation
+    if annotation is None:
+        return True
+    candidates = list(get_args(annotation)) or [annotation]
+    for candidate in candidates:
+        # Unwrap one more level for containers such as ``Ref[as_Foo]``.
+        parts = list(get_args(candidate)) or [candidate]
+        for part in parts:
+            if isinstance(part, type) and issubclass(part, BaseModel):
+                return True
+    return False
 
 
 class SqliteDataLayer:
@@ -52,45 +84,72 @@ class SqliteDataLayer:
     def __init__(
         self,
         db_url: str = "sqlite:///:memory:",
-        actor_id: str | None = None,
+        *,
+        actor_id: str,
         enqueue_callback: Callable[[str], None] | None = None,
     ) -> None:
-        self._engine = make_engine(db_url)
+        """Open the store belonging to *actor_id*.
+
+        Args:
+            db_url: The configured SQLAlchemy URL **template**.  Each actor
+                gets its own store derived from it (ADR-0070), so this names a
+                family of stores rather than one location.
+            actor_id: The actor's canonical URI.  Required and keyword-only:
+                there is no unscoped DataLayer, so there is no such thing as a
+                store that is not some actor's own (CM-01-001).
+            enqueue_callback: Optional callback invoked with ``actor_id`` when
+                an item is appended to this actor's outbox.
+
+        Raises:
+            ValueError: If *actor_id* is empty or yields no usable slug.
+        """
+        self._db_url = db_url
         self._actor_id = actor_id
-        self._owns_engine: bool = True
+        self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
 
+    @property
+    def actor_id(self) -> str:
+        """The canonical URI of the actor whose store this is.
+
+        Public because callers legitimately need to ask *whose* store they
+        hold: under ADR-0070 a store is never anonymous, so "which actor" is
+        part of a DataLayer's identity rather than an implementation detail.
+        :class:`~vultron.core.behaviors.bridge.BTBridge` uses it to keep the
+        blackboard's ``datalayer`` and ``actor_id`` in agreement.
+        """
+        return self._actor_id
+
     def close(self) -> None:
-        """Dispose the underlying SQLAlchemy engine, releasing connections."""
-        if self._owns_engine:
-            self._engine.dispose()
+        """Dispose this actor's engine, releasing its SQLite connections.
+
+        Engines are cached per ``(db_url, actor_id)`` so that two instances for
+        the same actor share one store; disposal therefore goes through the
+        cache rather than the local reference.
+        """
+        dispose_actor_engines(self._db_url, self._actor_id)
 
     def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
-        """Return a new actor-scoped instance sharing this instance's engine.
+        """Return a DataLayer for *actor_id*, backed by that actor's own store.
 
-        The concrete return type is ``SqliteDataLayer``, which satisfies the
-        :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer` Protocol
-        structurally at both type-check and runtime (ARCH-13-003).
-
-        The returned instance borrows the underlying engine (it does not own
-        it) so its :meth:`close` / ``__del__`` will not dispose the engine.
-        The original instance remains responsible for engine lifecycle.
+        Under ADR-0070 this opens a **different** store rather than applying a
+        filter to a shared one, so nothing the returned instance writes can be
+        read through this instance, and vice versa.  Cloning for the actor this
+        instance already serves returns an equivalent instance sharing the same
+        cached engine.
 
         Args:
-            actor_id: The actor URI to scope the new instance to.
+            actor_id: The canonical URI of the actor whose store to open.
 
         Returns:
-            A :class:`SqliteDataLayer` scoped to *actor_id* (satisfies
-            :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer`)
-            that reads and writes to the same database as this instance.
+            A :class:`SqliteDataLayer` on *actor_id*'s own store.
         """
-        clone = SqliteDataLayer.__new__(SqliteDataLayer)
-        clone._engine = self._engine
-        clone._actor_id = actor_id
-        clone._owns_engine = False
-        clone._enqueue_callback = self._enqueue_callback
-        return clone
+        return SqliteDataLayer(
+            self._db_url,
+            actor_id=actor_id,
+            enqueue_callback=self._enqueue_callback,
+        )
 
     def set_enqueue_callback(
         self, callback: Callable[[str], None] | None
@@ -116,35 +175,28 @@ class SqliteDataLayer:
         self.close()
 
     def __del__(self) -> None:
-        """Dispose engine on garbage collection to avoid ResourceWarning.
+        """Do not dispose on garbage collection.
 
-        Only disposes if this instance created (owns) the engine.  Borrowed
-        engines (``_owns_engine = False``) must be disposed by their owner.
+        Engines are cached per ``(db_url, actor_id)`` and shared by every
+        instance serving that actor, so disposing here would close a store that
+        other live instances are still using.  Disposal is explicit, via
+        :meth:`close` or ``reset_datalayer``.
         """
-        if not getattr(self, "_owns_engine", True):
-            return
-        try:
-            self._engine.dispose()
-        except Exception:  # noqa: BLE001
-            pass
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _scoped(self, stmt: Any) -> Any:
-        """Apply actor-scoping WHERE clause when this DL has an actor_id."""
-        if self._actor_id:
-            return stmt.where(VultronObjectRecord.actor_id == self._actor_id)
-        return stmt
-
     def _to_row(self, obj: PersistableModel) -> VultronObjectRecord:
-        """Convert a domain object to a storage row."""
+        """Convert a domain object to a storage row.
+
+        No ``actor_id`` column is written: the store *is* the actor's, so
+        stamping ownership on each row would be redundant (ADR-0070).
+        """
         rec = Record.from_obj(obj)
         return VultronObjectRecord(
             id_=rec.id_,
             type_=rec.type_,
-            actor_id=self._actor_id,
             data=rec.data_,
         )
 
@@ -325,6 +377,17 @@ class SqliteDataLayer:
         ``target`` would remain a bare string URI and break semantic dispatch
         that relies on the resolved type (e.g. Organisation ≠ CaseParticipant
         for ``OfferCaseManagerRolePattern`` vs ``OfferCaseOwnershipTransfer``).
+
+        Expansion respects the field's **declared type**.  ``_AS_OBJECT_REF_FIELDS``
+        is a flat list applied to every object, but some models declare one of
+        those names as a plain URI rather than a reference — ``as_CaseProposal
+        .target`` is required by CP-01-005 to be the case-actor's URI, not an
+        inline actor.  Expanding it produced a model whose ``target`` was a dict,
+        which ``model_copy`` accepts silently (it does not validate) and which then
+        failed the next ``model_validate`` far away, in outbound delivery: the
+        proposal could not be re-hydrated, the recipient saw a dehydrated object,
+        matched no semantics, and never sent its ``Accept``. Nothing raised at the
+        point of damage.
         """
         updates: dict[str, object] = {}
         for field_name in _AS_OBJECT_REF_FIELDS:
@@ -333,6 +396,14 @@ class SqliteDataLayer:
                 continue
             if isinstance(value, str):
                 if not value:
+                    continue
+                if not _field_admits_object(obj, field_name):
+                    logger.debug(
+                        "Field %r on %r is declared as a plain URI; leaving its"
+                        " reference unexpanded.",
+                        field_name,
+                        type(obj).__name__,
+                    )
                     continue
                 nested = self.read(value)
                 if nested is None:
@@ -663,32 +734,24 @@ class SqliteDataLayer:
         """Return all activity IDs in this actor's outbox, in insertion order."""
         return queues.outbox_list(self)
 
-    def outbox_list_for_actor(self, actor_id: str) -> list[str]:
-        """Return all outbox activity IDs for *actor_id*, in insertion order."""
-        return queues.outbox_list_for_actor(self, actor_id)
-
     def outbox_pop(self) -> str | None:
         """Remove and return the oldest activity ID from the outbox."""
         return queues.outbox_pop(self)
-
-    def record_outbox_item(self, actor_id: str, activity_id: str) -> None:
-        """Queue an outbox item for *actor_id* regardless of this DL's scope."""
-        queues.record_outbox_item(self, actor_id, activity_id)
 
     # ------------------------------------------------------------------
     # Per-activity outbox attempt counter (OX-13-001)
     # ------------------------------------------------------------------
 
     def get_outbox_attempt_count(self, activity_id: str) -> int:
-        """Return the cumulative delivery attempt count for *activity_id*."""
+        """Return this actor's cumulative delivery attempt count for *activity_id*."""
         return queues.get_outbox_attempt_count(self, activity_id)
 
     def set_outbox_attempt_count(self, activity_id: str, count: int) -> None:
-        """Upsert the delivery attempt count for *activity_id*."""
+        """Upsert this actor's delivery attempt count for *activity_id*."""
         queues.set_outbox_attempt_count(self, activity_id, count)
 
     def clear_outbox_attempt_count(self, activity_id: str) -> None:
-        """Remove the attempt count entry for *activity_id*."""
+        """Remove this actor's attempt count entry for *activity_id*."""
         queues.clear_outbox_attempt_count(self, activity_id)
 
     # ------------------------------------------------------------------
@@ -702,11 +765,11 @@ class SqliteDataLayer:
         total_attempts: int,
         failed_recipients: list[str],
     ) -> None:
-        """Write an exhausted outbox activity to the dead-letter store."""
+        """Write an exhausted outbox activity to this actor's dead-letter store."""
         queues.dead_letter_append(
             self, activity_id, reason, total_attempts, failed_recipients
         )
 
-    def dead_letter_list(self) -> list:
-        """Return all dead-letter entries readable from the DataLayer."""
+    def dead_letter_list(self) -> list[OutboxDeadLetterEntry]:
+        """Return this actor's dead-letter entries (OX-13-004)."""
         return queues.dead_letter_list(self)

@@ -58,7 +58,10 @@ RECEIVER_ID = "https://example.org/actors/receiver"
 
 @pytest.fixture
 def dl():
-    layer = SqliteDataLayer("sqlite:///:memory:")
+    layer = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield layer
     layer.close()
 

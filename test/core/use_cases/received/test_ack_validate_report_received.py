@@ -88,7 +88,10 @@ class TestAckReportNoStandaloneStatus:
             activity=offer_activity,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         AckReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
@@ -121,7 +124,10 @@ class TestFullReportFlow:
         from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_actor import VultronCaseActor
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.VENDOR_ID,
+        )
         report = VultronReport(id_=self.REPORT_ID)
         vendor = VultronCaseActor(id_=self.VENDOR_ID)
         offer = VultronOffer(
@@ -336,7 +342,10 @@ class TestValidateReportReceivedGuardedCommit:
         """
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
         event = self._make_validate_event_with_receiving_actor(
             receiving_actor_id=None
         )
@@ -356,7 +365,10 @@ class TestValidateReportReceivedGuardedCommit:
         """
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
         event = self._make_validate_event_with_receiving_actor(
             receiving_actor_id=self.CASE_ACTOR_ID
         )
@@ -381,7 +393,10 @@ class TestValidateReportReceivedGuardedCommit:
             VultronReportCaseLink,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
 
         # Create a report and link it to a case with CaseActor
         report = VultronReport(id_=self.REPORT_ID)
@@ -451,7 +466,10 @@ class TestValidateReportReceivedGuardedCommit:
 
         CASE_ID = "https://example.org/cases/c-commit-positive"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
 
         report = VultronReport(id_=self.REPORT_ID)
         dl.save(report)

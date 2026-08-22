@@ -127,7 +127,7 @@ def create_validate_report_tree(
         >>> result = bridge.execute_with_setup(
         ...     tree,
         ...     actor_id="https://example.org/actors/vendor",
-        ...     datalayer=get_datalayer()
+        ...     datalayer=get_datalayer("https://example.org/actors/vendor")
         ... )
         >>> print(result.status)
         Status.SUCCESS

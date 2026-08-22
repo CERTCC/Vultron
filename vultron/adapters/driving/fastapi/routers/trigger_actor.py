@@ -39,7 +39,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     RejectCaseInviteRequest,
     SuggestActorToCaseRequest,
 )
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -61,8 +61,7 @@ def trigger_suggest_actor_to_case(
     body: SuggestActorToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the suggest-actor-to-case behavior for the given actor.
@@ -78,7 +77,7 @@ def trigger_suggest_actor_to_case(
             suggested_actor_id=body.suggested_actor_id,
             roles=body.roles,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -98,8 +97,7 @@ def trigger_accept_case_invite(
     body: AcceptCaseInviteRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the accept-case-invite behavior for the given actor.
@@ -113,7 +111,7 @@ def trigger_accept_case_invite(
             actor_id=actor_id,
             invite_id=body.invite_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -133,8 +131,7 @@ def trigger_reject_case_invite(
     body: RejectCaseInviteRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the reject-case-invite behavior for the given actor.
@@ -148,7 +145,7 @@ def trigger_reject_case_invite(
             actor_id=actor_id,
             invite_id=body.invite_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -168,7 +165,7 @@ def trigger_invite_actor_to_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the invite-actor-to-case behavior for the given actor.
@@ -193,7 +190,7 @@ def trigger_invite_actor_to_case(
         if emitting_id != actor_id
         else actor_dl
     )
-    background_tasks.add_task(outbox_handler, emitting_id, emitting_dl, dl)
+    background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
     return result
 
 
@@ -214,8 +211,7 @@ def trigger_accept_actor_recommendation(
     body: AcceptActorRecommendationRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the accept-actor-recommendation behavior for the given actor.
@@ -229,7 +225,7 @@ def trigger_accept_actor_recommendation(
             cp_offer_id=body.cp_offer_id,
             case_actor_id=body.case_actor_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -262,7 +258,7 @@ def trigger_offer_case_participant_role(
             role=body.role,
         )
     background_tasks.add_task(
-        outbox_handler, actor_id, dl.clone_for_actor(actor_id), dl
+        outbox_handler, actor_id, dl.clone_for_actor(actor_id)
     )
     return result
 
@@ -284,8 +280,7 @@ def trigger_offer_case_ownership_transfer(
     body: OfferCaseOwnershipTransferRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the offer-case-ownership-transfer behavior for the given actor.
@@ -301,7 +296,7 @@ def trigger_offer_case_ownership_transfer(
             transferee_id=body.transferee_id,
             content=body.content,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -321,8 +316,7 @@ def trigger_accept_case_ownership_transfer(
     body: AcceptCaseOwnershipTransferRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the accept-case-ownership-transfer behavior for the given actor.
@@ -336,5 +330,5 @@ def trigger_accept_case_ownership_transfer(
             actor_id=actor_id,
             offer_id=body.offer_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result

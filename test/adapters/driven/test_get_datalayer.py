@@ -39,23 +39,37 @@ def reset_singleton():
 
 
 def test_get_datalayer_returns_sqlite_instance():
-    dl = get_datalayer(db_url="sqlite:///:memory:")
+    dl = get_datalayer(
+        "https://test.example/api/v2/actors/test-actor",
+        db_url="sqlite:///:memory:",
+    )
     assert isinstance(dl, SqliteDataLayer)
 
 
 def test_get_datalayer_in_memory_by_default():
     """Default db_url should use in-memory SQLite during tests."""
-    dl = get_datalayer()
+    dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
     assert dl.ping()
 
 
 @pytest.mark.integration
 def test_get_datalayer_file_backed_with_explicit_url(tmp_path):
-    """Passing an explicit db_url must create a file-backed DataLayer."""
+    """Passing an explicit db_url must create a file-backed DataLayer.
+
+    The actor is mandatory (DL-07-002), and the configured URL is a *template*:
+    the file this opens is derived from it per actor (DL-07-003), so the assertion
+    below is that the derived path is under *this* URL rather than that it equals
+    it.
+    """
+    from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
+
+    actor_id = "https://test.example/api/v2/actors/file-backed-actor"
     db_file = str(tmp_path / "test.sqlite")
     db_url = f"sqlite:///{db_file}"
-    dl = get_datalayer(db_url=db_url)
+    dl = get_datalayer(actor_id, db_url=db_url)
     assert dl.ping()
+    assert str(dl._engine.url) == actor_db_url(db_url, actor_id)
+    assert str(tmp_path) in str(dl._engine.url)
 
 
 def test_get_datalayer_returns_singleton_for_same_actor_id():
@@ -81,11 +95,20 @@ def test_default_db_url_uses_vultron_database_db_url_env_var(
     monkeypatch.setenv("VULTRON_DATABASE__DB_URL", db_url)
     reload_config()
 
-    dl = get_datalayer()
+    actor_id = "https://test.example/api/v2/actors/test-actor"
+    dl = get_datalayer(actor_id)
     assert dl.ping()
-    # The URL used should be the one from the env var — verify by checking
-    # that the backing engine URL matches.
-    assert db_url in str(dl._engine.url)
+    # The configured URL is a *template*, not a location: under ADR-0070 each
+    # actor gets its own file derived from it, so `env_test.sqlite` becomes
+    # `env_test-test-actor.sqlite` and the raw value no longer appears verbatim.
+    # Assert the derivation the adapter actually performs — comparing against a
+    # hand-written expected name would just restate `actor_db_url`'s suffix rule
+    # in the test, and that rule is not what this test is about.
+    from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
+
+    assert str(dl._engine.url) == actor_db_url(db_url, actor_id)
+    # ...and that the derivation started from the env var, not the default.
+    assert str(tmp_path) in str(dl._engine.url)
 
 
 def test_default_db_url_falls_back_to_config_default(monkeypatch):

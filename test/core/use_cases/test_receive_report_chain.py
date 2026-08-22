@@ -262,7 +262,7 @@ class TestValidateEngageChain:
         """ValidateReport queues an activity addressed to the Case Actor (PCR-08-001)."""
         vendor, _, case_actor, dl, _, offer, _ = chain_context
 
-        before = set(dl.outbox_list_for_actor(vendor.id_))
+        before = set(dl.outbox_list())
         SvcValidateReportUseCase(
             dl,
             ValidateReportTriggerRequest(
@@ -270,7 +270,7 @@ class TestValidateEngageChain:
             ),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
-        after = set(dl.outbox_list_for_actor(vendor.id_))
+        after = set(dl.outbox_list())
         new_ids = after - before
         assert (
             new_ids

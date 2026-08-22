@@ -70,8 +70,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 # ---------------------------------------------------------------------------
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+def _make_dl(actor_id: str) -> SqliteDataLayer:
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=actor_id,
+    )
 
 
 def _make_case_at_received(
@@ -197,7 +200,7 @@ class TestTriggerEmitsToCaseActorOutbox:
         self,
     ) -> tuple[SqliteDataLayer, VulnerabilityCase, as_Offer, str]:
         """Return (dl, case, offer, case_actor_id) after BT receive-report."""
-        dl = _make_dl()
+        dl = _make_dl(self.VENDOR_ID)
         vendor = as_Service(id_=self.VENDOR_ID, name="Vendor")
         finder = as_Service(id_=self.FINDER_ID, name="Finder")
         dl.save(vendor)
@@ -300,7 +303,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link."""
         from vultron.core.models.case_actor import VultronCaseActor
 
-        dl = _make_dl()
+        dl = _make_dl(self.CASE_ACTOR_ID)
 
         # The CaseActor Service must have context=case_id so that
         # _find_case_actor_id resolves it via the Service scan.
@@ -494,7 +497,7 @@ class TestFullValidateReportLedgerChain:
         from vultron.core.use_cases._helpers import outbox_ids
 
         # ── Step 1: vendor_dl — case at RM.RECEIVED ──────────────────────────
-        vendor_dl = _make_dl()
+        vendor_dl = _make_dl(self.VENDOR_ID)
         vendor = as_Service(id_=self.VENDOR_ID, name="Vendor Co")
         finder = as_Service(id_=self.FINDER_ID, name="Finder Co")
         vendor_dl.save(vendor)
@@ -533,7 +536,14 @@ class TestFullValidateReportLedgerChain:
         )
 
         # ── Step 4: build case_actor_dl with same case identifiers ────────────
-        case_actor_dl = _make_dl()
+        # Keyed by the CaseActor, not the vendor. Two things were wrong with
+        # `_make_dl(self.VENDOR_ID)` here: the use case receives as the CaseActor,
+        # so the tree runs in the CaseActor's store and found no case there; and
+        # an actor id *is* a store name, so passing the vendor's id handed back
+        # the very same in-memory database as `vendor_dl` above. The two halves of
+        # this "vendor triggers, CaseActor receives" chain were one store, which
+        # is exactly the sharing that hides a missing cross-store write.
+        case_actor_dl = _make_dl(case_actor_id)
 
         # The CaseActor Service needs context=case.id_ for _find_case_actor_id.
         ca_svc = VultronCaseActor(id_=case_actor_id, context=case.id_)

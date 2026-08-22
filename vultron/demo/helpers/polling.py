@@ -102,7 +102,7 @@ def wait_for_case_on_container(
     """
 
     def _check() -> bool:
-        raw = client.get("/datalayer/VulnerabilityCases/")
+        raw = client.get(client.dl_path("VulnerabilityCases/"))
         return isinstance(raw, dict) and case_id in raw
 
     _poll_until(
@@ -157,7 +157,7 @@ def wait_for_case_participants(
     """
 
     def _check() -> bool:
-        case_data = vendor_client.get(f"/datalayer/{case_id}")
+        case_data = vendor_client.get(vendor_client.dl_path(case_id))
         case = as_VulnerabilityCase(**case_data)
         return len(case.actor_participant_index) >= expected_count
 
@@ -195,7 +195,7 @@ def wait_for_note_in_case(
     """
 
     def _check() -> bool:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         case = as_VulnerabilityCase(**case_data)
         note_ids = [
             n if isinstance(n, str) else getattr(n, "id_", str(n))
@@ -240,7 +240,7 @@ def wait_for_finder_log_entry(
     """
 
     def _check_with_log() -> bool:
-        raw = finder_client.get("/datalayer/CaseLedgerEntrys/")
+        raw = finder_client.get(finder_client.dl_path("CaseLedgerEntrys/"))
         if not isinstance(raw, dict):
             return False
         for v in raw.values():
@@ -296,7 +296,7 @@ def wait_for_event_type_in_ledger(
     """
 
     def _check() -> bool:
-        raw = client.get("/datalayer/CaseLedgerEntrys/")
+        raw = client.get(client.dl_path("CaseLedgerEntrys/"))
         if not isinstance(raw, dict):
             return False
         for v in raw.values():
@@ -358,7 +358,7 @@ def wait_for_contiguous_ledger_coverage(
     expected_indices = set(range(expected_tail_index + 1))
 
     def _check() -> bool:
-        raw = client.get("/datalayer/CaseLedgerEntrys/")
+        raw = client.get(client.dl_path("CaseLedgerEntrys/"))
         if not isinstance(raw, dict):
             return False
         present = {
@@ -411,7 +411,11 @@ def _poll_datalayer_for(
     log_msg: str,
     error_msg: str,
 ) -> str:
-    """Poll ``GET /datalayer/`` until *discriminator_fn* matches an object.
+    """Poll the client's own DataLayer until *discriminator_fn* matches.
+
+    The path is ``client.dl_path()`` — the *actor-scoped* collection, not the
+    retired unscoped ``/datalayer/``.  Under ADR-0070 there is no store that is
+    not some actor's own, so a poll must name whose store it is reading.
 
     Scans the full DataLayer dict on each tick and calls *discriminator_fn*
     on every ``dict``-typed value.  Returns the matching object's raw ID
@@ -436,7 +440,7 @@ def _poll_datalayer_for(
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         try:
-            all_objects = client.get("/datalayer/")
+            all_objects = client.get(client.dl_path())
             if isinstance(all_objects, dict):
                 for raw_id, obj_data in all_objects.items():
                     if not isinstance(obj_data, dict):
@@ -676,7 +680,7 @@ def find_case_actor_participant_id(
         or has no CaseActor participant.
     """
     try:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         case = as_VulnerabilityCase.model_validate(case_data)
         for actor_id in case.actor_participant_index:
             if strip_id_prefix(actor_id).startswith("case-actor"):
@@ -712,7 +716,7 @@ def wait_for_object_stored(
 
     def _check() -> bool:
         try:
-            data = client.get(f"/datalayer/{obj_id}")
+            data = client.get(client.dl_path(obj_id))
             if data:
                 logger.info(
                     "Object %s found in DataLayer at %s",
@@ -888,7 +892,7 @@ def wait_for_case_em_terminated(
     from vultron.core.states.em import is_em_exited  # noqa: PLC0415
 
     def _check() -> bool:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         case = as_VulnerabilityCase.model_validate(case_data)
         return is_em_exited(case.current_status.em_state)
 
@@ -959,7 +963,7 @@ def wait_for_all_participants_rm_closed(
     )
 
     def _check() -> bool:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         case = as_VulnerabilityCase.model_validate(case_data)
         return _all_fetchable_participants_rm_closed(client, case)
 

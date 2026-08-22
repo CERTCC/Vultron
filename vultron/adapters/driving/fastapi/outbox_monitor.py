@@ -37,13 +37,9 @@ import asyncio
 import logging
 from collections.abc import Callable
 
-from vultron.adapters.driven.datalayer import (
-    get_all_actor_datalayers,
-    get_datalayer,
-)
+from vultron.adapters.driven.datalayer import get_all_actor_datalayers
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 
 logger = logging.getLogger(__name__)
@@ -72,13 +68,6 @@ class OutboxMonitor:
         actor_datalayers_factory: Callable returning the current
             ``{actor_id: DataLayer}`` mapping.  Defaults to
             :func:`~vultron.adapters.driven.datalayer_sqlite.get_all_actor_datalayers`.
-        shared_dl: Shared/admin DataLayer used to resolve actor records and
-            read activity objects.  Defaults to ``get_datalayer()`` (no
-            actor scope).  When the shared DL is a
-            :class:`~vultron.adapters.driven.datalayer_sqlite.SqliteDataLayer`
-            the monitor also registers its wakeup callback there so that
-            ``record_outbox_item`` calls on the shared DL trigger immediate
-            wakeup.
         emitter: ``ActivityEmitter`` implementation for HTTP delivery.
             Defaults to ``HttpDeliveryAdapter`` (resolved inside
             :func:`outbox_handler`).
@@ -93,7 +82,6 @@ class OutboxMonitor:
         actor_datalayers_factory: (
             Callable[[], dict[str, SqliteDataLayer]] | None
         ) = None,
-        shared_dl: DataLayer | None = None,
         emitter: ActivityEmitter | None = None,
         depth_warn_threshold: int | None = None,
     ) -> None:
@@ -103,7 +91,6 @@ class OutboxMonitor:
             )
         self._poll_interval = poll_interval
         self._actor_datalayers_factory = actor_datalayers_factory
-        self._shared_dl = shared_dl
         self._emitter = emitter
         self._depth_warn_threshold = depth_warn_threshold
         self._task: asyncio.Task | None = None
@@ -129,9 +116,6 @@ class OutboxMonitor:
             else get_all_actor_datalayers
         )
         actor_dls = factory()
-        shared_dl = (
-            self._shared_dl if self._shared_dl is not None else get_datalayer()
-        )
 
         depths: dict[str, int] = {
             actor_id: len(dl.outbox_list())
@@ -161,7 +145,6 @@ class OutboxMonitor:
                 await outbox_handler(
                     actor_id,
                     dl,
-                    shared_dl=shared_dl,
                     emitter=self._emitter,
                 )
             except Exception as exc:
@@ -188,9 +171,7 @@ class OutboxMonitor:
         """Register _notify with any newly seen SqliteDataLayer instances.
 
         Called once at loop startup and again after each drain pass to pick
-        up actors that were registered while the monitor was running.  Also
-        registers the shared DataLayer so that ``record_outbox_item`` calls
-        on it trigger immediate wakeup.
+        up actors that were registered while the monitor was running.
         """
         factory = (
             self._actor_datalayers_factory
@@ -205,15 +186,10 @@ class OutboxMonitor:
                 dl.set_enqueue_callback(self._notify)
                 self._registered_actors.add(actor_id)
 
-        # Also register with the shared DL so record_outbox_item wakes us.
-        shared_dl = (
-            self._shared_dl if self._shared_dl is not None else get_datalayer()
-        )
-        if "_shared_" not in self._registered_actors and isinstance(
-            shared_dl, SqliteDataLayer
-        ):
-            shared_dl.set_enqueue_callback(self._notify)
-            self._registered_actors.add("_shared_")
+        # No shared-DataLayer registration: the wakeup callback used to be
+        # registered there so that record_outbox_item() on the shared DL would
+        # wake the monitor.  Both are gone — every DataLayer is actor-scoped and
+        # registers its own callback above (ADR-0070).
 
     async def _run_loop(self) -> None:
         """Main drain loop — wakes on enqueue or safety-net timeout."""

@@ -217,6 +217,41 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
     return None
 
 
+def resolve_receiving_actor_id(
+    dl: CasePersistence, receiving_actor_id: str | None
+) -> str:
+    """Return the actor whose replica a received message is being applied to.
+
+    Received-side use cases need an executing actor identity to run their BT
+    under (BT-17-005).  ``receiving_actor_id`` is set by the inbox adapter and
+    is authoritative when present.  When it is absent — CLI dispatch, replay,
+    tests — the answer is *the actor whose store we were handed*: under
+    ADR-0070 a DataLayer is always some specific actor's own, and a received-
+    side use case is by construction invoked with the receiving actor's store
+    (CM-01-001).
+
+    This replaces an ``or "unknown"`` fabrication that predated per-actor
+    storage.  A synthetic identity used to be merely a mislabelled log line
+    over a shared pool; now ``actor_id`` *selects the store*, so inventing one
+    silently routes every read and write into an empty scratch store and the
+    work is lost without an error (ARCH-15-001).
+
+    Raises:
+        VultronValidationError: If neither source yields an identity, since
+            there is then no defensible answer to "whose replica is this?".
+    """
+    if receiving_actor_id:
+        return receiving_actor_id
+    own_actor_id = getattr(dl, "actor_id", None)
+    if isinstance(own_actor_id, str) and own_actor_id:
+        return own_actor_id
+    raise VultronValidationError(
+        "cannot resolve the receiving actor: the request carries no"
+        " receiving_actor_id and the DataLayer reports no actor of its own,"
+        " so there is no store this message could be applied to (CM-01-001)"
+    )
+
+
 def _idempotent_create(
     dl: CasePersistence,
     type_key: str | None,
@@ -230,6 +265,20 @@ def _idempotent_create(
     Checks whether *id_key* is already present in the DataLayer.  If so, logs
     and returns without storing.  Otherwise stores *obj* (if not ``None``) via
     ``dl.create``.
+
+    An object carrying an id but **no ``type_``** is a *reference*, not something
+    that can be stored: ``type_`` is what selects the storage table, so
+    ``Record.from_obj`` refuses it outright.  The extractor produces exactly such
+    a stub — ``VultronObject(id_=…, type_=None)`` — when an inbound activity names
+    its object by bare URI, or by an object with no type.  That stub is load
+    bearing: ``event.object_id`` is *derived* from ``object_``, so it is how the id
+    survives at all; it simply is not a storable record.
+
+    Storing it was attempted anyway, which aborted the enclosing BT
+    (``CreateReportReceivedBT`` among them).  Such a reference is skipped here with
+    a warning naming it as one, because there is nothing to store — this is the
+    "Bare Object URI" case the Actor Knowledge Model describes, where the sender
+    should have inlined the object and the recipient legitimately has no copy.
 
     Args:
         dl: The DataLayer to read/write.
@@ -246,11 +295,21 @@ def _idempotent_create(
         # (SL-04-007).  Fires on essentially every received-side activity.
         logger.debug("'%s' already stored — skipping (idempotent)", id_key)
         return
-    if obj is not None:
-        dl.create(obj)
-        logger.info("Stored %s '%s'", label, id_key)
-    else:
+    if obj is None:
         logger.warning("no %s object for event '%s'", label, activity_id)
+        return
+    if getattr(obj, "type_", None) is None:
+        logger.warning(
+            "%s '%s' arrived as a bare reference with no type (activity '%s'):"
+            " the sender named it by URI instead of inlining it, so there is no"
+            " object to store — recording nothing (Actor Knowledge Model)",
+            label,
+            id_key,
+            activity_id,
+        )
+        return
+    dl.create(obj)
+    logger.info("Stored %s '%s'", label, id_key)
 
 
 def resolve_case(case_id: str, dl: CasePersistence):
@@ -619,19 +678,20 @@ def _log_label(uri: str) -> str:
 def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
     """Return the set of string activity IDs in the actor's outbox queue.
 
-    Uses ``outbox_list_for_actor`` when available (explicit actor scope),
-    otherwise falls back to the actor-scoped ``outbox_list()``.
+    *actor_id* is retained for call-site readability and logging symmetry only;
+    *dl* is already that actor's store, so it does not select the queue.  The
+    former ``hasattr(dl, "outbox_list_for_actor")`` branch is gone: both arms
+    now resolve to the same call (ADR-0070).
 
     Args:
-        actor_id: The actor whose outbox should be queried.
-        dl: The DataLayer to use for persistence.
+        actor_id: The actor whose outbox is being queried. Not used to select
+            the queue — *dl* determines that.
+        dl: That actor's DataLayer.
 
     Returns:
         Set of activity IDs queued for delivery.
     """
-    if hasattr(dl, "outbox_list_for_actor"):
-        items: list[str] = dl.outbox_list_for_actor(actor_id)  # type: ignore[attr-defined]
-        return set(items)
+    del actor_id  # documented above: *dl* selects the queue
     return set(dl.outbox_list())
 
 
@@ -640,16 +700,18 @@ def add_activity_to_outbox(
 ) -> None:
     """Append an activity ID to an actor's outbox and queue it for delivery.
 
-    Uses ``record_outbox_item`` to explicitly enqueue against *actor_id*,
-    bypassing any actor-scope on *dl* itself.  This ensures correct delivery
-    even when *dl* is a shared (unscoped) DataLayer instance.
+    Appends to *dl*'s own outbox.  This previously used
+    ``record_outbox_item(actor_id, …)`` to enqueue against *actor_id*
+    explicitly, bypassing any actor-scope on *dl* — necessary when *dl* could
+    be a shared, unscoped instance.  Under ADR-0070 it cannot be.
 
     Args:
-        actor_id: The actor whose outbox should receive the activity.
+        actor_id: The actor whose outbox receives the activity. Used only for
+            the debug log; *dl* determines the queue.
         activity_id: The ID of the activity to queue for delivery.
         dl: The DataLayer to use for persistence.
     """
-    dl.record_outbox_item(actor_id, activity_id)
+    dl.outbox_append(activity_id)
     logger.debug(
         "Queued activity '%s' in delivery queue for actor '%s'",
         _log_label(activity_id),

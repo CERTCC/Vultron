@@ -43,7 +43,10 @@ _HELPERS_LOGGER = "vultron.core.use_cases._helpers"
 
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture()

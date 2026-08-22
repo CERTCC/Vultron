@@ -158,7 +158,10 @@ def _setup_case_with_participant(
 
 @pytest.fixture
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=ACTOR_ID,
+    )
 
 
 @pytest.fixture
@@ -436,7 +439,10 @@ class TestCreateReportReceivedTree:
 class TestCreateReportReceivedUseCase:
     def test_use_case_stores_report_and_activity(self):
         """Use case delegates to BT; report and activity are persisted."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         event = _make_create_report_event()
         CreateReportReceivedUseCase(dl, event).execute()
 
@@ -445,7 +451,10 @@ class TestCreateReportReceivedUseCase:
 
     def test_use_case_is_idempotent(self):
         """Calling use case twice does not raise and stays consistent."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         event = _make_create_report_event()
         CreateReportReceivedUseCase(dl, event).execute()
         CreateReportReceivedUseCase(dl, event).execute()
@@ -500,7 +509,10 @@ class TestAckReportReceivedTree:
 class TestAckReportReceivedUseCase:
     def test_use_case_stores_activity(self):
         """Use case delegates to BT; activity is persisted."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
 
@@ -508,7 +520,10 @@ class TestAckReportReceivedUseCase:
 
     def test_use_case_does_not_create_participant_status(self):
         """Use case must NOT create standalone ParticipantStatus records."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
 
@@ -574,7 +589,10 @@ class TestCloseReportReceivedTree:
 class TestCloseReportReceivedUseCase:
     def test_use_case_stores_activity_and_transitions_rm(self):
         """Use case delegates to BT; activity stored + RM → CLOSED."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
         CloseReportReceivedUseCase(dl, event).execute()
@@ -587,7 +605,10 @@ class TestCloseReportReceivedUseCase:
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         event = _make_close_report_event()
 
         with caplog.at_level(logging.WARNING):
@@ -657,7 +678,10 @@ class TestInvalidateReportReceivedTree:
 class TestInvalidateReportReceivedUseCase:
     def test_use_case_stores_activity_and_transitions_rm(self):
         """Use case delegates to BT; activity stored + RM → INVALID."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
         InvalidateReportReceivedUseCase(dl, event).execute()
@@ -670,7 +694,10 @@ class TestInvalidateReportReceivedUseCase:
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         event = _make_invalidate_report_event()
 
         with caplog.at_level(logging.WARNING):

@@ -28,9 +28,11 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.note.nodes.storage import AttachNoteToCaseNode
 
@@ -54,11 +56,18 @@ def create_add_note_to_case_received_tree(
     Structure::
 
         GuardedAttachAndCommitBT (Selector)
-        ├── Sequence (CaseManager path)
-        │   ├── CheckIsCaseManagerNode
-        │   ├── AttachNoteToCaseNode(note_id, case_id)
-        │   └── CommitCaseLedgerEntryNode(case_id)
-        └── Success("AttachAndCommitSkippedNotCaseManager")
+        ├── SkipIfNotCaseManager (Sequence)
+        │   └── Inverter(CheckIsCaseManagerNode)
+        └── AttachAndCommitIfCaseManager (Sequence)
+            ├── AttachNoteToCaseNode(note_id, case_id)
+            └── CommitCaseLedgerEntryNode(case_id)
+
+    Built via :func:`create_case_manager_gated_tree` rather than hand-rolled.
+    The previous inline form ended in ``Success("AttachAndCommitSkippedNotCase
+    Manager")``, which could not distinguish "not the case manager" from "am the
+    case manager and the attach or the commit failed" — so a genuinely failed
+    canonical commit was reported as a benign skip (BTND-07-005; cf. the
+    fake-SUCCESS rule in ``AGENTS.md``).
 
     Args:
         note_id: ID of the Note being attached to the case.
@@ -67,21 +76,12 @@ def create_add_note_to_case_received_tree(
     Returns:
         Root ``GuardedAttachAndCommitBT`` Selector node.
     """
-    return py_trees.composites.Selector(
+    return create_case_manager_gated_tree(
         name="GuardedAttachAndCommitBT",
-        memory=False,
+        case_id=case_id,
         children=[
-            py_trees.composites.Sequence(
-                name="AttachAndCommitIfCaseManager",
-                memory=False,
-                children=[
-                    CheckIsCaseManagerNode(case_id=case_id),
-                    AttachNoteToCaseNode(note_id=note_id, case_id=case_id),
-                    CommitCaseLedgerEntryNode(case_id=case_id),
-                ],
-            ),
-            py_trees.behaviours.Success(
-                name="AttachAndCommitSkippedNotCaseManager"
-            ),
+            AttachNoteToCaseNode(note_id=note_id, case_id=case_id),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
+        body_name="AttachAndCommitIfCaseManager",
     )

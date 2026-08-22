@@ -68,8 +68,9 @@ def configure_case_actor_url(monkeypatch):
 
 
 @pytest.fixture
-def datalayer():
-    return SqliteDataLayer("sqlite:///:memory:")
+def datalayer(actor_id):
+    """The vendor's own store — the actor these trees execute as (ADR-0070)."""
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 @pytest.fixture

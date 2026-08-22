@@ -21,7 +21,25 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.base.base import as_Base
 
-_DUMP_KWARGS: dict[str, Any] = {"by_alias": True, "exclude_none": True}
+#: Serialisation options for every outbound activity dict this adapter returns.
+#:
+#: ``serialize_as_any=True`` is load bearing, not cosmetic. Without it Pydantic
+#: serialises each field by its *declared* type, so an inline nested object held
+#: in a field typed as a reference union is flattened — for
+#: ``as_CaseProposal.object_`` (declared ``ActivityStreamRequiredRef[
+#: as_VulnerabilityReport]``) the report came out as ``null``, putting a proposal
+#: on the wire with no report at all in breach of CP-01-004. The receiver then had
+#: nothing to store, and everything derived from the report — the reporter
+#: participant, its ledger entry, the SIGNATORY seed — skipped "best-effort", so
+#: the reporter silently never received a case replica.
+#:
+#: The same flag is required on the delivery path and in the test router, both of
+#: which say so; this is the third place that needs it.
+_DUMP_KWARGS: dict[str, Any] = {
+    "by_alias": True,
+    "exclude_none": True,
+    "serialize_as_any": True,
+}
 
 _BM = TypeVar("_BM", bound=as_Base)
 

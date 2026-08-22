@@ -57,7 +57,7 @@ def _resolve_actor_config() -> ActorConfig | None:
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``SyncActivityAdapter`` for the given DataLayer.
 
-    ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
+    ``dl`` at runtime is an ``DataLayer`` (satisfies
     ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
     """
     from vultron.adapters.driven.sync_activity_adapter import (
@@ -70,7 +70,7 @@ def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
 def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``TriggerActivityAdapter`` from the current DataLayer.
 
-    ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
+    ``dl`` at runtime is an ``DataLayer`` (satisfies
     ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
     """
     from vultron.adapters.driven.trigger_activity_adapter import (

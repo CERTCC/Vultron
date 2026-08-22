@@ -450,3 +450,28 @@ def test_activity_addressed_to_returns_false_when_all_addresses_are_known_other_
         _OTHER_ACTOR_URI  # addressed exclusively to bob (a known actor)
     )
     assert _activity_addressed_to(activity, _ACTOR_URI, dl=datalayer) is False
+
+
+def test_activity_addressed_to_refuses_peer_absent_from_the_receivers_store(
+    datalayer,
+):
+    """IE-11-001: a peer the receiver's store has never heard of is still a peer.
+
+    Regression for the ADR-0070 interaction: resolvability used to be probed
+    with ``dl.find_actor_by_short_id``, which asks the *receiving actor's own*
+    store whether it knows the addressee.  Under per-actor isolation the answer
+    is structurally "no" for every peer — a store holds its owner's knowledge,
+    not the node's roster — so every misaddressed Activity naming a real peer
+    fell through to Liberal Accept and IE-11-001 refused nothing at all.
+
+    Only alice is seeded here.  Bob is deliberately absent, which is the normal
+    state of affairs, not an edge case.
+    """
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    datalayer.create(object_to_record(as_Organization(id_=_ACTOR_URI)))
+
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = _OTHER_ACTOR_URI
+    assert _activity_addressed_to(activity, _ACTOR_URI, dl=datalayer) is False

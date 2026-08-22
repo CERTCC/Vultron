@@ -25,7 +25,8 @@ Submodules:
 - ``receive``: Log entry delivery and validation action nodes
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
-- ``replay``: Replay and fan-out action nodes for replication
+- ``replay``: Reject-driven replay action nodes for replication
+- ``fanout``: Fan-out action nodes, plain and RM.CLOSED-filtered
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept, close-case)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
   monotonic-RM ratchet (ADR-0061)
@@ -88,18 +89,18 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     IsOfferOwnershipTransferEventNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
+    CollectLogEntryRecipientsNode,
     CollectNonClosedLogEntryRecipientsNode,
     FanOutLogEntryExcludingClosedNode,
+    FanOutLogEntryNode,
+    SendLogEntryToEachNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
     AnnounceCaseOnGenesisRejectNode,
     CollectAndSortCaseLedgerEntriesNode,
-    CollectLogEntryRecipientsNode,
-    FanOutLogEntryNode,
     FindCaseActorNode,
     FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
-    SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
 

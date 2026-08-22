@@ -120,6 +120,7 @@ def test_vendor_guard_success_for_vendor_actor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_vendor_guard_failure_for_deployer_only_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -135,6 +136,7 @@ def test_vendor_guard_failure_for_deployer_only_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_vendor_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -187,6 +189,7 @@ def test_vendor_guard_failure_when_actor_not_in_case(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_guard_success_for_deployer_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -217,6 +220,7 @@ def test_deployer_guard_failure_for_vendor_only_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_deployer_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -232,6 +236,7 @@ def test_deployer_guard_failure_for_coordinator_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_guard_failure_when_case_missing(
     bt_scenario: BTTestScenario,
 ) -> None:

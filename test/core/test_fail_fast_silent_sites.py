@@ -78,7 +78,10 @@ def clear_blackboard():
 
 @pytest.fixture()
 def datalayer():
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl

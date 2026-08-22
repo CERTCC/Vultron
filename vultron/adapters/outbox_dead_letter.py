@@ -70,9 +70,13 @@ class OutboxRetryStore(Protocol):
     across drain passes and to move exhausted activities to the dead-letter
     store.  ``SqliteDataLayer`` satisfies this protocol structurally.
 
-    This protocol is intentionally NOT part of the core ``DataLayer`` /
-    ``ActorScopedDataLayer`` ports — it expresses a delivery-infrastructure
-    concern, not a domain contract.
+    This protocol is intentionally NOT part of the core ``DataLayer`` port — it
+    expresses a delivery-infrastructure concern, not a domain contract.
+
+    No method takes an ``actor_id``.  Under ADR-0070 the implementing store
+    *is* one actor's, so the attempt counters and dead-letter entries it holds
+    are that actor's own delivery bookkeeping.  A node-wide operator view fans
+    out over hosted actors rather than querying across them.
     """
 
     def get_outbox_attempt_count(self, activity_id: str) -> int: ...

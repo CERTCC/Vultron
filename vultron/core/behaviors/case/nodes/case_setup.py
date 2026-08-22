@@ -317,7 +317,26 @@ class ReuseExistingCaseActorParticipantNode(DataLayerAction):
 
 
 class CreateCaseActorServiceNode(DataLayerAction):
-    """Create (or reuse) the CaseActor service object."""
+    """Create (or reuse) the CaseActor service object.
+
+    Writes the record **twice**, into two different stores, because it plays two
+    different roles:
+
+    1. Into the CaseActor's *own* store, which is what makes this node's output a
+       hosted actor rather than just a row.  ``GET``/``POST`` on
+       ``/actors/{slug}/…`` resolves the actor from the store that slug names
+       (``_resolve_actor_or_404``), so without this write the CaseActor's inbox
+       answers ``404 Actor not found`` and nothing addressed to it — including
+       the ``Create(VulnerabilityCase)`` that seeds every participant replica —
+       is ever delivered.  This is the same rule ``POST /actors/`` follows.
+    2. Into the creating actor's store, as an address-book entry for a peer it
+       now knows (ADR-0070 decision 5).  Sibling nodes resolve the CaseActor
+       from the *executing* actor's store, so this copy is what they read.
+
+    The two writes are not redundant: one publishes an endpoint, the other
+    records knowledge.  Under a shared store they were indistinguishable, which
+    is why one write used to be enough.
+    """
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -348,22 +367,54 @@ class CreateCaseActorServiceNode(DataLayerAction):
             attributed_to=self.actor_id,
             context=case_id,
         )
-        try:
-            self.datalayer.create(case_actor)
-            self.logger.info(
-                "%s: Created CaseActor %s for case %s",
+
+        own_store = self._store_for(case_actor_id)
+        if own_store is None:
+            self.logger.error(
+                "%s: cannot open the CaseActor's own store for %s, so it would"
+                " not be a hosted actor and its inbox would 404",
                 self.name,
                 case_actor_id,
-                case_id,
             )
-        except ValueError as e:
-            self.logger.warning(
-                "%s: CaseActor %s already exists: %s",
-                self.name,
-                case_actor_id,
-                e,
-            )
+            return Status.FAILURE
+
+        for label, store in (
+            ("its own", own_store),
+            ("the creating actor's", self.datalayer),
+        ):
+            try:
+                store.create(case_actor)
+                self.logger.info(
+                    "%s: Created CaseActor %s for case %s in %s store",
+                    self.name,
+                    case_actor_id,
+                    case_id,
+                    label,
+                )
+            except ValueError as e:
+                self.logger.warning(
+                    "%s: CaseActor %s already exists in %s store: %s",
+                    self.name,
+                    case_actor_id,
+                    label,
+                    e,
+                )
         return Status.SUCCESS
+
+    def _store_for(self, actor_id: str) -> Any:
+        """Return *actor_id*'s own store, or ``None`` when it cannot be opened.
+
+        Named rather than implicit: ``clone_for_actor`` is the only sanctioned
+        route to another actor's store (ADR-0070 decision 7), so a cross-actor
+        write reads as one.
+        """
+        assert self.datalayer is not None
+        if getattr(self.datalayer, "actor_id", None) == actor_id:
+            return self.datalayer
+        clone_for_actor = getattr(self.datalayer, "clone_for_actor", None)
+        if not callable(clone_for_actor):
+            return None
+        return clone_for_actor(actor_id)
 
 
 class RegisterCaseActorParticipantNode(DataLayerAction):

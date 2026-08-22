@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.errors import (
     VultronInvalidStateTransitionError,
@@ -108,7 +109,10 @@ def dl(datalayer):
 
 @pytest.fixture
 def actor(dl):
-    actor_obj = as_Service(name="Vendor Co")
+    # The acting actor *is* the actor whose store `dl` is: every trigger here
+    # runs as `actor.id_`, and a BT's store follows its executing actor, so a
+    # separate id would run each trigger against an empty store.
+    actor_obj = as_Service(id_=TEST_ACTOR_ID, name="Vendor Co")
     dl.create(object_to_record(actor_obj))
     return actor_obj
 
@@ -427,13 +431,13 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """invalidate_report_trigger adds a new activity to the actor's outbox."""
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).invalidate_report(actor.id_, offer.id_, None)
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -487,13 +491,13 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, rejected_report
 ):
     """reject_report_trigger adds a new activity to the actor's outbox."""
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).reject_report(actor.id_, offer.id_, "Reason.")
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -631,13 +635,13 @@ def test_engage_case_trigger_adds_activity_to_outbox(
     dl, actor, case_with_participant
 ):
     """engage_case_trigger adds a new activity to the actor's outbox."""
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).engage_case(actor.id_, case_with_participant.id_)
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -920,11 +924,11 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
 ):
     """terminate_embargo_trigger adds a new activity to the actor's outbox."""
     case_obj, _ = case_with_embargo
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).terminate_embargo(actor.id_, case_obj.id_)
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1

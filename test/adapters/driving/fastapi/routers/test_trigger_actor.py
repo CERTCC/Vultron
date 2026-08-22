@@ -21,6 +21,8 @@ Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest
+
+from test.conftest import seed_case_actor_replica
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
@@ -574,6 +576,12 @@ def case_for_invite(dl, actor):
     dl.create(case)
     dl.create(owner_participant)
     dl.create(case_manager_participant)
+    # The Invite is authored as the CaseActor and committed to its ledger, so the
+    # tree runs in the CaseActor's store — which needs the case for its genesis
+    # anchor (CLP-08-001/002).
+    seed_case_actor_replica(
+        dl, case_actor.id_, case, owner_participant, case_manager_participant
+    )
     case_actor_with_context = as_Service(
         id_=case_actor.id_,
         name="Case Actor for Invite",
@@ -681,10 +689,22 @@ def test_trigger_invite_actor_to_case_unknown_case_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_invite_actor_to_case_unknown_invitee_returns_404(
+def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
     client_triggers_invite, actor, case_for_invite
 ):
-    """TB-01-003: Unknown invitee_id returns HTTP 404."""
+    """An invitee with no local record is invited by URI, not refused.
+
+    This asserted HTTP 404, citing "TB-01-003" — an id that is not in the spec
+    corpus at all (the TB topic covers pytest and ``pyproject.toml``), so the
+    behaviour had no normative basis.
+
+    A local record is not required: it was read and discarded, delivery derives
+    the invitee's inbox from its URI alone, and under per-actor storage a peer's
+    record lives in its own store (ADR-0070 decision 5) — so refusing meant
+    refusing every cross-node invitee. The use case logs a WARNING instead, since
+    actor discovery does not exist yet and the unverifiable invitee should not
+    pass unremarked.
+    """
     case, _ = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
@@ -693,4 +713,5 @@ def test_trigger_invite_actor_to_case_unknown_invitee_returns_404(
             "invitee_id": "urn:uuid:nonexistent-invitee",
         },
     )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    assert resp.status_code != status.HTTP_404_NOT_FOUND
+    assert resp.status_code < 500, resp.text

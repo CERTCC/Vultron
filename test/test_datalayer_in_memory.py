@@ -44,10 +44,16 @@ def test_config_db_url_is_in_memory():
 
 
 def test_sqlite_datalayer_default_is_in_memory():
-    """SqliteDataLayer() with default args should use in-memory storage."""
+    """SqliteDataLayer defaults to in-memory storage for its actor.
+
+    ADR-0070: there is no default *actor*, so actor_id is required even when the
+    db_url defaults.  A store always belongs to exactly one actor.
+    """
     reset_datalayer()
     try:
-        dl = SqliteDataLayer()
+        dl = SqliteDataLayer(
+            actor_id="https://test.example/api/v2/actors/test-actor"
+        )
         assert dl.ping()
     finally:
         reset_datalayer()
@@ -57,7 +63,7 @@ def test_get_datalayer_returns_sqlite_instance():
     """get_datalayer() must return a SqliteDataLayer instance."""
     reset_datalayer()
     try:
-        dl = get_datalayer()
+        dl = get_datalayer("https://test.example/api/v2/actors/test-actor")
         assert isinstance(dl, SqliteDataLayer)
     finally:
         reset_datalayer()
