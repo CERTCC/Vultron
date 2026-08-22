@@ -26,6 +26,7 @@ to inject adapter ports into use cases at dispatch time.
 import logging
 from typing import Any, cast
 
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.models.events import MessageSemantics
@@ -124,10 +125,11 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     receiver with ``CVDRole.CASE_OWNER`` only.
     """
     del dl  # no driven ports required; only local configuration
+    kwargs: dict[str, Any] = {"wire_render_port": As2WireRenderAdapter()}
     actor_config = _resolve_actor_config()
-    if actor_config is None:
-        return {}
-    return {"actor_config": actor_config}
+    if actor_config is not None:
+        kwargs["actor_config"] = actor_config
+    return kwargs
 
 
 _SYNC_PORT_SEMANTICS = frozenset(

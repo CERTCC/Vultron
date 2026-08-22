@@ -114,8 +114,8 @@ class CaseParticipant(CoreObject):
         deviation from ARCH-12-003 tracked in #1991 — the child's shim is what
         makes this parent guard survivable in the first place — and it is not
         a hole in the #2232 fix: an aliased child cannot *lose* the ladder, it
-        only spells it differently.  Do not restate ARCH-12-003 as though it
-        held throughout this subtree; it does not yet.
+        only spells it differently.  The remaining ARCH-12-003 deviation
+        (``alias_generator`` on ``ParticipantStatus``) is tracked in #1991.
 
         Raises:
             VultronValidationError: when a wire-spelled key is present.

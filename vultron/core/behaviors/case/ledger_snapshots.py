@@ -31,7 +31,7 @@ retained because the CaseActor uses the same snapshot shapes when it commits
 those entries natively (CM-22-003).
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -39,31 +39,18 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 
-
-def obj_to_inline_dict(obj: Any) -> dict[str, Any]:
-    """Return a JSON-serializable dict for *obj* suitable for payloadSnapshot.
-
-    For Pydantic models, calls ``model_dump(mode="json", by_alias=True,
-    exclude_none=True)``.  For plain dicts, returns a copy.  Returns an
-    empty dict for ``None``.
-    """
-    if obj is None:
-        return {}
-    if hasattr(obj, "model_dump"):
-        result = obj.model_dump(mode="json", by_alias=True, exclude_none=True)
-        return result if isinstance(result, dict) else {}
-    if isinstance(obj, dict):
-        return dict(obj)
-    return {}
+if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
 
 
 def build_create_case_snapshot(
     case: VulnerabilityCase,
     actor_id: str,
     case_id: str,
+    wire_render_port: "WireRenderPort",
 ) -> dict[str, Any]:
     """Build the ``create_case`` snapshot (``Create(VulnerabilityCase)``)."""
-    case_dict = obj_to_inline_dict(case)
+    case_dict = wire_render_port.render(case)
     case_dict.setdefault("type", "VulnerabilityCase")
     return {
         "type": "Create",
@@ -78,6 +65,7 @@ def build_add_report_to_case_snapshot(
     case: VulnerabilityCase,
     actor_id: str,
     case_id: str,
+    wire_render_port: "WireRenderPort",
     offer_id: str | None = None,
     offer_actor_id: str | None = None,
 ) -> dict[str, Any]:
@@ -87,9 +75,9 @@ def build_add_report_to_case_snapshot(
     invited actors can reconstruct a ``VultronOfferRecord`` from the SYNC
     backfilled entry (ISSUE-2134, SYNC-02-002).
     """
-    report_dict = obj_to_inline_dict(report)
+    report_dict = wire_render_port.render(report)
     report_dict.setdefault("type", "VulnerabilityReport")
-    case_dict = obj_to_inline_dict(case)
+    case_dict = wire_render_port.render(case)
     case_dict.setdefault("type", "VulnerabilityCase")
     snapshot: dict[str, Any] = {
         "type": "Add",
@@ -110,17 +98,12 @@ def build_add_participant_status_snapshot(
     participant: CaseParticipant,
     actor_id: str,
     case_id: str,
+    wire_render_port: "WireRenderPort",
 ) -> dict[str, Any]:
     """Build the ``add_participant_status_to_participant`` snapshot."""
-    status_dict = obj_to_inline_dict(status)
-    # model_dump renders the PEC dimension as {"consent": {"state": "VALUE"}}.
-    # Invariant 9 (and the wire schema) expect the flat key "emConsentState".
-    if "consent" in status_dict and "emConsentState" not in status_dict:
-        pec_state = status_dict.pop("consent", {}).get("state")
-        if pec_state is not None:
-            status_dict["emConsentState"] = pec_state
+    status_dict = wire_render_port.render(status)
     status_dict.setdefault("type", "ParticipantStatus")
-    participant_dict = obj_to_inline_dict(participant)
+    participant_dict = wire_render_port.render(participant)
     participant_dict.setdefault("type", "CaseParticipant")
     return {
         "type": "Add",
@@ -136,11 +119,12 @@ def build_add_case_status_snapshot(
     case: VulnerabilityCase,
     actor_id: str,
     case_id: str,
+    wire_render_port: "WireRenderPort",
 ) -> dict[str, Any]:
     """Build the ``add_case_status_to_case`` snapshot (``Add(CaseStatus)``)."""
-    status_dict = obj_to_inline_dict(status)
+    status_dict = wire_render_port.render(status)
     status_dict.setdefault("type", "CaseStatus")
-    case_dict = obj_to_inline_dict(case)
+    case_dict = wire_render_port.render(case)
     case_dict.setdefault("type", "VulnerabilityCase")
     return {
         "type": "Add",

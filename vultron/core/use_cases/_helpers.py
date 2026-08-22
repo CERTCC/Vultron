@@ -6,7 +6,10 @@ All helpers are private to the use-cases package (prefix ``_``).
 
 import hashlib
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.narrative_log import log_rm_transition
 from vultron.core.models._helpers import _as_id
@@ -57,6 +60,7 @@ def _inline_snapshot_reference_value(
     resolving_ids: set[str],
     expected_context: str | None,
     depth: int,
+    wire_render_port: "WireRenderPort | None" = None,
 ) -> Any:
     """Inline nested AS2 object references for canonical payload snapshots."""
     if depth > _SNAPSHOT_INLINE_DEPTH_LIMIT:
@@ -72,6 +76,7 @@ def _inline_snapshot_reference_value(
                 resolving_ids=resolving_ids,
                 expected_context=expected_context,
                 depth=depth + 1,
+                wire_render_port=wire_render_port,
             )
         return inlined
 
@@ -84,6 +89,7 @@ def _inline_snapshot_reference_value(
                 resolving_ids=resolving_ids,
                 expected_context=expected_context,
                 depth=depth + 1,
+                wire_render_port=wire_render_port,
             )
             for item in value
         ]
@@ -109,12 +115,15 @@ def _inline_snapshot_reference_value(
 
     resolving_ids.add(value)
     try:
-        dumped = resolved.model_dump(
-            mode="json",
-            by_alias=True,
-            serialize_as_any=True,
-            exclude_none=True,
-        )
+        if wire_render_port is not None:
+            dumped = wire_render_port.render(resolved)
+        else:
+            dumped = resolved.model_dump(
+                mode="json",
+                by_alias=True,
+                serialize_as_any=True,
+                exclude_none=True,
+            )
         return _inline_snapshot_reference_value(
             dumped,
             dl,
@@ -122,13 +131,16 @@ def _inline_snapshot_reference_value(
             resolving_ids=resolving_ids,
             expected_context=expected_context,
             depth=depth + 1,
+            wire_render_port=wire_render_port,
         )
     finally:
         resolving_ids.remove(value)
 
 
 def build_activity_payload_snapshot(
-    activity: Any, dl: CasePersistence | None = None
+    activity: Any,
+    dl: CasePersistence | None = None,
+    wire_render_port: "WireRenderPort | None" = None,
 ) -> dict[str, Any]:
     """Return a normalized, self-contained payload snapshot for ledger entries.
 
@@ -155,6 +167,7 @@ def build_activity_payload_snapshot(
         resolving_ids=set(),
         expected_context=expected_context,
         depth=0,
+        wire_render_port=wire_render_port,
     )
     return inlined if isinstance(inlined, dict) else {}
 

@@ -31,11 +31,15 @@ Three use cases covering the full CP message flow (ADR-0023):
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
+
+if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
     create_accept_case_proposal_received_tree,
 )
@@ -78,6 +82,7 @@ class CreateCaseProposalReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: CreateCaseProposalReceivedEvent,
         actor_config: "ActorConfig | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CreateCaseProposalReceivedEvent = request
@@ -85,6 +90,7 @@ class CreateCaseProposalReceivedUseCase:
         # alongside CVDRole.CASE_OWNER come from the local actor config, not a
         # hard-coded assumption that every report receiver is a vendor.
         self._actor_config = actor_config
+        self._wire_render_port = wire_render_port
 
     def execute(self) -> None:
         request = self._request
@@ -142,7 +148,10 @@ class CreateCaseProposalReceivedUseCase:
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
