@@ -29,46 +29,60 @@ module.
 """
 
 import logging
-from typing import Any
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
 
 logger = logging.getLogger(__name__)
 
 
-class CollectCaseAddresseesNode(DataLayerAction):
+class CollectCaseAddresseesNode(DataLayerActionWithPorts):
     """Resolve case object and peer addressees for Create(Case) emission."""
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="create_case_obj", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="create_case_addressees", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "create_case_obj": PortInformation(
+                data_type=object, required=True
+            ),
+            "create_case_addressees": PortInformation(
+                data_type=object, required=True
+            ),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "create_case_obj": "/create_case_obj",
+            "create_case_addressees": "/create_case_addressees",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
-            return Status.FAILURE
+        case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error(
                 f"{self.name}: case_id must be a string, got {type(case_id)}"
@@ -90,66 +104,57 @@ class CollectCaseAddresseesNode(DataLayerAction):
                 f"{self.name}: Notifying addressees: {addressees}"
             )
 
-        self.blackboard.create_case_obj = case_obj
-        self.blackboard.create_case_addressees = addressees
+        self._set_output("create_case_obj", case_obj)
+        self._set_output("create_case_addressees", addressees)
         return Status.SUCCESS
 
 
-class CreateAndPersistCaseActivityNode(DataLayerAction):
+class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
     """Build and persist Create(Case), then publish activity_id to blackboard."""
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        ports["create_case_obj"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="create_case_obj", access=py_trees.common.Access.READ
+        ports["create_case_addressees"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="create_case_addressees", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.WRITE
-        )
+        return ports
 
-    def _read_case_id(self) -> str | None:
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
-            return None
-        if not isinstance(case_id, str):
-            self.logger.error(
-                f"{self.name}: case_id must be a string, got {type(case_id)}"
-            )
-            return None
-        return case_id
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"activity_id": PortInformation(data_type=str, required=True)}
 
-    def _read_case_obj(self) -> Any | None:
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "create_case_obj": "/create_case_obj",
+            "create_case_addressees": "/create_case_addressees",
+            "activity_id": "/activity_id",
+        }
+
+    def initialise(self) -> None:
+        from py_trees.ports import NoDataAvailable
+
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
         try:
-            return self.blackboard.get("create_case_obj")
-        except KeyError:
+            self.create_case_obj_bb = self.get_input("create_case_obj")
+        except NoDataAvailable:
+            self.create_case_obj_bb = None
             self.feedback_message = (
                 f"{self.name}: 'create_case_obj' not on blackboard"
             )
-            self.logger.error(self.feedback_message)
-            return None
-
-    def _read_addressees(self) -> list[str] | None:
-        try:
-            addressees = self.blackboard.get("create_case_addressees")
-        except KeyError:
-            return []
-        if not isinstance(addressees, list):
-            self.logger.error(
-                f"{self.name}: create_case_addressees must be a list"
-            )
-            return None
-        return addressees
+        self.create_case_addressees_bb: list = self.get_input(
+            "create_case_addressees"
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -157,16 +162,26 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case_id = self._read_case_id()
-        if case_id is None:
+        case_id = self.case_id_bb
+        if not isinstance(case_id, str):
+            self.logger.error(
+                f"{self.name}: case_id must be a string, got {type(case_id)}"
+            )
             return Status.FAILURE
 
-        case_obj = self._read_case_obj()
+        case_obj = self.create_case_obj_bb
         if case_obj is None:
+            self.feedback_message = (
+                f"{self.name}: 'create_case_obj' not on blackboard"
+            )
+            self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        addressees = self._read_addressees()
-        if addressees is None:
+        addressees = self.create_case_addressees_bb
+        if not isinstance(addressees, list):
+            self.logger.error(
+                f"{self.name}: create_case_addressees must be a list"
+            )
             return Status.FAILURE
 
         activity = VultronCreateCaseActivity(
@@ -187,5 +202,5 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
                 f" already exists: {e}"
             )
 
-        self.blackboard.activity_id = activity.id_
+        self._set_output("activity_id", activity.id_)
         return Status.SUCCESS
