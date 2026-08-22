@@ -27,6 +27,7 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock, call, patch
 
+import httpx2 as httpx
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
@@ -957,9 +958,11 @@ class TestActorNotifiesFixDeployed:
             actor=vendor,
             case_id=case.id_,
         )
-        # Call post_to_trigger directly so make_testclient_call's AssertionError
-        # for 4xx responses propagates (demo_step would swallow it).
-        with pytest.raises(AssertionError) as exc_info:
+        # Call post_to_trigger directly so the 4xx propagates; demo_step would
+        # swallow it. The double raises HTTPStatusError like the real client, so
+        # the status code can be asserted structurally rather than by searching
+        # the message for "422".
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
             post_to_trigger(
                 client=vendor_client,
                 actor_id=vendor.id_,
@@ -967,9 +970,14 @@ class TestActorNotifiesFixDeployed:
                 body={"case_id": case.id_},
                 path_prefix="demo",
             )
-        assert "422" in str(
-            exc_info.value
-        ), "Expected HTTP 422 when vendor-only actor attempts VFD transition"
+        assert exc_info.value.response.status_code == 422, (
+            "Expected HTTP 422 when a vendor-only actor attempts the VFD"
+            f" transition; got {exc_info.value.response.status_code}"
+        )
+        assert "DEPLOYER" in exc_info.value.response.text, (
+            "the refusal must name the missing role (CSB-15-002), otherwise a"
+            " reader cannot tell this 422 from any other validation failure"
+        )
 
 
 class TestActorNotifiesPublished:
@@ -1563,11 +1571,16 @@ class TestDeliveryIsolation:
         )
         assert resp.status_code in (200, 201)
 
-        # Finder's DataLayer should have no as_VulnerabilityCase records.
-        cases = finder_isolated.dl.get_all("VulnerabilityCase")
+        # `store_for(finder_id)`, not `dl`: the fixture builds this app under the
+        # default "primary" slug, so `dl` belongs to no actor this test creates
+        # and nothing ever writes to it. Asserting *that* store is empty could
+        # not fail, whatever isolation did.
+        cases = finder_isolated.store_for(finder_id).get_all(
+            "VulnerabilityCase"
+        )
         assert cases == [], (
-            f"Expected no cases in Finder's isolated DataLayer before"
-            f" delivery, but found: {cases}"
+            f"Expected no cases in Finder's own store before delivery,"
+            f" but found: {cases}"
         )
 
     def test_vendor_dl_isolated_from_finder(self, delivery_setup):
@@ -1588,10 +1601,20 @@ class TestDeliveryIsolation:
         )
         assert resp.status_code in (200, 201)
 
-        # Vendor's actor must NOT be visible in Finder's DataLayer.
-        actor_in_finder = finder_isolated.dl.read(vendor_id)
+        # Establish the positive half first, otherwise "not visible in Finder's
+        # store" is satisfied by the record not existing anywhere — which is how
+        # this read on `finder_isolated.dl` (the unwritten "primary" store) used
+        # to pass no matter what isolation did.
+        assert (
+            vendor_isolated.store_for(vendor_id).read(vendor_id) is not None
+        ), "Vendor's actor must be in the vendor's own store to begin with"
+
+        finder_id = (
+            f"{finder_isolated.base_url}/api/v2/actors/finder-isolation-peer"
+        )
+        actor_in_finder = finder_isolated.store_for(finder_id).read(vendor_id)
         assert actor_in_finder is None, (
-            "Vendor's actor should not be in Finder's isolated DataLayer,"
+            "Vendor's actor must not be visible in Finder's own store,"
             " but it was found."
         )
 
@@ -1627,8 +1650,16 @@ class TestDeliveryIsolation:
         assert r.status_code in (200, 201)
 
         # Build DataLayerClient wrappers routed to their respective apps.
-        finder_dc = demo.DataLayerClient(base_url=finder_base)
-        vendor_dc = demo.DataLayerClient(base_url=vendor_base)
+        # Bound to their own actors: a DataLayer read has to say whose store it
+        # is about (ADR-0070), and each of these apps hosts its actor plus any
+        # CaseActor it self-hosts (CP-08-003), so the container alone is not
+        # enough. Unbound, `dl_path` refuses rather than guessing.
+        finder_dc = demo.DataLayerClient(
+            base_url=finder_base, actor_id=finder_id
+        )
+        vendor_dc = demo.DataLayerClient(
+            base_url=vendor_base, actor_id=vendor_id
+        )
         object.__setattr__(
             finder_dc,
             "call",
@@ -1691,8 +1722,15 @@ class TestDeliveryIsolation:
         # proposal round-trip may complete synchronously.  Use _create_case_from_offer
         # which checks for an existing case first and only calls trigger/create-case
         # if the round-trip hasn't completed yet.
+        # `store_for(vendor_id)`, not `vendor_isolated.dl`: the fixture builds
+        # both apps with the default "primary" slug, so `dl` is a store belonging
+        # to no actor this test creates. Seeding into it left the vendor's own
+        # store empty and the failure read "case not found" from the seeder.
         case = _create_case_from_offer(
-            vendor_dc, vendor_actor_fresh, offer, dl=vendor_isolated.dl
+            vendor_dc,
+            vendor_actor_fresh,
+            offer,
+            dl=vendor_isolated.store_for(vendor_id),
         )
         assert (
             case is not None
@@ -1701,7 +1739,8 @@ class TestDeliveryIsolation:
         # The case announcement should have been delivered to Finder's inbox
         # via the outbox→_TestClientRouter→inbox chain.  Finder's isolated
         # DataLayer must contain the case.
-        finder_case = finder_isolated.dl.read(case.id_)
+        # The finder's own store, for the same reason.
+        finder_case = finder_isolated.store_for(finder_id).read(case.id_)
         assert finder_case is not None, (
             f"Expected as_VulnerabilityCase '{case.id_}' to be delivered to"
             f" Finder's isolated DataLayer via the outbox→inbox path,"
