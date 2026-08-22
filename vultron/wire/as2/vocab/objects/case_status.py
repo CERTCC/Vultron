@@ -211,7 +211,7 @@ class as_ParticipantStatus(VultronAS2Object):
         serialization_alias="emConsentState",
     )
     cvd_role: list[CVDRole] = Field(
-        default_factory=lambda: [CVDRole.OTHER],
+        default_factory=lambda: [CVDRole.OBSERVER],
         validation_alias="cvdRole",
         serialization_alias="cvdRole",
     )

@@ -60,7 +60,7 @@ from vultron.core.models.case_participant import (
     DeployerParticipant,
     FinderParticipant,
     FinderReporterParticipant,
-    OtherParticipant,
+    ObserverParticipant,
     ReporterParticipant,
     VendorParticipant,
 )
@@ -84,7 +84,7 @@ __all__ = [
     "EmbargoPolicy",
     "FinderParticipant",
     "FinderReporterParticipant",
-    "OtherParticipant",
+    "ObserverParticipant",
     "ReporterParticipant",
     "VendorParticipant",
     "VultronCreateCaseActivity",

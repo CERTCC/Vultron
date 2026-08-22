@@ -27,7 +27,7 @@ model validators:
 - :class:`VendorParticipant`
 - :class:`DeployerParticipant`
 - :class:`CoordinatorParticipant`
-- :class:`OtherParticipant`
+- :class:`ObserverParticipant`
 - :class:`CaseActorParticipant`
 """
 
@@ -538,8 +538,8 @@ class CoordinatorParticipant(CaseParticipant):
         return data
 
 
-class OtherParticipant(CaseParticipant):
-    """A CaseParticipant that holds the OTHER role."""
+class ObserverParticipant(CaseParticipant):
+    """A CaseParticipant that holds the OBSERVER role (ADR-0057)."""
 
     @model_validator(mode="before")
     @classmethod
@@ -547,7 +547,7 @@ class OtherParticipant(CaseParticipant):
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        roles = [CVDRole.OTHER]
+        roles = [CVDRole.OBSERVER]
         data["case_roles"] = roles
         ps_list = data.get("participant_statuses")
         if ps_list:
