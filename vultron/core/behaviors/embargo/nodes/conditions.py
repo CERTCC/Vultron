@@ -22,8 +22,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
     DataLayerConditionWithPorts,
 )
-from vultron.core.models._helpers import has_case_statuses
-from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.errors import VultronInvalidStateTransitionError
 

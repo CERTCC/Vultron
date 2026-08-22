@@ -23,8 +23,7 @@ from typing import cast
 from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
 )
-from vultron.core.models._helpers import has_case_statuses
-from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.scoring.utils import enum2title

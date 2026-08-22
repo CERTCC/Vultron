@@ -310,3 +310,13 @@ class VulnerabilityCase(CoreObject):
 #: Backward-compatibility alias.  New code should import
 #: :class:`VulnerabilityCase` directly.
 VultronCase = VulnerabilityCase
+
+
+def has_case_statuses(case: VulnerabilityCase) -> bool:
+    """Return True when *case* has at least one CaseStatus entry.
+
+    Use this as the single shared predicate wherever code must distinguish
+    "no status history yet" from "at least one status recorded" — in both
+    BT condition nodes and plain use-case guards (LST-05 / AC-5).
+    """
+    return bool(case.case_statuses)
