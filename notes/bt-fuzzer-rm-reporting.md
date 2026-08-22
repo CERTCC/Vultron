@@ -522,7 +522,7 @@ coordinated disclosure.
 - **Factory-fn placement**: `vultron.core.behaviors.report.create_report_to_others_tree`
   (implemented in #1311) — default fuzzer backend for `suggest_other_factory`
   parameter; the production trigger replaces it with `suggest-actor-to-case`
-  with `CVDRole.OTHER` (Production Collapse 3, ADR-0029).
+  with `CVDRole.OBSERVER` (Production Collapse 3, ADR-0029; renamed ADR-0057).
 
 ---
 

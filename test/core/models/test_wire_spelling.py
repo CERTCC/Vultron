@@ -36,7 +36,7 @@ from vultron.core.models.case_participant import (
     DeployerParticipant,
     FinderParticipant,
     FinderReporterParticipant,
-    OtherParticipant,
+    ObserverParticipant,
     ReporterParticipant,
     VendorParticipant,
 )
@@ -57,7 +57,7 @@ _PARTICIPANT_CLASSES = [
     VendorParticipant,
     DeployerParticipant,
     CoordinatorParticipant,
-    OtherParticipant,
+    ObserverParticipant,
     CaseActorParticipant,
 ]
 

@@ -22,6 +22,8 @@ Nodes enforce CVD protocol correctness for self-reported VFD transitions
   ``CVDRole.VENDOR``
 - :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
   ``CVDRole.DEPLOYER``
+- :class:`CheckNotSoleObserverVfdNode` — gates v→V (vfd_state=Vfd): actor
+  MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
 - :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
   sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
 """
@@ -185,6 +187,61 @@ class CheckDeployerRoleNode(DataLayerConditionWithPorts):
 
         self.logger.debug(
             "%s: actor '%s' holds CVDRole.DEPLOYER — d→D guard passed",
+            self.name,
+            self._actor_id,
+        )
+        return Status.SUCCESS
+
+
+class CheckNotSoleObserverVfdNode(DataLayerConditionWithPorts):
+    """Gate v→V (vfd_state=Vfd): actor MUST NOT hold OBSERVER as their only role.
+
+    Returns ``FAILURE`` when the actor's ``case_roles`` list is exactly
+    ``[CVDRole.OBSERVER]``, blocking the VFD vendor-awareness transition.
+    A participant that also holds ``CVDRole.VENDOR`` or ``CVDRole.DEPLOYER``
+    passes this check (CM-26-001 union-of-permissions rule).
+
+    Uses the sole-role test ``case_roles == [CVDRole.OBSERVER]``, NOT
+    the membership test ``CVDRole.OBSERVER in case_roles``, per CM-25-005.
+
+    Per CM-25-005 (specs/case-management.yaml) and ADR-0057.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._actor_id = actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        roles = _resolve_actor_roles(
+            self.datalayer, self._case_id, self._actor_id, self.name
+        )
+        if roles is None:
+            self.feedback_message = (
+                f"Could not resolve roles for actor '{self._actor_id}'"
+                f" in case '{self._case_id}'"
+            )
+            return Status.FAILURE
+
+        if roles == [CVDRole.OBSERVER]:
+            self.feedback_message = (
+                f"Actor '{self._actor_id}' holds only CVDRole.OBSERVER"
+                f" — v→V (Vfd) transition blocked (CM-25-005)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: actor '%s' is not sole-OBSERVER — v→V guard passed",
             self.name,
             self._actor_id,
         )

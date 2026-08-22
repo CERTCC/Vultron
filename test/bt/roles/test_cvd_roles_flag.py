@@ -30,7 +30,7 @@ def test_atomic_role_values_unchanged():
     assert CVDRolesFlag.VENDOR.value == 4
     assert CVDRolesFlag.DEPLOYER.value == 8
     assert CVDRolesFlag.COORDINATOR.value == 16
-    assert CVDRolesFlag.OTHER.value == 32
+    assert CVDRolesFlag.OBSERVER.value == 32
 
 
 def test_case_owner_exists():
@@ -46,7 +46,7 @@ def test_case_owner_is_distinct():
         CVDRolesFlag.VENDOR,
         CVDRolesFlag.DEPLOYER,
         CVDRolesFlag.COORDINATOR,
-        CVDRolesFlag.OTHER,
+        CVDRolesFlag.OBSERVER,
     ]
     for role in other_roles:
         assert CVDRolesFlag.CASE_OWNER != role

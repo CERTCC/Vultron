@@ -942,6 +942,121 @@ class TestValidateTriggerTransitions:
 
 
 # ---------------------------------------------------------------------------
+# CheckNotSoleObserverVfdNode — CM-25-005 end-to-end guard (#2192)
+# ---------------------------------------------------------------------------
+
+
+class TestSoleObserverVfdGuard:
+    """End-to-end guard: sole-OBSERVER actor MUST NOT emit v→V (CM-25-005).
+
+    Uses the full use-case stack (SqliteDataLayer → SvcAddParticipantStatusUseCase)
+    to prove CheckNotSoleObserverVfdNode is wired into add_participant_status_trigger_bt
+    and fires for every trigger invocation.
+
+    AC: a sole-OBSERVER actor calling execute(vfd_state=CS_vfd.Vfd) raises
+    VultronValidationError and writes no record (CM-25-005).
+
+    CM-26-001 union-of-permissions: an OBSERVER+VENDOR actor CAN emit v→V.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from vultron.adapters.driven.datalayer_sqlite import (
+            SqliteDataLayer,
+            reset_datalayer,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        self.actor = as_Service(name="Observer")
+        actor_id = self.actor.id_
+        reset_datalayer(actor_id)
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        self.dl.clear_all()
+        self.dl.create(self.actor)
+
+        self.case_actor = as_Service(name="Case Manager")
+        reset_datalayer(self.case_actor.id_)
+        self.dl.create(self.case_actor)
+
+        self.case = as_VulnerabilityCase(name="Test Case CM-25-005")
+        self.actor_participant = as_CaseParticipant(
+            attributed_to=actor_id,
+            context=self.case.id_,
+            case_roles=[CVDRole.OBSERVER],
+        )
+        self.case_manager_participant = as_CaseParticipant(
+            attributed_to=self.case_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        self.case.actor_participant_index[actor_id] = (
+            self.actor_participant.id_
+        )
+        self.case.actor_participant_index[self.case_actor.id_] = (
+            self.case_manager_participant.id_
+        )
+        self.dl.create(self.case)
+        self.dl.create(self.actor_participant)
+        self.dl.create(self.case_manager_participant)
+        self.trigger_activity = TriggerActivityAdapter(self.dl)
+        yield
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(actor_id)
+            reset_datalayer(self.case_actor.id_)
+
+    def _execute(self, rm_state=None, vfd_state=None, pxa_state=None):
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            rm_state=rm_state,
+            vfd_state=vfd_state,
+            pxa_state=pxa_state,
+        )
+        return SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+
+    def _status_count(self):
+        participant = self.dl.read(self.actor_participant.id_)
+        return len(getattr(participant, "participant_statuses", []))
+
+    def test_sole_observer_vfd_transition_blocked_end_to_end(self):
+        """CM-25-005: sole-OBSERVER actor attempting v→V raises VultronValidationError."""
+        from vultron.errors import VultronValidationError
+
+        before = self._status_count()
+        with pytest.raises(VultronValidationError):
+            self._execute(vfd_state=CS_vfd.Vfd)
+        assert self._status_count() == before
+
+    def test_sole_observer_none_vfd_request_succeeds(self):
+        """Sole-OBSERVER actor with no VFD override bypasses guard; record persisted."""
+        before = self._status_count()
+        self._execute(rm_state=None, vfd_state=None, pxa_state=None)
+        assert self._status_count() == before + 1
+
+
+# ---------------------------------------------------------------------------
 # ValidateTriggerTransitionsNode — cross-machine entailments (#2236)
 # ---------------------------------------------------------------------------
 
