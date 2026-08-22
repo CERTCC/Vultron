@@ -19,6 +19,7 @@ Covers BTND-03-011 (NoDataAvailable on missing required port) and happy-path
 execution via BTTestScenario for sync Type-B nodes.
 """
 
+import py_trees
 import pytest
 from py_trees.ports import NoDataAvailable
 
@@ -26,7 +27,10 @@ from vultron.core.behaviors.sync.nodes.chain import (
     PersistLogEntryNode,
     UpdateReplicationStateNode,
 )
-from vultron.core.behaviors.sync.nodes.fanout import _SendLogEntryToEachNode
+from vultron.core.behaviors.sync.nodes.fanout import (
+    CollectLogEntryRecipientsNode,
+    _SendLogEntryToEachNode,
+)
 from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     IsOfferOwnershipTransferEventNode,
 )
@@ -202,3 +206,40 @@ class TestSendLogEntryToEachNodePorts:
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("fanout_recipients")
+
+
+# ---------------------------------------------------------------------------
+# fanout.py — CollectLogEntryRecipientsNode output port (AC-4, BTND-03-012)
+# ---------------------------------------------------------------------------
+
+
+class TestCollectLogEntryRecipientsNodeOutputPorts:
+    def test_writes_fanout_recipients_on_success(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        case_id = "https://example.org/cases/case-001"
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
+        )
+        bt_scenario.seed(case)
+        entry = CaseLedgerEntry(
+            case_id=case_id,
+            log_object_id="https://example.org/activities/act-001",
+            event_type="close_case",
+        )
+        result = bt_scenario.run(
+            CollectLogEntryRecipientsNode(case_id=case_id),
+            actor_id=ACTOR_ID,
+            log_entry=entry,
+        )
+        bt_scenario.assert_success(result)
+        written = py_trees.blackboard.Blackboard.storage.get(
+            "/fanout_recipients"
+        )
+        assert written is not None
+        assert isinstance(written, list)

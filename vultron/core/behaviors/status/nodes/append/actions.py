@@ -25,12 +25,14 @@ Contains the three DataLayer-mutating action nodes:
   the participant and persist.
 """
 
-from typing import Any, cast
+from typing import cast
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.status.nodes.dimension_filter import (
     BB_DIMENSION_FILTER,
     resolve_dimension_filter,
@@ -40,7 +42,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
 
 
-class LoadParticipantNode(DataLayerAction):
+class LoadParticipantNode(DataLayerActionWithPorts):
     """Load the CaseParticipant from DataLayer to blackboard.
 
     Reads the participant by ID and writes it to the blackboard under the key
@@ -54,12 +56,17 @@ class LoadParticipantNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.participant_id = participant_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "append_status_participant": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"append_status_participant": "/append_status_participant"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -80,13 +87,11 @@ class LoadParticipantNode(DataLayerAction):
             "LoadParticipantNode: loaded participant '%s'",
             self.participant_id,
         )
-        self.blackboard.set(
-            "append_status_participant", participant, overwrite=True
-        )
+        self._set_output("append_status_participant", participant)
         return Status.SUCCESS
 
 
-class ResolveAndPersistStatusObjectNode(DataLayerAction):
+class ResolveAndPersistStatusObjectNode(DataLayerActionWithPorts):
     """Resolve the status object by ID, persisting fallback if needed.
 
     When :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
@@ -118,23 +123,37 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="append_status_status_obj",
-            access=py_trees.common.Access.WRITE,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports[BB_DIMENSION_FILTER] = PortInformation(
+            data_type=object, required=False
         )
-        self.blackboard.register_key(
-            key=BB_DIMENSION_FILTER,
-            access=py_trees.common.Access.READ,
-        )
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "append_status_status_obj": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            BB_DIMENSION_FILTER: f"/{BB_DIMENSION_FILTER}",
+            "append_status_status_obj": "/append_status_status_obj",
+        }
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        filtered = resolve_dimension_filter(self.blackboard, self.status_id)
+        filtered = resolve_dimension_filter(
+            self.blackboard_client, self.status_id
+        )
         if filtered is not None:
             status_obj = filtered["filtered_status"]
             self.datalayer.save(status_obj)
@@ -176,13 +195,11 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
             "ResolveAndPersistStatusObjectNode: resolved status '%s'",
             self.status_id,
         )
-        self.blackboard.set(
-            "append_status_status_obj", status_obj, overwrite=True
-        )
+        self._set_output("append_status_status_obj", status_obj)
         return Status.SUCCESS
 
 
-class AppendStatusAndSaveParticipantNode(DataLayerAction):
+class AppendStatusAndSaveParticipantNode(DataLayerActionWithPorts):
     """Append the status object to the participant and save.
 
     Appends the resolved status object (from blackboard) to the participant's
@@ -199,15 +216,31 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
         self.status_id = status_id
         self.participant_id = participant_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["append_status_participant"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="append_status_status_obj",
-            access=py_trees.common.Access.READ,
+        ports["append_status_status_obj"] = PortInformation(
+            data_type=object, required=True
+        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "append_status_participant": "/append_status_participant",
+            "append_status_status_obj": "/append_status_status_obj",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.append_status_participant = self.get_input(
+            "append_status_participant"
+        )
+        self.append_status_status_obj = self.get_input(
+            "append_status_status_obj"
         )
 
     def update(self) -> Status:
@@ -215,8 +248,8 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
-        participant = self.blackboard.get("append_status_participant")
-        status_obj = self.blackboard.get("append_status_status_obj")
+        participant = self.append_status_participant
+        status_obj = self.append_status_status_obj
 
         if participant is None or status_obj is None:
             self.feedback_message = "Participant or status not on blackboard"

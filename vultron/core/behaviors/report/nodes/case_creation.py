@@ -15,12 +15,12 @@
 
 """Case creation nodes for the report behavior tree."""
 
-from typing import Any
-
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VultronCase
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -65,7 +65,7 @@ def _collect_create_case_addressees(
     ]
 
 
-class CreateCaseNode(DataLayerAction):
+class CreateCaseNode(DataLayerActionWithPorts):
     """
     Create VulnerabilityCase from validated report.
 
@@ -88,6 +88,14 @@ class CreateCaseNode(DataLayerAction):
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"case_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
 
     def update(self) -> Status:
         """
@@ -127,11 +135,7 @@ class CreateCaseNode(DataLayerAction):
                     f"{self.name}: VulnerabilityCase {case.id_} already exists: {e}"
                 )
 
-            self.blackboard.register_key(
-                key="case_id", access=py_trees.common.Access.WRITE
-            )
-            self.blackboard.case_id = case.id_
-
+            self._set_output("case_id", case.id_)
             return Status.SUCCESS
 
         except Exception as e:
@@ -139,7 +143,7 @@ class CreateCaseNode(DataLayerAction):
             return Status.FAILURE
 
 
-class CreateCaseActivity(DataLayerAction):
+class CreateCaseActivity(DataLayerActionWithPorts):
     """
     Create CreateCaseActivity activity for case creation notification.
 
@@ -162,12 +166,26 @@ class CreateCaseActivity(DataLayerAction):
         self.report_id = report_id
         self.offer_id = offer_id
 
-    def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access including case_id key."""
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"activity_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "activity_id": "/activity_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
 
     def update(self) -> Status:
         """
@@ -181,7 +199,7 @@ class CreateCaseActivity(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
         try:
-            case_id = self.blackboard.get("case_id")
+            case_id = self.case_id_bb
             if case_id is None:
                 self.logger.error(
                     f"{self.name}: case_id not found in blackboard"
@@ -222,10 +240,7 @@ class CreateCaseActivity(DataLayerAction):
                     f"{self.name}: CreateCaseActivity activity {create_case_activity.id_} already exists: {e}"
                 )
 
-            self.blackboard.register_key(
-                key="activity_id", access=py_trees.common.Access.WRITE
-            )
-            self.blackboard.activity_id = create_case_activity.id_
+            self._set_output("activity_id", create_case_activity.id_)
             return Status.SUCCESS
 
         except Exception as e:

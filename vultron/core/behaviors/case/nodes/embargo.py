@@ -30,14 +30,11 @@ notes/protocol-event-cascades.md D5-6-EMBARGORCP.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 import isodate  # type: ignore[import-untyped]
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     PortInformation,
 )
@@ -83,18 +80,23 @@ def _preferred_embargo_duration(
     return duration
 
 
-class ResolveEmbargoDurationNode(DataLayerAction):
+class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     """Resolve preferred embargo duration and publish it to blackboard."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="default_embargo_duration",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "default_embargo_duration": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"default_embargo_duration": "/default_embargo_duration"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -103,40 +105,56 @@ class ResolveEmbargoDurationNode(DataLayerAction):
         duration = _preferred_embargo_duration(
             self.datalayer, self.name, self.logger
         )
-        self.blackboard.default_embargo_duration = duration
+        self._set_output("default_embargo_duration", duration)
         return Status.SUCCESS
 
 
-class CreateEmbargoEventNode(DataLayerAction):
+class CreateEmbargoEventNode(DataLayerActionWithPorts):
     """Create a default embargo event and publish embargo_id to blackboard."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        ports["default_embargo_duration"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="default_embargo_duration",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="default_embargo_id",
-            access=py_trees.common.Access.WRITE,
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "default_embargo_id": PortInformation(data_type=str, required=True)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "default_embargo_duration": "/default_embargo_duration",
+            "default_embargo_id": "/default_embargo_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
+        self.default_embargo_duration_bb = self.get_input(
+            "default_embargo_duration"
         )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        case_id = self.blackboard.get("case_id")
+        case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
 
-        duration = self.blackboard.get("default_embargo_duration")
+        duration = self.default_embargo_duration_bb
         if not isinstance(duration, timedelta):
             self.logger.error(
                 "%s: default_embargo_duration missing or invalid", self.name
@@ -154,7 +172,7 @@ class CreateEmbargoEventNode(DataLayerAction):
                 embargo.id_,
             )
 
-        self.blackboard.default_embargo_id = embargo.id_
+        self._set_output("default_embargo_id", embargo.id_)
         self.logger.info(
             "Initialized default embargo '%s' for case '%s'"
             " (end_time: %s, duration: %s)",
@@ -166,25 +184,41 @@ class CreateEmbargoEventNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class AdvanceEMStateToActiveNode(DataLayerAction):
+class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
     """Advance EM state via EmbargoLifecycle propose+accept sequence."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        ports["default_embargo_id"] = PortInformation(
+            data_type=str, required=True
         )
-        self.blackboard.register_key(
-            key="default_embargo_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="default_embargo_initialized",
-            access=py_trees.common.Access.WRITE,
-        )
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "default_embargo_initialized": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "default_embargo_id": "/default_embargo_id",
+            "default_embargo_initialized": "/default_embargo_initialized",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
+        self.default_embargo_id_bb: str = self.get_input("default_embargo_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -192,8 +226,8 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case_id = self.blackboard.get("case_id")
-        embargo_id = self.blackboard.get("default_embargo_id")
+        case_id = self.case_id_bb
+        embargo_id = self.default_embargo_id_bb
         if not isinstance(case_id, str) or not isinstance(embargo_id, str):
             self.logger.error(
                 "%s: case_id/default_embargo_id not found in blackboard",
@@ -215,7 +249,7 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
                 case_id,
                 _as_id(stored_case.active_embargo),
             )
-            self.blackboard.default_embargo_initialized = False
+            self._set_output("default_embargo_initialized", False)
             return Status.SUCCESS
 
         owner_actor_id = _as_id(stored_case.attributed_to)
@@ -233,7 +267,7 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
         if status != Status.SUCCESS:
             return status
 
-        self.blackboard.default_embargo_initialized = True
+        self._set_output("default_embargo_initialized", True)
         return Status.SUCCESS
 
     def _propose_with_em_io(self, case_id: str, embargo_id: str) -> Status:

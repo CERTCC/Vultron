@@ -19,11 +19,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal, cast
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     PortInformation,
 )
@@ -89,25 +87,43 @@ def _to_persistable_entry(
     )
 
 
-class ReconstructChainTailNode(DataLayerAction):
+class ReconstructChainTailNode(DataLayerActionWithPorts):
     def __init__(
         self, case_id: str | None = None, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="tail_hash", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="tail_index", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "tail_hash": PortInformation(data_type=object, required=True),
+            "tail_index": PortInformation(data_type=object, required=True),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "tail_hash": "/tail_hash",
+            "tail_index": "/tail_index",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
         if self._case_id is None:
-            self.blackboard.register_key(
-                key="activity", access=py_trees.common.Access.READ
-            )
+            try:
+                self.activity = self.get_input("activity")
+            except Exception:
+                self.activity = None
+        else:
+            self.activity = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -116,9 +132,7 @@ class ReconstructChainTailNode(DataLayerAction):
         if self._case_id is not None:
             case_id = self._case_id
         else:
-            case_id = _require_case_id_from_activity(
-                self.blackboard.activity, self.name
-            )
+            case_id = _require_case_id_from_activity(self.activity, self.name)
 
         try:
             tail_hash, tail_index = _reconstruct_tail_hash(
@@ -149,11 +163,11 @@ class ReconstructChainTailNode(DataLayerAction):
             # though the tree would normally stop at this FAILURE.  An empty
             # tail_hash signals "replay from genesis" to the CaseActor
             # (SYNC-15-001, CLP-08-005).
-            self.blackboard.tail_hash = ""
-            self.blackboard.tail_index = -1
+            self._set_output("tail_hash", "")
+            self._set_output("tail_index", -1)
             return Status.FAILURE
-        self.blackboard.tail_hash = tail_hash
-        self.blackboard.tail_index = tail_index
+        self._set_output("tail_hash", tail_hash)
+        self._set_output("tail_index", tail_index)
         self.logger.debug(
             "%s: reconstructed case '%s' tail hash %.16s… at index %d",
             self.name,
@@ -221,7 +235,7 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CreateLogEntryNode(DataLayerAction):
+class CreateLogEntryNode(DataLayerActionWithPorts):
     def __init__(
         self,
         case_id: str,
@@ -245,20 +259,35 @@ class CreateLogEntryNode(DataLayerAction):
         self.reason_detail = reason_detail
         self.disposition: Literal["recorded", "rejected"] = disposition
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="tail_hash", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="tail_index", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="log_entry", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="log_entry_preexisting", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["tail_hash"] = PortInformation(data_type=object, required=True)
+        ports["tail_index"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "log_entry": PortInformation(data_type=object, required=True),
+            "log_entry_preexisting": PortInformation(
+                data_type=object, required=True
+            ),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "tail_hash": "/tail_hash",
+            "tail_index": "/tail_index",
+            "log_entry": "/log_entry",
+            "log_entry_preexisting": "/log_entry_preexisting",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.tail_hash = self.get_input("tail_hash")
+        self.tail_index = self.get_input("tail_index")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -291,8 +320,8 @@ class CreateLogEntryNode(DataLayerAction):
                 entry = VultronCaseLedgerEntry.model_validate(
                     existing.model_dump(mode="json")
                 )
-            self.blackboard.log_entry = entry
-            self.blackboard.log_entry_preexisting = True
+            self._set_output("log_entry", entry)
+            self._set_output("log_entry_preexisting", True)
             self.logger.info(
                 "%s: reusing existing log entry case_id=%s event_type=%s "
                 "log_index=%d",
@@ -303,8 +332,8 @@ class CreateLogEntryNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        tail_hash = self.blackboard.tail_hash
-        tail_index = self.blackboard.tail_index
+        tail_hash = self.tail_hash
+        tail_index = self.tail_index
         chain_entry = HashChainLedgerRecord(
             case_id=self.case_id,
             log_index=tail_index + 1,
@@ -317,8 +346,8 @@ class CreateLogEntryNode(DataLayerAction):
             reason_code=self.reason_code,
             reason_detail=self.reason_detail,
         )
-        self.blackboard.log_entry = _to_persistable_entry(chain_entry)
-        self.blackboard.log_entry_preexisting = False
+        self._set_output("log_entry", _to_persistable_entry(chain_entry))
+        self._set_output("log_entry_preexisting", False)
         return Status.SUCCESS
 
 
