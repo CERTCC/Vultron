@@ -1826,15 +1826,24 @@ def _fetch_case_log(
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture
 def completed_workflow(
     client: TestClient, base: str
 ) -> tuple[demo.DataLayerClient, demo.as_VulnerabilityCase]:
     """Run the full FV workflow and return (vendor_client, case).
 
     Uses deterministic actor IDs (``finder-ledger-inv`` /
-    ``vendor-ledger-inv``) to avoid collisions with other test classes
-    sharing the same module-scoped DataLayer.
+    ``vendor-ledger-inv``) to avoid collisions with other test classes.
+
+    **Per-test, not per-class.** This fixture's value is store state, and
+    ``_dispose_actor_stores_between_tests`` in ``test/conftest.py`` is autouse and
+    per-test: it calls ``reset_datalayer()``, which disposes every per-actor
+    engine and so destroys the named in-memory databases (ADR-0070). A
+    class-scoped workflow therefore survived only until the first test finished —
+    the second and third read a case-actor store that no longer existed and got
+    ``404 Case not found``, which looked like a fan-out defect rather than a
+    fixture-lifetime one. Any fixture holding store state must not outlive the
+    disposal that guarantees test isolation.
     """
     finder_client = make_client(base)
     vendor_client = make_client(base)
