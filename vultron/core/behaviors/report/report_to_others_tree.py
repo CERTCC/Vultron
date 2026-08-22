@@ -228,7 +228,7 @@ def create_report_to_others_tree(
         loop_name="OtherSubLoop",
         more_factory=bundle.more_others_factory,
         more_node_name="MoreOthers",
-        roles=[CVDRole.OTHER],
+        roles=[CVDRole.OBSERVER],
         suggest_factory=bundle.suggest_other_factory,
         suggest_node_name="SuggestOther",
         case_id=case_id,

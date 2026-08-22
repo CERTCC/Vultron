@@ -30,7 +30,7 @@ from vultron.core.models.case_participant import (
     DeployerParticipant,
     FinderParticipant,
     FinderReporterParticipant,
-    OtherParticipant,
+    ObserverParticipant,
     ReporterParticipant,
     VendorParticipant,
     VultronParticipant,
@@ -63,7 +63,7 @@ __all__ = [
     "DeployerParticipant",
     "FinderParticipant",
     "FinderReporterParticipant",
-    "OtherParticipant",
+    "ObserverParticipant",
     "ReporterParticipant",
     "VendorParticipant",
     "VultronParticipant",
@@ -89,7 +89,7 @@ class as_CaseParticipant(VultronAS2Object):
     - VendorParticipant
     - DeployerParticipant
     - CoordinatorParticipant
-    - OtherParticipant
+    - ObserverParticipant
 
     But you can also create your own CaseParticipant objects if you need to.
 
