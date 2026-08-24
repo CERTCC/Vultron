@@ -22,7 +22,7 @@ a clean baseline before a demo run.
 
 import logging
 from collections.abc import Callable, Sequence
-from typing import Tuple
+from typing import Tuple, cast
 from urllib.parse import quote
 
 from vultron.demo.utils import (
@@ -1160,7 +1160,10 @@ def _store_for_actor(dl: "DataLayer", actor_id: str) -> "DataLayer":
     clone_for_actor = getattr(dl, "clone_for_actor", None)
     if not callable(clone_for_actor):
         return dl
-    return clone_for_actor(actor_id)
+    # ``getattr`` erases the port's signature, so the cast restores what
+    # ``DataLayer.clone_for_actor`` already promises rather than asserting
+    # anything new.
+    return cast("DataLayer", clone_for_actor(actor_id))
 
 
 def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:

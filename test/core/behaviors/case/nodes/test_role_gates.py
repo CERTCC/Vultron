@@ -214,4 +214,9 @@ class TestGateStructure:
             "Gate", CASE_ID, [_Spy("A"), _Spy("B")]
         )
         node = [root, root.children[1]][memory_owner]
+        # ``memory`` lives on Selector/Sequence, not on Composite — so narrowing
+        # is also the assertion that the gate is built from those two.
+        assert isinstance(
+            node, (py_trees.composites.Selector, py_trees.composites.Sequence)
+        ), f"{node.name} carries no memory flag to check"
         assert node.memory is False

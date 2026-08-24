@@ -22,6 +22,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
+import json
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -339,20 +340,32 @@ class TestFccvHandoffCliCommand:
 # ---------------------------------------------------------------------------
 
 
+def _bound_client(slug: str) -> MagicMock:
+    """A dump client stub bound to a *generated* actor id, as the real one is.
+
+    ``actor_id`` must be a real string: the dump derives its route key from it
+    (``replica_route_key``, ADR-0072) and writes the key into the manifest, so a
+    bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
+    deliberately *not* the docker-compose seed names — that is the whole point of
+    deriving the key, and a stub carrying ``actor_id="finder"`` would pass even if
+    the derivation were dropped.
+    """
+    client = MagicMock()
+    client.actor_id = f"https://example.org/actors/{slug}"
+    client.get_list.return_value = [{"logIndex": 0}]
+    return client
+
+
 class TestPhaseDumpCaseLedgersFccv:
     """Tests for the case-ledger dump phase in the FCCV-handoff demo."""
 
     def test_writes_jsonl_files_for_all_four_actors(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        c1_client = MagicMock()
-        c2_client = MagicMock()
-        vendor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        c1_client.get_list.return_value = [{"logIndex": 0}]
-        c2_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        c1_client = _bound_client("coordinator1-2b71")
+        c2_client = _bound_client("coordinator2-4c05")
+        vendor_client = _bound_client("vendor-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fccv-test-case"
@@ -393,17 +406,28 @@ class TestPhaseDumpCaseLedgersFccv:
             / f"{case_slug}-case-ledger.jsonl"
         ).exists()
 
+        # The route key selects the store (ADR-0072), so it must be the
+        # client's own actor id — not the seed name the directory is named
+        # after.  Note the FCCV handoff deliberately crosses the two: c1 is
+        # the actor written under "vendor".
+        manifest = json.loads(
+            (tmp_path / "fccv-handoff" / "dump-manifest.json").read_text()
+        )
+        keys = {r["actorName"]: r["routeKey"] for r in manifest["actors"]}
+        assert keys == {
+            "finder": "finder-9f3a",
+            "vendor": "coordinator1-2b71",
+            "coordinator": "coordinator2-4c05",
+            "vendor2": "vendor-8ade",
+        }
+
     def test_includes_case_actor_when_in_participant_index(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        c1_client = MagicMock()
-        c2_client = MagicMock()
-        vendor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        c1_client.get_list.return_value = [{"logIndex": 0}]
-        c2_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        c1_client = _bound_client("coordinator1-2b71")
+        c2_client = _bound_client("coordinator2-4c05")
+        vendor_client = _bound_client("vendor-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fccv-with-ca",

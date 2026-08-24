@@ -18,8 +18,10 @@
 import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.base.base import as_Base
 
@@ -74,8 +76,14 @@ def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
     return wire_cls.from_core(core_obj)  # type: ignore[attr-defined,return-value,no-any-return]
 
 
-def _case_for_wire(dl: DataLayer, case_id: str) -> "as_VulnerabilityCase":
+def _case_for_wire(
+    dl: CasePersistence, case_id: str
+) -> "as_VulnerabilityCase":
     """Return the stored case as a wire object, with its embargo carried inline.
+
+    Takes the narrow read port rather than the full ``DataLayer``: reading is all
+    this does, and every caller holds a ``CaseOutboxPersistence``
+    (``_TriggerAdapterBase._dl``), which is a ``CasePersistence``.
 
     Every activity that puts a case on the wire goes through here, because
     ``active_embargo`` is a reference the *receiver* cannot dereference: it may

@@ -369,8 +369,15 @@ class TestResetFansOutOverEveryHostedActor:
             datalayer as datalayer_router,
         )
 
-        actor_paths = [r.path for r in datalayer_router.router.routes]
-        assert not any("reset" in p for p in actor_paths)
+        # ``path`` is on the concrete route classes, not on ``BaseRoute``.
+        # Probed rather than narrowed so that a mount or websocket route named
+        # "reset" still trips the negative assertion below.
+        def _paths(routes) -> list[str]:
+            return [str(getattr(r, "path", "")) for r in routes]
+
+        assert not any(
+            "reset" in p for p in _paths(datalayer_router.router.routes)
+        )
         assert any(
-            "reset" in r.path for r in datalayer_router.admin_router.routes
+            "reset" in p for p in _paths(datalayer_router.admin_router.routes)
         )

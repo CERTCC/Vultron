@@ -41,8 +41,10 @@ needs the Phase 6 amendment.
 """
 
 from collections.abc import Generator
+from typing import cast
 
 import pytest
+from fastapi import Request
 from fastapi.params import Depends as params_Depends
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -245,11 +247,21 @@ class _FakeRequest:
         self.app = type("_App", (), {"state": type("_State", (), state)()})()
 
 
+def _fake_request(**state: object) -> Request:
+    """A ``_FakeRequest`` typed as the ``Request`` the dependencies declare.
+
+    The cast is the whole point of the stub, stated to the type checker: these
+    tests assert that only ``app.state`` is read, so the object deliberately
+    cannot satisfy ``Request`` structurally.
+    """
+    return cast(Request, _FakeRequest(**state))
+
+
 class TestNodeBaseUrl:
     def test_returns_the_base_url_the_app_declares(self):
         assert (
             node_base_url(
-                _FakeRequest(node_base_url="https://vendor.test/api")
+                _fake_request(node_base_url="https://vendor.test/api")
             )
             == "https://vendor.test/api"
         )
@@ -260,12 +272,12 @@ class TestNodeBaseUrl:
 
     def test_returns_none_when_the_app_declares_nothing(self):
         """Production keeps its previous behaviour: fall back to config."""
-        assert node_base_url(_FakeRequest()) is None
+        assert node_base_url(_fake_request()) is None
 
     @pytest.mark.parametrize("junk", ["", 0, object()])
     def test_ignores_a_value_that_is_not_a_usable_base_url(self, junk):
         """An empty string would build ``"/actors/vendor"`` — a relative id."""
-        assert node_base_url(_FakeRequest(node_base_url=junk)) is None
+        assert node_base_url(_fake_request(node_base_url=junk)) is None
 
     def test_never_consults_the_request_url_or_host_header(self):
         """The stated security property, asserted rather than assumed.
@@ -276,7 +288,7 @@ class TestNodeBaseUrl:
         also break every ``TestClient`` test, which arrives as
         ``http://testserver``.
         """
-        request = _FakeRequest(node_base_url="https://declared.test/api")
+        request = _fake_request(node_base_url="https://declared.test/api")
         assert not hasattr(request, "url")
         assert not hasattr(request, "headers")
         assert node_base_url(request) == "https://declared.test/api"
@@ -293,18 +305,24 @@ def test_get_actor_dl_resolves_into_the_serving_apps_namespace(
     URI and one store — cross-node knowledge leakage that ADR-0072 exists to
     prevent.
     """
-    node_a = get_actor_dl(
-        actor_id=SHORT_ID,
-        request=_FakeRequest(node_base_url="https://node-a.test/api/v2"),
+    node_a = cast(
+        SqliteDataLayer,
+        get_actor_dl(
+            actor_id=SHORT_ID,
+            request=_fake_request(node_base_url="https://node-a.test/api/v2"),
+        ),
     )
-    node_b = get_actor_dl(
-        actor_id=SHORT_ID,
-        request=_FakeRequest(node_base_url="https://node-b.test/api/v2"),
+    node_b = cast(
+        SqliteDataLayer,
+        get_actor_dl(
+            actor_id=SHORT_ID,
+            request=_fake_request(node_base_url="https://node-b.test/api/v2"),
+        ),
     )
 
-    assert node_a._actor_id == f"https://node-a.test/api/v2/actors/{SHORT_ID}"
-    assert node_b._actor_id == f"https://node-b.test/api/v2/actors/{SHORT_ID}"
-    assert node_a._actor_id != node_b._actor_id
+    assert node_a.actor_id == f"https://node-a.test/api/v2/actors/{SHORT_ID}"
+    assert node_b.actor_id == f"https://node-b.test/api/v2/actors/{SHORT_ID}"
+    assert node_a.actor_id != node_b.actor_id
 
 
 # ---------------------------------------------------------------------------
