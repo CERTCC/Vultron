@@ -62,12 +62,6 @@ from vultron.core.behaviors.case.nodes.invite_response import (
 from vultron.core.behaviors.case.nodes.proposal import (
     ProposeReportCaseToActorNode,
 )
-from vultron.core.behaviors.case.nodes.case_actor_setup import (
-    CreateCaseActorServiceNode,
-    RegisterCaseActorParticipantNode,
-    ResolveCaseActorUrlsNode,
-    ReuseExistingCaseActorParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.case_setup import (
     PersistCase,
     RecordCaseCreatedEventNode,
@@ -155,10 +149,6 @@ __all__ = [
     "CheckPendingProposalExistsForReport",
     "WritePendingReportCaseLinkNode",
     # case_actor_setup (leaf nodes)
-    "ResolveCaseActorUrlsNode",
-    "ReuseExistingCaseActorParticipantNode",
-    "CreateCaseActorServiceNode",
-    "RegisterCaseActorParticipantNode",
     # case_setup (leaf nodes)
     "PersistCase",
     "SetCaseAttributedTo",
@@ -166,7 +156,6 @@ __all__ = [
     "RecordCaseCreatedEventNode",
     # case_setup_tree (composite subtrees — lazy via __getattr__)
     "RecordCaseCreationEvents",
-    "CreateCaseActorNode",
     # participant (leaf nodes)
     "CreateParticipantStatusNode",
     "RecordOwnerJoinedEventNode",
@@ -226,7 +215,6 @@ __all__ = [
 # At runtime these imports are skipped; the lazy __getattr__ below handles them.
 if TYPE_CHECKING:
     from vultron.core.behaviors.case.case_setup_tree import (  # noqa: F401
-        CreateCaseActorNode,
         RecordCaseCreationEvents,
     )
     from vultron.core.behaviors.case.communication_tree import (  # noqa: F401
@@ -246,7 +234,6 @@ if TYPE_CHECKING:
 # create a cycle.  PEP 562 module __getattr__ resolves the name only when
 # first accessed, after this __init__ is fully initialized.
 _COMPOSITE_COMPAT: dict[str, str] = {
-    "CreateCaseActorNode": "vultron.core.behaviors.case.case_setup_tree",
     "RecordCaseCreationEvents": "vultron.core.behaviors.case.case_setup_tree",
     "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
     "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",

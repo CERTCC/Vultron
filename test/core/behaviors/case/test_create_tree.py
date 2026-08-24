@@ -152,12 +152,22 @@ def test_create_case_tree_second_child_is_sequence(case_obj, actor_id):
     assert isinstance(tree.children[1], py_trees.composites.Sequence)
 
 
-def test_propose_case_to_actor_node_wired_after_create_actor_node(
+def test_propose_case_to_actor_node_wired_after_the_identity_publisher(
     case_obj, actor_id
 ):
-    """ProposeCaseToActorNode appears immediately after CreateCaseActorNode (CP-04-002)."""
+    """ProposeCaseToActorNode follows the node that publishes the identity it reads.
+
+    Was "after CreateCaseActorNode". That node resolved a *per-case* CaseActor
+    identity and created a per-case `Service` object to match; both are gone
+    (#1872 AC-2/AC-3). `PublishCaseActorIdentityNode` publishes the container
+    identity in its place, and the ordering requirement is unchanged in substance:
+    `ProposeCaseToActorNode` reads `case_actor_id` from the blackboard, so it must
+    run after whoever writes it (CP-04-002, CP-04-003).
+    """
     from vultron.core.behaviors.case.nodes.actor import ProposeCaseToActorNode
-    from vultron.core.behaviors.case.case_setup_tree import CreateCaseActorNode
+    from vultron.core.behaviors.case.nodes.case_setup import (
+        PublishCaseActorIdentityNode,
+    )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor_id)
     effect_seq = tree.children[1]
@@ -167,14 +177,14 @@ def test_propose_case_to_actor_node_wired_after_create_actor_node(
         ProposeCaseToActorNode in node_types
     ), "ProposeCaseToActorNode must be present in create_create_case_tree"
     propose_idx = node_types.index(ProposeCaseToActorNode)
-    create_actor_idx = next(
+    publish_idx = next(
         i
         for i, c in enumerate(effect_seq.children)
-        if isinstance(c, CreateCaseActorNode)
+        if isinstance(c, PublishCaseActorIdentityNode)
     )
-    assert propose_idx == create_actor_idx + 1, (
+    assert propose_idx == publish_idx + 1, (
         "ProposeCaseToActorNode must appear immediately after "
-        "CreateCaseActorNode (CP-04-002)"
+        "PublishCaseActorIdentityNode, which writes the case_actor_id it reads"
     )
 
 

@@ -204,3 +204,68 @@ class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         return Status.SUCCESS
+
+
+class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
+    """Publish the CaseActor's identity to the blackboard for downstream nodes.
+
+    Replaces ``ResolveCaseActorUrlsNode``, which derived a *per-case* identity —
+    ``{case_actor_service_url}/actors/case-actor-{slug}`` — and also created a
+    per-case ``VultronCaseActor`` ``Service`` object to go with it. Both were
+    wrong for the same reason: the CaseActor is a participant wearing the
+    `CVDRole.CASE_MANAGER` hat, not a per-case entity, and an identity the sender
+    invents is one no container hosts, so delivery to it 404s permanently
+    (#1872, CP-04-003, BT-10-002).
+
+    This node only *publishes*; it creates nothing. Provisioning the case-actor's
+    record belongs to whoever hosts it — for a co-located case-actor that is
+    ``WritePendingReportCaseLinkNode``, which writes into the case-actor's own
+    store (CP-04-004); for a dedicated container, its own seed config.
+
+    Returns ``FAILURE`` when ``case_actor_service_url`` is unconfigured, rather
+    than falling back to this node's own base URL: a guessed base is how the
+    proposal ends up addressed to an actor that does not exist.
+
+    *case_id* is a required constructor argument rather than an optional
+    blackboard read. ``ResolveCaseActorUrlsNode`` supported both and registered
+    its ``case_id`` key as READ or WRITE accordingly; its only caller always
+    passed the id, so the other arm was never exercised.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "case_id": PortInformation(data_type=str, required=True),
+            "case_actor_id": PortInformation(data_type=str, required=True),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
+
+    def update(self) -> Status:
+        from vultron.core.behaviors.case.case_actor_identity import (
+            case_actor_identity,
+        )
+
+        if not self._case_id:
+            self.feedback_message = f"{self.name}: case_id is empty"
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+        case_actor_id = case_actor_identity()
+        if case_actor_id is None:
+            self.feedback_message = (
+                f"{self.name}: case_actor_service_url is not configured"
+                " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+        self._set_output("case_id", self._case_id)
+        self._set_output("case_actor_id", case_actor_id)
+        return Status.SUCCESS

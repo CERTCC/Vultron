@@ -37,6 +37,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: CaseActor MUST persist until the associated VulnerabilityCase is closed
+    note: >-
+      Read this as the *role assignment* persisting, not an object's lifetime. "CaseActor" names
+      whichever participant holds `CVDRole.CASE_MANAGER` (BT-10-002, as revised for ISSUE-1872); the
+      actor itself participates in many cases and its existence is not scoped to any one of them.
+      Flagged rather than rewritten: this whole group predates the role model and several entries read
+      as obligations on a distinct component, which is the assumption that produced the phantom
+      per-case CaseActor identity. Worth a `decision-audit` pass over CM-02 as a group.
   - id: CM-02-004
     priority: MUST
     kind: protocol
