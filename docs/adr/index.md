@@ -139,6 +139,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0067 Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently](0067-rm-nonadj-accept-and-notify.md)
 - [ADR-0068 Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx](0068-inbox-refuse-misaddressed-activities.md)
 - [ADR-0069 Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host](0069-vultron-namespace-uri.md) *(provisional)*
+- [ADR-0070 CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined](0070-cna-eligibility-reference-baseline.md)
 
 ## Proposed ADRs
 

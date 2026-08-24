@@ -1341,12 +1341,27 @@ does with a report*.
 
 #### 7.4.3 CVE ID Assignment
 
-An actor holding CNA MAY directly assign CVE IDs when eligibility criteria
-are met (scope, product coverage, assignability checks per CNA Operational
-Rules). An actor not holding CNA MUST delegate ID assignment to an external
-CNA service.
+An actor holding CNA MUST have the capability to assign CVE IDs, which
+requires evaluating vulnerability eligibility criteria before assignment. An
+actor not holding CNA MUST delegate ID assignment to an external CNA service.
 
-- *Source: `vultron/core/behaviors/report/assign_cve_id_tree.py`*
+**Eligibility criteria posture (resolves Open Question 9):** The RFC does not
+normatively cite a specific edition of the CNA Operational Rules, nor does it
+treat eligibility checks as fully implementation-defined. Instead, the
+reference implementation follows CNA Operational Rules v4.1.0 as the
+conformance baseline. Adopting a newer edition requires updating the spec and
+the implementing call-out. This avoids coupling the RFC to an
+independently-versioned external document's release cycle while remaining
+transparent about which edition the reference implementation follows.
+
+**Architectural note:** CVE eligibility checking is a single logical
+capability — the full set of criteria applied as a unit against a specific
+rules edition. The correct BT design is one `EvaluateCveEligibility` Evaluator
+call-out point, not separate call-out points for each individual criterion
+(BTND-05-007). This refactoring is tracked as a separate implementation task.
+
+- *Sources: `specs/behavior-tree-node-design.yaml` BTND-05-007, BTND-05-008;
+  ADR-0070*
 
 #### 7.4.4 Case Owner Authority
 
@@ -1557,10 +1572,11 @@ implementation. Other implementations are not required to use this structure.
    Standard Invite/Accept admission (CM-25-002), full case content via MV-10-005
    gate (CM-25-003), RM triage with engagement semantics (CM-25-004). Related to
    #6 (now also resolved).
-9. **CNA eligibility criteria** — The CVE ID assignment tree encodes CNA
-   Operational Rules v4.1.0 criteria inline. Should the RFC cite these as
-   normative external requirements, or treat the eligibility checks as
-   implementation-defined?
+9. ~~**CNA eligibility criteria**~~ — Resolved by ADR-0070. The RFC endorses
+   CNA Operational Rules v4.1.0 as the reference conformance baseline for the
+   reference implementation. The eligibility check is one logical capability
+   (one `EvaluateCveEligibility` Evaluator call-out), not 9 individual
+   call-outs. Refactoring tracked in a separate implementation Task.
 10. ~~**Capability set structure**~~ — Resolved (consolidates the former items
     10–13, and the T-tier model previously noted here). All five state machines
     (RM, EM, PEC, VFD, PXA) are required at the Observer level; the machines are

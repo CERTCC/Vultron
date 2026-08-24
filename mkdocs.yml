@@ -290,6 +290,7 @@ nav:
       - 'Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently': 'adr/0067-rm-nonadj-accept-and-notify.md'
       - 'Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx': 'adr/0068-inbox-refuse-misaddressed-activities.md'
       - 'Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host': 'adr/0069-vultron-namespace-uri.md'
+      - 'CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined': 'adr/0070-cna-eligibility-reference-baseline.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

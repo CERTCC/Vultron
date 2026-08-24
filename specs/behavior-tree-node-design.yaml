@@ -335,6 +335,42 @@ groups:
     rationale: >-
       Case ownership is orthogonal to CVD role. The node must apply the `CASE_OWNER` flag without
       requiring or checking any specific CVD role value.
+  - id: BTND-05-007
+    priority: SHOULD
+    kind: project
+    statement: >-
+      CVE eligibility checking SHOULD be implemented as a single `EvaluateCveEligibility`
+      Evaluator call-out point rather than as multiple individual call-out points for each
+      eligibility criterion.
+    rationale: >-
+      CVE eligibility is one logical capability: a set of criteria evaluated as a unit against
+      a specific version of the CNA Operational Rules. Treating each criterion as an independent
+      call-out point misrepresents the substitution unit — when the rules are updated, all criteria
+      change together, not independently. A single Evaluator call-out correctly models the
+      "replace the whole eligibility check" seam (ADR-0070).
+    adr:
+    - ADR-0070
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-05-004
+  - id: BTND-05-008
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `EvaluateCveEligibility` call-out point SHOULD be grounded in the CNA Operational
+      Rules edition endorsed by the current spec as the conformance baseline. The reference
+      implementation follows CNA Operational Rules v4.1.0. Adopting a newer edition requires
+      updating both this spec and the implementing call-out factory.
+    rationale: >-
+      Pinning the eligibility logic to a specific rules edition in the implementation (not the
+      RFC) avoids coupling the protocol spec to an independently-versioned external document's
+      release cycle, while remaining transparent about which edition serves as the conformance
+      baseline (ADR-0070).
+    adr:
+    - ADR-0070
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-05-007
 - id: BTND-06
   title: Idiomatic BT Construction Patterns
   specs:
