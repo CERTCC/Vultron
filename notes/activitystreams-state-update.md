@@ -223,7 +223,7 @@ of sync with the stricter typed subclasses.
   `VultronAS2Activity.from_core()` should reject objectless transitive domain
   activities rather than silently materializing invalid wire objects.
 - A backlog bug may already be fixed; close it with concrete code-search and
-  regression-test evidence (see also `notes/bugfix-workflow.md`).
+  regression-test evidence (see also `.claude/skills/bugfix/SKILL.md` § Phase 2a prior-fix check).
 
 ---
 

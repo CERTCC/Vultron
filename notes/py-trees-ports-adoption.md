@@ -1,6 +1,6 @@
 ---
 title: py_trees Ports Adoption — Typed Blackboard Contracts and XML Authoring
-status: active
+status: archived
 description: >
   Planning analysis for adopting py_trees 2.5.0 typed Ports in vultron/core/behaviors/:
   the concrete wins (typed data contracts, early error detection, isolated node
@@ -29,7 +29,7 @@ adopting, what is deferred, the known technical mismatch, and the issue
 sequence — so each implementing agent starts from evidence rather than the
 Idea's optimistic framing.
 
-## Current state (migration in progress — verified 2026-08-21)
+## Current state (migration complete — verified 2026-08-24)
 
 - **Dependency**: `pyproject.toml` already pins `py-trees>=2.5.0`. The Idea's
   "evaluate the upgrade path from the current pin" step is already satisfied —
@@ -62,8 +62,21 @@ Idea's optimistic framing.
     (BTND-03-012, BTND-03-013) and migrates **Type-C WRITE-handoff nodes** across
     `sync/`, `case/`, `embargo/`, `report/`, `sender/`, and `status/` domains.
     Nodes with instance-computed (execution-scoped) physical keys are deferred to #1887.
-  - Remaining finalization (#1887) covers non-DataLayer nodes, composite exemptions,
-    and deferred dynamic-key nodes.
+  - Part 5/5 (#1887) migrated **non-DataLayer bare `Behaviour` nodes** that touch
+    the blackboard across `inbox/nodes/pipeline.py`, `report/`,
+    `status/nodes/append/conditions.py`, and `case/nodes/actor.py`.
+    Created `_InboxNodeWithPorts` (parallel to `DataLayerActionWithPorts`) as
+    the base for inbox pipeline nodes (IO-02-002).  Execution-scoped output
+    ports (BTND-03-013) applied to `EvaluateDefaultRolesNode` and
+    `_WriteRolesNode`.  Added architecture ratchet test
+    (`test/architecture/test_no_bare_register_key_datalayer_nodes.py`) with a
+    51-node audited baseline to prevent new `register_key`-only `DataLayer*`
+    leaf nodes.  Composite `Sequence`/`Selector` subclasses are explicitly
+    exempt: they are structural orchestrators with no leaf data-flow contract.
+    Nodes with no blackboard access (`CheckAutoCaseCreationEnabledNode`,
+    `ShouldAdvanceOwnerToAcceptedNode`, `AlwaysSucceed`, `AlwaysFail`,
+    `_AlwaysSucceedNode`) are exempt as constructor-parameterized gates.
+    ✓ (2026-08-24)
 - **XML parser**: `py_trees.parsers.behaviour_tree_xml` exists but is documented
   as **experimental** ("the parser is experimental and its API may change
   between releases"). It instantiates only classes registered in a
@@ -304,6 +317,74 @@ def test_missing_required_port():
     with pytest.raises(NoDataAvailable):
         node.get_input("datalayer")
 ```
+
+## Exemptions (nodes NOT migrated, with justification)
+
+### Composite nodes (Sequence/Selector subclasses)
+
+`py_trees.composites.Sequence` and `py_trees.composites.Selector` subclasses
+throughout `vultron/core/behaviors/` are **structurally exempt**.  Composites
+are orchestrators — they have no leaf data-flow contract and own no blackboard
+keys.  The typed-Ports contract (BTND-03-009) applies to *leaf* nodes that
+read or write data; composites pass control to their children and never touch
+the blackboard directly.
+
+### Constructor-parameterized policy gates (no blackboard access)
+
+The following bare `py_trees.behaviour.Behaviour` subclasses have **no
+blackboard access** — they make decisions based solely on constructor-injected
+values:
+
+- `CheckAutoCaseCreationEnabledNode` (`case/nodes/conditions.py`): reads
+  `ActorConfig.auto_create_case` from a constructor-injected object.
+- `ShouldAdvanceOwnerToAcceptedNode` (`case/nodes/participant/owner.py`):
+  reads a constructor-injected boolean.
+- `AlwaysSucceed` / `AlwaysFail` (`call_out/nodes.py`): stateless; always
+  return a fixed Status.
+- `_AlwaysSucceedNode` (`case/accept_invite_tree.py`): same.
+
+Migrating these to `BehaviourWithPorts` would add no contract value — there
+are no ports to declare.
+
+## Finalized conventions (established across parts 1–5)
+
+1. **Type-A nodes** (no domain blackboard keys beyond DataLayer standard):
+   pure base-class reparent, no override needed (established by #1883–#1884).
+
+2. **Type-B nodes** (extra READ-only inputs):
+   override `input_ports()` + `_domain_port_remappings()` + `get_input()`
+   in `initialise()` (established by #1885).
+
+3. **Type-C WRITE-handoff nodes** (static physical key):
+   override `output_ports()` + `_domain_port_remappings()` + `_set_output()`
+   in `update()` (established by #1886, BTND-03-012).
+
+4. **Type-C execution-scoped physical key** (BTND-03-013):
+   declare stable logical port in `output_ports()`, compute physical key in
+   `__init__`, wire via instance `setup_ports()` override (not classmethod
+   `_domain_port_remappings()`).
+
+5. **Non-DataLayer nodes with blackboard access** (established by #1887):
+   extend `BehaviourWithPorts` directly; declare `input_ports()` and/or
+   `output_ports()`; call `setup_ports()` in `setup()` with explicit
+   `port_remappings` wired to the flat absolute keys.
+
+6. **Inbox pipeline nodes** (`_InboxNodeWithPorts`, #1887):
+   parallel to `DataLayerActionWithPorts` for the `inbox_*` key namespace;
+   shared output ports for `inbox_outcome_status` and `inbox_failure_reason`;
+   `_reject()` uses `_set_output()`; `_domain_port_remappings()` classmethod
+   extended by subclasses (IO-02-002).
+
+7. **Read-modify-write same key** (`RehydrateActivityNode`, #1887):
+   declare a separate input port alias (e.g. `inbox_activity_in`) for the
+   READ path and the normal output port for the WRITE path; both remapped to
+   the same absolute key.  Two different client-local names → two access
+   levels → same storage slot.
+
+8. **`NotImplementedError` on explicit `None`** (fixed in #1885 and #1887):
+   `get_input()` raises `NotImplementedError` when the blackboard key holds
+   an explicit `None` value (py_trees quirk).  Optional-or-nullable inputs
+   must catch `(NotImplementedError, NoDataAvailable)`.
 
 ## Issue sequence
 

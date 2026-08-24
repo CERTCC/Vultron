@@ -43,8 +43,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import py_trees
-from py_trees.common import Access, Status
+from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.models.events import (
     is_case_bootstrap,
@@ -78,36 +78,68 @@ ALL_INBOX_KEYS = (
 )
 
 
-class _InboxNode(py_trees.behaviour.Behaviour):
-    """Base class for inbox pipeline nodes.
+class _InboxNodeWithPorts(BehaviourWithPorts):
+    """Base class for typed-Ports inbox pipeline nodes.
 
-    Provides a properly-wired logger and helper methods for writing
-    failure outcomes to the blackboard.
+    Declares the shared outcome output ports (inbox_outcome_status,
+    inbox_failure_reason) and wires them to the flat blackboard keys
+    used by process_payload for cleanup.  Subclasses override
+    _domain_port_remappings() to add their domain-specific port-to-key
+    mappings, and declare their own input_ports()/output_ports().
+
+    Per specs/inbox-orchestration.yaml IO-02-002.
+    Per specs/behavior-tree-node-design.yaml BTND-03-012.
     """
 
     logger: logging.Logger  # type: ignore[assignment]
-    blackboard: py_trees.blackboard.Client
 
     def __init__(self, name: str) -> None:
         super().__init__(name=name)
-        # Replace py_trees' parentless logger with a hierarchy-wired one.
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Domain-specific port-to-absolute-key remappings for this subclass."""
+        return {}
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            KEY_OUTCOME_STATUS: PortInformation(data_type=str, required=False),
+            KEY_FAILURE_REASON: PortInformation(data_type=str, required=False),
+        }
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                KEY_OUTCOME_STATUS: f"/{KEY_OUTCOME_STATUS}",
+                KEY_FAILURE_REASON: f"/{KEY_FAILURE_REASON}",
+                **self._domain_port_remappings(),
+            }
+        )
+
     def _reject(self, reason: str) -> Status:
-        """Write rejected outcome to blackboard and return FAILURE."""
+        """Write rejected outcome via typed output ports and return FAILURE."""
         self.feedback_message = reason
         try:
-            self.blackboard.inbox_outcome_status = "rejected"
-            self.blackboard.inbox_failure_reason = reason
+            self._set_output(KEY_OUTCOME_STATUS, "rejected")
+            self._set_output(KEY_FAILURE_REASON, reason)
         except Exception:
             pass
         self.logger.warning("%s: rejected — %s", self.name, reason)
         return Status.FAILURE
 
+    def update(self) -> Status:
+        raise NotImplementedError
 
-class ParsePayloadNode(_InboxNode):
+
+class ParsePayloadNode(_InboxNodeWithPorts):
     """Step 1: parse raw payload into a typed Activity.
 
     Reads ``inbox_payload`` and ``inbox_ingress``; writes
@@ -115,19 +147,32 @@ class ParsePayloadNode(_InboxNode):
     parsing fails.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(KEY_PAYLOAD, access=Access.READ)
-        self.blackboard.register_key(KEY_INGRESS, access=Access.READ)
-        self.blackboard.register_key(KEY_ACTIVITY, access=Access.WRITE)
-        self.blackboard.register_key(KEY_OUTCOME_STATUS, access=Access.WRITE)
-        self.blackboard.register_key(KEY_FAILURE_REASON, access=Access.WRITE)
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            KEY_PAYLOAD: PortInformation(data_type=object, required=True),
+            KEY_INGRESS: PortInformation(data_type=object, required=True),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        ports = super().output_ports()
+        ports[KEY_ACTIVITY] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            KEY_PAYLOAD: f"/{KEY_PAYLOAD}",
+            KEY_INGRESS: f"/{KEY_INGRESS}",
+            KEY_ACTIVITY: f"/{KEY_ACTIVITY}",
+        }
 
     def update(self) -> Status:
         try:
-            payload = self.blackboard.inbox_payload
-            ingress = self.blackboard.inbox_ingress
-        except KeyError as exc:
+            payload = self.get_input(KEY_PAYLOAD)
+            ingress = self.get_input(KEY_INGRESS)
+        except (KeyError, NoDataAvailable) as exc:
             return self._reject(f"Missing blackboard key: {exc}")
 
         try:
@@ -138,7 +183,7 @@ class ParsePayloadNode(_InboxNode):
         if activity is None:
             return self._reject("Ingress adapter returned None from parse()")
 
-        self.blackboard.inbox_activity = activity
+        self._set_output(KEY_ACTIVITY, activity)
         self.logger.debug(
             "%s: parsed activity type=%s id=%s",
             self.name,
@@ -148,25 +193,51 @@ class ParsePayloadNode(_InboxNode):
         return Status.SUCCESS
 
 
-class RehydrateActivityNode(_InboxNode):
+class RehydrateActivityNode(_InboxNodeWithPorts):
     """Step 2: resolve nested object references in the parsed Activity.
 
     Reads ``inbox_activity`` and ``inbox_ingress``; overwrites
     ``inbox_activity`` with the rehydrated result.
+
+    The read and write of ``inbox_activity`` use separate port names:
+    ``inbox_activity_in`` (READ) and ``inbox_activity`` (WRITE), both
+    remapped to ``/inbox_activity`` so the same blackboard slot is
+    used — this makes the read-modify-write data flow explicit in the
+    typed-Ports contract.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(KEY_ACTIVITY, access=Access.WRITE)
-        self.blackboard.register_key(KEY_INGRESS, access=Access.READ)
-        self.blackboard.register_key(KEY_OUTCOME_STATUS, access=Access.WRITE)
-        self.blackboard.register_key(KEY_FAILURE_REASON, access=Access.WRITE)
+    # Port alias for reading the pre-rehydration activity value.
+    _PORT_ACTIVITY_IN = "inbox_activity_in"
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            cls._PORT_ACTIVITY_IN: PortInformation(
+                data_type=object, required=True
+            ),
+            KEY_INGRESS: PortInformation(data_type=object, required=True),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        ports = super().output_ports()
+        ports[KEY_ACTIVITY] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            # Both read alias and write port remap to the same physical key.
+            cls._PORT_ACTIVITY_IN: f"/{KEY_ACTIVITY}",
+            KEY_INGRESS: f"/{KEY_INGRESS}",
+            KEY_ACTIVITY: f"/{KEY_ACTIVITY}",
+        }
 
     def update(self) -> Status:
         try:
-            activity = self.blackboard.inbox_activity
-            ingress = self.blackboard.inbox_ingress
-        except KeyError as exc:
+            activity = self.get_input(self._PORT_ACTIVITY_IN)
+            ingress = self.get_input(KEY_INGRESS)
+        except (KeyError, NoDataAvailable) as exc:
             return self._reject(f"Missing blackboard key: {exc}")
 
         try:
@@ -174,7 +245,7 @@ class RehydrateActivityNode(_InboxNode):
         except Exception as exc:
             return self._reject(f"Rehydrate raised exception: {exc}")
 
-        self.blackboard.inbox_activity = rehydrated
+        self._set_output(KEY_ACTIVITY, rehydrated)
         self.logger.debug(
             "%s: rehydrated activity id=%s",
             self.name,
@@ -183,25 +254,40 @@ class RehydrateActivityNode(_InboxNode):
         return Status.SUCCESS
 
 
-class ExtractSemanticsNode(_InboxNode):
+class ExtractSemanticsNode(_InboxNodeWithPorts):
     """Step 3: extract MessageSemantics from the rehydrated Activity.
 
     Reads ``inbox_activity``; writes ``inbox_event`` and
     ``inbox_context_id``.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(KEY_ACTIVITY, access=Access.READ)
-        self.blackboard.register_key(KEY_EVENT, access=Access.WRITE)
-        self.blackboard.register_key(KEY_CONTEXT_ID, access=Access.WRITE)
-        self.blackboard.register_key(KEY_OUTCOME_STATUS, access=Access.WRITE)
-        self.blackboard.register_key(KEY_FAILURE_REASON, access=Access.WRITE)
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            KEY_ACTIVITY: PortInformation(data_type=object, required=True),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        ports = super().output_ports()
+        ports[KEY_EVENT] = PortInformation(data_type=object, required=False)
+        ports[KEY_CONTEXT_ID] = PortInformation(
+            data_type=object, required=False
+        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            KEY_ACTIVITY: f"/{KEY_ACTIVITY}",
+            KEY_EVENT: f"/{KEY_EVENT}",
+            KEY_CONTEXT_ID: f"/{KEY_CONTEXT_ID}",
+        }
 
     def update(self) -> Status:
         try:
-            activity: Any = self.blackboard.inbox_activity
-        except KeyError as exc:
+            activity: Any = self.get_input(KEY_ACTIVITY)
+        except (KeyError, NoDataAvailable) as exc:
             return self._reject(f"Missing blackboard key: {exc}")
 
         try:
@@ -209,7 +295,7 @@ class ExtractSemanticsNode(_InboxNode):
         except Exception as exc:
             return self._reject(f"extract_event raised exception: {exc}")
 
-        self.blackboard.inbox_event = event
+        self._set_output(KEY_EVENT, event)
 
         # Resolve the case this activity is scoped to.  See
         # ``vultron.core.models.events.case_context`` for the precedence rules
@@ -221,7 +307,7 @@ class ExtractSemanticsNode(_InboxNode):
         context_id = resolve_case_context_id(
             event, wire_context=getattr(activity, "context", None)
         )
-        self.blackboard.inbox_context_id = context_id
+        self._set_output(KEY_CONTEXT_ID, context_id)
 
         self.logger.debug(
             "%s: extracted semantics=%s context_id=%s",
@@ -232,7 +318,7 @@ class ExtractSemanticsNode(_InboxNode):
         return Status.SUCCESS
 
 
-class DeferCheckNode(_InboxNode):
+class DeferCheckNode(_InboxNodeWithPorts):
     """Step 4: defer activity when its case context is not yet known.
 
     If a case context ID is present, the activity semantic is not one of
@@ -245,24 +331,37 @@ class DeferCheckNode(_InboxNode):
     Passes through to SUCCESS when no deferral is needed.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(KEY_EVENT, access=Access.READ)
-        self.blackboard.register_key(KEY_CONTEXT_ID, access=Access.READ)
-        self.blackboard.register_key(KEY_QUEUE, access=Access.READ)
-        self.blackboard.register_key(KEY_OUTCOME_STATUS, access=Access.WRITE)
-        self.blackboard.register_key(KEY_FAILURE_REASON, access=Access.WRITE)
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            KEY_EVENT: PortInformation(data_type=object, required=True),
+            KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
+            KEY_QUEUE: PortInformation(data_type=object, required=False),
+        }
 
-    def update(self) -> Status:
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            KEY_EVENT: f"/{KEY_EVENT}",
+            KEY_CONTEXT_ID: f"/{KEY_CONTEXT_ID}",
+            KEY_QUEUE: f"/{KEY_QUEUE}",
+        }
+
+    def update(self) -> Status:  # noqa: C901
         try:
-            event = self.blackboard.inbox_event
-            context_id: str | None = self.blackboard.inbox_context_id
-        except KeyError as exc:
+            event = self.get_input(KEY_EVENT)
+        except (KeyError, NoDataAvailable) as exc:
             return self._reject(f"Missing blackboard key: {exc}")
 
+        # context_id can legitimately be None (no case scope on the activity).
         try:
-            queue = self.blackboard.inbox_queue
-        except KeyError:
+            context_id: str | None = self.get_input(KEY_CONTEXT_ID)
+        except (NotImplementedError, NoDataAvailable):
+            context_id = None
+
+        try:
+            queue = self.get_input(KEY_QUEUE)
+        except (NotImplementedError, NoDataAvailable, KeyError):
             queue = None
 
         # No deferral needed when there is no case context, when
@@ -287,8 +386,8 @@ class DeferCheckNode(_InboxNode):
                 "resend required after new bootstrap"
             )
             self.feedback_message = reason
-            self.blackboard.inbox_outcome_status = "rejected"
-            self.blackboard.inbox_failure_reason = reason
+            self._set_output(KEY_OUTCOME_STATUS, "rejected")
+            self._set_output(KEY_FAILURE_REASON, reason)
             self.logger.warning("%s: %s", self.name, reason)
             return Status.FAILURE
 
@@ -300,33 +399,42 @@ class DeferCheckNode(_InboxNode):
         )
         reason = f"Deferred: case '{context_id}' not yet known locally"
         self.feedback_message = reason
-        self.blackboard.inbox_outcome_status = "deferred"
-        self.blackboard.inbox_failure_reason = reason
+        self._set_output(KEY_OUTCOME_STATUS, "deferred")
+        self._set_output(KEY_FAILURE_REASON, reason)
         self.logger.info("%s: %s", self.name, reason)
         return Status.FAILURE
 
 
-class DispatchNode(_InboxNode):
+class DispatchNode(_InboxNodeWithPorts):
     """Step 5: dispatch the domain event to the appropriate use case.
 
     After a successful bootstrap dispatch, triggers replay of any
     activities that were deferred pending this case's local replica.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(KEY_EVENT, access=Access.READ)
-        self.blackboard.register_key(KEY_DISPATCH, access=Access.READ)
-        self.blackboard.register_key(KEY_CONTEXT_ID, access=Access.READ)
-        self.blackboard.register_key(KEY_QUEUE, access=Access.READ)
-        self.blackboard.register_key(KEY_OUTCOME_STATUS, access=Access.WRITE)
-        self.blackboard.register_key(KEY_FAILURE_REASON, access=Access.WRITE)
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            KEY_EVENT: PortInformation(data_type=object, required=True),
+            KEY_DISPATCH: PortInformation(data_type=object, required=True),
+            KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
+            KEY_QUEUE: PortInformation(data_type=object, required=False),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            KEY_EVENT: f"/{KEY_EVENT}",
+            KEY_DISPATCH: f"/{KEY_DISPATCH}",
+            KEY_CONTEXT_ID: f"/{KEY_CONTEXT_ID}",
+            KEY_QUEUE: f"/{KEY_QUEUE}",
+        }
 
     def update(self) -> Status:
         try:
-            event = self.blackboard.inbox_event
-            dispatch = self.blackboard.inbox_dispatch
-        except KeyError as exc:
+            event = self.get_input(KEY_EVENT)
+            dispatch = self.get_input(KEY_DISPATCH)
+        except (KeyError, NoDataAvailable) as exc:
             return self._reject(f"Missing blackboard key: {exc}")
 
         try:
@@ -344,10 +452,13 @@ class DispatchNode(_InboxNode):
         # After bootstrap, replay any activities that were held pending
         # this case's local replica becoming available.
         try:
-            context_id: str | None = self.blackboard.inbox_context_id
-            queue = self.blackboard.inbox_queue
-        except KeyError:
+            context_id: str | None = self.get_input(KEY_CONTEXT_ID)
+        except (NotImplementedError, NoDataAvailable):
             context_id = None
+
+        try:
+            queue = self.get_input(KEY_QUEUE)
+        except (NotImplementedError, NoDataAvailable, KeyError):
             queue = None
 
         if (
@@ -363,7 +474,7 @@ class DispatchNode(_InboxNode):
         return Status.SUCCESS
 
 
-class BuildOutcomeNode(_InboxNode):
+class BuildOutcomeNode(_InboxNodeWithPorts):
     """Step 6: record the processed outcome on the blackboard.
 
     Runs only when all preceding Sequence nodes succeeded.  Writes
@@ -371,11 +482,7 @@ class BuildOutcomeNode(_InboxNode):
     can assemble the final :class:`InboxOutcome`.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(KEY_OUTCOME_STATUS, access=Access.WRITE)
-
     def update(self) -> Status:
-        self.blackboard.inbox_outcome_status = "processed"
+        self._set_output(KEY_OUTCOME_STATUS, "processed")
         self.logger.debug("%s: outcome = processed", self.name)
         return Status.SUCCESS

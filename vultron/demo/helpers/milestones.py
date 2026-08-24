@@ -26,7 +26,10 @@ import logging
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import is_em_embargo_active, is_em_exited
 from vultron.core.states.rm import RM
-from vultron.demo.helpers.polling import wait_for_case_on_container
+from vultron.demo.helpers.polling import (
+    wait_for_case_on_container,
+    wait_for_participant_pxa_state,
+)
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
     _assert_participant_pxa_only,
@@ -356,6 +359,16 @@ def verify_publicly_disclosed(
                 f" found {case.current_status.em_state}"
             )
         logger.info("✓ publicly disclosed %s: EM.EXITED", label)
+
+    # Gate: poll reporter replica until receiver_actor_id's pxa_state is
+    # public-aware.  actor_notifies_published returns HTTP 202 before the
+    # CaseActor's Add(CaseStatus) broadcast reaches the reporter's DataLayer,
+    # so an instant assertion races the async commit (ADR-0058).
+    wait_for_participant_pxa_state(
+        client=reporter_client,
+        case_id=case_id,
+        actor_id=receiver_actor_id,
+    )
 
     # Verify receiver participant's pxa state (and VFD only for vendor/deployer)
     # on both the coordinator's and reporter's DataLayer replicas.

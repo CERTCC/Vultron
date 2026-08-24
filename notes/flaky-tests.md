@@ -26,6 +26,8 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
+| `test/core/behaviors/case/test_case_proposal_received_tree.py::TestADR0041Idempotency::test_duplicate_proposal_no_duplicate_participants_or_entries` | #2511 | 2026-08-24 |
+| `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesCloseCase::test_close_case_not_applied_for_other_event_types` | #2511 | 2026-08-24 |
 
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
@@ -113,7 +115,6 @@ No open entries.
 | `fv Invariant Harness` | #2422 | 2026-08-20 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
-| `fcvcv Demo Integration` | #2376 | 2026-08-21 |
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
@@ -124,11 +125,6 @@ No open entries.
 > downstream consequence of incomplete devlogs.  First confirmed 2026-08-20 on
 > PR #2419.
 >
-> `fcvcv Demo Integration` points to #2376 (async race-window class, #2221). Third
-> observed failure mode (2026-08-20, PR #2421): `M7 reporter pxa_state not
-> public-aware` — `fcvcv Invariant Harness` passed confirming orchestration-layer
-> timing. Second mode: coordinator RM.RECEIVED / 422 engage-case (also #2376).
-> First mode (Finder ledger-coverage timeout): closed as #2337 (2026-08-18).
 >
 > `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` now point to
 > #2257 (`AddCaseParticipantReceivedBT` failure).  Root error:
@@ -149,6 +145,11 @@ No open entries.
 > `fcv-reject Invariant Harness`, `fv Invariant Harness` — these were
 > **deterministic** failures caused by the engage-case 422 (#2233, now fixed).
 > They are gone from this catalog because the fix lands with the PR for #2233.
+>
+> **Removed 2026-08-24:** `fcvcv Demo Integration` — fixed by PR #2508 (`Closes #2376`).
+> Both race windows resolved: invite-path `engage-case` now gated on own RM.VALID
+> (`demo_gate`), and `verify_publicly_disclosed` now polls reporter pxa_state
+> before asserting (ADR-0058).
 >
 > **Re-added 2026-08-13 (`fvcv-handoff` only):** a new intermittent occurrence
 > of `fvcv-handoff Demo Integration` and `fvcv-handoff Invariant Harness` was

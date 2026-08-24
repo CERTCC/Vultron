@@ -66,7 +66,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import py_trees
-from py_trees.common import Access, Status
+from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
@@ -120,7 +121,7 @@ class AdvisoryReviewDecision(BaseModel):
     feedback: str = ""
 
 
-class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
+class _NeedsRevisionGate(BehaviourWithPorts):
     """ProtocolInternal gate: read the review decision and check needs_revision.
 
     Reads the :class:`AdvisoryReviewDecision` written to :data:`REVIEW_DECISION_KEY`
@@ -139,11 +140,24 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            # data_type=object: accept any value; isinstance check in update()
+            # handles the type contract (avoid TypeError from get_input).
+            REVIEW_DECISION_KEY: PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
-        """Register READ access to the shared review-decision blackboard key."""
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            key=REVIEW_DECISION_KEY, access=Access.READ
+        """Wire input port to the shared review-decision blackboard key."""
+        self.setup_ports(
+            port_remappings={REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"}
         )
 
     def update(self) -> Status:
@@ -154,7 +168,9 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
             truthy; FAILURE when it is falsy or when no decision has been
             written (i.e., the auto-approve path, which skips revision).
         """
-        if not self.blackboard.exists(REVIEW_DECISION_KEY):
+        try:
+            decision = self.get_input(REVIEW_DECISION_KEY)
+        except (KeyError, NoDataAvailable, NotImplementedError):
             self.logger.debug(
                 "%s: no %s on blackboard — skipping revision",
                 self.name,
@@ -162,7 +178,6 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
             )
             return Status.FAILURE
 
-        decision = self.blackboard.get(REVIEW_DECISION_KEY)
         if not isinstance(decision, AdvisoryReviewDecision):
             self.logger.warning(
                 "%s: %s holds %s, not an AdvisoryReviewDecision — "

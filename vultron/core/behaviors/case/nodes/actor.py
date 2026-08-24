@@ -41,6 +41,7 @@ from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerAction
@@ -343,7 +344,7 @@ class ProposeCaseToActorNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
+class EvaluateDefaultRolesNode(BehaviourWithPorts):
     """Assign default CVD roles for a suggested actor (CM-16-003).
 
     ADR-0024 Evaluator shape.  Writes ``suggested_roles_{id_segment}``
@@ -352,6 +353,11 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
     otherwise falls back to ``_compute_roles()`` (default: ``[CVDRole.VENDOR]``).
     Subclasses may override ``_compute_roles()``; an empty return produces
     ``FAILURE`` (AC-1).
+
+    The physical blackboard key is execution-scoped (BTND-03-013): the stable
+    logical port name ``suggested_roles`` is declared in ``output_ports()`` and
+    wired to the physical key ``suggested_roles_{id_segment}`` in ``setup()``
+    using an instance-computed remapping.
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -372,6 +378,8 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
         self._injected_roles = self._coerce_injected_roles(injected_roles)
+        _seg = recommendation_id.split("/")[-1]
+        self._roles_key = f"suggested_roles_{_seg}"
 
     def _coerce_injected_roles(
         self, injected_roles: list[str] | None
@@ -410,13 +418,19 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
             return None
         return coerced
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "suggested_roles": PortInformation(data_type=list, required=True),
+        }
+
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        id_segment = self.recommendation_id.split("/")[-1]
-        self.blackboard_key = f"suggested_roles_{id_segment}"
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=py_trees.common.Access.WRITE
+        self.setup_ports(
+            port_remappings={"suggested_roles": f"/{self._roles_key}"}
         )
 
     def _compute_roles(self) -> list[CVDRole]:
@@ -436,7 +450,7 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
             )
             self.logger.error(self.feedback_message)
             return Status.FAILURE
-        setattr(self.blackboard, self.blackboard_key, roles)
+        self._set_output("suggested_roles", roles)
         self.logger.debug(
             "%s: assigned roles %s for actor '%s' in case '%s'",
             self.name,
