@@ -27,12 +27,18 @@ The caller provides four pieces of information (see the calling skill for body f
 
 | Parameter | Description | Example |
 |---|---|---|
-| `TYPE` | Entry type | `idea`, `implementation`, `learning`, `priority` |
+| `TYPE` | Entry type | `idea`, `implementation`, `learning`, `note`, `priority` |
 | `TITLE` | Short summary | `AGENTS.md routing policy` |
 | `SOURCE` | Originating identifier | `CONCERN-507`, `IDEA-42`, `ISSUE-576` |
 | Body | Full entry text via heredoc | Include PR URL and outcome summary |
 
 ---
+
+The `note` type is used when archiving a stale section (card) from a `notes/*.md`
+file. Source ID convention: `NOTES-<file-stem>--<section-slug>` (e.g.,
+`NOTES-bt-pitfalls--bt-failure-reason-propagation`). Entry body format: archiving
+reason + superseding pointer + `---` + original section content verbatim.
+See the `learn` and `decision-audit` skills for when to invoke this type.
 
 ## Procedure
 

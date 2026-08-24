@@ -9,7 +9,7 @@ type: learning
 
 CONCERN-2108 asked whether the RFC should normatively cite CNA Operational
 Rules v4.1.0 eligibility criteria, or treat CVE assignment eligibility as
-fully implementation-defined. Resolved via ADR-0070: the RFC endorses
+fully implementation-defined. Resolved via ADR-0071: the RFC endorses
 v4.1.0 as the **reference conformance baseline** — neither a normative
 external citation nor a blank implementation-defined slate.
 
@@ -27,7 +27,7 @@ external citation nor a blank implementation-defined slate.
 
 ## Artifacts
 
-- ADR-0070: `docs/adr/0070-cna-eligibility-reference-baseline.md`
+- ADR-0071: `docs/adr/0071-cna-eligibility-reference-baseline.md`
 - Spec entries: BTND-05-007, BTND-05-008 in `specs/behavior-tree-node-design.yaml`
 - Spec update: `docs/reference/draft-vultron-spec.md` §7.4.3 (Open Question 9 resolved)
 - AGENTS.md pitfall: external-versioned-standard capabilities should be one call-out unit
@@ -39,4 +39,4 @@ external citation nor a blank implementation-defined slate.
 When a BT capability is grounded in an external, independently-versioned
 specification, treat the full capability as a single Evaluator call-out point
 — not one call-out per criterion. The substitution unit is the whole
-capability. See BTND-05-007, ADR-0070, AGENTS.md pitfall added in this PR.
+capability. See BTND-05-007, ADR-0071, AGENTS.md pitfall added in this PR.

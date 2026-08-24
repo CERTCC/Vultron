@@ -15,6 +15,7 @@ class HistoryEntryType(StrEnum):
     idea = "idea"
     implementation = "implementation"
     learning = "learning"
+    note = "note"
     priority = "priority"
 
 

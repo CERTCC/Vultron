@@ -1361,7 +1361,7 @@ call-out point, not separate call-out points for each individual criterion
 (BTND-05-007). This refactoring is tracked as a separate implementation task.
 
 - *Sources: `specs/behavior-tree-node-design.yaml` BTND-05-007, BTND-05-008;
-  ADR-0070*
+  ADR-0071*
 
 #### 7.4.4 Case Owner Authority
 
@@ -1572,7 +1572,7 @@ implementation. Other implementations are not required to use this structure.
    Standard Invite/Accept admission (CM-25-002), full case content via MV-10-005
    gate (CM-25-003), RM triage with engagement semantics (CM-25-004). Related to
    #6 (now also resolved).
-9. ~~**CNA eligibility criteria**~~ — Resolved by ADR-0070. The RFC endorses
+9. ~~**CNA eligibility criteria**~~ — Resolved by ADR-0071. The RFC endorses
    CNA Operational Rules v4.1.0 as the reference conformance baseline for the
    reference implementation. The eligibility check is one logical capability
    (one `EvaluateCveEligibility` Evaluator call-out), not 9 individual

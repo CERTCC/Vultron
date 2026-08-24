@@ -347,9 +347,9 @@ groups:
       a specific version of the CNA Operational Rules. Treating each criterion as an independent
       call-out point misrepresents the substitution unit — when the rules are updated, all criteria
       change together, not independently. A single Evaluator call-out correctly models the
-      "replace the whole eligibility check" seam (ADR-0070).
+      "replace the whole eligibility check" seam (ADR-0071).
     adr:
-    - ADR-0070
+    - ADR-0071
     relationships:
     - rel_type: refines
       spec_id: BTND-05-004
@@ -365,9 +365,9 @@ groups:
       Pinning the eligibility logic to a specific rules edition in the implementation (not the
       RFC) avoids coupling the protocol spec to an independently-versioned external document's
       release cycle, while remaining transparent about which edition serves as the conformance
-      baseline (ADR-0070).
+      baseline (ADR-0071).
     adr:
-    - ADR-0070
+    - ADR-0071
     relationships:
     - rel_type: refines
       spec_id: BTND-05-007
