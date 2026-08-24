@@ -20,12 +20,17 @@ from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.helpers import DataLayerAction, UpdateActorOutbox
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+    UpdateActorOutbox,
+)
 from vultron.core.models.case import VultronCase
 
 
-class _CreateCaseRecordNode(DataLayerAction):
+class _CreateCaseRecordNode(DataLayerActionWithPorts):
     """Create and persist VulnerabilityCase; publish case_id to blackboard."""
 
     def __init__(
@@ -42,11 +47,13 @@ class _CreateCaseRecordNode(DataLayerAction):
         self._report_id = report_id
         self._result_out = result_out
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"case_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -61,12 +68,12 @@ class _CreateCaseRecordNode(DataLayerAction):
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
         self.datalayer.create(case)
-        self.blackboard.case_id = case.id_
+        self._set_output("case_id", case.id_)
         self._result_out["case_id"] = case.id_
         return Status.SUCCESS
 
 
-class _BuildCreateCaseActivityNode(DataLayerAction):
+class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
     """Create Create(Case) activity and publish activity_id to blackboard."""
 
     def __init__(
@@ -79,23 +86,31 @@ class _BuildCreateCaseActivityNode(DataLayerAction):
         self._activity_builder = activity_builder
         self._result_out = result_out
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"activity_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id", "activity_id": "/activity_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._case_id_bb: str = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = ""
 
     def update(self) -> Status:
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
+        case_id = self._case_id_bb
+        if not case_id:
             self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
-        if not isinstance(case_id, str):
-            self.feedback_message = "case_id must be a string"
             return Status.FAILURE
 
         try:
@@ -107,7 +122,7 @@ class _BuildCreateCaseActivityNode(DataLayerAction):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        self.blackboard.activity_id = activity_id
+        self._set_output("activity_id", activity_id)
         self._result_out["activity"] = activity_dict
         return Status.SUCCESS
 

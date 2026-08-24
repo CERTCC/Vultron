@@ -862,12 +862,17 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
             participant_id=PARTICIPANT_ID, status_id=ASSERTED_STATUS_ID
         )
         node.setup()
-        node.blackboard.set(
+        stale_writer = py_trees.blackboard.Client(name="stale-override-writer")
+        for key in (BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, BB_DIMENSION_FILTER):
+            stale_writer.register_key(
+                key=key, access=py_trees.common.Access.WRITE
+            )
+        stale_writer.set(
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
             {"object_id": ASSERTED_STATUS_ID, "fields": {"rmState": "CLOSED"}},
             overwrite=True,
         )
-        node.blackboard.set(
+        stale_writer.set(
             BB_DIMENSION_FILTER,
             {"status_id": ASSERTED_STATUS_ID, "refused": ("rm",)},
             overwrite=True,

@@ -37,13 +37,15 @@ specs/behavior-tree-node-design.yaml BTND-07-003.
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.case_setup import (
+from vultron.core.behaviors.case.nodes.case_actor_setup import (
     CreateCaseActorServiceNode,
-    RecordCaseCreatedEventNode,
-    RecordOfferReceivedEventNode,
     RegisterCaseActorParticipantNode,
     ResolveCaseActorUrlsNode,
     ReuseExistingCaseActorParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.case_setup import (
+    RecordCaseCreatedEventNode,
+    RecordOfferReceivedEventNode,
 )
 from vultron.core.models.vultron_types import VultronCase
 

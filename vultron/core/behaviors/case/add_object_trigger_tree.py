@@ -21,10 +21,14 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction, UpdateActorOutbox
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+    UpdateActorOutbox,
+)
 
 
-class _BuildAddObjectActivityNode(DataLayerAction):
+class _BuildAddObjectActivityNode(DataLayerActionWithPorts):
     """Create Add(object,target=case) activity and publish activity_id."""
 
     def __init__(
@@ -37,11 +41,13 @@ class _BuildAddObjectActivityNode(DataLayerAction):
         self._activity_builder = activity_builder
         self._result_out = result_out
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"activity_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity_id": "/activity_id"}
 
     def update(self) -> Status:
         try:
@@ -53,7 +59,7 @@ class _BuildAddObjectActivityNode(DataLayerAction):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        self.blackboard.activity_id = activity_id
+        self._set_output("activity_id", activity_id)
         self._result_out["activity"] = activity_dict
         return Status.SUCCESS
 
