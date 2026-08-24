@@ -15,36 +15,22 @@
 
 """Outbound activity emission nodes for the suggest-actor workflow (CM-16).
 
-Node classes:
-
-- :class:`RecordRecommendationRecommenderNode` — writes
-  ``recommendation_id → recommender_id`` into
-  ``VulnerabilityCase.recommendation_recommender_index`` (ADR-0035 DL-06-002).
-- :class:`EmitOfferCaseParticipantToOwnerNode` — transforms
-  ``Offer(Actor, Case)`` into ``Offer(CaseParticipant)`` and DMs the Case Owner
-  (CM-16-004).
-- :class:`EmitAcceptActorRecommendationNode` — queues
-  ``AcceptActorRecommendation`` to the original recommender (CM-16-006).
-- :class:`EmitRejectActorRecommendationNode` — queues
-  ``RejectActorRecommendation`` to the original recommender (CM-16-007).
-- :class:`EmitNoteDuplicateRecommendationToOwnerNode` — sends a
-  ``Create(Note)`` + ``Add(Note, Case)`` to the Case Owner when a duplicate
-  recommendation arrives (CM-16-008).
-
-The Case Owner owner-side Accept response
-(:class:`~vultron.core.behaviors.case.nodes.suggest_actor.accept_offer.EmitAcceptCaseParticipantOfferNode`)
-lives in the ``accept_offer`` submodule to keep this module under the
-BTND-07-004 line limit.
+Classes: RecordRecommendationRecommenderNode (DL-06-002),
+EmitOfferCaseParticipantToOwnerNode (CM-16-004),
+EmitAcceptActorRecommendationNode (CM-16-006),
+EmitRejectActorRecommendationNode (CM-16-007),
+EmitNoteDuplicateRecommendationToOwnerNode (CM-16-008).
+The Case Owner Accept response lives in the ``accept_offer`` submodule
+(BTND-07-004 line limit).
 """
 
 from typing import cast
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.sync.commit_tree import (
@@ -108,7 +94,7 @@ class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
+class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
     """Transform Offer(Actor, Case) → Offer(CaseParticipant) and DM Case Owner.
 
     Uses ``trigger_activity_factory.offer_actor_to_case()`` with the
@@ -139,21 +125,36 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
         self.recommended_id = recommended_id
         self.case_id = case_id
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["suggested_roles"] = PortInformation(
+            data_type=list, required=False
+        )
+        return ports
+
     def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
         id_segment = self.recommendation_id.split("/")[-1]
-        self.blackboard_key = f"suggested_roles_{id_segment}"
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=py_trees.common.Access.READ
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "suggested_roles": f"/suggested_roles_{id_segment}",
+            }
         )
 
-    def _read_suggested_roles(self) -> list[CVDRole]:
+    def initialise(self) -> None:
+        super().initialise()
         try:
-            roles = self.blackboard.get(self.blackboard_key)
-            if isinstance(roles, list):
-                return roles
-        except KeyError:
-            pass
+            self._suggested_roles_bb = self.get_input("suggested_roles")
+        except (NoDataAvailable, NotImplementedError):
+            self._suggested_roles_bb = None
+
+    def _read_suggested_roles(self) -> list[CVDRole]:
+        roles = self._suggested_roles_bb
+        if isinstance(roles, list):
+            return roles
         return [CVDRole.VENDOR]
 
     def update(self) -> Status:

@@ -26,14 +26,14 @@ from __future__ import annotations
 
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 
 
-class ApplyOfferReportFromLedgerNode(DataLayerAction):
+class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
     """Apply an ``add_report_to_case`` ledger entry to the local DataLayer.
 
     When an invited actor receives ``Announce(CaseLedgerEntry)`` for the
@@ -56,11 +56,22 @@ class ApplyOfferReportFromLedgerNode(DataLayerAction):
     be recorded as core state at extraction time.  SYNC-02-002, ISSUE-2134.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.activity = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self.activity = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -72,7 +83,7 @@ class ApplyOfferReportFromLedgerNode(DataLayerAction):
         )
         from vultron.core.models.offer_record import VultronOfferRecord
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
 
         # Only handle add_report_to_case entries.
         if entry.event_type != "add_report_to_case":
