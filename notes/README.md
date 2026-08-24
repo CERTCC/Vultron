@@ -273,16 +273,16 @@ composability, and open architecture questions.
 whether a new use case needs a BT, or implementing a BT-backed use case
 from scratch.
 
-**`py-trees-ports-adoption.md`**
-Planning analysis for adopting py_trees 2.5.0 typed Ports in
-`vultron/core/behaviors/`: the concrete wins (typed data contracts, early
-error detection, isolated node testing), the constructor-parameterization
-(BTND-01) vs. XML port-remapping impedance mismatch, the ADR + BTND spec
-determination, and the staged issue sequence (pilot → full migration → XML
-spike → XML-as-spec Idea) from planning Idea #1558.
-**Load when**: implementing the Ports adoption Tasks, migrating BT nodes to
-typed ports, scoping the XML feasibility spike, or planning the XML-as-spec
-Idea.
+**`py-trees-ports-adoption.md`** *(archived — migration complete)*
+Completed reference for the py_trees 2.5.0 typed-Ports migration
+(`vultron/core/behaviors/`): the eight finalized conventions (Type A–D node
+shapes, execution-scoped keys, read-modify-write dual-alias, `_InboxNodeWithPorts`
+base, `NotImplementedError` on explicit `None`), the composite and
+constructor-parameterized gate exemptions, and the planned XML-as-spec spike.
+**Load when**: writing a new BT node that uses typed Ports and need the
+canonical patterns reference (finalized conventions sections 1–8).
+**Do not load when**: looking for live migration tasks — the migration
+(`#1809` chain, parts 1–5) is complete.
 
 **`bt-canonical-reference.md`**
 Canonical CVD Protocol Behavior Tree structural reference: trunk-removed

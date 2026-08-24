@@ -66,7 +66,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import py_trees
-from py_trees.common import Access, Status
+from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, PortInformation
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.enums.roles import CVDRole
@@ -79,7 +80,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class _WriteRolesNode(py_trees.behaviour.Behaviour):
+class _WriteRolesNode(BehaviourWithPorts):
     """ProtocolInternal: write ``suggested_roles_{case_id_segment}`` to the blackboard.
 
     Written before each sub-loop's ``suggest-actor-to-case`` trigger so the
@@ -89,6 +90,11 @@ class _WriteRolesNode(py_trees.behaviour.Behaviour):
     This node is constructed directly by the tree builder (not via a factory)
     because it is a ProtocolInternal handoff write — not a call-out point to
     an external system (ADR-0025).
+
+    The physical blackboard key is execution-scoped (BTND-03-013): the stable
+    logical port name ``suggested_roles`` is declared in ``output_ports()`` and
+    wired to the physical key ``suggested_roles_{case_id_segment}`` in
+    ``setup()`` using ``setup_ports()`` with an instance-computed remapping.
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -105,18 +111,26 @@ class _WriteRolesNode(py_trees.behaviour.Behaviour):
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
+        _seg = case_id.split("/")[-1]
+        self._roles_key = f"suggested_roles_{_seg}"
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "suggested_roles": PortInformation(data_type=list, required=True),
+        }
 
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        id_segment = self.case_id.split("/")[-1]
-        self.blackboard_key = f"suggested_roles_{id_segment}"
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=Access.WRITE
+        self.setup_ports(
+            port_remappings={"suggested_roles": f"/{self._roles_key}"}
         )
 
     def update(self) -> Status:
-        setattr(self.blackboard, self.blackboard_key, list(self.roles))
+        self._set_output("suggested_roles", list(self.roles))
         self.logger.debug(
             "%s: wrote suggested_roles %s for case '%s'",
             self.name,
