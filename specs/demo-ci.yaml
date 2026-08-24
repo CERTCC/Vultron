@@ -295,48 +295,55 @@ groups:
           keyed on `${{ github.workflow }}-${{ github.ref }}`.
         rationale: >-
           When commits land quickly during iterative work, queued demo runs
-          pile up and waste CI minutes while delaying feedback; a newer commit
-          renders earlier PR-branch runs pointless. Cancelling superseded PR
-          runs reclaims those minutes. On-main runs are never cancelled because
-          each run validates the merged main HEAD (DEMOCI-05-001); keyed on
-          the ref, a burst of merges to main still runs each qualifying commit
-          to completion rather than collapsing to the newest, preserving
-          per-commit failure attribution.
+          pile up and waste CI minutes while delaying feedback. A single
+          concurrency group keyed on workflow + ref collapses bursts on any
+          branch to the newest run. On main a 60-second debounce step
+          (DEMOCI-02-014) throttles burst merges without requiring per-commit
+          granularity — a time-range bisect across a typical 4–6 PR batch is
+          sufficient to identify regressions.
 
       - id: DEMOCI-02-013
         priority: MUST
         kind: project
         statement: >-
-          On pull_request-triggered runs, the concurrency group MUST set
-          `cancel-in-progress: true` so a newer push to a PR branch cancels
-          superseded in-progress and queued runs.
+          The concurrency group MUST set `cancel-in-progress: true` on all
+          triggers so that a newer push always cancels superseded in-progress
+          and queued runs.
         rationale: >-
-          Cancelling superseded PR runs reclaims CI minutes and reduces
-          feedback latency when commits land quickly during iterative work.
+          Cancelling superseded runs reclaims CI minutes and reduces feedback
+          latency on both PR branches and main. Burst-merge throttling on main
+          is handled by the debounce action (DEMOCI-02-014) rather than by
+          suppressing cancellation.
 
       - id: DEMOCI-02-014
         priority: MUST
         kind: project
         statement: >-
-          On push-to-main-triggered runs, the concurrency group MUST set
-          `cancel-in-progress: false` so main-branch runs always run to
-          completion (see DEMOCI-05-002).
+          The `.github/actions/debounce-main-push` composite action MUST be
+          invoked as the first step of the `scenarios` job. The action sleeps
+          60 seconds only when `github.event_name == 'push'` and
+          `github.ref == 'refs/heads/main'`; PR and `workflow_dispatch` runs
+          are unaffected.
         rationale: >-
-          On-main runs validate the actual merged main HEAD; allowing them to
-          be cancelled would destroy per-commit failure attribution.
+          With `cancel-in-progress: true` on all triggers, a burst of merges
+          to main would each spin up a full runner fleet and immediately cancel
+          the previous one, leaving only the last at full cost. The sleep
+          ensures that rapid successive pushes cancel each other before any
+          real work starts, so only the last commit in a burst actually pays
+          the full suite cost. The guard on `github.ref` prevents the sleep
+          from ever firing on PR or dispatch runs.
 
       - id: DEMOCI-02-015
         priority: MUST
         kind: project
         statement: >-
-          Because a single workflow file serves both triggers,
-          `cancel-in-progress` MUST be expressed as an expression that
-          evaluates to `false` on the default branch and `true` otherwise,
-          e.g. `${{ github.ref != 'refs/heads/main' }}`.
+          The `cancel-in-progress` field MUST be the boolean literal `true`
+          (not an expression). Per-trigger differentiation is handled by the
+          debounce action (DEMOCI-02-014), not by the concurrency block.
         rationale: >-
-          A single boolean literal cannot satisfy both cancellation policies
-          simultaneously; an expression keyed on `github.ref` resolves to the
-          correct value at evaluation time for each trigger.
+          Using a literal avoids the maintenance burden and reader confusion of
+          an inline expression. The debounce step is the single place that
+          encodes push-to-main throttling logic.
 
       - id: DEMOCI-02-012
         priority: MUST
@@ -583,10 +590,12 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          On-main demo runs MUST NOT be cancelled by the concurrency group
-          (cancel-in-progress: false on push-to-main runs, per DEMOCI-02-011),
-          so that every qualifying merge to main runs to completion and retains
-          an independent per-commit pass/fail signal for bisection.
+          Main-branch demo runs MUST produce a pass/fail signal for each burst
+          of merges. A burst is defined as a sequence of merges separated by
+          less than the debounce window (60 seconds, per DEMOCI-02-014); only
+          the last commit in a burst runs to completion. Per-commit granularity
+          on main is not required: a time-range bisect across a typical 4–6 PR
+          batch is sufficient to identify regressions.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001

@@ -363,16 +363,21 @@ instead by (a) the path filter — docs/spec-only merges cost nothing — and
 
 ### Concurrency (DEMOCI-02-011, DEMOCI-05-002)
 
-A single workflow file serves both triggers, so `cancel-in-progress` is an
-expression: `true` off the default branch (PR bursts collapse to the newest
-commit), `false` on `main` (every qualifying merge runs to completion and keeps
-its own signal). Keyed on `${{ github.workflow }}-${{ github.ref }}`:
+`cancel-in-progress: true` on all triggers — PRs and main alike. A 60-second
+debounce step (`.github/actions/debounce-main-push`) at the start of the
+`scenarios` job handles throttling on main: rapid successive pushes each cancel
+their sleeping predecessor, so only the last commit in a burst pays the full
+suite cost. PR and `workflow_dispatch` runs are unaffected (the sleep is guarded
+to `push` + `refs/heads/main`).
 
 ```yaml
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 ```
+
+Per-commit granularity on main is not required — a time-range bisect across a
+typical 4–6 PR batch is sufficient to identify regressions (DEMOCI-05-002).
 
 Note: DEMOCI-02-011 was authored as a SHOULD but never implemented — neither
 workflow carried a `concurrency` block before CONCERN-1859. It is now a MUST
