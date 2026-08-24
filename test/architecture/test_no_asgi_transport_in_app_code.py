@@ -21,10 +21,8 @@ inter-actor delivery mechanism.
 """
 
 import ast
-from pathlib import Path
 
-# Root of the repository (two parents above this file: test/architecture/ -> test/ -> repo root)
-_REPO_ROOT = Path(__file__).parent.parent.parent
+from test.architecture import _corpus
 
 #: Modules that are permitted to reference ASGITransport.
 #: FastAPI's TestClient wraps ASGITransport internally, so the test infra
@@ -37,24 +35,11 @@ _ALLOWED_MODULES: frozenset[str] = frozenset(
     }
 )
 
-#: Source trees to scan for violations.
-_SCAN_ROOTS = [
-    _REPO_ROOT / "vultron",
-]
+_VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 
 
-def _collect_py_files(root: Path) -> list[Path]:
-    return sorted(root.rglob("*.py"))
-
-
-def _contains_asgi_transport(path: Path) -> list[int]:
-    """Return line numbers in *path* that reference ASGITransport."""
-    source = path.read_text(encoding="utf-8")
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return []
-
+def _contains_asgi_transport(tree: ast.AST) -> list[int]:
+    """Return line numbers in *tree* that reference ASGITransport."""
     violations: list[int] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr == "ASGITransport":
@@ -71,15 +56,16 @@ def _contains_asgi_transport(path: Path) -> list[int]:
 def test_no_asgi_transport_in_application_code():
     """vultron/ must not reference httpx.ASGITransport (OX-12-003)."""
     found: list[str] = []
-    for root in _SCAN_ROOTS:
-        for py_file in _collect_py_files(root):
-            rel = py_file.relative_to(_REPO_ROOT)
-            module_key = str(rel)
-            if module_key in _ALLOWED_MODULES:
-                continue
-            lines = _contains_asgi_transport(py_file)
-            for lineno in lines:
-                found.append(f"  {rel}:{lineno}")
+    for py_file, tree in _corpus.files_mentioning(
+        "ASGITransport", under=_VULTRON_ROOT
+    ):
+        rel = py_file.relative_to(_corpus.REPO_ROOT)
+        module_key = str(rel)
+        if module_key in _ALLOWED_MODULES:
+            continue
+        lines = _contains_asgi_transport(tree)
+        for lineno in lines:
+            found.append(f"  {rel}:{lineno}")
 
     assert not found, (
         "Application modules MUST NOT construct httpx.ASGITransport directly "
@@ -94,15 +80,13 @@ def test_no_asgi_transport_in_application_code():
 def test_no_asgi_emitter_references_in_application_code():
     """vultron/ must not import or reference ASGIEmitter (OX-12-002)."""
     found: list[str] = []
-    for root in _SCAN_ROOTS:
-        for py_file in _collect_py_files(root):
-            rel = py_file.relative_to(_REPO_ROOT)
-            source = py_file.read_text(encoding="utf-8")
-            if "ASGIEmitter" in source:
-                # Find the line numbers
-                for i, line in enumerate(source.splitlines(), start=1):
-                    if "ASGIEmitter" in line:
-                        found.append(f"  {rel}:{i}: {line.strip()}")
+    for py_file, source in _corpus.sources_mentioning(
+        "ASGIEmitter", under=_VULTRON_ROOT
+    ):
+        rel = py_file.relative_to(_corpus.REPO_ROOT)
+        for i, line in enumerate(source.splitlines(), start=1):
+            if "ASGIEmitter" in line:
+                found.append(f"  {rel}:{i}: {line.strip()}")
 
     assert not found, (
         "ASGIEmitter has been retired (ADR-0042, OX-12-002). "

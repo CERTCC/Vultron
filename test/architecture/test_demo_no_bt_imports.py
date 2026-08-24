@@ -44,25 +44,20 @@ Follows the ARCH-18 bidirectional-equality pattern used by
 """
 
 import ast
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
 _BT_MODULE = "vultron.bt"
 
-_DEMO_ROOT = REPO_ROOT / "vultron" / "demo"
+_DEMO_ROOT = _corpus.REPO_ROOT / "vultron" / "demo"
 
 
-def _imports_from_bt(source_path: Path) -> bool:
-    """Return True if *source_path* contains any import from vultron.bt.
+def _imports_from_bt(tree: ast.AST) -> bool:
+    """Return True if *tree* contains any import from vultron.bt.
 
     Detects both top-level and deferred (local) imports, catching violations
     like ``import vultron.bt.base.demo.pacman`` placed inside a function body.
     """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -80,11 +75,11 @@ def _imports_from_bt(source_path: Path) -> bool:
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of demo files that import from vultron.bt."""
     violations: set[str] = set()
-    for py_file in _DEMO_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        if _imports_from_bt(py_file):
-            violations.add(py_file.relative_to(REPO_ROOT).as_posix())
+    for py_file, tree in _corpus.files_mentioning(
+        _BT_MODULE, under=_DEMO_ROOT
+    ):
+        if _imports_from_bt(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
     return frozenset(violations)
 
 

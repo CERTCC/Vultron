@@ -31,11 +31,10 @@ Source concern: #1968.  Implementation: #1988.
 """
 
 import ast
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
-_PACKAGE_ROOT = REPO_ROOT / "vultron"
+_PACKAGE_ROOT = _corpus.REPO_ROOT / "vultron"
 
 #: Message fragments that MUST NOT appear in a ``logger.info()`` format string.
 #:
@@ -111,16 +110,9 @@ def _format_string(node: ast.Call) -> str:
 def _find_violations() -> list[str]:
     """Return ``"<path>:<line>: <fragment>"`` for every INFO-level violation."""
     violations: list[str] = []
-    for path in sorted(_PACKAGE_ROOT.rglob("*.py")):
-        source = path.read_text(encoding="utf-8")
-        # Cheap prefilter: only files that mention a demoted fragment at all
-        # are worth parsing (keeps this well under the 5s per-test timeout).
-        if not any(fragment in source for fragment in DEMOTED_FRAGMENTS):
-            continue
-        try:
-            tree = ast.parse(source)
-        except SyntaxError:  # pragma: no cover - defensive
-            continue
+    for path, tree in _corpus.files_mentioning(
+        *DEMOTED_FRAGMENTS, under=_PACKAGE_ROOT
+    ):
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call) or not _is_logger_info_call(
                 node
@@ -129,7 +121,7 @@ def _find_violations() -> list[str]:
             message = _format_string(node)
             for fragment in DEMOTED_FRAGMENTS:
                 if fragment in message:
-                    rel = path.relative_to(REPO_ROOT)
+                    rel = path.relative_to(_corpus.REPO_ROOT)
                     violations.append(f"{rel}:{node.lineno}: {fragment!r}")
     return violations
 
@@ -151,7 +143,7 @@ def test_detector_recognises_a_violation() -> None:
     green.
     """
     source = 'logger.info("DataLayer stored %s", x)\n'
-    tree = ast.parse(source)
+    tree = _corpus.parse_inline(source)
     calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
     assert len(calls) == 1
     assert _is_logger_info_call(calls[0])
@@ -161,7 +153,7 @@ def test_detector_recognises_a_violation() -> None:
 def test_detector_recognises_fstring_and_self_logger() -> None:
     """f-string messages on ``self.logger`` are matched too."""
     source = 'self.logger.info(f"BT structure:\\n{tree_repr}")\n'
-    tree = ast.parse(source)
+    tree = _corpus.parse_inline(source)
     call = next(n for n in ast.walk(tree) if isinstance(n, ast.Call))
     assert _is_logger_info_call(call)
     assert "BT structure" in _format_string(call)
@@ -170,6 +162,6 @@ def test_detector_recognises_fstring_and_self_logger() -> None:
 def test_detector_ignores_debug_calls() -> None:
     """``logger.debug`` calls are not flagged."""
     source = 'logger.debug("DataLayer stored %s", x)\n'
-    tree = ast.parse(source)
+    tree = _corpus.parse_inline(source)
     call = next(n for n in ast.walk(tree) if isinstance(n, ast.Call))
     assert not _is_logger_info_call(call)

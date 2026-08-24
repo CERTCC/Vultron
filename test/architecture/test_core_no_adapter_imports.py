@@ -39,27 +39,22 @@ fixed.  When the set is empty the boundary is completely clean.
 """
 
 import ast
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
 _ADAPTERS_MODULE = "vultron.adapters"
 _ADAPTERS_PATH = "vultron/adapters"
 
-_CORE_ROOT = REPO_ROOT / "vultron" / "core"
+_CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
 
 
-def _imports_from_adapters(source_path: Path) -> bool:
-    """Return True if *source_path* contains any import from vultron.adapters.
+def _imports_from_adapters(tree: ast.AST) -> bool:
+    """Return True if *tree* contains any import from vultron.adapters.
 
     Detects both top-level and deferred (local) imports, catching violations
     like ``from vultron.adapters.driven.sync_activity_adapter import ...``
     placed inside a function body.
     """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -79,11 +74,11 @@ def _imports_from_adapters(source_path: Path) -> bool:
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of core files that import from adapters."""
     violations: set[str] = set()
-    for py_file in _CORE_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        if _imports_from_adapters(py_file):
-            violations.add(py_file.relative_to(REPO_ROOT).as_posix())
+    for py_file, tree in _corpus.files_mentioning(
+        _ADAPTERS_MODULE, under=_CORE_ROOT
+    ):
+        if _imports_from_adapters(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
     return frozenset(violations)
 
 

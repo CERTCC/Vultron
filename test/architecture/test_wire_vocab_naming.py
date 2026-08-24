@@ -42,24 +42,25 @@ This means:
 import ast
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
-_WIRE_OBJECTS = REPO_ROOT / "vultron" / "wire" / "as2" / "vocab" / "objects"
-_CORE_MODELS = REPO_ROOT / "vultron" / "core" / "models"
+_WIRE_OBJECTS = (
+    _corpus.REPO_ROOT / "vultron" / "wire" / "as2" / "vocab" / "objects"
+)
+_CORE_MODELS = _corpus.REPO_ROOT / "vultron" / "core" / "models"
 
 
 def _class_names(directory: Path) -> dict[str, str]:
     """Return {class_name: repo-relative file path} for all non-private classes."""
     result: dict[str, str] = {}
-    for py_file in directory.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        tree = ast.parse(py_file.read_text(encoding="utf-8"))
+    for py_file, tree in _corpus.all_trees(under=directory):
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and not node.name.startswith(
                 "_"
             ):
-                result[node.name] = py_file.relative_to(REPO_ROOT).as_posix()
+                result[node.name] = py_file.relative_to(
+                    _corpus.REPO_ROOT
+                ).as_posix()
     return result
 
 
