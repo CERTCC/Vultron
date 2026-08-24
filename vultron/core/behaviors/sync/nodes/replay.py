@@ -27,8 +27,12 @@ from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     record_replay,
     replay_from_hash,
@@ -106,35 +110,49 @@ def _require_case_actor_id(case_actor: object, node_name: str) -> str:
     raise VultronError(f"{node_name}: resolved CaseActor had no id_")
 
 
-class FindCaseActorNode(DataLayerAction):
+class FindCaseActorNode(DataLayerActionWithPorts):
     """Resolve the case's CaseActor, and publish the case id for later gates.
 
-    ``case_id`` is written to the blackboard because ``CheckIsCaseManagerNode``
-    reads it from there (CLP-09).  Without it, the role gate on the genesis
-    pre-seed could not resolve a case, returned FAILURE, and the guard's
-    selector silently took its skip branch — so the announce never fired for
-    *anyone*, case manager or not.  This node already derives the value from the
-    rejected entry, so it is the right place to publish it.
+    ``case_id`` is an output because ``CheckIsCaseManagerNode`` reads it from the
+    blackboard (CLP-09). Without it the role gate on the genesis pre-seed could
+    not resolve a case, returned FAILURE, and the guard's selector silently took
+    its skip branch — so the announce never fired for *anyone*, case manager or
+    not. This node already derives the value from the rejected entry, so it is
+    the right place to publish it.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "case_actor_id": PortInformation(data_type=str, required=True),
+            # See the class docstring: the role gate downstream needs this.
+            "case_id": PortInformation(data_type=str, required=True),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "case_actor_id": "/case_actor_id",
+            "case_id": "/case_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        entry = _require_rejected_entry(self.blackboard.activity, self.name)
-        self.blackboard.case_id = entry.case_id
+        entry = _require_rejected_entry(self.activity, self.name)
+        self._set_output("case_id", entry.case_id)
         case_actor = _find_case_actor(self.datalayer, entry.case_id)
         if case_actor is None:
             self.logger.warning(
@@ -144,34 +162,47 @@ class FindCaseActorNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.case_actor_id = _require_case_actor_id(
-            case_actor, self.name
+        self._set_output(
+            "case_actor_id", _require_case_actor_id(case_actor, self.name)
         )
         return Status.SUCCESS
 
 
-class CollectAndSortCaseLedgerEntriesNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="replay_entry", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="replay_peer_id", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="replay_case_ledger_entries",
-            access=py_trees.common.Access.WRITE,
-        )
+class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "replay_entry": PortInformation(data_type=object, required=True),
+            "replay_peer_id": PortInformation(data_type=str, required=True),
+            "replay_case_ledger_entries": PortInformation(
+                data_type=object, required=True
+            ),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "replay_entry": "/replay_entry",
+            "replay_peer_id": "/replay_peer_id",
+            "replay_case_ledger_entries": "/replay_case_ledger_entries",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        activity = self.blackboard.activity
+        activity = self.activity
         entry = _require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
         if not peer_id:
@@ -187,73 +218,103 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerAction):
         ]
         entries.sort(key=lambda log_entry: log_entry.log_index)
 
-        self.blackboard.replay_entry = entry
-        self.blackboard.replay_peer_id = peer_id
-        self.blackboard.replay_case_ledger_entries = entries
+        self._set_output("replay_entry", entry)
+        self._set_output("replay_peer_id", peer_id)
+        self._set_output("replay_case_ledger_entries", entries)
         return Status.SUCCESS
 
 
-class FindDivergenceIndexNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
+class FindDivergenceIndexNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["replay_case_ledger_entries"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="replay_case_ledger_entries",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="replay_from_index", access=py_trees.common.Access.WRITE
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "replay_from_index": PortInformation(data_type=int, required=True)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "replay_case_ledger_entries": "/replay_case_ledger_entries",
+            "replay_from_index": "/replay_from_index",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+        self.replay_case_ledger_entries = self.get_input(
+            "replay_case_ledger_entries"
         )
 
     def update(self) -> Status:
-        entries = cast(
-            list[CaseLedgerEntry], self.blackboard.replay_case_ledger_entries
-        )
-        from_hash = self.blackboard.activity.last_accepted_hash
+        entries = cast(list[CaseLedgerEntry], self.replay_case_ledger_entries)
+        from_hash = self.activity.last_accepted_hash
         from_index = -1
         for log_entry in entries:
             if log_entry.entry_hash == from_hash:
                 from_index = log_entry.log_index
                 break
 
-        self.blackboard.replay_from_index = from_index
+        self._set_output("replay_from_index", from_index)
         return Status.SUCCESS
 
 
-class SendMissingEntriesNode(DataLayerAction):
+class SendMissingEntriesNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_actor_id"] = PortInformation(data_type=str, required=True)
+        ports["replay_entry"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="replay_entry", access=py_trees.common.Access.READ
+        ports["replay_peer_id"] = PortInformation(data_type=str, required=True)
+        ports["replay_case_ledger_entries"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="replay_peer_id", access=py_trees.common.Access.READ
+        ports["replay_from_index"] = PortInformation(
+            data_type=int, required=True
         )
-        self.blackboard.register_key(
-            key="replay_case_ledger_entries",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="replay_from_index", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="sync_port", access=py_trees.common.Access.READ
-        )
+        ports["sync_port"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_actor_id": "/case_actor_id",
+            "replay_entry": "/replay_entry",
+            "replay_peer_id": "/replay_peer_id",
+            "replay_case_ledger_entries": "/replay_case_ledger_entries",
+            "replay_from_index": "/replay_from_index",
+            "sync_port": "/sync_port",
+        }
 
     def initialise(self) -> None:
         super().initialise()
+        self.case_actor_id_bb: str = self.get_input("case_actor_id")
+        self.replay_entry = self.get_input("replay_entry")
+        self.replay_peer_id: str = self.get_input("replay_peer_id")
+        self.replay_case_ledger_entries = self.get_input(
+            "replay_case_ledger_entries"
+        )
+        self.replay_from_index: int = self.get_input("replay_from_index")
         try:
-            self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
-        except (AttributeError, KeyError):
+            self._sync_port = cast(
+                SyncActivityPort, self.get_input("sync_port")
+            )
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
 
     def update(self) -> Status:
@@ -265,12 +326,10 @@ class SendMissingEntriesNode(DataLayerAction):
                 f"{self.name}: sync_port must be injected to replay entries"
             )
 
-        entry = cast(VultronCaseLedgerEntry, self.blackboard.replay_entry)
-        peer_id = cast(str, self.blackboard.replay_peer_id)
-        entries = cast(
-            list[CaseLedgerEntry], self.blackboard.replay_case_ledger_entries
-        )
-        from_index = cast(int, self.blackboard.replay_from_index)
+        entry = cast(VultronCaseLedgerEntry, self.replay_entry)
+        peer_id = cast(str, self.replay_peer_id)
+        entries = cast(list[CaseLedgerEntry], self.replay_case_ledger_entries)
+        from_index = cast(int, self.replay_from_index)
 
         # SYNC-15-003: rate-limit no-progress replays.  A peer that cannot
         # anchor its hash chain re-Rejects every entry we replay; replaying the
@@ -293,7 +352,7 @@ class SendMissingEntriesNode(DataLayerAction):
                 continue
             self._sync_port.send_announce_log_entry(
                 entry=log_entry,
-                actor_id=self.blackboard.case_actor_id,
+                actor_id=self.case_actor_id_bb,
                 to=[peer_id],
             )
             replayed += 1
@@ -318,7 +377,7 @@ class SendMissingEntriesNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
+class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
     """Queue Announce(VulnerabilityCase) to a peer that rejected from genesis.
 
     When a peer sends ``Reject(last_accepted_hash="")`` it has no copy of
@@ -333,11 +392,24 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
     Authored as the executing actor, gated on CASE_MANAGER (ADR-0070).
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["case_actor_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "case_actor_id": "/case_actor_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+        self.case_actor_id_bb: str = self.get_input("case_actor_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -345,7 +417,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        activity = self.blackboard.activity
+        activity = self.activity
         if activity.last_accepted_hash != "":
             return Status.SUCCESS
 
@@ -364,6 +436,10 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
 
         entry = _require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
+        # `case_actor_id` is no longer read here: the announce is authored by the
+        # executing actor (see below), not by a looked-up CaseActor. The input
+        # port is left declared so the node's contract is unchanged for callers
+        # that already populate it.
 
         try:
             activity_id = factory.announce_vulnerability_case(

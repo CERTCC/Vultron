@@ -57,6 +57,7 @@ from vultron.errors import VultronValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,7 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
+        self.wire_render_port: "WireRenderPort | None" = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer and actor_id."""
@@ -162,11 +164,23 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(
             key="actor_id", access=py_trees.common.Access.READ
         )
+        try:
+            self.blackboard.register_key(
+                key="wire_render_port",
+                access=py_trees.common.Access.READ,
+            )
+        except Exception:
+            pass
 
     def initialise(self) -> None:
         """Initialize condition node by reading blackboard state."""
         self.datalayer = self.blackboard.datalayer
         self.actor_id = self.blackboard.actor_id
+
+        try:
+            self.wire_render_port = self.blackboard.wire_render_port
+        except Exception:
+            self.wire_render_port = None
 
         if self.datalayer is None:
             self.logger.error(
@@ -232,6 +246,7 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
         self.trigger_activity_factory: "TriggerActivityPort | None" = None
+        self.wire_render_port: "WireRenderPort | None" = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer, actor_id, and trigger_activity_factory."""
@@ -249,6 +264,13 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
             )
         except Exception:
             pass
+        try:
+            self.blackboard.register_key(
+                key="wire_render_port",
+                access=py_trees.common.Access.READ,
+            )
+        except Exception:
+            pass
 
     def initialise(self) -> None:
         """Initialize action node by reading blackboard state."""
@@ -261,6 +283,11 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
             )
         except Exception:
             self.trigger_activity_factory = None
+
+        try:
+            self.wire_render_port = self.blackboard.wire_render_port
+        except Exception:
+            self.wire_render_port = None
 
         if self.datalayer is None:
             self.logger.error(

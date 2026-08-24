@@ -113,14 +113,14 @@ def test_write_coordinator_roles_writes_blackboard():
 
 def test_write_other_roles_writes_blackboard():
     node = _WriteRolesNode(
-        roles=[CVDRole.OTHER],
+        roles=[CVDRole.OBSERVER],
         case_id=CASE_ID,
         name="WriteOtherRoles",
     )
     node.setup()
     node.update()
     key = f"/suggested_roles_{CASE_ID_SEGMENT}"
-    assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.OTHER]
+    assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.OBSERVER]
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +310,7 @@ def test_sub_loop_factories_wired(
     [
         ("VendorSubLoop", "WriteVendorRoles", CVDRole.VENDOR),
         ("CoordinatorSubLoop", "WriteCoordinatorRoles", CVDRole.COORDINATOR),
-        ("OtherSubLoop", "WriteOtherRoles", CVDRole.OTHER),
+        ("OtherSubLoop", "WriteOtherRoles", CVDRole.OBSERVER),
     ],
 )
 def test_write_roles_node_present_in_sub_loop(
@@ -389,7 +389,7 @@ def _make_always_fail_factory(name):
             "suggest_coordinator_factory",
             CVDRole.COORDINATOR,
         ),
-        ("more_others_factory", "suggest_other_factory", CVDRole.OTHER),
+        ("more_others_factory", "suggest_other_factory", CVDRole.OBSERVER),
     ],
 )
 def test_write_roles_key_written_when_sub_loop_executes(

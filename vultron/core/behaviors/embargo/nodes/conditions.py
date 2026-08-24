@@ -15,15 +15,13 @@
 
 """Condition nodes for case, embargo, and participant validation."""
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerCondition,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
-from vultron.core.models._helpers import has_case_statuses
-from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.errors import VultronInvalidStateTransitionError
 
@@ -94,7 +92,7 @@ class IsActiveEmbargoNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class LookupParticipantNode(DataLayerCondition):
+class LookupParticipantNode(DataLayerConditionWithPorts):
     """Resolve participant from case and actor_id.
 
     Looks up the actor in case.actor_participant_index and reads the
@@ -112,11 +110,15 @@ class LookupParticipantNode(DataLayerCondition):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="participant", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "participant": PortInformation(data_type=object, required=True)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"participant": "/participant"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -152,7 +154,7 @@ class LookupParticipantNode(DataLayerCondition):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        self.blackboard.participant = participant
+        self._set_output("participant", participant)
         self.feedback_message = (
             f"Resolved participant '{participant_id}' for actor"
             f" '{actor_id}' on case '{self.case_id}'"
@@ -161,7 +163,7 @@ class LookupParticipantNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class OptionalLookupParticipantNode(DataLayerCondition):
+class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
     """Optionally resolve participant from case and actor_id.
 
     Lenient variant of LookupParticipantNode: returns SUCCESS even when the case
@@ -194,11 +196,15 @@ class OptionalLookupParticipantNode(DataLayerCondition):
         self.case_id = case_id
         self.target_actor_id = target_actor_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="participant", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "participant": PortInformation(data_type=object, required=False)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"participant": "/participant"}
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -239,7 +245,7 @@ class OptionalLookupParticipantNode(DataLayerCondition):
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        self.blackboard.participant = participant
+        self._set_output("participant", participant)
         self.feedback_message = (
             f"Resolved participant '{participant_id}' for actor"
             f" '{actor_id}' on case '{self.case_id}'"

@@ -674,12 +674,14 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
 
 
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
-    """_case_proposal_port_factory returns actor_config and no driven ports.
+    """_case_proposal_port_factory returns actor_config and wire_render_port.
 
     ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
     CaseActor grants the proposing actor its real roles alongside CASE_OWNER
-    (CFG-07-002, CFG-07-004).  It takes no driven ports.
+    (CFG-07-002, CFG-07-004), and ``wire_render_port`` so ledger entries are
+    rendered via the wire adapter (issue #2287).
     """
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.config.actor import ActorConfig
     from vultron.enums.roles import CVDRole
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
@@ -694,14 +696,20 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
         )
     )
 
-    assert kwargs == {"actor_config": fake}
+    assert kwargs["actor_config"] == fake
+    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
+    assert set(kwargs) == {"actor_config", "wire_render_port"}
 
 
 def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """The factory returns {} when config load fails, so the owner gets
-    CASE_OWNER only rather than an inherited role guess."""
+    """The factory returns only wire_render_port when config load fails.
+
+    The owner gets CASE_OWNER only (no inherited role guess) but ledger
+    entries are still rendered via the wire adapter (issue #2287).
+    """
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
@@ -713,7 +721,8 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
         )
     )
 
-    assert kwargs == {}
+    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
+    assert set(kwargs) == {"wire_render_port"}
 
 
 def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):

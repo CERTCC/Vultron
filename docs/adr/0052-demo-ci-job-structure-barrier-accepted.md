@@ -100,3 +100,16 @@ rapid pushes.
   determine whether a minimum PR validation set can reduce the number of matrix
   entries that participate in the barrier, further reducing worst-case lag.
 - Generated spec requirements: `specs/demo-ci.yaml` DEMOCI-06-001 through DEMOCI-06-003.
+
+## Amendment — 2026-08-24
+
+The "never cancel on-main runs" policy (DEMOCI-02-014 as originally written,
+referenced in line 64 above) was superseded. `cancel-in-progress` is now the
+literal `true` on all triggers. Burst-merge throttling on main is handled
+instead by a 60-second debounce step (`.github/actions/debounce-main-push`)
+at the start of the `scenarios` job — rapid pushes cancel their sleeping
+predecessors, so only the last commit in a burst runs the full suite.
+Per-commit granularity was judged unnecessary: a time-range bisect across a
+typical 4–6 PR batch is sufficient to identify regressions. DEMOCI-02-013,
+DEMOCI-02-014, DEMOCI-02-015, and DEMOCI-05-002 in `specs/demo-ci.yaml` were
+updated accordingly.

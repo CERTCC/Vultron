@@ -39,7 +39,7 @@ from vultron.core.behaviors.case.nodes import (
     RecordOfferReceivedEventNode,
     UpdateActorOutbox,
 )
-from vultron.core.behaviors.case.nodes.case_setup import (
+from vultron.core.behaviors.case.nodes.case_actor_setup import (
     CreateCaseActorServiceNode,
     RegisterCaseActorParticipantNode,
     ResolveCaseActorUrlsNode,

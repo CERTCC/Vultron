@@ -54,14 +54,14 @@ def coerce_em_consent_state(value: object) -> PEC | None:
 
 def coerce_cvd_roles(value: object) -> list[CVDRole]:
     if value is None:
-        return [CVDRole.OTHER]
+        return [CVDRole.OBSERVER]
     if isinstance(value, CVDRole):
         return [value]
     if isinstance(value, str):
         return [CVDRole(value.lower())]
     if isinstance(value, list):
         if not value:
-            return [CVDRole.OTHER]
+            return [CVDRole.OBSERVER]
         roles: list[CVDRole] = []
         for item in value:
             if isinstance(item, CVDRole):
@@ -107,7 +107,7 @@ class ParticipantStatus(CoreObject):
     case_engagement: bool = True
     embargo_adherence: bool = True
     consent: PecDimension | None = None
-    cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OTHER])
+    cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OBSERVER])
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 

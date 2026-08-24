@@ -19,7 +19,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
 )
-from vultron.core.behaviors.sync.nodes.conditions import (
+from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT,
     _ADD_NOTE_TO_CASE_EVENT,
     _ADD_PARTICIPANT_STATUS_EVENT,

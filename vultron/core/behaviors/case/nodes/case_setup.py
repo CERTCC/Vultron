@@ -17,8 +17,10 @@
 Case setup action nodes for case management behavior trees.
 
 Provides leaf action nodes that set up core case state: persisting the case
-record, assigning attribution, recording creation events, and creating the
-CaseActor service actor.
+record, assigning attribution, and recording creation events.
+
+CaseActor identity resolution and registration nodes are in
+``case_actor_setup.py`` (BTND-07-004 split).
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) that orchestrate
 these leaf nodes are defined in ``case_setup_tree.py`` at the process-area
@@ -27,32 +29,17 @@ root, per BTND-07-003.
 Per specs/case-management.yaml CM-02 requirements.
 """
 
-import hashlib
-from typing import Any
-
-import py_trees
 from py_trees.common import Status
 
-from vultron.config import get_config
-from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.vultron_types import (
-    VultronCase,
-    VultronCaseActor,
-    VultronParticipant,
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
 )
-from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.vultron_types import VultronCase
 
 
-def _derive_case_slug(case_id: str) -> str:
-    """Derive a short deterministic slug from case_id."""
-    if case_id.startswith("urn:uuid:"):
-        return case_id[len("urn:uuid:") :]
-    return hashlib.sha256(case_id.encode()).hexdigest()[:12]
-
-
-class PersistCase(DataLayerAction):
+class PersistCase(DataLayerActionWithPorts):
     """
     Persist a VulnerabilityCase to the DataLayer.
 
@@ -66,6 +53,14 @@ class PersistCase(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"case_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -76,12 +71,7 @@ class PersistCase(DataLayerAction):
                 f"{self.name}: Persisted VulnerabilityCase"
                 f" {self.case_obj.id_}"
             )
-
-            self.blackboard.register_key(
-                key="case_id", access=py_trees.common.Access.WRITE
-            )
-            self.blackboard.case_id = self.case_obj.id_
-
+            self._set_output("case_id", self.case_obj.id_)
             return Status.SUCCESS
 
         except Exception as e:
@@ -89,7 +79,7 @@ class PersistCase(DataLayerAction):
             return Status.FAILURE
 
 
-class SetCaseAttributedTo(DataLayerAction):
+class SetCaseAttributedTo(DataLayerActionWithPorts):
     """
     Set VulnerabilityCase.attributed_to to the receiving actor's ID.
 
@@ -116,31 +106,42 @@ class SetCaseAttributedTo(DataLayerAction):
         return Status.SUCCESS
 
 
-class RecordOfferReceivedEventNode(DataLayerAction):
+class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
     """Conditionally record offer_received and stage the case object."""
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_for_creation_events",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "case_for_creation_events": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "case_for_creation_events": "/case_for_creation_events",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
-            return Status.FAILURE
+        case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error(f"{self.name}: case_id not found in blackboard")
             return Status.FAILURE
@@ -152,24 +153,37 @@ class RecordOfferReceivedEventNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.case_for_creation_events = case
+        self._set_output("case_for_creation_events", case)
         return Status.SUCCESS
 
 
-class RecordCaseCreatedEventNode(DataLayerAction):
+class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
     """Record case_created event and persist updated case."""
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        ports["case_for_creation_events"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="case_for_creation_events",
-            access=py_trees.common.Access.READ,
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "case_for_creation_events": "/case_for_creation_events",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
+        self.case_for_creation_events_bb = self.get_input(
+            "case_for_creation_events"
         )
 
     def update(self) -> Status:
@@ -177,311 +191,16 @@ class RecordCaseCreatedEventNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
-            return Status.FAILURE
+        case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error(f"{self.name}: case_id not found in blackboard")
             return Status.FAILURE
 
-        try:
-            case = self.blackboard.get("case_for_creation_events")
-        except KeyError:
-            self.logger.error(
-                f"{self.name}: case_for_creation_events missing or invalid"
-            )
-            return Status.FAILURE
+        case = self.case_for_creation_events_bb
         if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 f"{self.name}: case_for_creation_events missing or invalid"
             )
             return Status.FAILURE
 
-        return Status.SUCCESS
-
-
-class ResolveCaseActorUrlsNode(DataLayerAction):
-    """Resolve case_id + deterministic CaseActor IDs and publish to blackboard.
-
-    Reads ``case_actor_service_url`` from ``ActorConfig`` (CP-08-002).
-    Returns ``FAILURE`` when the field is not configured (CP-08-003).
-    """
-
-    def __init__(self, case_id: str | None = None, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id_arg = case_id
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        if self._case_id_arg is None:
-            self.blackboard.register_key(
-                key="case_id", access=py_trees.common.Access.READ
-            )
-        else:
-            self.blackboard.register_key(
-                key="case_id", access=py_trees.common.Access.WRITE
-            )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.WRITE,
-        )
-
-    def update(self) -> Status:
-        case_id = self._case_id_arg
-        if case_id is None:
-            try:
-                case_id = self.blackboard.get("case_id")
-            except KeyError:
-                case_id = None
-        if not isinstance(case_id, str) or case_id == "":
-            self.logger.error(
-                "%s: case_id not available from constructor or blackboard",
-                self.name,
-            )
-            return Status.FAILURE
-
-        cfg = get_config().actor
-        if cfg.case_actor_service_url is None:
-            self.logger.error(
-                "%s: case_actor_service_url is not configured in ActorConfig"
-                " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)",
-                self.name,
-            )
-            return Status.FAILURE
-
-        base_url = str(cfg.case_actor_service_url).rstrip("/")
-        case_slug = _derive_case_slug(case_id)
-        case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
-        participant_id = (
-            f"{base_url}/actors/case-actor-{case_slug}/participant"
-        )
-
-        if self._case_id_arg is not None:
-            self.blackboard.case_id = case_id
-        self.blackboard.case_actor_id = case_actor_id
-        self.blackboard.case_actor_participant_id = participant_id
-        return Status.SUCCESS
-
-
-class ReuseExistingCaseActorParticipantNode(DataLayerAction):
-    """Idempotency guard: succeed if CaseActor participant already exists."""
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        if not isinstance(participant_id, str) or not isinstance(
-            case_actor_id, str
-        ):
-            self.logger.error(
-                "%s: case_actor ids missing in blackboard",
-                self.name,
-            )
-            return Status.FAILURE
-
-        existing_participant = self.datalayer.read(participant_id)
-        if existing_participant is None:
-            return Status.FAILURE
-
-        authoritative_id = (
-            _as_id(getattr(existing_participant, "attributed_to", None))
-            or case_actor_id
-        )
-        self.blackboard.case_actor_id = authoritative_id
-        self.logger.info(
-            "%s: CaseActor participant already registered; reusing id '%s'",
-            self.name,
-            authoritative_id,
-        )
-        return Status.SUCCESS
-
-
-class CreateCaseActorServiceNode(DataLayerAction):
-    """Create (or reuse) the CaseActor service object.
-
-    Writes the record **twice**, into two different stores, because it plays two
-    different roles:
-
-    1. Into the CaseActor's *own* store, which is what makes this node's output a
-       hosted actor rather than just a row.  ``GET``/``POST`` on
-       ``/actors/{slug}/…`` resolves the actor from the store that slug names
-       (``_resolve_actor_or_404``), so without this write the CaseActor's inbox
-       answers ``404 Actor not found`` and nothing addressed to it — including
-       the ``Create(VulnerabilityCase)`` that seeds every participant replica —
-       is ever delivered.  This is the same rule ``POST /actors/`` follows.
-    2. Into the creating actor's store, as an address-book entry for a peer it
-       now knows (ADR-0070 decision 5).  Sibling nodes resolve the CaseActor
-       from the *executing* actor's store, so this copy is what they read.
-
-    The two writes are not redundant: one publishes an endpoint, the other
-    records knowledge.  Under a shared store they were indistinguishable, which
-    is why one write used to be enough.
-    """
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        if not isinstance(case_id, str) or not isinstance(case_actor_id, str):
-            self.logger.error("%s: case_id/case_actor_id missing", self.name)
-            return Status.FAILURE
-
-        case_actor = VultronCaseActor(
-            id_=case_actor_id,
-            name=f"CaseActor for {case_id}",
-            attributed_to=self.actor_id,
-            context=case_id,
-        )
-
-        own_store = self._store_for(case_actor_id)
-        if own_store is None:
-            self.logger.error(
-                "%s: cannot open the CaseActor's own store for %s, so it would"
-                " not be a hosted actor and its inbox would 404",
-                self.name,
-                case_actor_id,
-            )
-            return Status.FAILURE
-
-        for label, store in (
-            ("its own", own_store),
-            ("the creating actor's", self.datalayer),
-        ):
-            try:
-                store.create(case_actor)
-                self.logger.info(
-                    "%s: Created CaseActor %s for case %s in %s store",
-                    self.name,
-                    case_actor_id,
-                    case_id,
-                    label,
-                )
-            except ValueError as e:
-                self.logger.warning(
-                    "%s: CaseActor %s already exists in %s store: %s",
-                    self.name,
-                    case_actor_id,
-                    label,
-                    e,
-                )
-        return Status.SUCCESS
-
-    def _store_for(self, actor_id: str) -> Any:
-        """Return *actor_id*'s own store, or ``None`` when it cannot be opened.
-
-        Named rather than implicit: ``clone_for_actor`` is the only sanctioned
-        route to another actor's store (ADR-0070 decision 7), so a cross-actor
-        write reads as one.
-        """
-        assert self.datalayer is not None
-        if getattr(self.datalayer, "actor_id", None) == actor_id:
-            return self.datalayer
-        clone_for_actor = getattr(self.datalayer, "clone_for_actor", None)
-        if not callable(clone_for_actor):
-            return None
-        return clone_for_actor(actor_id)
-
-
-class RegisterCaseActorParticipantNode(DataLayerAction):
-    """Attach the CaseActor participant to the case when absent."""
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        if (
-            not isinstance(case_id, str)
-            or not isinstance(case_actor_id, str)
-            or not isinstance(participant_id, str)
-        ):
-            self.logger.error("%s: CaseActor context missing", self.name)
-            return Status.FAILURE
-
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.logger.error(
-                "%s: Case '%s' not found; cannot register CaseActor participant",
-                self.name,
-                case_id,
-            )
-            return Status.FAILURE
-
-        existing = self.datalayer.read(participant_id)
-        if existing is not None:
-            return Status.SUCCESS
-
-        participant = VultronParticipant(
-            id_=participant_id,
-            attributed_to=case_actor_id,
-            context=case_id,
-            name=f"CaseActor for {case_id}",
-            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-        )
-        try:
-            self.datalayer.create(participant)
-        except ValueError:
-            pass
-        case.add_participant(participant)
-        self.datalayer.save(case)
-        self.logger.info(
-            "%s: Registered CaseActor participant '%s' for case '%s'",
-            self.name,
-            participant_id,
-            case_id,
-        )
         return Status.SUCCESS

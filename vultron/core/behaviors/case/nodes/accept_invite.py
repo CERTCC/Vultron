@@ -33,6 +33,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
     _snapshot_with_context,
 )
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -100,21 +101,18 @@ class EmitAddCaseParticipantNode(DataLayerAction):
 
     def _build_snapshot(self, activity_id: str) -> dict:
         stored = self.datalayer.read(activity_id)  # type: ignore[union-attr]
-        if stored is not None and hasattr(stored, "model_dump"):
-            raw: dict = stored.model_dump(
-                mode="json",
-                by_alias=True,
-                serialize_as_any=True,
-                exclude_none=True,
+        if stored is None or not hasattr(stored, "model_dump"):
+            raise VultronValidationError(
+                f"Add(CaseParticipant) activity '{activity_id}' not found in"
+                " DataLayer; cannot build payload snapshot (ARCH-15-001)"
             )
-            snapshot: dict = _snapshot_with_context(raw, self.case_id)
-        else:
-            snapshot = {
-                "type": "Add",
-                "actor": self.actor_id or "",
-                "object_": {"type": "CaseParticipant"},
-                "context": self.case_id,
-            }
+        raw: dict = stored.model_dump(
+            mode="json",
+            by_alias=True,
+            serialize_as_any=True,
+            exclude_none=True,
+        )
+        snapshot: dict = _snapshot_with_context(raw, self.case_id)
         if not snapshot.get("actor") and self.actor_id:
             snapshot = {**snapshot, "actor": self.actor_id}
         return snapshot

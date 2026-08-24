@@ -17,9 +17,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.update_support import (
@@ -29,7 +26,6 @@ from vultron.core.behaviors.case.update_support import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    DataLayerCondition,
     DataLayerConditionWithPorts,
     PortInformation,
 )
@@ -107,18 +103,24 @@ class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerCondition):
+class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerConditionWithPorts):
     """Resolve embargo-based broadcast exclusions for the case update."""
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="excluded_actor_ids", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "excluded_actor_ids": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"excluded_actor_ids": "/excluded_actor_ids"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -136,8 +138,8 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerCondition):
             )
             return Status.FAILURE
 
-        self.blackboard.excluded_actor_ids = find_excluded_actor_ids(
-            case, self.datalayer
+        self._set_output(
+            "excluded_actor_ids", find_excluded_actor_ids(case, self.datalayer)
         )
         return Status.SUCCESS
 

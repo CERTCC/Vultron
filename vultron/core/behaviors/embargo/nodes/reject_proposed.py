@@ -23,7 +23,6 @@ Extracted from lifecycle.py to keep that module under the BTND-07-004
 500-line limit.
 """
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.em_state import (
@@ -32,7 +31,6 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
 )
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     PortInformation,
 )
@@ -132,7 +130,7 @@ class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ReadProposedEmbargoIdNode(DataLayerAction):
+class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
     """Read the first proposed embargo ID from the case and write it to the blackboard.
 
     Used by the EM PROPOSED cascade arm of ``PublicDisclosureBranchNode``
@@ -150,12 +148,13 @@ class ReadProposedEmbargoIdNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="embargo_id",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"embargo_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"embargo_id": "/embargo_id"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -181,7 +180,7 @@ class ReadProposedEmbargoIdNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.embargo_id = embargo_id
+        self._set_output("embargo_id", embargo_id)
         return Status.SUCCESS
 
 

@@ -80,9 +80,14 @@ from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_participant_status_snapshot,
     build_add_report_to_case_snapshot,
     build_create_case_snapshot,
-    obj_to_inline_dict,
 )
-from vultron.core.behaviors.helpers import DataLayerAction
+from py_trees.ports import NoDataAvailable
+
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -147,7 +152,7 @@ class _CheckMarkerExistsNode(DataLayerAction):
         return Status.FAILURE
 
 
-class _LoadExistingCaseNode(DataLayerAction):
+class _LoadExistingCaseNode(DataLayerActionWithPorts):
     """Find an existing ``VulnerabilityCase`` for *report_id* and load it.
 
     AC-1 / AC-2 (CP-05-006): detects a duplicate ``Create(as_CaseProposal)``
@@ -167,11 +172,13 @@ class _LoadExistingCaseNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"case_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -185,7 +192,7 @@ class _LoadExistingCaseNode(DataLayerAction):
         if existing is None:
             return Status.FAILURE
 
-        self.blackboard.case_id = existing.id_
+        self._set_output("case_id", existing.id_)
         logger.info(
             "%s: Found existing VulnerabilityCase '%s' for report '%s'"
             " — reusing for duplicate proposal (CP-05-006 AC-1/AC-2)",
@@ -196,7 +203,7 @@ class _LoadExistingCaseNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _CreateCaseFromProposalNode(DataLayerAction):
+class _CreateCaseFromProposalNode(DataLayerActionWithPorts):
     """Create a VulnerabilityCase from the proposal and write case_id to blackboard.
 
     The case-actor service is the ``attributed_to`` author of the new case,
@@ -211,11 +218,13 @@ class _CreateCaseFromProposalNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"case_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -234,7 +243,7 @@ class _CreateCaseFromProposalNode(DataLayerAction):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        self.blackboard.case_id = case.id_
+        self._set_output("case_id", case.id_)
         logger.info(
             "%s: Created VulnerabilityCase '%s' from proposal",
             self.name,
@@ -835,6 +844,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
     ) -> None:
         assert self.datalayer is not None
         assert self.actor_id is not None
+        assert self.wire_render_port is not None
         for report_id in case.vulnerability_reports:
             raw_report = self.datalayer.read(report_id)
             if not isinstance(raw_report, VulnerabilityReport):
@@ -856,6 +866,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
                 case,
                 self.actor_id,
                 case_id,
+                self.wire_render_port,
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,
             )
@@ -891,6 +902,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         self, participant: CaseParticipant, case_id: str
     ) -> None:
         assert self.actor_id is not None
+        assert self.wire_render_port is not None
         for status in participant.participant_statuses:
             if not isinstance(status, ParticipantStatus):
                 continue
@@ -898,7 +910,11 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
             if not status_id:
                 continue
             snapshot = build_add_participant_status_snapshot(
-                status, participant, self.actor_id, case_id
+                status,
+                participant,
+                self.actor_id,
+                case_id,
+                self.wire_render_port,
             )
             self._commit_one(
                 case_id,
@@ -911,6 +927,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         self, case: VulnerabilityCase, case_id: str
     ) -> None:
         assert self.datalayer is not None
+        assert self.wire_render_port is not None
         for status_ref in case.case_statuses:
             if isinstance(status_ref, CaseStatus):
                 status = status_ref
@@ -925,7 +942,11 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
             if not status_id:
                 continue
             snapshot = build_add_case_status_snapshot(
-                status, case, self._vendor_uri, case_id
+                status,
+                case,
+                self._vendor_uri,
+                case_id,
+                self.wire_render_port,
             )
             self._commit_one(
                 case_id, status_id, "add_case_status_to_case", snapshot
@@ -966,11 +987,18 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         # entry (and every replica seeded from it) is broken.  Fail fast so
         # the enclosing Sequence aborts before Accept/Create are emitted, and
         # the vendor is not told a case exists that has no canonical ledger.
+        if self.wire_render_port is None:
+            self.feedback_message = "wire_render_port not available"
+            logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         if not self._commit_one(
             case_id,
             case_id,
             "create_case",
-            build_create_case_snapshot(case, self.actor_id, case_id),
+            build_create_case_snapshot(
+                case, self.actor_id, case_id, self.wire_render_port
+            ),
         ):
             self.feedback_message = (
                 f"genesis create_case ledger commit failed for case"
@@ -1301,7 +1329,7 @@ class _SeedReporterSignatoryNode(DataLayerAction):
         )
 
 
-class _EmitAcceptCaseProposalNode(DataLayerAction):
+class _EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
     """Build Accept(CaseProposal), store it, and queue it to the outbox.
 
     Sets ``accept_activity_id`` on the blackboard so the downstream
@@ -1336,14 +1364,31 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
             proposal_dict if proposal_dict is not None else proposal_id
         )
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="accept_activity_id", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "accept_activity_id": PortInformation(data_type=str, required=True)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "accept_activity_id": "/accept_activity_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._case_id_bb: str | None = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -1351,10 +1396,7 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            case_id: str | None = self.blackboard.get("case_id")
-        except KeyError:
-            case_id = None
+        case_id = self._case_id_bb
 
         activity = VultronAccept(
             actor=self.actor_id,
@@ -1372,8 +1414,10 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        # `outbox_append`, not `record_outbox_item`: the queue lives in the
+        # owning actor's store, so it takes no actor argument (ADR-0070).
         cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity.id_)
-        self.blackboard.accept_activity_id = activity.id_
+        self._set_output("accept_activity_id", activity.id_)
         logger.info(
             "%s: Queued Accept(CaseProposal) '%s' to outbox for vendor '%s'",
             self.name,
@@ -1553,18 +1597,24 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         case_copy = raw_case.model_copy(
             update={"case_participants": materialized}
         )
-        case_dict = obj_to_inline_dict(case_copy)
+        if self.wire_render_port is None:
+            logger.warning(
+                "%s: wire_render_port not available; cannot render case object",
+                self.name,
+            )
+            return None
+        case_dict = self.wire_render_port.render(case_copy)
         case_dict.setdefault("type", "VulnerabilityCase")
-        # Inline full VulnerabilityReport dicts after model_dump so invited
+        # Inline full VulnerabilityReport dicts after render so invited
         # actors' _store_embedded_reports stores them (CBT-01-007, ISSUE-2134).
-        # Done post-dump because VulnerabilityCase.vulnerability_reports is
+        # Done post-render because VulnerabilityCase.vulnerability_reports is
         # typed list[str]; embedding objects directly triggers Pydantic warnings.
         inlined_reports: list[Any] = []
         for ref in raw_case.vulnerability_reports:
             if isinstance(ref, str):
                 r_obj = self.datalayer.read(ref)
                 if isinstance(r_obj, VulnerabilityReport):
-                    r_dict = obj_to_inline_dict(r_obj)
+                    r_dict = self.wire_render_port.render(r_obj)
                     r_dict.setdefault("type", "VulnerabilityReport")
                     inlined_reports.append(r_dict)
                 else:

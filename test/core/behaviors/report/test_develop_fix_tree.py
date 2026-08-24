@@ -568,11 +568,18 @@ class TestTransitionCStoFixReady:
             if " CS: " in r.getMessage() and r.levelno == logging.INFO
         ]
         assert narrative, "Expected a CS narrative line at INFO"
-        message = narrative[0].getMessage()
-        # The fixture participant starts at `vfd`, so this single write
-        # advances two sub-dimensions and the label names both.
-        assert f"Actor '{VENDOR_ACTOR_ID}' CS: vfd → VFd" in message
-        assert "fix ready" in message
+        messages = [r.getMessage() for r in narrative]
+        # The fixture participant starts at `vfd`.  TransitionCStoFixReady
+        # now advances through Vfd (vendor-aware) first, then VFd (fix-ready),
+        # so two narrative lines are emitted.
+        assert any(
+            "vfd → Vfd" in m for m in messages
+        ), "Expected vendor-aware milestone line"
+        fix_ready = [m for m in messages if "fix ready" in m]
+        assert fix_ready, "Expected a 'fix ready' CS narrative line at INFO"
+        assert any(
+            f"Actor '{VENDOR_ACTOR_ID}' CS: Vfd → VFd" in m for m in fix_ready
+        )
 
         detail = [
             r

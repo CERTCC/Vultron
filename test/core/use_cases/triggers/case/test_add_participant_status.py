@@ -766,6 +766,93 @@ class TestCreateParticipantStatusNode:
 
         assert not self._rm_narrative_records(caplog)
 
+    # ------------------------------------------------------------------
+    # AC-4: write-boundary validation (CSB-16-001, CSB-15-001/002) — these
+    # tests call _run_node() directly, bypassing ValidateTriggerTransitionsNode
+    # ------------------------------------------------------------------
+
+    def _seed_participant_vfd_state(self, vfd_target: CS_vfd) -> None:
+        """Directly persist a ParticipantStatus to advance the actor to vfd_target."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.models.dimensions import RmDimension, VfdDimension
+
+        seed = ParticipantStatus(
+            context=self.case.id_,
+            attributed_to=self.actor.id_,
+            rm=RmDimension(state=RM.START),
+            vfd=VfdDimension(state=vfd_target),
+        )
+        self.dl.create(seed)
+        participant = self.dl.read(self.actor_participant.id_)
+        if isinstance(participant, CaseParticipant):
+            participant.add_participant_status(seed)
+            self.dl.save(participant)
+
+    def test_invalid_vfd_jump_blocked_at_write_node(self):
+        """CSB-16-001: illegal multi-step VFD jump is rejected at the write boundary.
+
+        vfd → VFD skips two intermediate states; CreateParticipantStatusNode must
+        return FAILURE without writing, independent of upstream guard coverage (AC-4).
+        """
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFD, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+    def test_same_state_vfd_write_allowed_at_write_node(self):
+        """CSB-16-001: same-state VFD write (no actual transition) is allowed."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.vfd, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        assert "status_id" in result_out
+
+    def test_fix_ready_requires_vendor_role_at_write_node(self):
+        """CSB-15-001: VFd target is blocked when the actor has no VENDOR role.
+
+        The adjacent transition Vfd → VFd is structurally valid; the node must
+        still refuse it because the FINDER actor lacks the required VENDOR role.
+        """
+        from py_trees.common import Status
+
+        # Seed actor to Vfd so the transition check passes; role check fires next.
+        self._seed_participant_vfd_state(CS_vfd.Vfd)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFd, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+        assert "CSB-15-001" in bt_result.feedback_message
+
+    def test_fix_deployed_requires_deployer_role_at_write_node(self):
+        """CSB-15-002: VFD target is blocked when the actor has no DEPLOYER role.
+
+        The adjacent transition VFd → VFD is structurally valid; the node must
+        still refuse it because the FINDER actor lacks the required DEPLOYER role.
+        """
+        from py_trees.common import Status
+
+        # Seed actor to VFd so the transition check passes; role check fires next.
+        self._seed_participant_vfd_state(CS_vfd.VFd)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFD, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+        assert "CSB-15-002" in bt_result.feedback_message
+
 
 # ---------------------------------------------------------------------------
 # ValidateTriggerTransitionsNode — AC-1 through AC-6 (issues #2081, #1903)
@@ -938,6 +1025,121 @@ class TestValidateTriggerTransitions:
         """Valid adjacent RM step (START → RECEIVED) is accepted and record persisted."""
         before = self._status_count()
         self._execute(rm_state=RM.RECEIVED)
+        assert self._status_count() == before + 1
+
+
+# ---------------------------------------------------------------------------
+# CheckNotSoleObserverVfdNode — CM-25-005 end-to-end guard (#2192)
+# ---------------------------------------------------------------------------
+
+
+class TestSoleObserverVfdGuard:
+    """End-to-end guard: sole-OBSERVER actor MUST NOT emit v→V (CM-25-005).
+
+    Uses the full use-case stack (SqliteDataLayer → SvcAddParticipantStatusUseCase)
+    to prove CheckNotSoleObserverVfdNode is wired into add_participant_status_trigger_bt
+    and fires for every trigger invocation.
+
+    AC: a sole-OBSERVER actor calling execute(vfd_state=CS_vfd.Vfd) raises
+    VultronValidationError and writes no record (CM-25-005).
+
+    CM-26-001 union-of-permissions: an OBSERVER+VENDOR actor CAN emit v→V.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from vultron.adapters.driven.datalayer_sqlite import (
+            SqliteDataLayer,
+            reset_datalayer,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        self.actor = as_Service(name="Observer")
+        actor_id = self.actor.id_
+        reset_datalayer(actor_id)
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        self.dl.clear_all()
+        self.dl.create(self.actor)
+
+        self.case_actor = as_Service(name="Case Manager")
+        reset_datalayer(self.case_actor.id_)
+        self.dl.create(self.case_actor)
+
+        self.case = as_VulnerabilityCase(name="Test Case CM-25-005")
+        self.actor_participant = as_CaseParticipant(
+            attributed_to=actor_id,
+            context=self.case.id_,
+            case_roles=[CVDRole.OBSERVER],
+        )
+        self.case_manager_participant = as_CaseParticipant(
+            attributed_to=self.case_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        self.case.actor_participant_index[actor_id] = (
+            self.actor_participant.id_
+        )
+        self.case.actor_participant_index[self.case_actor.id_] = (
+            self.case_manager_participant.id_
+        )
+        self.dl.create(self.case)
+        self.dl.create(self.actor_participant)
+        self.dl.create(self.case_manager_participant)
+        self.trigger_activity = TriggerActivityAdapter(self.dl)
+        yield
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(actor_id)
+            reset_datalayer(self.case_actor.id_)
+
+    def _execute(self, rm_state=None, vfd_state=None, pxa_state=None):
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            rm_state=rm_state,
+            vfd_state=vfd_state,
+            pxa_state=pxa_state,
+        )
+        return SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+
+    def _status_count(self):
+        participant = self.dl.read(self.actor_participant.id_)
+        return len(getattr(participant, "participant_statuses", []))
+
+    def test_sole_observer_vfd_transition_blocked_end_to_end(self):
+        """CM-25-005: sole-OBSERVER actor attempting v→V raises VultronValidationError."""
+        from vultron.errors import VultronValidationError
+
+        before = self._status_count()
+        with pytest.raises(VultronValidationError):
+            self._execute(vfd_state=CS_vfd.Vfd)
+        assert self._status_count() == before
+
+    def test_sole_observer_none_vfd_request_succeeds(self):
+        """Sole-OBSERVER actor with no VFD override bypasses guard; record persisted."""
+        before = self._status_count()
+        self._execute(rm_state=None, vfd_state=None, pxa_state=None)
         assert self._status_count() == before + 1
 
 

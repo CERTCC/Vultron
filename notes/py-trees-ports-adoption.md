@@ -49,6 +49,7 @@ Idea's optimistic framing.
     `embargo/nodes/`. **Headroom note**: `report/nodes/deploy_fix.py` is now
     exactly 500 lines (the BTND-07-004 hard limit); split it before the next
     change (see `plan/incoming/learnings/20260821-deploy-fix-line-count-margin.md`).
+    ✓ (2026-08-21)
   - Part 3/5 (#1885) migrated **Type-B nodes** (extra READ-only inputs) across
     `sync/`, `sender/`, `embargo/`, `case/`, and `status/` domains — adds
     `input_ports()` + `_domain_port_remappings()` + `get_input()` in
@@ -57,8 +58,12 @@ Idea's optimistic framing.
     `DataLayerConditionWithPorts`/`DataLayerActionWithPorts.initialise()` to
     catch `NotImplementedError` from py_trees when a blackboard key stores
     explicit `None`. ✓ (2026-08-21)
-  - Remaining Type-C/D nodes (WRITE-handoff and finalization) are tracked under
-    #1809 (parts 4–5).
+  - Part 4/5 (#1886) establishes the `output_ports()` + `_set_output()` convention
+    (BTND-03-012, BTND-03-013) and migrates **Type-C WRITE-handoff nodes** across
+    `sync/`, `case/`, `embargo/`, `report/`, `sender/`, and `status/` domains.
+    Nodes with instance-computed (execution-scoped) physical keys are deferred to #1887.
+  - Remaining finalization (#1887) covers non-DataLayer nodes, composite exemptions,
+    and deferred dynamic-key nodes.
 - **XML parser**: `py_trees.parsers.behaviour_tree_xml` exists but is documented
   as **experimental** ("the parser is experimental and its API may change
   between releases"). It instantiates only classes registered in a
@@ -202,12 +207,82 @@ def initialise(self) -> None:
     self.report_id = self.get_input("report_id")
 ```
 
-### 5. Leave `update()` unchanged
+### 5. Declare and wire output ports (Type-C nodes — WRITE-handoff)
 
-The `update()` logic itself does not change — it still uses `self.datalayer`,
-`self.actor_id`, and the `_require_*` guard helpers.
+If the node **writes** a value consumed by a downstream sibling (a "Type-C"
+WRITE-handoff node), override `output_ports()` and use `_set_output()`:
 
-### 6. Add isolated-node tests
+```python
+@classmethod
+def output_ports(cls) -> dict[str, PortInformation]:
+    return {
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+    }
+
+@classmethod
+def _domain_port_remappings(cls) -> dict[str, str]:
+    return {
+        "fanout_recipients": "/fanout_recipients",
+        # ... plus any input remappings ...
+    }
+```
+
+In `update()`, replace `self.blackboard.key = value` with
+`self._set_output("key", value)`:
+
+```python
+# Before
+self.blackboard.fanout_recipients = recipients
+
+# After
+self._set_output("fanout_recipients", recipients)
+```
+
+Remove the `self.blackboard.register_key(key=..., access=WRITE)` calls from
+`setup()` — `setup_ports()` in the base class handles registration for all
+declared ports.
+
+**Execution-scoped physical keys** (BTND-03-013): when the physical blackboard
+key is computed from a constructor parameter (e.g.
+`f"suggested_roles_{report_id.split('/')[-1]}"`), the logical port name in
+`output_ports()` uses only the `{noun}` (e.g. `"suggested_roles"`), and the
+physical key is wired in the instance `setup()` override — **not** via the
+classmethod `_domain_port_remappings()`:
+
+```python
+class MyNode(DataLayerActionWithPorts):
+    def __init__(self, report_id: str, name=None):
+        super().__init__(name=name or self.__class__.__name__)
+        _seg = report_id.split("/")[-1]
+        self._suggested_roles_key = f"suggested_roles_{_seg}"
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"suggested_roles": PortInformation(data_type=object, required=True)}
+
+    def setup(self, **kwargs):
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "suggested_roles": f"/{self._suggested_roles_key}",
+            }
+        )
+
+    def update(self) -> Status:
+        ...
+        self._set_output("suggested_roles", roles)
+        return Status.SUCCESS
+```
+
+### 6. Update `update()` for output writes
+
+Replace every `self.blackboard.key = value` for a declared output port with
+`self._set_output("key", value)`. Leave `self.blackboard.key` reads
+for input ports that are not yet migrated to `get_input()` (but prefer
+`get_input()` per BTND-03-011).
+
+### 8. Add isolated-node tests
 
 Add at least two tests per migrated node:
 

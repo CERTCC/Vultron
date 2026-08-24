@@ -200,6 +200,41 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-03-009
+  - id: BTND-03-012
+    priority: MUST
+    kind: project
+    statement: >
+      A `DataLayerActionWithPorts` subclass that writes an inter-node handoff key MUST declare that key as an
+      output port in `output_ports()` and write values via `self._set_output(port_name, value)` rather than via
+      direct `self.blackboard.<key> = value` attribute assignment. Output port remappings MUST be included in the
+      `port_remappings` dict passed to `setup_ports()` (typically via `_domain_port_remappings()`).
+    rationale: >
+      Declaring output ports in `output_ports()` makes the node's write contract explicit and machine-readable,
+      consistent with the input-port convention from BTND-03-009/BTND-03-011. Using `_set_output()` routes writes
+      through the typed port layer so the framework enforces that only declared output keys are written.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-009
+  - id: BTND-03-013
+    priority: MUST
+    kind: project
+    statement: >
+      Where the physical blackboard key for an output port is execution-scoped (computed from constructor
+      parameters per BTND-03-004, e.g. `suggested_roles_abc123`), the node MUST declare a stable logical port
+      name in `output_ports()` using only the `{noun}` part (no `_{id_segment}` suffix), and MUST bind the
+      physical execution-scoped key by overriding `setup()` to pass `port_remappings={"logical_name": physical_key}`
+      to `setup_ports()`. The logical name is the public contract; the physical key is the per-execution wire-up.
+    rationale: >
+      `output_ports()` is a classmethod with no access to instance state, so execution-scoped physical keys
+      (computed in `__init__`) cannot be declared there directly. Declaring a stable logical name and binding the
+      physical key in `setup()` separates the interface (classmethod) from the execution-time binding (instance
+      method), preserving BTND-03-004 concurrent-execution safety while enabling typed port declarations.
+      Validated against `py_trees.ports.PortsMixin.setup_ports()` remapping semantics.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-012
+    - rel_type: refines
+      spec_id: BTND-03-004
 - id: BTND-04
   title: Module Ownership
   specs:

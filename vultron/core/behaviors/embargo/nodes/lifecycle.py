@@ -17,7 +17,6 @@
 
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.em_state import (
@@ -33,8 +32,8 @@ from vultron.core.behaviors.embargo.nodes.terminate import (  # noqa: F401
     SendTerminateEmbargoActivityNode,
 )
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
@@ -306,7 +305,7 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
         )
 
 
-class ReadEmbargoIdNode(DataLayerAction):
+class ReadEmbargoIdNode(DataLayerActionWithPorts):
     """Read the active embargo ID from the case and write it to the blackboard.
 
     Returns FAILURE when the case is not found, has no active embargo, or
@@ -318,12 +317,13 @@ class ReadEmbargoIdNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="embargo_id",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"embargo_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"embargo_id": "/embargo_id"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -342,7 +342,7 @@ class ReadEmbargoIdNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.embargo_id = embargo_id
+        self._set_output("embargo_id", embargo_id)
         return Status.SUCCESS
 
 

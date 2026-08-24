@@ -39,7 +39,7 @@ def test_atomic_roles_exist():
         "VENDOR",
         "DEPLOYER",
         "COORDINATOR",
-        "OTHER",
+        "OBSERVER",
         "CASE_OWNER",
         "CASE_MANAGER",
         "CVE_NUMBERING_AUTHORITY",

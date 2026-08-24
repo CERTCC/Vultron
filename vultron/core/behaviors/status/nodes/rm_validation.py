@@ -24,12 +24,14 @@ passed to skip this node and avoid a redundant post-commit check.
 """
 
 import logging
-from typing import Any
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerCondition, read_rm_states
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+    read_rm_states,
+)
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -42,7 +44,7 @@ from vultron.core.states.rm import (
 logger = logging.getLogger(__name__)
 
 
-class ValidateRMTransitionNode(DataLayerCondition):
+class ValidateRMTransitionNode(DataLayerConditionWithPorts):
     """Validate RM state transition rules.
 
     Checks that the new RM state does not violate transition rules:
@@ -75,27 +77,46 @@ class ValidateRMTransitionNode(DataLayerCondition):
         self.participant_id = participant_id
         self.status_id = status_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["append_status_participant"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="append_status_status_obj",
-            access=py_trees.common.Access.READ,
+        ports["append_status_status_obj"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key=BB_RM_ANOMALY,
-            access=py_trees.common.Access.WRITE,
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            BB_RM_ANOMALY: PortInformation(data_type=object, required=False)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "append_status_participant": "/append_status_participant",
+            "append_status_status_obj": "/append_status_status_obj",
+            BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.append_status_participant = self.get_input(
+            "append_status_participant"
+        )
+        self.append_status_status_obj = self.get_input(
+            "append_status_status_obj"
         )
 
     def update(self) -> Status:
         # Clear on every tick so a previous run's flag never leaks forward.
-        self.blackboard.set(BB_RM_ANOMALY, None, overwrite=True)
+        self._set_output(BB_RM_ANOMALY, None)
 
-        participant = self.blackboard.get("append_status_participant")
-        status_obj = self.blackboard.get("append_status_status_obj")
+        participant = self.append_status_participant
+        status_obj = self.append_status_status_obj
 
         if participant is None or status_obj is None:
             self.feedback_message = "Participant or status not on blackboard"
@@ -152,14 +173,13 @@ class ValidateRMTransitionNode(DataLayerCondition):
                 new_rm_state,
                 self.participant_id,
             )
-            self.blackboard.set(
+            self._set_output(
                 BB_RM_ANOMALY,
                 {
                     "anomaly_type": "gap",
                     "from_rm": current_rm,
                     "to_rm": new_rm_state,
                 },
-                overwrite=True,
             )
             return Status.SUCCESS
 
@@ -172,19 +192,18 @@ class ValidateRMTransitionNode(DataLayerCondition):
             "ValidateRMTransitionNode: %s — rejecting (RSH-06-002)",
             self.feedback_message,
         )
-        self.blackboard.set(
+        self._set_output(
             BB_RM_ANOMALY,
             {
                 "anomaly_type": "regression",
                 "from_rm": current_rm,
                 "to_rm": new_rm_state,
             },
-            overwrite=True,
         )
         return Status.FAILURE
 
 
-class CheckParticipantRMNotClosedNode(DataLayerCondition):
+class CheckParticipantRMNotClosedNode(DataLayerConditionWithPorts):
     """Pre-flight guard: FAILURE when participant is in RM.CLOSED with no prior
     status match.
 

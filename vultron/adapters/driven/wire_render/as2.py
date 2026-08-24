@@ -21,7 +21,7 @@ Translates a core domain object to its wire-layer counterpart via:
 1. Vocabulary lookup — ``VOCABULARY.get(type(obj).__name__)``
 2. Wire-counterpart guard — ``issubclass(wire_cls, VultronAS2Object)``
 3. ``wire_cls.from_core(obj)``
-4. ``model_dump(by_alias=True, exclude_none=True)``
+4. ``model_dump(by_alias=True, exclude_none=True, mode="json")``
 
 Raises :exc:`~vultron.errors.VultronValidationError` when the core type
 has no wire counterpart or the counterpart does not extend
@@ -69,7 +69,9 @@ class As2WireRenderAdapter:
 
         Returns:
             ``wire_cls.from_core(obj).model_dump(by_alias=True,
-            exclude_none=True)`` — camelCase keys, ``None`` fields omitted.
+            exclude_none=True, mode="json")`` — camelCase keys, ``None``
+            fields omitted, all values JSON-serializable (e.g. datetimes
+            are ISO strings).
 
         Raises:
             :exc:`~vultron.errors.VultronValidationError`: When ``obj``'s
@@ -85,5 +87,5 @@ class As2WireRenderAdapter:
             )
 
         return wire_cls.from_core(obj).model_dump(
-            by_alias=True, exclude_none=True
+            by_alias=True, exclude_none=True, mode="json"
         )

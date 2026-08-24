@@ -27,7 +27,7 @@ model validators:
 - :class:`VendorParticipant`
 - :class:`DeployerParticipant`
 - :class:`CoordinatorParticipant`
-- :class:`OtherParticipant`
+- :class:`ObserverParticipant`
 - :class:`CaseActorParticipant`
 """
 
@@ -114,8 +114,8 @@ class CaseParticipant(CoreObject):
         deviation from ARCH-12-003 tracked in #1991 — the child's shim is what
         makes this parent guard survivable in the first place — and it is not
         a hole in the #2232 fix: an aliased child cannot *lose* the ladder, it
-        only spells it differently.  Do not restate ARCH-12-003 as though it
-        held throughout this subtree; it does not yet.
+        only spells it differently.  The remaining ARCH-12-003 deviation
+        (``alias_generator`` on ``ParticipantStatus``) is tracked in #1991.
 
         Raises:
             VultronValidationError: when a wire-spelled key is present.
@@ -538,8 +538,8 @@ class CoordinatorParticipant(CaseParticipant):
         return data
 
 
-class OtherParticipant(CaseParticipant):
-    """A CaseParticipant that holds the OTHER role."""
+class ObserverParticipant(CaseParticipant):
+    """A CaseParticipant that holds the OBSERVER role (ADR-0057)."""
 
     @model_validator(mode="before")
     @classmethod
@@ -547,7 +547,7 @@ class OtherParticipant(CaseParticipant):
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        roles = [CVDRole.OTHER]
+        roles = [CVDRole.OBSERVER]
         data["case_roles"] = roles
         ps_list = data.get("participant_statuses")
         if ps_list:

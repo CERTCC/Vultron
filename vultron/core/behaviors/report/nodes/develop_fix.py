@@ -29,7 +29,12 @@ References
 """
 
 import logging
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from vultron.core.behaviors.case.nodes.participant.status import (
+        CreateParticipantStatusNode,
+    )
 
 from py_trees.common import Status
 
@@ -293,26 +298,55 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         self._actor_id = actor_id
         self._result_out = result_out if result_out is not None else {}
 
+    def _make_status_node(
+        self, vfd_state: CS_vfd, label: str
+    ) -> "CreateParticipantStatusNode":
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
+
+        assert self.datalayer is not None
+        node = CreateParticipantStatusNode(
+            case_id=self._case_id,
+            actor_id=self._actor_id,
+            rm_state=None,
+            vfd_state=vfd_state,
+            pxa_state=None,
+            result_out=self._result_out,
+            name=f"{self.name}.{label}",
+        )
+        node.datalayer = self.datalayer
+        return node
+
+    def _ensure_vendor_aware(self) -> Status:
+        """Advance actor to Vfd if still at vfd (CSB-16-001 strict adjacency)."""
+        assert self.datalayer is not None
+        case = self.datalayer.read(self._case_id)
+        if not isinstance(case, VulnerabilityCase):
+            return Status.SUCCESS
+        participant_id = case.actor_participant_index.get(self._actor_id)
+        if participant_id is None:
+            return Status.SUCCESS
+        _, current_vfd = resolve_participant_state_from_dl(
+            self.datalayer, participant_id
+        )
+        if current_vfd != CS_vfd.vfd:
+            return Status.SUCCESS
+        try:
+            return self._make_status_node(CS_vfd.Vfd, "_VendorAware").update()
+        except Exception as e:
+            self.logger.error("%s: Error advancing to Vfd: %s", self.name, e)
+            return Status.FAILURE
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
+        if self._ensure_vendor_aware() != Status.SUCCESS:
+            return Status.FAILURE
 
-        node = CreateParticipantStatusNode(
-            case_id=self._case_id,
-            actor_id=self._actor_id,
-            rm_state=None,
-            vfd_state=CS_vfd.VFd,
-            pxa_state=None,
-            result_out=self._result_out,
-            name=f"{self.name}._Create",
-        )
-        node.datalayer = self.datalayer
-
+        node = self._make_status_node(CS_vfd.VFd, "_Create")
         try:
             status = node.update()
             if status == Status.SUCCESS:

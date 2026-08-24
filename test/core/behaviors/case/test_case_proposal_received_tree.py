@@ -34,6 +34,7 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     _ClearCreateCaseMarkerNode,
@@ -170,9 +171,9 @@ class TestWriteCreateCaseMarkerNode:
         client.case_id = case_id
         client.accept_activity_id = accept_id
 
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=actor_id
-        )
+        result = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(tree=tree, actor_id=actor_id)
         return result.status
 
     def test_writes_marker_to_datalayer(self):
@@ -411,7 +412,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         )
         event = self._make_event(make_payload)
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         assert (
@@ -439,7 +442,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             "update",
             return_value=py_trees.common.Status.FAILURE,
         ):
-            CreateCaseProposalReceivedUseCase(dl, event).execute()
+            CreateCaseProposalReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
@@ -470,7 +475,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             "update",
             return_value=py_trees.common.Status.FAILURE,
         ):
-            CreateCaseProposalReceivedUseCase(dl, event).execute()
+            CreateCaseProposalReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
@@ -515,7 +522,9 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             return py_trees.common.Status.SUCCESS
 
         with patch.object(_ClearCreateCaseMarkerNode, "update", _skip_delete):
-            CreateCaseProposalReceivedUseCase(dl, event).execute()
+            CreateCaseProposalReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
@@ -585,7 +594,10 @@ def _run_full_bt(make_payload, dl: SqliteDataLayer, actor_config=None) -> None:
 
     event = _make_full_event(make_payload)
     CreateCaseProposalReceivedUseCase(
-        dl, event, actor_config=actor_config
+        dl,
+        event,
+        actor_config=actor_config,
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
 
@@ -1331,7 +1343,9 @@ class TestADR0041InlineParticipantsPayload:
             return py_trees.common.Status.SUCCESS
 
         with patch.object(_ClearCreateCaseMarkerNode, "update", _skip_delete):
-            CreateCaseProposalReceivedUseCase(dl, event).execute()
+            CreateCaseProposalReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
@@ -1345,7 +1359,7 @@ class TestADR0041InlineParticipantsPayload:
             "Create(VulnerabilityCase) payload.object must be an inline dict,"
             f" not {type(obj_field).__name__!r}"
         )
-        participants = obj_field.get("case_participants", [])
+        participants = obj_field.get("caseParticipants", [])
         assert (
             participants
         ), "Inline case object must have at least one participant (AC-5)"
@@ -1353,7 +1367,7 @@ class TestADR0041InlineParticipantsPayload:
         for p in participants:
             assert isinstance(
                 p, dict
-            ), f"case_participants entries must be inline dicts, got {type(p).__name__!r}"
+            ), f"caseParticipants entries must be inline dicts, got {type(p).__name__!r}"
 
     def test_vendor_participant_inline_in_payload(self, make_payload):
         """Vendor participant must appear as inline object in Create payload."""
@@ -1375,7 +1389,9 @@ class TestADR0041InlineParticipantsPayload:
             return py_trees.common.Status.SUCCESS
 
         with patch.object(_ClearCreateCaseMarkerNode, "update", _skip_delete):
-            CreateCaseProposalReceivedUseCase(dl, event).execute()
+            CreateCaseProposalReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
@@ -1385,9 +1401,9 @@ class TestADR0041InlineParticipantsPayload:
         obj_field = payload.get("object") or payload.get("object_")
         assert isinstance(obj_field, dict)
 
-        participants = obj_field.get("case_participants", [])
+        participants = obj_field.get("caseParticipants", [])
         attributed_tos = {
-            p.get("attributed_to") or p.get("attributedTo")
+            p.get("attributedTo") or p.get("attributed_to")
             for p in participants
             if isinstance(p, dict)
         }

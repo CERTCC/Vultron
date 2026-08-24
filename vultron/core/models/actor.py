@@ -73,9 +73,6 @@ class CoreActor(CoreObject):
         description="The actor's stated embargo preferences.",
     )
 
-    def to_json(self, **kwargs: Any) -> str:
-        return self.model_dump_json(exclude_none=True, by_alias=True, **kwargs)
-
 
 class CoreActorCollection(CoreObject):
     """Minimal ordered-collection shape used for actor inbox/outbox fields."""
@@ -102,11 +99,7 @@ class CoreActorCollection(CoreObject):
 
 
 class VultronPerson(CoreActor):
-    """Core domain model for a Person actor.
-
-    Registered in VOCABULARY["Person"]; uses camelCase aliases for AS2 wire
-    serialization.
-    """
+    """Core domain model for a Person actor."""
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -122,11 +115,7 @@ class VultronPerson(CoreActor):
 
 
 class VultronOrganization(CoreActor):
-    """Core domain model for an Organization actor.
-
-    Registered in VOCABULARY["Organization"]; uses camelCase aliases for AS2
-    wire serialization.
-    """
+    """Core domain model for an Organization actor."""
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -142,11 +131,7 @@ class VultronOrganization(CoreActor):
 
 
 class VultronService(CoreActor):
-    """Core domain model for a Service actor.
-
-    Registered in VOCABULARY["Service"]; uses camelCase aliases for AS2 wire
-    serialization.
-    """
+    """Core domain model for a Service actor."""
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -162,11 +147,7 @@ class VultronService(CoreActor):
 
 
 class VultronApplication(CoreActor):
-    """Core domain model for an Application actor.
-
-    Registered in VOCABULARY["Application"]; uses camelCase aliases for AS2
-    wire serialization.
-    """
+    """Core domain model for an Application actor."""
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -182,11 +163,7 @@ class VultronApplication(CoreActor):
 
 
 class VultronGroup(CoreActor):
-    """Core domain model for a Group actor.
-
-    Registered in VOCABULARY["Group"]; uses camelCase aliases for AS2 wire
-    serialization.
-    """
+    """Core domain model for a Group actor."""
 
     model_config = ConfigDict(
         populate_by_name=True,
