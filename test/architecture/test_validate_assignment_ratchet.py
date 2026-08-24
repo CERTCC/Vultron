@@ -201,7 +201,9 @@ def _find_self_assigning_after_validators() -> set[str]:
         for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
             for fn in (n for n in cls.body if isinstance(n, ast.FunctionDef)):
                 if _is_after_validator(fn) and _assigns_to_self(fn):
-                    found.add(f"{path.as_posix()}::{cls.name}.{fn.name}")
+                    found.add(
+                        f"{path.relative_to(_corpus.REPO_ROOT).as_posix()}::{cls.name}.{fn.name}"
+                    )
     return found
 
 
