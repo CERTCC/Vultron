@@ -56,9 +56,10 @@ Three levels an independent implementor can achieve:
 
 A fourth level (L4 — Process: correct internal decision structure, e.g.,
 precondition before state write before effect) is enforceable only via a
-reference implementation. Some process ordering leaks into L3 when the sequence
-of outputs is itself observable (e.g., CP must precede ET when public
-disclosure triggers embargo teardown).
+reference implementation. Some process ordering also rises to L3 when the
+sequence of outputs is itself observable. For example, CP-before-ET (when
+public disclosure triggers embargo teardown) is now normatively specified in
+CSB-12-001 as a MUST, not just an implementation convention.
 
 ## Why New Files, Not VP Extensions
 
@@ -170,8 +171,21 @@ fields above) and `relationships:` pointing to VP items via `satisfies`.
 Some ECA rules are not just "do A when B" but "do A *before* B." These use
 `steps:` on `BehavioralSpec` items to encode ordering. Critical ones:
 
-- **CS→P triggers embargo teardown**: record CS state transition *first*, then
-  initiate teardown. Observable: CP must precede ET in the message stream.
+- **CS→P triggers embargo teardown** (CSB-12-001, CSB-04-003): record CS state
+  transition *first*, then initiate teardown. Observable: CP must precede ET in
+  the message stream. This is normatively specified as MUST and is also enforced
+  structurally in `add_case_status_tree` (AppendCaseStatusToCaseNode runs before
+  ThreatTerminationBranchNode).
+- **Ephemeral states: pX→PX invariant** (CSB-13-001, CSB-17-003, CSB-17-012):
+  when the CS PXA state is pXa or pXA (exploit public without public awareness),
+  the next CS event MUST be P. This is normatively specified but **not yet
+  enforced in BT paths** — `cs_invariants.required_next_cs_events()` is not
+  called from `ValidateCaseStatusTransitionNode`. See #2524.
+- **CS history validity** (CSB-17-004, CSB-17-005): complete CS histories must
+  be one of 70 valid histories; incomplete histories must be valid prefixes.
+  Normatively specified but **not yet enforced** — `cs_invariants.is_valid_cs_history()`
+  and `is_valid_cs_history_prefix()` are not wired into any receive path. See
+  #2524.
 - **Ledger commit ordering** (from `specs/case-ledger-processing.yaml`
   CLP-10-006): precondition checks → ledger commit → protocol effects.
   Observable from audit replay.
