@@ -373,8 +373,10 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   Manager ID in a read-only guard node BEFORE state-mutation node. See BT-19-001,
   BT-19-002. [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Routing-Gated
   State Mutation".
-- **Superseded `notes/*.md` Files Must Move to `archived_notes/`** — use `git mv`;
-  update both READMEs. See PD-03-004, PD-03-005.
+- **Superseded Notes Sections Are Archived via `append-history note`** — stale
+  sections (or whole files) go to `plan/history/YYMM/note/` with source ID
+  `NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
+  See PD-03-002, PD-03-004.
 - **Stub Adapter Files Must Raise `NotImplementedError`** — docstring-only stubs
   hide integration gaps. See OX-10-004, OX-11-004.
 - **Trigger Use Cases Need Per-Use-Case Tests** — incidental coverage via
