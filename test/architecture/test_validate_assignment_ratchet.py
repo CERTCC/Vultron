@@ -58,13 +58,13 @@ import ast
 import importlib
 import pkgutil
 import re
-from pathlib import Path
 
 from pydantic import BaseModel
 
 import vultron.core.models
+from test.architecture import _corpus
 
-_CORE_ROOT = Path("vultron/core")
+_CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
 _MODELS_PACKAGE = "vultron.core.models"
 
 # ---------------------------------------------------------------------------
@@ -195,32 +195,32 @@ def _assigns_to_self(fn: ast.FunctionDef) -> bool:
 def _find_self_assigning_after_validators() -> set[str]:
     """Return ``path::Class.method`` for each core after-validator writing to self."""
     found: set[str] = set()
-    for path in sorted(_CORE_ROOT.rglob("*.py")):
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (
-            SyntaxError
-        ):  # pragma: no cover - unparseable file is a build error
-            continue
+    for path, tree in _corpus.files_mentioning(
+        "model_validator", under=_CORE_ROOT
+    ):
         for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
             for fn in (n for n in cls.body if isinstance(n, ast.FunctionDef)):
                 if _is_after_validator(fn) and _assigns_to_self(fn):
-                    found.add(f"{path.as_posix()}::{cls.name}.{fn.name}")
+                    found.add(
+                        f"{path.relative_to(_corpus.REPO_ROOT).as_posix()}::{cls.name}.{fn.name}"
+                    )
     return found
 
 
 def _find_collection_mutation_modules() -> set[str]:
     """Return modules under ``vultron/core/`` that mutate a shape-dual collection."""
     found: set[str] = set()
-    for path in sorted(_CORE_ROOT.rglob("*.py")):
-        posix = path.as_posix()
-        if posix in _CANONICAL_MUTATOR_MODULES:
+    for path, source in _corpus.sources_mentioning(
+        *_SHAPE_DUAL_COLLECTIONS, under=_CORE_ROOT
+    ):
+        rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
+        if rel in _CANONICAL_MUTATOR_MODULES:
             continue
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in source.splitlines():
             if line.lstrip().startswith("#"):
                 continue
             if any(pattern.search(line) for pattern in _MUTATION_RE.values()):
-                found.add(posix)
+                found.add(rel)
                 break
     return found
 
@@ -251,10 +251,23 @@ def _lacks_validate_assignment(cls: type[BaseModel]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Module-level caches — populated at import time, outside pytest-timeout budget.
+# ---------------------------------------------------------------------------
+_ACTUAL_SELF_ASSIGNING: frozenset[str] = frozenset(
+    _find_self_assigning_after_validators()
+)
+_ACTUAL_COLLECTION_MUTATIONS: frozenset[str] = frozenset(
+    _find_collection_mutation_modules()
+)
+
+
+# ---------------------------------------------------------------------------
 # Guard the guards — a detector that finds nothing makes every assertion vacuous
 # ---------------------------------------------------------------------------
 def test_detectors_are_not_vacuous():
-    assert len(list(_CORE_ROOT.rglob("*.py"))) > 100, "core tree not found"
+    assert (
+        sum(1 for _ in _corpus.all_sources(under=_CORE_ROOT)) > 100
+    ), "core tree not found"
     assert len(_core_model_classes()) > 50, "core models did not import"
 
 
@@ -263,7 +276,7 @@ def test_detectors_are_not_vacuous():
 # ---------------------------------------------------------------------------
 def test_self_assigning_after_validator_backlog_is_exact():
     """The enumerated set must match reality, in both directions."""
-    found = _find_self_assigning_after_validators()
+    found = _ACTUAL_SELF_ASSIGNING
     assert found == set(_SELF_ASSIGNING_AFTER_VALIDATORS), (
         'the set of core `mode="after"` validators that assign to `self` changed.\n'
         f"  newly violating: {sorted(found - _SELF_ASSIGNING_AFTER_VALIDATORS)}\n"
@@ -275,7 +288,7 @@ def test_self_assigning_after_validator_backlog_is_exact():
 
 
 def test_no_core_after_validator_assigns_to_self():
-    found = _find_self_assigning_after_validators()
+    found = _ACTUAL_SELF_ASSIGNING
     assert not found, (
         f'{len(found)} core `mode="after"` validators still assign to `self`:'
         f" {sorted(found)}"
@@ -355,7 +368,7 @@ def test_every_core_model_has_validate_assignment():
 # ---------------------------------------------------------------------------
 def test_collection_mutation_backlog_is_exact():
     """The enumerated set must match reality, in both directions."""
-    found = _find_collection_mutation_modules()
+    found = _ACTUAL_COLLECTION_MUTATIONS
     assert found == set(_COLLECTION_MUTATION_BACKLOG), (
         "the set of core modules mutating a shape-dual collection changed.\n"
         f"  newly violating: {sorted(found - _COLLECTION_MUTATION_BACKLOG)}\n"
@@ -367,7 +380,7 @@ def test_collection_mutation_backlog_is_exact():
 
 
 def test_no_direct_shape_dual_collection_mutation_in_core():
-    found = _find_collection_mutation_modules()
+    found = _ACTUAL_COLLECTION_MUTATIONS
     assert not found, (
         f"{len(found)} core modules mutate a shape-dual collection directly:"
         f" {sorted(found)}"
@@ -377,7 +390,9 @@ def test_no_direct_shape_dual_collection_mutation_in_core():
 def test_canonical_mutator_modules_still_exist():
     """A stale allowlist entry silently widens the exemption."""
     missing = sorted(
-        m for m in _CANONICAL_MUTATOR_MODULES if not Path(m).is_file()
+        m
+        for m in _CANONICAL_MUTATOR_MODULES
+        if not (_corpus.REPO_ROOT / m).is_file()
     )
     assert not missing, (
         f"_CANONICAL_MUTATOR_MODULES names files that no longer exist: {missing}."

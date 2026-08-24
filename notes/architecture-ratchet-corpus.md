@@ -81,7 +81,7 @@ Measured after applying the shared corpus + prefilter to
 
 | Before | After |
 |---|---|
-| 3.8 s (scans vultron + test, parses all) | 0.04 s (26 files match) |
+| 3.8 s (scans vultron + test, parses all) | 0.13 s (CI-verified) |
 
 For `test_no_asgi_transport_in_app_code` (target string: `"ASGITransport"`):
 

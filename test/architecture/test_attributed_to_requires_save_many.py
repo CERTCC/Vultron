@@ -49,9 +49,9 @@ save_many()" in ``vultron/core/AGENTS.md``.
 import ast
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
-_BEHAVIORS_ROOT = REPO_ROOT / "vultron" / "core" / "behaviors"
+_BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
 
 def _walk_own_scope(node: ast.AST):
@@ -147,14 +147,8 @@ def _has_datalayer_save_call(scope: ast.AST) -> bool:
     return False
 
 
-def _has_attributed_to_with_save_in_update(source_path: Path) -> bool:
-    """Return True if *source_path* has an update() that assigns attributed_to
-    and also calls self.datalayer.save().
-    """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
+def _has_attributed_to_with_save_in_update_tree(tree: ast.AST) -> bool:
+    """Return True if *tree* has an update() that assigns attributed_to and calls save()."""
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -167,14 +161,26 @@ def _has_attributed_to_with_save_in_update(source_path: Path) -> bool:
     return False
 
 
+def _has_attributed_to_with_save_in_update(source_path: Path) -> bool:
+    """Return True if *source_path* has an update() that assigns attributed_to
+    and also calls self.datalayer.save().
+    """
+    try:
+        source = source_path.read_text(encoding="utf-8")
+        tree = _corpus.parse_inline(source, filename=str(source_path))
+    except (OSError, SyntaxError):
+        return False
+    return _has_attributed_to_with_save_in_update_tree(tree)
+
+
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of BT node files with the violation pattern."""
     violations: set[str] = set()
-    for py_file in _BEHAVIORS_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        if _has_attributed_to_with_save_in_update(py_file):
-            violations.add(py_file.relative_to(REPO_ROOT).as_posix())
+    for py_file, tree in _corpus.files_mentioning(
+        "attributed_to", under=_BEHAVIORS_ROOT
+    ):
+        if _has_attributed_to_with_save_in_update_tree(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
     return frozenset(violations)
 
 

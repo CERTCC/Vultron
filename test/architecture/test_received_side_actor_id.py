@@ -27,8 +27,11 @@ Issue: #2338
 import ast
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]
-_RECEIVED_ROOT = REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
+from test.architecture import _corpus
+
+_RECEIVED_ROOT = (
+    _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received"
+)
 
 
 def _is_execute_with_setup_call(node: ast.AST) -> bool:
@@ -60,7 +63,7 @@ def _is_request_actor_id(node: ast.expr) -> bool:
 
 def _label(source_path: Path) -> str:
     try:
-        return source_path.relative_to(REPO_ROOT).as_posix()
+        return source_path.relative_to(_corpus.REPO_ROOT).as_posix()
     except ValueError:
         return str(source_path)
 
@@ -81,14 +84,8 @@ def _violations_in_execute(
     return results
 
 
-def _collect_violations(source_path: Path) -> list[str]:
+def _collect_violations_from_tree(tree: ast.AST, label: str) -> list[str]:
     """Return 'file:lineno' entries where execute_with_setup passes request.actor_id."""
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return []
-
-    label = _label(source_path)
     violations: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -99,16 +96,28 @@ def _collect_violations(source_path: Path) -> list[str]:
     return violations
 
 
+def _collect_violations(source_path: Path) -> list[str]:
+    """Scan a single file (including tmp_path synthetic files not in corpus)."""
+    try:
+        source = source_path.read_text(encoding="utf-8")
+        tree = _corpus.parse_inline(source, filename=str(source_path))
+    except (OSError, SyntaxError):
+        return []
+    return _collect_violations_from_tree(tree, _label(source_path))
+
+
 def test_received_side_execute_with_setup_never_passes_request_actor_id():
     """No received-side execute() may pass actor_id=request.actor_id to execute_with_setup.
 
     Spec BT-17-006. Issue #2338.
     """
     all_violations: list[str] = []
-    for py_file in _RECEIVED_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        all_violations.extend(_collect_violations(py_file))
+    for py_file, tree in _corpus.files_mentioning(
+        "execute_with_setup", under=_RECEIVED_ROOT
+    ):
+        all_violations.extend(
+            _collect_violations_from_tree(tree, _label(py_file))
+        )
 
     assert not all_violations, (
         "received-side execute() calls pass actor_id=request.actor_id"

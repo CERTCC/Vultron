@@ -31,8 +31,9 @@ Closes #1887 AC-1.
 """
 
 import ast
-import pathlib
 from collections import Counter
+
+from test.architecture import _corpus
 
 # ---------------------------------------------------------------------------
 # Audited baseline — (path_relative_to_behaviors_root, class_name)
@@ -146,20 +147,20 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
     ]
 )
 
+_BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
+
 
 def _collect_sites() -> list[tuple[str, str]]:  # noqa: C901
     """Return sorted (rel_path, class_name) for non-WithPorts DataLayer*
     subclasses whose setup() method calls register_key()."""
     non_ports_bases = {"DataLayerAction", "DataLayerCondition"}
-    root = pathlib.Path("vultron/core/behaviors")
     found: list[tuple[str, str]] = []
-    for path in sorted(root.rglob("*.py")):
-        if "__pycache__" in path.parts:
-            continue
-        try:
-            tree = ast.parse(path.read_text(), filename=str(path))
-        except SyntaxError:  # pragma: no cover
-            continue
+    for path, tree in _corpus.files_mentioning(
+        "register_key",
+        "DataLayerAction",
+        "DataLayerCondition",
+        under=_BEHAVIORS_ROOT,
+    ):
         for cls_node in ast.walk(tree):
             if not isinstance(cls_node, ast.ClassDef):
                 continue
@@ -191,7 +192,7 @@ def _collect_sites() -> list[tuple[str, str]]:  # noqa: C901
                 if has_register_key:
                     break
             if has_register_key:
-                rel = str(path.relative_to(root)).replace("\\", "/")
+                rel = str(path.relative_to(_BEHAVIORS_ROOT)).replace("\\", "/")
                 found.append((rel, cls_node.name))
     return sorted(found)
 

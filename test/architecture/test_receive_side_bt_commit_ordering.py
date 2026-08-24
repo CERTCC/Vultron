@@ -30,17 +30,17 @@ immediately rather than silently accumulating debt.
 """
 
 import ast
-import os
-from pathlib import Path
 
 import pytest
+
+from test.architecture import _corpus
 
 # Exempt files: may contain direct calls (definition site only).
 EXEMPT_FILES = {
     "vultron/core/behaviors/case/nodes/lifecycle.py",
 }
 
-BEHAVIORS_ROOT = Path(__file__).parents[2] / "vultron" / "core" / "behaviors"
+BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 FORBIDDEN_CALL = "create_guarded_commit_case_ledger_entry_tree"
 
 
@@ -59,29 +59,16 @@ def _is_forbidden_call(node: ast.AST) -> bool:
 def _find_violations() -> list[tuple[str, int]]:
     """Return (relative_path, line_no) for each forbidden call outside exempt files."""
     violations: list[tuple[str, int]] = []
-    repo_root = Path(__file__).parents[2]
-
-    for dirpath, _, filenames in os.walk(BEHAVIORS_ROOT):
-        for filename in filenames:
-            if not filename.endswith(".py"):
-                continue
-            full_path = Path(dirpath) / filename
-            rel_path = str(full_path.relative_to(repo_root))
-
-            if rel_path in EXEMPT_FILES:
-                continue
-
-            source = full_path.read_text(encoding="utf-8")
-            try:
-                tree = ast.parse(source, filename=rel_path)
-            except SyntaxError:
-                continue
-
-            for node in ast.walk(tree):
-                if _is_forbidden_call(node):
-                    assert isinstance(node, ast.Call)
-                    violations.append((rel_path, node.lineno))
-
+    for py_file, tree in _corpus.files_mentioning(
+        FORBIDDEN_CALL, under=BEHAVIORS_ROOT
+    ):
+        rel_path = str(py_file.relative_to(_corpus.REPO_ROOT))
+        if rel_path in EXEMPT_FILES:
+            continue
+        for node in ast.walk(tree):
+            if _is_forbidden_call(node):
+                assert isinstance(node, ast.Call)
+                violations.append((rel_path, node.lineno))
     return violations
 
 
@@ -149,14 +136,10 @@ def _validator_violations_in_call(
     return violations
 
 
-def _violations_in_source(
-    source: str, rel_path: str
+def _violations_in_tree(
+    tree: ast.AST, rel_path: str
 ) -> list[tuple[str, int, str]]:
-    """Parse one source file and return all CLP-10-009 violations."""
-    try:
-        tree = ast.parse(source, filename=rel_path)
-    except SyntaxError:
-        return []
+    """Return all CLP-10-009 violations found in an already-parsed tree."""
     violations: list[tuple[str, int, str]] = []
     for node in ast.walk(tree):
         if (
@@ -170,17 +153,11 @@ def _violations_in_source(
 def _find_validators_in_effect_nodes() -> list[tuple[str, int, str]]:
     """Return (rel_path, line_no, validator_name) for each violation."""
     violations: list[tuple[str, int, str]] = []
-    repo_root = Path(__file__).parents[2]
-
-    for dirpath, _, filenames in os.walk(BEHAVIORS_ROOT):
-        for filename in filenames:
-            if not filename.endswith(".py"):
-                continue
-            full_path = Path(dirpath) / filename
-            rel_path = str(full_path.relative_to(repo_root))
-            source = full_path.read_text(encoding="utf-8")
-            violations.extend(_violations_in_source(source, rel_path))
-
+    for py_file, tree in _corpus.files_mentioning(
+        RECEIVE_ACTIVITY_TREE_CALL, under=BEHAVIORS_ROOT
+    ):
+        rel_path = str(py_file.relative_to(_corpus.REPO_ROOT))
+        violations.extend(_violations_in_tree(tree, rel_path))
     return violations
 
 
