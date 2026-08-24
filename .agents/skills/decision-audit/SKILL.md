@@ -183,9 +183,18 @@ approves the correction and disposition.
      update its `adr:` edge if the source decision changed.
 3. Amend dependent `specs/*.yaml` and `notes/*.md` so no dependent still
    asserts the bad premise.
-4. Validate: run `format-markdown`, `build-docs` (strict), and the spec linter
+4. **Cascade note-section archival**: after correcting or retiring the
+   candidate, scan `notes/*.md` for sections whose *sole purpose* was to
+   explain the now-retired or corrected decision. For each such section,
+   propose archiving it to `plan/history/YYMM/note/` using `append-history
+   note` with source ID `NOTES-<file-stem>--<section-slug>`. Entry format:
+   archiving reason + pointer to the corrected/retired ADR or spec group +
+   `---` + original section content verbatim. Confirm each with the user
+   before removing — a section that still contains active guidance independent
+   of the retired decision should be trimmed, not archived wholesale.
+5. Validate: run `format-markdown`, `build-docs` (strict), and the spec linter
    (`uv run spec-lint`).
-5. Open a docs-only PR via `create-pr` with the `specs-notes` label.
+6. Open a docs-only PR via `create-pr` with the `specs-notes` label.
 
 **Defer (only on real uncertainty):**
 

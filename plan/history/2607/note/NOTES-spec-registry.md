@@ -1,13 +1,14 @@
 ---
+source: NOTES-spec-registry
+timestamp: '2026-07-08T00:00:00+00:00'
 title: Spec Registry Design
-status: archived
-related_specs:
-  - specs/spec-registry.yaml
-  - specs/notes-frontmatter.yaml
-related_notes:
-  - notes/append-only-file-handling.md
-relevant_packages:
-  - vultron/metadata/specs
+type: note
+---
+
+**Archived:** 2026-07-08
+**Reason:** Implemented — `specs/*.md` fully migrated to `.yaml`; `vultron/metadata/specs/` is in place
+**Superseded by:** `vultron/metadata/specs/` package; `specs/*.yaml` corpus; `specs/spec-registry.yaml`
+
 ---
 
 # Spec Registry Design
