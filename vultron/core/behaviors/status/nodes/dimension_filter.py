@@ -38,10 +38,13 @@ Per specs/received-status-handling.yaml RSH-05.
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Status
+
+if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.case.nodes.lifecycle import (
     BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
@@ -78,57 +81,47 @@ BB_DIMENSION_FILTER = "append_status_dimension_filter"
 BB_RM_ANOMALY = "rm_transition_anomaly"
 
 
-def _accepted_wire_patch(filtered: ParticipantStatus) -> dict[str, Any]:
+def _accepted_wire_patch(
+    filtered: ParticipantStatus,
+    port: "WireRenderPort",
+) -> dict[str, Any]:
     """Return the adjudicated dimension values keyed by their wire aliases.
 
     The canonical ledger's ``payload_snapshot['object']`` is the *sender's*
     wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfdState``, nested
     ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
     override is therefore published as a **patch** rather than a replacement
-    object: dumping this core model would emit nested ``rm``/``vfd`` dimension
-    objects and lose the fields the guard never adjudicated, and core must not
-    import the wire layer to convert (ADR-0009, ADR-0017).  Patching leaves the
-    snapshot's shape exactly as the non-override path produces it and rewrites
-    only what was adjudicated (RSH-05-004, RSH-05-009).
-
-    The alias names below are the same ones the core models already accept as
-    wire-compat input — see ``ParticipantStatus._migrate_flat_fields`` and
-    ``CaseStatus._migrate_flat_fields`` — so they are part of core's existing
-    surface, not new knowledge of the wire format.
+    object: patching leaves the snapshot's shape exactly as the non-override
+    path produces it and rewrites only what was adjudicated (RSH-05-004,
+    RSH-05-009).  Wire key names are obtained from the port rather than
+    hardcoded here (CLP-07-009, CLP-07-010, ADR-0063).
     """
-    patch: dict[str, Any] = {
-        "rmState": filtered.rm.state.name,
-        "vfdState": filtered.vfd.state.name,
+    rendered = port.render(filtered)
+    return {
+        k: rendered[k]
+        for k in ("rmState", "vfdState", "caseStatus")
+        if k in rendered
     }
-    if filtered.case_status is not None:
-        patch["caseStatus"] = {
-            "emState": filtered.case_status.em.state.name,
-            "pxaState": filtered.case_status.pxa.state.name,
-        }
-    return patch
 
 
 def _to_core_status(status_obj: Any) -> ParticipantStatus | None:
     """Return *status_obj* as a core :class:`ParticipantStatus`, or ``None``.
 
-    ``SqliteDataLayer.read`` already returns core models, but the fallback
-    object supplied by the tree factory comes from the wire layer with flat
-    ``rmState``/``vfdState`` fields.  The core model's ``_migrate_flat_fields``
-    validator accepts that shape, so a dump-and-revalidate normalises both.
+    ``SqliteDataLayer.read`` already returns core models.  For any other
+    object (e.g. a wire-layer ``as_ParticipantStatus`` supplied as a
+    fallback by the tree factory), call ``to_core()`` to project it to the
+    core type (ARCH-20-007).
     """
     if isinstance(status_obj, ParticipantStatus):
         return status_obj
-    if status_obj is None or not hasattr(status_obj, "model_dump"):
+    if status_obj is None:
+        return None
+    to_core = getattr(status_obj, "to_core", None)
+    if to_core is None:
         return None
     try:
-        return ParticipantStatus.model_validate(
-            status_obj.model_dump(
-                mode="json",
-                by_alias=True,
-                serialize_as_any=True,
-                exclude_none=True,
-            )
-        )
+        result = to_core()
+        return result if isinstance(result, ParticipantStatus) else None
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning(
             "FilterParticipantStatusDimensionsNode: could not normalise"
@@ -218,6 +211,16 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         self.participant_id = participant_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
+        self.wire_render_port: "WireRenderPort | None" = None
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            **super().input_ports(),
+            "wire_render_port": PortInformation(
+                data_type=object, required=False
+            ),
+        }
 
     @classmethod
     def output_ports(cls) -> dict[str, PortInformation]:
@@ -234,10 +237,18 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
+            "wire_render_port": "/wire_render_port",
             BB_DIMENSION_FILTER: f"/{BB_DIMENSION_FILTER}",
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
             BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}",
         }
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except Exception:
+            self.wire_render_port = None
 
     def _publish(
         self,
@@ -267,13 +278,28 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
                 "filtered_status": filtered,
             },
         )
+        if self.wire_render_port is not None:
+            override_fields: dict[str, Any] | None = _accepted_wire_patch(
+                filtered, self.wire_render_port
+            )
+        else:
+            logger.warning(
+                "%s: wire_render_port not available; skipping"
+                " BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE (RSH-05-004)",
+                self.name,
+            )
+            override_fields = None
         self._set_output(
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-            {
-                "object_id": self.status_id,
-                "producer_type": self.__class__.__name__,
-                "fields": _accepted_wire_patch(filtered),
-            },
+            (
+                {
+                    "object_id": self.status_id,
+                    "producer_type": self.__class__.__name__,
+                    "fields": override_fields,
+                }
+                if override_fields is not None
+                else None
+            ),
         )
         self._set_output(BB_RM_ANOMALY, rm_anomaly)
 

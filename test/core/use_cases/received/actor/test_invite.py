@@ -666,12 +666,35 @@ class TestInviteActorUseCases:
             payload_snapshot={"index": 1},
         )
 
+        from vultron.wire.as2.factories import add_participant_to_case_activity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        _add_activity_id = f"{case.id_}/activities/add-participant-1"
+
+        def _store_add_participant(**kwargs):
+            participant_id = kwargs.get("participant_id", invitee_id)
+            wire_p = as_CaseParticipant(
+                id_=participant_id,
+                attributed_to=invitee_id,
+                context=kwargs.get("case_id", case.id_),
+            )
+            activity = add_participant_to_case_activity(
+                participant=wire_p,
+                target=kwargs.get("case_id", case.id_),
+                actor=kwargs.get("actor", case_actor_id),
+                id_=_add_activity_id,
+            )
+            dl.create(activity)
+            return _add_activity_id
+
         trigger_activity = MagicMock()
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
         )
-        trigger_activity.add_participant_to_case.return_value = (
-            f"{case.id_}/activities/add-participant-1"
+        trigger_activity.add_participant_to_case.side_effect = (
+            _store_add_participant
         )
         sync_port = MagicMock()
 

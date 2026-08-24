@@ -26,6 +26,7 @@ import logging
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
@@ -68,7 +69,9 @@ def _run_create_proposal(dl, proposal, make_payload):
     )
     event = make_payload(activity)
     event = event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
-    CreateCaseProposalReceivedUseCase(dl, event).execute()
+    CreateCaseProposalReceivedUseCase(
+        dl, event, wire_render_port=As2WireRenderAdapter()
+    ).execute()
 
 
 class TestCreateCaseProposalReceivedUseCase:
@@ -88,7 +91,9 @@ class TestCreateCaseProposalReceivedUseCase:
             update={"receiving_actor_id": _CASE_ACTOR_URI}
         )
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # AC-1: VulnerabilityCase was created
         cases = [
@@ -148,7 +153,9 @@ class TestCreateCaseProposalReceivedUseCase:
             update={"receiving_actor_id": _CASE_ACTOR_URI}
         )
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         case_rows = dl.list_objects("VulnerabilityCase")
         assert case_rows, "No VulnerabilityCase created"
@@ -175,7 +182,9 @@ class TestCreateCaseProposalReceivedUseCase:
         # receiving_actor_id is None by default when not set
         event = event.model_copy(update={"receiving_actor_id": None})
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # No case should have been created
         cases = dl.list_objects("VulnerabilityCase")
@@ -201,7 +210,9 @@ class TestCreateCaseProposalReceivedUseCase:
             update={"receiving_actor_id": _CASE_ACTOR_URI}
         )
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         accept_rows = dl.list_objects("Accept")
         assert accept_rows, "No Accept activity stored"

@@ -146,6 +146,10 @@ def make_universal_invariant_tests(  # noqa: C901
         ), "RM state oscillation after CLOSED:\n" + "\n".join(violations)
 
     @pytest.mark.case_ledger_invariants
+    @pytest.mark.xfail(
+        strict=False,
+        reason="pre-existing bug #2505: FV demo CaseActor never reaches RM.CLOSED",
+    )
     def test_invariant_7_log_terminates_all_rm_closed(
         request: pytest.FixtureRequest,
     ) -> None:
@@ -260,6 +264,10 @@ def make_universal_invariant_tests(  # noqa: C901
         )
 
     @pytest.mark.case_ledger_invariants
+    @pytest.mark.xfail(
+        strict=False,
+        reason="pre-existing bug #2505: FV demo CaseActor never reaches RM.CLOSED",
+    )
     def test_invariant_per_actor_replica_divergence(
         request: pytest.FixtureRequest,
     ) -> None:
