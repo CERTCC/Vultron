@@ -1868,10 +1868,10 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
 
 # ---------------------------------------------------------------------------
 # Per-actor isolation: the case-actor's records land in the case-actor's store
-# and are invisible from any other actor's (CM-01-001, ADR-0070).
+# and are invisible from any other actor's (CM-01-001, ADR-0071).
 #
 # These tests used to compare the injected DataLayer against the process-global
-# singleton for the *same* actor.  ADR-0070 makes those the same store by
+# singleton for the *same* actor.  ADR-0071 makes those the same store by
 # construction — store identity is the configured URL plus the actor — so that
 # comparison can no longer fail and would assert nothing.  The invariant worth
 # guarding is the one #2238 was filed about: another actor must not be able to

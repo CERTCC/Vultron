@@ -88,8 +88,8 @@ def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
       *named* in-memory deployment, so the resolved URL differs per app.
       Without the name every app would resolve to the same store and
       cross-app leakage would return — along a different axis than the one
-      ADR-0070 closed, but the same class of bug.
-    - **Per actor** (ADR-0070, CM-01-001): within an app, each actor gets its
+      ADR-0071 closed, but the same class of bug.
+    - **Per actor** (ADR-0071, CM-01-001): within an app, each actor gets its
       own store.  The override is therefore a *factory* keyed on the requested
       actor, not one shared instance.
     """
@@ -276,7 +276,7 @@ def create_app(
       ``app.dependency_overrides[get_actor_dl]`` when no override has already
       been registered.  Each app gets its own *named* in-memory deployment, so
       instances never share storage (issue #534), and within an app each actor
-      gets its own store (ADR-0070, CM-01-001).
+      gets its own store (ADR-0071, CM-01-001).
 
     If you need specific DataLayers (e.g. file-backed SQLite, or test-fixture
     instances), register the override *before* the lifespan starts (i.e. before

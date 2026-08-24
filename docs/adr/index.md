@@ -139,7 +139,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0067 Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently](0067-rm-nonadj-accept-and-notify.md)
 - [ADR-0068 Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx](0068-inbox-refuse-misaddressed-activities.md)
 - [ADR-0069 Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host](0069-vultron-namespace-uri.md) *(provisional)*
-- [ADR-0070 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0070-per-actor-storage-isolation.md)
+- [ADR-0070 Reuse `validate-report` for Invited Actors; Derive `VultronOfferRecord` from Ledger Backfill](0070-invited-actor-rm-triage-via-ledger-backfill.md)
+- [ADR-0071 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0071-per-actor-storage-isolation.md)
 
 ## Proposed ADRs
 

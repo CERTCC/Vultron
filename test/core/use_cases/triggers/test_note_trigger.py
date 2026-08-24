@@ -154,7 +154,7 @@ def _outbox_activity_ids(actor_id: str, dl: SqliteDataLayer) -> list[str]:
     """Return all activity IDs in *actor_id*'s outbox.
 
     ``clone_for_actor`` is the supported way to reach another actor's store
-    (ADR-0070).  This used to build a store for *actor_id* and then swap in
+    (ADR-0071).  This used to build a store for *actor_id* and then swap in
     ``dl``'s engine — a hand-rolled cross-actor read that also disposed a
     *cached* engine, destroying the in-memory database it was pointing at and
     leaving later reads with "no such table".
@@ -191,7 +191,7 @@ class TestSvcAddNoteToCaseUseCase:
         # is open, so once a per-actor engine is disposed the database is gone
         # and clearing it raises "no such table". The autouse
         # _dispose_actor_stores_between_tests fixture in test/conftest.py already
-        # drops every per-actor store after each test (ADR-0070), which is
+        # drops every per-actor store after each test (ADR-0071), which is
         # strictly more thorough than clearing rows.
         _reset_stores()
 

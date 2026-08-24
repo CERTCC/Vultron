@@ -700,7 +700,7 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
 
     A local record is not required: it was read and discarded, delivery derives
     the invitee's inbox from its URI alone, and under per-actor storage a peer's
-    record lives in its own store (ADR-0070 decision 5) — so refusing meant
+    record lives in its own store (ADR-0071 decision 5) — so refusing meant
     refusing every cross-node invitee. The use case logs a WARNING instead, since
     actor discovery does not exist yet and the unverifiable invitee should not
     pass unremarked.

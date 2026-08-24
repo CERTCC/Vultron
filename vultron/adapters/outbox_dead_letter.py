@@ -73,7 +73,7 @@ class OutboxRetryStore(Protocol):
     This protocol is intentionally NOT part of the core ``DataLayer`` port — it
     expresses a delivery-infrastructure concern, not a domain contract.
 
-    No method takes an ``actor_id``.  Under ADR-0070 the implementing store
+    No method takes an ``actor_id``.  Under ADR-0071 the implementing store
     *is* one actor's, so the attempt counters and dead-letter entries it holds
     are that actor's own delivery bookkeeping.  A node-wide operator view fans
     out over hosted actors rather than querying across them.

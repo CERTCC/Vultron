@@ -22,7 +22,7 @@ def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
     announce canonical case state.  The gate resolves the role **from the
     case** rather than comparing against the CaseActor entity that
     ``FindCaseActorNode`` looks up — the authority is a role, and its holder
-    may be any Actor type (CLP-09 precedent; see ADR-0070).
+    may be any Actor type (CLP-09 precedent; see ADR-0071).
 
     A non-manager skips the pre-seed rather than failing: replaying entries it
     already holds is still correct, and only the authoritative actor may seed a

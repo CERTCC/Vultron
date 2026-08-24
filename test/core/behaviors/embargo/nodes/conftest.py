@@ -78,7 +78,7 @@ def make_case_with_manager(
     fixture built that way unable to observe the emission at all.
     """
     # The store belongs to the CASE_MANAGER named here: the teardown trees commit
-    # to the canonical ledger, which that role holder owns (CLP-09, ADR-0070).
+    # to the canonical ledger, which that role holder owns (CLP-09, ADR-0071).
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_manager_actor)
     case, _ = make_case_and_embargo(suffix, em_state=em_state)
     cm_participant = as_CaseParticipant(

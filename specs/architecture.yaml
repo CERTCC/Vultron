@@ -499,12 +499,12 @@ groups:
     superseded_by: DL-07-002
     statement: This requirement is superseded by DL-07-002; there is no unscoped DataLayer to keep away from queue operations.
     rationale: >-
-      The rule policed a hazard that ADR-0070 removed rather than mitigated. It distinguished a "shared"
+      The rule policed a hazard that ADR-0071 removed rather than mitigated. It distinguished a "shared"
       DataLayer from an actor-scoped one and forbade passing the former to queue operations; with every
       DataLayer belonging to exactly one actor, the distinction has no referent and the rule is vacuous.
       Retiring it is the point: the decision *deletes* guard rails instead of adding them.
     adr:
-    - ADR-0070
+    - ADR-0071
   - id: ARCH-13-002
     priority: MUST
     kind: project
@@ -516,7 +516,7 @@ groups:
       distinct. With no unscoped mode the refinement was merged back into `DataLayer`, and queue rows no
       longer carry an `actor_id` column to address at all — the queue lives in its owner's store.
     adr:
-    - ADR-0070
+    - ADR-0071
   - id: ARCH-13-003
     priority: MUST
     kind: project
@@ -526,7 +526,7 @@ groups:
       Where a request carries a path segment, it MUST be resolved to the canonical URI before the store
       is opened.
     rationale: >-
-      Two spellings of one actor must not name two stores. This entry survives ADR-0070 — it is the
+      Two spellings of one actor must not name two stores. This entry survives ADR-0071 — it is the
       reason `get_actor_dl` resolves the segment by computation before opening anything — but its
       wording did not: it referred to constructing an `ActorScopedDataLayer` and justified itself by
       `record_outbox_item` writing rows keyed by the string it received, and both of those are gone.
@@ -542,7 +542,7 @@ groups:
       short path segment to the canonical URI and that the resulting store can read the outbox entries
       that actor's own writes went to.
     adr:
-    - ADR-0070
+    - ADR-0071
   - id: ARCH-13-004
     priority: MUST
     kind: project
@@ -555,7 +555,7 @@ groups:
       actor's own id, so with a mandatory actor scope it was exactly `outbox_append`. With one identity
       instead of two there is nothing left to keep in agreement.
     adr:
-    - ADR-0070
+    - ADR-0071
   - id: ARCH-13-005
     priority: SHOULD
     kind: project
@@ -568,7 +568,7 @@ groups:
       unscoped — so the refinement had no referent and was merged back into `DataLayer`. Retired
       alongside ARCH-13-001/002/004 rather than kept as an unimplementable SHOULD.
     adr:
-    - ADR-0070
+    - ADR-0071
 - id: ARCH-16
   title: App State Isolation
   specs:

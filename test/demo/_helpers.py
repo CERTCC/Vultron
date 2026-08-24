@@ -70,7 +70,7 @@ def make_client(base: str, actor_id: str | None = None) -> DataLayerClient:
 
     *actor_id* names the actor whose store this client's DataLayer reads address.
     It is optional because many callers only use non-DataLayer endpoints, and
-    ``dl_path`` raises rather than guessing (ADR-0070) — so a client that needs it
+    ``dl_path`` raises rather than guessing (ADR-0071) — so a client that needs it
     and lacks it fails loudly at the read instead of silently reporting another
     replica's state.
     """

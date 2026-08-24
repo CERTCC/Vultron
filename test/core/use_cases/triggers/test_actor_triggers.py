@@ -187,7 +187,7 @@ class TestSvcInviteActorToCaseUseCase:
         This asserted a 404 before. Holding a local record was never a protocol
         requirement — the record was read and discarded, delivery derives the
         invitee's inbox from its URI alone, and under per-actor storage a peer's
-        record lives in *its* store, not the inviter's (ADR-0070 decision 5). So
+        record lives in *its* store, not the inviter's (ADR-0071 decision 5). So
         the old behaviour refused invitations to actors that exist and are
         reachable, which is every cross-node invitee in a real deployment.
 
@@ -1259,7 +1259,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         """
         # The store is the *transferee's*: it is the requesting actor, so it is
         # the actor the BT executes as, and a BT reads and writes its executing
-        # actor's own store (ADR-0070).  Holding the owner's store instead left
+        # actor's own store (ADR-0071).  Holding the owner's store instead left
         # the tree looking for the case in an empty one, and `to` fell back to an
         # actor that is not the case manager — the assertion below failed on a
         # value that had nothing to do with `_resolve_case_manager_id`.

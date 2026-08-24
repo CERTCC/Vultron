@@ -145,7 +145,7 @@ class TestOfferCaseParticipantReceivedUseCase:
         ).execute()
 
     def test_never_fabricates_the_local_actor(self, caplog):
-        """There is no "no local actor" case to skip for (ADR-0070).
+        """There is no "no local actor" case to skip for (ADR-0071).
 
         A DataLayer always belongs to exactly one actor, so "who am I?" always has
         an answer: ``resolve_receiving_actor_id`` prefers the inbox-supplied
@@ -208,7 +208,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         ).execute()
 
     def test_never_fabricates_the_local_actor(self, caplog):
-        """There is no "no local actor" case to skip for (ADR-0070).
+        """There is no "no local actor" case to skip for (ADR-0071).
 
         A DataLayer always belongs to exactly one actor, so "who am I?" always
         has an answer. The old skip branch scanned for the first actor object,
@@ -328,7 +328,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         ).execute()
 
     def test_never_fabricates_the_local_actor(self, caplog):
-        """There is no "no local actor" case to skip for (ADR-0070).
+        """There is no "no local actor" case to skip for (ADR-0071).
 
         A DataLayer always belongs to exactly one actor, so "who am I?" always
         has an answer. The old skip branch scanned for the first actor object,

@@ -224,7 +224,7 @@ async def outbox_handler(
     Args:
         actor_id: The ID of the Actor whose outbox is being processed.
         dl: The actor's DataLayer — outbox queue *and* the activity objects
-            themselves.  Before ADR-0070 a separate ``shared_dl`` was used to
+            themselves.  Before ADR-0071 a separate ``shared_dl`` was used to
             read the activities, which only worked because the shared pool saw
             every actor's rows; the activity an actor queued is its own data
             and lives in its own store.
@@ -252,7 +252,7 @@ async def outbox_handler(
     # dl satisfies OutboxRetryStore structurally (SqliteDataLayer implements
     # both); cast lets mypy/pyright see the delivery-infrastructure methods
     # without polluting the core DataLayer port with adapter concerns.  The
-    # retry bookkeeping lands in this actor's own store (ADR-0070), so it needs
+    # retry bookkeeping lands in this actor's own store (ADR-0071), so it needs
     # no actor argument.
     _retry: OutboxRetryStore = cast(OutboxRetryStore, dl)
     activity_err_counts: dict[str, int] = {}

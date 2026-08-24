@@ -105,7 +105,7 @@ class TestOfferActorToCaseReceivedUseCase:
         """With no receiving_actor_id on the request, the store's actor is used.
 
         Replaces a test that asserted a "no local actor" skip. That condition is
-        unreachable under ADR-0070: a DataLayer always belongs to exactly one
+        unreachable under ADR-0071: a DataLayer always belongs to exactly one
         actor, so "who am I?" always has an answer and there is nothing to skip
         for. The old version resolved the answer by scanning the store for the
         first actor object, which since peer records live in each actor's own
@@ -137,7 +137,7 @@ class TestOfferActorToCaseReceivedUseCase:
 
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages, (
-            "the no-local-actor branch is unreachable under ADR-0070 and must"
+            "the no-local-actor branch is unreachable under ADR-0071 and must"
             " not be reintroduced"
         )
         assert (

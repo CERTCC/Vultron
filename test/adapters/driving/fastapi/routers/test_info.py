@@ -34,7 +34,7 @@ def client_info():
     """GET /info takes no DataLayer.
 
     It reports the actors this node *hosts*, enumerated from the per-actor stores
-    that exist (ADR-0070), so there is no dependency to override — an actor is
+    that exist (ADR-0071), so there is no dependency to override — an actor is
     listed because a store was opened for it, not because a row was written.
     """
     from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
@@ -82,7 +82,7 @@ def test_info_actors_lists_hosted_actors_only(client_info):
 
     Hosting an actor means holding its store, so each actor here gets its own —
     writing two actor rows into one store would report one host, not two. A peer
-    the node merely knows an address for is deliberately absent (ADR-0070
+    the node merely knows an address for is deliberately absent (ADR-0071
     decision 4): it is not something this node hosts.
     """
     from vultron.adapters.driven.actor_hosts import canonical_actor_uri

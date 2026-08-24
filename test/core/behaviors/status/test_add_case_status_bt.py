@@ -947,7 +947,7 @@ class TestCaseLedgerEntryCreation:
         from vultron.enums.roles import CVDRole
 
         # The tree runs as the case manager, so this is the case manager's own
-        # store (BT-05-005, ADR-0070).
+        # store (BT-05-005, ADR-0071).
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2254
         )

@@ -173,7 +173,7 @@ def test_setup_tree_blackboard_datalayer_is_the_executing_actors_store(
 
     This used to assert ``blackboard.datalayer == datalayer`` — that the store
     put on the blackboard is exactly the one handed to the bridge.  Under
-    ADR-0070 that is the wrong invariant, and asserting it would forbid the fix:
+    ADR-0071 that is the wrong invariant, and asserting it would forbid the fix:
     ``datalayer`` and ``actor_id`` were two independent facts that could
     disagree, which is how a delegated emit created an activity in the
     requester's store and queued it in the CaseActor's outbox.  The store now

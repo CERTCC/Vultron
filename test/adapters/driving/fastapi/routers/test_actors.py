@@ -441,7 +441,7 @@ def test_get_actor_by_final_path_segment_returns_actor(client_actors):
 
     Retitled from "surrogate key". There is no surrogate: the segment is simply
     the tail of the actor's id, and ``base_url + "actors/" + segment`` reassembles
-    the id exactly (ADR-0070). The previous version stored an actor under a
+    the id exactly (ADR-0071). The previous version stored an actor under a
     *foreign* authority and expected this node to return it, which conflated
     "an actor I know the address of" with "an actor I host".
     """

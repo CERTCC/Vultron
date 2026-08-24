@@ -561,6 +561,38 @@ groups:
       The `Reject(Invite(actor, case))` wire activity wraps the Invite as its `object_`; the
       case reference is therefore on `object_.target`, which `extract_event` maps to
       `inner_target`. There is no top-level `target` on the Reject itself.
+  - id: CM-11-005
+    priority: MUST
+    kind: architecture
+    statement: >-
+      An invited actor MUST obtain its `VultronOfferRecord` for the case's vulnerability
+      report by processing the `add_report_to_case` `CaseLedgerEntry` backfilled from the
+      CaseActor — not by any form of synthetic injection or out-of-band seeding. The
+      `add_report_to_case` ledger entry embeds the full `VulnerabilityReport` and the
+      original offer metadata; processing it creates both the `VulnerabilityReport` replica
+      and the `VultronOfferRecord` in the invited actor's DataLayer, enabling the standard
+      `validate-report` trigger to proceed without modification.
+    rationale: >-
+      Three options were evaluated when CONCERN-2320 was filed: (1) reuse `validate-report`
+      with the `VultronOfferRecord` obtained from the ledger backfill, (2) add a separate
+      `engage-case`/`validate-case` trigger that advances RM without an OfferRecord, and
+      (3) exempt invited actors from the RM.VALID step entirely. Option 1 was chosen because
+      it preserves protocol uniformity (all participants run the same triage cycle), avoids
+      forking the RM state-machine path, and is already fully supported by the
+      `add_report_to_case` ledger backfill mechanism. See ADR-0070.
+    note: >-
+      This requirement supersedes the prior `seed-offer-record` demo-only scaffold
+      (`vultron/adapters/driving/fastapi/routers/demo_triggers.py`), which was introduced
+      as a temporary workaround before the ledger backfill mechanism existed. That endpoint
+      MUST be removed; see TRIG-02-006 and the tracking issue created when CONCERN-2320
+      was resolved.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-11-002
+    - rel_type: implements
+      spec_id: CM-11-002
+    adr:
+    - ADR-0070
 - id: CM-12
   title: Case Creation Timing
   specs:

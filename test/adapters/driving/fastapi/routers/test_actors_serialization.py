@@ -48,7 +48,7 @@ def _route_key(object_id: str) -> str:
 def _host_actor(actor):
     """Make the node *host* *actor*, then seed its record in its own store.
 
-    ``GET /actors/`` enumerates the actors this node hosts, and under ADR-0070
+    ``GET /actors/`` enumerates the actors this node hosts, and under ADR-0071
     that means the actors for which a store exists — for an in-memory URL, the
     in-process store registry.  Creating an actor's record inside some *other*
     actor's store therefore does not make it hosted; opening its own store does.
@@ -75,7 +75,7 @@ def client_actors(datalayer):
 
         Overriding with a single fixed DataLayer would defeat the routing this
         file exercises — ``get_actor_dl`` resolves the path segment to a
-        canonical URI and opens *that* actor's store (ADR-0070), so a one-store
+        canonical URI and opens *that* actor's store (ADR-0071), so a one-store
         override makes every actor id resolve to the same rows.  The only thing
         that needs overriding is the backing URL: the configured db_url is a
         file, and tests must stay in memory.
@@ -124,7 +124,7 @@ def embargo_policy():
 
 # Actor ids must be canonical under the node's own base URL.  ``GET
 # /actors/{segment}`` resolves the segment to an actor URI by *computation*
-# (base_url + "actors/" + segment, ADR-0070) rather than by scanning a shared
+# (base_url + "actors/" + segment, ADR-0071) rather than by scanning a shared
 # store for an id ending in that segment, so an id under some other authority
 # can never be addressed on this node — it is not an actor this node hosts.
 @pytest.fixture
@@ -346,7 +346,7 @@ def test_datalayer_get_actors_includes_embargo_policy(
     """
     from vultron.core.ports.datalayer import StorableRecord
 
-    # The debug router is actor-scoped in its path now (ADR-0070): there is no
+    # The debug router is actor-scoped in its path now (ADR-0071): there is no
     # node-wide store to inspect, so the record goes in this actor's own store
     # and the request names that actor.
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer

@@ -185,7 +185,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         # The Accept is authored by the case actor and received by the vendor
         # that made the offer, so this is the *vendor's* own store: with no
         # receiving_actor_id on the payload, the receiving actor resolves to
-        # whoever owns the store we hand in (ADR-0070).
+        # whoever owns the store we hand in (ADR-0071).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
@@ -205,7 +205,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         # The Accept is authored by the case actor and received by the vendor
         # that made the offer, so this is the *vendor's* own store: with no
         # receiving_actor_id on the payload, the receiving actor resolves to
-        # whoever owns the store we hand in (ADR-0070).
+        # whoever owns the store we hand in (ADR-0071).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
@@ -228,7 +228,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         # The Accept is authored by the case actor and received by the vendor
         # that made the offer, so this is the *vendor's* own store: with no
         # receiving_actor_id on the payload, the receiving actor resolves to
-        # whoever owns the store we hand in (ADR-0070).
+        # whoever owns the store we hand in (ADR-0071).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(

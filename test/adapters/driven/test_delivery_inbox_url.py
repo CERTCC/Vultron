@@ -98,7 +98,7 @@ def test_derived_inbox_path_matches_fastapi_route(dl):
     """
     # The actor has to be one *this* node could host.  A trigger route resolves
     # its path segment by computation — ``base_url + "actors/" + segment``
-    # (ADR-0070 decision 2) — so an id under another authority, like the
+    # (ADR-0071 decision 2) — so an id under another authority, like the
     # ``http://finder:7999`` one the derivation tests above use, resolves to a
     # different actor and the POST 404s for a reason that has nothing to do with
     # the route shape this test is checking.  The derivation tests keep the remote

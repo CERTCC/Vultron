@@ -222,7 +222,7 @@ class CreateCaseActorServiceNode(DataLayerActionWithPorts):
        the ``Create(VulnerabilityCase)`` that seeds every participant replica —
        is ever delivered.  This is the same rule ``POST /actors/`` follows.
     2. Into the creating actor's store, as an address-book entry for a peer it
-       now knows (ADR-0070 decision 5).  Sibling nodes resolve the CaseActor
+       now knows (ADR-0071 decision 5).  Sibling nodes resolve the CaseActor
        from the *executing* actor's store, so this copy is what they read.
 
     The two writes are not redundant: one publishes an endpoint, the other
@@ -306,7 +306,7 @@ class CreateCaseActorServiceNode(DataLayerActionWithPorts):
         """Return *actor_id*'s own store, or ``None`` when it cannot be opened.
 
         Named rather than implicit: ``clone_for_actor`` is the only sanctioned
-        route to another actor's store (ADR-0070 decision 7), so a cross-actor
+        route to another actor's store (ADR-0071 decision 7), so a cross-actor
         write reads as one.
         """
         assert self.datalayer is not None

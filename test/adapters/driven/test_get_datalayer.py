@@ -98,7 +98,7 @@ def test_default_db_url_uses_vultron_database_db_url_env_var(
     actor_id = "https://test.example/api/v2/actors/test-actor"
     dl = get_datalayer(actor_id)
     assert dl.ping()
-    # The configured URL is a *template*, not a location: under ADR-0070 each
+    # The configured URL is a *template*, not a location: under ADR-0071 each
     # actor gets its own file derived from it, so `env_test.sqlite` becomes
     # `env_test-test-actor.sqlite` and the raw value no longer appears verbatim.
     # Assert the derivation the adapter actually performs — comparing against a
