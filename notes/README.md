@@ -720,13 +720,6 @@ used.
 **Load when**: investigating the pre-2026-04-28 history file procedure for
 historical context only.
 
-**`bugfix-workflow.md`**
-Design decisions and implementation patterns for the test-first bugfix
-workflow: the structured interview → failing-test → fix → verify cycle.
-Operationalises `specs/bugfix-workflow.yaml` (BFW).
-**Load when**: following the BUGFIX skill workflow, implementing bugfix
-tooling, or working on BFW spec requirements.
-
 **`agentic-workflow.md`**
 The four-skill agentic development pipeline: `ingest-idea`, `learn`,
 `update-plan`, and `build`. Documents the inputs, outputs, and trigger

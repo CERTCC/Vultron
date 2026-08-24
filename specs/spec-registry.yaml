@@ -125,7 +125,7 @@ groups:
     statement: >-
       A `SpecIdStr` type alias MUST enforce the ID pattern
       `^[A-Z]{2,8}(-\d{2}(-\d{3}[a-z]?)?)?$` via Pydantic `StringConstraints`.
-      The optional lowercase letter suffix (e.g., `BFW-01-002b`) designates a
+      The optional lowercase letter suffix (e.g., `LST-05-002b`) designates a
       sub-requirement split from a parent spec.
   - id: SR-02-009
     priority: MUST

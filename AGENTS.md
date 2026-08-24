@@ -576,6 +576,13 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   temp branch behind — delete it by hand. *Fixed in #1784: the script now guards
   the cleanup checkout.*
   *Sources: ISSUE-1518, ISSUE-1504, ISSUE-1784*
+- **Fix One, Miss the Siblings: Scan Peer Files Before Closing a Bug** — when a
+  bug is fixed in one location, always search for the same structural pattern in
+  sibling files and scenarios before closing. Unscanned peer instances surface as
+  separate backlog issues, each requiring its own investigation cycle. The bugfix
+  skill mandates this scan at Phase 2d; see
+  `.claude/skills/bugfix/REFERENCE.md` § "Sibling Scan Pattern".
+  *Source: CONCERN-2413*
 - **Verify Issue ACs Against Current Code Before Starting** — an issue may already
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
   Check current `main` against all ACs before writing any code; if satisfied, close
