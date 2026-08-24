@@ -32,6 +32,7 @@ from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models._helpers import _as_id
@@ -56,7 +57,7 @@ def _has_status_in_participant(participant: Any, status_id: str) -> bool:
     return status_id in existing_ids
 
 
-class SkipIfIdempotentNode(py_trees.behaviour.Behaviour):
+class SkipIfIdempotentNode(BehaviourWithPorts):
     """Idempotency guard for the append-participant-status Selector.
 
     Returns SUCCESS when *status_id* is already present in the participant's
@@ -81,16 +82,31 @@ class SkipIfIdempotentNode(py_trees.behaviour.Behaviour):
         self.status_id = status_id
         self.participant_id = participant_id
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "append_status_participant": PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.READ,
+        self.setup_ports(
+            port_remappings={
+                "append_status_participant": "/append_status_participant"
+            }
         )
 
     def update(self) -> Status:
-        participant = self.blackboard.get("append_status_participant")
+        try:
+            participant = self.get_input("append_status_participant")
+        except (KeyError, NoDataAvailable, NotImplementedError):
+            return Status.FAILURE
+
         if participant is None:
             return Status.FAILURE
 

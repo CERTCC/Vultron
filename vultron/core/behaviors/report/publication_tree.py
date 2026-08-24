@@ -65,7 +65,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import py_trees
-from py_trees.common import Access, Status
+from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
@@ -116,7 +117,7 @@ class PublicationIntentDecision(BaseModel):
     rationale: str = ""
 
 
-class _ShouldPublishArtifactGate(py_trees.behaviour.Behaviour):
+class _ShouldPublishArtifactGate(BehaviourWithPorts):
     """ProtocolInternal gate: read the intent record and check one artifact flag.
 
     Reads the :class:`PublicationIntentDecision` written to
@@ -142,11 +143,24 @@ class _ShouldPublishArtifactGate(py_trees.behaviour.Behaviour):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            # data_type=object: accept any value; isinstance check in update()
+            # handles the type contract (avoid TypeError from get_input).
+            INTENT_DECISION_KEY: PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
-        """Register READ access to the shared intent-decision blackboard key."""
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            key=INTENT_DECISION_KEY, access=Access.READ
+        """Wire input port to the shared intent-decision blackboard key."""
+        self.setup_ports(
+            port_remappings={INTENT_DECISION_KEY: f"/{INTENT_DECISION_KEY}"}
         )
 
     def update(self) -> Status:
@@ -156,7 +170,9 @@ class _ShouldPublishArtifactGate(py_trees.behaviour.Behaviour):
             SUCCESS when the intent record's :attr:`_intent_field` is truthy;
             FAILURE when it is falsy or when no intent record has been written.
         """
-        if not self.blackboard.exists(INTENT_DECISION_KEY):
+        try:
+            decision = self.get_input(INTENT_DECISION_KEY)
+        except (KeyError, NoDataAvailable, NotImplementedError):
             self.logger.debug(
                 "%s: no %s on blackboard — treating as 'do not publish'",
                 self.name,
@@ -164,7 +180,6 @@ class _ShouldPublishArtifactGate(py_trees.behaviour.Behaviour):
             )
             return Status.FAILURE
 
-        decision = self.blackboard.get(INTENT_DECISION_KEY)
         if not isinstance(decision, PublicationIntentDecision):
             # A present-but-wrong-type value is a call-out-point contract
             # violation (the Evaluator must write a PublicationIntentDecision on
