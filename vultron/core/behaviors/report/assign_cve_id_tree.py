@@ -61,7 +61,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import py_trees
-from py_trees.common import Access, Status
+from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.enums.roles import CVDRole
 
@@ -81,7 +82,7 @@ _ACTOR_ROLES_KEY = "actor_roles"
 _PUBLICATION_INTENT_SET_KEY = "publication_intent_set"
 
 
-class _IsIDAssignmentAuthorityNode(py_trees.behaviour.Behaviour):
+class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
     """ProtocolInternal: check whether this actor holds CNA role.
 
     Reads ``actor_roles`` from the blackboard (written by the BT setup phase)
@@ -90,25 +91,39 @@ class _IsIDAssignmentAuthorityNode(py_trees.behaviour.Behaviour):
     ``notes/bt-fuzzer-rm-id-assignment.md``).
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            _ACTOR_ROLES_KEY: PortInformation(data_type=list, required=False),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(key=_ACTOR_ROLES_KEY, access=Access.READ)
+        self.setup_ports(
+            port_remappings={_ACTOR_ROLES_KEY: f"/{_ACTOR_ROLES_KEY}"}
+        )
 
     def update(self) -> Status:
-        if not self.blackboard.exists(_ACTOR_ROLES_KEY):
+        try:
+            roles = self.get_input(_ACTOR_ROLES_KEY)
+        except (KeyError, NoDataAvailable, NotImplementedError):
             self.logger.debug(
                 f"{self.name}: {_ACTOR_ROLES_KEY} not on blackboard"
                 " — treating as non-CNA"
             )
             return Status.FAILURE
 
-        roles = self.blackboard.get(_ACTOR_ROLES_KEY)
         if not isinstance(roles, list):
             self.logger.warning(
                 f"{self.name}: {_ACTOR_ROLES_KEY} is"
@@ -130,7 +145,7 @@ class _IsIDAssignmentAuthorityNode(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
-class _IsOrWillBePubliclyDisclosedNode(py_trees.behaviour.Behaviour):
+class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
     """ProtocolInternal: OR-gate for public disclosure status.
 
     Returns SUCCESS when ``publication_intent_set`` is truthy on the
@@ -142,26 +157,42 @@ class _IsOrWillBePubliclyDisclosedNode(py_trees.behaviour.Behaviour):
     CVE ID assignment step runs in the same tick sequence.
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            _PUBLICATION_INTENT_SET_KEY: PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            key=_PUBLICATION_INTENT_SET_KEY, access=Access.READ
+        self.setup_ports(
+            port_remappings={
+                _PUBLICATION_INTENT_SET_KEY: f"/{_PUBLICATION_INTENT_SET_KEY}"
+            }
         )
 
     def update(self) -> Status:
-        if not self.blackboard.exists(_PUBLICATION_INTENT_SET_KEY):
+        try:
+            intent_set = self.get_input(_PUBLICATION_INTENT_SET_KEY)
+        except (KeyError, NoDataAvailable, NotImplementedError):
             self.logger.debug(
                 f"{self.name}: no publication intent on blackboard — FAILURE"
             )
             return Status.FAILURE
 
-        intent_set = self.blackboard.get(_PUBLICATION_INTENT_SET_KEY)
         if intent_set:
             self.logger.debug(
                 f"{self.name}: publication intent is set — SUCCESS"

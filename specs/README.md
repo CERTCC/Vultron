@@ -105,7 +105,6 @@ Load additional files only when the task touches the relevant area. See the
 | History file management / append-history tool | `history-management.yaml` |
 | Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
 | Spec registry / YAML requirement files | `spec-registry.yaml` |
-| Bugfix skill / bug lifecycle | `bugfix-workflow.yaml` |
 | Spec vs. ADR delineation / when to write each | `meta-specifications.yaml`, `notes/specs-vs-adrs.md` |
 
 ---
@@ -384,10 +383,6 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   including performance testing deferral (PROTO-07) and backward-compatibility
   / change-completeness policy (PROTO-08)
 - **`agentic-readiness.yaml`** - API and CLI requirements for automated agent integration
-- **`bugfix-workflow.yaml`** - Bugfix skill requirements: root-cause depth analysis
-  (Phase 2b), user engagement, issue escalation to GitHub Bug-type issues, and bug
-  lifecycle archiving to `plan/history/`
-  (BFW-01 through BFW-04)
 - **`notes-frontmatter.yaml`** - YAML frontmatter schema for `notes/*.md` files:
   required fields (`title`, `status`), optional relationship fields, Pydantic
   loader in `vultron/metadata/notes/`, validation enforcement (pytest +
