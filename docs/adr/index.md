@@ -83,7 +83,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0009 Adopt Hexagonal Architecture (Ports and Adapters) for Vultron](0009-hexagonal-architecture.md)
 - [ADR-0010 Standardize Object IDs to URI Form](0010-standardize-object-ids.md)
 - [ADR-0011 Remove API v1 and consolidate vocabulary examples into API v2](0011-remove-api-v1.md)
-- [ADR-0012 Per-Actor DataLayer Isolation](0012-per-actor-datalayer-isolation.md)
+- [ADR-0012 Per-Actor DataLayer Isolation](0012-per-actor-datalayer-isolation.md) — partially superseded by docs/adr/0072-per-actor-storage-isolation.md
 - [ADR-0013 Unify RM State Tracking into Persisted VultronParticipantStatus Records](0013-unify-rm-state-tracking.md)
 - [ADR-0014 Pin GitHub Actions to Full Commit SHAs with Version Comments](0014-sha-pin-github-actions.md)
 - [ADR-0016 Replace TinyDB with SQLModel/SQLite DataLayer Adapter](0016-sqlmodel-sqlite-datalayer.md)

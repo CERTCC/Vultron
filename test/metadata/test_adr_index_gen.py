@@ -63,6 +63,34 @@ class TestGenerateIndex:
         out = generate_index(tmp_path)
         assert "[ADR-0001 Shaky](0001-stub.md) *(provisional)*" in out
 
+    def test_partially_superseded_is_annotated_but_stays_accepted(
+        self, tmp_path
+    ):
+        """ADR-0012's case: one decision replaced, the rest still in force.
+
+        Retiring the whole ADR would discard the decisions that still hold, so
+        the status stays ``accepted``. But an unannotated accepted entry reads as
+        wholly current, and the index is where a reader chooses what to open —
+        which is how ADR-0012 kept being cited for a DataLayer layout ADR-0072
+        had replaced.
+        """
+        adr_dir = _scaffold(tmp_path)
+        _write_adr(adr_dir, "0001", "accepted", "Replacement")
+        (adr_dir / "0002-stub.md").write_text(
+            "---\nstatus: accepted\n"
+            "partially_superseded_by: 0001-stub.md\n---\n# Older\n"
+        )
+
+        out = generate_index(tmp_path)
+
+        accepted = out.split("## Accepted ADRs")[1].split("## Proposed")[0]
+        assert (
+            "[ADR-0002 Older](0002-stub.md) — partially superseded by"
+            " 0001-stub.md" in accepted
+        )
+        # Not retired: it is not in the archived section and keeps its status.
+        assert "ADR-0002" not in out.split("## Superseded / Archived ADRs")[1]
+
     def test_numeric_ordering(self, tmp_path):
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0010", "accepted", "Ten")

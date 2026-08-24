@@ -108,6 +108,14 @@ def generate_index(repo_root: Path | None = None) -> str:
                 if fm.status is AdrStatus.ACCEPTED_PROVISIONAL
                 else ""
             )
+            # A live ADR with one decision replaced: say so here, because the
+            # index is where a reader decides which ADR to open, and an
+            # unannotated entry reads as wholly current.
+            if fm.partially_superseded_by:
+                suffix += (
+                    " — partially superseded by "
+                    f"{fm.partially_superseded_by}"
+                )
             accepted.append(entry + suffix)
         elif fm.status is AdrStatus.PROPOSED:
             proposed.append(entry)
