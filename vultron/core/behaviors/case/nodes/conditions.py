@@ -34,7 +34,9 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.config import get_config
-from vultron.core.behaviors.case.nodes.case_setup import _derive_case_slug
+from vultron.core.behaviors.case.nodes.case_actor_setup import (
+    _derive_case_slug,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerCondition,

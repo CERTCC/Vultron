@@ -49,7 +49,10 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.case.nodes.lifecycle import (
     BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
 )
-from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
@@ -169,7 +172,7 @@ def _dimension_state(status: ParticipantStatus, dimension: str) -> Any:
     return None
 
 
-class FilterParticipantStatusDimensionsNode(DataLayerCondition):
+class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
     """Adjudicate each dimension of an inbound ParticipantStatus separately.
 
     Read-only precondition guard (CLP-10-006): reads the participant and the
@@ -208,21 +211,44 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
         self.participant_id = participant_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
+        self.wire_render_port: "WireRenderPort | None" = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key=BB_DIMENSION_FILTER,
-            access=py_trees.common.Access.WRITE,
-        )
-        self.blackboard.register_key(
-            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-            access=py_trees.common.Access.WRITE,
-        )
-        self.blackboard.register_key(
-            key=BB_RM_ANOMALY,
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            **super().input_ports(),
+            "wire_render_port": PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            BB_DIMENSION_FILTER: PortInformation(
+                data_type=object, required=False
+            ),
+            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
+                data_type=object, required=False
+            ),
+            BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "wire_render_port": "/wire_render_port",
+            BB_DIMENSION_FILTER: f"/{BB_DIMENSION_FILTER}",
+            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
+            BB_RM_ANOMALY: f"/{BB_RM_ANOMALY}",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except Exception:
+            self.wire_render_port = None
 
     def _publish(
         self,
@@ -238,14 +264,12 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
         override from leaking into this one.
         """
         if filtered is None:
-            self.blackboard.set(BB_DIMENSION_FILTER, None, overwrite=True)
-            self.blackboard.set(
-                BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None, overwrite=True
-            )
-            self.blackboard.set(BB_RM_ANOMALY, None, overwrite=True)
+            self._set_output(BB_DIMENSION_FILTER, None)
+            self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
+            self._set_output(BB_RM_ANOMALY, None)
             return
 
-        self.blackboard.set(
+        self._set_output(
             BB_DIMENSION_FILTER,
             {
                 "status_id": self.status_id,
@@ -253,7 +277,6 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
                 "refused": refused,
                 "filtered_status": filtered,
             },
-            overwrite=True,
         )
         if self.wire_render_port is not None:
             override_fields: dict[str, Any] | None = _accepted_wire_patch(
@@ -266,7 +289,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
                 self.name,
             )
             override_fields = None
-        self.blackboard.set(
+        self._set_output(
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
             (
                 {
@@ -277,9 +300,8 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
                 if override_fields is not None
                 else None
             ),
-            overwrite=True,
         )
-        self.blackboard.set(BB_RM_ANOMALY, rm_anomaly, overwrite=True)
+        self._set_output(BB_RM_ANOMALY, rm_anomaly)
 
     def _detect_rm_anomaly(
         self,
@@ -368,7 +390,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
         if not update_fields:
             # No dimension filtering needed; publish the anomaly flag only.
             if rm_anomaly is not None:
-                self.blackboard.set(BB_RM_ANOMALY, rm_anomaly, overwrite=True)
+                self._set_output(BB_RM_ANOMALY, rm_anomaly)
             return Status.SUCCESS
 
         # ``name`` on a ParticipantStatus is a derived state summary (the wire
@@ -395,7 +417,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerCondition):
             # Still publish the anomaly even on a wholly-refused assertion:
             # the receiver detected an anomaly and must emit a note (RSH-06).
             if rm_anomaly is not None:
-                self.blackboard.set(BB_RM_ANOMALY, rm_anomaly, overwrite=True)
+                self._set_output(BB_RM_ANOMALY, rm_anomaly)
             return Status.FAILURE
 
         self._publish(tuple(refused), filtered, rm_anomaly=rm_anomaly)

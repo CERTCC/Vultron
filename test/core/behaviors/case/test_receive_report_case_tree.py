@@ -357,7 +357,7 @@ class TestHappyPath:
         bridge,
     ):
         """Link.trusted_case_creator_id is derived from case_actor_service_url."""
-        from vultron.core.behaviors.case.nodes.case_setup import (
+        from vultron.core.behaviors.case.nodes.case_actor_setup import (
             _derive_case_slug,
         )
 
