@@ -13,19 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Owner-participant creation leaf nodes.
-
-Provides leaf action nodes for the case-owner participant creation workflow.
-The composite subtree that orchestrates these nodes
-(``CreateCaseOwnerParticipant``) lives in ``participant_tree.py`` at the
-process-area root, per BTND-07-003.
-"""
+"""Owner-participant creation leaf nodes (BTND-07-003)."""
 
 from typing import Any
 
 import py_trees
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
@@ -121,23 +115,15 @@ class ResolveOwnerInitialStatusNode(DataLayerActionWithPorts):
             )
         }
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": "/datalayer",
-                "actor_id": "/actor_id",
-                "trigger_activity_factory": "/trigger_activity_factory",
-                "case_id": "/case_id",
-                "owner_initial_status": f"/{self._owner_initial_status_key}",
-            }
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "owner_initial_status": f"/{self._owner_initial_status_key}",
+        }
 
     def initialise(self) -> None:
         super().initialise()
-        try:
-            self.case_id = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            self.case_id = None
+        self.case_id = self._try_get_input("case_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -196,28 +182,17 @@ class CreateOwnerParticipantNode(DataLayerActionWithPorts):
             )
         }
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": "/datalayer",
-                "actor_id": "/actor_id",
-                "trigger_activity_factory": "/trigger_activity_factory",
-                "case_id": "/case_id",
-                "owner_initial_status": f"/{self._owner_initial_status_key}",
-                "new_case_participant": f"/{self._new_case_participant_key}",
-            }
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "owner_initial_status": f"/{self._owner_initial_status_key}",
+            "new_case_participant": f"/{self._new_case_participant_key}",
+        }
 
     def initialise(self) -> None:
         super().initialise()
-        try:
-            self.case_id = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            self.case_id = None
-        try:
-            self.owner_initial_status = self.get_input("owner_initial_status")
-        except (NoDataAvailable, NotImplementedError):
-            self.owner_initial_status = None
+        self.case_id = self._try_get_input("case_id")
+        self.owner_initial_status = self._try_get_input("owner_initial_status")
 
     def update(self) -> Status:
         if self.actor_id is None:
@@ -280,28 +255,17 @@ class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
             )
         }
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": "/datalayer",
-                "actor_id": "/actor_id",
-                "trigger_activity_factory": "/trigger_activity_factory",
-                "case_id": "/case_id",
-                "new_case_participant": f"/{self._new_case_participant_key}",
-                "participant_case": f"/{self._participant_case_key}",
-            }
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "new_case_participant": f"/{self._new_case_participant_key}",
+            "participant_case": f"/{self._participant_case_key}",
+        }
 
     def initialise(self) -> None:
         super().initialise()
-        try:
-            self.case_id = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            self.case_id = None
-        try:
-            self.new_case_participant = self.get_input("new_case_participant")
-        except (NoDataAvailable, NotImplementedError):
-            self.new_case_participant = None
+        self.case_id = self._try_get_input("case_id")
+        self.new_case_participant = self._try_get_input("new_case_participant")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -361,22 +325,12 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
         )
         return ports
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": "/datalayer",
-                "actor_id": "/actor_id",
-                "trigger_activity_factory": "/trigger_activity_factory",
-                "participant_case": f"/{self._participant_case_key}",
-            }
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return {"participant_case": f"/{self._participant_case_key}"}
 
     def initialise(self) -> None:
         super().initialise()
-        try:
-            self._stored_case = self.get_input("participant_case")
-        except (NoDataAvailable, NotImplementedError):
-            self._stored_case = None
+        self._stored_case = self._try_get_input("participant_case")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -426,29 +380,17 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerActionWithPorts):
         )
         return ports
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": "/datalayer",
-                "actor_id": "/actor_id",
-                "trigger_activity_factory": "/trigger_activity_factory",
-                "case_id": "/case_id",
-                "participant_case": f"/{self._participant_case_key}",
-            }
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "participant_case": f"/{self._participant_case_key}",
+        }
 
     def initialise(self) -> None:
         super().initialise()
-        try:
-            self._case_id: str | None = self.get_input("case_id")
-            if not isinstance(self._case_id, str):
-                self._case_id = None
-        except (NoDataAvailable, NotImplementedError):
-            self._case_id = None
-        try:
-            self._stored_case = self.get_input("participant_case")
-        except (NoDataAvailable, NotImplementedError):
-            self._stored_case = None
+        raw = self._try_get_input("case_id")
+        self._case_id: str | None = raw if isinstance(raw, str) else None
+        self._stored_case = self._try_get_input("participant_case")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -512,27 +454,16 @@ class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
         )
         return ports
 
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": "/datalayer",
-                "actor_id": "/actor_id",
-                "trigger_activity_factory": "/trigger_activity_factory",
-                "participant_case": f"/{self._participant_case_key}",
-                "new_case_participant": f"/{self._new_case_participant_key}",
-            }
-        )
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return {
+            "participant_case": f"/{self._participant_case_key}",
+            "new_case_participant": f"/{self._new_case_participant_key}",
+        }
 
     def initialise(self) -> None:
         super().initialise()
-        try:
-            self._stored_case = self.get_input("participant_case")
-        except (NoDataAvailable, NotImplementedError):
-            self._stored_case = None
-        try:
-            self._participant = self.get_input("new_case_participant")
-        except (NoDataAvailable, NotImplementedError):
-            self._participant = None
+        self._stored_case = self._try_get_input("participant_case")
+        self._participant = self._try_get_input("new_case_participant")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

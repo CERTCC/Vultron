@@ -175,12 +175,6 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         case_id: str | None = None,
         name: str | None = None,
     ):
-        """
-        Args:
-            case_id: ID of the ``VulnerabilityCase`` to log against.  When
-                ``None`` the node reads ``case_id`` from the blackboard.
-            name: Optional display name for the node.
-        """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._sync_port: Any = None
@@ -477,19 +471,6 @@ def create_receive_activity_tree(
     preserving behaviour for trees that receive no explicit case context.
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006.
-
-    Args:
-        name: Display name for the root Sequence node.
-        case_id: ID of the ``VulnerabilityCase`` to ledger against.  Pass
-            ``None`` to skip the commit step (no ledger entry written).
-        precondition_guards: Zero or more read-only condition nodes placed
-            before the commit.  These nodes MUST NOT write to the DataLayer.
-        effect_nodes: Zero or more action nodes placed after the commit.
-            These may perform any state mutation.
-
-    Returns:
-        Root ``Sequence`` node ready for execution via
-        :class:`~vultron.core.behaviors.bridge.BTBridge`.
     """
     children: list[py_trees.behaviour.Behaviour] = list(precondition_guards)
     if case_id is not None:

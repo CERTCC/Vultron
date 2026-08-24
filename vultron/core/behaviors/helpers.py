@@ -386,12 +386,23 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
         """
         return {}
 
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Override for instance-state-dependent port paths (dynamic keys)."""
+        return {}
+
+    def _try_get_input(self, key: str) -> object | None:
+        try:
+            return self.get_input(key)
+        except (NoDataAvailable, NotImplementedError):
+            return None
+
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings={
                 "datalayer": _DL_KEY,
                 "actor_id": _ACTOR_KEY,
                 **self._domain_port_remappings(),
+                **self._instance_port_remappings(),
             }
         )
 
@@ -469,6 +480,16 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         """
         return {}
 
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Override for instance-state-dependent port paths (dynamic keys)."""
+        return {}
+
+    def _try_get_input(self, key: str) -> object | None:
+        try:
+            return self.get_input(key)
+        except (NoDataAvailable, NotImplementedError):
+            return None
+
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
             port_remappings={
@@ -476,6 +497,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
                 "actor_id": _ACTOR_KEY,
                 "trigger_activity_factory": "/trigger_activity_factory",
                 **self._domain_port_remappings(),
+                **self._instance_port_remappings(),
             }
         )
 

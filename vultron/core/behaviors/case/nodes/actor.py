@@ -39,12 +39,11 @@ the process-area root per BTND-07-003:
 import logging
 from typing import Any, cast
 
-import py_trees
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, PortInformation
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
@@ -60,7 +59,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 
 
-class EmitInviteActorToCaseNode(DataLayerAction):
+class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
     """Create Invite(Actor, Case) and queue in the Case Actor's outbox.
 
     Uses ``trigger_activity_factory.invite_actor_to_case()`` with
@@ -107,24 +106,36 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         self.attributed_to = attributed_to
         self._captured = captured
         self._injected_roles = roles
+        self._suggested_roles_bb = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="suggested_roles", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["suggested_roles"] = PortInformation(
+            data_type=list, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"suggested_roles": "/suggested_roles"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._suggested_roles_bb = None
+        try:
+            self._suggested_roles_bb = self.get_input("suggested_roles")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _read_suggested_roles(self) -> list[str] | None:
         # Use injected roles (from stored Offer via DataLayer) when available
         # (ISSUE-1745: blackboard is empty in a separate BT execution).
         if self._injected_roles is not None:
             return self._injected_roles if self._injected_roles else None
-        try:
-            roles = self.blackboard.get("suggested_roles")
-            if isinstance(roles, list):
-                return serialize_roles(roles)
-        except KeyError:
-            pass
+        roles = self._suggested_roles_bb
+        if isinstance(roles, list):
+            return serialize_roles(roles)
         return None
 
     def _emit(self, factory: Any) -> tuple[str, dict]:
@@ -201,7 +212,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             return Status.FAILURE
 
 
-class ProposeCaseToActorNode(DataLayerAction):
+class ProposeCaseToActorNode(DataLayerActionWithPorts):
     """Send ``Create(as_CaseProposal)`` to the registered case-actor service.
 
     Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
@@ -230,37 +241,44 @@ class ProposeCaseToActorNode(DataLayerAction):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["case_actor_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        self._case_actor_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+        try:
+            self._case_actor_id_bb = self.get_input("case_actor_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _read_blackboard_ids(self) -> tuple[str, str] | None:
-        """Read case_id and case_actor_id from the blackboard.
+        """Read case_id and case_actor_id from ports.
 
         Returns ``(case_id, case_actor_id)`` on success, or ``None`` after
         setting ``feedback_message`` on any error.
         """
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str) or not case_id:
             self.feedback_message = "case_id not found in blackboard"
             return None
-        if not isinstance(case_id, str) or not case_id:
-            self.feedback_message = "case_id must be a non-empty string"
-            return None
 
-        try:
-            case_actor_id = self.blackboard.get("case_actor_id")
-        except KeyError:
-            self.feedback_message = "case_actor_id not found in blackboard"
-            return None
+        case_actor_id = self._case_actor_id_bb
         if not isinstance(case_actor_id, str) or not case_actor_id:
-            self.feedback_message = "case_actor_id must be a non-empty string"
+            self.feedback_message = "case_actor_id not found in blackboard"
             return None
 
         return case_id, case_actor_id

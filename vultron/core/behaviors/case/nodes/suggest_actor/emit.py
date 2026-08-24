@@ -15,26 +15,13 @@
 
 """Outbound activity emission nodes for the suggest-actor workflow (CM-16).
 
-Node classes:
-
-- :class:`RecordRecommendationRecommenderNode` — writes
-  ``recommendation_id → recommender_id`` into
-  ``VulnerabilityCase.recommendation_recommender_index`` (ADR-0035 DL-06-002).
-- :class:`EmitOfferCaseParticipantToOwnerNode` — transforms
-  ``Offer(Actor, Case)`` into ``Offer(CaseParticipant)`` and DMs the Case Owner
-  (CM-16-004).
-- :class:`EmitAcceptActorRecommendationNode` — queues
-  ``AcceptActorRecommendation`` to the original recommender (CM-16-006).
-- :class:`EmitRejectActorRecommendationNode` — queues
-  ``RejectActorRecommendation`` to the original recommender (CM-16-007).
-- :class:`EmitNoteDuplicateRecommendationToOwnerNode` — sends a
-  ``Create(Note)`` + ``Add(Note, Case)`` to the Case Owner when a duplicate
-  recommendation arrives (CM-16-008).
-
-The Case Owner owner-side Accept response
-(:class:`~vultron.core.behaviors.case.nodes.suggest_actor.accept_offer.EmitAcceptCaseParticipantOfferNode`)
-lives in the ``accept_offer`` submodule to keep this module under the
-BTND-07-004 line limit.
+Classes: RecordRecommendationRecommenderNode (DL-06-002),
+EmitOfferCaseParticipantToOwnerNode (CM-16-004),
+EmitAcceptActorRecommendationNode (CM-16-006),
+EmitRejectActorRecommendationNode (CM-16-007),
+EmitNoteDuplicateRecommendationToOwnerNode (CM-16-008).
+The Case Owner Accept response lives in the ``accept_offer`` submodule
+(BTND-07-004 line limit).
 """
 
 from typing import cast
