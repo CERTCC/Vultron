@@ -26,6 +26,8 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
+| `test/core/behaviors/case/test_case_proposal_received_tree.py::TestADR0041Idempotency::test_duplicate_proposal_no_duplicate_participants_or_entries` | #2511 | 2026-08-24 |
+| `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesCloseCase::test_close_case_not_applied_for_other_event_types` | #2511 | 2026-08-24 |
 
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
