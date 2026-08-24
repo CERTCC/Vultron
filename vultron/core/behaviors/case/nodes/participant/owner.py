@@ -25,12 +25,13 @@ from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
+    DataLayerActionWithPorts,
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.dimensions import PecDimension, RmDimension
@@ -89,7 +90,7 @@ def _effective_case_roles(actor_config: ActorConfig | None) -> list[CVDRole]:
     return list(dict.fromkeys(base_roles + [CVDRole.CASE_OWNER]))
 
 
-class ResolveOwnerInitialStatusNode(DataLayerAction):
+class ResolveOwnerInitialStatusNode(DataLayerActionWithPorts):
     """Resolve/create the owner's initial ParticipantStatus."""
 
     def __init__(
@@ -106,32 +107,52 @@ class ResolveOwnerInitialStatusNode(DataLayerAction):
         _seg = report_id.split("/")[-1] if report_id else "default"
         self._owner_initial_status_key = f"owner_initial_status_{_seg}"
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "owner_initial_status": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "case_id": "/case_id",
+                "owner_initial_status": f"/{self._owner_initial_status_key}",
+            }
         )
-        self.blackboard.register_key(
-            key=self._owner_initial_status_key,
-            access=py_trees.common.Access.WRITE,
-        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.case_id = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.case_id = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        try:
-            case_id = _resolve_case_id(self.blackboard, self.case_obj)
-        except KeyError:
-            case_id = None
+        case_id = (
+            self.case_obj.id_ if self.case_obj is not None else None
+        ) or self.case_id
         if case_id is None:
             self.logger.error("%s: case_id not available", self.name)
             return Status.FAILURE
 
-        setattr(
-            self.blackboard,
-            self._owner_initial_status_key,
+        self._set_output(
+            "owner_initial_status",
             _build_owner_initial_status(
                 self.datalayer,
                 self.actor_id,
@@ -143,7 +164,7 @@ class ResolveOwnerInitialStatusNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CreateOwnerParticipantNode(DataLayerAction):
+class CreateOwnerParticipantNode(DataLayerActionWithPorts):
     """Create the in-memory owner participant and stage it on blackboard."""
 
     def __init__(
@@ -158,29 +179,52 @@ class CreateOwnerParticipantNode(DataLayerAction):
         self._owner_initial_status_key = f"owner_initial_status_{_seg}"
         self._new_case_participant_key = f"new_case_participant_{_seg}"
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["owner_initial_status"] = PortInformation(
+            data_type=object, required=True
+        )
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "new_case_participant": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "case_id": "/case_id",
+                "owner_initial_status": f"/{self._owner_initial_status_key}",
+                "new_case_participant": f"/{self._new_case_participant_key}",
+            }
         )
-        self.blackboard.register_key(
-            key=self._owner_initial_status_key,
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key=self._new_case_participant_key,
-            access=py_trees.common.Access.WRITE,
-        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.case_id = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.case_id = None
+        try:
+            self.owner_initial_status = self.get_input("owner_initial_status")
+        except (NoDataAvailable, NotImplementedError):
+            self.owner_initial_status = None
 
     def update(self) -> Status:
         if self.actor_id is None:
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
-        try:
-            case_id_obj = self.blackboard.get("case_id")
-        except KeyError:
-            case_id_obj = None
-        initial_status = self.blackboard.get(self._owner_initial_status_key)
+        case_id_obj = self.case_id
+        initial_status = self.owner_initial_status
         if not isinstance(initial_status, ParticipantStatus):
             self.logger.error(
                 "%s: case_id/%s missing in blackboard",
@@ -196,9 +240,8 @@ class CreateOwnerParticipantNode(DataLayerAction):
             self.logger.error("%s: case_id not available", self.name)
             return Status.FAILURE
 
-        setattr(
-            self.blackboard,
-            self._new_case_participant_key,
+        self._set_output(
+            "new_case_participant",
             VultronParticipant(
                 attributed_to=self.actor_id,
                 context=case_id,
@@ -209,7 +252,7 @@ class CreateOwnerParticipantNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class AttachOwnerParticipantToCaseNode(DataLayerAction):
+class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
     """Persist and attach staged owner participant to the case."""
 
     def __init__(
@@ -220,29 +263,53 @@ class AttachOwnerParticipantToCaseNode(DataLayerAction):
         self._new_case_participant_key = f"new_case_participant_{_seg}"
         self._participant_case_key = f"participant_case_{_seg}"
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["new_case_participant"] = PortInformation(
+            data_type=object, required=True
+        )
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "participant_case": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "case_id": "/case_id",
+                "new_case_participant": f"/{self._new_case_participant_key}",
+                "participant_case": f"/{self._participant_case_key}",
+            }
         )
-        self.blackboard.register_key(
-            key=self._new_case_participant_key,
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key=self._participant_case_key, access=py_trees.common.Access.WRITE
-        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.case_id = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.case_id = None
+        try:
+            self.new_case_participant = self.get_input("new_case_participant")
+        except (NoDataAvailable, NotImplementedError):
+            self.new_case_participant = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        try:
-            case_id_obj = self.blackboard.get("case_id")
-        except KeyError:
-            case_id_obj = None
-        participant = self.blackboard.get(self._new_case_participant_key)
+        case_id_obj = self.case_id
+        participant = self.new_case_participant
         if not isinstance(participant, VultronParticipant):
             self.logger.error(
                 "%s: case_id/%s missing in blackboard",
@@ -272,11 +339,11 @@ class AttachOwnerParticipantToCaseNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        setattr(self.blackboard, self._participant_case_key, stored_case)
+        self._set_output("participant_case", stored_case)
         return Status.SUCCESS
 
 
-class PersistOwnerCaseNode(DataLayerAction):
+class PersistOwnerCaseNode(DataLayerActionWithPorts):
     """Persist the updated case after owner participant attachment."""
 
     def __init__(
@@ -286,15 +353,30 @@ class PersistOwnerCaseNode(DataLayerAction):
         _seg = report_id.split("/")[-1] if report_id else "default"
         self._participant_case_key = f"participant_case_{_seg}"
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["participant_case"] = PortInformation(
+            data_type=object, required=True
+        )
+        return ports
+
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key=self._participant_case_key, access=py_trees.common.Access.READ
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "participant_case": f"/{self._participant_case_key}",
+            }
         )
 
     def initialise(self) -> None:
         super().initialise()
-        self._stored_case = self.blackboard.get(self._participant_case_key)
+        try:
+            self._stored_case = self.get_input("participant_case")
+        except (NoDataAvailable, NotImplementedError):
+            self._stored_case = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -325,7 +407,7 @@ class ShouldAdvanceOwnerToAcceptedNode(py_trees.behaviour.Behaviour):
         return Status.SUCCESS if self._advance_to_accepted else Status.FAILURE
 
 
-class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
+class AdvanceOwnerRmToAcceptedNode(DataLayerActionWithPorts):
     """Advance owner RM to ACCEPTED when case creation means engagement."""
 
     def __init__(
@@ -335,24 +417,38 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
         _seg = report_id.split("/")[-1] if report_id else "default"
         self._participant_case_key = f"participant_case_{_seg}"
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["participant_case"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key=self._participant_case_key, access=py_trees.common.Access.READ
+        return ports
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "case_id": "/case_id",
+                "participant_case": f"/{self._participant_case_key}",
+            }
         )
 
     def initialise(self) -> None:
         super().initialise()
         try:
-            self._case_id: str | None = self.blackboard.get("case_id")
+            self._case_id: str | None = self.get_input("case_id")
             if not isinstance(self._case_id, str):
                 self._case_id = None
-        except KeyError:
+        except (NoDataAvailable, NotImplementedError):
             self._case_id = None
-        self._stored_case = self.blackboard.get(self._participant_case_key)
+        try:
+            self._stored_case = self.get_input("participant_case")
+        except (NoDataAvailable, NotImplementedError):
+            self._stored_case = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -394,7 +490,7 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class RecordOwnerJoinedEventNode(DataLayerAction):
+class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
     """Record owner_joined event and persist the case update."""
 
     def __init__(
@@ -405,21 +501,38 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
         self._participant_case_key = f"participant_case_{_seg}"
         self._new_case_participant_key = f"new_case_participant_{_seg}"
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key=self._participant_case_key,
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["participant_case"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key=self._new_case_participant_key,
-            access=py_trees.common.Access.READ,
+        ports["new_case_participant"] = PortInformation(
+            data_type=object, required=True
+        )
+        return ports
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "participant_case": f"/{self._participant_case_key}",
+                "new_case_participant": f"/{self._new_case_participant_key}",
+            }
         )
 
     def initialise(self) -> None:
         super().initialise()
-        self._stored_case = self.blackboard.get(self._participant_case_key)
-        self._participant = self.blackboard.get(self._new_case_participant_key)
+        try:
+            self._stored_case = self.get_input("participant_case")
+        except (NoDataAvailable, NotImplementedError):
+            self._stored_case = None
+        try:
+            self._participant = self.get_input("new_case_participant")
+        except (NoDataAvailable, NotImplementedError):
+            self._participant = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

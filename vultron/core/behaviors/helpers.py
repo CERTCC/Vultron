@@ -329,482 +329,6 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         )
 
 
-class FindParticipantByActorIdNode(DataLayerCondition):
-    """
-    Resolve and store a case participant by actor ID.
-
-    Iterates ``case.case_participants`` and resolves each participant reference
-    until it finds a participant whose ``attributed_to`` matches the target
-    actor ID. On success the matched participant is written to the blackboard.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        target_actor_id: str,
-        participant_key: str = "participant",
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.target_actor_id = target_actor_id
-        self.participant_key = participant_key
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key=self.participant_key, access=py_trees.common.Access.WRITE
-        )
-
-    def _participant_actor_id(self, participant: object) -> str:
-        actor_ref = getattr(participant, "attributed_to")
-        return (
-            actor_ref
-            if isinstance(actor_ref, str)
-            else getattr(actor_ref, "id_", str(actor_ref))
-        )
-
-    def _participant_id(self, participant: object) -> str:
-        return str(getattr(participant, "id_", participant))
-
-    def _fail(self, message: str) -> Status:
-        self.feedback_message = message
-        self.logger.error("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-    def _find_matching_participant(
-        self, case_obj: object
-    ) -> tuple[object | None, str | None, str | None]:
-        assert self.datalayer is not None
-        matched_participant: object | None = None
-        matched_participant_id: str | None = None
-        for participant_ref in getattr(case_obj, "case_participants", []):
-            if isinstance(participant_ref, str):
-                participant_obj = self.datalayer.read(
-                    participant_ref, raise_on_missing=False
-                )
-            else:
-                # For inline objects, read the live DL record to avoid stale
-                # snapshots (#2233 — _build_case_object materialises inlines
-                # for delivery; the standalone record may have advanced since).
-                pid = getattr(participant_ref, "id_", None)
-                live = (
-                    self.datalayer.read(pid, raise_on_missing=False)
-                    if pid
-                    else None
-                )
-                participant_obj = (
-                    live
-                    if isinstance(live, CaseParticipant)
-                    else participant_ref
-                )
-            if not isinstance(participant_obj, CaseParticipant):
-                continue
-            if (
-                self._participant_actor_id(participant_obj)
-                != self.target_actor_id
-            ):
-                continue
-
-            participant_id = self._participant_id(participant_obj)
-            if (
-                matched_participant_id is not None
-                and participant_id != matched_participant_id
-            ):
-                return (
-                    None,
-                    None,
-                    "Participant-index divergence: actor "
-                    f"{self.target_actor_id} resolves to multiple "
-                    "case_participants.",
-                )
-            matched_participant = participant_obj
-            matched_participant_id = participant_id
-
-        return matched_participant, matched_participant_id, None
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case_obj = self.datalayer.read(self.case_id, raise_on_missing=False)
-        if not isinstance(case_obj, VulnerabilityCase):
-            self.feedback_message = f"Case {self.case_id} not found"
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        index_match = case_obj.actor_participant_index.get(
-            self.target_actor_id
-        )
-        matched_participant, matched_participant_id, error_message = (
-            self._find_matching_participant(case_obj)
-        )
-        if error_message is not None:
-            return self._fail(error_message)
-
-        if matched_participant is None:
-            if index_match is not None:
-                return self._fail(
-                    "Participant-index divergence: actor "
-                    f"{self.target_actor_id} mapped to {index_match} in "
-                    "actor_participant_index but missing from "
-                    "case_participants."
-                )
-            self.feedback_message = f"No participant for actor {self.target_actor_id} in case {self.case_id}"
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        if index_match != matched_participant_id:
-            if index_match is None:
-                setattr(
-                    self.blackboard, self.participant_key, matched_participant
-                )
-                self.feedback_message = (
-                    f"Found participant for actor {self.target_actor_id}"
-                )
-                self.logger.debug("%s: %s", self.name, self.feedback_message)
-                return Status.SUCCESS
-            return self._fail(
-                "Participant-index divergence: actor "
-                f"{self.target_actor_id} resolves to "
-                f"{matched_participant_id} from case_participants but "
-                f"actor_participant_index maps to {index_match}."
-            )
-
-        setattr(self.blackboard, self.participant_key, matched_participant)
-        self.feedback_message = (
-            f"Found participant for actor {self.target_actor_id}"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class ReadObject(DataLayerCondition):
-    """
-    Read an object from DataLayer and store in blackboard.
-
-    Returns SUCCESS if object found and stored, FAILURE if not found.
-    Stores retrieved object in blackboard with key "object_{last_path_segment}".
-    """
-
-    def __init__(self, table: str, object_id: str, name: str | None = None):
-        """
-        Initialize ReadObject node.
-
-        Args:
-            table: DataLayer table name to read from
-            object_id: ID of object to retrieve
-            name: Optional custom name (defaults to "ReadObject_{table}_{last_segment}")
-        """
-        # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"ReadObject_{table}_{object_id.split('/')[-1]}"
-        super().__init__(name=display_name)
-        self.table = table
-        self.object_id = object_id
-
-    def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access including output key for retrieved object."""
-        super().setup(**kwargs)
-        # Register key for storing retrieved object (use WRITE access)
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=py_trees.common.Access.WRITE
-        )
-
-    def update(self) -> Status:
-        """
-        Read object from DataLayer and store in blackboard.
-
-        Returns:
-            SUCCESS if object found, FAILURE if not found or error
-        """
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        try:
-            record = self.datalayer.read(self.object_id)
-
-            if record is None:
-                self.feedback_message = (
-                    f"Object not found: {self.table}/{self.object_id}"
-                )
-                self.logger.debug(self.feedback_message)
-                return Status.FAILURE
-
-            # Store retrieved object in blackboard with simplified key
-            setattr(self.blackboard, self.blackboard_key, record)
-            self.feedback_message = f"Read {self.table}/{self.object_id}"
-            self.logger.debug(self.feedback_message)
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.feedback_message = (
-                f"Error reading {self.table}/{self.object_id}: {e}"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-
-class UpdateObject(DataLayerAction):
-    """
-    Update an object in DataLayer with new values.
-
-    Reads current object from blackboard (stored by ReadObject), applies updates, and persists.
-    Returns SUCCESS if update completes, FAILURE if error occurs.
-    """
-
-    def __init__(
-        self,
-        object_id: str,
-        updates: dict[str, Any],
-        name: str | None = None,
-    ):
-        """
-        Initialize UpdateObject node.
-
-        Args:
-            object_id: ID of object to update
-            updates: Dictionary of field updates to apply
-            name: Optional custom name (defaults to "UpdateObject_{last_segment}")
-        """
-        # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"UpdateObject_{object_id.split('/')[-1]}"
-        super().__init__(name=display_name)
-        self.object_id = object_id
-        self.updates = updates
-
-    def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access including object key for reading."""
-        super().setup(**kwargs)
-        # Register key for reading object to update
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        """
-        Update object in DataLayer.
-
-        Returns:
-            SUCCESS if update completes, FAILURE if error occurs
-        """
-        if (f := self._require_datalayer()) is not None:
-            return f
-
-        try:
-            # Try to read current record from blackboard
-            # py_trees will raise KeyError if key not written to yet
-            try:
-                current_dict = self.blackboard.get(self.blackboard_key)
-            except KeyError:
-                self.feedback_message = (
-                    f"Object not in blackboard: {self.object_id}"
-                )
-                self.logger.error(self.feedback_message)
-                return Status.FAILURE
-
-            if current_dict is None:
-                self.feedback_message = (
-                    f"Object not in blackboard: {self.object_id}"
-                )
-                self.logger.error(self.feedback_message)
-                return Status.FAILURE
-
-            # Build an updated StorableRecord without importing the adapter-layer Record.
-            if isinstance(current_dict, BaseModel):
-                # Typed domain object stored by ReadObject; serialise to dict
-                # before applying updates.
-                current_data = current_dict.model_dump(mode="json")
-                record_type = current_data.get("type_") or str(
-                    getattr(current_dict, "type_", "Object")
-                )
-                updated_data = {**current_data, **self.updates}
-                storable = StorableRecord(
-                    id_=self.object_id,
-                    type_=record_type,
-                    data_=updated_data,
-                )
-            elif "data_" in current_dict:
-                updated_data = {**current_dict["data_"], **self.updates}
-                storable = StorableRecord(
-                    id_=current_dict["id_"],
-                    type_=current_dict["type_"],
-                    data_=updated_data,
-                )
-            else:
-                updated_data = {**current_dict, **self.updates}
-                record_type = updated_data.get("type_", "Object")
-                storable = StorableRecord(
-                    id_=self.object_id,
-                    type_=record_type,
-                    data_=updated_data,
-                )
-
-            # Persist to DataLayer; update() is a low-level primitive not in
-            # CasePersistence — cast to the full DataLayer contract here.
-            cast(DataLayer, self.datalayer).update(self.object_id, storable)
-
-            self.feedback_message = (
-                f"Updated {self.object_id} with {len(self.updates)} fields"
-            )
-            self.logger.info(self.feedback_message)
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.feedback_message = f"Error updating {self.object_id}: {e}"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-
-class CreateObject(DataLayerAction):
-    """
-    Create a new object in DataLayer.
-
-    Creates object from provided data and persists to DataLayer.
-    Returns SUCCESS if creation completes, FAILURE if error occurs.
-    """
-
-    def __init__(
-        self,
-        table: str,
-        object_data: dict,
-        name: str | None = None,
-    ):
-        """
-        Initialize CreateObject node.
-
-        Args:
-            table: DataLayer table name to create object in
-            object_data: Data dict for new object (must include 'id_' field)
-            name: Optional custom name (defaults to "CreateObject_{table}")
-        """
-        display_name = name or f"CreateObject_{table}"
-        super().__init__(name=display_name)
-        self.table = table
-        self.object_data = object_data
-
-    def update(self) -> Status:
-        """
-        Create object in DataLayer.
-
-        Returns:
-            SUCCESS if creation completes, FAILURE if error occurs
-        """
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        try:
-            # Ensure object_data has required 'id_' field
-            if "id_" not in self.object_data:
-                self.feedback_message = (
-                    "Object data missing required 'id_' field"
-                )
-                self.logger.error(self.feedback_message)
-                return Status.FAILURE
-
-            # Get type from data, default to table name
-            object_type = self.object_data.get("type_", self.table)
-            object_id = self.object_data["id_"]
-
-            # Build a typed StorableRecord and pass it to the DataLayer
-            storable = StorableRecord(
-                id_=object_id,
-                type_=object_type,
-                data_=self.object_data,
-            )
-
-            # Create object in DataLayer
-            self.datalayer.create(storable)
-
-            self.feedback_message = f"Created {self.table}/{object_id}"
-            self.logger.info(self.feedback_message)
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.feedback_message = (
-                f"Error creating object in {self.table}: {e}"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-
-class UpdateActorOutbox(DataLayerAction):
-    """
-    Update actor's outbox with a new activity.
-
-    Reads ``activity_id`` and ``case_id`` from the blackboard (set by the
-    preceding activity-creation node) and appends the activity ID to the
-    actor's outbox.  Also queues the activity for delivery via
-    ``record_outbox_item``.
-
-    Per BTND-04-001: defined here as shared logic used by both
-    ``vultron/core/behaviors/report/nodes.py`` and
-    ``vultron/core/behaviors/case/nodes.py``.
-    """
-
-    def __init__(self, name: str | None = None):
-        """
-        Initialize UpdateActorOutbox node.
-
-        Args:
-            name: Optional custom node name (defaults to class name)
-        """
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access including activity_id and case_id keys."""
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        """
-        Update actor's outbox with activity ID.
-
-        Returns:
-            SUCCESS if outbox updated, FAILURE on error
-        """
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        try:
-            activity_id = self.blackboard.get("activity_id")
-            if activity_id is None:
-                self.logger.error(
-                    f"{self.name}: activity_id not found in blackboard"
-                )
-                return Status.FAILURE
-
-            case_id = self.blackboard.get("case_id")
-
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
-            )
-            self.logger.info(
-                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
-                " (case creation notification)",
-                case_id,
-                activity_id,
-                self.actor_id,
-            )
-
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
-            return Status.FAILURE
-
-
 # ---------------------------------------------------------------------------
 # Typed-Ports base classes (BTND-03-009 through BTND-03-011)
 # ---------------------------------------------------------------------------
@@ -993,3 +517,510 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         raise NotImplementedError(
             f"{self.__class__.__name__}.update() must be implemented"
         )
+
+
+class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
+    """
+    Resolve and store a case participant by actor ID.
+
+    Iterates ``case.case_participants`` and resolves each participant reference
+    until it finds a participant whose ``attributed_to`` matches the target
+    actor ID. On success the matched participant is written to the blackboard.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        target_actor_id: str,
+        participant_key: str = "participant",
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.target_actor_id = target_actor_id
+        self.participant_key = participant_key
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "participant": PortInformation(data_type=object, required=True)
+        }
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "participant": f"/{self.participant_key}",
+            }
+        )
+
+    def _participant_actor_id(self, participant: object) -> str:
+        actor_ref = getattr(participant, "attributed_to")
+        return (
+            actor_ref
+            if isinstance(actor_ref, str)
+            else getattr(actor_ref, "id_", str(actor_ref))
+        )
+
+    def _participant_id(self, participant: object) -> str:
+        return str(getattr(participant, "id_", participant))
+
+    def _fail(self, message: str) -> Status:
+        self.feedback_message = message
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _find_matching_participant(
+        self, case_obj: object
+    ) -> tuple[object | None, str | None, str | None]:
+        assert self.datalayer is not None
+        matched_participant: object | None = None
+        matched_participant_id: str | None = None
+        for participant_ref in getattr(case_obj, "case_participants", []):
+            if isinstance(participant_ref, str):
+                participant_obj = self.datalayer.read(
+                    participant_ref, raise_on_missing=False
+                )
+            else:
+                # For inline objects, read the live DL record to avoid stale
+                # snapshots (#2233 — _build_case_object materialises inlines
+                # for delivery; the standalone record may have advanced since).
+                pid = getattr(participant_ref, "id_", None)
+                live = (
+                    self.datalayer.read(pid, raise_on_missing=False)
+                    if pid
+                    else None
+                )
+                participant_obj = (
+                    live
+                    if isinstance(live, CaseParticipant)
+                    else participant_ref
+                )
+            if not isinstance(participant_obj, CaseParticipant):
+                continue
+            if (
+                self._participant_actor_id(participant_obj)
+                != self.target_actor_id
+            ):
+                continue
+
+            participant_id = self._participant_id(participant_obj)
+            if (
+                matched_participant_id is not None
+                and participant_id != matched_participant_id
+            ):
+                return (
+                    None,
+                    None,
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} resolves to multiple "
+                    "case_participants.",
+                )
+            matched_participant = participant_obj
+            matched_participant_id = participant_id
+
+        return matched_participant, matched_participant_id, None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case_obj = self.datalayer.read(self.case_id, raise_on_missing=False)
+        if not isinstance(case_obj, VulnerabilityCase):
+            self.feedback_message = f"Case {self.case_id} not found"
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        index_match = case_obj.actor_participant_index.get(
+            self.target_actor_id
+        )
+        matched_participant, matched_participant_id, error_message = (
+            self._find_matching_participant(case_obj)
+        )
+        if error_message is not None:
+            return self._fail(error_message)
+
+        if matched_participant is None:
+            if index_match is not None:
+                return self._fail(
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} mapped to {index_match} in "
+                    "actor_participant_index but missing from "
+                    "case_participants."
+                )
+            self.feedback_message = f"No participant for actor {self.target_actor_id} in case {self.case_id}"
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        if index_match != matched_participant_id:
+            if index_match is None:
+                self._set_output("participant", matched_participant)
+                self.feedback_message = (
+                    f"Found participant for actor {self.target_actor_id}"
+                )
+                self.logger.debug("%s: %s", self.name, self.feedback_message)
+                return Status.SUCCESS
+            return self._fail(
+                "Participant-index divergence: actor "
+                f"{self.target_actor_id} resolves to "
+                f"{matched_participant_id} from case_participants but "
+                f"actor_participant_index maps to {index_match}."
+            )
+
+        self._set_output("participant", matched_participant)
+        self.feedback_message = (
+            f"Found participant for actor {self.target_actor_id}"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class ReadObject(DataLayerConditionWithPorts):
+    """
+    Read an object from DataLayer and store in blackboard.
+
+    Returns SUCCESS if object found and stored, FAILURE if not found.
+    Stores retrieved object in blackboard with key "object_{last_path_segment}".
+    """
+
+    def __init__(self, table: str, object_id: str, name: str | None = None):
+        """
+        Initialize ReadObject node.
+
+        Args:
+            table: DataLayer table name to read from
+            object_id: ID of object to retrieve
+            name: Optional custom name (defaults to "ReadObject_{table}_{last_segment}")
+        """
+        # Use last part of ID for blackboard key (URL-safe)
+        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
+        display_name = name or f"ReadObject_{table}_{object_id.split('/')[-1]}"
+        super().__init__(name=display_name)
+        self.table = table
+        self.object_id = object_id
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "object_data": PortInformation(data_type=object, required=True)
+        }
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "object_data": f"/{self.blackboard_key}",
+            }
+        )
+
+    def update(self) -> Status:
+        """
+        Read object from DataLayer and store in blackboard.
+
+        Returns:
+            SUCCESS if object found, FAILURE if not found or error
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            record = self.datalayer.read(self.object_id)
+
+            if record is None:
+                self.feedback_message = (
+                    f"Object not found: {self.table}/{self.object_id}"
+                )
+                self.logger.debug(self.feedback_message)
+                return Status.FAILURE
+
+            self._set_output("object_data", record)
+            self.feedback_message = f"Read {self.table}/{self.object_id}"
+            self.logger.debug(self.feedback_message)
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.feedback_message = (
+                f"Error reading {self.table}/{self.object_id}: {e}"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+
+class UpdateObject(DataLayerActionWithPorts):
+    """
+    Update an object in DataLayer with new values.
+
+    Reads current object from blackboard (stored by ReadObject), applies updates, and persists.
+    Returns SUCCESS if update completes, FAILURE if error occurs.
+    """
+
+    def __init__(
+        self,
+        object_id: str,
+        updates: dict[str, Any],
+        name: str | None = None,
+    ):
+        """
+        Initialize UpdateObject node.
+
+        Args:
+            object_id: ID of object to update
+            updates: Dictionary of field updates to apply
+            name: Optional custom name (defaults to "UpdateObject_{last_segment}")
+        """
+        # Use last part of ID for blackboard key (URL-safe)
+        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
+        display_name = name or f"UpdateObject_{object_id.split('/')[-1]}"
+        super().__init__(name=display_name)
+        self.object_id = object_id
+        self.updates = updates
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["object_data"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "object_data": f"/{self.blackboard_key}",
+            }
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._current_dict = self.get_input("object_data")
+        except (NoDataAvailable, NotImplementedError):
+            self._current_dict = None
+
+    def update(self) -> Status:
+        """
+        Update object in DataLayer.
+
+        Returns:
+            SUCCESS if update completes, FAILURE if error occurs
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+
+        try:
+            current_dict = self._current_dict
+
+            if current_dict is None:
+                self.feedback_message = (
+                    f"Object not in blackboard: {self.object_id}"
+                )
+                self.logger.error(self.feedback_message)
+                return Status.FAILURE
+
+            # Build an updated StorableRecord without importing the adapter-layer Record.
+            if isinstance(current_dict, BaseModel):
+                # Typed domain object stored by ReadObject; serialise to dict
+                # before applying updates.
+                current_data = current_dict.model_dump(mode="json")
+                record_type = current_data.get("type_") or str(
+                    getattr(current_dict, "type_", "Object")
+                )
+                updated_data = {**current_data, **self.updates}
+                storable = StorableRecord(
+                    id_=self.object_id,
+                    type_=record_type,
+                    data_=updated_data,
+                )
+            elif "data_" in current_dict:
+                updated_data = {**current_dict["data_"], **self.updates}
+                storable = StorableRecord(
+                    id_=current_dict["id_"],
+                    type_=current_dict["type_"],
+                    data_=updated_data,
+                )
+            else:
+                updated_data = {**current_dict, **self.updates}
+                record_type = updated_data.get("type_", "Object")
+                storable = StorableRecord(
+                    id_=self.object_id,
+                    type_=record_type,
+                    data_=updated_data,
+                )
+
+            # Persist to DataLayer; update() is a low-level primitive not in
+            # CasePersistence — cast to the full DataLayer contract here.
+            cast(DataLayer, self.datalayer).update(self.object_id, storable)
+
+            self.feedback_message = (
+                f"Updated {self.object_id} with {len(self.updates)} fields"
+            )
+            self.logger.info(self.feedback_message)
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.feedback_message = f"Error updating {self.object_id}: {e}"
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+
+class CreateObject(DataLayerAction):
+    """
+    Create a new object in DataLayer.
+
+    Creates object from provided data and persists to DataLayer.
+    Returns SUCCESS if creation completes, FAILURE if error occurs.
+    """
+
+    def __init__(
+        self,
+        table: str,
+        object_data: dict,
+        name: str | None = None,
+    ):
+        """
+        Initialize CreateObject node.
+
+        Args:
+            table: DataLayer table name to create object in
+            object_data: Data dict for new object (must include 'id_' field)
+            name: Optional custom name (defaults to "CreateObject_{table}")
+        """
+        display_name = name or f"CreateObject_{table}"
+        super().__init__(name=display_name)
+        self.table = table
+        self.object_data = object_data
+
+    def update(self) -> Status:
+        """
+        Create object in DataLayer.
+
+        Returns:
+            SUCCESS if creation completes, FAILURE if error occurs
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            # Ensure object_data has required 'id_' field
+            if "id_" not in self.object_data:
+                self.feedback_message = (
+                    "Object data missing required 'id_' field"
+                )
+                self.logger.error(self.feedback_message)
+                return Status.FAILURE
+
+            # Get type from data, default to table name
+            object_type = self.object_data.get("type_", self.table)
+            object_id = self.object_data["id_"]
+
+            # Build a typed StorableRecord and pass it to the DataLayer
+            storable = StorableRecord(
+                id_=object_id,
+                type_=object_type,
+                data_=self.object_data,
+            )
+
+            # Create object in DataLayer
+            self.datalayer.create(storable)
+
+            self.feedback_message = f"Created {self.table}/{object_id}"
+            self.logger.info(self.feedback_message)
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.feedback_message = (
+                f"Error creating object in {self.table}: {e}"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+
+class UpdateActorOutbox(DataLayerActionWithPorts):
+    """
+    Update actor's outbox with a new activity.
+
+    Reads ``activity_id`` and ``case_id`` from the blackboard (set by the
+    preceding activity-creation node) and appends the activity ID to the
+    actor's outbox.  Also queues the activity for delivery via
+    ``record_outbox_item``.
+
+    Per BTND-04-001: defined here as shared logic used by both
+    ``vultron/core/behaviors/report/nodes.py`` and
+    ``vultron/core/behaviors/case/nodes.py``.
+    """
+
+    def __init__(self, name: str | None = None):
+        """
+        Initialize UpdateActorOutbox node.
+
+        Args:
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity_id"] = PortInformation(data_type=str, required=True)
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity_id": "/activity_id", "case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.activity_id = self.get_input("activity_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.activity_id = None
+        try:
+            self.case_id = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.case_id = None
+
+    def update(self) -> Status:
+        """
+        Update actor's outbox with activity ID.
+
+        Returns:
+            SUCCESS if outbox updated, FAILURE on error
+        """
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        try:
+            activity_id = self.activity_id
+            if activity_id is None:
+                self.logger.error(
+                    f"{self.name}: activity_id not found in blackboard"
+                )
+                return Status.FAILURE
+
+            case_id = self.case_id
+
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
+                " (case creation notification)",
+                case_id,
+                activity_id,
+                self.actor_id,
+            )
+
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
+            return Status.FAILURE

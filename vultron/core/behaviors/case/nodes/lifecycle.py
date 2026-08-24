@@ -28,7 +28,9 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerAction
+from py_trees.ports import NoDataAvailable, PortInformation
+
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -143,7 +145,7 @@ def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
     return None
 
 
-class CommitCaseLedgerEntryNode(DataLayerAction):
+class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     """
     Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
 
@@ -183,40 +185,52 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         self._case_id = case_id
         self._sync_port: Any = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["activity"] = PortInformation(data_type=object, required=False)
+        ports["sync_port"] = PortInformation(data_type=object, required=False)
+        ports["ledger_payload_object_override"] = PortInformation(
+            data_type=object, required=False
         )
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="sync_port", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-            access=py_trees.common.Access.READ,
-        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "activity": "/activity",
+            "sync_port": "/sync_port",
+            "ledger_payload_object_override": f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
+        }
 
     def initialise(self) -> None:
         super().initialise()
         try:
-            self._sync_port = self.blackboard.sync_port
-        except (AttributeError, KeyError):
+            self._case_id_bb: str | None = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = None
+        try:
+            self._activity: Any = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self._activity = None
+        try:
+            self._sync_port = self.get_input("sync_port")
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
+        try:
+            self._ledger_payload_object_override: Any = self.get_input(
+                "ledger_payload_object_override"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self._ledger_payload_object_override = None
 
     def _resolve_case_id(self) -> str | None:
-        try:
-            return self._case_id or self.blackboard.get("case_id")
-        except KeyError:
-            return self._case_id
+        return self._case_id or self._case_id_bb
 
     def _resolve_activity(self) -> Any | None:
-        try:
-            return self.blackboard.get("activity")
-        except KeyError:
-            return None
+        return self._activity
 
     def _resolve_payload_object_override(
         self, payload_snapshot: dict[str, Any]
@@ -243,10 +257,7 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         blackboard is process-global and not cleared between executions, so an
         unmatched override is a leftover from an earlier run and is ignored.
         """
-        try:
-            override = self.blackboard.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE)
-        except KeyError:
-            return None
+        override = self._ledger_payload_object_override
         if not isinstance(override, dict):
             return None
         fields = override.get("fields")
