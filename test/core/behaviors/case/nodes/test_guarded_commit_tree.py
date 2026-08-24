@@ -62,6 +62,7 @@ def _seed_case_with_manager(bt_scenario: BTTestScenario) -> None:
     bt_scenario.seed(manager_participant, vendor_participant, case)
 
 
+@pytest.mark.spec("CM-02-002")
 def test_guarded_commit_tree_calls_commit_for_case_manager(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -78,6 +79,7 @@ def test_guarded_commit_tree_calls_commit_for_case_manager(
     mock_update.assert_called_once()
 
 
+@pytest.mark.spec("CM-02-002")
 def test_guarded_commit_tree_skips_commit_for_non_manager(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -131,6 +133,7 @@ def _seeded_scenario(bt_scenario: BTTestScenario) -> BTTestScenario:
     return bt_scenario
 
 
+@pytest.mark.spec("CM-02-009")
 def test_guarded_commit_tree_entry_has_non_empty_hash(
     _seeded_scenario: BTTestScenario,
 ) -> None:
@@ -159,6 +162,7 @@ def test_guarded_commit_tree_entry_has_non_empty_hash(
         assert len(entry.entry_hash) > 0
 
 
+@pytest.mark.spec("CM-02-009")
 def test_guarded_commit_tree_entry_has_utc_received_at(
     _seeded_scenario: BTTestScenario,
 ) -> None:
@@ -188,6 +192,7 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
         assert entry.received_at.tzinfo == timezone.utc
 
 
+@pytest.mark.spec("CM-02-002")
 def test_guarded_commit_tree_entry_references_correct_case_id(
     _seeded_scenario: BTTestScenario,
 ) -> None:

@@ -103,6 +103,7 @@ class TestSenderSideBT:
         assert isinstance(children[1], ConstructActivitiesNode)
         assert isinstance(children[2], QueueToOutboxNode)
 
+    @pytest.mark.spec("CM-24-001")
     def test_bt_success_routes_to_case_manager(self, dl, bridge):
         store, actor = dl
         case = _make_case_with_case_manager(store, actor.id_)
@@ -120,6 +121,7 @@ class TestSenderSideBT:
         assert result.status == Status.SUCCESS
         assert addressed_to == [CASE_ACTOR_ID]
 
+    @pytest.mark.spec("CM-24-003")
     def test_bt_failure_when_case_manager_absent(self, dl, bridge):
         store, actor = dl
         case = as_VulnerabilityCase(name="No Manager")

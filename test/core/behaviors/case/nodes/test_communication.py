@@ -113,6 +113,8 @@ class TestEmitCreateCaseActivity:
         assert isinstance(tree.children[0], CollectCaseAddresseesNode)
         assert isinstance(tree.children[1], CreateAndPersistCaseActivityNode)
 
+    @pytest.mark.spec("CM-06-001")
+    @pytest.mark.spec("CM-06-003")
     def test_collect_case_addressees_filters_sender(
         self,
         bt_scenario: BTTestScenario,
@@ -139,6 +141,7 @@ class TestEmitCreateCaseActivity:
         )
         assert addressees == ["https://example.org/actors/peer"]
 
+    @pytest.mark.spec("CM-12-003")
     def test_create_and_persist_case_activity_writes_activity_id(
         self,
         bt_scenario: BTTestScenario,

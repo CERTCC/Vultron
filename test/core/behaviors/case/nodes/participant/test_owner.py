@@ -37,6 +37,8 @@ from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
 
+@pytest.mark.spec("CM-14-009")
+@pytest.mark.spec("CM-02-004")
 class TestCreateCaseOwnerParticipant:
     """CreateCaseOwnerParticipant preserves semantics after refactor."""
 

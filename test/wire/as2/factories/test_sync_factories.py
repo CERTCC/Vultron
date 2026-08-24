@@ -62,6 +62,7 @@ def test_announce_log_entry_returns_announce(sample_log_entry):
     assert isinstance(result, as_Announce)
 
 
+@pytest.mark.spec("SYNC-02-004")
 def test_announce_log_entry_object_is_entry(sample_log_entry):
     result = announce_log_entry_activity(
         entry=sample_log_entry, actor=_ACTOR_URI
@@ -69,6 +70,7 @@ def test_announce_log_entry_object_is_entry(sample_log_entry):
     assert result.object_ == sample_log_entry
 
 
+@pytest.mark.spec("SYNC-02-002")
 def test_announce_log_entry_kwargs_forwarded(sample_log_entry):
     result = announce_log_entry_activity(
         entry=sample_log_entry, actor=_ACTOR_URI
@@ -98,6 +100,7 @@ def test_reject_log_entry_returns_reject(sample_log_entry):
     assert isinstance(result, as_Reject)
 
 
+@pytest.mark.spec("SYNC-03-001")
 def test_reject_log_entry_object_is_entry(sample_log_entry):
     result = reject_log_entry_activity(
         entry=sample_log_entry, actor=_ACTOR_URI
@@ -105,6 +108,8 @@ def test_reject_log_entry_object_is_entry(sample_log_entry):
     assert result.object_ == sample_log_entry
 
 
+@pytest.mark.spec("SYNC-03-001")
+@pytest.mark.spec("SYNC-03-004")
 def test_reject_log_entry_context_is_set(sample_log_entry):
     """context carries the last accepted hash string (SYNC-03-001)."""
     result = reject_log_entry_activity(

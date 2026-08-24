@@ -58,6 +58,8 @@ def case_with_participant(datalayer):
     return case, participant
 
 
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("SYNC-12-002")
 def test_apply_close_case_advances_actor_to_rm_closed(
     bridge, datalayer, case_actor, case_with_participant
 ):
@@ -86,6 +88,7 @@ def test_apply_close_case_advances_actor_to_rm_closed(
     )
 
 
+@pytest.mark.spec("SYNC-12-003")
 def test_apply_close_case_idempotent(
     bridge, datalayer, case_actor, case_with_participant
 ):
@@ -113,6 +116,7 @@ def test_apply_close_case_idempotent(
     ), f"Expected exactly one RM.CLOSED status; got {closed_count}"
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_apply_close_case_skips_missing_case(bridge, case_actor):
     """Node returns SUCCESS when the case is not in the local DataLayer."""
     entry = _make_close_case_entry(DEPARTING_ACTOR_ID)
@@ -127,6 +131,7 @@ def test_apply_close_case_skips_missing_case(bridge, case_actor):
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_apply_close_case_skips_unknown_actor(
     bridge, case_actor, case_with_participant
 ):

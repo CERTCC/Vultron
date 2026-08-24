@@ -75,6 +75,7 @@ def configure_case_actor_url(monkeypatch):
 # ============================================================================
 
 
+@pytest.mark.spec("CM-12-001")
 class TestTreeStructure:
     """Root shape, child count, and node identity assertions (ADR-0041)."""
 
@@ -219,6 +220,10 @@ class TestTreeStructure:
 # ============================================================================
 
 
+@pytest.mark.spec("CM-15-001")
+@pytest.mark.spec("CM-15-002")
+@pytest.mark.spec("CM-15-003")
+@pytest.mark.spec("CM-15-004")
 class TestPolicyGate:
     """auto_create_case=False prevents any DataLayer writes."""
 

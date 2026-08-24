@@ -188,6 +188,7 @@ class TestInboxOutcomeModel:
 
 
 class TestProcessPayloadRejectsInvalidInput:
+    @pytest.mark.spec("MV-01-001")
     def test_none_parse_result_returns_rejected(self, report_activity):
         """When IngressAdapter.parse returns None, outcome is rejected."""
         ingress = _StubIngressAdapter(activity=None, fail_parse=True)
@@ -199,6 +200,7 @@ class TestProcessPayloadRejectsInvalidInput:
         assert outcome.status == "rejected"
         assert outcome.failure_reason is not None
 
+    @pytest.mark.spec("MV-01-007")
     def test_dispatch_failure_returns_rejected(self, report_activity):
         """When dispatch raises, outcome is rejected; no exception propagates."""
         ingress = _StubIngressAdapter(activity=report_activity)

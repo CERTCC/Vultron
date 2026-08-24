@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from typing import cast
 
+import pytest
+
 from vultron.core.behaviors.case.accept_invite_tree import (
     _SignEmbargoConsentLeafNode,
 )
@@ -71,6 +73,7 @@ def _run_sign_node(
 class TestPecChainNoEmbargoToSignatory:
     """Full PEC chain traversal via BT nodes (not direct assignment)."""
 
+    @pytest.mark.spec("EMB-11-001")
     def test_no_embargo_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
@@ -85,6 +88,7 @@ class TestPecChainNoEmbargoToSignatory:
             final_pec == PEC.SIGNATORY
         ), f"Expected SIGNATORY after ACCEPT from NO_EMBARGO, got {final_pec!r}"
 
+    @pytest.mark.spec("EMB-11-001")
     def test_invited_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
@@ -131,6 +135,7 @@ class TestPecChainNoEmbargoToSignatory:
 class TestMultiParticipantPecChain:
     """Two participants traverse the PEC chain independently."""
 
+    @pytest.mark.spec("EMB-11-001")
     def test_two_participants_both_reach_signatory(
         self, bt_scenario: BTTestScenario
     ):
@@ -148,6 +153,7 @@ class TestMultiParticipantPecChain:
             pec_b == PEC.SIGNATORY
         ), f"Participant B: expected SIGNATORY, got {pec_b!r}"
 
+    @pytest.mark.spec("EMB-11-001")
     def test_participants_reach_signatory_from_different_starting_states(
         self, bt_scenario: BTTestScenario
     ):
@@ -166,6 +172,7 @@ class TestMultiParticipantPecChain:
         assert pec_a == PEC.SIGNATORY
         assert pec_b == PEC.SIGNATORY
 
+    @pytest.mark.spec("EMB-11-001")
     def test_second_participant_does_not_affect_first(
         self, bt_scenario: BTTestScenario
     ):
@@ -191,6 +198,7 @@ class TestMultiParticipantPecChain:
 class TestLapsedToSignatory:
     """A LAPSED participant can re-sign and reach SIGNATORY."""
 
+    @pytest.mark.spec("EMB-11-001")
     def test_lapsed_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):

@@ -34,6 +34,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
+@pytest.mark.spec("SE-03-001")
+@pytest.mark.spec("VAM-01-001")
 def test_all_message_semantics_have_activity_patterns():
     """Ensure every non-UNKNOWN* MessageSemantics member has a pattern in SEMANTIC_REGISTRY."""
     no_pattern_sentinels = {
@@ -145,6 +147,8 @@ def _subset_safe(
     return False  # equal dumps — always ambiguous
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_non_overlapping_activity_patterns():
     """Verify that no two patterns in the same activity_ group are ambiguous.
 
@@ -207,6 +211,7 @@ def test_non_overlapping_activity_patterns():
     assert not problems, f"Ambiguous activity pattern groups: {problems}"
 
 
+@pytest.mark.spec("AF-01-003")
 def test_offer_case_ownership_transfer_rejects_string_object():
     """OfferCaseOwnershipTransferActivity must have an inline as_VulnerabilityCase,
     not a bare string URI as object_.
@@ -224,6 +229,8 @@ def test_offer_case_ownership_transfer_rejects_string_object():
         )
 
 
+@pytest.mark.spec("VAM-04-007")
+@pytest.mark.spec("SE-02-001")
 def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     """An OfferCaseOwnershipTransferActivity with a full inline as_VulnerabilityCase
     must be classified as OFFER_CASE_OWNERSHIP_TRANSFER, not SUBMIT_REPORT."""
@@ -239,6 +246,8 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
 
 
+@pytest.mark.spec("SE-04-002")
+@pytest.mark.spec("VAM-01-009")
 def test_accept_with_bare_string_object_returns_unresolvable():
     """Accept with a bare string object_ (unrehydrated ref) must return
     UNKNOWN_UNRESOLVABLE_OBJECT, not UNKNOWN, because Accept is a registered
@@ -255,6 +264,8 @@ def test_accept_with_bare_string_object_returns_unresolvable():
     assert result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
 
 
+@pytest.mark.spec("SE-02-003")
+@pytest.mark.spec("VAM-01-007")
 def test_unknown_activity_type_with_bare_string_object_returns_unknown():
     """An activity type with no registered patterns returns UNKNOWN (not
     UNKNOWN_UNRESOLVABLE_OBJECT) even when object_ is a bare string.
@@ -300,6 +311,8 @@ def _make_case() -> VulnerabilityCaseStub:
     ],
     ids=["base-Actor", "Person", "Organization", "Service"],
 )
+@pytest.mark.spec("SE-01-004")
+@pytest.mark.spec("VAM-04-004")
 def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     """InviteActorToCasePattern must match Invite(actor_subtype, target=Case).
 
@@ -330,6 +343,8 @@ def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     ],
     ids=["base-Actor", "Person", "Organization", "Service"],
 )
+@pytest.mark.spec("SE-01-004")
+@pytest.mark.spec("VAM-04-005")
 def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     """AcceptInviteActorToCasePattern must match Accept(Invite(actor_subtype, target=Case)).
 
@@ -353,6 +368,7 @@ def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     )
 
 
+@pytest.mark.spec("SE-01-004")
 def test_invite_actor_to_case_without_actor_object_does_not_match():
     """Invite(Note, target=Case) must NOT match INVITE_ACTOR_TO_CASE.
 
@@ -373,6 +389,7 @@ def test_invite_actor_to_case_without_actor_object_does_not_match():
     assert result != MessageSemantics.INVITE_ACTOR_TO_CASE
 
 
+@pytest.mark.spec("SE-02-001")
 def test_announce_vulnerability_case_pattern_matches():
     """AnnounceVulnerabilityCasePattern must match Announce(as_VulnerabilityCase).
 
@@ -392,6 +409,8 @@ def test_announce_vulnerability_case_pattern_matches():
     ), f"Expected ANNOUNCE_VULNERABILITY_CASE, got {result}"
 
 
+@pytest.mark.spec("VM-07-001")
+@pytest.mark.spec("VM-07-002")
 def test_vulnerability_case_stub_serialises_minimally():
     """VulnerabilityCaseStub must produce only {id, type} when serialised.
 
@@ -405,6 +424,7 @@ def test_vulnerability_case_stub_serialises_minimally():
     assert dumped.get("type") == "VulnerabilityCase"
 
 
+@pytest.mark.spec("VM-07-001")
 def test_vulnerability_case_stub_with_summary():
     """VulnerabilityCaseStub may expose a summary field (MV-10-002)."""
     stub = VulnerabilityCaseStub(
@@ -416,6 +436,7 @@ def test_vulnerability_case_stub_with_summary():
     assert dumped["summary"] == "Heap overflow in libfoo"
 
 
+@pytest.mark.spec("CM-17-002")
 def test_rm_invite_projects_full_vulnerability_case_to_stub():
     """rm_invite_to_case_activity projects a full as_VulnerabilityCase to a stub.
 
@@ -452,6 +473,8 @@ def _make_case_manager_case() -> as_VulnerabilityCase:
     return as_VulnerabilityCase(id_=_CASE_URI, name="CASE-001")
 
 
+@pytest.mark.spec("SE-08-003")
+@pytest.mark.spec("VAM-04-007")
 def test_offer_case_manager_role_not_confused_with_ownership_transfer():
     """Offer(as_VulnerabilityCase) without a as_CaseParticipant target must be
     classified as OFFER_CASE_OWNERSHIP_TRANSFER, not OFFER_CASE_MANAGER_ROLE.
@@ -478,6 +501,7 @@ def _make_target_actor() -> as_Actor:
     return as_Actor(id_=_CASE_ACTOR_URI)
 
 
+@pytest.mark.spec("SE-08-003")
 def test_offer_case_participant_role_dispatches_correctly():
     """Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) must
     be classified as OFFER_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
@@ -501,6 +525,7 @@ def test_offer_case_participant_role_dispatches_correctly():
     ), f"Expected OFFER_CASE_PARTICIPANT_ROLE, got {result}"
 
 
+@pytest.mark.spec("SE-08-003")
 def test_offer_case_participant_role_not_confused_with_ownership_transfer():
     """Offer(CaseParticipantRole) must NOT be classified as
     OFFER_CASE_OWNERSHIP_TRANSFER or OFFER_CASE_MANAGER_ROLE.
@@ -524,6 +549,7 @@ def test_offer_case_participant_role_not_confused_with_ownership_transfer():
     ), "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_OWNERSHIP_TRANSFER"
 
 
+@pytest.mark.spec("SE-08-003")
 def test_offer_case_participant_role_for_coordinator():
     """offer_case_participant_role_activity accepts any CVDRole, not just CASE_MANAGER."""
     from vultron.enums.roles import CVDRole
@@ -559,6 +585,7 @@ def _make_case_proposal():
     )
 
 
+@pytest.mark.spec("SE-02-001")
 def test_create_case_proposal_dispatches_correctly():
     """Create(as_CaseProposal) must be classified as CREATE_CASE_PROPOSAL.
 
@@ -580,6 +607,7 @@ def test_create_case_proposal_dispatches_correctly():
     ), f"Expected CREATE_CASE_PROPOSAL, got {result}"
 
 
+@pytest.mark.spec("SE-02-001")
 def test_accept_case_proposal_dispatches_correctly():
     """Accept(as_CaseProposal) must be classified as ACCEPT_CASE_PROPOSAL.
 
@@ -601,6 +629,7 @@ def test_accept_case_proposal_dispatches_correctly():
     ), f"Expected ACCEPT_CASE_PROPOSAL, got {result}"
 
 
+@pytest.mark.spec("SE-02-001")
 def test_reject_case_proposal_dispatches_correctly():
     """Reject(as_CaseProposal) must be classified as REJECT_CASE_PROPOSAL.
 
@@ -622,6 +651,8 @@ def test_reject_case_proposal_dispatches_correctly():
     ), f"Expected REJECT_CASE_PROPOSAL, got {result}"
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_create_case_proposal_not_confused_with_create_case():
     """Create(as_CaseProposal) must NOT match CREATE_CASE.
 
@@ -644,6 +675,8 @@ def test_create_case_proposal_not_confused_with_create_case():
     ), "CREATE_CASE_PROPOSAL must not be misrouted as CREATE_CASE"
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_accept_case_proposal_not_confused_with_other_accept_semantics():
     """Accept(as_CaseProposal) must NOT match any non-CaseProposal semantic.
 
@@ -668,6 +701,8 @@ def test_accept_case_proposal_not_confused_with_other_accept_semantics():
     }, f"Accept(CaseProposal) misrouted as {result}"
 
 
+@pytest.mark.spec("VAM-01-009")
+@pytest.mark.spec("SE-04-002")
 def test_case_proposal_with_string_object_returns_unresolvable():
     """Accept with a bare CaseProposal URI returns UNKNOWN_UNRESOLVABLE_OBJECT.
 
@@ -694,6 +729,8 @@ def test_case_proposal_with_string_object_returns_unresolvable():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("VAM-01-006")
+@pytest.mark.spec("SE-08-004")
 def test_strict_target_rejects_bare_string_uri():
     """ActivityPattern with strict=True must not match when target is a bare string URI.
 
@@ -730,6 +767,8 @@ def test_strict_target_rejects_bare_string_uri():
     ), "strict=True pattern must not match when target is a bare string URI"
 
 
+@pytest.mark.spec("VAM-01-006")
+@pytest.mark.spec("SE-08-004")
 def test_strict_target_matches_typed_actor():
     """ActivityPattern with strict=True must match when target is a typed Actor.
 
@@ -784,6 +823,7 @@ def _make_role_offer():
     )
 
 
+@pytest.mark.spec("SE-08-003")
 def test_accept_case_participant_role_dispatches_correctly():
     """Accept(Offer(CaseParticipantRole, ...)) must be classified as
     ACCEPT_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
@@ -801,6 +841,7 @@ def test_accept_case_participant_role_dispatches_correctly():
     ), f"Expected ACCEPT_CASE_PARTICIPANT_ROLE, got {result}"
 
 
+@pytest.mark.spec("SE-08-003")
 def test_reject_case_participant_role_dispatches_correctly():
     """Reject(Offer(CaseParticipantRole, ...)) must be classified as
     REJECT_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
@@ -818,6 +859,8 @@ def test_reject_case_participant_role_dispatches_correctly():
     ), f"Expected REJECT_CASE_PARTICIPANT_ROLE, got {result}"
 
 
+@pytest.mark.spec("SE-08-003")
+@pytest.mark.spec("SE-03-002")
 def test_accept_case_participant_role_not_confused_with_other_accepts():
     """Accept(Offer(CaseParticipantRole)) must NOT match any other Accept semantics.
 

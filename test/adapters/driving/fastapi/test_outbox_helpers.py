@@ -28,6 +28,8 @@ Spec coverage:
 
 from types import SimpleNamespace
 
+import pytest
+
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 
 # ---------------------------------------------------------------------------
@@ -120,6 +122,7 @@ def test_format_object_handles_object_without_id():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("MV-10-001")
 def test_dehydrate_references_preserves_vulnerability_case_stub():
     """_dehydrate_references preserves VulnerabilityCase stub dicts (MV-10-001).
 
@@ -208,6 +211,7 @@ def test_dehydrate_references_leaves_none_fields_unchanged():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("MV-10-001")
 def test_is_stub_object_dict_true_for_minimal_case_stub():
     """_is_stub_object_dict identifies the selective-disclosure case stub."""
     stub: dict[object, object] = {
@@ -217,6 +221,7 @@ def test_is_stub_object_dict_true_for_minimal_case_stub():
     assert oh._is_stub_object_dict(stub) is True
 
 
+@pytest.mark.spec("MV-10-001")
 def test_coerce_reference_value_preserves_case_stub_dict():
     """_coerce_reference_value keeps intentional case stubs inline."""
     stub = {
