@@ -1,13 +1,32 @@
 # Plan Issue — Idea path
 
-## Grill-Me Interview (additional questions beyond shared base)
+## Grill-Me Interview
 
-After resolving the shared base questions (scope, AC clusters, ADR
-determination), also cover:
+**Opening brief** — Before asking anything, synthesize what Phase 3
+research reveals about this idea. Present:
 
-1. **Spec scope** — What requirements should be captured in `specs/`?
-2. **Design decisions** — What alternatives were considered? Which is recommended?
-3. **Notes scope** — What implementation guidance should be documented in `notes/`?
+- What the issue says
+- What the current codebase and specs show about the landscape this idea
+  lands in — existing patterns, adjacent work, open questions
+- Your read on what the idea is trying to achieve
+- 2–3 plausible directions for implementing or scoping it
+
+**Conversation** — Walk through the idea bottom-up. Ask clarifying
+questions as understanding builds. The following topics should emerge
+naturally from the discussion — do not ask them as sequential structured
+questions:
+
+- What requirements should be captured in `specs/`
+- What alternatives were considered and which is recommended
+- What implementation guidance belongs in `notes/`
+- Scope, acceptance criteria, and ADR applicability
+
+Signal the transition with "I think we're almost there — here's what I
+have so far. Got more?" rather than declaring done unilaterally.
+
+**Confirm conclusions** — After the conversation closes, propose the full
+plan: what to implement, which docs to update, whether an ADR is warranted.
+These are proposals to confirm, not new questions.
 
 ## Docs Output
 
