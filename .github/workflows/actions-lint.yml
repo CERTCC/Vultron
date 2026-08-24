@@ -35,11 +35,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   actionlint:
     name: Lint (actionlint)
     runs-on: ubuntu-latest
     steps:
+      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Pinned by version + SHA256 so a compromised or retagged release cannot

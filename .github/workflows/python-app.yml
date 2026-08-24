@@ -30,7 +30,7 @@ permissions:
 # main so that back-to-back merges don't each spin up a full runner fleet.
 # The sleep only applies on push; PR runs start immediately.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 # Shared setup used by every job below.
@@ -43,9 +43,7 @@ jobs:
     name: Tests (pytest)
     runs-on: ubuntu-latest
     steps:
-      - name: Debounce rapid main-branch merges
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: sleep 60
+      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-tags: true
@@ -60,9 +58,7 @@ jobs:
     name: Lint (black)
     runs-on: ubuntu-latest
     steps:
-      - name: Debounce rapid main-branch merges
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: sleep 60
+      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
@@ -73,9 +69,7 @@ jobs:
     name: Lint (flake8)
     runs-on: ubuntu-latest
     steps:
-      - name: Debounce rapid main-branch merges
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: sleep 60
+      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
@@ -86,9 +80,7 @@ jobs:
     name: Lint (mypy)
     runs-on: ubuntu-latest
     steps:
-      - name: Debounce rapid main-branch merges
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: sleep 60
+      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
@@ -99,9 +91,7 @@ jobs:
     name: Lint (pyright)
     runs-on: ubuntu-latest
     steps:
-      - name: Debounce rapid main-branch merges
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: sleep 60
+      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
