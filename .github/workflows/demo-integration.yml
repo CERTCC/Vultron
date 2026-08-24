@@ -15,8 +15,11 @@
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
 #
-# Concurrency: PR runs cancel in-progress superseded runs; on-main runs
-# always run to completion (DEMOCI-02-011, DEMOCI-05-002).
+# Concurrency: all runs cancel in-progress superseded runs. On main a 60-second
+# debounce (debounce-main-push action) means burst merges cancel each other
+# before doing real work; only the last commit in a batch runs the full suite.
+# Per-commit granularity on main is not required — a time-range bisect is
+# sufficient to identify regressions across a typical 4–6 PR batch.
 #
 # Job structure (DEMOCI-04-001 through DEMOCI-04-003):
 #   scenarios      — selects the matrix for this event; emits it as JSON
@@ -105,10 +108,9 @@ on:
         required: false
         default: ""
 
-# DEMOCI-02-011: cancel superseded PR runs; never cancel on-main runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
