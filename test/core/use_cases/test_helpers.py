@@ -494,6 +494,69 @@ class TestFindCaseActorId:
 
         assert _find_case_actor_id(cm_dl, _CM_CASE_ID) == service_id
 
+    def test_case_manager_at_a_case_actor_identity_resolves(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """#1872 AC-4: a CASE_MANAGER *at a CaseActor identity* needs no Service.
+
+        The CaseActor is a participant wearing the CASE_MANAGER hat, so the role
+        plus the container-identity shape is the evidence — not the existence of a
+        per-case ``Service`` object. This is the path that lets AC-3 delete that
+        object without the invite/accept resolution (PCR-08-007/008) going blind.
+        """
+        case_actor_id = "https://case-actor.test/api/v2/actors/case-actor"
+        participant = CaseParticipant(
+            id_=f"{_CM_CASE_ID}/participants/case-actor",
+            attributed_to=case_actor_id,
+            context=_CM_CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        cm_dl.create(participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Role Is The Marker")
+        case.add_participant(participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) == case_actor_id
+
+    def test_case_manager_that_is_not_a_case_actor_still_resolves_none(
+        self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
+    ) -> None:
+        """The narrowness ADR-0021 requires survives AC-4.
+
+        ``_CM_ACTOR_ID`` holds CASE_MANAGER but is an ordinary participant, not a
+        CaseActor container. Such a case has no CaseActor and MUST resolve
+        ``None`` — repointing the Service scan at the role alone would have
+        started answering here, which is why the shape test exists.
+        """
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Ordinary Manager")
+        case.add_participant(cm_participant)
+        cm_dl.create(cm_participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
+    def test_a_slugged_case_actor_identity_is_not_accepted(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """The retired per-case form must not resolve (#1872).
+
+        A ``case-actor-<slug>`` id is unhostable by construction, so treating one
+        as a CaseActor would hand callers an address that 404s on delivery.
+        """
+        slugged = "https://case-actor.test/api/v2/actors/case-actor-abc123"
+        participant = CaseParticipant(
+            id_=f"{_CM_CASE_ID}/participants/slugged",
+            attributed_to=slugged,
+            context=_CM_CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        cm_dl.create(participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Slugged")
+        case.add_participant(participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
     def test_returns_none_when_unresolvable(
         self, cm_dl: SqliteDataLayer, vendor_participant: CaseParticipant
     ) -> None:

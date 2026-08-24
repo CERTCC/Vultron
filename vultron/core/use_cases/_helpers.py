@@ -172,6 +172,63 @@ def build_activity_payload_snapshot(
     return inlined if isinstance(inlined, dict) else {}
 
 
+def _scan_report_case_links(
+    dl: CasePersistence, case_id: str
+) -> tuple[str | None, set[str]]:
+    """Split one pass over the links into the two answers callers need.
+
+    Returns ``(established, pending_creator_ids)``: the completed link's
+    ``trusted_case_actor_id`` for *case_id* when there is one, and the set of
+    ``trusted_case_creator_id`` values from links that are still pending.
+
+    One pass rather than two because the links are read from storage; the tuple
+    keeps :func:`_find_case_actor_id` at a reviewable size without paying for a
+    second scan.
+    """
+    established: str | None = None
+    pending_creator_ids: set[str] = set()
+    for link in dl.list_objects("ReportCaseLink"):
+        if not isinstance(link, VultronReportCaseLink):
+            continue
+        if (
+            established is None
+            and link.case_id == case_id
+            and link.trusted_case_actor_id
+        ):
+            established = str(link.trusted_case_actor_id)
+        if link.case_id is None and link.trusted_case_creator_id:
+            pending_creator_ids.add(str(link.trusted_case_creator_id))
+    return established, pending_creator_ids
+
+
+def _case_actor_by_role(dl: CasePersistence, case_id: str) -> str | None:
+    """Return the case's CASE_MANAGER when it is a CaseActor container identity.
+
+    The evidence that an actor is a CaseActor is the role plus the shape of its
+    identity, not the existence of a per-case ``Service`` object (#1872 AC-4).
+    Both halves are needed:
+
+    - The **role** alone is not enough. A case whose manager is an ordinary
+      participant has no CaseActor and must resolve ``None`` (ADR-0021).
+    - The **shape** alone is not enough either; an actor at a CaseActor identity
+      that does not hold the role for *this* case is not this case's manager.
+
+    A ``case-actor-<slug>`` id is rejected: that form is unhostable by
+    construction, so returning one hands the caller an address whose delivery
+    404s — strictly worse than ``None``, which every caller already handles.
+    """
+    # Local import: `use_cases` does not import `behaviors` at module scope.
+    from vultron.core.behaviors.case.case_actor_identity import (
+        is_case_actor_identity,
+    )
+
+    case_obj = dl.read(case_id)
+    if not isinstance(case_obj, VulnerabilityCase):
+        return None
+    manager_id = _resolve_case_manager_id(case_obj, dl)
+    return manager_id if is_case_actor_identity(manager_id) else None
+
+
 def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
     """Return the CaseActor Service ID for *case_id*, if present in the DataLayer.
 
@@ -183,7 +240,12 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
        matches the ``CVDRole.CASE_MANAGER`` participant of the case replica
        (CBT-01-003), i.e. the proposal target has confirmed itself as case
        manager but the link has not been completed yet.
-    3. A legacy scan for a ``Service`` object whose ``context`` is *case_id*.
+    3. The case's ``CVDRole.CASE_MANAGER`` participant, when its actor id is a
+       CaseActor *container* identity (``.../actors/case-actor``). The CaseActor
+       is a participant wearing that hat, so the role plus the identity shape is
+       the evidence — no per-case ``Service`` object is required (#1872 AC-4).
+    4. A legacy scan for a ``Service`` object whose ``context`` is *case_id*,
+       retained for cases created before path 3 existed.
 
     Path 2 exists because paths 1 and 3 both have a window in which they
     cannot answer.  The link only carries ``case_id``/``trusted_case_actor_id``
@@ -201,21 +263,23 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
 
     Path 2 is deliberately narrow: it requires *both* an outstanding proposal
     to a known CaseActor *and* the case replica naming that same actor as
-    CASE_MANAGER.  A CASE_MANAGER participant alone is not sufficient evidence
-    of a CaseActor — cases whose manager is an ordinary participant have no
-    CaseActor and MUST still resolve ``None`` (ADR-0021).
+    CASE_MANAGER.  Path 3 is narrow for the same reason, by a different test: a
+    CASE_MANAGER participant alone is not sufficient evidence of a CaseActor —
+    cases whose manager is an ordinary participant have no CaseActor and MUST
+    still resolve ``None`` (ADR-0021).  What distinguishes the two is the
+    *identity*, which is why path 3 tests its shape rather than merely the role.
+
+    A ``case-actor-<slug>`` id does not qualify.  That form is unhostable by
+    construction (#1872), so returning one would hand callers an address whose
+    delivery 404s — worse than ``None``, which callers handle.
 
     Returns ``None`` when no CaseActor Service can be found for *case_id*.
     This is the authoritative resolver for PCR-08-007 (invite sender) and
     PCR-08-008 (accept recipient).
     """
-    pending_creator_ids: set[str] = set()
-    for link in dl.list_objects("ReportCaseLink"):
-        if isinstance(link, VultronReportCaseLink):
-            if link.case_id == case_id and link.trusted_case_actor_id:
-                return str(link.trusted_case_actor_id)
-            if link.case_id is None and link.trusted_case_creator_id:
-                pending_creator_ids.add(str(link.trusted_case_creator_id))
+    established, pending_creator_ids = _scan_report_case_links(dl, case_id)
+    if established is not None:
+        return established
 
     if pending_creator_ids:
         case = dl.read(case_id)
@@ -223,6 +287,10 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
             manager_id = _resolve_case_manager_id(case, dl)
             if manager_id is not None and manager_id in pending_creator_ids:
                 return manager_id
+
+    role_holder = _case_actor_by_role(dl, case_id)
+    if role_holder is not None:
+        return role_holder
 
     for service in dl.list_objects("Service"):
         if getattr(service, "context", None) == case_id:
