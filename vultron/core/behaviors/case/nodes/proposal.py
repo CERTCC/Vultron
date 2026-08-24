@@ -22,18 +22,18 @@ proposal send that operates directly from a ``report_id`` without requiring a
 
 The pre-ADR-0041 node (:class:`~vultron.core.behaviors.case.nodes.actor.ProposeCaseToActorNode`)
 reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
-``CreateCaseActorNode``).  This module's node derives ``case_actor_id``
-deterministically from ``ActorConfig.case_actor_service_url`` and
-``_derive_case_slug(report_id)`` instead.
+``CreateCaseActorNode``).  This module's node reads the CaseActor's identity from
+:func:`~vultron.core.behaviors.case.case_actor_identity.case_actor_identity`
+instead — the container's identity, not a per-case one derived from the report
+(#1872).
 """
 
 from typing import cast
 
 from py_trees.common import Status
 
-from vultron.config import get_config
-from vultron.core.behaviors.case.nodes.case_actor_setup import (
-    _derive_case_slug,
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
@@ -69,17 +69,23 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
         self.report_id = report_id
 
     def _derive_case_actor_id(self) -> str | None:
-        cfg = get_config().actor
-        if cfg.case_actor_service_url is None:
+        """Return the CaseActor to address, or ``None`` when unconfigured.
+
+        The identity is the container's — ``.../actors/case-actor`` — and carries
+        no case. It used to be ``.../actors/case-actor-{slug}``, derived here from
+        ``report_id``, which made it a phantom: this node computed it and no
+        container hosted it, so delivery 404'd permanently and the round-trip
+        never began (#1872). Which case a message concerns travels in
+        ``activity.context``, so the slug carried nothing the payload lacked.
+        """
+        identity = case_actor_identity()
+        if identity is None:
             self.feedback_message = (
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
             self.logger.error(self.feedback_message)
-            return None
-        base_url = str(cfg.case_actor_service_url).rstrip("/")
-        slug = _derive_case_slug(self.report_id)
-        return f"{base_url}/actors/case-actor-{slug}"
+        return identity
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:

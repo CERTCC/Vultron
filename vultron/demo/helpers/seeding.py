@@ -1145,20 +1145,20 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     import uuid as _uuid
 
     from vultron.config.app import get_config
-    from vultron.core.behaviors.case.nodes.conditions import _derive_case_slug
+    from vultron.core.behaviors.case.case_actor_identity import (
+        case_actor_identity,
+    )
     from vultron.core.models.case_actor import CaseActor
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
 
     case_id = case_obj.id_
-    cfg = get_config().actor
-    base_url = (
-        str(cfg.case_actor_service_url).rstrip("/")
-        if cfg.case_actor_service_url
-        else str(get_config().server.base_url).rstrip("/")
+    del report_id  # the CaseActor identity does not vary by report (#1872)
+    case_actor_id = case_actor_identity() or case_actor_identity(
+        str(get_config().server.base_url)
     )
-    case_slug = _derive_case_slug(report_id or case_id)
-    case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
+    if not case_actor_id:
+        return
     if case_actor_id in case_obj.actor_participant_index:
         return
 

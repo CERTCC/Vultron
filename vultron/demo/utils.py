@@ -722,22 +722,28 @@ def seed_actor(
 
 
 def case_actor_id_for_report(report_id: str) -> str:
-    """Return the CaseActor URI that a report's CaseProposal will be sent to.
+    """Return the CaseActor URI a report's CaseProposal will be sent to.
 
-    Mirrors ``ResolveCaseActorUrlsNode`` / ``ProposeReportCaseToActorNode``: the
-    id is *derived*, not looked up, so a demo can compute it before the proposal
-    exists and provision the actor that must receive it.
+    The same identity for every report, because a CaseActor is a container, not a
+    per-case object (#1872). *report_id* is retained so call sites still read as
+    "the CaseActor for this report" and so the signature survives if the mapping
+    ever stops being constant.
+
+    Falls back to this node's own base URL when no CaseActor service is
+    configured, which is the single-container demo topology.
     """
     from vultron.config import get_config
-    from vultron.core.behaviors.case.nodes.conditions import _derive_case_slug
-
-    cfg = get_config()
-    base = (
-        str(cfg.actor.case_actor_service_url).rstrip("/")
-        if cfg.actor.case_actor_service_url
-        else str(cfg.server.base_url).rstrip("/")
+    from vultron.core.behaviors.case.case_actor_identity import (
+        case_actor_identity,
     )
-    return f"{base}/actors/case-actor-{_derive_case_slug(report_id)}"
+
+    del report_id  # one CaseActor per container, not per report
+    cfg = get_config()
+    return (
+        case_actor_identity()
+        or case_actor_identity(str(cfg.server.base_url))
+        or ""
+    )
 
 
 def seed_case_actor_for_report(

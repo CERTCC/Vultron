@@ -347,7 +347,7 @@ class TestHappyPath:
         assert link.case_id is None, "Link must be pending (case_id=None)"
         assert not link.proposal_rejected
 
-    def test_trusted_case_creator_id_is_derived_case_actor(
+    def test_trusted_case_creator_id_is_the_case_actor_container(
         self,
         datalayer,
         actor,
@@ -356,11 +356,15 @@ class TestHappyPath:
         report,
         bridge,
     ):
-        """Link.trusted_case_creator_id is derived from case_actor_service_url."""
-        from vultron.core.behaviors.case.nodes.case_actor_setup import (
-            _derive_case_slug,
-        )
+        """Link.trusted_case_creator_id is the CaseActor *container* identity.
 
+        #1872 AC-5. It used to be ``.../actors/case-actor-{slug}``, derived from
+        the report id. That identity was a phantom — the sender computed it and no
+        container hosted it — so the proposal's delivery 404'd and the round-trip
+        never began. The bootstrap match (CP-06-003) works on the container
+        identity because the case a message concerns travels in
+        ``activity.context``, not in the actor URI.
+        """
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
@@ -373,11 +377,13 @@ class TestHappyPath:
         link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
         assert isinstance(link, VultronReportCaseLink)
 
-        expected_slug = _derive_case_slug(report.id_)
-        expected_actor_id = (
-            f"{_CASE_ACTOR_SERVICE_URL}/actors/case-actor-{expected_slug}"
+        assert link.trusted_case_creator_id == (
+            f"{_CASE_ACTOR_SERVICE_URL}/actors/case-actor"
+        ), "the CaseActor identity is the container's, and carries no case"
+        assert "case-actor-" not in (link.trusted_case_creator_id or ""), (
+            "a per-case slug is the retired form; it is unhostable by"
+            " construction (#1872)"
         )
-        assert link.trusted_case_creator_id == expected_actor_id
 
     def test_proposal_queued_to_outbox(
         self,
