@@ -856,6 +856,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   DEMOCI-06-007, DEMOCI-06-008 and
   [notes/demo-ci-scenario-coverage.md](notes/demo-ci-scenario-coverage.md).
   *Source: CONCERN-2327, ISSUE-2118*
+- **Capabilities Grounded in External Versioned Standards Should Be One
+  Call-Out Unit, Not One Per Criterion** — when a BT capability is grounded
+  in an external, independently-versioned specification (e.g. CNA Operational
+  Rules), treat the full capability as a single Evaluator call-out point
+  rather than exposing each criterion as a separate call-out. The correct
+  substitution unit is the whole capability (replace the evaluator for the new
+  rules edition), not individual criteria. Modeling it as N individual
+  call-out points misrepresents the update boundary and makes adoption of a
+  new rules edition require N separate factory changes instead of one.
+  See BTND-05-007, ADR-0071.
+  *Source: CONCERN-2108*
 
 ---
 

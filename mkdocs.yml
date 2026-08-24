@@ -291,6 +291,7 @@ nav:
       - 'Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx': 'adr/0068-inbox-refuse-misaddressed-activities.md'
       - 'Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host': 'adr/0069-vultron-namespace-uri.md'
       - 'Reuse validate-report for Invited Actors; Derive VultronOfferRecord from Ledger Backfill': 'adr/0070-invited-actor-rm-triage-via-ledger-backfill.md'
+      - 'CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined': 'adr/0071-cna-eligibility-reference-baseline.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
