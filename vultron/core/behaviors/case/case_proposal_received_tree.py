@@ -1415,7 +1415,7 @@ class _EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         # `outbox_append`, not `record_outbox_item`: the queue lives in the
-        # owning actor's store, so it takes no actor argument (ADR-0071).
+        # owning actor's store, so it takes no actor argument (ADR-0072).
         cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity.id_)
         self._set_output("accept_activity_id", activity.id_)
         logger.info(

@@ -39,7 +39,7 @@ def get_info() -> dict:
     this node **hosts**.  Useful for demo scripts and operators to confirm which
     container they are talking to at startup.
 
-    Before ADR-0071 this scanned the shared DataLayer for every actor-typed row,
+    Before ADR-0072 this scanned the shared DataLayer for every actor-typed row,
     which also returned the container's *peers* — actors it merely knew an
     address for.  Peers are not hosted here, so they are no longer listed.
     """

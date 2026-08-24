@@ -168,7 +168,7 @@ def two_app_setup(monkeypatch):
     router = _TestClientRouter()
     # `actor_slug` matters: it decides which actor's store `iso.dl` is.  These
     # tests create their actors under the module slugs below, and a store belongs
-    # to exactly one actor (ADR-0071), so leaving the default `"primary"` would
+    # to exactly one actor (ADR-0072), so leaving the default `"primary"` would
     # point `dl` at an empty database and the assertions would fail for the wrong
     # reason.
     vendor_iso = create_isolated_actor_app(

@@ -33,7 +33,7 @@ get_canonical_actor_dl
 get_trigger_service
     Construct and return a :class:`~vultron.core.use_cases.triggers.service.TriggerService`.
 
-Under ADR-0071 there is no shared DataLayer to inject, so every one of these
+Under ADR-0072 there is no shared DataLayer to inject, so every one of these
 resolves the path segment to a canonical actor URI by computation and returns
 that actor's own store.  The ``{actor_id}`` path parameter is no longer
 "accepted but unused".
@@ -85,7 +85,7 @@ def get_actor_dl(
     """FastAPI dependency: the DataLayer belonging to the addressed actor.
 
     Resolves the ``{actor_id}`` path segment to a canonical actor URI by
-    computation and returns that actor's own store (ADR-0071).
+    computation and returns that actor's own store (ADR-0072).
 
     This replaces the previous two-step dance — inject the shared DataLayer,
     scan it to turn a short id into a canonical URI, then ``clone_for_actor`` —

@@ -135,9 +135,9 @@ groups:
       the inbox route resolves an actor from the store its URI names. A copy in the sending actor's store
       does not make the case-actor addressable.
     rationale: >-
-      Under per-actor storage isolation (ADR-0071) the two writes mean different things: one publishes an
+      Under per-actor storage isolation (ADR-0072) the two writes mean different things: one publishes an
       endpoint, the other records knowledge of a peer. Writing only the second left the inbox answering
-      `404 Actor not found` (ISSUE-1872). Under the pre-ADR-0071 shared store they were
+      `404 Actor not found` (ISSUE-1872). Under the pre-ADR-0072 shared store they were
       indistinguishable, which is why one write used to suffice.
     relationships:
     - rel_type: refines

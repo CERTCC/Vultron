@@ -373,8 +373,10 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   Manager ID in a read-only guard node BEFORE state-mutation node. See BT-19-001,
   BT-19-002. [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Routing-Gated
   State Mutation".
-- **Superseded `notes/*.md` Files Must Move to `archived_notes/`** — use `git mv`;
-  update both READMEs. See PD-03-004, PD-03-005.
+- **Superseded Notes Sections Are Archived via `append-history note`** — stale
+  sections (or whole files) go to `plan/history/YYMM/note/` with source ID
+  `NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
+  See PD-03-002, PD-03-004.
 - **Stub Adapter Files Must Raise `NotImplementedError`** — docstring-only stubs
   hide integration gaps. See OX-10-004, OX-11-004.
 - **Trigger Use Cases Need Per-Use-Case Tests** — incidental coverage via
@@ -881,6 +883,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   DEMOCI-06-007, DEMOCI-06-008 and
   [notes/demo-ci-scenario-coverage.md](notes/demo-ci-scenario-coverage.md).
   *Source: CONCERN-2327, ISSUE-2118*
+- **Capabilities Grounded in External Versioned Standards Should Be One
+  Call-Out Unit, Not One Per Criterion** — when a BT capability is grounded
+  in an external, independently-versioned specification (e.g. CNA Operational
+  Rules), treat the full capability as a single Evaluator call-out point
+  rather than exposing each criterion as a separate call-out. The correct
+  substitution unit is the whole capability (replace the evaluator for the new
+  rules edition), not individual criteria. Modeling it as N individual
+  call-out points misrepresents the update boundary and makes adoption of a
+  new rules edition require N separate factory changes instead of one.
+  See BTND-05-007, ADR-0071.
+  *Source: CONCERN-2108*
 
 ---
 

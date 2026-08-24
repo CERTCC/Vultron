@@ -6,15 +6,15 @@ source: ISSUE-2238
 signal: process-gap
 ---
 
-The per-actor storage ADR was renumbered **twice in one session** while catching
-its branch up to `main`:
+The per-actor storage ADR was renumbered **four times** while catching its branch
+up to `main`:
 
 - It was ADR-0066. `main` had landed a different ADR-0066, "Outbox Terminal
   State", dated three days earlier.
 - It became ADR-0069. `main` then landed a different ADR-0069, "Adopt
   certcc.github.io/Vultron as the Vocabulary Namespace Host" (#2105), during the
   same session.
-- It is now ADR-0071.
+- It is now ADR-0072.
 
 Each renumber moved ~224 citations across ~124 files, plus the file rename,
 `mkdocs.yml` nav, the superseded ADR's pointer, and the generated index.
@@ -42,5 +42,13 @@ files on disk — it does not check that numbers are unique.
   CONCERN-2106.md` reserves ADR-0069 for a *third* subject, a planned
   `0069-ledger-replication-companion-spec.md`, while `main` has landed 0069 as
   the namespace ADR.
-- Worth considering: a uniqueness check in the `adr-index` generator, which would
-  have caught all three cases at the first commit rather than at merge.
+- **Done:** `adr-index` now has that uniqueness check.
+  `duplicate_numbers()` reports every number with more than one claimant;
+  `--check` fails and names both files, and `--write` *refuses* rather than
+  rendering an index with two entries at the same number. Rendering both silently
+  is what let four successive collisions go unnoticed until merge. Verified
+  against a simulated collision, and covered by four tests in
+  `test/metadata/test_adr_index_gen.py`.
+- The check does not remove the need to re-check before merge — it converts the
+  discovery from "notice it while resolving a conflict" into "pre-commit fails" —
+  but it does mean the first commit after a bad allocation is where you find out.

@@ -256,7 +256,7 @@ def test_start_after_stop_creates_new_task():
 
 
 # There is no "default shared_dl" test here any more.  `outbox_monitor` no longer
-# references a shared DataLayer at all (ADR-0071), so the fallback this covered
+# references a shared DataLayer at all (ADR-0072), so the fallback this covered
 # does not exist to be exercised.  With the `get_datalayer` patch removed the
 # test asserted exactly what
 # `test_drain_all_calls_outbox_handler_for_actor_with_items` already does —

@@ -635,7 +635,7 @@ def test_actor_isolation(bridge, datalayer, sample_record):
     Previously this asserted that *both* actors read the record successfully and
     then closed with ``assert ... or True`` — a tautology, so the isolation it
     named was never checked and the shared pool it depended on made the real
-    property untestable. Under ADR-0071 the store follows the executing actor,
+    property untestable. Under ADR-0072 the store follows the executing actor,
     so actor-2 legitimately finds nothing: that absence is the invariant.
     """
     object_id = "https://example.org/objects/test-123"

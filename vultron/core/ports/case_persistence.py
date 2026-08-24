@@ -56,14 +56,14 @@ class CasePersistence(Protocol):
 
     @property
     def actor_id(self) -> str:
-        """The canonical URI of the actor whose store this is (ADR-0071)."""
+        """The canonical URI of the actor whose store this is (ADR-0072)."""
         ...
 
     def clone_for_actor(self, actor_id: str) -> "CasePersistence":
         """Return the store belonging to *actor_id*.
 
         The only way to reach a store other than this one, and deliberately
-        explicit: ADR-0071 makes cross-actor access something a caller must
+        explicit: ADR-0072 makes cross-actor access something a caller must
         name rather than something a forgotten filter grants by accident.
         """
         ...
@@ -115,7 +115,7 @@ class CaseOutboxPersistence(CasePersistence, Protocol):
     ``outbox_list_for_actor(actor_id)`` are gone. They existed so that an
     *unscoped* DataLayer could name the actor whose queue to touch; every call
     site passed the executing actor's own id, so with a mandatory actor scope
-    they are exactly ``outbox_append`` and ``outbox_list`` (ADR-0071).
+    they are exactly ``outbox_append`` and ``outbox_list`` (ADR-0072).
 
     ``SqliteDataLayer`` satisfies this Protocol structurally — no declaration
     needed.

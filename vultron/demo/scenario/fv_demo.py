@@ -860,7 +860,7 @@ def _phase_dump_case_ledgers(
     # These were the literals "finder" and "vendor", which worked only while the
     # route key was decorative: a shared store returned the combined case log
     # whichever actor the path named. The route key now *selects the store*
-    # (ADR-0071), so a literal reads whichever actor happens to be hosted under
+    # (ADR-0072), so a literal reads whichever actor happens to be hosted under
     # that slug — a different actor from the one this run used, whose store is
     # empty. The dump then reported "No case ledger entries for actor='finder'"
     # while the finder's real store held twelve.

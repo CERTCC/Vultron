@@ -307,7 +307,7 @@ def _bootstrap_case(
     # The owner's own store, not `owner_iso.dl`: this test creates its actor
     # under a per-test slug, while `dl` is the app's default-slug store, so
     # reading `dl` reports an empty store and the assertion fails for the wrong
-    # reason (ADR-0071 — a store is exactly one actor's).
+    # reason (ADR-0072 — a store is exactly one actor's).
     owner_dl = owner_iso.store_for(owner_actor_id)
 
     case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
@@ -525,7 +525,7 @@ class TestLateJoinerSequence:
         # Named up front so the precondition can be checked against the store the
         # sequence will actually use.  Read through the app's default-slug `dl`
         # this was vacuous: that store is empty whatever happens, so the check
-        # could not fail (ADR-0071 — a store belongs to exactly one actor).
+        # could not fail (ADR-0072 — a store belongs to exactly one actor).
         lj_slug = "late-joiner-pcr-007-ac1"
         lj_actor_id = f"{_LATE_JOINER_BASE}/api/v2/actors/{lj_slug}"
 

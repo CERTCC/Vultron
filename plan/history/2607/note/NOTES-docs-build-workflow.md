@@ -1,6 +1,14 @@
 ---
+source: NOTES-docs-build-workflow
+timestamp: '2026-07-08T00:00:00+00:00'
 title: Docs Build and Link Check Workflow
-status: archived
+type: note
+---
+
+**Archived:** 2026-07-08
+**Reason:** Implemented — `docs-build-check.yml` workflow exists in `.github/workflows/`
+**Superseded by:** `.github/workflows/docs-build-check.yml`; `specs/docs-build-workflow.yaml` (`DOCBW-01` through `DOCBW-05`)
+
 ---
 
 # Docs Build and Link Check Workflow

@@ -203,6 +203,37 @@ def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
     return missing
 
 
+def duplicate_numbers(repo_root: Path | None = None) -> dict[str, list[str]]:
+    """Return ADR numbers claimed by more than one file, worst offender first.
+
+    An ADR number is allocated as ``max(existing) + 1`` at authoring time but is
+    not *reserved* until the PR merges, so a long-lived branch holds a claim on a
+    sequence ``main`` keeps allocating from. Any ADR that lands first invalidates
+    it — and nothing detected that: two files could share a number indefinitely,
+    ``--check`` compared only the index against the files on disk, and the index
+    rendered both entries without complaint.
+
+    One branch hit this **four times** while being kept up to date (ISSUE-2238's
+    ADR went 0066 → 0069 → 0070 → 0071 → 0072), each renumber moving ~230
+    citations across ~128 files, twice *after* the PR had been marked ready for
+    review. Catching it at the first commit costs nothing; catching it at merge
+    costs a full renumber pass and risks separating the two ADRs' citations wrongly.
+
+    Returns:
+        ``{number: [filename, …]}`` for numbers with more than one claimant.
+    """
+    adr_dir = (repo_root or _find_repo_root()) / "docs" / "adr"
+    claims: dict[str, list[str]] = {}
+    for path in sorted(adr_dir.glob("*.md")):
+        if path.name in SKIP_FILES:
+            continue
+        number = _adr_number(path)
+        if number is None:
+            continue
+        claims.setdefault(number, []).append(path.name)
+    return {n: f for n, f in claims.items() if len(f) > 1}
+
+
 def main() -> None:
     """CLI entry point: ``uv run adr-index [--check|--write]``."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -222,12 +253,32 @@ def main() -> None:
     desired = generate_index(root)
 
     if args.write:
+        dupes = duplicate_numbers(root)
+        if dupes:
+            for number, files in sorted(dupes.items()):
+                print(
+                    f"[ERROR] ADR-{number} is claimed by: {', '.join(files)}",
+                    file=sys.stderr,
+                )
+            print(
+                "[ERROR] Refusing to write an index that renders a duplicate"
+                " number. Renumber the unlanded ADR first.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         index_path.write_text(desired, encoding="utf-8")
         print(f"Wrote {index_path.relative_to(root)}")
         return
 
     # --check
     problems: list[str] = []
+    for number, files in sorted(duplicate_numbers(root).items()):
+        problems.append(
+            f"ADR-{number} is claimed by {len(files)} files: "
+            f"{', '.join(files)}. An unlanded ADR number is not reserved — "
+            "renumber the one that has not merged yet, and separate its "
+            "citations by topic rather than by find-and-replace."
+        )
     current = index_path.read_text(encoding="utf-8")
     if current != desired:
         problems.append(
@@ -250,6 +301,7 @@ if __name__ == "__main__":
 
 # Re-export for callers that only need the skip set / discovery.
 __all__ = [
+    "duplicate_numbers",
     "generate_index",
     "missing_nav_entries",
     "main",

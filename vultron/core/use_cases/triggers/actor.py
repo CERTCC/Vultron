@@ -149,7 +149,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         self._case = resolve_case(request.case_id, self._dl)
 
         # Being named by URI is enough to be invited: a peer's record lives in the
-        # store of whichever actor knows it (ADR-0071 decision 5), and in a real
+        # store of whichever actor knows it (ADR-0072 decision 5), and in a real
         # deployment the invitee is on another node whose record will never be
         # here. Refusing with "Actor '…' not found" therefore refused every
         # cross-node invitee.

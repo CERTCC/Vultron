@@ -40,7 +40,7 @@ from vultron.wire.as2.factories import (
 #:
 #: A received-side use case applies an inbound update to the *receiver's* own
 #: replica, and the tree executes under the receiving actor (BT-17-005), which
-#: under ADR-0071 also selects the store. So this names both the store's owner
+#: under ADR-0072 also selects the store. So this names both the store's owner
 #: and the ``receiving_actor_id`` on every event below. The sender stays a
 #: separate identity — the owner-gating tests depend on that distinction.
 RECEIVER_ID = "https://example.org/actors/update-receiver"
@@ -439,7 +439,7 @@ class TestCaseUseCases:
 
         # The announce is authored by the actor holding CASE_MANAGER — the
         # receiver — and queued in that same actor's store, so both halves of the
-        # emit are readable through the one DataLayer (ADR-0071).
+        # emit are readable through the one DataLayer (ADR-0072).
         queued_ids = dl.outbox_list()
         assert len(queued_ids) == 1
 

@@ -74,7 +74,7 @@ def _provision_case_actor(receiver_client, report) -> None:
 
     ``ProposeReportCaseToActorNode`` derives the CaseActor's URI from the report
     and delivery is an ordinary HTTP POST to that actor's inbox (ADR-0042). The
-    inbox route resolves the actor from the store its URI names (ADR-0071), so
+    inbox route resolves the actor from the store its URI names (ADR-0072), so
     the CaseActor has to be a hosted actor *before* the proposal is delivered —
     otherwise the POST answers 404 and the round-trip never starts.
 
@@ -197,7 +197,7 @@ def reporter_submits_report(
     # These checks name the receiver explicitly rather than relying on
     # `receiver_client`'s binding. The check text says whose replica it is about,
     # so the read should say so too — and not every caller binds its client, in
-    # which case `dl_path` refuses to guess (ADR-0071).
+    # which case `dl_path` refuses to guess (ADR-0072).
     with demo_check("Report stored in receiver's DataLayer"):
         verify_object_stored(
             receiver_client, report.id_, actor_id=receiver.id_

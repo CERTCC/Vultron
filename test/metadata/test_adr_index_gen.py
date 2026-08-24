@@ -3,6 +3,7 @@
 import pytest
 
 from vultron.metadata.adr.index_gen import (
+    duplicate_numbers,
     generate_index,
     main,
     missing_nav_entries,
@@ -193,3 +194,85 @@ class TestMainCLI:
         with pytest.raises(SystemExit) as exc:
             main()
         assert exc.value.code == 1
+
+
+def _write_adr_named(adr_dir, filename, status, title):
+    """Write an ADR at an explicit filename, so two can share a number."""
+    (adr_dir / filename).write_text(f"---\nstatus: {status}\n---\n# {title}\n")
+
+
+class TestDuplicateNumbers:
+    """Two ADRs must not share a number (#1872's branch hit this four times)."""
+
+    def test_no_duplicates_returns_empty(self, tmp_path):
+        adr_dir = _scaffold(tmp_path)
+        _write_adr(adr_dir, "0001", "accepted", "First")
+        _write_adr(adr_dir, "0002", "accepted", "Second")
+
+        assert duplicate_numbers(tmp_path) == {}
+
+    def test_two_files_claiming_one_number_are_reported(self, tmp_path):
+        """The exact collision an unlanded ADR hits when main allocates first.
+
+        An ADR number is `max(existing) + 1` at authoring time and is not
+        *reserved* until the PR merges, so a long-lived branch's claim is
+        invalidated by any ADR that lands ahead of it.
+        """
+        adr_dir = _scaffold(tmp_path)
+        _write_adr_named(
+            adr_dir, "0070-outbox-terminal-state.md", "accepted", "Theirs"
+        )
+        _write_adr_named(
+            adr_dir, "0070-per-actor-storage.md", "accepted", "Ours"
+        )
+
+        dupes = duplicate_numbers(tmp_path)
+        assert set(dupes) == {"0070"}
+        assert sorted(dupes["0070"]) == [
+            "0070-outbox-terminal-state.md",
+            "0070-per-actor-storage.md",
+        ]
+
+    def test_check_fails_and_names_both_claimants(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """``--check`` must fail: rendering both entries silently is the bug."""
+        adr_dir = _scaffold(tmp_path)
+        _write_adr_named(adr_dir, "0070-a.md", "accepted", "A")
+        _write_adr_named(adr_dir, "0070-b.md", "accepted", "B")
+        (tmp_path / "mkdocs.yml").write_text(
+            "nav:\n  - A: 'adr/0070-a.md'\n  - B: 'adr/0070-b.md'\n"
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("sys.argv", ["adr-index", "--check"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1
+        err = capsys.readouterr().err
+        assert "ADR-0070 is claimed by 2 files" in err
+        assert "0070-a.md" in err and "0070-b.md" in err
+
+    def test_write_refuses_rather_than_rendering_a_duplicate(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """``--write`` must not produce an index with two ADR-0070 lines.
+
+        Regenerating happily rendered both, which is how four successive
+        collisions went unnoticed until merge time.
+        """
+        adr_dir = _scaffold(tmp_path)
+        _write_adr_named(adr_dir, "0070-a.md", "accepted", "A")
+        _write_adr_named(adr_dir, "0070-b.md", "accepted", "B")
+        before = (adr_dir / "index.md").read_text()
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("sys.argv", ["adr-index", "--write"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1
+        assert (adr_dir / "index.md").read_text() == before, (
+            "the index must be left untouched rather than rewritten with a"
+            " duplicate number"
+        )
+        assert "Refusing to write" in capsys.readouterr().err

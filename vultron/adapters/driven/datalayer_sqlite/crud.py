@@ -265,7 +265,7 @@ def clear_all(
 ) -> None:
     """Remove every object record and queue entry in this actor's store.
 
-    The store belongs to exactly one actor (ADR-0071), so this clears that
+    The store belongs to exactly one actor (ADR-0072), so this clears that
     actor and cannot reach another's data.
 
     Args:

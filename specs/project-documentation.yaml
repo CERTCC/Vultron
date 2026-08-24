@@ -47,20 +47,21 @@ groups:
   - id: PD-03-002
     priority: SHOULD
     kind: project
-    statement: '`notes/*.md` files that are purely historical and contain no durable design guidance SHOULD be archived in
-      `archived_notes/` with a brief rationale, rather than deleted'
+    statement: 'Stale `notes/*.md` sections (cards) or whole files that are purely historical and contain no durable design
+      guidance SHOULD be archived via `append-history note` to `plan/history/YYMM/note/`, rather than deleted. Source ID
+      convention: `NOTES-<file-stem>--<section-slug>`. The `learn` skill Phase 5 drives section-level archival.'
   - id: PD-03-004
     priority: MUST
     kind: project
-    statement: '`notes/*.md` files with `status: superseded` in their frontmatter MUST be moved to `archived_notes/` promptly
-      after the superseding notes file is stable. A superseded file MUST NOT remain in `notes/` indefinitely — it creates
-      noise for agents scanning that directory and risks outdated guidance being loaded as active context.'
+    statement: 'Notes sections (or whole files) that are fully superseded by delivered code, ADRs, or spec entries MUST be
+      archived via `append-history note` to `plan/history/YYMM/note/` promptly, rather than left as stale context. When all
+      sections of a file are archived, the file MUST be removed from `notes/` and its entry deleted from `notes/README.md`.'
   - id: PD-03-005
     priority: MUST
     kind: project
-    statement: When moving a file to `archived_notes/`, agents MUST update `archived_notes/README.md` with a new row in the
-      Archived Files table, including the file name, archive date, reason for archiving, and any open items that were rescued
-      to GitHub Issues before the move.
+    statement: 'When archiving a notes section via `append-history note`, the entry body MUST include: archiving reason,
+      superseding pointer (code path, spec ID, or docs page), `---` separator, and the original section content verbatim.
+      Source ID MUST follow the `NOTES-<file-stem>--<section-slug>` convention.'
   - id: PD-03-003
     priority: MUST
     kind: project

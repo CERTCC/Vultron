@@ -5,8 +5,9 @@ Unlike `plan/BUILD_LEARNINGS.md` (which is ephemeral), files here are
 committed to version control and MUST be kept up to date as the
 implementation evolves.
 
-Archived historical notes (fully superseded or completed task logs) are in
-`archived_notes/` — see its README for what is there and why.
+Archived notes sections (fully superseded or completed task logs) are in
+`plan/history/YYMM/note/` — archived via `append-history note` with source ID
+`NOTES-<file-stem>--<section-slug>`.
 
 ## How to navigate
 
@@ -699,21 +700,21 @@ the migration from monolithic `plan/*HISTORY.md` files.
 **Load when**: using or modifying the `append-history` tool, adding a new
 `HistoryEntryType`, or understanding the `plan/history/` directory structure.
 
-**`plan-history-management.md`** *(archived — see `archived_notes/`)*
+**`plan-history-management.md`** *(archived — see `plan/history/`)*
 Superseded by `specs/history-management.yaml` and the `append-history` tool.
 The IMPLEMENTATION_PLAN.md management rules it described are no longer relevant.
 
-**`plan-organization.md`** *(archived — see `archived_notes/`)*
+**`plan-organization.md`** *(archived — see `plan/history/`)*
 Superseded — described the now-retired `TASK-FOO` naming scheme for
 `plan/IMPLEMENTATION_PLAN.md`. All work is tracked as GitHub Issues.
 See `notes/parallel-development.md` for the current model.
 
-**`work-granularity.md`** *(archived — see `archived_notes/`)*
+**`work-granularity.md`** *(archived — see `plan/history/`)*
 Superseded — described the three-tier model (GitHub Issue → TASK-FOO →
 checklist items). IMPLEMENTATION_PLAN.md has been removed; see
 `specs/project-documentation.yaml` PD-09 for current guidance.
 
-**`append-only-file-handling.md`** *(archived — see `archived_notes/`)*
+**`append-only-file-handling.md`** *(archived — see `plan/history/`)*
 Superseded by `specs/history-management.yaml` and the `append-history` tool
 (2026-04-28). The manual `cat >>` append procedure it describes is no longer
 used.
@@ -783,13 +784,13 @@ Pydantic model, loader, pre-commit hook, and migration checklist.
 **Load when**: adding frontmatter to a new notes file, modifying the frontmatter
 schema, or debugging `validate-notes-frontmatter` pre-commit failures.
 
-**`spec-registry.md`** *(archived — see `archived_notes/`)*
+**`spec-registry.md`** *(archived — `plan/history/2607/note/NOTES-spec-registry.md`)*
 Implemented — `specs/*.md` fully migrated to YAML; `vultron/metadata/specs/` is in place.
 
-**`demo-ci.md`** *(archived — see `archived_notes/`)*
+**`demo-ci.md`** *(archived — `plan/history/2607/note/NOTES-demo-ci.md`)*
 Implemented — `demo-integration.yml` workflow exists in `.github/workflows/`.
 
-**`docs-build-workflow.md`** *(archived — see `archived_notes/`)*
+**`docs-build-workflow.md`** *(archived — `plan/history/2607/note/NOTES-docs-build-workflow.md`)*
 Implemented — `docs-build-check.yml` workflow exists in `.github/workflows/`.
 
 ---

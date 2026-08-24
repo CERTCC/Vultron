@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The actor-scoped datalayer routes must not be shadowed by `{actor_id:path}`.
 
-ADR-0071 deleted the unscoped ``/datalayer/…`` view and moved the debug and
+ADR-0072 deleted the unscoped ``/datalayer/…`` view and moved the debug and
 inspection endpoints under ``/actors/{actor_id}/datalayer/…``.  That put them
 behind the actors router's ``GET /actors/{actor_id:path}``, whose ``:path``
 converter matches slashes.  Starlette matches routes in registration order, so

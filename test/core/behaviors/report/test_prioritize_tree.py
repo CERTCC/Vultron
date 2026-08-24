@@ -129,7 +129,7 @@ def case_manager_datalayer(case_manager_actor_id):
 
     The split-identity test runs the tree under the case manager's identity
     (BT-17-005), so the replica it reads and writes is the case manager's rather
-    than the vendor's (ADR-0071).
+    than the vendor's (ADR-0072).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_manager_actor_id)
     yield dl
@@ -280,7 +280,7 @@ def case_with_manager_in_cm_store(
 
     A separate fixture rather than a re-scoping of ``case_with_manager`` because
     that one serves tests which execute as the vendor, and a store belongs to
-    exactly one actor (ADR-0071). The split-identity test executes as the case
+    exactly one actor (ADR-0072). The split-identity test executes as the case
     manager, so it needs the case manager's replica.
     """
     vendor_participant = _make_participant_in_valid_state(

@@ -5,7 +5,7 @@ Actor lookup helpers for the Vultron FastAPI actors router.
 Provides pure helper functions for finding actor records in an actor's own
 DataLayer. No route handlers here.
 
-Under ADR-0071 the URL path segment is resolved to a canonical actor URI by
+Under ADR-0072 the URL path segment is resolved to a canonical actor URI by
 **computation** (``{base_url}actors/{segment}``), not by scanning actor rows.
 The old scan required a view across every actor's rows, and with per-actor
 stores it could not work at all: choosing which store to open required the
@@ -96,7 +96,7 @@ def _candidate_ids(datalayer: DataLayer, actor_id: str) -> list[str]:
     1. The canonical URI computed from the path segment. Correct whenever the
        node's base URL is the configured one — i.e. in any deployment, where one
        process is one node.
-    2. The store's *own* ``actor_id``. Under ADR-0071 a store is always exactly
+    2. The store's *own* ``actor_id``. Under ADR-0072 a store is always exactly
        one actor's, and ``get_actor_dl`` has already decided which store this
        request addresses, so the store carries the answer directly.
 

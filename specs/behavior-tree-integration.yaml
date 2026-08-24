@@ -130,7 +130,7 @@ groups:
     - behavior-tree
     - persistence
     adr:
-    - ADR-0071
+    - ADR-0072
   - id: BT-05-006
     priority: MUST
     kind: project
@@ -162,7 +162,7 @@ groups:
     - behavior-tree
     - persistence
     adr:
-    - ADR-0071
+    - ADR-0072
 - id: BT-06
   title: Workflow-Specific Trees
   specs:

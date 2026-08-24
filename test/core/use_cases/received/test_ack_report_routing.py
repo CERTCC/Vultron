@@ -71,7 +71,7 @@ def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     """*owner_id*'s replica of the case, with the CaseActor as CASE_MANAGER.
 
     The owner is a parameter because these tests turn on *who executes*, and a
-    BT's store follows its executing actor (ADR-0071).  Seeding one fixed store
+    BT's store follows its executing actor (ADR-0072).  Seeding one fixed store
     and executing as somebody else leaves the tree reading an empty one, so the
     role gate fails for want of a case rather than for want of the role — and a
     "does not commit" assertion then passes without the gate being exercised.

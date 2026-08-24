@@ -26,7 +26,7 @@ a short id or path segment:
 ARCH-13-004 is no longer covered here: it required the ``actor_id`` passed to
 ``record_outbox_item`` to match the one the reading DataLayer was constructed
 with, and both that method and the mismatch it guarded against are gone
-(ADR-0071). ARCH-13-003's own wording still names ``ActorScopedDataLayer`` and
+(ADR-0072). ARCH-13-003's own wording still names ``ActorScopedDataLayer`` and
 ``record_outbox_item``; its *statement* survives the change but its phrasing
 needs the Phase 6 amendment.
 """
@@ -42,7 +42,7 @@ from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 # Canonical *for this node*: an actor id is the URL that reaches it here, so a
-# hosted actor is named base_url + "actors/" + slug (ADR-0071). An id under
+# hosted actor is named base_url + "actors/" + slug (ADR-0072). An id under
 # another authority names a process elsewhere and cannot be resolved from a path
 # segment on this node, which is what these tests exercise.
 CANONICAL_URI = canonical_actor_uri("myactor")
@@ -144,7 +144,7 @@ def test_get_canonical_actor_dl_actor_not_found_falls_back_to_raw_param(
 
 
 def test_one_actor_has_exactly_one_queue_regardless_of_spelling() -> None:
-    """BUG-2026040901 is structurally impossible now (ADR-0071).
+    """BUG-2026040901 is structurally impossible now (ADR-0072).
 
     This used to document the failure mode: ``record_outbox_item`` wrote under the
     canonical URI while a DL cloned to the *short id* read a different queue

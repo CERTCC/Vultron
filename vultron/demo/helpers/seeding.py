@@ -72,7 +72,7 @@ def get_actor_by_id(client: DataLayerClient, actor_id: str) -> as_Actor:
 def _own_actor(client: DataLayerClient, actor: as_Actor) -> as_Actor:
     """Record on *client* which actor's store its DataLayer reads address.
 
-    Under ADR-0071 ``base_url`` names a *container*, which no longer says whose
+    Under ADR-0072 ``base_url`` names a *container*, which no longer says whose
     replica a read is about: a container hosts an actor plus any CaseActors it
     self-hosts (CP-08-003).  ``DataLayerClient.dl_path`` refuses to guess, so the
     binding has to happen where the fact is learned — here, as the container's
@@ -82,7 +82,7 @@ def _own_actor(client: DataLayerClient, actor: as_Actor) -> as_Actor:
     Deliberately not folded into :func:`seed_actor`: that helper also registers
     *peers*, so binding there would leave each client addressing whichever peer
     was seeded last — the store of an actor the container does not host, which is
-    the confusion ADR-0071 decision 5 makes easy to fall into.
+    the confusion ADR-0072 decision 5 makes easy to fall into.
 
     Returns *actor* so the call can wrap ``seed_actor(...)`` in place.
     """
@@ -1032,7 +1032,7 @@ def reset_containers(
     with demo_check("All actor containers start with no persisted cases"):
         for label, client in labeled_clients:
             # Only a client already bound to an actor can be asked "any cases?" —
-            # a DataLayer read names an actor under ADR-0071.  Resetting normally
+            # a DataLayer read names an actor under ADR-0072.  Resetting normally
             # runs *before* seeding, so on a first run the clients are unbound
             # and there is nothing to interrogate: the reset just cleared every
             # store on the node, and no actor exists to hold a case.  This check
@@ -1128,7 +1128,7 @@ def _store_for_actor(dl: Any, actor_id: str) -> Any:
     """Return *actor_id*'s own store, given any actor's *dl*.
 
     ``clone_for_actor`` is the only sanctioned route to another actor's store
-    (ADR-0071 decision 7), so writing a record into a store other than the one
+    (ADR-0072 decision 7), so writing a record into a store other than the one
     we were handed reads as the cross-actor act it is.  Falls back to *dl* when
     the port does not offer cloning, which keeps the seeding helpers usable with
     test doubles.
@@ -1166,10 +1166,10 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # CaseActor succeeds.  The record goes in the CaseActor's *own* store,
     # because that is what makes it a hosted actor: the inbox route computes the
     # canonical URI from the path segment and resolves the actor from the store
-    # that URI names (ADR-0071 decision 2), so a copy sitting in the seeding
+    # that URI names (ADR-0072 decision 2), so a copy sitting in the seeding
     # actor's store leaves `POST /actors/case-actor-…/inbox/` answering
     # `404 Actor not found` and the CaseProposal round-trip never starts.
-    # (Pre-ADR-0071 this wrote to the one shared store, where "some row exists"
+    # (Pre-ADR-0072 this wrote to the one shared store, where "some row exists"
     # and "this actor is hosted" were the same thing.)
     actor_obj = CaseActor(
         id_=case_actor_id,
@@ -1253,7 +1253,7 @@ def seed_case_participants_for_demo(
             ``case_id`` if ``None``.
         dl: The store to seed — required, and specifically the store of the
             actor whose replica of the case is being set up.  There is no
-            default: it used to fall back to ``get_shared_dl()``, which ADR-0071
+            default: it used to fall back to ``get_shared_dl()``, which ADR-0072
             deletes, and no defensible default replaced it.  "Which actor's
             replica?" is exactly the question a shared DataLayer let callers skip,
             and the participants seeded here are per-replica state.

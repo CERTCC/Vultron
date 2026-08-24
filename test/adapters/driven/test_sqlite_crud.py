@@ -35,7 +35,7 @@ from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
 def test_database_initialization_creates_db_file(tmp_db_url):
     """Creating a file-backed SqliteDataLayer creates that actor's SQLite file.
 
-    The configured URL is a *template*, not a location: under ADR-0071 each actor
+    The configured URL is a *template*, not a location: under ADR-0072 each actor
     gets its own file, discriminated by slug (``mydb.sqlite`` →
     ``mydb-test-actor.sqlite``).  So the file to assert on is the resolved
     per-actor URL, not the template — asserting the template passes only while a

@@ -144,7 +144,7 @@ class BTBridge:
         )
 
     def _store_for_actor(self, actor_id: str) -> CasePersistence:
-        """Return the store belonging to *actor_id* (ADR-0071, BT-05-005).
+        """Return the store belonging to *actor_id* (ADR-0072, BT-05-005).
 
         BT-05-002 and BT-05-003 put ``datalayer`` and ``actor_id`` on the
         blackboard as two independent facts.  Under per-actor storage they are

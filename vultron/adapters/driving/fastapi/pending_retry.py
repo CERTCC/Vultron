@@ -81,7 +81,7 @@ def _discover_actor_ids_from_stores() -> list[str]:
     ``PendingCreateCaseActivity`` markers when the process-level actor cache is
     empty (e.g. after a crash/restart).
 
-    Before ADR-0071 this read one unscoped DataLayer that could see every
+    Before ADR-0072 this read one unscoped DataLayer that could see every
     actor's rows.  There is no such view now, so it enumerates the actors this
     node hosts and scans each one's own store.  The marker names the CaseActor
     that owes the work (``case_actor_id``), which is not necessarily the actor
@@ -234,7 +234,7 @@ def retry_pending_create_case_activities(
             that have persisted markers.  Defaults to
             :func:`_discover_actor_ids_from_stores`, which scans every hosted
             actor's own store.  Inject a test double to exercise the
-            startup-recovery path in isolation.  Replaces the pre-ADR-0071
+            startup-recovery path in isolation.  Replaces the pre-ADR-0072
             ``shared_datalayer_factory``, which handed in one unscoped
             DataLayer that could see all actors' rows.
 

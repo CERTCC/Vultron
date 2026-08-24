@@ -48,7 +48,7 @@ def deliver(actor_id: str, activity_json) -> None:
     """
     raw = json.load(activity_json)
     # The receiving actor is named on the command line, so its own store is
-    # what this pipeline must read and write (ADR-0071).
+    # what this pipeline must read and write (ADR-0072).
     dl = get_datalayer(canonical_actor_uri(actor_id))
     init_dispatcher()
 

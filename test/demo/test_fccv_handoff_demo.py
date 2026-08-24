@@ -242,7 +242,7 @@ class TestWaitForObjectStored:
             timeout_seconds=1.0,
         )
         # The read must be actor-scoped, and must ask the client to build the
-        # path rather than hand-writing it (ADR-0071): a MagicMock would happily
+        # path rather than hand-writing it (ADR-0072): a MagicMock would happily
         # accept any string, so assert the delegation too.
         client.dl_path.assert_called_with(self.OBJ_ID)
         client.get.assert_called_with(client.dl_path(self.OBJ_ID))

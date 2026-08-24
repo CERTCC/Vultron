@@ -425,13 +425,13 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
 
         The record has to be in the CaseActor's **own** store, not this actor's:
         ``POST /actors/{slug}/inbox/`` resolves the actor from the store that slug
-        names (``_resolve_actor_or_404``, ADR-0071), so a copy in the sender's
+        names (``_resolve_actor_or_404``, ADR-0072), so a copy in the sender's
         store publishes nothing. Writing only there is why delivery answered
         ``404 Actor not found`` and the CaseProposal round-trip never began
         (#1872, CP-04-002).
 
         A copy also goes into this actor's store, as an address-book entry for a
-        peer it now knows (ADR-0071 decision 5) — sibling nodes resolve the
+        peer it now knows (ADR-0072 decision 5) — sibling nodes resolve the
         CaseActor from the *executing* actor's store. The two writes are not
         redundant: one publishes an endpoint, the other records knowledge. Under a
         shared store they were indistinguishable, which is why one used to do.
@@ -470,7 +470,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
         """Return *actor_id*'s own store, or ``None`` when it cannot be opened.
 
         Named rather than implicit: ``clone_for_actor`` is the only sanctioned
-        route to another actor's store (ADR-0071 decision 7), so a cross-actor
+        route to another actor's store (ADR-0072 decision 7), so a cross-actor
         write reads as one.
         """
         assert self.datalayer is not None

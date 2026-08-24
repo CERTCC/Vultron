@@ -700,7 +700,7 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
         router = _TestClientRouter()
         # `actor_slug` decides which actor's store `iso.dl` is. These actors are
         # created under the module slugs below, and a store belongs to exactly one
-        # actor (ADR-0071), so leaving the default `"primary"` points `dl` at an
+        # actor (ADR-0072), so leaving the default `"primary"` points `dl` at an
         # empty database — the finder's Announce assertion then reads a store
         # nothing was ever delivered to.
         vendor_iso = create_isolated_actor_app(

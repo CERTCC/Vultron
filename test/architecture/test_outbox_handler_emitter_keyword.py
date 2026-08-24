@@ -15,7 +15,7 @@
 """Architecture invariant: ``outbox_handler``'s emitter is passed by keyword.
 
 ``outbox_handler(actor_id, dl, emitter=None)`` used to be
-``outbox_handler(actor_id, dl, shared_dl, emitter)``.  When ADR-0071 deleted the
+``outbox_handler(actor_id, dl, shared_dl, emitter)``.  When ADR-0072 deleted the
 shared DataLayer, the third *positional* slot changed meaning from "a store" to
 "the emitter" while every call site kept passing a store — so ``emitter`` became
 a ``SqliteDataLayer`` and ``await emitter.emit(...)`` raised ``AttributeError``

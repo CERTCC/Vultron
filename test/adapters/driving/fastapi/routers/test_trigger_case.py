@@ -491,7 +491,7 @@ class TestTriggerCaseOutboxCanonicalId:
 
     Originally a regression test for BUG-2026040901, where a queue written
     under the canonical URI was read under the short path segment and the
-    activities vanished. That *class* of bug is now unreachable: ADR-0071
+    activities vanished. That *class* of bug is now unreachable: ADR-0072
     dropped the ``actor_id`` column, so a queue lives in its owner's store
     rather than in a bucket named by one spelling of an id.
 
@@ -581,7 +581,7 @@ def short_id_env(report):
 
     A trigger route resolves its ``{actor_id}`` path segment by *computation* —
     ``base_url + "actors/" + segment``, no registry and no cross-actor scan
-    (ADR-0071 decision 2).  Only an actor whose id already has that shape can be
+    (ADR-0072 decision 2).  Only an actor whose id already has that shape can be
     reached by its short id at all.
 
     That rules out both actors this test used to be written against.  The

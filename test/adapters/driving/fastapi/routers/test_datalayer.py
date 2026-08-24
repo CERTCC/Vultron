@@ -209,7 +209,7 @@ def test_get_actor_outbox_returns_empty_items_when_queue_is_empty(
 
     An outbox is addressed as the path actor's *own* — there is no
     ``Actors/{other}/outbox/`` form, because a store holds exactly one actor's
-    queue (ADR-0071). So the actor under test is the store's own actor.
+    queue (ADR-0072). So the actor under test is the store's own actor.
     """
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
