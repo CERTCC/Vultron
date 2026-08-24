@@ -1188,7 +1188,7 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | Deployer | Drives its own VFD transition `d→D` (fix deployed, `CD`) |
 | Coordinator | Drives case participant management; coordinates multi-party disclosure |
 | CNA | May directly assign CVE IDs; a non-CNA delegates to an external CNA service. Orthogonal to other roles — typically co-held with Coordinator or Vendor |
-| Observer † | Holds no drive obligations for VFD; may report PXA observations (§7.4.2) |
+| Observer | Holds no drive obligations for VFD; may report PXA observations (§7.4.2) |
 
 **Capability prerequisites.** Every case Participant — whatever its roles — MUST
 implement the Observer capability set (§7.2, §7.3.3). Role extension sets add
@@ -1198,15 +1198,7 @@ completing a role assignment (§6.6.1). The full capability prerequisites per
 role are under active specification; see `docs/reference/vultron-taxonomy.md`
 §"Open Ideas."
 
-!!! note "† Observer: decided (ADR-0057); Finder: still provisional"
-    **Observer** (`CVDRole.OBSERVER`): the rename from `CVDRole.OTHER` is decided
-    (ADR-0057). The implementation task (renaming the enum value and all
-    references) is tracked in a separate issue. Observer semantics are now
-    normative: full participant (CM-25-001), standard Invite/Accept admission
-    (CM-25-002), full case content (CM-25-003), RM triage with engagement
-    semantics (CM-25-004), VFD exclusion for sole-Observer participants (CM-25-005).
-    Role-stacking union principle: CM-26-001.
-
+!!! note "Finder role: still provisional"
     **Finder** still requires an ADR before the removal can be treated as normative.
     The formal protocol definition this document builds on (§3.1, §3.4) defines
     the process count over Finders, Vendors, Coordinators, Deployers, and Others.
