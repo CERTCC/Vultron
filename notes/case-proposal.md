@@ -359,12 +359,16 @@ The runner uses **option (a): on-startup scan**:
 
 1. Get all actor-scoped DataLayers from the process-level cache
    (``get_all_actor_datalayers()``).
-2. **Supplement** by scanning the shared (unscoped) DataLayer for
-   persisted ``PendingCreateCaseActivity`` markers.  Any ``case_actor_id``
-   values found that are not already in the cache get a fresh actor-scoped
-   DataLayer via ``clone_for_actor()``.  This step is critical on
-   crash/restart: the process cache is empty, but the SQLite file still
-   holds the obligation rows.
+2. **Supplement** by scanning each *hosted actor's own* store for persisted
+   ``PendingCreateCaseActivity`` markers.  Any ``case_actor_id`` values found
+   that are not already in the cache get a DataLayer via ``clone_for_actor()``.
+   This step is critical on crash/restart: the process cache is empty, but the
+   per-actor SQLite files still hold the obligation rows.
+
+   There is no shared/unscoped DataLayer to scan (ADR-0072, DL-07-002), which is
+   why the scan enumerates hosted actors — ``hosted_actor_ids()`` derives them
+   from the per-actor stores that exist, so it also finds CaseActors created at
+   runtime that appear in no config file.
 3. For each actor DataLayer, scan for markers, reconstruct the stored
    ``Create(VulnerabilityCase)`` payload **verbatim** using the marker's
    ``create_activity_payload`` (never re-constructing the activity), and

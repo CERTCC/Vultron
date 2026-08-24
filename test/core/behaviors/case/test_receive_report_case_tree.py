@@ -43,6 +43,7 @@ from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckPendingProposalExistsForReport,
     ProposeReportCaseToActorNode,
+    EnsureCaseActorHostedNode,
     WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.receive_report_case_tree import (
@@ -137,39 +138,57 @@ class TestTreeStructure:
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
-    def test_flow_has_two_children(self, report, offer, reporter_actor_id):
-        """ReceiveReportProposalFlow has exactly 2 children."""
+    def test_flow_has_three_children(self, report, offer, reporter_actor_id):
+        """ReceiveReportProposalFlow has exactly 3 children."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1].children[1]
-        assert len(flow.children) == 2
+        assert len(flow.children) == 3
 
-    def test_flow_first_child_is_write_link(
+    def test_flow_first_child_ensures_case_actor_hosted(
         self, report, offer, reporter_actor_id
     ):
-        """Flow's first child is WritePendingReportCaseLinkNode (AC-2)."""
+        """Provisioning runs before the link write, as its own leaf.
+
+        ``EnsureCaseActorHostedNode`` was extracted from
+        ``WritePendingReportCaseLinkNode.update()``, which had grown to two jobs
+        (BTND-02-001).  Ordering matters: the CaseActor record must be in its own
+        store before ``ProposeReportCaseToActorNode`` delivers to its inbox.
+        """
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1].children[1]
-        assert isinstance(flow.children[0], WritePendingReportCaseLinkNode)
+        assert isinstance(flow.children[0], EnsureCaseActorHostedNode)
 
-    def test_flow_second_child_is_propose(
+    def test_flow_second_child_is_write_link(
         self, report, offer, reporter_actor_id
     ):
-        """Flow's second child is ProposeReportCaseToActorNode."""
+        """Flow's second child is WritePendingReportCaseLinkNode (AC-2)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1].children[1]
-        assert isinstance(flow.children[1], ProposeReportCaseToActorNode)
+        assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
+
+    def test_flow_third_child_is_propose(
+        self, report, offer, reporter_actor_id
+    ):
+        """Flow's third child is ProposeReportCaseToActorNode."""
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        flow = tree.children[1].children[1]
+        assert isinstance(flow.children[2], ProposeReportCaseToActorNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
         """Tree does NOT contain CreateCaseNode (AC-1)."""

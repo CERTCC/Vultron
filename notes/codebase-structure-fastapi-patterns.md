@@ -25,22 +25,26 @@ relevant_packages:
 
 > See also: [codebase-structure.md](codebase-structure.md) for the first half of these design notes.
 
-## Router Test Override Pattern: `_shared_dl` and `dependency_overrides`
+## Router Test Override Pattern: override the per-actor dependency
 
-When writing FastAPI router tests that cover endpoints in
-`vultron/adapters/driving/fastapi/routers/actors.py`, the module-level
-`_shared_dl` variable is populated by calling `get_datalayer()` directly at
-import time (not via `Depends`). This means:
+**Superseded by ADR-0072.** This section used to describe patching a
+module-level `_shared_dl` binding in `routers/actors.py`. Neither exists now:
+`routers/actors.py` is a package (`routers/actors/`), and there is no
+`get_shared_dl` because no DataLayer is unscoped (DL-07-002). Overriding the
+dependency is therefore sufficient again — there is no import-time binding left
+to race:
 
-- `app.dependency_overrides[get_datalayer] = lambda: mock_dl` alone is
-  **insufficient** — the `_shared_dl` closure was already bound to the real
-  DataLayer at import time.
-- You **must** also patch `actors_router._shared_dl = mock_dl` (or the
-  equivalent `monkeypatch.setattr`) so that the already-bound module variable
-  points to the test DataLayer.
+- `app.dependency_overrides[get_actor_dl] = lambda: mock_dl` for endpoints that
+  take an actor path segment. `get_actor_dl` resolves the segment to a canonical
+  URI first, so the override replaces the whole resolution.
+- `app.dependency_overrides[get_datalayer] = lambda: mock_dl` for the remaining
+  endpoints that name the actor explicitly.
 
-This is a deliberate design (ADR-0012): cross-actor lookups and the shared
-admin DataLayer use a module-level binding for performance, not `Depends`.
+What to watch for instead is the *engine* cache: `get_actor_engine` is keyed on
+the resolved per-actor URL, so a test that expects a fresh store must call
+`dispose_actor_engines()` rather than assume construction gives it one. In
+in-memory mode disposal also destroys the database, which is what makes it the
+correct reset primitive.
 
 ---
 

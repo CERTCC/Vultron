@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""One place that answers "which store belongs to this actor?" (ADR-0072).
+
+Under per-actor storage a store is always some actor's own, so any node that
+operates on behalf of an actor other than the one whose DataLayer it was handed
+has to say so explicitly (DL-07-005).  ``clone_for_actor`` is that named
+operation; this module holds the guard logic around it so the answer does not
+get re-derived — slightly differently each time — at every call site.
+
+Three variants of this logic existed before: ``BTBridge._store_for_actor``,
+``WritePendingReportCaseLinkNode._store_for``, and a third in the demo seeding
+helpers.  They disagreed about what to do when the store is a test double and
+about whether a store can be opened for an actor this node does not host.
+"""
+
+import logging
+from typing import cast
+from urllib.parse import urlsplit
+
+from vultron.core.ports.case_persistence import CasePersistence
+
+logger = logging.getLogger(__name__)
+
+
+def same_authority(a: str, b: str) -> bool:
+    """True when *a* and *b* are actor URIs served by the same node.
+
+    Compared on scheme and netloc only.  The path prefix varies (``/api/v2``)
+    without changing which process answers, and the final segment is the actor
+    slug — the very thing that differs between two actors on one node.
+
+    This is what decides whether a store can be opened for another actor at all:
+    a node hosts the actors under its own authority and no others, so
+    ``clone_for_actor`` on a foreign-authority id would mint an empty local
+    store rather than reach the real one.
+    """
+    if not a or not b:
+        return False
+    ua, ub = urlsplit(a), urlsplit(b)
+    return (ua.scheme, ua.netloc) == (ub.scheme, ub.netloc)
+
+
+def store_for_actor(
+    store: CasePersistence,
+    actor_id: str,
+    *,
+    require_same_authority: bool = False,
+) -> CasePersistence | None:
+    """Return the store belonging to *actor_id*, or ``None`` if unreachable.
+
+    Args:
+        store: The DataLayer this caller was handed.  Returned unchanged when it
+            already belongs to *actor_id*, or when it is not actor-scoped at all
+            (a test double, or any implementation that reports no ``actor_id``)
+            — those callers were correct before per-actor storage and stay so.
+        actor_id: Canonical URI of the actor whose store is wanted.
+        require_same_authority: When true, refuse to open a store for an actor
+            under a different authority and return ``None`` instead.  Set this
+            when the point of the write is to *publish* something the named actor
+            serves — an inbox endpoint, say.  ``clone_for_actor`` succeeds for
+            any well-formed id, so without this guard a remote actor's id yields
+            a fresh empty local store that looks like a success and publishes
+            nothing (#2484).
+
+    Returns:
+        The store to use, or ``None`` when *actor_id* is not hosted here and
+        *require_same_authority* is set.
+    """
+    if not actor_id:
+        return store
+    own_actor_id = getattr(store, "actor_id", None)
+    if not isinstance(own_actor_id, str) or not own_actor_id:
+        return store
+    if own_actor_id == actor_id:
+        return store
+    if require_same_authority and not same_authority(own_actor_id, actor_id):
+        logger.debug(
+            "Actor '%s' is not hosted alongside '%s'; no local store for it",
+            actor_id,
+            own_actor_id,
+        )
+        return None
+    clone_for_actor = getattr(store, "clone_for_actor", None)
+    if not callable(clone_for_actor):
+        return store
+    logger.debug(
+        "Scoping DataLayer from actor '%s' to actor '%s'",
+        own_actor_id,
+        actor_id,
+    )
+    # `clone_for_actor` came from getattr, so it is untyped. The cast is safe
+    # because `CasePersistence.clone_for_actor` is declared to return a
+    # `CasePersistence`; the getattr exists only so that test doubles and any
+    # non-actor-scoped implementation fall through the guards above untouched.
+    return cast(CasePersistence, clone_for_actor(actor_id))

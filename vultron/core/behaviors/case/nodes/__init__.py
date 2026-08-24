@@ -23,8 +23,8 @@ continue to work without modification.
 Submodules:
 - ``actor``: Actor-participation invite/accept emit nodes
 - ``conditions``: Idempotency guard condition nodes
-- ``case_setup``: Case persistence leaf action nodes
-- ``case_actor_setup``: CaseActor identity resolution and registration nodes (BTND-07-004 split from case_setup)
+- ``case_setup``: Case persistence, CaseActor identity and CaseActor
+  provisioning leaf action nodes
 - ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
@@ -63,6 +63,7 @@ from vultron.core.behaviors.case.nodes.proposal import (
     ProposeReportCaseToActorNode,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
+    EnsureCaseActorHostedNode,
     PersistCase,
     RecordCaseCreatedEventNode,
     RecordOfferReceivedEventNode,
@@ -148,8 +149,8 @@ __all__ = [
     "CheckIsCaseOwnerNode",
     "CheckPendingProposalExistsForReport",
     "WritePendingReportCaseLinkNode",
-    # case_actor_setup (leaf nodes)
     # case_setup (leaf nodes)
+    "EnsureCaseActorHostedNode",
     "PersistCase",
     "SetCaseAttributedTo",
     "RecordOfferReceivedEventNode",

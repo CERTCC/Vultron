@@ -43,7 +43,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor as VultronCaseActor
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
@@ -355,6 +354,11 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
     That id was a phantom — computed here, hosted nowhere — so the proposal's
     delivery 404'd and the round-trip never began (#1872).
 
+    Provisioning the CaseActor's own record is a *sibling* leaf,
+    :class:`~vultron.core.behaviors.case.nodes.case_setup.EnsureCaseActorHostedNode`,
+    which runs immediately before this node in ``ReceiveReportProposalFlow``.
+    This node only writes the link (BTND-02-001, "No God Nodes").
+
     Always returns ``SUCCESS`` so the enclosing ``Sequence`` continues to
     ``ProposeCaseToActorNode``.
 
@@ -378,10 +382,6 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
             )
             self.logger.error(self.feedback_message)
             return Status.FAILURE
-
-        # Ensure the CaseActor service object exists so its inbox accepts
-        # Create(as_CaseProposal) delivery (ADR-0041, CP-04-002).
-        self._ensure_case_actor(case_actor_id)
 
         link_id = VultronReportCaseLink.build_id(self.report_id)
         existing = self.datalayer.read(link_id)
@@ -419,69 +419,3 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
             case_actor_id,
         )
         return Status.SUCCESS
-
-    def _ensure_case_actor(self, case_actor_id: str) -> None:
-        """Make the CaseActor a *hosted* actor, so its inbox does not 404.
-
-        The record has to be in the CaseActor's **own** store, not this actor's:
-        ``POST /actors/{slug}/inbox/`` resolves the actor from the store that slug
-        names (``_resolve_actor_or_404``, ADR-0072), so a copy in the sender's
-        store publishes nothing. Writing only there is why delivery answered
-        ``404 Actor not found`` and the CaseProposal round-trip never began
-        (#1872, CP-04-002).
-
-        A copy also goes into this actor's store, as an address-book entry for a
-        peer it now knows (ADR-0072 decision 5) — sibling nodes resolve the
-        CaseActor from the *executing* actor's store. The two writes are not
-        redundant: one publishes an endpoint, the other records knowledge. Under a
-        shared store they were indistinguishable, which is why one used to do.
-
-        Co-located only. When the CaseActor runs in a different container this
-        node cannot reach its store, and provisioning there is that container's
-        own business (its seed config) — which is exactly what a *stable*
-        identity makes possible and a per-case one did not.
-        """
-        assert self.datalayer is not None
-        case_actor = VultronCaseActor(
-            id_=case_actor_id,
-            name="CaseActor",
-        )
-        for label, store in (
-            ("its own", self._store_for(case_actor_id)),
-            ("the sending actor's", self.datalayer),
-        ):
-            if store is None:
-                self.logger.debug(
-                    "%s: cannot open %s store for CaseActor '%s'; it is"
-                    " presumably hosted elsewhere and provisions itself",
-                    self.name,
-                    label,
-                    case_actor_id,
-                )
-                continue
-            if store.read(case_actor_id) is not None:
-                continue
-            try:
-                store.create(case_actor)
-            except ValueError:
-                pass  # already exists (race or duplicate); not an error
-
-    def _store_for(self, actor_id: str) -> "Any | None":
-        """Return *actor_id*'s own store, or ``None`` when it cannot be opened.
-
-        Named rather than implicit: ``clone_for_actor`` is the only sanctioned
-        route to another actor's store (ADR-0072 decision 7), so a cross-actor
-        write reads as one.
-        """
-        assert self.datalayer is not None
-        if getattr(self.datalayer, "actor_id", None) == actor_id:
-            return self.datalayer
-        clone_for_actor = getattr(self.datalayer, "clone_for_actor", None)
-        if not callable(clone_for_actor):
-            return None
-        try:
-            return clone_for_actor(actor_id)
-        except (
-            Exception
-        ):  # noqa: BLE001 — a remote CaseActor has no local store
-            return None

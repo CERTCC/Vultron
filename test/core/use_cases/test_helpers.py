@@ -50,6 +50,7 @@ from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _resolve_case_manager_id,
     resolve_case_participant_id_for_actor,
+    resolve_receiving_actor_id,
 )
 from vultron.errors import VultronValidationError
 
@@ -573,3 +574,85 @@ class TestFindCaseActorId:
     ) -> None:
         """A missing case must not raise — the participant path just skips."""
         assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
+
+class TestResolveReceivingActorId:
+    """``resolve_receiving_actor_id`` — whose replica is this message applied to?
+
+    Under ADR-0072 ``actor_id`` *selects the store*, so this is not a labelling
+    question. The ``or "unknown"`` fabrication it replaced would now route every
+    read and write into an empty scratch store named ``unknown``, losing the work
+    with no error raised anywhere (ARCH-15-001). That is why the no-answer case
+    raises rather than defaulting.
+    """
+
+    _INBOX_ACTOR = "https://example.org/api/v2/actors/vendor"
+
+    def test_the_inbox_supplied_id_is_authoritative(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """The inbox adapter knows which actor's inbox was POSTed to (BT-17-005)."""
+        assert (
+            resolve_receiving_actor_id(cm_dl, self._INBOX_ACTOR)
+            == self._INBOX_ACTOR
+        )
+
+    def test_the_inbox_id_wins_over_the_stores_own_actor(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """Both are present and disagree; the request is the more specific fact."""
+        assert cm_dl.actor_id != self._INBOX_ACTOR
+        assert (
+            resolve_receiving_actor_id(cm_dl, self._INBOX_ACTOR)
+            == self._INBOX_ACTOR
+        )
+
+    def test_falls_back_to_the_actor_whose_store_we_hold(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """CLI dispatch, replay and tests carry no receiving_actor_id.
+
+        The fallback is not a guess: a received-side use case is by construction
+        invoked with the receiving actor's own store (CM-01-001), and under
+        ADR-0072 a DataLayer is always some specific actor's.
+        """
+        assert (
+            resolve_receiving_actor_id(cm_dl, None)
+            == "https://test.example/api/v2/actors/test-actor"
+        )
+
+    @pytest.mark.parametrize("empty", [None, ""])
+    def test_an_empty_inbox_id_is_treated_as_absent(
+        self, cm_dl: SqliteDataLayer, empty: str | None
+    ) -> None:
+        """``""`` must not become the actor id — it names no store."""
+        assert (
+            resolve_receiving_actor_id(cm_dl, empty)
+            == "https://test.example/api/v2/actors/test-actor"
+        )
+
+    @pytest.mark.parametrize("own", [None, "", 42])
+    def test_raises_when_neither_source_yields_an_identity(
+        self, own: object
+    ) -> None:
+        """No defensible answer to "whose replica is this?" — so refuse.
+
+        ``42`` covers the non-string branch: a store reporting a non-string
+        ``actor_id`` is as unusable as one reporting nothing, and silently
+        stringifying it would mint a store named ``"42"``.
+        """
+
+        class _StoreWithoutAnActor:
+            actor_id = own
+
+        with pytest.raises(VultronValidationError, match="CM-01-001"):
+            resolve_receiving_actor_id(
+                cast(SqliteDataLayer, _StoreWithoutAnActor()), None
+            )
+
+    def test_raises_when_the_store_reports_no_actor_attribute_at_all(
+        self,
+    ) -> None:
+        """``getattr`` default path: a stub port with no ``actor_id``."""
+        with pytest.raises(VultronValidationError):
+            resolve_receiving_actor_id(cast(SqliteDataLayer, object()), None)

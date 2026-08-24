@@ -13,7 +13,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for DataLayer protocol conformance (ARCH-13-005).
+"""Tests for DataLayer protocol conformance (DL-07-002, DL-07-005).
+
+ARCH-13-005 asked for a separate ``ActorScopedDataLayer`` protocol so a
+type-checker could police the scope boundary at signature level. ADR-0072 made
+that unnecessary by construction — a DataLayer cannot exist unscoped — so the
+refinement was merged back into ``DataLayer`` and the requirement retired.
 
 Verifies that ``SqliteDataLayer`` satisfies ``DataLayer`` and
 that ``clone_for_actor()`` returns an actor-scoped instance.

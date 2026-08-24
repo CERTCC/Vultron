@@ -16,6 +16,7 @@
 """SQLAlchemy engine setup and JSON serialization for SQLite."""
 
 import json
+import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
@@ -25,6 +26,8 @@ from urllib.parse import urlsplit
 from sqlalchemy import Engine, event
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import create_engine
+
+logger = logging.getLogger(__name__)
 
 #: Characters permitted in a per-actor filename slug.  Everything else is
 #: collapsed to ``_`` so that an actor URI can never escape the configured
@@ -89,9 +92,14 @@ def actor_slug(actor_id: str) -> str:
     enumerate the actors it hosts from the set of per-actor database files
     without a separate registry (ADR-0072).
 
-    Two actors hosted by one node cannot share a slug, because under ADR-0072
-    the URL path segment *is* the actor's identity within that node — same
-    segment means same actor.
+    Two actors **under one authority** cannot share a slug, because under
+    ADR-0072 the URL path segment *is* the actor's identity within that node —
+    same segment means same actor.  The guarantee stops at the authority
+    boundary: the scheme and netloc are dropped, so ``http://vendor/…/case-actor``
+    and ``http://case-actor:7999/…/case-actor`` produce the same slug and hence
+    the same store.  A node opening a store for a *foreign* id is the bug in
+    that scenario, not the slug — see :func:`get_actor_engine`, which logs the
+    collision, and issue #2549.
 
     Args:
         actor_id: The actor's canonical URI.
@@ -106,7 +114,9 @@ def actor_slug(actor_id: str) -> str:
         raise ValueError("actor_id must be a non-empty canonical actor URI")
 
     # Use the URL path when the id parses as a URI; fall back to the raw
-    # string for opaque ids such as ``urn:uuid:...`` or bare test names.
+    # string for a bare name, which yields no path.  Note that an opaque URI
+    # *does* parse — ``urn:uuid:abc`` has path ``uuid:abc`` — so the fallback
+    # is narrower than "not an http URL".
     path = urlsplit(actor_id).path or actor_id
     segment = path.rstrip("/").rsplit("/", 1)[-1]
     slug = _SLUG_UNSAFE_RE.sub("_", segment)
@@ -191,9 +201,23 @@ def json_serializer(value: Any) -> str:
 #: in-memory deployments, never do.
 _ENGINES: dict[str, Engine] = {}
 
+#: First actor id seen for each resolved store URL, used only to detect the
+#: cross-authority slug collision described in :func:`actor_slug`.  Kept separate
+#: from ``_ENGINES`` so disposal (a legitimate reset) does not erase the record
+#: of which id claimed a store.
+_STORE_CLAIMANTS: dict[str, str] = {}
+
 
 def get_actor_engine(db_url: str, actor_id: str) -> Engine:
     """Return the cached engine for *actor_id*, creating it if needed.
+
+    Logs a warning when a *different* actor id has already claimed the same
+    resolved store URL.  That only happens when two ids differ outside the final
+    path segment — i.e. they are under different authorities — which means this
+    node has opened a store for an actor it does not host (issue #2549).  It
+    warns rather than raises because the paths that reach it today (peer
+    registration via ``POST /actors/``) are still in use; upgrading to an error
+    is tracked in that issue.
 
     Args:
         db_url: The configured SQLAlchemy URL template.
@@ -203,6 +227,16 @@ def get_actor_engine(db_url: str, actor_id: str) -> Engine:
         The :class:`~sqlalchemy.engine.Engine` backing that actor's own store.
     """
     key = actor_db_url(db_url, actor_id)
+    claimant = _STORE_CLAIMANTS.setdefault(key, actor_id)
+    if claimant != actor_id:
+        logger.warning(
+            "Store %s is shared by two distinct actor ids (%r and %r): their"
+            " slugs match but their authorities do not, so one of them is not"
+            " hosted here (issue #2549)",
+            key,
+            claimant,
+            actor_id,
+        )
     engine = _ENGINES.get(key)
     if engine is None:
         engine = make_engine(key)

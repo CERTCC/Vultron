@@ -46,7 +46,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.models.case import case_addressees
 
 logger = logging.getLogger(__name__)
 

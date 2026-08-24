@@ -92,7 +92,7 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
 # string: Activities may not have independent DataLayer records (e.g. a
 # reconstituted Offer in the validate-report path, a CaseLedgerEntry inside an
 # Announce envelope), so dehydrating them would make rehydration impossible on
-# read-back and cause MV-09-001 outbox-gate failures.
+# read-back and cause AKM-03-001 outbox-gate failures.
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     {e.value for e in as_TransitiveActivityType}
     | {e.value for e in as_IntransitiveActivityType}
@@ -166,7 +166,7 @@ def _dehydrate_data(
             # reconstituted Offer in validate-report, or a CaseLedgerEntry
             # inside an Announce envelope), so collapsing them to a bare ID
             # would make rehydration impossible on outbox read-back, causing
-            # MV-09-001 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
+            # AKM-03-001 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
             if value.get("type_") in _KEEP_INLINE_NESTED_TYPES:
                 result[key] = value
                 continue

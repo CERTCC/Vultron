@@ -1830,6 +1830,8 @@ groups:
     unspecified, which is how they came to disagree with the tree's role gate.
   specs:
   - id: EMB-19-001
+    lint_suppress:
+    - rationale_too_long
     priority: MUST
     kind: protocol
     statement: >-
@@ -1844,9 +1846,20 @@ groups:
       executing actor *is* the manager, so the announce was addressed to itself and the teardown reached
       nobody. Nothing in this corpus governed the recipients, which is why only one half of the pair was
       updated when the gate was added — the gap is the reason this entry exists.
+    note: >-
+      This does not conflict with CLP-10-001's self-`cc:` rule. That rule exists so the CaseActor's
+      *inbox* receives an activity it would otherwise never see, and so the canonical ledger entry gets
+      authored by the loopback delivery (OX-12-004). Here the entry is authored by the emitting tree
+      itself: `remove_embargo_from_case_tree` wraps the announce in `create_receive_activity_tree` with
+      a `case_id`, whose guarded commit is gated on `CVDRole.CASE_MANAGER` (CLP-10-013). The ledger
+      entry therefore already exists, and a self-addressed copy would loop an activity back to the actor
+      that just emitted it for no additional record. Where the emitting tree does *not* commit its own
+      entry, CLP-10-001 continues to bind.
     relationships:
     - rel_type: refines
       spec_id: BT-05-006
+    - rel_type: refines
+      spec_id: CLP-10-001
     verification: >-
       `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce is authored by
       the CASE_MANAGER and addressed to the case's other participants.

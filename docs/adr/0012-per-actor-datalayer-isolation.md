@@ -4,6 +4,7 @@ date: 2026-03-19
 deciders: ahouseholder
 consulted: notes/domain-model-separation.md, notes/architecture-adapters.md, vultron/core/ports/AGENTS.md
 informed: plan/IMPLEMENTATION_PLAN.md
+partially_superseded_by: docs/adr/0072-per-actor-storage-isolation.md
 ---
 
 # Per-Actor DataLayer Isolation
@@ -91,7 +92,9 @@ prototype-convenience argument that does not outweigh the isolation
 requirement.
 
 The remaining three decisions in this ADR (DI-1, IO-A, OX-B) are unaffected
-and still stand.
+and still stand. That is why `status:` stays `accepted` and the frontmatter
+carries `partially_superseded_by:` instead: marking the whole ADR superseded
+would retire three live decisions along with the one that was replaced.
 
 Option A creates many files and complicates the DataLayer reset endpoint
 used by demo scripts. Option C has no persistence and cannot be used for

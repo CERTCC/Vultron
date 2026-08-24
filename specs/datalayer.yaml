@@ -102,19 +102,32 @@ groups:
     priority: MUST
     kind: project
     statement: The current required minimum `CasePersistence` surface is `actor_id`, `clone_for_actor`, `create`, `read`,
-      `get`, `save`, `by_type`, `find_case_by_report_id`, and `find_actor_by_short_id`; future additions MAY be made only
-      when they preserve the same core-facing persistence/query boundary and do not introduce queue, admin, health, or
-      diagnostic responsibilities. `actor_id` and `clone_for_actor` are part of the minimum because a store belongs to
-      exactly one actor (DL-07-002) and reaching another's is a named operation (DL-07-005).
-    rationale: Makes the current narrow-port contract explicit without freezing the interface against future legitimate
-      query helpers.
+      `save`, `save_many`, `list_objects`, `find_case_by_report_id`, `find_actor_by_short_id`, `find_case_by_short_id`,
+      `find_protocol_pair`, and `delete`; future additions MAY be made only when they preserve the same core-facing
+      persistence/query boundary and do not introduce queue, admin, health, or diagnostic responsibilities. `actor_id`
+      and `clone_for_actor` are part of the minimum because a store belongs to exactly one actor (DL-07-002) and
+      reaching another's is a named operation (DL-07-005).
+    rationale: >-
+      Makes the current narrow-port contract explicit without freezing the interface against future legitimate
+      query helpers. The enumeration is the *declared* Protocol, so a drift between it and
+      `vultron/core/ports/case_persistence.py` is a spec defect rather than a code one. `get` and `by_type`
+      were listed here until ADR-0072 and are deliberately absent now: they are not declared on the Protocol
+      and have no remaining core call site (see DL-04-005).
   - id: DL-04-003
+    lint_suppress:
+    - rationale_too_long
     priority: MUST_NOT
     kind: project
     statement: '`CasePersistence` MUST NOT include inbox queue methods, outbox inspection or drain methods, `ping`,
-      `clear_*`, `update`, `delete`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
+      `clear_*`, `update`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
       operations that belong to the full `DataLayer` adapter contract.'
-    rationale: Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
+    rationale: >-
+      Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
+      `delete` was on this prohibition list while simultaneously being declared on the Protocol and called
+      from two core BT nodes, which retracts single-marker queue records
+      (`PendingCreateCaseActivity`) once they are consumed. Removing a marker the core itself wrote is a
+      domain operation, not an admin one, so `delete` moved to DL-04-002. `update` stays prohibited: core
+      code mutates through `save`, which is idempotent by object id.
   - id: DL-04-004
     priority: MUST
     kind: project
@@ -130,10 +143,14 @@ groups:
   - id: DL-04-005
     priority: MUST
     kind: project
-    statement: '`get()` and `by_type()` on `CasePersistence` are deprecated compatibility methods; new or refactored core
-      code MUST prefer typed `read()`, `list()`, or dedicated typed helper methods, and migration work MUST remove the
-      deprecated methods once existing call sites have been replaced.'
-    rationale: The narrow port should converge on typed domain-object access rather than preserve raw-record escape hatches.
+    statement: '`get()` and `by_type()` MUST NOT be declared on `CasePersistence`; core code MUST use typed `read()`,
+      `list_objects()`, or dedicated typed helper methods. Any reintroduction of a raw-record escape hatch on the narrow
+      port MUST be recorded as a deliberate decision rather than added incidentally.'
+    rationale: >-
+      The narrow port converges on typed domain-object access rather than preserving raw-record escape hatches.
+      This entry used to describe `get`/`by_type` as deprecated-but-present; the migration it called for has
+      completed — neither is declared on the Protocol and neither has a call site under `vultron/core/` — so
+      the requirement is now the prohibition rather than the migration.
 - id: DL-05
   title: Core-Object Read Contract
   description: The DataLayer read path MUST return core domain objects for every persisted type that has a registered core
@@ -394,6 +411,8 @@ groups:
   title: Per-Actor Store Isolation
   specs:
   - id: DL-07-001
+    lint_suppress:
+    - rationale_too_long
     priority: MUST
     kind: project
     statement: >-
@@ -461,6 +480,8 @@ groups:
     adr:
     - ADR-0072
   - id: DL-07-004
+    lint_suppress:
+    - rationale_too_long
     priority: MUST
     kind: project
     statement: >-
@@ -568,6 +589,8 @@ groups:
     ISSUE-2482, where the round-trip silently emptied a `Create(CaseProposal)` of its report.
   specs:
   - id: DL-08-001
+    lint_suppress:
+    - rationale_too_long
     priority: MUST_NOT
     kind: architecture
     statement: >-

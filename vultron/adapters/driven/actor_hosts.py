@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
 #: Public because it is also the shape test for "does this URI name one actor?"
 #: — see ``_names_an_individual_actor`` in the inbox adapter (IE-11-002).
 ACTORS_SEGMENT = "actors"
-_ACTORS_SEGMENT = ACTORS_SEGMENT  # backwards-compatible alias
 
 
 def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
@@ -62,16 +61,27 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     chicken-and-egg problem under per-actor stores: choosing which store to open
     required the canonical URI that the scan was being used to discover.
 
+    Any id that already carries a scheme is returned unchanged — including one
+    under a *foreign* authority, which is therefore **not** rewritten into this
+    node's namespace. That is deliberate: a peer's id is the URL outbound
+    delivery posts to, so rewriting it would turn a reachable peer into a local
+    phantom (ADR-0072 decision 5). The cost is that a foreign id reaching a
+    store-opening call site mints a local store for an actor this node does not
+    host, where :func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug`
+    can collide it with a co-hosted actor. Tracked in issue #2549; the collision
+    itself is logged by ``get_actor_engine``.
+
     Args:
         segment: Final path segment from the request URL (e.g. ``"vendor"``), or
-            an already-canonical actor URI, which is returned unchanged.
+            an already-absolute actor URI, which is returned unchanged.
         base_url: Node base URL. Defaults to ``ServerConfig.base_url``.
 
     Returns:
         The canonical actor URI.
 
     Raises:
-        ValueError: If *segment* is empty.
+        ValueError: If *segment* is empty, or names no actor once its slashes
+            are stripped.
     """
     if not segment:
         raise ValueError("actor URL segment must not be empty")
@@ -80,8 +90,20 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     if urlsplit(segment).scheme:
         return segment
 
+    # A segment of ``"/"`` is not empty but names nothing.  Left unchecked it
+    # produced ``{base}/actors/``, whose final path segment is ``actors`` — so
+    # ``actor_slug`` returned a usable slug and the node quietly opened a store
+    # for a phantom actor named after the path component.  ``assert_hosted_slug``
+    # could not catch it downstream, because by then the value looked valid.
+    slug_source = segment.strip("/")
+    if not slug_source:
+        raise ValueError(
+            f"actor URL segment {segment!r} names no actor once its slashes "
+            "are stripped"
+        )
+
     base = base_url if base_url is not None else get_config().server.base_url
-    return f"{base.rstrip('/')}/{_ACTORS_SEGMENT}/{segment.strip('/')}"
+    return f"{base.rstrip('/')}/{ACTORS_SEGMENT}/{slug_source}"
 
 
 def hosted_actor_ids(
@@ -207,7 +229,10 @@ def local_actor_id(base_url: str | None = None) -> str | None:
     (CFG-07-005). It belongs on ``AppConfig.actor`` per CFG-07-005..007 and
     should migrate there; this reads the environment so that the migration is a
     separate, reviewable change rather than a config-schema edit buried in
-    ADR-0072's rollout.
+    ADR-0072's rollout. Tracked in issue #2550: the move also has to keep the
+    single-underscore ``VULTRON_ACTOR_ID`` working, since every compose file sets
+    it, and nested ``ActorConfig`` fields would otherwise be read as
+    ``VULTRON_ACTOR__ACTOR_ID``.
 
     Args:
         base_url: Node base URL. Defaults to ``ServerConfig.base_url``.

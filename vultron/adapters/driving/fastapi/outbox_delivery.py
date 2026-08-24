@@ -21,7 +21,7 @@ before per-recipient delivery:
 - Activity loading from the DataLayer with dehydration fallback
 - ``to:`` field enforcement (OX-08-001, OX-08-002)
 - ``cc``/``bto``/``bcc`` secondary-addressing warnings (OX-08-004)
-- Bare-string ``object_`` expansion for initiating activity types (MV-09-001)
+- Bare-string ``object_`` expansion for initiating activity types (AKM-03-001)
 - Inline ``object_`` integrity validation
 - Dict-based object recovery and DataLayer hydration
 """
@@ -154,7 +154,7 @@ def _expand_inline_object(
 
     logger.warning(
         "Outbound %s activity '%s' has a bare string object_ '%s'."
-        " Attempting DataLayer expansion (MV-09-001 violation).",
+        " Attempting DataLayer expansion (AKM-03-001 violation).",
         activity_type,
         activity_id,
         activity_object,
@@ -184,7 +184,7 @@ def _validate_inline_object(
             f"Outbound {activity_type} activity '{activity_id}' has an"
             f" inline object_ that is a bare string or Link"
             f" ({activity_object!r}). Outbound initiating activities must"
-            " carry fully inline typed objects (MV-09-001).",
+            " carry fully inline typed objects (AKM-03-001).",
             activity_id=activity_id,
             activity_type=activity_type,
         )

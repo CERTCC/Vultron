@@ -227,7 +227,7 @@ causal gap exists in the protocol layer: #2169's fan-out race is server-side and
 a client-side demo wait cannot prevent it, #2186 was consequently fixed in the
 protocol (the pre-genesis buffering ADR on `fix/demo-ci`), and #2194 — a
 bare-string `Accept.object_` that trips the
-MV-09-001 outbox gate so the activity is never delivered — is squarely an actor
+AKM-03-001 outbox gate so the activity is never delivered — is squarely an actor
 logic bug. The pattern this ADR addresses is real and well-attested, but it is
 not exclusively a harness problem, and this decision does not green Epic #2136 on
 its own: #2194 and #2195 are delivery and serialization defects that causal

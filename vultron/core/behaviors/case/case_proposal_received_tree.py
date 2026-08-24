@@ -271,7 +271,7 @@ class _StoreProposalReportNode(DataLayerAction):
     caller. The fallback — validating the proposal's serialised ``object`` — can
     only be as good as that dict's spelling, and the dict the received-side use
     case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
-    the proposal inline on the wire (CP-05-003, MV-09-001). In wire spelling the
+    the proposal inline on the wire (CP-05-003, AKM-03-001). In wire spelling the
     reporter is ``attributedTo``; this core model declares ``attributed_to`` and
     sets ``extra="ignore"``, so validating that dict quietly produced a report
     with no reporter, and the complaint surfaced three nodes later as "has no
@@ -338,18 +338,7 @@ class _StoreProposalReportNode(DataLayerAction):
         report = self._inline_report or self._report_from_proposal_dict()
         if report is None:
             return Status.SUCCESS
-        if not report.attributed_to:
-            # Worth saying out loud: the report is storable but useless for the
-            # three things derived from it, and each of those will otherwise
-            # report the absence separately and much further from the cause.
-            logger.warning(
-                "%s: the inline report '%s' has no attributed_to, so the"
-                " reporter participant, its ledger entry and the SIGNATORY"
-                " seed cannot be derived from it (CP-01-004 requires a report"
-                " attributed to its reporter)",
-                self.name,
-                self._report_id,
-            )
+        self._warn_if_unattributed(report)
 
         try:
             self.datalayer.create(report)
@@ -368,6 +357,23 @@ class _StoreProposalReportNode(DataLayerAction):
             self._report_id,
         )
         return Status.SUCCESS
+
+    def _warn_if_unattributed(self, report: VulnerabilityReport) -> None:
+        """Say out loud that a storable report is useless for what follows.
+
+        Three downstream nodes derive from ``attributed_to``; without it each
+        reports the absence separately and much further from the cause.
+        """
+        if report.attributed_to:
+            return
+        logger.warning(
+            "%s: the inline report '%s' has no attributed_to, so the"
+            " reporter participant, its ledger entry and the SIGNATORY"
+            " seed cannot be derived from it (CP-01-004 requires a report"
+            " attributed to its reporter)",
+            self.name,
+            self._report_id,
+        )
 
 
 class _AddCaseActorParticipantNode(DataLayerAction):
@@ -1359,7 +1365,7 @@ class _EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
         self._proposal_id = proposal_id
         self._vendor_uri = vendor_uri
         # proposal_dict is the wire-serialised proposal (model_dump(by_alias=True)).
-        # Storing it inline satisfies CP-05-003 and the outbox MV-09-001 requirement.
+        # Storing it inline satisfies CP-05-003 and the outbox AKM-03-001 requirement.
         self._object = (
             proposal_dict if proposal_dict is not None else proposal_id
         )
@@ -1826,7 +1832,7 @@ def create_case_proposal_received_tree(
         vendor_uri: URI of the vendor actor to whom the responses are sent.
         proposal_dict: Wire-serialised proposal dict (``model_dump(by_alias=True)``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
-            satisfying CP-05-003 and the MV-09-001 outbox requirement. Falls back
+            satisfying CP-05-003 and the AKM-03-001 outbox requirement. Falls back
             to bare URI when ``None``.
         actor_config: Optional local actor configuration.  Its
             ``default_case_roles`` determine the CVD roles the proposing

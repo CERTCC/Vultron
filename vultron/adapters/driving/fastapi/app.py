@@ -92,16 +92,25 @@ def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
     - **Per actor** (ADR-0072, CM-01-001): within an app, each actor gets its
       own store.  The override is therefore a *factory* keyed on the requested
       actor, not one shared instance.
+
+    The segment is resolved through ``deps.node_base_url(request)``, the same
+    call the real :func:`~vultron.adapters.driving.fastapi.deps.get_actor_dl`
+    makes.  Resolving against the process-global config base instead would give
+    two apps in one process *different* canonical URIs for the same segment when
+    either declares a ``node_base_url``, so a record created through one app
+    would be a 404 through the other — the override keyed on one spelling while
+    every route handler downstream used the other.
     """
     from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     if get_actor_dl in application.dependency_overrides:
         return
 
-    from fastapi import Path as _Path
+    from fastapi import Path as _Path, Request as _Request
 
     from vultron.adapters.driven.actor_hosts import canonical_actor_uri
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driving.fastapi.deps import node_base_url
 
     db_url = (
         f"sqlite:///file:app-{uuid4().hex}"
@@ -109,8 +118,13 @@ def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
     )
     registry: dict[str, SqliteDataLayer] = {}
 
-    def _isolated_actor_dl(actor_id: str = _Path(...)) -> SqliteDataLayer:
-        canonical = canonical_actor_uri(actor_id)
+    def _isolated_actor_dl(
+        actor_id: str = _Path(...),
+        request: _Request = None,  # type: ignore[assignment]
+    ) -> SqliteDataLayer:
+        canonical = canonical_actor_uri(
+            actor_id, base_url=node_base_url(request)
+        )
         if canonical not in registry:
             registry[canonical] = SqliteDataLayer(
                 db_url=db_url, actor_id=canonical

@@ -106,6 +106,8 @@ groups:
     rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal
       to be sent before the case-actor service is ready. See `notes/case-proposal.md` for the pitfall.
   - id: CP-04-003
+    lint_suppress:
+    - rationale_too_long
     priority: MUST
     kind: protocol
     statement: >-

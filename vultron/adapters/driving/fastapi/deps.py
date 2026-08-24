@@ -30,6 +30,9 @@ get_trigger_dl
     trigger-route tests.
 get_canonical_actor_dl
     Alias of :func:`get_actor_dl`.
+get_hosted_actor_dls
+    Return every store this node hosts, keyed by canonical actor URI, for
+    node-level operations such as the admin reset.
 get_trigger_service
     Construct and return a :class:`~vultron.core.use_cases.triggers.service.TriggerService`.
 
@@ -107,29 +110,66 @@ def get_actor_dl(
 
 
 def get_trigger_dl(
-    actor_id: str = Path(...),
-    request: Request = None,  # type: ignore[assignment]
+    dl: DataLayer = Depends(get_actor_dl),
 ) -> DataLayer:
     """FastAPI dependency: the addressed actor's DataLayer for trigger routes.
 
     Kept as a separate name from :func:`get_actor_dl` purely so that trigger
     routes remain independently overridable in tests
     (``app.dependency_overrides[get_trigger_dl]``).
+
+    Delegates through ``Depends`` rather than calling :func:`get_actor_dl`
+    directly: a plain call bypasses the override table, so
+    ``app.dependency_overrides[get_actor_dl]`` would apply to ``/actors/*``
+    routes and *not* to ``/actors/{id}/trigger/*`` — one app reading two
+    different stores for the same actor.
     """
-    return get_actor_dl(actor_id, request)
+    return dl
 
 
 def get_canonical_actor_dl(
-    actor_id: str = Path(...),
-    request: Request = None,  # type: ignore[assignment]
+    dl: DataLayer = Depends(get_actor_dl),
 ) -> DataLayer:
     """FastAPI dependency: alias of :func:`get_actor_dl`.
 
     Retained so existing trigger routes and their test overrides keep working;
     the "canonical" qualifier is now redundant because every actor DataLayer is
     keyed by the canonical URI.
+
+    Delegates through ``Depends`` for the reason given in
+    :func:`get_trigger_dl`.
     """
-    return get_actor_dl(actor_id, request)
+    return dl
+
+
+def get_hosted_actor_dls(
+    request: Request = None,  # type: ignore[assignment]
+) -> dict[str, DataLayer]:
+    """FastAPI dependency: every store this node hosts, keyed by actor URI.
+
+    Node-level operations (the admin reset) have no single store to act on under
+    ADR-0072, so they need the whole set.  Resolving it through a dependency
+    rather than calling ``get_datalayer`` in a loop is what makes it
+    *overridable*: an app whose stores were supplied by
+    ``_auto_inject_isolated_datalayer`` or a test fixture keeps them in
+    ``app.state.actor_dls``, and a loop over the process-global factory would
+    reset the on-disk stores while reporting success and leaving the app's real
+    stores untouched.
+
+    Falls back to ``hosted_actor_ids()`` + ``get_datalayer`` when the app
+    registers nothing, which is the deployment case.
+    """
+    registry = getattr(getattr(request, "app", None), "state", None)
+    actor_dls = getattr(registry, "actor_dls", None) if registry else None
+    if actor_dls:
+        return dict(actor_dls)
+
+    from vultron.adapters.driven import actor_hosts
+
+    return {
+        actor_id: cast(DataLayer, get_datalayer(actor_id))
+        for actor_id in actor_hosts.hosted_actor_ids()
+    }
 
 
 def get_trigger_service(
@@ -142,7 +182,9 @@ def get_trigger_service(
 
     ``get_trigger_dl`` returns a ``SqliteDataLayer`` at runtime, which
     satisfies ``CaseOutboxPersistence`` structurally.  The cast below is
-    safe; see ARCH-13-001 / ARCH-13-002.
+    safe; see DL-07-001 / DL-07-002 (which retired ARCH-13-001 / ARCH-13-002:
+    with every DataLayer belonging to exactly one actor there is no unscoped
+    instance the cast could smuggle in).
     """
     cop = cast(CaseOutboxPersistence, dl)
     return TriggerService(

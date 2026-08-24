@@ -337,6 +337,29 @@ class VulnerabilityCase(CoreObject):
 VultronCase = VulnerabilityCase
 
 
+def case_addressees(
+    case: VulnerabilityCase, excluding_actor_id: str
+) -> list[str]:
+    """Return actor IDs for all case participants except *excluding_actor_id*.
+
+    Uses ``case.actor_participant_index`` (a ``dict[actor_id, participant_id]``)
+    so the caller does not need to iterate over ``case_participants`` directly.
+
+    Returns an empty list when there are no other participants.
+
+    Lives here rather than in ``use_cases._helpers`` for the same reason as
+    :func:`has_case_statuses`: it is a pure derivation from a core model with no
+    use-case or storage dependency, and BT nodes need it too.  Importing it from
+    ``use_cases`` would make every such node an inbound-direction violation of
+    BTND-04-003 (see ``test/architecture/test_behaviors_no_use_case_imports.py``).
+    """
+    return [
+        actor_id
+        for actor_id in case.actor_participant_index.keys()
+        if actor_id != excluding_actor_id
+    ]
+
+
 def has_case_statuses(case: VulnerabilityCase) -> bool:
     """Return True when *case* has at least one CaseStatus entry.
 

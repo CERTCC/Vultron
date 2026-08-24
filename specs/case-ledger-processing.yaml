@@ -402,6 +402,12 @@ groups:
       entry. Using `cc:` rather than `to:` for the self-copy preserves the semantics that the invitee is the primary recipient
       while still routing the activity through the CaseActor''s inbox for archival. See OX-08-004 for the updated addressing
       policy and ADR-0021 for the full end-to-end path.'
+    note: >-
+      The self-`cc:` clause binds only where the canonical entry depends on inbox loopback. A tree that
+      emits under a `CVDRole.CASE_MANAGER` gate and wraps the emit in `create_receive_activity_tree`
+      with a `case_id` commits the entry itself (CLP-10-013), so the entry already exists and a
+      self-addressed copy adds no record — see EMB-19-001 for the worked case, where addressing the
+      manager also made the announce reach nobody.
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the CaseActor's canonical ledger contains
       at least one entry with that `eventType` after a full FV demo run.
     adr:

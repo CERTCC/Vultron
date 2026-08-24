@@ -256,3 +256,121 @@ def test_get_actor_outbox_returns_queued_activity_ids(
     item = items[0]
     # Rehydrated item should have the activity's id
     assert item.get("id") == offer.id_
+
+
+# ---------------------------------------------------------------------------
+# The admin reset is a *node*-level operation: it must clear every hosted store.
+# ---------------------------------------------------------------------------
+
+
+class TestResetFansOutOverEveryHostedActor:
+    """Under ADR-0072 there is no single store to clear.
+
+    The demo harness and the autouse isolation fixture both depend on this
+    endpoint actually emptying the node. Clearing one actor and reporting success
+    is the failure mode that matters: the next scenario then starts with another
+    actor's rows still present, and the resulting cross-talk looks like a protocol
+    bug rather than a dirty fixture.
+    """
+
+    @staticmethod
+    def _app_with(actor_dls):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from vultron.adapters.driving.fastapi.deps import get_hosted_actor_dls
+        from vultron.adapters.driving.fastapi.routers import (
+            datalayer as datalayer_router,
+        )
+
+        app = FastAPI()
+        app.include_router(datalayer_router.admin_router)
+        app.dependency_overrides[get_hosted_actor_dls] = lambda: actor_dls
+        return TestClient(app)
+
+    @staticmethod
+    def _store(slug):
+        from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        actor_id = canonical_actor_uri(slug)
+        dl = get_datalayer(actor_id, db_url="sqlite:///:memory:")
+        dl.clear_all()
+        return actor_id, dl
+
+    def test_clears_every_actors_store_not_just_the_first(self, offer, report):
+        vendor_id, vendor_dl = self._store("reset-vendor")
+        finder_id, finder_dl = self._store("reset-finder")
+        vendor_dl.create(object_to_record(offer))
+        finder_dl.create(report)
+        assert any(vendor_dl.count_all().values())
+        assert any(finder_dl.count_all().values())
+
+        client = self._app_with({vendor_id: vendor_dl, finder_id: finder_dl})
+        resp = client.delete("/admin/datalayer/reset/")
+
+        assert resp.status_code == status.HTTP_200_OK
+        # ``count_all`` keeps its keys and zeroes them, so "empty" is all-zero
+        # rather than ``{}``.
+        assert not any(
+            vendor_dl.count_all().values()
+        ), "vendor's store was not cleared"
+        assert not any(
+            finder_dl.count_all().values()
+        ), "finder's store was not cleared"
+
+    def test_reports_one_entry_per_actor(self, offer):
+        vendor_id, vendor_dl = self._store("reset-count-vendor")
+        finder_id, finder_dl = self._store("reset-count-finder")
+        vendor_dl.create(object_to_record(offer))
+
+        body = (
+            self._app_with({vendor_id: vendor_dl, finder_id: finder_dl})
+            .delete("/admin/datalayer/reset/")
+            .json()
+        )
+
+        assert body["actors"] == 2
+        assert set(body["n_items"]) == {vendor_id, finder_id}
+
+    def test_a_node_hosting_nothing_resets_successfully(self):
+        """A clean node is not an error — the demo harness resets before seeding."""
+        resp = self._app_with({}).delete("/admin/datalayer/reset/")
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.json()["actors"] == 0
+
+    def test_it_honours_the_apps_own_stores(self, offer):
+        """The reason the set arrives via a dependency rather than a loop.
+
+        An app whose stores came from ``_auto_inject_isolated_datalayer`` keeps
+        them in ``app.state.actor_dls``. A loop over the process-global
+        ``get_datalayer`` would clear the *on-disk* stores, report success, and
+        leave the app's real stores untouched — a reset that resets nothing while
+        returning 200.
+        """
+        registered_id, registered_dl = self._store("reset-registered")
+        untouched_id, untouched_dl = self._store("reset-untouched")
+        registered_dl.create(object_to_record(offer))
+        untouched_dl.create(object_to_record(offer))
+
+        client = self._app_with({registered_id: registered_dl})
+        body = client.delete("/admin/datalayer/reset/").json()
+
+        assert not any(registered_dl.count_all().values())
+        assert any(
+            untouched_dl.count_all().values()
+        ), "only the stores the app declared may be cleared"
+        assert list(body["n_items"]) == [registered_id]
+
+    def test_it_is_not_mounted_on_the_actor_scoped_router(self):
+        """Kept off ``/actors/{id}/`` so it cannot read as one actor reaching
+        into another's data — the shape ADR-0072 exists to prevent."""
+        from vultron.adapters.driving.fastapi.routers import (
+            datalayer as datalayer_router,
+        )
+
+        actor_paths = [r.path for r in datalayer_router.router.routes]
+        assert not any("reset" in p for p in actor_paths)
+        assert any(
+            "reset" in r.path for r in datalayer_router.admin_router.routes
+        )

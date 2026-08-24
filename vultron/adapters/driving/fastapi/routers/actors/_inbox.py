@@ -136,7 +136,6 @@ def _names_an_individual_actor(addr: str) -> bool:
 def _activity_addressed_to(
     activity: as_Activity,
     canonical_actor_id: str,
-    dl: DataLayer | None = None,
 ) -> bool:
     """Return True if the Activity addresses canonical_actor_id.
 
@@ -148,8 +147,17 @@ def _activity_addressed_to(
     URI like ``{case_id}/participants``) is unresolvable and also falls through
     to Liberal Accept (IE-11-002); see :func:`_names_an_individual_actor`.
 
-    ``dl`` is accepted for call-compatibility and is unused: resolvability is a
-    property of the address, not of any one actor's store.
+    The former ``dl`` parameter is gone.  It asked the receiving actor's store
+    whether it knew the addressee, and treated "not known" as unresolvable and
+    therefore acceptable.  Under ADR-0072 a store holds its *owner's* knowledge
+    and never the node's roster, so that lookup answered a question about the
+    receiver's acquaintances, not about the address — and it made acceptance
+    depend on whichever store the request happened to resolve to.  Resolvability
+    is a property of the address itself, which is what
+    :func:`_names_an_individual_actor` decides.
+
+    The inbox route (``add_item_to_actor_inbox``) gates on this and returns 400
+    when it is False, so a change here changes what the node refuses.
     """
     addresses = _collect_addresses(activity)
     if not addresses:
@@ -249,7 +257,7 @@ def _store_nested_inbox_object(
     pre-store is needed for routing.
 
     Args:
-        dl: The shared DataLayer for storing the nested object.
+        dl: The receiving actor's own DataLayer (ADR-0072).
         activity: The parsed AS2 activity whose ``object_`` to store.
         body: Optional raw JSON request body dict.  When present, used to
             re-parse the nested object with the correct specific class.

@@ -42,6 +42,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     BASE_URL,
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -69,6 +70,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -864,12 +866,23 @@ def _phase_dump_case_ledgers(
     # that slug — a different actor from the one this run used, whose store is
     # empty. The dump then reported "No case ledger entries for actor='finder'"
     # while the finder's real store held twelve.
+    #
+    # The actor objects are in hand here, so they are the key's source; the
+    # literal is passed to replica_route_key() only as the last-resort fallback
+    # the sibling scenarios also use, keeping one derivation path across all of
+    # them.
     targets = [
         LedgerDumpTarget(
-            "finder", finder_client, strip_id_prefix(finder.id_ or "")
+            "finder",
+            finder_client,
+            strip_id_prefix(finder.id_ or "")
+            or replica_route_key(finder_client, "finder"),
         ),
         LedgerDumpTarget(
-            "vendor", vendor_client, strip_id_prefix(vendor.id_ or "")
+            "vendor",
+            vendor_client,
+            strip_id_prefix(vendor.id_ or "")
+            or replica_route_key(vendor_client, "vendor"),
         ),
     ]
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -1015,7 +1028,14 @@ def main(
 
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(base_url=c_url) if c_url else None
+    # actor_id must be bound here: the dedicated CaseActor container hosts the
+    # `case-actor` actor, and a /datalayer/ read has to name whose store it is
+    # about (ADR-0072).  Leaving it unset makes every dl_path() call raise.
+    case_actor_client = (
+        DataLayerClient(base_url=c_url, actor_id=case_actor_id_on(c_url))
+        if c_url
+        else None
+    )
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

@@ -29,9 +29,9 @@ from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM, is_valid_em_transition
+from vultron.core.models.case import case_addressees
 from vultron.core.use_cases._helpers import (
     _as_id,
-    case_addressees,
     reset_case_participant_embargo_consent,
     _resolve_case_manager_id,
 )

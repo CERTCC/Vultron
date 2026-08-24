@@ -36,7 +36,7 @@ within a shared one.
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING
 
 from sqlmodel import Session, col, select
 
@@ -44,10 +44,17 @@ from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
 
 from .schema import OutboxAttemptEntry, QueueEntry
 
+if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
+    # ``datalayer`` imports this module to build its own methods, so the name
+    # can only be a forward reference here.  It was ``Any``, which said nothing
+    # about the ``_engine`` attribute every function below reaches for
+    # (CS-11-001 forbids an unjustified ``Any``).
+    from .datalayer import SqliteDataLayer
+
 logger = logging.getLogger(__name__)
 
 
-def _queue_list(dl: "Any", queue: str) -> list[str]:
+def _queue_list(dl: "SqliteDataLayer", queue: str) -> list[str]:
     """Return every activity ID in *queue*, in insertion order."""
     with Session(dl._engine) as session:
         stmt = (
@@ -59,7 +66,7 @@ def _queue_list(dl: "Any", queue: str) -> list[str]:
     return [row.activity_id for row in rows]
 
 
-def _queue_pop(dl: "Any", queue: str) -> str | None:
+def _queue_pop(dl: "SqliteDataLayer", queue: str) -> str | None:
     """Remove and return the oldest activity ID in *queue*."""
     with Session(dl._engine) as session:
         stmt = (
@@ -77,7 +84,7 @@ def _queue_pop(dl: "Any", queue: str) -> str | None:
     return activity_id
 
 
-def _queue_append(dl: "Any", queue: str, activity_id: str) -> None:
+def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
     """Append *activity_id* to *queue*."""
     with Session(dl._engine) as session:
         session.add(QueueEntry(queue=queue, activity_id=activity_id))
@@ -85,7 +92,7 @@ def _queue_append(dl: "Any", queue: str, activity_id: str) -> None:
 
 
 def inbox_append(
-    dl: "Any",  # SqliteDataLayer
+    dl: "SqliteDataLayer",
     activity_id: str,
 ) -> None:
     """Append an activity ID to this actor's inbox queue.
@@ -97,7 +104,7 @@ def inbox_append(
     _queue_append(dl, "inbox", activity_id)
 
 
-def inbox_list(dl: "Any") -> list[str]:  # SqliteDataLayer
+def inbox_list(dl: "SqliteDataLayer") -> list[str]:
     """Return all activity IDs in this actor's inbox, in insertion order.
 
     Args:
@@ -109,7 +116,7 @@ def inbox_list(dl: "Any") -> list[str]:  # SqliteDataLayer
     return _queue_list(dl, "inbox")
 
 
-def inbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
+def inbox_pop(dl: "SqliteDataLayer") -> str | None:
     """Remove and return the oldest activity ID from the inbox.
 
     Args:
@@ -122,7 +129,7 @@ def inbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
 
 
 def outbox_append(
-    dl: "Any",  # SqliteDataLayer
+    dl: "SqliteDataLayer",
     activity_id: str,
 ) -> None:
     """Append an activity ID to this actor's outbox queue.
@@ -142,7 +149,7 @@ def outbox_append(
             )
 
 
-def outbox_list(dl: "Any") -> list[str]:  # SqliteDataLayer
+def outbox_list(dl: "SqliteDataLayer") -> list[str]:
     """Return all activity IDs in this actor's outbox, in insertion order.
 
     Args:
@@ -154,7 +161,7 @@ def outbox_list(dl: "Any") -> list[str]:  # SqliteDataLayer
     return _queue_list(dl, "outbox")
 
 
-def outbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
+def outbox_pop(dl: "SqliteDataLayer") -> str | None:
     """Remove and return the oldest activity ID from the outbox.
 
     Args:
@@ -172,7 +179,7 @@ def outbox_pop(dl: "Any") -> str | None:  # SqliteDataLayer
 
 
 def get_outbox_attempt_count(
-    dl: "Any",  # SqliteDataLayer
+    dl: "SqliteDataLayer",
     activity_id: str,
 ) -> int:
     """Return this actor's delivery attempt count for *activity_id* (0 if unseen).
@@ -193,7 +200,7 @@ def get_outbox_attempt_count(
 
 
 def set_outbox_attempt_count(
-    dl: "Any",  # SqliteDataLayer
+    dl: "SqliteDataLayer",
     activity_id: str,
     count: int,
 ) -> None:
@@ -223,7 +230,7 @@ def set_outbox_attempt_count(
 
 
 def clear_outbox_attempt_count(
-    dl: "Any",  # SqliteDataLayer
+    dl: "SqliteDataLayer",
     activity_id: str,
 ) -> None:
     """Remove this actor's attempt count entry for *activity_id*.
@@ -251,7 +258,7 @@ def clear_outbox_attempt_count(
 
 
 def dead_letter_append(
-    dl: "Any",  # SqliteDataLayer
+    dl: "SqliteDataLayer",
     activity_id: str,
     reason: str,
     total_attempts: int,
@@ -295,7 +302,7 @@ def dead_letter_append(
 
 
 def dead_letter_list(
-    dl: "Any",  # SqliteDataLayer
+    dl: "SqliteDataLayer",
 ) -> list[OutboxDeadLetterEntry]:
     """Return this actor's dead-letter entries (OX-13-004).
 

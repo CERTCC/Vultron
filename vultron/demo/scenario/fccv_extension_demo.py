@@ -74,6 +74,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -841,14 +842,29 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FCCV-extension's participants and where each ledger lives.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0072), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        # C1 is on the coordinator container; route key is "coordinator".
-        LedgerDumpTarget("vendor", c1_client, "coordinator"),
-        # C2 is on actor5; route key is "coordinator2".
-        LedgerDumpTarget("coordinator", c2_client, "coordinator2"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        # C1 is on the coordinator container.
+        LedgerDumpTarget(
+            "vendor", c1_client, replica_route_key(c1_client, "coordinator")
+        ),
+        # C2 is on actor5 (seeded as "coordinator2").
+        LedgerDumpTarget(
+            "coordinator",
+            c2_client,
+            replica_route_key(c2_client, "coordinator2"),
+        ),
         # Vendor is on the vendor container.
-        LedgerDumpTarget("vendor2", vendor_client, "vendor"),
+        LedgerDumpTarget(
+            "vendor2",
+            vendor_client,
+            replica_route_key(vendor_client, "vendor"),
+        ),
     ]
     # The case-actor is a sub-actor inside the C1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)

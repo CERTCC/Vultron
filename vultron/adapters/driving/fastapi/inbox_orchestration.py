@@ -86,8 +86,9 @@ class FastAPIIngressAdapter:
     """Ingress adapter for the FastAPI driving adapter.
 
     ``parse`` parses a raw JSON request-body dict into a typed
-    ``as_Activity`` and stores the activity in the shared DataLayer so
-    later rehydration can resolve references.  ``rehydrate`` deep-hydrates
+    ``as_Activity`` and stores the activity in the *receiving actor's* store so
+    later rehydration can resolve references (ADR-0072: there is no shared
+    DataLayer; the ``dl`` handed in is already one actor's own).  ``rehydrate`` deep-hydrates
     the *in-memory* parsed activity's reference fields via the DataLayer.
 
     ``rehydrate`` intentionally hydrates the in-memory activity rather than

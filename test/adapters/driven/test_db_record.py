@@ -11,6 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
@@ -680,3 +681,104 @@ def test_case_proposal_declares_object_as_an_inline_required_ref():
     from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
     assert "object_" in as_CaseProposal.inline_required_refs
+
+
+def _case_carrying_its_embargo():
+    """An ``as_VulnerabilityCase`` with its ``active_embargo`` carried inline."""
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case_id = "urn:uuid:case-dl08000-0000-0000-000000000001"
+    # ``context`` names the case the embargo is on; the core model requires it
+    # (``EmbargoEvent.context: NonEmptyString``), so an embargo without one is
+    # not a projectable domain object in the first place.
+    embargo = as_EmbargoEvent(
+        id_="urn:uuid:emb-dl08000-0000-0000-000000000001",
+        summary="embargo carried with the case",
+        context=case_id,
+    )
+    return as_VulnerabilityCase(
+        id_=case_id,
+        attributed_to="https://example.org/actors/case-actor-dl08",
+        published=datetime(2026, 8, 24, tzinfo=UTC),
+        active_embargo=embargo,
+    )
+
+
+def test_case_declares_active_embargo_as_an_inline_required_ref():
+    """DL-08-002: the invariant is declared, not left to the annotation.
+
+    ``as_EmbargoEventRef`` expands to include ``str``, so a flattened case
+    type-checks and validates without complaint.  The declaration is the only
+    machine-readable record that the object must be carried, and it is what the
+    storage layer consults (DL-08-001).
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    assert "active_embargo" in as_VulnerabilityCase.inline_required_refs
+
+
+def test_case_active_embargo_survives_storage_as_an_inline_object():
+    """AKM-03-001: storing a case MUST NOT collapse its embargo to an id.
+
+    A recipient cannot dereference a URI it does not hold and no dereferencing
+    mechanism is specified, so a bare id hands every replica a case pointing at
+    an object it can never read — and the manager's own teardown then cannot
+    announce itself, because ``terminate_embargo`` begins by reading the
+    ``EmbargoEvent`` it is about.
+    """
+    case = _case_carrying_its_embargo()
+    record = object_to_record(cast(Any, case))
+
+    stored = record.data_["active_embargo"]
+    assert not isinstance(stored, str), (
+        "AKM-03-001 requires the embargo inline; storage reduced it to"
+        f" {stored!r}, which the receiver cannot resolve"
+    )
+    assert stored["id_"] == "urn:uuid:emb-dl08000-0000-0000-000000000001"
+
+
+def test_case_to_core_keeps_the_carried_embargo():
+    """``to_core()`` must not flatten a declared inline-required ref.
+
+    The core case is what gets stored, and ``outbox_delivery`` re-serialises the
+    *stored* activity, so a flattening here puts the bare id back on the wire no
+    matter what the sender held.
+    """
+    case = _case_carrying_its_embargo()
+    core = case.to_core()
+
+    assert not isinstance(core.active_embargo, str), (
+        "to_core() reduced active_embargo to an id; the declaration in"
+        " inline_required_refs says it is carried (DL-08-001)"
+    )
+    assert (
+        core.active_embargo_id == "urn:uuid:emb-dl08000-0000-0000-000000000001"
+    ), "the id is still reachable via active_embargo_id when that is what is wanted"
+
+
+def test_case_to_core_passes_through_a_bare_embargo_id():
+    """A case that only ever held an id must still project.
+
+    ``inline_required_refs`` says the field must not be *reduced* to an id on
+    the way out; it cannot conjure an object a sender never had.  Rehydrating
+    such a case has to keep working rather than raise.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="urn:uuid:case-dl08001-0000-0000-000000000001",
+        attributed_to="https://example.org/actors/case-actor-dl08",
+        published=datetime(2026, 8, 24, tzinfo=UTC),
+        active_embargo="urn:uuid:emb-dl08001-0000-0000-000000000001",
+    )
+
+    core = case.to_core()
+
+    assert core.active_embargo == "urn:uuid:emb-dl08001-0000-0000-000000000001"

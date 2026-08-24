@@ -39,12 +39,13 @@ Per specs/sync-ledger-replication.yaml:
 import logging
 import threading
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable
 
 import py_trees
 from py_trees.common import Status
 from py_trees.display import unicode_tree
 
+from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
@@ -164,26 +165,19 @@ class BTBridge:
 
         Scoping is skipped unless the DataLayer reports a concrete ``actor_id``
         that differs, which leaves test doubles and any non-actor-scoped
-        implementation untouched.
+        implementation untouched.  BT-05-005 records those fall-throughs as its
+        one exception: a store that cannot name its own actor has nothing to
+        reconcile against.
+
+        The guard logic itself lives in
+        :func:`~vultron.core.behaviors.store_scope.store_for_actor` so that this
+        node, ``WritePendingReportCaseLinkNode`` and the demo seeding helpers
+        cannot drift apart on what "that actor's store" means.  Reconciliation
+        here never refuses: the executing actor is by definition one this node
+        runs as, so ``require_same_authority`` is not set and the result is never
+        ``None``.
         """
-        if not actor_id:
-            return self.datalayer
-        own_actor_id = getattr(self.datalayer, "actor_id", None)
-        if not isinstance(own_actor_id, str) or own_actor_id == actor_id:
-            return self.datalayer
-        clone_for_actor = getattr(self.datalayer, "clone_for_actor", None)
-        if not callable(clone_for_actor):
-            return self.datalayer
-        self.logger.debug(
-            "Scoping DataLayer from actor '%s' to executing actor '%s'",
-            own_actor_id,
-            actor_id,
-        )
-        # `clone_for_actor` came from getattr, so it is untyped. The cast is safe
-        # because `CasePersistence.clone_for_actor` is declared to return a
-        # `CasePersistence`; the getattr exists only so that test doubles and any
-        # non-actor-scoped implementation fall through the guards above untouched.
-        return cast(CasePersistence, clone_for_actor(actor_id))
+        return store_for_actor(self.datalayer, actor_id) or self.datalayer
 
     def setup_tree(
         self,

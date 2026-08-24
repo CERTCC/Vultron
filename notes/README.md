@@ -89,13 +89,16 @@ post-P75-2 architectural findings.
 DataLayer backends, or planning domain/wire layer decoupling.
 
 **`datalayer-design.md`**
-DataLayer architecture notes: `DataLayer` vs. `CasePersistence` narrowing,
+DataLayer architecture notes: **per-actor storage isolation (ADR-0072)** — one
+store per hosted actor, holding only that actor's knowledge, resolved by
+`get_datalayer(actor_id)`; `DataLayer` vs. `CasePersistence` narrowing,
 deprecated `get()`/`by_type()` methods, `CaseOutboxPersistence` as a smell
 marker, auto-rehydration contract (`dl.read()` MUST return typed objects),
 storage record re-evaluation, and vocabulary registry entanglement. Operating
 rules are in `vultron/core/ports/AGENTS.md`.
 **Load when**: working on `DataLayer` adapters, `CasePersistence` protocol,
-rehydration of nested objects, or storage record migration.
+resolving which store a read or write belongs to, rehydration of nested
+objects, or storage record migration.
 
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.
@@ -581,6 +584,13 @@ scenario, and the spec-test sync rule.
 **Load when**: modifying the demo CI workflow (`demo-integration.yml`),
 adding or changing a scenario's expected event types, or debugging a silent
 invariant harness failure in CI.
+
+**`demo-ci-diagnostics.md`**
+Diagnostic runbook for Demo Integration CI failures: the 3-layer diagnostic
+model, a per-invariant diagnostic map, the local Docker run workflow, and how
+to read the CI artifacts (including the per-actor ledger dumps).
+**Load when**: triaging a red `Demo Integration` or `Invariant Harness` job,
+or reproducing a scenario failure locally.
 
 **`demo-ci-scenario-coverage.md`**
 Coverage matrix mapping all 8 demo scenarios to the distinct protocol

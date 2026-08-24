@@ -120,7 +120,7 @@ class TestCreateCaseProposalReceivedUseCase:
         accepts = dl.list_objects("Accept")
         assert len(accepts) == 1, "Expected one Accept activity"
 
-        # The Accept must carry the full inline proposal (CP-05-003, MV-09-001).
+        # The Accept must carry the full inline proposal (CP-05-003, AKM-03-001).
         accept_obj = dl.read(accepts[0].id_)
         accept_object_ = getattr(accept_obj, "object_", None)
         assert (

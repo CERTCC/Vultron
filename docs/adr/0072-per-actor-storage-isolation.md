@@ -3,7 +3,7 @@ status: accepted
 date: 2026-08-17
 deciders: ahouseholder
 consulted: notes/datalayer-design.md, notes/actor-knowledge-model.md, vultron/core/ports/AGENTS.md, docs/adr/0012-per-actor-datalayer-isolation.md
-informed: specs/datalayer.yaml, specs/architecture.yaml, specs/case-management.yaml
+informed: specs/datalayer.yaml, specs/architecture.yaml, specs/case-management.yaml, specs/case-proposal.yaml, specs/behavior-tree-integration.yaml, specs/em-behavior.yaml, specs/inbox-endpoint.yaml
 ---
 
 # Give Each Actor Its Own Store; Delete the Unscoped DataLayer
@@ -192,12 +192,17 @@ argument that does not survive being weighed against CM-01-001.
 - Good, because cross-actor access becomes impossible rather than incorrect.
   A future contributor cannot reintroduce the leak by forgetting a filter.
 - Good, because it *deletes* guard rails instead of adding them: ARCH-13-001,
-  ARCH-13-002 and ARCH-13-004 become vacuous, `ActorScopedDataLayer`
-  disappears, and two long-standing DataLayer test pitfalls stop existing.
+  ARCH-13-002, ARCH-13-004 and ARCH-13-005 become vacuous,
+  `ActorScopedDataLayer` disappears, and two long-standing DataLayer test
+  pitfalls stop existing. (ARCH-13-003 survives, amended — see Compliance.)
 - Good, because per-container behaviour now matches the deployed topology,
   where each container already has its own volume.
-- Good, because it makes the demo's per-container peer seeding
-  protocol-correct rather than a shared pool that merely looks partitioned.
+- Good, because it makes the demo's per-container seeding protocol-correct
+  rather than a shared pool that merely looks partitioned. *Peer* seeding is
+  not yet correct: a peer is registered through `POST /actors/`, which mints a
+  local store for a foreign-authority id, so a node still claims to host
+  processes it does not serve. Decision 5 says what a peer *is*; issue #2549
+  tracks making the seeding path agree.
 - Bad, because any legitimately cross-actor read must now fan out over stores
   explicitly. `GET /actors/` narrows, and node-wide admin views must be
   assembled rather than queried.

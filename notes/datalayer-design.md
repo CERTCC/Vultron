@@ -506,5 +506,14 @@ recorded rather than deleted:
   that it only handles the between-test case; both hazards above can occur
   *within* a single test, where no fixture can help.
 
-Reference: `plan/incoming/learnings/20260819-one-actor-id-is-one-database.md`
-class `TestCreateCaseProposalReceivedBTCaseActorRecords`.
+References: ADR-0072 and ISSUE-2238 for the decision itself. The rewritten
+tests are in
+`test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTCaseActorRecords`,
+which now asserts against each actor's own store rather than against an empty
+singleton.
+
+The originating learning (`20260819-one-actor-id-is-one-database`) is not cited
+by path: BW-03-002 requires every incoming learning to be archived out of
+`plan/incoming/learnings/` into `plan/history/YYMM/learning/`, so any such path
+is guaranteed to go stale. Search `plan/history/` by slug if the original is
+wanted.

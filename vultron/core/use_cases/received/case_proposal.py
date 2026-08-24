@@ -101,7 +101,7 @@ class CreateCaseProposalReceivedUseCase:
 
         The proposal dict handed to the tree is deliberately wire-spelled — the
         ``Accept`` must carry the proposal inline on the wire (CP-05-003,
-        MV-09-001) — and that is exactly why the report cannot be rebuilt from
+        AKM-03-001) — and that is exactly why the report cannot be rebuilt from
         it: ``by_alias=True`` writes the reporter as ``attributedTo``, while the
         core ``VulnerabilityReport`` declares ``attributed_to`` and sets
         ``extra="ignore"``. Validating that dict dropped the reporter without
@@ -159,7 +159,7 @@ class CreateCaseProposalReceivedUseCase:
             return
 
         # Extract the wire proposal as a plain dict so the Accept can carry it
-        # inline (CP-05-003, MV-09-001). Uses duck-typing to avoid a core→wire
+        # inline (CP-05-003, AKM-03-001). Uses duck-typing to avoid a core→wire
         # import dependency.
         proposal_dict: dict | None = None
         activity_obj = request.activity

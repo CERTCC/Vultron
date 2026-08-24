@@ -728,23 +728,6 @@ def reset_case_participant_embargo_consent(
             dl.save(participant)
 
 
-def case_addressees(
-    case: VulnerabilityCase, excluding_actor_id: str
-) -> list[str]:
-    """Return actor IDs for all case participants except *excluding_actor_id*.
-
-    Uses ``case.actor_participant_index`` (a ``dict[actor_id, participant_id]``)
-    so the caller does not need to iterate over ``case_participants`` directly.
-
-    Returns an empty list when there are no other participants.
-    """
-    return [
-        actor_id
-        for actor_id in case.actor_participant_index.keys()
-        if actor_id != excluding_actor_id
-    ]
-
-
 def _log_label(uri: str) -> str:
     """Return a deterministic redacted label for IDs used in log messages.
 

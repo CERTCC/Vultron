@@ -177,21 +177,37 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     another. Handing the canonicalizer a bare slug is what makes the id and the
     serving endpoint the same string by construction (ADR-0072 decision 2).
 
-    A client-supplied id under another authority is not rejected here, but note
-    that it names a process *elsewhere* — a peer, whose address a hosted actor may
-    know (ADR-0072 decision 5). It is canonicalized to this node's namespace
-    rather than adopted verbatim, because this node cannot serve an endpoint it
-    does not own.
+    A client-supplied id under another authority is adopted **verbatim**, because
+    it names a process *elsewhere* — a peer, whose address a hosted actor may know
+    (ADR-0072 decision 5) and whose real URI is what outbound delivery has to
+    post to. Canonicalizing it into this node's namespace would rewrite the peer
+    into a local phantom, so ``canonical_actor_uri`` deliberately passes any
+    scheme-bearing id through unchanged.
+
+    That is a known wart: adopting the id also mints a local per-actor store for
+    it, and ``actor_slug`` keeps only the final path segment, so a peer can share
+    a store with a genuinely co-hosted actor of the same slug. Peers are not
+    hosted actors and should not arrive through this route at all; fixing that
+    needs a decision recorded in an ADR (issue #2549).
 
     "This node's namespace" is the *serving app's* base URL where it declares one
     (``deps.node_base_url``), falling back to configuration. Creating an actor and
     then addressing it have to agree on that namespace, or the record lands in a
     store no request can reach.
     """
-    actor_id = actor_hosts.canonical_actor_uri(
-        request.id_ or str(uuid4()),
-        base_url=node_base_url(http_request),
-    )
+    try:
+        actor_id = actor_hosts.canonical_actor_uri(
+            request.id_ or str(uuid4()),
+            base_url=node_base_url(http_request),
+        )
+    except ValueError as exc:
+        # A client-supplied id that names no actor (``"/"``, ``"//"``) is a bad
+        # request, not a server fault: it must not become a 500, and it must not
+        # be allowed to mint a store for a phantom actor.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        )
     datalayer = get_datalayer(actor_id)
 
     # Idempotency: return existing record unchanged.
@@ -327,7 +343,7 @@ def get_action_rules(
         )
     except VultronValidationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
 
@@ -395,7 +411,7 @@ def post_actor_inbox(
     actor = _resolve_actor_or_404(actor_id, dl)
     canonical_actor_id = actor.id_
 
-    if not _activity_addressed_to(activity, canonical_actor_id, dl=dl):
+    if not _activity_addressed_to(activity, canonical_actor_id):
         logger.warning(
             "Activity %s is not addressed to actor %s; refusing (IE-11-001).",
             activity.id_,

@@ -412,7 +412,11 @@ def verify_activity_in_inbox(
             actor_obj_id,
         )
         return True
-    except Exception:
+    except (httpx.HTTPStatusError, AssertionError):
+        # Only a transport/HTTP "not there" answer means "not received".  A bare
+        # ``except Exception`` here would report a programming error — an unbound
+        # client, a bad key — as a protocol failure, which is how the
+        # ``dl_path`` ValueError stayed invisible for a whole CI cycle.
         logger.warning(
             "Activity %s not found in DataLayer (actor %s)",
             activity_id,
@@ -503,14 +507,18 @@ def verify_case_actor_unused(
 ) -> None:
     """Verify the dedicated CaseActor container remains unused in D5-2.
 
-    Per D5-1-G3, the per-case ``VultronCaseActor`` co-locates in the
-    receiver container for D5-2.  The standalone ``case-actor`` service
-    participates in the Docker topology but should not hold the created
-    ``as_VulnerabilityCase``.
+    A CaseActor is a role a container wears (``CVDRole.CASE_MANAGER``) rather
+    than a per-case object (#1872), and each container self-hosts its own under
+    the stable ``case-actor`` slug (CP-08-002, CP-08-003).  In D5-2 the receiver
+    container is therefore the case manager for the case it creates, and the
+    standalone ``case-actor`` service — which participates in the Docker topology
+    for the multi-coordinator scenarios — must not hold that case.
 
     Args:
         case_actor_client: Optional client connected to the dedicated
-            CaseActor container.  When ``None`` the check is skipped.
+            CaseActor container.  Must carry a bound ``actor_id`` (see
+            :func:`~vultron.demo.utils.case_actor_id_on`), because the read is
+            per-actor under ADR-0072.  When ``None`` the check is skipped.
         case_id: Full URI of the case that should be absent.
 
     Raises:

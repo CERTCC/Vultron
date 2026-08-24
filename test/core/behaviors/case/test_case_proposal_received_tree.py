@@ -2045,7 +2045,7 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
 
     It was lost to a spelling mismatch. The tree received the proposal as a
     ``by_alias=True`` wire dump — needed because the ``Accept`` must carry the
-    proposal inline (CP-05-003, MV-09-001) — in which the reporter is spelled
+    proposal inline (CP-05-003, AKM-03-001) — in which the reporter is spelled
     ``attributedTo``. Rebuilding the report by validating that dict against the
     *core* model, which declares ``attributed_to`` and sets
     ``extra="ignore"``, dropped the key silently and reported "has no

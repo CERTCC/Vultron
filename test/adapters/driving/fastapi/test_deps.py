@@ -18,10 +18,19 @@
 Covers ARCH-13-003 — a DataLayer's ``actor_id`` is the actor's canonical URI, not
 a short id or path segment:
 
-- ``get_canonical_actor_dl()`` resolves a path segment to the canonical URI, so
-  the store it opens is keyed by that URI.
-- That store can read the outbox entries the same actor wrote (BUG-2026040901
-  regression).
+- ``get_actor_dl()`` resolves a path segment to the canonical URI *by
+  computation* — ``{node base URL}/actors/{segment}`` — so the store it opens is
+  keyed by that URI.  There is no lookup: the pre-ADR-0072 sequence of
+  ``dl.read()``, then ``find_actor_by_short_id()``, then ``clone_for_actor()``
+  is gone, along with the shared store it scanned.
+- ``node_base_url`` supplies the base for that computation, and is *app*-scoped
+  rather than request-derived, so a client cannot change which store is opened by
+  changing its ``Host`` header.
+- ``get_canonical_actor_dl`` and ``get_trigger_dl`` are alternate override points
+  that delegate to it through ``Depends``, which is asserted here rather than
+  assumed.
+- The resolved store can read the outbox entries the same actor wrote
+  (BUG-2026040901 regression).
 
 ARCH-13-004 is no longer covered here: it required the ``actor_id`` passed to
 ``record_outbox_item`` to match the one the reading DataLayer was constructed
@@ -34,9 +43,15 @@ needs the Phase 6 amendment.
 from collections.abc import Generator
 
 import pytest
+from fastapi.params import Depends as params_Depends
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driving.fastapi.deps import get_canonical_actor_dl
+from vultron.adapters.driving.fastapi.deps import (
+    get_actor_dl,
+    get_canonical_actor_dl,
+    get_trigger_dl,
+    node_base_url,
+)
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -78,41 +93,44 @@ def myactor_dl() -> Generator[SqliteDataLayer, None, None]:
 
 
 # ---------------------------------------------------------------------------
-# AC-1: Unit tests for get_canonical_actor_dl()
+# AC-1: Unit tests for get_actor_dl()
 # ---------------------------------------------------------------------------
 
 
-def test_get_canonical_actor_dl_actor_found_via_read(
+def test_get_actor_dl_passes_a_canonical_uri_through(
     myactor_dl: SqliteDataLayer,
 ) -> None:
-    """AC-1a: Actor found via dl.read() — DL is scoped to canonical URI.
+    """AC-1a: An already-canonical segment is used as-is.
 
-    When actor_id is already the full canonical URI, ``dl.read()`` returns
-    the actor directly and ``clone_for_actor`` is called with that URI.
+    ``canonical_actor_uri`` returns any id that already carries a scheme
+    unchanged, so the store is keyed by exactly the URI the caller named — no
+    double-prefixing into ``{base}/actors/https:/...``.
     """
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
     myactor_dl.save(actor)
 
-    result: DataLayer = get_canonical_actor_dl(actor_id=CANONICAL_URI)
+    result: DataLayer = get_actor_dl(actor_id=CANONICAL_URI)
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == CANONICAL_URI
 
 
-def test_get_canonical_actor_dl_actor_found_via_short_id(
+def test_get_actor_dl_expands_a_bare_segment_to_the_canonical_uri(
     myactor_dl: SqliteDataLayer,
 ) -> None:
-    """AC-1b: Actor found via dl.find_actor_by_short_id() fallback.
+    """AC-1b: A bare path segment is expanded, not looked up.
 
-    When ``actor_id`` is the short UUID (last path segment of the canonical
-    URI), ``dl.read()`` returns ``None`` but ``dl.find_actor_by_short_id()``
-    resolves the canonical URI.  The returned DL must be keyed by the
-    canonical URI, not the short ID (ARCH-13-003).
+    ``/actors/myactor/...`` carries only the final segment.  Pre-ADR-0072 that was
+    resolved by ``dl.find_actor_by_short_id()`` scanning a shared store; it is now
+    ``{node base URL}/actors/myactor``, computed without touching any store.  The
+    returned DL must still be keyed by the canonical URI, not the segment
+    (ARCH-13-003) — a store keyed by ``"myactor"`` would be a second store for the
+    same actor.
     """
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
     myactor_dl.save(actor)
 
-    result: DataLayer = get_canonical_actor_dl(actor_id=SHORT_ID)
+    result: DataLayer = get_actor_dl(actor_id=SHORT_ID)
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == CANONICAL_URI, (
@@ -121,18 +139,25 @@ def test_get_canonical_actor_dl_actor_found_via_short_id(
     )
 
 
-def test_get_canonical_actor_dl_actor_not_found_falls_back_to_raw_param(
+def test_get_actor_dl_does_not_require_the_actor_to_exist(
     myactor_dl: SqliteDataLayer,
 ) -> None:
-    """AC-1c: Actor not found — DL falls back to raw actor_id path param.
+    """AC-1c: Resolution is a computation, so an unknown id still resolves.
 
-    When neither ``dl.read()`` nor ``dl.find_actor_by_short_id()`` can
-    resolve the ID (e.g. an empty store), ``clone_for_actor`` is called with
-    the raw path param so the handler is not blocked.
+    There is nothing to "not find": no store is consulted, so an id for which no
+    record exists yields a store keyed by that id rather than a 404 from the
+    dependency.  The route body is what decides whether an absent actor is an
+    error.
+
+    The id used here carries a scheme and is therefore returned verbatim,
+    *including* its authority.  For a foreign authority that means a local store
+    minted for an actor this node does not host — deliberate (delivery posts to a
+    peer's own URL) but not free; see issue #2549 and the collision warning in
+    ``get_actor_engine``.
     """
     unknown_id = "https://example.org/actors/unknown"
 
-    result: DataLayer = get_canonical_actor_dl(actor_id=unknown_id)
+    result: DataLayer = get_actor_dl(actor_id=unknown_id)
 
     assert isinstance(result, SqliteDataLayer)
     assert result._actor_id == unknown_id
@@ -175,13 +200,13 @@ def test_one_actor_has_exactly_one_queue_regardless_of_spelling() -> None:
     )
 
 
-def test_get_canonical_actor_dl_resolves_canonical_uri_for_queue_reads(
+def test_get_actor_dl_resolves_canonical_uri_for_queue_reads(
     myactor_dl: SqliteDataLayer,
 ) -> None:
-    """AC-3b: get_canonical_actor_dl() returns a DL that can read the outbox.
+    """AC-3b: get_actor_dl() returns a DL that can read the outbox.
 
     Regression for BUG-2026040901: when the URL path carries a short segment,
-    ``get_canonical_actor_dl()`` must resolve it to the canonical URI so that
+    ``get_actor_dl()`` must resolve it to the canonical URI so that
     ``outbox_list()`` reads the queue that actor's own writes went to.
 
     The test above asserts the same property of the ``get_datalayer`` factory;
@@ -193,9 +218,121 @@ def test_get_canonical_actor_dl_resolves_canonical_uri_for_queue_reads(
 
     myactor_dl.outbox_append(activity_id=ACTIVITY_ID)
 
-    actor_dl: DataLayer = get_canonical_actor_dl(actor_id=SHORT_ID)
+    actor_dl: DataLayer = get_actor_dl(actor_id=SHORT_ID)
 
     assert ACTIVITY_ID in actor_dl.outbox_list(), (
-        "get_canonical_actor_dl must resolve the short UUID to the canonical "
+        "get_actor_dl must resolve the short UUID to the canonical "
         "URI so that outbox reads succeed (BUG-2026040901 regression)"
     )
+
+
+# ---------------------------------------------------------------------------
+# node_base_url: which node's namespace a path segment resolves into.
+# ---------------------------------------------------------------------------
+
+
+class _FakeRequest:
+    """A ``Request`` stand-in exposing only ``app.state``.
+
+    Deliberately not a real ``Request``: the point of these tests is that
+    ``node_base_url`` reads *app* state and never touches the request's own URL or
+    headers, so a stub that has no URL at all proves it by construction — a
+    regression to ``request.url`` or ``request.headers["host"]`` raises here
+    instead of quietly passing.
+    """
+
+    def __init__(self, **state: object) -> None:
+        self.app = type("_App", (), {"state": type("_State", (), state)()})()
+
+
+class TestNodeBaseUrl:
+    def test_returns_the_base_url_the_app_declares(self):
+        assert (
+            node_base_url(
+                _FakeRequest(node_base_url="https://vendor.test/api")
+            )
+            == "https://vendor.test/api"
+        )
+
+    def test_returns_none_when_there_is_no_request(self):
+        """CLI and background paths have no request; config is then the answer."""
+        assert node_base_url(None) is None
+
+    def test_returns_none_when_the_app_declares_nothing(self):
+        """Production keeps its previous behaviour: fall back to config."""
+        assert node_base_url(_FakeRequest()) is None
+
+    @pytest.mark.parametrize("junk", ["", 0, object()])
+    def test_ignores_a_value_that_is_not_a_usable_base_url(self, junk):
+        """An empty string would build ``"/actors/vendor"`` — a relative id."""
+        assert node_base_url(_FakeRequest(node_base_url=junk)) is None
+
+    def test_never_consults_the_request_url_or_host_header(self):
+        """The stated security property, asserted rather than assumed.
+
+        Deriving the base from the request would let a client pick which store the
+        node opens by sending a different ``Host``: two requests for one actor
+        would resolve to two canonical URIs and therefore two stores. It would
+        also break every ``TestClient`` test, which arrives as
+        ``http://testserver``.
+        """
+        request = _FakeRequest(node_base_url="https://declared.test/api")
+        assert not hasattr(request, "url")
+        assert not hasattr(request, "headers")
+        assert node_base_url(request) == "https://declared.test/api"
+
+
+def test_get_actor_dl_resolves_into_the_serving_apps_namespace(
+    myactor_dl: SqliteDataLayer,
+) -> None:
+    """One process hosting two nodes must not collapse them into one store.
+
+    ``node_base_url`` is app-scoped precisely so the demo harness can run several
+    nodes in one process. If the segment resolved against process-global config
+    instead, ``vendor`` on node A and ``vendor`` on node B would be one canonical
+    URI and one store — cross-node knowledge leakage that ADR-0072 exists to
+    prevent.
+    """
+    node_a = get_actor_dl(
+        actor_id=SHORT_ID,
+        request=_FakeRequest(node_base_url="https://node-a.test/api/v2"),
+    )
+    node_b = get_actor_dl(
+        actor_id=SHORT_ID,
+        request=_FakeRequest(node_base_url="https://node-b.test/api/v2"),
+    )
+
+    assert node_a._actor_id == f"https://node-a.test/api/v2/actors/{SHORT_ID}"
+    assert node_b._actor_id == f"https://node-b.test/api/v2/actors/{SHORT_ID}"
+    assert node_a._actor_id != node_b._actor_id
+
+
+# ---------------------------------------------------------------------------
+# The alias dependencies must resolve *through* get_actor_dl, not call it.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("alias", [get_trigger_dl, get_canonical_actor_dl])
+def test_alias_deps_delegate_through_depends(alias) -> None:
+    """An override of ``get_actor_dl`` must reach the alias dependencies too.
+
+    These aliases used to call ``get_actor_dl(actor_id, request)`` as a plain
+    function.  A plain call bypasses FastAPI's override table, so
+    ``app.dependency_overrides[get_actor_dl]`` applied to ``/actors/*`` routes
+    and not to ``/actors/{id}/trigger/*`` — one app, one actor, two stores.
+    Asserting the *signature* rather than the behaviour catches the regression
+    at its cause: the delegation has to be a ``Depends`` default.
+    """
+    import inspect
+
+    params = list(inspect.signature(alias).parameters.values())
+    assert len(params) == 1, (
+        f"{alias.__name__} must take exactly one parameter, the injected"
+        f" DataLayer; got {[p.name for p in params]}"
+    )
+    default = params[0].default
+    assert isinstance(default, params_Depends), (
+        f"{alias.__name__} must delegate via Depends(get_actor_dl) so that"
+        " dependency_overrides propagate; got default {default!r}"
+    )
+    assert default.dependency is get_actor_dl

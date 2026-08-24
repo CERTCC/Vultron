@@ -26,6 +26,8 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 ``"sqlite:///:memory:"`` in tests.
 """
 
+import logging
+
 from .datalayer import SqliteDataLayer
 from .engine import dispose_actor_engines
 from .schema import VultronObjectRecord, QueueEntry
@@ -34,6 +36,7 @@ __all__ = [
     "SqliteDataLayer",
     "VultronObjectRecord",
     "QueueEntry",
+    "dispose_actor_engines",
     "get_datalayer",
     "get_all_actor_datalayers",
     "reset_datalayer",
@@ -44,7 +47,15 @@ __all__ = [
 # Module-level factory / instance management
 # ---------------------------------------------------------------------------
 
-_actor_instances: dict[str, SqliteDataLayer] = {}
+logger = logging.getLogger(__name__)
+
+#: Cached instances keyed by ``(actor_id, resolved db_url)``.
+#:
+#: The URL is part of the key because it selects a *different store*.  Keyed on
+#: ``actor_id`` alone, a test that asked for ``db_url="sqlite:///:memory:"``
+#: after any earlier call for the same actor got the previously-cached on-disk
+#: instance back, silently, and then wrote its fixtures into the real database.
+_actor_instances: dict[tuple[str, str], SqliteDataLayer] = {}
 
 
 def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
@@ -79,11 +90,10 @@ def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
             "unscoped DataLayer (ADR-0072, CM-01-001)"
         )
     _url = db_url if db_url is not None else get_config().database.db_url
-    if actor_id not in _actor_instances:
-        _actor_instances[actor_id] = SqliteDataLayer(
-            db_url=_url, actor_id=actor_id
-        )
-    return _actor_instances[actor_id]
+    key = (actor_id, _url)
+    if key not in _actor_instances:
+        _actor_instances[key] = SqliteDataLayer(db_url=_url, actor_id=actor_id)
+    return _actor_instances[key]
 
 
 def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
@@ -94,11 +104,26 @@ def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
     module-level cache directly.
 
     Returns:
-        A shallow copy of the ``actor_id → SqliteDataLayer`` mapping for
-        every actor that has called :func:`get_datalayer` with an
-        ``actor_id``.
+        An ``actor_id → SqliteDataLayer`` mapping for every actor that has
+        called :func:`get_datalayer` with an ``actor_id``.
+
+    The cache is keyed by ``(actor_id, db_url)``, so an actor could in
+    principle appear under two URLs.  That does not happen in a running node —
+    every call resolves the same configured URL — and it would mean two stores
+    for one actor, which ADR-0072 forbids.  The last one registered wins and
+    the collision is logged rather than passed over.
     """
-    return dict(_actor_instances)
+    collapsed: dict[str, SqliteDataLayer] = {}
+    for (actor_id, url), instance in _actor_instances.items():
+        if actor_id in collapsed:
+            logger.warning(
+                "Actor %r has cached DataLayers under more than one db_url;"
+                " using %r. Two stores for one actor contradicts ADR-0072.",
+                actor_id,
+                url,
+            )
+        collapsed[actor_id] = instance
+    return collapsed
 
 
 def reset_datalayer(actor_id: str | None = None) -> None:
@@ -131,8 +156,10 @@ def reset_datalayer(actor_id: str | None = None) -> None:
         instances_to_close.extend(_actor_instances.values())
         _actor_instances = {}
     else:
-        if actor_id in _actor_instances:
-            instances_to_close.append(_actor_instances.pop(actor_id))
+        # Every ``db_url`` this actor was cached under, not just the configured
+        # one: a reset that left one behind would hand the stale store back.
+        for key in [k for k in _actor_instances if k[0] == actor_id]:
+            instances_to_close.append(_actor_instances.pop(key))
 
     for inst in instances_to_close:
         inst.close()

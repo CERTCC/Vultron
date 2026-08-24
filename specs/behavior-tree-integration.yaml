@@ -100,6 +100,8 @@ groups:
     kind: project
     statement: Bridge SHOULD execute tree and return execution result
   - id: BT-05-005
+    lint_suppress:
+    - rationale_too_long
     priority: MUST
     kind: project
     statement: >-
@@ -132,6 +134,8 @@ groups:
     adr:
     - ADR-0072
   - id: BT-05-006
+    lint_suppress:
+    - rationale_too_long
     priority: MUST
     kind: project
     statement: >-

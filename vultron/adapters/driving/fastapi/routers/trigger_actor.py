@@ -247,7 +247,7 @@ def trigger_offer_case_participant_role(
     body: OfferCaseParticipantRoleRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Trigger Offer(CaseParticipantRole) from the requesting actor (ADR-0039)."""
     with domain_error_translation():
@@ -257,9 +257,11 @@ def trigger_offer_case_participant_role(
             target_actor_id=body.target_actor_id,
             role=body.role,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, dl.clone_for_actor(actor_id)
-    )
+    # ``actor_dl`` is already this actor's own store, so the former
+    # ``dl.clone_for_actor(actor_id)`` was a no-op clone of the same scope —
+    # left over from when the injected DataLayer was unscoped.  Every sibling
+    # route in this module drains its outbox the same way.
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 

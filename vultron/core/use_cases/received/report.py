@@ -1,7 +1,7 @@
 """Use cases for vulnerability report activities."""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
@@ -23,6 +23,8 @@ from vultron.core.use_cases._helpers import (
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
+    from vultron.core.models.protocols import PersistableModel
+    from vultron.core.ports.datalayer import StorableRecord
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -30,7 +32,10 @@ logger = logging.getLogger(__name__)
 
 
 def _store_dependency_idempotently(
-    dl: CasePersistence, obj: Any, obj_id: str | None, label: str
+    dl: CasePersistence,
+    obj: "StorableRecord | PersistableModel",
+    obj_id: str | None,
+    label: str,
 ) -> None:
     """Store *obj* unless it is already present, distinguishing "already there".
 

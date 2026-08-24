@@ -165,6 +165,27 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
+        if (failure := self._ensure_queued()) is not None:
+            return failure
+        self._discard_marker()
+
+        self.logger.info(
+            "Actor '%s' re-queued Create(VulnerabilityCase) '%s' from marker"
+            " '%s' (crash recovery)",
+            self.marker.case_actor_id,
+            self.activity_id,
+            self.marker.id_,
+        )
+        return Status.SUCCESS
+
+    def _ensure_queued(self) -> Status | None:
+        """Queue the activity unless it is already there; ``None`` when queued.
+
+        Returns ``Status.FAILURE`` on a storage error rather than raising:
+        recovery runs during boot, so one undeliverable obligation must not stop
+        the server from starting.
+        """
+        assert self.datalayer is not None
         outbox = cast(CaseOutboxPersistence, self.datalayer)
         try:
             already_queued = self.activity_id in outbox.outbox_list()
@@ -178,21 +199,7 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        if not already_queued:
-            try:
-                outbox.outbox_append(self.activity_id)
-            except Exception as exc:  # noqa: BLE001
-                self.feedback_message = f"could not enqueue: {exc}"
-                self.logger.error(
-                    "%s: could not enqueue Create(VulnerabilityCase) '%s'"
-                    " for actor '%s': %s",
-                    self.name,
-                    self.activity_id,
-                    self.marker.case_actor_id,
-                    exc,
-                )
-                return Status.FAILURE
-        else:
+        if already_queued:
             self.logger.debug(
                 "%s: Create(VulnerabilityCase) '%s' already queued for actor"
                 " '%s'; not duplicating.",
@@ -200,27 +207,38 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
                 self.activity_id,
                 self.marker.case_actor_id,
             )
+            return None
 
-        # Marker cleanup is best-effort: the obligation is discharged once the
-        # activity is queued.  A surviving marker is re-scanned next startup and
-        # skipped by the idempotency check above, so failure here is a warning.
-        if not self.datalayer.delete(
-            "PendingCreateCaseActivity", self.marker.id_
-        ):
-            self.logger.warning(
-                "%s: marker '%s' could not be deleted after successful"
-                " re-queue for actor '%s'. The next startup scan will find the"
-                " activity already in the outbox and skip it.",
+        try:
+            outbox.outbox_append(self.activity_id)
+        except Exception as exc:  # noqa: BLE001
+            self.feedback_message = f"could not enqueue: {exc}"
+            self.logger.error(
+                "%s: could not enqueue Create(VulnerabilityCase) '%s'"
+                " for actor '%s': %s",
                 self.name,
-                self.marker.id_,
+                self.activity_id,
                 self.marker.case_actor_id,
+                exc,
             )
+            return Status.FAILURE
+        return None
 
-        self.logger.info(
-            "Actor '%s' re-queued Create(VulnerabilityCase) '%s' from marker"
-            " '%s' (crash recovery)",
-            self.marker.case_actor_id,
-            self.activity_id,
+    def _discard_marker(self) -> None:
+        """Delete the discharged marker, best-effort.
+
+        The obligation is discharged once the activity is queued.  A surviving
+        marker is re-scanned next startup and skipped by ``_ensure_queued``'s
+        idempotency check, so failing to delete it is a warning, not an error.
+        """
+        assert self.datalayer is not None
+        if self.datalayer.delete("PendingCreateCaseActivity", self.marker.id_):
+            return
+        self.logger.warning(
+            "%s: marker '%s' could not be deleted after successful"
+            " re-queue for actor '%s'. The next startup scan will find the"
+            " activity already in the outbox and skip it.",
+            self.name,
             self.marker.id_,
+            self.marker.case_actor_id,
         )
-        return Status.SUCCESS

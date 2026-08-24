@@ -3,8 +3,9 @@
 Info endpoint for the Vultron API (D5-1-G1).
 
 Returns the configured ``VULTRON_SERVER__BASE_URL`` and the list of actor IDs
-registered in the shared DataLayer so that demo scripts and operators
-can confirm container identity at startup.
+this node hosts so that demo scripts and operators can confirm container
+identity at startup.  The list comes from ``hosted_actor_ids()``, not from
+scanning a shared DataLayer — there is no unscoped store to scan (ADR-0072).
 
 References: specs/multi-actor-demo.yaml DEMOMA-02-001,
 notes/multi-actor-architecture.md §4 G1.

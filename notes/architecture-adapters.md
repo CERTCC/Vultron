@@ -114,22 +114,40 @@ boundary with a ratchet (`KNOWN_VIOLATIONS`) so new violations fail immediately.
 
 ## DataLayer Scope Boundaries
 
-### Shared vs actor-scoped DataLayer
+### There is no shared DataLayer
 
-`SqliteDataLayer(actor_id=None)` provides shared/global domain storage view.
-`SqliteDataLayer(actor_id=<canonical actor URI>)` is required for inbox/outbox
-queue operations.
+ADR-0072 made per-actor storage the layout rather than a per-query filter. Every
+`SqliteDataLayer` belongs to exactly one actor, `actor_id` is a required keyword,
+and `actor_id=None` no longer constructs (DL-07-001, DL-07-002). One actor's
+writes cannot change what another reads, including writes to the same object ID —
+two actors may each hold their own replica of it.
 
-Queue methods key off `self._actor_id`; using shared mode for queues writes to a
-phantom key and hides actor queues.
+Practically: each actor gets its own SQLite file, named by
+`actor_slug(actor_id)`, and its inbox/outbox queues live in that file rather than
+being keyed by an `actor_id` column. There is no unscoped or "admin" mode to fall
+back to, so a node-wide view must fan out over stores explicitly —
+`hosted_actor_ids()` enumerates them.
 
 ### Identity contract: canonical URI must match
 
-The actor URI used for queue write paths and actor-scoped read paths must match
-exactly (string-equal). Normalize to canonical actor IDs before constructing
-actor-scoped DataLayers.
+The actor URI used to open a store must be the canonical URI — `actor.id_` — not
+a short ID or a bare URL path segment (ARCH-13-003). The URI *selects the store*,
+so a short id opens a different and empty one. Where a request carries a path
+segment, resolve it with `canonical_actor_uri()` before opening anything; that is
+what `get_canonical_actor_dl` does.
 
-### Future: `ActorScopedDataLayer` protocol (tracked in #655)
+### Crossing to another actor's store
 
-A dedicated protocol is planned for static enforcement of scope boundaries.
-Until then, tests enforce the contract behavior.
+`clone_for_actor(actor_id)` is the only sanctioned route (DL-07-005), and
+`vultron/core/behaviors/store_scope.py::store_for_actor` holds the guard logic
+around it so the decision is not re-derived per call site. Pass
+`require_same_authority=True` when the point of the write is to publish something
+the named actor *serves*: `clone_for_actor` succeeds for any well-formed id, so
+without the guard a remote actor's id silently opens a fresh empty local store.
+
+### Retired: the `ActorScopedDataLayer` protocol (#655)
+
+A dedicated protocol was planned for static enforcement of scope boundaries. It
+is no longer needed and has been deleted: a DataLayer cannot exist unscoped, so
+the boundary is enforced by construction. ARCH-13-001/002/004/005 were retired
+with it; ARCH-13-003 survives, amended.

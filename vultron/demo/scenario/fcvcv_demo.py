@@ -78,6 +78,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -1007,17 +1008,31 @@ def _phase_dump_case_ledgers(
     """
     # Devlog directory names use scenario-role names (DEMOMA-19-007):
     # finder, c1, v1, c2, v2, case-actor.
-    # Container routing keys must match actual docker-compose service/actor paths.
+    # Route keys come from each client's own actor id, not its display name:
+    # the key selects the store (ADR-0072), so a literal is right only while
+    # the scenario seeds deterministic named ids. The literal passed to
+    # replica_route_key() is the docker-compose seed name, kept as the fallback
+    # for a client that was never bound.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        # C1 is on the coordinator container; route key is "coordinator".
-        LedgerDumpTarget("c1", c1_client, "coordinator"),
-        # V1 is on the vendor container; route key is "vendor".
-        LedgerDumpTarget("v1", v1_client, "vendor"),
-        # C2 is on actor5; route key is "vendor2" (actor5 seed).
-        LedgerDumpTarget("c2", c2_client, "vendor2"),
-        # V2 is on actor6; route key is "vendor-deployer".
-        LedgerDumpTarget("v2", v2_client, "vendor-deployer"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        # C1 is on the coordinator container.
+        LedgerDumpTarget(
+            "c1", c1_client, replica_route_key(c1_client, "coordinator")
+        ),
+        # V1 is on the vendor container.
+        LedgerDumpTarget(
+            "v1", v1_client, replica_route_key(v1_client, "vendor")
+        ),
+        # C2 is on actor5 (seeded as "vendor2").
+        LedgerDumpTarget(
+            "c2", c2_client, replica_route_key(c2_client, "vendor2")
+        ),
+        # V2 is on actor6 (seeded as "vendor-deployer").
+        LedgerDumpTarget(
+            "v2", v2_client, replica_route_key(v2_client, "vendor-deployer")
+        ),
     ]
     # The case-actor is a sub-actor inside the C1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)

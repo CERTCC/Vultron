@@ -22,7 +22,7 @@ a clean baseline before a demo run.
 
 import logging
 from collections.abc import Callable, Sequence
-from typing import Any, Tuple
+from typing import Tuple
 from urllib.parse import quote
 
 from vultron.demo.utils import (
@@ -32,6 +32,7 @@ from vultron.demo.utils import (
     seed_actor,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -997,7 +998,7 @@ def seed_containers_fcvcv(
 
 def reset_containers(
     labeled_clients: Sequence[tuple[str, DataLayerClient]],
-    reset_fn: Callable[..., Any],
+    reset_fn: Callable[..., object],
 ) -> None:
     """Reset a set of labeled containers to a clean baseline.
 
@@ -1013,8 +1014,11 @@ def reset_containers(
     Args:
         labeled_clients: Sequence of ``(label, client)`` pairs, one per
             container.  *label* is used only in log and assertion messages.
-        reset_fn: Callable with the signature
-            ``reset_fn(client: DataLayerClient) -> Any``.
+        reset_fn: Callable invoked as ``reset_fn(client=<DataLayerClient>)``.
+            Its return value is only logged, so the annotation is
+            ``Callable[..., object]`` rather than ``Any``: the ellipsis is what
+            admits the keyword call, and ``object`` says the result is never
+            inspected (CS-11-001).
             Pass the module-local reference so test patches take effect.
 
     Raises:
@@ -1031,25 +1035,42 @@ def reset_containers(
 
     with demo_check("All actor containers start with no persisted cases"):
         for label, client in labeled_clients:
-            # Only a client already bound to an actor can be asked "any cases?" —
-            # a DataLayer read names an actor under ADR-0072.  Resetting normally
-            # runs *before* seeding, so on a first run the clients are unbound
-            # and there is nothing to interrogate: the reset just cleared every
-            # store on the node, and no actor exists to hold a case.  This check
-            # earns its keep on re-runs, where a client carries the actor it was
-            # bound to and a surviving case would be a real leak.
-            if not client.actor_id:
-                logger.debug(
-                    "%s container not yet bound to an actor; nothing to verify"
-                    " after reset",
-                    label,
+            for actor_id in _actors_to_verify(label, client):
+                cases = client.get(
+                    client.dl_path("VulnerabilityCases/", actor_id=actor_id)
                 )
-                continue
-            cases = client.get(client.dl_path("VulnerabilityCases/"))
-            if cases:
-                raise AssertionError(
-                    f"{label} container was not reset cleanly: {cases}"
-                )
+                if cases:
+                    raise AssertionError(
+                        f"{label} container was not reset cleanly"
+                        f" (actor {actor_id}): {cases}"
+                    )
+
+
+def _actors_to_verify(label: str, client: DataLayerClient) -> list[str]:
+    """Return the actor ids whose stores must be empty after a reset.
+
+    A DataLayer read names an actor under ADR-0072, so "are there any cases?"
+    cannot be asked of a node — only of an actor.  A client bound to an actor
+    answers for that actor.
+
+    An *unbound* client used to skip the check entirely, which is exactly the
+    case a first run hits: the reset had just cleared every store on the node and
+    nothing verified that it worked, so a container that failed to reset started
+    the scenario dirty and the failure surfaced later as an unexplained
+    pre-existing case.  The node itself knows which actors it hosts, so ask it
+    (``/info``) instead of skipping.  An empty list is a legitimate answer on a
+    first run — the node hosts nothing yet — and not a silent skip.
+    """
+    if client.actor_id:
+        return [client.actor_id]
+    hosted = client.get("/info").get("actors") or []
+    logger.debug(
+        "%s container not bound to an actor; verifying the %d actor(s) it"
+        " reports hosting",
+        label,
+        len(hosted),
+    )
+    return list(hosted)
 
 
 def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
@@ -1124,14 +1145,15 @@ def _seed_reporter_participant(
     )
 
 
-def _store_for_actor(dl: Any, actor_id: str) -> Any:
+def _store_for_actor(dl: "DataLayer", actor_id: str) -> "DataLayer":
     """Return *actor_id*'s own store, given any actor's *dl*.
 
     ``clone_for_actor`` is the only sanctioned route to another actor's store
     (ADR-0072 decision 7), so writing a record into a store other than the one
     we were handed reads as the cross-actor act it is.  Falls back to *dl* when
     the port does not offer cloning, which keeps the seeding helpers usable with
-    test doubles.
+    test doubles — hence the ``getattr`` probes below rather than a bare
+    attribute access, even though the annotation names the port.
     """
     if getattr(dl, "actor_id", None) == actor_id:
         return dl

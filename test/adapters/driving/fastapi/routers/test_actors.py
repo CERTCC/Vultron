@@ -397,17 +397,20 @@ class TestCreateActor:
         ids = [a["id"] for a in resp.json()]
         assert "http://example.org/actors/listcheck" in ids
 
-    def test_created_actor_is_named_by_the_url_that_serves_it(
+    def test_a_bare_slug_is_expanded_to_the_url_that_serves_it(
         self, client_actors
     ):
         """A hosted actor's id is the URL that reaches it on this node.
 
         An actor is a process with API endpoints, so its id *is* its address:
-        ``{base_url}/actors/{slug}``, with its inbox at ``{id}/inbox``. This test
-        used to post an id under ``example.org`` and expect this node to serve it
-        under that authority — which cannot hold, because ``example.org`` names a
-        process somewhere else. The client's slug is honoured; its authority is
-        not adopted.
+        ``{base_url}/actors/{slug}``, with its inbox at ``{id}/inbox``. A client
+        that supplies only a slug is therefore telling this node what to call the
+        actor, and the node supplies the authority.
+
+        This covers the bare-slug shape only. What happens to a client-supplied
+        *absolute* id — including one under a foreign authority — is the separate
+        question pinned by
+        :meth:`test_a_foreign_absolute_id_is_adopted_verbatim`.
         """
         from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 
@@ -427,6 +430,58 @@ class TestCreateActor:
         resp = client_actors.get("/actors/fetchable")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["id"] == expected_id
+
+    def test_a_foreign_absolute_id_is_adopted_verbatim(self, client_actors):
+        """Pins the shape that actually breaks — issue #2549.
+
+        ``canonical_actor_uri`` returns any id carrying a scheme unchanged, so
+        ``POST /actors/`` with an id under *another* authority creates a record
+        here under that authority and opens a local store for it. That is
+        deliberate for the peer-registration use it was built for — a peer's id is
+        the URL outbound delivery posts to, so rewriting it into this node's
+        namespace would turn a reachable peer into a local phantom (ADR-0072
+        decision 5).
+
+        It is not free, though: the store is keyed by the final path segment
+        alone, so a peer whose URI ends in the same segment as a co-hosted actor
+        shares that actor's store. Asserted here so the day the endpoint learns to
+        distinguish "register a peer" from "create an actor I host", this test
+        fails and says which behaviour changed rather than the change landing
+        silently.
+        """
+        foreign_id = "http://elsewhere.test:7999/api/v2/actors/foreigner"
+        created = client_actors.post(
+            "/actors/",
+            json={
+                "name": "Foreigner",
+                "actor_type": "Organization",
+                "id": foreign_id,
+            },
+        )
+        assert created.status_code == status.HTTP_201_CREATED
+        assert created.json()["id"] == foreign_id, (
+            "the authority is adopted as-is; if this now returns a local URI,"
+            " #2549 was addressed and this test documents the old behaviour"
+        )
+
+        # And it is a *hosted* record: it comes back from this node's collection.
+        listed = client_actors.get("/actors/")
+        assert foreign_id in [a["id"] for a in listed.json()]
+
+    @pytest.mark.parametrize("bad", ["/", "//"])
+    def test_an_id_that_names_no_actor_is_rejected(self, client_actors, bad):
+        """422, not 500, and no store minted for a phantom actor.
+
+        ``"/"`` is not empty but names nothing. Before the guard in
+        ``canonical_actor_uri`` it produced ``{base}/actors/``, whose final path
+        segment is ``actors`` — a usable slug — so the node opened a store for an
+        actor named after a path component and nothing downstream could tell.
+        """
+        resp = client_actors.post(
+            "/actors/",
+            json={"name": "Nameless", "actor_type": "Person", "id": bad},
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ---------------------------------------------------------------------------

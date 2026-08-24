@@ -201,7 +201,10 @@ the timeout parameter flows through and jitter is applied.
   keeping queue API unchanged.
 - `OutboxRetryStore` is an adapter-level Protocol; `SqliteDataLayer` satisfies it
   structurally. `outbox_handler` uses `cast(OutboxRetryStore, dl)` to access the
-  delivery-infrastructure methods without polluting the core `ActorScopedDataLayer` port.
+  delivery-infrastructure methods without polluting the core `CasePersistence` /
+  `CaseOutboxPersistence` ports. (This said `ActorScopedDataLayer`; that protocol
+  refinement was deleted by ADR-0072 — no DataLayer is unscoped, so there was
+  nothing left for it to distinguish.)
 - `MAX_TOTAL_ATTEMPTS = 12` is a module-level constant (not constructor-configurable).
 - Counter is cleared when an activity is dead-lettered (OX-13-002) so the side-table
   does not accumulate stale rows.

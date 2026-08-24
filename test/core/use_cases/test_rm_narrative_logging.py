@@ -186,7 +186,7 @@ def indexed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
 class TestInvitedPathBootstrap:
     """update_participant_rm_state when actor indexed but participant absent.
 
-    Regression for ISSUE-2216: after MV-09-001 fix, invited actors reach
+    Regression for ISSUE-2216: after AKM-03-001 fix, invited actors reach
     RM.VALID but engage-case returns 422 because the CaseParticipant object
     was never hydrated into the invitee's local DL.
     """

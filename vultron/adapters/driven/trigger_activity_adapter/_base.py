@@ -16,11 +16,17 @@
 """Shared constants and base class for TriggerActivityAdapter submodules."""
 
 import logging
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.datalayer import DataLayer
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.base.base import as_Base
+
+if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
 
 #: Serialisation options for every outbound activity dict this adapter returns.
 #:
@@ -68,7 +74,7 @@ def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
     return wire_cls.from_core(core_obj)  # type: ignore[attr-defined,return-value,no-any-return]
 
 
-def _case_for_wire(dl: Any, case_id: str) -> Any:
+def _case_for_wire(dl: DataLayer, case_id: str) -> "as_VulnerabilityCase":
     """Return the stored case as a wire object, with its embargo carried inline.
 
     Every activity that puts a case on the wire goes through here, because

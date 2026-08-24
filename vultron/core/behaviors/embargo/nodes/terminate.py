@@ -20,7 +20,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import PortInformation
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.models.case import case_addressees
 
 
 class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):

@@ -37,6 +37,7 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.core.models.base import NonEmptyString
 from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -235,7 +236,10 @@ class DataLayerClient(BaseModel):
     #: that clients used only for non-DataLayer endpoints (health, info, inbox)
     #: keep working unchanged; :meth:`dl_path` raises when it is needed and
     #: absent, rather than silently reading some other actor's replica.
-    actor_id: str | None = None
+    #: ``NonEmptyString`` rather than ``str`` so that ``actor_id=""`` is rejected
+    #: at construction instead of reaching :meth:`dl_path` and being reported
+    #: there as a missing id (AGENTS.md: no bare ``str`` for required text).
+    actor_id: NonEmptyString | None = None
     #: Per-request HTTP timeout (seconds).  Generous relative to httpx's 5s
     #: default so a single GET against a container that is busy draining its
     #: outbox (delivery retry/backoff can add several seconds under CI load)
@@ -719,6 +723,30 @@ def seed_actor(
 
     response_data = client.post("/actors/", json=payload)
     return as_Actor.model_validate(response_data)
+
+
+#: Slug every container's self-hosted CaseActor is registered under.  A CaseActor
+#: is a role a container wears per CP-08-002/003, not a per-case object (#1872),
+#: so the slug is a constant rather than something derived from a case or report.
+CASE_ACTOR_SLUG = "case-actor"
+
+
+def case_actor_id_on(base_url: str) -> str:
+    """Return the canonical CaseActor URI hosted by the node at *base_url*.
+
+    Demo inspection clients need this to bind ``DataLayerClient.actor_id``: the
+    dedicated ``case-actor`` container hosts an actor whose store is the one a
+    ``/datalayer/`` read has to name (ADR-0072), and the container's base URL is
+    the only thing a demo entry point knows before any actor exists.
+
+    Args:
+        base_url: Base URL of the container hosting the CaseActor, e.g.
+            ``http://case-actor:7999/api/v2``.
+
+    Returns:
+        ``{base_url}/actors/case-actor``.
+    """
+    return f"{base_url.rstrip('/')}/actors/{CASE_ACTOR_SLUG}"
 
 
 def case_actor_id_for_report(report_id: str) -> str:

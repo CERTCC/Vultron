@@ -59,7 +59,8 @@ def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``SyncActivityAdapter`` for the given DataLayer.
 
     ``dl`` at runtime is an ``DataLayer`` (satisfies
-    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
+    ``CaseOutboxPersistence``) — the cast is safe (DL-07-002, which retired
+    ARCH-13-002).
     """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
@@ -72,7 +73,8 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``TriggerActivityAdapter`` from the current DataLayer.
 
     ``dl`` at runtime is an ``DataLayer`` (satisfies
-    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
+    ``CaseOutboxPersistence``) — the cast is safe (DL-07-002, which retired
+    ARCH-13-002).
     """
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,

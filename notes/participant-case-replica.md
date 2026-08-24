@@ -55,8 +55,12 @@ Participant Actor (single inbox)
 ```
 
 There is one externally-addressable Actor. Case-scoped routing is fully
-internal. The CaseActor (one per case, run by the case owner) is the only
-entity that may update participant replicas.
+internal. The only entity that may update participant replicas is whoever holds
+`CVDRole.CASE_MANAGER` for the case — the "CaseActor". That is a role a container
+wears, one per container, **not** one per case (CP-08-002/003, #1872): its
+identity is the stable `{case_actor_service_url}/actors/case-actor`. Code MUST
+gate on the role rather than compare `actor_id` against a computed
+`case_actor_id` (CM-24-004).
 
 ```text
 Case Lifecycle:

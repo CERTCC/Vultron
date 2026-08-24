@@ -217,6 +217,47 @@ class TestSvcInviteActorToCaseUseCase:
         assert missing_id in caplog.text
         assert "no local record for invitee" in caplog.text
 
+    @pytest.mark.parametrize(
+        "bad_id",
+        [
+            "nobody",  # bare name, no scheme
+            "/actors/nobody",  # relative path
+            "https:///actors/nobody",  # scheme but no netloc
+            "ftp://example.org/actors/nobody",  # non-HTTP scheme
+        ],
+    )
+    def test_invite_rejects_undeliverable_invitee_uri(self, bad_id):
+        """An unknown invitee is minted, but only from a deliverable URI.
+
+        Absence is not grounds for refusal (see the test above), which leaves
+        the id itself as the only thing that can be checked. It has to be an
+        absolute http(s) URI because it *is* the address the invitation is
+        POSTed to: a typo'd or relative id would otherwise become a case
+        participant that no delivery attempt can ever reach, failing far away
+        in the retry loop instead of here.
+        """
+        actor, dl = _make_actor_dl("Coordinator")
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=bad_id,
+        )
+        with pytest.raises(
+            VultronValidationError, match="deliverable actor URI"
+        ):
+            SvcInviteActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+        assert (
+            dl.read(bad_id) is None
+        ), "a rejected invitee must not be recorded as a known actor"
+
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
         invitee, _ = _make_actor_dl("Finder")

@@ -17,7 +17,7 @@
 
 | Store | Role | Access layer | Key risk | Evidence |
 |-------|------|--------------|----------|----------|
-| SQLite (file or `:memory:`) | Single canonical activity store for all domain objects | `SqliteDataLayer` in `vultron/adapters/driven/datalayer_sqlite/` | Single-process SQLite has no concurrent multi-writer support; not suitable for multi-node deployment without migration | `vultron/adapters/driven/datalayer_sqlite/schema.py` |
+| SQLite (one file per actor, or `:memory:`) | Per-actor activity store: each hosted actor gets its own store holding only that actor's knowledge (ADR-0072) | `SqliteDataLayer` in `vultron/adapters/driven/datalayer_sqlite/`, resolved per actor by `get_datalayer(actor_id)` | Single-process SQLite has no concurrent multi-writer support; not suitable for multi-node deployment without migration. There is no migration path from a pre-ADR-0072 shared store | `vultron/adapters/driven/datalayer_sqlite/schema.py`, `vultron/adapters/driven/datalayer.py` |
 | In-memory (tests) | Isolated per-test data store | `reset_datalayer()` + `sqlite:///:memory:` | None (intended ephemeral use) | `test/conftest.py` |
 
 ### 3) Secrets and Credentials Handling

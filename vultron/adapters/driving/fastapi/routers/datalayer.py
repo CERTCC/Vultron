@@ -22,9 +22,11 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.db_record import Record, record_to_object
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from vultron.adapters.driving.fastapi.deps import (
+    get_actor_dl,
+    get_hosted_actor_dls,
+)
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -309,7 +311,9 @@ def get_objects(
     ),
     operation_id="datalayer_reset",
 )
-def reset_datalayer() -> dict:
+def reset_datalayer(
+    actor_dls: dict[str, DataLayer] = Depends(get_hosted_actor_dls),
+) -> dict:
     """Clear every hosted actor's store.
 
     A node-level operation: there is no single store to clear under ADR-0072,
@@ -326,10 +330,14 @@ def reset_datalayer() -> dict:
     node (ADR-0072 decision 2).  Provisioning an actor is ``POST /actors/``, and
     callers that need a populated node call it — see
     ``vultron.demo.utils.seed_exchange_actors``.
+
+    The stores arrive via :func:`get_hosted_actor_dls` rather than a loop over
+    ``get_datalayer``, so an app that supplied its own stores (a TestClient with
+    per-actor in-memory overrides) is reset for real instead of having the
+    process-global on-disk stores cleared behind it.
     """
     counts: dict[str, dict[str, int]] = {}
-    for actor_id in actor_hosts.hosted_actor_ids():
-        actor_dl = get_datalayer(actor_id)
+    for actor_id, actor_dl in actor_dls.items():
         actor_dl.clear_all()
         counts[actor_id] = actor_dl.count_all()
 

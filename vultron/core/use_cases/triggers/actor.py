@@ -21,6 +21,7 @@ No HTTP framework imports permitted here.
 
 import logging
 from typing import Any, cast
+from urllib.parse import urlparse
 
 import py_trees.behaviour
 
@@ -51,7 +52,7 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,24 @@ class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
         )
 
 
+def _require_deliverable_actor_uri(actor_id: str) -> None:
+    """Raise ``VultronValidationError`` unless *actor_id* is a deliverable URI.
+
+    A peer actor id is not an opaque name — it is the URL outbound delivery
+    POSTs its inbox to.  Only an absolute ``http``/``https`` URI with a netloc
+    can be that, so anything else is rejected here rather than minted into a
+    participant that no delivery attempt can ever reach.
+    """
+    parsed = urlparse(actor_id)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return
+    raise VultronValidationError(
+        f"invitee_id '{actor_id}' is not a deliverable actor URI: an invitee"
+        " must be named by an absolute http(s) URI, because that URI is where"
+        " the invitation is delivered"
+    )
+
+
 class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
     """Directly invite an actor to a case (case-owner action).
 
@@ -156,7 +175,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         #
         # But the record cannot simply be *absent*, and this is subtler than it
         # looks. The outbound Invite must carry its object fully inline
-        # (MV-09-001); storage dehydrates ``object_`` to an id, and rehydration
+        # (AKM-03-001); storage dehydrates ``object_`` to an id, and rehydration
         # reconstitutes it by reading that id back. With no record to read, the
         # object stays a bare string and delivery refuses the activity — after
         # exhausting its retries, far from here. So the invitee is *recorded* from
@@ -167,7 +186,14 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         # does not have is the peer's details; resolving those is a
         # directory-service concern, tracked as a Retriever call-out (ADR-0024).
         # The WARNING marks that gap rather than letting it pass silently.
+        #
+        # Minting from an unvalidated string would accept anything, though. The
+        # id has to be an absolute http(s) URI because it *is* the address
+        # outbound delivery posts to (ADR-0072 decision 5): a typo'd or relative
+        # id becomes an unreachable participant that fails much later, in the
+        # delivery retry loop, with no trace back to this invitation.
         if self._dl.read(request.invitee_id) is None:
+            _require_deliverable_actor_uri(request.invitee_id)
             logger.warning(
                 "invite_actor_to_case: no local record for invitee '%s' —"
                 " recording it from the invitation. Actor discovery is not"
