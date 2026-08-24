@@ -392,7 +392,7 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
 
     def _try_get_input(self, key: str) -> object | None:
         try:
-            return self.get_input(key)
+            return cast(object, self.get_input(key))
         except (NoDataAvailable, NotImplementedError):
             return None
 
@@ -486,7 +486,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
 
     def _try_get_input(self, key: str) -> object | None:
         try:
-            return self.get_input(key)
+            return cast(object, self.get_input(key))
         except (NoDataAvailable, NotImplementedError):
             return None
 

@@ -136,6 +136,9 @@ class ResolveOwnerInitialStatusNode(DataLayerActionWithPorts):
         if case_id is None:
             self.logger.error("%s: case_id not available", self.name)
             return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.logger.error("%s: case_id is not a string", self.name)
+            return Status.FAILURE
 
         self._set_output(
             "owner_initial_status",
