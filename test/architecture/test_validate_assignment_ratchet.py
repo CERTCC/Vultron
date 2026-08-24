@@ -195,7 +195,9 @@ def _assigns_to_self(fn: ast.FunctionDef) -> bool:
 def _find_self_assigning_after_validators() -> set[str]:
     """Return ``path::Class.method`` for each core after-validator writing to self."""
     found: set[str] = set()
-    for path, tree in _corpus.all_trees(under=_CORE_ROOT):
+    for path, tree in _corpus.files_mentioning(
+        "model_validator", under=_CORE_ROOT
+    ):
         for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
             for fn in (n for n in cls.body if isinstance(n, ast.FunctionDef)):
                 if _is_after_validator(fn) and _assigns_to_self(fn):
@@ -206,7 +208,9 @@ def _find_self_assigning_after_validators() -> set[str]:
 def _find_collection_mutation_modules() -> set[str]:
     """Return modules under ``vultron/core/`` that mutate a shape-dual collection."""
     found: set[str] = set()
-    for path, source in _corpus.all_sources(under=_CORE_ROOT):
+    for path, source in _corpus.sources_mentioning(
+        *_SHAPE_DUAL_COLLECTIONS, under=_CORE_ROOT
+    ):
         rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
         if rel in _CANONICAL_MUTATOR_MODULES:
             continue
@@ -245,6 +249,17 @@ def _lacks_validate_assignment(cls: type[BaseModel]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Module-level caches — populated at import time, outside pytest-timeout budget.
+# ---------------------------------------------------------------------------
+_ACTUAL_SELF_ASSIGNING: frozenset[str] = frozenset(
+    _find_self_assigning_after_validators()
+)
+_ACTUAL_COLLECTION_MUTATIONS: frozenset[str] = frozenset(
+    _find_collection_mutation_modules()
+)
+
+
+# ---------------------------------------------------------------------------
 # Guard the guards — a detector that finds nothing makes every assertion vacuous
 # ---------------------------------------------------------------------------
 def test_detectors_are_not_vacuous():
@@ -259,7 +274,7 @@ def test_detectors_are_not_vacuous():
 # ---------------------------------------------------------------------------
 def test_self_assigning_after_validator_backlog_is_exact():
     """The enumerated set must match reality, in both directions."""
-    found = _find_self_assigning_after_validators()
+    found = _ACTUAL_SELF_ASSIGNING
     assert found == set(_SELF_ASSIGNING_AFTER_VALIDATORS), (
         'the set of core `mode="after"` validators that assign to `self` changed.\n'
         f"  newly violating: {sorted(found - _SELF_ASSIGNING_AFTER_VALIDATORS)}\n"
@@ -271,7 +286,7 @@ def test_self_assigning_after_validator_backlog_is_exact():
 
 
 def test_no_core_after_validator_assigns_to_self():
-    found = _find_self_assigning_after_validators()
+    found = _ACTUAL_SELF_ASSIGNING
     assert not found, (
         f'{len(found)} core `mode="after"` validators still assign to `self`:'
         f" {sorted(found)}"
@@ -351,7 +366,7 @@ def test_every_core_model_has_validate_assignment():
 # ---------------------------------------------------------------------------
 def test_collection_mutation_backlog_is_exact():
     """The enumerated set must match reality, in both directions."""
-    found = _find_collection_mutation_modules()
+    found = _ACTUAL_COLLECTION_MUTATIONS
     assert found == set(_COLLECTION_MUTATION_BACKLOG), (
         "the set of core modules mutating a shape-dual collection changed.\n"
         f"  newly violating: {sorted(found - _COLLECTION_MUTATION_BACKLOG)}\n"
@@ -363,7 +378,7 @@ def test_collection_mutation_backlog_is_exact():
 
 
 def test_no_direct_shape_dual_collection_mutation_in_core():
-    found = _find_collection_mutation_modules()
+    found = _ACTUAL_COLLECTION_MUTATIONS
     assert not found, (
         f"{len(found)} core modules mutate a shape-dual collection directly:"
         f" {sorted(found)}"
