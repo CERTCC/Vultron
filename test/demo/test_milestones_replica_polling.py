@@ -11,17 +11,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression tests for reporter-replica polling in ``verify_case_active``.
+"""Regression tests for reporter-replica polling in milestone helpers.
 
-The reporter's case replica arrives via the receiver's outbox, which runs as a
-background task.  The receiver-side participant count can reach its target tens
-of milliseconds before the reporter has processed
-``Create(VulnerabilityCase)``, so ``verify_case_active`` must poll for the
-replica rather than read once.  Reading once produced an intermittent
-``404 Not Found`` on ``/datalayer/<case_id>`` at the fcv M1 milestone.
+Covers two async race patterns (Bugs #2134-adjacent and #2376):
 
-Scenarios that already call ``wait_for_case_on_container`` themselves are
-unaffected — the extra poll returns on its first attempt.
+1. ``verify_case_active`` — reporter's case replica arrives via an async
+   outbox delivery, so the helper must poll rather than read once.
+2. ``verify_publicly_disclosed`` — after ``actor_notifies_published`` returns
+   HTTP 202, the CaseActor's ``Add(CaseStatus)`` broadcast may not have
+   reached the reporter's DataLayer yet.  ``verify_publicly_disclosed`` must
+   poll for the reporter's pxa_state before asserting it (ADR-0058).
+3. ``wait_for_participant_pxa_state`` — underlying pxa polling helper must
+   retry until pxa_state is public-aware and raise on timeout.
 """
 
 from typing import cast
@@ -29,10 +30,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from vultron.demo.helpers.milestones import verify_case_active
+from vultron.core.states.cs import CS_pxa
+from vultron.demo.helpers.milestones import (
+    verify_case_active,
+    verify_publicly_disclosed,
+)
 from vultron.demo.helpers.polling import (
     _is_ownership_transfer_offer_for,
     find_ownership_transfer_offer_for_actor,
+    wait_for_participant_pxa_state,
 )
 from vultron.demo.utils import DataLayerClient
 
@@ -303,3 +309,155 @@ class TestFindOwnershipTransferOfferForActor:
                 timeout_seconds=0.1,
                 poll_interval=0.5,
             )
+
+
+# ---------------------------------------------------------------------------
+# Bug #2376: pxa_state race in verify_publicly_disclosed
+# ---------------------------------------------------------------------------
+
+_PXA_CASE_ID = "urn:uuid:pxa-case-0001"
+_PXA_RECEIVER_ID = "http://coordinator:7999/api/v2/actors/coordinator"
+
+
+def _pxa_case_payload(em_state: str = "EXITED") -> dict:
+    """Minimal case payload with EM.EXITED and no participants (participants polled separately)."""
+    return {
+        "id": _PXA_CASE_ID,
+        "type": "VulnerabilityCase",
+        "actorParticipantIndex": {},
+        "caseStatuses": [
+            {
+                "id": "urn:uuid:cs-pxa-1",
+                "type": "CaseStatus",
+                "context": _PXA_CASE_ID,
+                "em": {"state": em_state},
+                "pxa": {"state": "PXA"},
+            }
+        ],
+    }
+
+
+def _public_aware_participant(actor_id: str) -> MagicMock:
+    """A participant whose latest status has a public-aware pxa_state."""
+    p = MagicMock()
+    p.id_ = f"urn:uuid:participant-{actor_id.split('/')[-1]}"
+    p.case_roles = []
+    status = MagicMock()
+    cs = MagicMock()
+    cs.pxa_state = CS_pxa.PXA
+    status.case_status = cs
+    p.participant_status = status
+    p.participant_statuses = [status]
+    return p
+
+
+class TestWaitForParticipantPxaState:
+    """wait_for_participant_pxa_state polls until pxa_state is public-aware."""
+
+    def test_returns_immediately_when_already_public_aware(self):
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+        with patch(
+            "vultron.demo.helpers.verification._fetch_participant",
+            return_value=participant,
+        ):
+            wait_for_participant_pxa_state(
+                client=cast(DataLayerClient, MagicMock(base_url="http://x")),
+                case_id=_PXA_CASE_ID,
+                actor_id=_PXA_RECEIVER_ID,
+                timeout_seconds=5.0,
+                poll_interval=0.05,
+            )
+
+    def test_polls_until_pxa_becomes_public_aware(self):
+        """pxa_state arrives on the 3rd call; helper must retry."""
+        call_count = 0
+        none_participant = MagicMock()
+        none_participant.case_roles = []
+        none_status = MagicMock()
+        none_cs = MagicMock()
+        none_cs.pxa_state = None
+        none_status.case_status = none_cs
+        none_participant.participant_status = none_status
+        none_participant.participant_statuses = [none_status]
+
+        public_participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        def _fetch(client, case_id, actor_id):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                return none_participant
+            return public_participant
+
+        with patch(
+            "vultron.demo.helpers.verification._fetch_participant",
+            side_effect=_fetch,
+        ):
+            wait_for_participant_pxa_state(
+                client=cast(DataLayerClient, MagicMock(base_url="http://x")),
+                case_id=_PXA_CASE_ID,
+                actor_id=_PXA_RECEIVER_ID,
+                timeout_seconds=5.0,
+                poll_interval=0.05,
+            )
+
+        assert call_count >= 3
+
+    def test_raises_assertion_error_on_timeout(self):
+        none_participant = MagicMock()
+        none_status = MagicMock()
+        none_cs = MagicMock()
+        none_cs.pxa_state = None
+        none_status.case_status = none_cs
+        none_participant.participant_status = none_status
+        none_participant.participant_statuses = [none_status]
+
+        with patch(
+            "vultron.demo.helpers.verification._fetch_participant",
+            return_value=none_participant,
+        ):
+            with pytest.raises(AssertionError, match="Timed out"):
+                wait_for_participant_pxa_state(
+                    client=cast(
+                        DataLayerClient, MagicMock(base_url="http://x")
+                    ),
+                    case_id=_PXA_CASE_ID,
+                    actor_id=_PXA_RECEIVER_ID,
+                    timeout_seconds=0.1,
+                    poll_interval=0.5,
+                )
+
+
+class TestVerifyPubliclyDisclosedPollsReporterPxa:
+    """verify_publicly_disclosed must poll reporter's pxa_state before asserting (Bug #2376)."""
+
+    def test_calls_wait_for_participant_pxa_state_on_reporter(self):
+        """The pxa polling gate must be called with the reporter client, not the receiver."""
+        receiver_client = MagicMock(name="receiver_client")
+        reporter_client = MagicMock(name="reporter_client")
+        receiver_client.get.return_value = _pxa_case_payload()
+        reporter_client.get.return_value = _pxa_case_payload()
+
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+            ) as mock_poll,
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                return_value=participant,
+            ),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        mock_poll.assert_called_once_with(
+            client=cast(DataLayerClient, reporter_client),
+            case_id=_PXA_CASE_ID,
+            actor_id=_PXA_RECEIVER_ID,
+        )
