@@ -353,7 +353,13 @@ def run_invite_path_rm_triage(
             expected_states={RM.VALID, RM.ACCEPTED},
             timeout_seconds=timeout_seconds,
         )
-    with demo_check(f"{invited_obj.id_} own container at RM.VALID"):
+
+    # Gate engage-case on the invited actor's OWN RM.VALID commit.
+    # validate-report returns HTTP 202 before its ParticipantStatus write
+    # lands, so engaging without the gate races the async commit and yields
+    # TransitionParticipantRMtoAccepted (HTTP 422).  Mirrors the direct-path
+    # causal gate in run_direct_path_rm_triage (ADR-0058).
+    with demo_gate(f"{invited_obj.id_} reached RM.VALID before engage-case"):
         wait_for_participant_rm_state(
             client=invited_client,
             case_id=case.id_,
@@ -361,31 +367,33 @@ def run_invite_path_rm_triage(
             expected_states={RM.VALID, RM.ACCEPTED},
             timeout_seconds=timeout_seconds,
         )
-    logger.info("✓ %s RM state reached VALID", invited_obj.id_)
+        logger.info("✓ %s RM state reached VALID", invited_obj.id_)
 
-    receiver_engages_case(
-        receiver_client=invited_client,
-        receiver=invited_actor,
-        case_id=case.id_,
-    )
+        receiver_engages_case(
+            receiver_client=invited_client,
+            receiver=invited_actor,
+            case_id=case.id_,
+        )
 
-    with demo_check(f"CaseActor reflects {invited_obj.id_} at RM.ACCEPTED"):
-        wait_for_participant_rm_state(
-            client=auth_client,
-            case_id=case.id_,
-            actor_id=invited_obj.id_,
-            expected_states={RM.ACCEPTED},
-            timeout_seconds=timeout_seconds,
-        )
-    with demo_check(f"{invited_obj.id_} own container at RM.ACCEPTED"):
-        wait_for_participant_rm_state(
-            client=invited_client,
-            case_id=case.id_,
-            actor_id=invited_obj.id_,
-            expected_states={RM.ACCEPTED},
-            timeout_seconds=timeout_seconds,
-        )
-    logger.info("✓ %s RM state reached ACCEPTED", invited_obj.id_)
+        with demo_check(
+            f"CaseActor reflects {invited_obj.id_} at RM.ACCEPTED"
+        ):
+            wait_for_participant_rm_state(
+                client=auth_client,
+                case_id=case.id_,
+                actor_id=invited_obj.id_,
+                expected_states={RM.ACCEPTED},
+                timeout_seconds=timeout_seconds,
+            )
+        with demo_check(f"{invited_obj.id_} own container at RM.ACCEPTED"):
+            wait_for_participant_rm_state(
+                client=invited_client,
+                case_id=case.id_,
+                actor_id=invited_obj.id_,
+                expected_states={RM.ACCEPTED},
+                timeout_seconds=timeout_seconds,
+            )
+        logger.info("✓ %s RM state reached ACCEPTED", invited_obj.id_)
 
 
 def run_direct_path_rm_triage(

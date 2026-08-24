@@ -11,14 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression tests for the direct-path RM triage causal gate (Bug #2134).
+"""Regression tests for the RM triage causal gates (Bugs #2134 and #2376).
 
-``run_direct_path_rm_triage`` must engage the case (RM.VALID → RM.ACCEPTED)
-only *after* the receiver's own participant status has committed RM.VALID.
-``validate-report`` is dispatched asynchronously (HTTP 202), so gating
-``engage-case`` on the mere presence of the case object — which appears
-synchronously during validation — races the async RM.VALID commit and yields
-``TransitionParticipantRMtoAccepted`` (HTTP 422).
+``run_direct_path_rm_triage`` and ``run_invite_path_rm_triage`` must engage
+the case (RM.VALID → RM.ACCEPTED) only *after* the receiver's own participant
+status has committed RM.VALID.  ``validate-report`` is dispatched
+asynchronously (HTTP 202), so engaging without this gate races the async
+commit and yields ``TransitionParticipantRMtoAccepted`` (HTTP 422).
 
 These tests assert causal ordering (x happens THEREFORE y happens), not mere
 sequence, so the fix cannot silently regress to a case-object-presence proxy.
@@ -117,6 +116,142 @@ def test_engage_not_called_when_rm_valid_never_commits(actors):
             receiver_client=receiver_client,
             receiver=receiver,
             offer=offer,
+        )
+
+    engage_called.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Invite-path gate — Bug #2376
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def invite_actors():
+    """Actors, clients, and objects needed by run_invite_path_rm_triage."""
+    invited_client = MagicMock(name="invited_client")
+    invited_actor = MagicMock()
+    invited_actor.id_ = "http://vendor:7999/api/v2/actors/vendor"
+    offer = MagicMock()
+    offer.id_ = "urn:uuid:offer-invite-1"
+    report = MagicMock()
+    report.id_ = "urn:uuid:report-1"
+    finder = MagicMock()
+    auth_client = MagicMock(name="auth_client")
+    case = MagicMock()
+    case.id_ = "urn:uuid:case-invite-1"
+    invited_obj = MagicMock()
+    invited_obj.id_ = "http://vendor:7999/api/v2/actors/vendor"
+    return (
+        invited_client,
+        invited_actor,
+        offer,
+        report,
+        finder,
+        auth_client,
+        case,
+        invited_obj,
+    )
+
+
+def test_invite_path_engage_gated_on_own_rm_valid(invite_actors):
+    """engage-case fires only AFTER the invited actor's own RM.VALID commits."""
+    (
+        invited_client,
+        invited_actor,
+        offer,
+        report,
+        finder,
+        auth_client,
+        case,
+        invited_obj,
+    ) = invite_actors
+    call_order: list[str] = []
+
+    def _wait_rm(*, client, case_id, actor_id, expected_states, **_kwargs):
+        if client is auth_client:
+            call_order.append("wait_caseactor_valid")
+        elif (
+            RM.ACCEPTED in expected_states and RM.VALID not in expected_states
+        ):
+            # own RM.ACCEPTED check
+            call_order.append("wait_own_accepted")
+        else:
+            # own RM.VALID gate
+            call_order.append("wait_own_valid")
+            # Gate must poll the invited actor's OWN container.
+            assert client is invited_client
+            assert actor_id == invited_obj.id_
+
+    def _engage(**_kwargs):
+        call_order.append("engage")
+        return {}
+
+    with (
+        patch.object(workflow, "wait_for_event_type_in_ledger"),
+        patch.object(workflow, "receiver_validates_report"),
+        patch.object(
+            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+        ),
+        patch.object(workflow, "receiver_engages_case", side_effect=_engage),
+    ):
+        workflow.run_invite_path_rm_triage(
+            invited_client=invited_client,
+            invited_actor=invited_actor,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=auth_client,
+            case=case,
+            invited_obj=invited_obj,
+        )
+
+    # Causal invariant: own RM.VALID gate precedes engagement.
+    assert "wait_own_valid" in call_order
+    assert "engage" in call_order
+    assert call_order.index("wait_own_valid") < call_order.index("engage")
+
+
+def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
+    invite_actors,
+):
+    """If the invited actor's own RM.VALID never commits, engage-case must not fire."""
+    (
+        invited_client,
+        invited_actor,
+        offer,
+        report,
+        finder,
+        auth_client,
+        case,
+        invited_obj,
+    ) = invite_actors
+    engage_called = MagicMock()
+
+    def _wait_rm(*, client, expected_states, **_kwargs):
+        # Simulate own-container RM.VALID never landing on the invited client.
+        if client is invited_client and RM.VALID in expected_states:
+            raise AssertionError("timed out waiting for own RM.VALID")
+
+    with (
+        patch.object(workflow, "wait_for_event_type_in_ledger"),
+        patch.object(workflow, "receiver_validates_report"),
+        patch.object(
+            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+        ),
+        patch.object(
+            workflow, "receiver_engages_case", side_effect=engage_called
+        ),
+    ):
+        workflow.run_invite_path_rm_triage(
+            invited_client=invited_client,
+            invited_actor=invited_actor,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=auth_client,
+            case=case,
+            invited_obj=invited_obj,
         )
 
     engage_called.assert_not_called()

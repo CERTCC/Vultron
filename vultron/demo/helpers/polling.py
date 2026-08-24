@@ -971,3 +971,80 @@ def wait_for_all_participants_rm_closed(
         "to reach RM.CLOSED",
         swallow_exceptions=True,
     )
+
+
+def wait_for_participant_pxa_state(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set | None" = None,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until *actor_id*'s participant status shows a public-aware pxa_state.
+
+    ``pxa_state`` is nested at ``participant.participant_status.case_status
+    .pxa_state`` and cannot be reached by the generic
+    :func:`_wait_for_participant_status_field` (which handles only top-level
+    fields on ``as_ParticipantStatus``).  This helper handles the two-level
+    attribute access explicitly.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of ``CS_pxa`` values that satisfy the condition.
+            Defaults to all public-aware states: ``{Pxa, PxA, PXa, PXA}``.
+        timeout_seconds: Maximum time to wait (default: 30 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the expected pxa_state is not reached within
+            *timeout_seconds*.
+
+    Spec: DEMOMA-06-002.
+    """
+    from vultron.core.states.cs import CS_pxa  # noqa: PLC0415
+    from vultron.demo.helpers.verification import (  # noqa: PLC0415
+        _fetch_participant,
+    )
+
+    if expected_states is None:
+        expected_states = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
+
+    deadline = time.monotonic() + timeout_seconds
+    poll_count = 0
+    while time.monotonic() < deadline:
+        poll_count += 1
+        participant = _fetch_participant(client, case_id, actor_id)
+        if participant is not None:
+            latest = participant.participant_status
+            if latest is not None:
+                cs = getattr(latest, "case_status", None)
+                pxa = (
+                    getattr(cs, "pxa_state", None) if cs is not None else None
+                )
+                logger.debug(
+                    "wait_for_participant_pxa_state poll #%d: "
+                    "actor=%r case=%r pxa=%r expected=%r",
+                    poll_count,
+                    actor_id,
+                    case_id,
+                    pxa,
+                    expected_states,
+                )
+                if pxa in expected_states:
+                    return
+        time.sleep(poll_interval)
+
+    participant = _fetch_participant(client, case_id, actor_id)
+    latest = (
+        participant.participant_status if participant is not None else None
+    )
+    cs = getattr(latest, "case_status", None) if latest is not None else None
+    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    raise AssertionError(
+        f"Timed out waiting for actor '{actor_id}' pxa_state to be in "
+        f"{expected_states!r}; current={pxa!r}"
+        f" (polled {client.base_url})"
+    )
