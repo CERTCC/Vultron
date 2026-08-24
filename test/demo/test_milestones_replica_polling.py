@@ -83,14 +83,29 @@ def _receiver_client() -> MagicMock:
     return client
 
 
+def _real_dl_path(base_url: str, actor_id: str, key: str = "") -> str:
+    """Build a DataLayer path with the *real* client, for use by stubs.
+
+    Stubs below delegate here rather than hard-coding ``/datalayer/...``: a stub
+    that spells the path itself keeps answering after the production path changes
+    shape, which is how these stubs survived the move to
+    ``/actors/{segment}/datalayer/`` unnoticed.
+
+    Delegation rather than borrowing ``DataLayerClient.dl_path`` as an unbound
+    method — which is what these stubs used to do. That passed a non-client
+    ``self`` to a method annotated for ``DataLayerClient``, which mypy rejects
+    when run over ``test/`` as CI does. The anti-drift property is the same,
+    because the real implementation is still what computes the path.
+    """
+    return DataLayerClient(base_url=base_url, actor_id=actor_id).dl_path(key)
+
+
 class _LateReporterClient:
     """Reporter client whose replica appears only after *delay* GET calls."""
 
-    #: Borrowed from the real client so the stub cannot drift from the path the
-    #: helpers actually request.  A stub that hard-codes ``/datalayer/...`` keeps
-    #: answering after the production path changes shape, which is how these
-    #: stubs survived the move to ``/actors/{segment}/datalayer/`` unnoticed.
-    dl_path = DataLayerClient.dl_path
+    def dl_path(self, key: str = "") -> str:
+        """Delegate to the real client; see :func:`_real_dl_path`."""
+        return _real_dl_path(self.base_url, self.actor_id, key)
 
     def __init__(self, delay: int) -> None:
         self.base_url = "http://finder:7999/api/v2"
@@ -244,7 +259,9 @@ class TestIsOwnershipTransferOfferFor:
 class _LateOTOfferClient:
     """Coordinator client where the forwarded Offer appears only after *delay* GET calls."""
 
-    dl_path = DataLayerClient.dl_path
+    def dl_path(self, key: str = "") -> str:
+        """Delegate to the real client; see :func:`_real_dl_path`."""
+        return _real_dl_path(self.base_url, self.actor_id, key)
 
     def __init__(self, delay: int) -> None:
         self.base_url = "http://coordinator:7999/api/v2"

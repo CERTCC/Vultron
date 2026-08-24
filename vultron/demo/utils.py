@@ -746,6 +746,20 @@ def case_actor_id_for_report(report_id: str) -> str:
     )
 
 
+def _is_same_node(base_url: str, actor_id: str) -> bool:
+    """True when *actor_id* is served by the node at *base_url*.
+
+    Compared on scheme+host+port, because that is what decides whether a
+    ``POST /actors/`` reaches the container that would host the actor. The path
+    prefix is deliberately ignored: it varies (``/api/v2``) without changing which
+    process answers.
+    """
+    from urllib.parse import urlsplit
+
+    a, b = urlsplit(base_url), urlsplit(actor_id)
+    return (a.scheme, a.netloc) == (b.scheme, b.netloc)
+
+
 def seed_case_actor_for_report(
     client: DataLayerClient, report_id: str
 ) -> as_Actor:
@@ -781,6 +795,25 @@ def seed_case_actor_for_report(
         The created (or pre-existing) CaseActor as an ``as_Actor``.
     """
     case_actor_id = case_actor_id_for_report(report_id)
+
+    # Co-located only. ``POST /actors/`` recomputes the canonical URI from the
+    # *serving* node's base URL (ADR-0072 — which is why only the short segment
+    # travels), so posting a remote CaseActor's id here does not provision that
+    # container: it fabricates a local actor under the same slug. In the Docker
+    # topology that produced a spurious ``http://vendor:7999/api/v2/actors/
+    # case-actor`` alongside the real ``http://case-actor:7999/...`` one.
+    #
+    # A container hosting its own CaseActor provisions it from its own seed
+    # config (``docker/seed-configs/seed-case-actor.yaml``), which is exactly
+    # what a *stable* identity makes possible and a per-case one did not (#1872).
+    if not _is_same_node(client.base_url, case_actor_id):
+        logger.info(
+            "CaseActor %s is hosted elsewhere; leaving provisioning to that"
+            " container's own seed config",
+            case_actor_id,
+        )
+        return as_Actor(id_=case_actor_id, name="CaseActor")
+
     actor = seed_actor(
         client=client,
         name=f"CaseActor for report {report_id}",
