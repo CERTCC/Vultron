@@ -757,8 +757,19 @@ def seed_case_actor_for_report(
     store, since the route opens the store the id names (ADR-0070).
 
     Spawning a CaseActor on demand for an unknown-in-advance case is a separate
-    protocol question (CP-08-003, #1700); this helper deliberately only does what
+    protocol question (CP-08-003, #1872); this helper deliberately only does what
     a demo can do — provision an actor whose id it can compute.
+
+    That is less than it sounds, and #1872 is why. In the reporter-client arm of
+    :func:`~vultron.demo.helpers.workflow.reporter_submits_report` the report id
+    is not knowable until the ``submit-report`` trigger returns, and that
+    trigger's own outbox drain has by then already delivered the ``Offer`` to the
+    receiver, whose ``ProposeReportCaseToActorNode`` derives this very id and
+    delivers a proposal to it — 404, because the provisioning below has not run
+    yet. A derived-but-unregistered identity cannot be provisioned in time by a
+    third party, because the sender computes it from data the receiver has not
+    seen. The fix is to stop deriving a per-case slug (#1872), not to provision
+    earlier.
 
     Returns:
         The created (or pre-existing) CaseActor as an ``as_Actor``.

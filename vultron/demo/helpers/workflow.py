@@ -69,6 +69,37 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 logger = logging.getLogger(__name__)
 
 
+def _provision_case_actor(receiver_client, report) -> None:
+    """Provision the CaseActor this report's proposal will be addressed to.
+
+    ``ProposeReportCaseToActorNode`` derives the CaseActor's URI from the report
+    and delivery is an ordinary HTTP POST to that actor's inbox (ADR-0042). The
+    inbox route resolves the actor from the store its URI names (ADR-0070), so
+    the CaseActor has to be a hosted actor *before* the proposal is delivered —
+    otherwise the POST answers 404 and the round-trip never starts.
+
+    Called from both arms of :func:`reporter_submits_report`. It used to sit only
+    in the ``reporter_client is None`` arm, so every scenario that passes a
+    reporter client — the FV demo among them — delivered the proposal to an actor
+    that did not exist. The visible symptom was two phases later and nowhere near
+    the cause: "Expected as_VulnerabilityCase to be created after
+    validate-report", then ``'NoneType' object has no attribute 'id_'``. Only the
+    router's own delivery warning named the 404, and it is a WARNING in a passing
+    step.
+
+    Both arms need it and neither can do it earlier: the report id is not known
+    until the offer exists.
+    """
+    report_id = getattr(report, "id_", None)
+    if not isinstance(report_id, str) or not report_id:
+        logger.warning(
+            "_provision_case_actor: report has no id; cannot derive the"
+            " CaseActor to provision, so its proposal will 404 on delivery"
+        )
+        return
+    seed_case_actor_for_report(receiver_client, report_id)
+
+
 def reporter_submits_report(
     receiver_client: DataLayerClient,
     reporter: as_Actor,
@@ -140,6 +171,7 @@ def reporter_submits_report(
         # it explicitly via inbox delivery so SubmitReportReceivedUseCase runs
         # and creates the case at RM.RECEIVED (ADR-0015).
         with demo_step("Deliver reporter's offer to receiver's inbox"):
+            _provision_case_actor(receiver_client, report)
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
     else:
         report = as_VulnerabilityReport(
@@ -160,10 +192,7 @@ def reporter_submits_report(
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
-            # Provision the CaseActor this report's proposal will be
-            # addressed to; its id is derived from the report and this
-            # node hosts it in single-container demo mode (#2469).
-            seed_case_actor_for_report(receiver_client, report.id_)
+            _provision_case_actor(receiver_client, report)
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
     # These checks name the receiver explicitly rather than relying on
     # `receiver_client`'s binding. The check text says whose replica it is about,
