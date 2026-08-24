@@ -105,6 +105,45 @@ groups:
       resource; it MUST NOT send a `CaseProposal` activity.
     rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal
       to be sent before the case-actor service is ready. See `notes/case-proposal.md` for the pitfall.
+  - id: CP-04-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `Create(as_CaseProposal)` MUST be addressed to the case-actor *container's* identity —
+      `{case_actor_service_url}/actors/case-actor` — and MUST NOT be addressed to an identity derived
+      per case or per report.
+    rationale: >-
+      A derived identity is unhostable by construction: the sender computes it, so no container has
+      registered it, and delivery answers a permanent 404 (ISSUE-1872). It also cannot be provisioned in
+      advance, because it is not computable until the report exists — by which time the proposal has
+      already been sent. A container identity comes from configuration and can be provisioned once, at
+      seed time. Nothing is lost: which case the proposal concerns is recoverable from its `report_id`,
+      and every later case-scoped message carries `activity.context`.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-04-001
+    - rel_type: refines
+      spec_id: BT-10-002
+    verification: >-
+      `test/core/behaviors/case/test_case_actor_identity.py`; `test/demo/test_fv_demo.py` exercises the
+      full round-trip with no stand-in, which is what a 404 here would break.
+  - id: CP-04-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Whatever provisions the case-actor's record MUST write it into the *case-actor's own* store, since
+      the inbox route resolves an actor from the store its URI names. A copy in the sending actor's store
+      does not make the case-actor addressable.
+    rationale: >-
+      Under per-actor storage isolation (ADR-0070) the two writes mean different things: one publishes an
+      endpoint, the other records knowledge of a peer. Writing only the second left the inbox answering
+      `404 Actor not found` (ISSUE-1872). Under the pre-ADR-0070 shared store they were
+      indistinguishable, which is why one write used to suffice.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-04-003
+    - rel_type: refines
+      spec_id: DL-07-001
 - id: CP-05
   title: Protocol Flow — Receiving (Case-Actor Side)
   specs:

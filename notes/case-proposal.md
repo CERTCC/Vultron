@@ -249,12 +249,43 @@ corresponding `MessageSemantics` value.
 
 **Source**: Issue #1633 (2026-07-23).
 
-`ResolveCaseActorUrlsNode` derives the CaseActor service identity
-by combining `case_actor_service_url` from `ActorConfig` with a
-per-case slug. The URL source MUST be `ActorConfig.case_actor_service_url`
+The CaseActor's identity is `{case_actor_service_url}/actors/case-actor` — one per
+container, with **no per-case slug**. `case_actor_identity()` in
+`vultron/core/behaviors/case/case_actor_identity.py` is the single place it is
+computed. The URL source MUST be `ActorConfig.case_actor_service_url`
 (`get_config().actor.case_actor_service_url`); it MUST NOT be derived from
 `server_base_url` on the blackboard (that would hard-wire a co-location
 assumption that breaks multi-container topologies).
+
+### Why there is no per-case slug (#1872)
+
+The identity used to be `.../actors/case-actor-{_derive_case_slug(report_id)}`,
+and that was unhostable by construction. The *sender* computed it, so no container
+had registered it, and `POST /actors/case-actor-<slug>/inbox/` answered a
+permanent **404** — the CaseProposal round-trip never began.
+
+Provisioning it in advance is impossible, not merely awkward. The slug depends on a
+report the receiver has not seen, so it is not computable until the reporter's
+`submit-report` trigger returns — and that trigger's own outbox drain has by then
+already delivered the `Offer`, the receiver has already proposed, and the 404 has
+already happened. Observed directly: the 404 logged *before* the provisioning
+intended to prevent it.
+
+A CaseActor is a participant wearing the `CVDRole.CASE_MANAGER` hat, not a per-case
+object. An actor participates in many cases, and which case a message concerns
+travels in `activity.context` — so the slug carried nothing the payload lacked.
+This also subsumes the eventual one-process-per-case direction: such a process gets
+its own first-class actor identity, not a slug suffix on somebody else's.
+
+Normative: CP-04-003, BT-10-002.
+
+### Being addressable also means writing to the right store
+
+A stable identity is necessary but not sufficient. `POST /actors/{slug}/inbox/`
+resolves the actor from the store that slug names (ADR-0070), so the record has to
+be in the **CaseActor's own** store. A copy in the sending actor's store is an
+address-book entry — knowledge of a peer — and publishes no endpoint. Writing only
+that one is the other half of the same 404. Normative: CP-04-004.
 
 In Docker Compose deployments, actors that create cases MUST supply:
 
@@ -272,25 +303,27 @@ through CP-08-003.
 The co-location assumption manifests as:
 
 ```python
-# WRONG — uses the running container's own base URL
+# WRONG — twice over: the container's own base URL, and a per-case slug
 server_base_url = _resolve_server_base_url(self.blackboard)
 case_actor_id = f"{server_base_url}/actors/case-actor-{case_slug}"
 ```
 
-This silently works in single-container demos but produces a mis-routed
-proposal in multi-container topologies (the Vendor proposes to itself
-instead of the dedicated CaseActor container). The fix:
+The base URL is wrong because it silently works in single-container demos and
+mis-routes in multi-container topologies (the Vendor proposes to itself). The slug
+is wrong because it is unhostable at all — see above. The fix:
 
 ```python
-# CORRECT — reads from explicit config
-from vultron.config import get_config
-cfg = get_config().actor
-if cfg.case_actor_service_url is None:
+# CORRECT — one helper, config-sourced, no slug
+from vultron.core.behaviors.case.case_actor_identity import case_actor_identity
+
+case_actor_id = case_actor_identity()
+if case_actor_id is None:
     self.logger.error("%s: case_actor_service_url not configured", self.name)
     return Status.FAILURE
-base_url = str(cfg.case_actor_service_url).rstrip("/")
-case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
 ```
+
+`case_actor_identity()` returns `None` rather than substituting a default, because
+a guessed base URL reproduces exactly the unresolvable-identity failure.
 
 ---
 

@@ -257,15 +257,59 @@ groups:
   - id: BT-10-002
     priority: MUST
     kind: protocol
-    statement: Case creation MUST create corresponding CaseActor (Service)
+    statement: >-
+      Case creation MUST establish a CaseActor for the case by recording a participant that holds
+      `CVDRole.CASE_MANAGER`. It MUST NOT require a per-case `Service` object, and MUST NOT mint a
+      per-case actor identity: the CaseActor's identity is its container's, and the case a message
+      concerns is carried by `activity.context`.
+    rationale: >-
+      The prior text — "Case creation MUST create corresponding CaseActor (Service)" — treated the
+      CaseActor as a distinct per-case *object*, and implementations followed it by deriving
+      `{case_actor_service_url}/actors/case-actor-{slug}` from the report or case id. That identity was
+      unhostable by construction: the *sender* computed it, so no container could have registered it,
+      and `POST /actors/case-actor-<slug>/inbox/` answered a permanent 404 (ISSUE-1872). Provisioning
+      could not rescue it either, because the slug is not computable until a report exists, by which
+      point the proposal has already been delivered.
+
+      An actor participates in many cases; the CaseActor is whichever participant the case owner
+      delegated `CVDRole.CASE_MANAGER` to. That is the role, not an entity, which is why the role is
+      the marker and a `Service` record is redundant with it. This also subsumes the eventual
+      one-process-per-case direction: such a process gets its own first-class actor identity rather
+      than a slug suffix on somebody else's.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-04-002
+    verification: >-
+      `test/core/behaviors/case/test_case_actor_identity.py` asserts the identity does not vary by
+      case and that the slugged form is rejected;
+      `test/core/behaviors/case/test_receive_report_case_tree.py` asserts
+      `trusted_case_creator_id` is the container identity and contains no slug.
+    adr:
+    - ADR-0041
   - id: BT-10-003
     priority: MUST
     kind: protocol
-    statement: CaseActor MUST manage case-related message processing
+    statement: >-
+      The actor holding `CVDRole.CASE_MANAGER` for a case MUST process that case's messages. "CaseActor"
+      names that role holder, not a separate component.
+    rationale: >-
+      Reworded with BT-10-002 to remove the entity-vs-role assumption: the prior "CaseActor MUST manage
+      case-related message processing" reads as an obligation on a distinct object, which is what led
+      implementations to mint one per case (ISSUE-1872).
+    relationships:
+    - rel_type: refines
+      spec_id: BT-10-002
   - id: BT-10-004
     priority: MUST
     kind: protocol
-    statement: CaseActor MUST enforce case-level authorization
+    statement: >-
+      The actor holding `CVDRole.CASE_MANAGER` for a case MUST enforce that case's authorization
+      decisions. Gates MUST test for the role rather than for a CaseActor object or a per-case actor
+      identity.
+    rationale: >-
+      Same entity-vs-role correction as BT-10-002 and BT-10-003. Testing for the role is also what makes
+      the gate work for a non-software case manager, which is the general case; `CheckIsCaseManagerNode`
+      already does this and needs no notion of a CaseActor entity.
     scope:
     - production
     relationships:
