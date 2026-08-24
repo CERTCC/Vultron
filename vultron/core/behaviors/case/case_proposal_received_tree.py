@@ -1011,7 +1011,9 @@ def _seed_participant_as_signatory(
     machine and ``ParticipantStatus.consent`` atomically. The idempotency
     guard (``!= PEC.SIGNATORY``) prevents double-transitions on retries.
     """
-    embargo_id = stored_case.active_embargo
+    # `active_embargo_id`, not the field: it may hold the whole EmbargoEvent
+    # when a received case carried one (AKM-03-001), and this list holds ids.
+    embargo_id = stored_case.active_embargo_id
     if participant.embargo_consent_state != PEC.SIGNATORY:
         participant.apply_pec_transition(PEC_Trigger.ACCEPT)
     if embargo_id and embargo_id not in participant.accepted_embargo_ids:

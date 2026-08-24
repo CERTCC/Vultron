@@ -847,7 +847,7 @@ class TestADR0041EmbargoInit:
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
 
-        embargo_id = case.active_embargo
+        embargo_id = case.active_embargo_id
         assert embargo_id is not None
         embargo_obj = dl.read(embargo_id)
         assert isinstance(

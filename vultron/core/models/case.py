@@ -28,6 +28,7 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,15 @@ class VulnerabilityCase(CoreObject):
     vulnerability_reports: list[str] = Field(default_factory=list)
     case_statuses: list[str | CaseStatus] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
-    active_embargo: str | None = None
+    # Admits the object, not only a reference, for the same reason
+    # `case_participants` does: a recipient cannot dereference a URI it does not
+    # hold, and no dereferencing mechanism is specified (AKM-03-001). While this
+    # was `str | None` the object could not survive `_normalize_to_core`, so
+    # every store round-trip — including the one `outbox_delivery` performs when
+    # it re-serialises a queued activity — reduced a carried embargo back to a
+    # bare id and the recipient was handed a reference it could never resolve.
+    # Readers wanting the id should use `_as_id`/`active_embargo_id`.
+    active_embargo: str | EmbargoEvent | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)
     pending_embargo_proposal_index: dict[str, str] = Field(
         default_factory=dict
@@ -256,14 +265,30 @@ class VulnerabilityCase(CoreObject):
             )
         self.case_statuses.append(status)
 
-    def set_embargo(self, embargo: str | None) -> None:
-        """Set the active embargo reference for this case.
+    def set_embargo(self, embargo: "str | EmbargoEvent | None") -> None:
+        """Set the active embargo for this case.
 
         Args:
-            embargo: Full URI of the active :class:`EmbargoEvent`, or
-                ``None`` to clear.
+            embargo: The active :class:`EmbargoEvent`, its full URI, or ``None``
+                to clear. The object form is accepted so a received case can keep
+                what the sender carried (AKM-03-001); see
+                :attr:`active_embargo`.
         """
         self.active_embargo = embargo
+
+    @property
+    def active_embargo_id(self) -> str | None:
+        """The active embargo's id, whichever shape the field holds.
+
+        Most callers want the id and should use this rather than assuming
+        ``active_embargo`` is a string — it may be the whole object when a
+        received case carried one.
+        """
+        if self.active_embargo is None:
+            return None
+        if isinstance(self.active_embargo, str):
+            return self.active_embargo or None
+        return getattr(self.active_embargo, "id_", None)
 
     def record_activity(self, activity_id: str) -> None:
         """Append an activity ID to the case activity log.
