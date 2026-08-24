@@ -35,13 +35,17 @@ Issue: #2238
 import ast
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]
-_SEARCH_ROOTS = (REPO_ROOT / "vultron", REPO_ROOT / "test")
+from test.architecture import _corpus
+
+_SEARCH_ROOTS = (
+    _corpus.REPO_ROOT / "vultron",
+    _corpus.REPO_ROOT / "test",
+)
 
 
 def _label(path: Path) -> str:
     try:
-        return path.relative_to(REPO_ROOT).as_posix()
+        return path.relative_to(_corpus.REPO_ROOT).as_posix()
     except ValueError:
         return str(path)
 
@@ -86,22 +90,23 @@ def _positional_args_to_outbox_handler(tree: ast.AST):
             yield node, node.args[1:]
 
 
-def _iter_sources():
+def _iter_trees():
+    """Yield (path, tree) for in-tree files that mention ``outbox_handler``.
+
+    The name is its own prefilter: a file that never spells ``outbox_handler``
+    cannot call it, so the shared corpus only parses the handful that do
+    (TB-13-001, TB-13-002).
+    """
     for root in _SEARCH_ROOTS:
-        for path in sorted(root.rglob("*.py")):
-            yield path
+        yield from _corpus.files_mentioning("outbox_handler", under=root)
 
 
 def test_outbox_handler_never_takes_a_positional_emitter():
     """No call site passes outbox_handler a third positional argument."""
     violations: list[str] = []
 
-    for path in _iter_sources():
+    for path, tree in _iter_trees():
         if path.resolve() == Path(__file__).resolve():
-            continue
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError:  # pragma: no cover - not expected in-tree
             continue
         for node, args in _positional_args_to_outbox_handler(tree):
             if len(args) > 2:
@@ -126,7 +131,7 @@ def test_ratchet_detects_a_positional_emitter():
     Without this, a change that broke ``_positional_args_to_outbox_handler``
     would make the ratchet above pass vacuously.
     """
-    regressed = ast.parse(
+    regressed = _corpus.parse_inline(
         "background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)\n"
         "outbox_handler(actor_id, actor_dl, shared_dl)\n"
     )
@@ -139,7 +144,7 @@ def test_ratchet_detects_a_positional_emitter():
 
 def test_ratchet_accepts_the_corrected_shapes():
     """Two-positional calls and keyword emitters do not trip the ratchet."""
-    ok = ast.parse(
+    ok = _corpus.parse_inline(
         "background_tasks.add_task(outbox_handler, actor_id, actor_dl)\n"
         "background_tasks.add_task("
         "    outbox_handler, actor_id, actor_dl, emitter=emitter)\n"

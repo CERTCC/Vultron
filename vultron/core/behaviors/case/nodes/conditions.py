@@ -28,17 +28,16 @@ making a runtime validation node unreachable and redundant.
 """
 
 import logging
-from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    DataLayerCondition,
     DataLayerConditionWithPorts,
 )
 from vultron.config.actor import ActorConfig
@@ -208,7 +207,7 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
             return Status.FAILURE
 
 
-class CheckIsCaseManagerNode(DataLayerCondition):
+class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     """Check whether the executing actor is the case's CASE_MANAGER.
 
     Reads ``case_id`` and ``actor_id`` from the blackboard, resolves the
@@ -223,11 +222,23 @@ class CheckIsCaseManagerNode(DataLayerCondition):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -235,10 +246,7 @@ class CheckIsCaseManagerNode(DataLayerCondition):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            case_id = self._case_id or self.blackboard.get("case_id")
-        except KeyError:
-            case_id = self._case_id
+        case_id = self._case_id or self._case_id_bb
 
         if not case_id:
             self.logger.debug(

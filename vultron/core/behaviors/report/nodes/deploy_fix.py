@@ -28,22 +28,16 @@ Six nodes implement the ``DeployFixBT`` guard/action logic:
 ``CheckRMStateAccepted`` is reused from
 ``vultron.core.behaviors.report.nodes.develop_fix`` (AC-3).
 
-References
-----------
-- Issue: #1825
-- Source Idea: #1248
-- Concern: #1813 (Phase 1 stub missing guard nodes)
-- Spec: ``specs/behavior-tree-integration.yaml`` BT-06-001, BT-18-004
-- ADR-0021 CLP-10-001: fix-deployment activities route to the Case Actor
-- ADR-0025: factory injection seam
-- Notes: ``notes/bt-fuzzer-rm-fix.md``
+References: Issue #1825; Source #1248; Concern #1813.
+Spec BT-06-001, BT-18-004; ADR-0021 CLP-10-001 (CD via Case Actor); ADR-0025.
+Notes: ``notes/bt-fuzzer-rm-fix.md``.
 """
 
 import logging
 from typing import cast
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_case_manager_id,
@@ -51,7 +45,6 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    DataLayerCondition,
     DataLayerConditionWithPorts,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -65,9 +58,6 @@ from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
 
-# Blackboard key written by NewDeploymentInfoSentinel (FUZZ-08f). When present
-# and truthy, the deployer re-evaluates rather than staying deferred.
-# When absent, CheckNoNewDeploymentInfoNode defaults to SUCCESS (no new info).
 NEW_DEPLOYMENT_INFO_KEY = "new_deployment_info"
 
 
@@ -287,7 +277,7 @@ class RMinStateDeferred(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class CheckNoNewDeploymentInfoNode(DataLayerCondition):
+class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
     """ProtocolInternal condition: no new deployment info has arrived.
 
     Reads the blackboard flag ``new_deployment_info`` written by the upstream
@@ -308,17 +298,27 @@ class CheckNoNewDeploymentInfoNode(DataLayerCondition):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key=NEW_DEPLOYMENT_INFO_KEY, access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports[NEW_DEPLOYMENT_INFO_KEY] = PortInformation(
+            data_type=object, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {NEW_DEPLOYMENT_INFO_KEY: f"/{NEW_DEPLOYMENT_INFO_KEY}"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._new_deployment_info = self.get_input(NEW_DEPLOYMENT_INFO_KEY)
+        except (NoDataAvailable, NotImplementedError):
+            self._new_deployment_info = None
 
     def update(self) -> Status:
-        try:
-            new_info = self.blackboard.get(NEW_DEPLOYMENT_INFO_KEY)
-        except KeyError:
-            new_info = None
+        new_info = self._new_deployment_info
 
         if new_info:
             self.feedback_message = (

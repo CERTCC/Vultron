@@ -6,7 +6,7 @@ with the matching `signal:` tag is required (BW-07-001, BW-07-002).
 
 | Signal type | Question to ask |
 |---|---|
-| `spec-gap` | Was any behaviour implemented or fixed that has no existing spec entry? |
+| `spec-gap` | Was any behaviour implemented or fixed that has no existing spec entry? Only externally-observable or protocol-visible behaviour qualifies — file locations, naming conventions, and agent guidance do not qualify (those go to AGENTS.md instead). |
 | `spec-ambiguity` | Was any requirement unclear? What interpretation was made? |
 | `spec-contradiction` | Did two requirements appear to conflict? |
 | `design-question` | Was an architectural decision made beyond what the issue specified? |

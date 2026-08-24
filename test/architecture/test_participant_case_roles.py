@@ -1,10 +1,11 @@
 """Architecture tests: case_roles access discipline in core (PRM-05-004, PRM-01-003)."""
 
 import re
-from pathlib import Path
+
+from test.architecture import _corpus
 
 # vultron/core/ root
-_CORE_ROOT = Path(__file__).parents[2] / "vultron" / "core"
+_CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
 # The modules that are permitted to access case_roles directly
 _ALLOWED_MODULES = frozenset(
     [
@@ -30,11 +31,12 @@ def test_no_direct_case_roles_mutation_in_core():
     NOT flagged by this test because it lacks the leading dot.
     """
     violations: list[str] = []
-    for py_file in sorted(_CORE_ROOT.rglob("*.py")):
+    for py_file, source in _corpus.sources_mentioning(
+        ".case_roles", under=_CORE_ROOT
+    ):
         if py_file in _ALLOWED_MODULES:
             continue
-        text = py_file.read_text()
-        for lineno, line in enumerate(text.splitlines(), 1):
+        for lineno, line in enumerate(source.splitlines(), 1):
             if _MUTATION_RE.search(line):
                 violations.append(
                     f"{py_file.relative_to(_CORE_ROOT)}:{lineno}: {line.strip()}"
@@ -53,11 +55,12 @@ def test_no_getattr_case_roles_read_in_core():
     NOT flagged because it lacks the leading ``getattr(`` wrapper.
     """
     violations: list[str] = []
-    for py_file in sorted(_CORE_ROOT.rglob("*.py")):
+    for py_file, source in _corpus.sources_mentioning(
+        ".case_roles", under=_CORE_ROOT
+    ):
         if py_file in _ALLOWED_MODULES:
             continue
-        text = py_file.read_text()
-        for lineno, line in enumerate(text.splitlines(), 1):
+        for lineno, line in enumerate(source.splitlines(), 1):
             if _GETATTR_READ_RE.search(line):
                 violations.append(
                     f"{py_file.relative_to(_CORE_ROOT)}:{lineno}: {line.strip()}"

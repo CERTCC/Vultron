@@ -39,26 +39,21 @@ fixed.  When the set is empty the boundary is completely clean.
 """
 
 import ast
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
 _WIRE_MODULE = "vultron.wire"
 
-_CORE_ROOT = REPO_ROOT / "vultron" / "core"
+_CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
 
 
-def _imports_from_wire(source_path: Path) -> bool:
-    """Return True if *source_path* contains any import from vultron.wire.
+def _imports_from_wire(tree: ast.AST) -> bool:
+    """Return True if *tree* contains any import from vultron.wire.
 
     Detects both top-level and deferred (local) imports, catching violations
     like ``from vultron.wire.as2.factories import ...`` placed inside a
     function body.
     """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -76,11 +71,11 @@ def _imports_from_wire(source_path: Path) -> bool:
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of core files that import from wire."""
     violations: set[str] = set()
-    for py_file in _CORE_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        if _imports_from_wire(py_file):
-            violations.add(py_file.relative_to(REPO_ROOT).as_posix())
+    for py_file, tree in _corpus.files_mentioning(
+        _WIRE_MODULE, under=_CORE_ROOT
+    ):
+        if _imports_from_wire(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
     return frozenset(violations)
 
 

@@ -17,11 +17,11 @@
 import logging
 from typing import cast
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -38,7 +38,7 @@ from vultron.errors import VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-class EmitAddCaseParticipantNode(DataLayerAction):
+class EmitAddCaseParticipantNode(DataLayerActionWithPorts):
     """Emit Add(CaseParticipant, Case) and commit a canonical ledger entry.
 
     Called by the CaseActor after persisting the new invitee participant
@@ -65,23 +65,44 @@ class EmitAddCaseParticipantNode(DataLayerAction):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="new_invite_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["new_invite_participant"] = PortInformation(
+            data_type=object, required=False
         )
-        self.blackboard.register_key(
-            key="invitee_already_participant",
-            access=py_trees.common.Access.READ,
+        ports["invitee_already_participant"] = PortInformation(
+            data_type=bool, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "new_invite_participant": "/new_invite_participant",
+            "invitee_already_participant": "/invitee_already_participant",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._new_invite_participant_bb = None
+        self._invitee_already_participant_bb = None
+        try:
+            self._new_invite_participant_bb = self.get_input(
+                "new_invite_participant"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            pass
+        try:
+            self._invitee_already_participant_bb = self.get_input(
+                "invitee_already_participant"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _is_already_done(self) -> bool:
         """Return True if invitee was already a participant (idempotency skip)."""
-        try:
-            return bool(self.blackboard.get("invitee_already_participant"))
-        except KeyError:
-            return False
+        return bool(self._invitee_already_participant_bb)
 
     def _resolve_actor_recipients(self) -> list[str]:
         """Return HTTP actor URLs for all existing participants, excluding the new invitee.
@@ -146,7 +167,7 @@ class EmitAddCaseParticipantNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        participant = self.blackboard.get("new_invite_participant")
+        participant = self._new_invite_participant_bb
         if not isinstance(participant, (CaseParticipant, VultronParticipant)):
             self.logger.error(
                 "%s: new_invite_participant not available", self.name

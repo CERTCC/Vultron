@@ -40,30 +40,30 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).parents[2]
-_SCENARIO_DIR = REPO_ROOT / "vultron" / "demo" / "scenario"
+from test.architecture import _corpus
+
+_SCENARIO_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "scenario"
 
 #: A target name containing any of these is a CaseActor client: a client whose
 #: reads are about the ``case-actor`` actor a dedicated container hosts.
 _CASE_ACTOR_NAME_HINTS = ("case_actor_client", "caseactor_client")
 
+#: Scenario ASTs from the shared corpus, keyed by path (TB-13-003).  Built at
+#: import time so ``parametrize`` can enumerate the scenarios by name.
+_SCENARIO_TREES = {
+    path: tree
+    for path, tree in _corpus.all_trees(under=_SCENARIO_DIR)
+    if path.name != "__init__.py"
+}
 
-def _scenario_files() -> list[Path]:
-    return sorted(
-        p
-        for p in _SCENARIO_DIR.glob("*.py")
-        if p.name != "__init__.py" and "__pycache__" not in p.parts
-    )
 
-
-def _unbound_case_actor_clients(source_path: Path) -> list[str]:
+def _unbound_case_actor_clients(tree: ast.AST) -> list[str]:
     """Return ``name`` for each unbound CaseActor ``DataLayerClient`` assignment.
 
     "Unbound" means the constructor call passes no ``actor_id`` keyword.  Only
     direct ``DataLayerClient(...)`` calls are inspected; a scenario that routes
     construction through a helper is that helper's problem, and none do today.
     """
-    tree = ast.parse(source_path.read_text(encoding="utf-8"))
     unbound: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assign):
@@ -90,12 +90,14 @@ def _unbound_case_actor_clients(source_path: Path) -> list[str]:
     return unbound
 
 
-@pytest.mark.parametrize("scenario", _scenario_files(), ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "scenario", sorted(_SCENARIO_TREES), ids=lambda p: p.name
+)
 def test_case_actor_client_is_constructed_with_an_actor_id(scenario: Path):
     """Every CaseActor ``DataLayerClient`` must be given an ``actor_id``."""
-    unbound = _unbound_case_actor_clients(scenario)
+    unbound = _unbound_case_actor_clients(_SCENARIO_TREES[scenario])
     assert not unbound, (
-        f"{scenario.relative_to(REPO_ROOT)} constructs {unbound} without"
+        f"{scenario.relative_to(_corpus.REPO_ROOT)} constructs {unbound} without"
         " actor_id. A /datalayer/ read names an actor (ADR-0072), so"
         " dl_path() raises ValueError on the first verification step that"
         " inspects the CaseActor's replica. Pass"
@@ -109,16 +111,11 @@ def test_the_check_can_actually_fail():
     A source-reading ratchet that silently matches nothing is worse than no
     ratchet, because it reports success.
     """
-    import tempfile
-
-    sample = (
+    sample = _corpus.parse_inline(
         "from vultron.demo.utils import DataLayerClient\n"
         "case_actor_client = DataLayerClient(base_url=ca_url)\n"
     )
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "sample_demo.py"
-        path.write_text(sample)
-        assert _unbound_case_actor_clients(path) == ["case_actor_client"]
+    assert _unbound_case_actor_clients(sample) == ["case_actor_client"]
 
 
 def test_dl_path_raises_when_the_client_is_unbound():

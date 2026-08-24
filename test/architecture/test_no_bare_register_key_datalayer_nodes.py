@@ -31,8 +31,9 @@ Closes #1887 AC-1.
 """
 
 import ast
-import pathlib
 from collections import Counter
+
+from test.architecture import _corpus
 
 # ---------------------------------------------------------------------------
 # Audited baseline — (path_relative_to_behaviors_root, class_name)
@@ -42,124 +43,22 @@ from collections import Counter
 # the migration backlog.  Do NOT add new entries; migrate instead.
 # To retire an entry, replace register_key() with typed Ports and remove it.
 # ---------------------------------------------------------------------------
-AUDITED_SITES: list[tuple[str, str]] = sorted(
-    [
-        (
-            "case/case_proposal_received_tree.py",
-            "_AddCaseActorParticipantNode",
-        ),
-        ("case/case_proposal_received_tree.py", "_AddReporterParticipantNode"),
-        (
-            "case/case_proposal_received_tree.py",
-            "_AddVendorOwnerParticipantNode",
-        ),
-        (
-            "case/case_proposal_received_tree.py",
-            "_CommitNativeLedgerEntriesNode",
-        ),
-        ("case/case_proposal_received_tree.py", "_SeedReporterSignatoryNode"),
-        (
-            "case/case_proposal_received_tree.py",
-            "_SeedVendorOwnerSignatoryNode",
-        ),
-        ("case/case_proposal_received_tree.py", "_WriteCreateCaseMarkerNode"),
-        ("case/nodes/accept_invite.py", "EmitAddCaseParticipantNode"),
-        ("case/nodes/actor.py", "EmitInviteActorToCaseNode"),
-        ("case/nodes/actor.py", "ProposeCaseToActorNode"),
-        ("case/nodes/conditions.py", "CheckIsCaseManagerNode"),
-        ("case/nodes/lifecycle.py", "CommitCaseLedgerEntryNode"),
-        ("case/nodes/participant/owner.py", "AdvanceOwnerRmToAcceptedNode"),
-        (
-            "case/nodes/participant/owner.py",
-            "AttachOwnerParticipantToCaseNode",
-        ),
-        ("case/nodes/participant/owner.py", "CreateOwnerParticipantNode"),
-        ("case/nodes/participant/owner.py", "PersistOwnerCaseNode"),
-        ("case/nodes/participant/owner.py", "RecordOwnerJoinedEventNode"),
-        ("case/nodes/participant/owner.py", "ResolveOwnerInitialStatusNode"),
-        (
-            "case/nodes/participant/participant_add.py",
-            "AttachParticipantToCaseNode",
-        ),
-        (
-            "case/nodes/participant/participant_add.py",
-            "CaseHasActiveEmbargoNode",
-        ),
-        (
-            "case/nodes/participant/participant_add.py",
-            "CaseHasNoActiveEmbargoNode",
-        ),
-        ("case/nodes/participant/participant_add.py", "CreateParticipantNode"),
-        (
-            "case/nodes/participant/participant_add.py",
-            "QueueAddParticipantNotificationNode",
-        ),
-        (
-            "case/nodes/participant/participant_add.py",
-            "RecordParticipantAddedEventNode",
-        ),
-        (
-            "case/nodes/participant/participant_add.py",
-            "ResolveParticipantAcceptedStatusNode",
-        ),
-        (
-            "case/nodes/participant/participant_add.py",
-            "SeedParticipantAsSignatoryNode",
-        ),
-        (
-            "case/nodes/suggest_actor/emit.py",
-            "EmitOfferCaseParticipantToOwnerNode",
-        ),
-        ("case/nodes/vfd_role_guards.py", "CheckIsCaseOwnerNode"),
-        ("embargo/nodes/proposal.py", "CreateAndStoreInviteNode"),
-        ("embargo/nodes/proposal.py", "RemoveStaleAcceptanceNode"),
-        ("embargo/nodes/proposal.py", "UpdateParticipantEmbargoPecNode"),
-        ("helpers.py", "FindParticipantByActorIdNode"),
-        ("helpers.py", "ReadObject"),
-        ("helpers.py", "UpdateActorOutbox"),
-        ("helpers.py", "UpdateObject"),
-        ("report/nodes/deploy_fix.py", "CheckNoNewDeploymentInfoNode"),
-        (
-            "status/nodes/append/conditions.py",
-            "CheckStatusNotAlreadyAppendedNode",
-        ),
-        ("sync/nodes/_helpers.py", "_LedgerEffectNode"),
-        ("sync/nodes/conditions.py", "CheckIsNotOwnCaseActorNode"),
-        ("sync/nodes/conditions.py", "CheckLedgerEntryAlreadyStoredNode"),
-        ("sync/nodes/conditions.py", "CheckLedgerFreshnessNode"),
-        ("sync/nodes/conditions.py", "VerifySenderIsOwnIdNode"),
-        ("sync/nodes/event_conditions.py", "IsAddNoteEventNode"),
-        ("sync/nodes/event_conditions.py", "IsCloseCaseEventNode"),
-        ("sync/nodes/event_conditions.py", "IsInviteAcceptEventNode"),
-        ("sync/nodes/event_conditions.py", "IsOwnershipTransferEventNode"),
-        ("sync/nodes/event_conditions.py", "IsParticipantStatusEventNode"),
-        ("sync/nodes/event_conditions.py", "IsRemoveEmbargoEventNode"),
-        ("sync/nodes/event_conditions.py", "IsSubmitReportEventNode"),
-        (
-            "sync/nodes/offer_report_effect.py",
-            "ApplyOfferReportFromLedgerNode",
-        ),
-        (
-            "sync/nodes/ownership_effects.py",
-            "ApplyOwnershipTransferFromLedgerNode",
-        ),
-    ]
-)
+AUDITED_SITES: list[tuple[str, str]] = sorted([])
+
+_BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
 
 def _collect_sites() -> list[tuple[str, str]]:  # noqa: C901
     """Return sorted (rel_path, class_name) for non-WithPorts DataLayer*
     subclasses whose setup() method calls register_key()."""
     non_ports_bases = {"DataLayerAction", "DataLayerCondition"}
-    root = pathlib.Path("vultron/core/behaviors")
     found: list[tuple[str, str]] = []
-    for path in sorted(root.rglob("*.py")):
-        if "__pycache__" in path.parts:
-            continue
-        try:
-            tree = ast.parse(path.read_text(), filename=str(path))
-        except SyntaxError:  # pragma: no cover
-            continue
+    for path, tree in _corpus.files_mentioning(
+        "register_key",
+        "DataLayerAction",
+        "DataLayerCondition",
+        under=_BEHAVIORS_ROOT,
+    ):
         for cls_node in ast.walk(tree):
             if not isinstance(cls_node, ast.ClassDef):
                 continue
@@ -191,7 +90,7 @@ def _collect_sites() -> list[tuple[str, str]]:  # noqa: C901
                 if has_register_key:
                     break
             if has_register_key:
-                rel = str(path.relative_to(root)).replace("\\", "/")
+                rel = str(path.relative_to(_BEHAVIORS_ROOT)).replace("\\", "/")
                 found.append((rel, cls_node.name))
     return sorted(found)
 

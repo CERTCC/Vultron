@@ -131,8 +131,10 @@ open GitHub Concern issues.
 frontmatter carry higher-urgency signals and MUST be addressed before general
 pattern promotion. Process in this order:
 
-1. `signal: spec-gap` — behaviour in code with no spec entry. Write the missing
-   spec requirement.
+1. `signal: spec-gap` — behaviour in code with no spec entry. Before writing,
+   ask: **Would a participant running a different implementation of the protocol
+   notice if this requirement were violated?** If no → route to AGENTS.md, not
+   specs/. If yes → write the missing spec requirement.
 2. `signal: spec-contradiction` — two requirements that conflict. Resolve the
    conflict and update both affected spec entries.
 3. `signal: spec-ambiguity` — requirement was unclear; an interpretation was made

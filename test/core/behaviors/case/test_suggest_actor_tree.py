@@ -307,13 +307,14 @@ class TestEmitOfferCaseParticipantToOwnerNodeEmptyRoles:
         writer.actor_id = _ACTOR_ID
         writer.trigger_activity_factory = factory
         node.setup()
-        node.initialise()
         # Simulate a pathological writer that bypasses EvaluateDefaultRolesNode's
         # non-empty invariant by writing [] to the namespaced blackboard key.
+        # Must be written before initialise() so the ports cache sees the value.
         id_segment = _REC_ID.split("/")[-1]
         py_trees.blackboard.Blackboard.storage[
             f"/suggested_roles_{id_segment}"
         ] = []
+        node.initialise()
         return node, factory
 
     def setup_method(self):
@@ -367,10 +368,11 @@ class TestEmitInviteActorToCaseNodeEmptyRoles:
         writer.actor_id = _ACTOR_ID
         writer.trigger_activity_factory = factory
         node.setup()
-        node.initialise()
         # Write empty roles list to simulate a caller passing roles=[] via
         # InviteActorToCaseTriggerRequest.roles=[] → kwargs["suggested_roles"]=[]
+        # Must be written before initialise() so the ports cache sees the value.
         py_trees.blackboard.Blackboard.storage["/suggested_roles"] = []
+        node.initialise()
         return node, factory
 
     def setup_method(self):

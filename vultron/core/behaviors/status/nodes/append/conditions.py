@@ -30,11 +30,10 @@ re-exported here for backward-compatibility.
 import logging
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models._helpers import _as_id
 from vultron.core.behaviors.status.nodes.rm_validation import (
     CheckParticipantRMNotClosedNode,
@@ -121,7 +120,7 @@ class SkipIfIdempotentNode(BehaviourWithPorts):
         return Status.FAILURE
 
 
-class CheckStatusNotAlreadyAppendedNode(DataLayerCondition):
+class CheckStatusNotAlreadyAppendedNode(DataLayerConditionWithPorts):
     """Check idempotency: is the status already appended to the participant?
 
     Returns SUCCESS if the status is NOT already on the participant
@@ -139,15 +138,28 @@ class CheckStatusNotAlreadyAppendedNode(DataLayerCondition):
         self.status_id = status_id
         self.participant_id = participant_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="append_status_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["append_status_participant"] = PortInformation(
+            data_type=object, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"append_status_participant": "/append_status_participant"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._participant = None
+        try:
+            self._participant = self.get_input("append_status_participant")
+        except (NoDataAvailable, NotImplementedError):
+            self._participant = None
 
     def update(self) -> Status:
-        participant = self.blackboard.get("append_status_participant")
+        participant = self._participant
         if participant is None:
             self.feedback_message = "Participant not on blackboard"
             self.logger.warning(

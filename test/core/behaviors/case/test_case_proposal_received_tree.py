@@ -1547,12 +1547,7 @@ class TestADR0041GenesisCommitFailure:
         )
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
-
-        class _BB:
-            def get(self, _key):
-                return "urn:uuid:does-not-exist"
-
-        node.blackboard = _BB()  # type: ignore[assignment]
+        node._case_id_bb = "urn:uuid:does-not-exist"
 
         assert node.update() == Status.SUCCESS, (
             "case-not-found must be best-effort SUCCESS (the ledger is an"

@@ -25,6 +25,8 @@ from vultron.metadata.specs.schema import (
     AdrStatus,
     BehavioralSpec,
     LintWarningCode,
+    RFC2119Priority,
+    StatementSpec,
     TriggerType,
 )
 
@@ -114,6 +116,13 @@ _SPEC_PATH_RE = re.compile(
     r"`([A-Za-z0-9_./-]+/[A-Za-z0-9_.-]+\.(?:py|ya?ml|md|json|toml))`"
 )
 
+#: MS-15: a backticked token that looks like a repo-relative directory path
+#: (two or more path segments with a trailing slash).  Single-segment forms
+#: (e.g. ``devlogs/``) are excluded because they are frequently conceptual or
+#: context-specific (CI runner refs, runtime output dirs) and carry high
+#: false-positive risk.
+_SPEC_DIR_RE = re.compile(r"`((?:[A-Za-z0-9_.][A-Za-z0-9_.-]*/){2,})`")
+
 #: Placeholder tokens that name a *shape* of path rather than a real one
 #: (e.g. `test_XXX_invariants.py`, `plan/history/YYMM/README.md`,
 #: `docs/adr/ADR-XXXX-foo.md`). Uppercase by convention, so a collision with a
@@ -174,7 +183,7 @@ _IGNORED_TREE_DIRS = frozenset(
 
 
 def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
-    """Hard error when a spec ``statement`` or ``verification`` names a file that does not exist (MS-15-001).
+    """Hard error when a spec field names a file or directory that does not exist (MS-15-001).
 
     A normative statement or verification criterion that points at a
     non-existent path is a stale-premise landmine: an agent reads the MUST,
@@ -183,11 +192,18 @@ def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
     DEMOMA-19-008 (issue #2004) named a ``test/ci/invariants/conftest.py`` that
     had never existed on any branch.
 
-    Both ``statement`` and ``verification`` are scanned — ``verification``
-    names live test infrastructure and must refer to real paths.
+    Scanned fields: ``statement``, ``verification``, ``BehavioralSpec`` step
+    ``action``, precondition ``description``, and postcondition ``description``.
     ``rationale`` narrates history by design
     ("X has been converted to Y", "if X stays in Z...") and legitimately
     references paths that no longer exist.
+
+    File references (backticked path with extension and ``/`` separator) use
+    :data:`_SPEC_PATH_RE`.  Directory references (two or more path segments
+    with a trailing ``/``) use :data:`_SPEC_DIR_RE`.  Single-segment directory
+    forms (e.g. ``devlogs/``) are excluded from the directory check because
+    they are frequently conceptual or CI-context references with high
+    false-positive risk.
 
     A match whose first segment is a known top-level directory
     (:data:`_REPO_TOP_LEVEL_DIRS`) is resolved repo-relatively. Any other match
@@ -215,15 +231,43 @@ def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
     for spec_id, spec in registry.all_specs.items():
         if LintWarningCode.PHANTOM_PATH_REF in set(spec.lint_suppress or []):
             continue
-        for match in _SPEC_PATH_RE.findall(spec.statement or ""):
-            problem = resolver.problem_with(match)
-            if problem is not None:
-                errors.append(f"{spec_id}: statement references {problem}")
-        for match in _SPEC_PATH_RE.findall(spec.verification or ""):
-            problem = resolver.problem_with(match)
-            if problem is not None:
-                errors.append(f"{spec_id}: verification references {problem}")
+        for field_label, text in _scanned_texts(spec):
+            for match in _SPEC_PATH_RE.findall(text):
+                problem = resolver.problem_with(match)
+                if problem is not None:
+                    errors.append(
+                        f"{spec_id}: {field_label} references {problem}"
+                    )
+            for match in _SPEC_DIR_RE.findall(text):
+                problem = resolver.problem_with_dir(match)
+                if problem is not None:
+                    errors.append(
+                        f"{spec_id}: {field_label} references {problem}"
+                    )
+
     return errors
+
+
+def _scanned_texts(
+    spec: BehavioralSpec | StatementSpec,
+) -> list[tuple[str, str]]:
+    """Return ``(field_label, text)`` pairs for all fields scanned by MS-15-001.
+
+    ``rationale`` is deliberately excluded — it narrates history and may
+    legitimately cite paths that no longer exist.
+    """
+    texts: list[tuple[str, str]] = [
+        ("statement", spec.statement or ""),
+        ("verification", spec.verification or ""),
+    ]
+    if isinstance(spec, BehavioralSpec):
+        for step in spec.steps or []:
+            texts.append(("behavioral step", step.action))
+        for pre in spec.preconditions or []:
+            texts.append(("precondition", pre.description))
+        for post in spec.postconditions or []:
+            texts.append(("postcondition", post.description))
+    return texts
 
 
 class _PathResolver:
@@ -236,6 +280,7 @@ class _PathResolver:
     def __init__(self, repo_root: Path) -> None:
         self._repo_root = repo_root
         self._tree_paths: set[str] | None = None
+        self._tree_dirs: set[str] | None = None
 
     def problem_with(self, match: str) -> str | None:
         """Return an error fragment for ``match``, or ``None`` if it resolves."""
@@ -271,6 +316,42 @@ class _PathResolver:
             f"lint_suppress: [phantom_path_ref]."
         )
 
+    def problem_with_dir(self, match: str) -> str | None:
+        """Return an error fragment for directory ``match``, or ``None`` if it resolves.
+
+        ``match`` is expected to have a trailing ``/`` as captured by
+        :data:`_SPEC_DIR_RE`.
+        """
+        path = match.rstrip("/")
+        segments = path.split("/")
+
+        if ".." in segments:
+            return (
+                f"'{match}', which is not a valid repo-relative path "
+                f"(MS-15-001). '..' segments are not permitted."
+            )
+
+        if _PATH_PLACEHOLDER_RE.search(match):
+            return None
+
+        if segments[0] in _REPO_TOP_LEVEL_DIRS:
+            if (self._repo_root / path).is_dir():
+                return None
+            hint = "Point at the real path"
+        else:
+            if self._resolves_as_dir_suffix(path):
+                return None
+            hint = (
+                "Point at the real path (this is not a repo-relative "
+                "directory, and no directory in the tree ends with it)"
+            )
+
+        return (
+            f"'{match}' which does not exist (MS-15-001). {hint}, or — if "
+            f"the directory is intentionally yet to be created — suppress "
+            f"with lint_suppress: [phantom_path_ref]."
+        )
+
     def _resolves_as_suffix(self, match: str) -> bool:
         """True when some file in the tree has ``match`` as a path suffix."""
         if self._tree_paths is None:
@@ -278,6 +359,15 @@ class _PathResolver:
         suffix = "/" + match
         return match in self._tree_paths or any(
             p.endswith(suffix) for p in self._tree_paths
+        )
+
+    def _resolves_as_dir_suffix(self, path: str) -> bool:
+        """True when some directory in the tree has ``path`` as a path suffix."""
+        if self._tree_dirs is None:
+            self._tree_dirs = _collect_tree_dirs(self._repo_root)
+        suffix = "/" + path
+        return path in self._tree_dirs or any(
+            d.endswith(suffix) for d in self._tree_dirs
         )
 
 
@@ -302,6 +392,23 @@ def _collect_tree_paths(repo_root: Path) -> set[str]:
         for name in filenames:
             paths.add(prefix + name)
     return paths
+
+
+def _collect_tree_dirs(repo_root: Path) -> set[str]:
+    """Return every directory path in the repo, repo-relative, as a POSIX string.
+
+    Same walk rules as :func:`_collect_tree_paths` — :data:`_IGNORED_TREE_DIRS`
+    is pruned during the walk so build artifacts and virtualenvs do not satisfy
+    a reference that no tracked directory does.  Built lazily and at most once
+    per lint run.
+    """
+    dirs: set[str] = set()
+    for dirpath, dirnames, _ in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in _IGNORED_TREE_DIRS]
+        rel_dir = Path(dirpath).relative_to(repo_root)
+        if rel_dir != Path("."):
+            dirs.add(rel_dir.as_posix())
+    return dirs
 
 
 def _check_prefix_consistency(registry: SpecRegistry) -> list[str]:
@@ -445,6 +552,57 @@ def _check_scenario_start_groups(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
+    """Collect per-spec advisory warnings (SR-04-002).
+
+    Covers: testable_without_steps, rationale_too_long, missing_tags, and
+    must_without_verification.  All are suppressible via ``lint_suppress``.
+    """
+    warnings: list[str] = []
+    for spec_id, spec in registry.all_specs.items():
+        suppressed = set(spec.lint_suppress or [])
+
+        is_behavioral = isinstance(spec, BehavioralSpec) and bool(spec.steps)
+
+        if (
+            not spec.testable
+            and not is_behavioral
+            and LintWarningCode.TESTABLE_WITHOUT_STEPS not in suppressed
+        ):
+            warnings.append(
+                f"[WARN] {spec_id}: testable=false but no behavioral steps "
+                f"(suppress with lint_suppress: [testable_without_steps])"
+            )
+
+        if (
+            spec.rationale
+            and len(spec.rationale) > _RATIONALE_WARN_CHARS
+            and LintWarningCode.RATIONALE_TOO_LONG not in suppressed
+        ):
+            warnings.append(
+                f"[WARN] {spec_id}: rationale exceeds "
+                f"{_RATIONALE_WARN_CHARS} characters"
+            )
+
+        tags = registry.get_effective_tags(spec_id)
+        if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
+            warnings.append(f"[WARN] {spec_id}: no tags defined")
+
+        if (
+            spec.priority == RFC2119Priority.MUST
+            and not spec.verification
+            and LintWarningCode.MUST_WITHOUT_VERIFICATION not in suppressed
+        ):
+            warnings.append(
+                f"[WARN] {spec_id}: priority is MUST but has no "
+                f"verification: field (MS-05-003); add a verification: "
+                f"criterion, or suppress with "
+                f"lint_suppress: [must_without_verification]"
+            )
+
+    return warnings
+
+
 def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -480,34 +638,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors.extend(_check_scenario_start_groups(registry))
     hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
 
-    for spec_id, spec in registry.all_specs.items():
-        suppressed = set(spec.lint_suppress or [])
-
-        is_behavioral = isinstance(spec, BehavioralSpec) and bool(spec.steps)
-
-        if (
-            not spec.testable
-            and not is_behavioral
-            and LintWarningCode.TESTABLE_WITHOUT_STEPS not in suppressed
-        ):
-            warnings.append(
-                f"[WARN] {spec_id}: testable=false but no behavioral steps "
-                f"(suppress with lint_suppress: [testable_without_steps])"
-            )
-
-        if (
-            spec.rationale
-            and len(spec.rationale) > _RATIONALE_WARN_CHARS
-            and LintWarningCode.RATIONALE_TOO_LONG not in suppressed
-        ):
-            warnings.append(
-                f"[WARN] {spec_id}: rationale exceeds "
-                f"{_RATIONALE_WARN_CHARS} characters"
-            )
-
-        tags = registry.get_effective_tags(spec_id)
-        if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
-            warnings.append(f"[WARN] {spec_id}: no tags defined")
+    warnings.extend(_check_per_spec_advisory_warnings(registry))
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)

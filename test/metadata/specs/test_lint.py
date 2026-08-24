@@ -205,6 +205,63 @@ def test_lint_suppress_missing_tags(tmp_path, capsys):
     assert "no tags" not in captured.out
 
 
+def test_lint_must_without_verification_warns(tmp_path, capsys):
+    """MUST requirement with no verification: field emits advisory warning."""
+    data = _minimal_spec(priority="MUST")
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[WARN]" in captured.out
+    assert "must_without_verification" in captured.out
+
+
+def test_lint_must_with_verification_no_warn(tmp_path, capsys):
+    """MUST requirement that has a verification: field does not warn."""
+    data = _minimal_spec(
+        priority="MUST",
+        extra={"verification": "Run the unit tests; assert no hard errors."},
+    )
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
+def test_lint_should_without_verification_no_warn(tmp_path, capsys):
+    """SHOULD requirement with no verification: field does not trigger the MUST warning."""
+    data = _minimal_spec(priority="SHOULD")
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
+def test_lint_suppress_must_without_verification(tmp_path, capsys):
+    """lint_suppress: [must_without_verification] silences the advisory."""
+    data = _minimal_spec(
+        priority="MUST",
+        extra={"lint_suppress": ["must_without_verification"]},
+    )
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
+def test_lint_must_not_without_verification_no_warn(tmp_path, capsys):
+    """MUST_NOT requirement does not trigger the MUST verification warning."""
+    data = _minimal_spec(priority="MUST_NOT")
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
 # ---------------------------------------------------------------------------
 # Spec ID vs group prefix check (MS-04-004)
 # ---------------------------------------------------------------------------
@@ -874,3 +931,255 @@ def test_lint_phantom_path_verification_suppress(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "MS-15-001" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# MS-15-001: directory reference checks
+# ---------------------------------------------------------------------------
+
+
+def test_lint_phantom_dir_is_hard_error(tmp_path, capsys):
+    """A statement naming a non-existent multi-segment directory fails (MS-15-001)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Helpers MUST live in `vultron/missing/`"
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "vultron/missing/" in captured.err
+
+
+def test_lint_phantom_dir_existing_passes(tmp_path):
+    """A statement naming an existing directory passes."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "vultron" / "real").mkdir()
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Helpers MUST live in `vultron/real/`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_dir_single_segment_not_checked(tmp_path):
+    """A single-segment directory ref is not checked — high false-positive risk."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Output MUST be written to the `devlogs/` directory"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_dir_placeholder_exempt(tmp_path):
+    """A directory ref containing a placeholder token is exempt."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Each run MUST write to `plan/history/YYMM/`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_dir_placeholder_negative(tmp_path):
+    """The same path without the placeholder token fails.
+
+    Guards the exemption above against becoming vacuous: the directory
+    `plan/history/2601/` is expected to not exist in the fixture tree.
+    """
+    _, spec_dir = _repo_with_specs(tmp_path)
+    (tmp_path / "plan").mkdir()
+    (tmp_path / "plan" / "history").mkdir()
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Each run MUST write to `plan/history/2601/`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 1
+
+
+def test_lint_phantom_dir_package_relative_resolves(tmp_path):
+    """A package-relative directory resolves against a real directory suffix."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "vultron" / "wire" / "received").mkdir(parents=True)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Handlers MUST live in `wire/received/`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_dir_package_relative_fails(tmp_path):
+    """A package-relative directory matching nothing in the tree fails."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Handlers MUST live in `wire/received/`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 1
+
+
+def test_lint_phantom_dir_suppress(tmp_path):
+    """lint_suppress: [phantom_path_ref] exempts phantom directory refs."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec(extra={"lint_suppress": ["phantom_path_ref"]})
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Helpers MUST live in `vultron/planned/`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_dir_in_verification_is_hard_error(tmp_path, capsys):
+    """A verification field naming a non-existent directory fails (MS-15-001)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "verification"
+    ] = "Assert via `test/ci/invariants/` that the invariant holds."
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "test/ci/invariants/" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# MS-15-001: behavioral step / precondition / postcondition scanning
+# ---------------------------------------------------------------------------
+
+
+def _minimal_behavioral_spec_data(
+    step_action="Execute workflow",
+    precondition_desc="System is ready",
+    postcondition_desc="Workflow complete",
+):
+    """Return a minimal spec file containing one BehavioralSpec item."""
+    spec = {
+        "id": "TST-01-001",
+        "priority": "MUST",
+        "kind": "protocol",
+        "statement": "TST-01-001 MUST execute the workflow",
+        "rationale": "ECA required",
+        "tags": ["testing"],
+        "preconditions": [{"description": precondition_desc}],
+        "steps": [{"order": 1, "actor": "finder", "action": step_action}],
+        "postconditions": [{"description": postcondition_desc}],
+    }
+    return {
+        "id": "TST",
+        "title": "Test File",
+        "description": "Test spec file",
+        "version": "0.1",
+        "scope": ["production"],
+        "groups": [{"id": "TST-01", "title": "Group", "specs": [spec]}],
+    }
+
+
+def test_lint_phantom_dir_in_behavioral_step_is_hard_error(tmp_path, capsys):
+    """A behavioral step action naming a non-existent directory fails (MS-15-001)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_behavioral_spec_data(
+        step_action="Write output to `vultron/output/`"
+    )
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "vultron/output/" in captured.err
+
+
+def test_lint_phantom_path_in_behavioral_step_is_hard_error(tmp_path, capsys):
+    """A behavioral step action naming a non-existent path fails (MS-15-001)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_behavioral_spec_data(
+        step_action="Register via `vultron/nope.py`"
+    )
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "vultron/nope.py" in captured.err
+
+
+def test_lint_phantom_path_in_behavioral_step_existing_passes(tmp_path):
+    """A behavioral step action naming an existing file passes."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "vultron" / "real.py").write_text("x = 1\n")
+    data = _minimal_behavioral_spec_data(
+        step_action="Register via `vultron/real.py`"
+    )
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_path_in_precondition_is_hard_error(tmp_path, capsys):
+    """A precondition description naming a non-existent path fails (MS-15-001)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_behavioral_spec_data(
+        precondition_desc="File `vultron/missing.py` is loaded"
+    )
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "vultron/missing.py" in captured.err
+
+
+def test_lint_phantom_path_in_postcondition_is_hard_error(tmp_path, capsys):
+    """A postcondition description naming a non-existent path fails (MS-15-001)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_behavioral_spec_data(
+        postcondition_desc="Result written to `vultron/missing.py`"
+    )
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "vultron/missing.py" in captured.err
+
+
+def test_lint_phantom_path_behavioral_step_suppress(tmp_path):
+    """lint_suppress: [phantom_path_ref] exempts phantom paths in behavioral fields."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    spec = {
+        "id": "TST-01-001",
+        "priority": "MUST",
+        "kind": "protocol",
+        "statement": "TST-01-001 MUST execute",
+        "rationale": "Required",
+        "tags": ["testing"],
+        "preconditions": [{"description": "System ready"}],
+        "steps": [
+            {
+                "order": 1,
+                "actor": "system",
+                "action": "Create `vultron/future.py`",
+            }
+        ],
+        "postconditions": [{"description": "Complete"}],
+        "lint_suppress": ["phantom_path_ref"],
+    }
+    data = {
+        "id": "TST",
+        "title": "T",
+        "description": "T",
+        "version": "0.1",
+        "scope": ["production"],
+        "groups": [{"id": "TST-01", "title": "G", "specs": [spec]}],
+    }
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0

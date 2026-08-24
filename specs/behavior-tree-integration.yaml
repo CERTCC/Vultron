@@ -1021,6 +1021,8 @@ groups:
       (e.g., `vultron/core/behaviors/shared/` or a domain-model method) that neither layer owns.
     rationale: A shared utility module is the canonical resolution when a helper is needed at both layers; placing it
       in either layer would invert or entangle the layer boundary.
+    lint_suppress:
+    - phantom_path_ref
   - id: BT-22-003
     priority: SHOULD
     kind: architecture

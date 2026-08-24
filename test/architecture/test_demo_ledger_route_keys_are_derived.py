@@ -42,24 +42,24 @@ from pathlib import Path
 
 import pytest
 
+from test.architecture import _corpus
 from vultron.demo.helpers.ledger_dump import replica_route_key
 from vultron.demo.utils import DataLayerClient
 
-REPO_ROOT = Path(__file__).parents[2]
-_SCENARIO_DIR = REPO_ROOT / "vultron" / "demo" / "scenario"
+_SCENARIO_DIR = _corpus.REPO_ROOT / "vultron" / "demo" / "scenario"
 
 #: The one route key a literal may legitimately spell.  A dedicated CaseActor
 #: container hosts exactly one actor, ``case-actor`` (CP-08-002), so the slug is
 #: fixed by the deployment rather than by what this run happened to seed.
 _ALLOWED_LITERAL_KEYS = frozenset({"case-actor"})
 
-
-def _scenario_files() -> list[Path]:
-    return sorted(
-        p
-        for p in _SCENARIO_DIR.glob("*.py")
-        if p.name != "__init__.py" and "__pycache__" not in p.parts
-    )
+#: Scenario ASTs from the shared corpus, keyed by path (TB-13-003).  Built at
+#: import time so ``parametrize`` can enumerate the scenarios by name.
+_SCENARIO_TREES = {
+    path: tree
+    for path, tree in _corpus.all_trees(under=_SCENARIO_DIR)
+    if path.name != "__init__.py"
+}
 
 
 def _route_key_arg(call: ast.Call) -> ast.expr | None:
@@ -73,9 +73,8 @@ def _route_key_arg(call: ast.Call) -> ast.expr | None:
     return None
 
 
-def _literal_route_keys(source_path: Path) -> list[tuple[int, str]]:
+def _literal_route_keys(tree: ast.AST) -> list[tuple[int, str]]:
     """Return ``(lineno, key)`` for each ``LedgerDumpTarget`` with a literal key."""
-    tree = ast.parse(source_path.read_text(encoding="utf-8"))
     offenders: list[tuple[int, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -97,12 +96,14 @@ def _literal_route_keys(source_path: Path) -> list[tuple[int, str]]:
     return offenders
 
 
-@pytest.mark.parametrize("scenario", _scenario_files(), ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "scenario", sorted(_SCENARIO_TREES), ids=lambda p: p.name
+)
 def test_ledger_route_keys_are_not_literals(scenario: Path) -> None:
     """Every ``LedgerDumpTarget`` route key must be derived, not hard-coded."""
-    offenders = _literal_route_keys(scenario)
+    offenders = _literal_route_keys(_SCENARIO_TREES[scenario])
     assert not offenders, (
-        f"{scenario.relative_to(REPO_ROOT)} passes literal route key(s)"
+        f"{scenario.relative_to(_corpus.REPO_ROOT)} passes literal route key(s)"
         f" {offenders} to LedgerDumpTarget. The route key selects the store"
         " (ADR-0072), so a literal reads whichever actor is hosted under that"
         " slug and the dump silently reports an empty ledger. Derive it:"
@@ -110,30 +111,28 @@ def test_ledger_route_keys_are_not_literals(scenario: Path) -> None:
     )
 
 
-def test_the_check_can_actually_fail(tmp_path: Path) -> None:
+def test_the_check_can_actually_fail() -> None:
     """Guard the guard: a literal key must be detected.
 
     A source-reading ratchet that matches nothing is worse than no ratchet,
     because it reports success.
     """
-    path = tmp_path / "sample_demo.py"
-    path.write_text(
+    tree = _corpus.parse_inline(
         'targets = [LedgerDumpTarget("finder", finder_client, "finder")]\n'
     )
-    assert _literal_route_keys(path) == [(1, "finder")]
+    assert _literal_route_keys(tree) == [(1, "finder")]
 
 
-def test_derived_and_allowed_keys_are_accepted(tmp_path: Path) -> None:
+def test_derived_and_allowed_keys_are_accepted() -> None:
     """A derived key, and the fixed ``case-actor`` slug, must not be flagged."""
-    path = tmp_path / "sample_demo.py"
-    path.write_text(
+    tree = _corpus.parse_inline(
         "targets = [\n"
         '    LedgerDumpTarget("finder", c, replica_route_key(c, "finder")),\n'
         '    LedgerDumpTarget("case-actor", ca, "case-actor"),\n'
         '    LedgerDumpTarget("v", v, route_key=derived),\n'
         "]\n"
     )
-    assert _literal_route_keys(path) == []
+    assert _literal_route_keys(tree) == []
 
 
 class TestReplicaRouteKey:

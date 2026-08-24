@@ -19,11 +19,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
-    DataLayerCondition,
     DataLayerConditionWithPorts,
     PortInformation,
 )
@@ -124,12 +123,20 @@ class CheckIsOwnCaseActorNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class CheckIsNotOwnCaseActorNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class CheckIsNotOwnCaseActorNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -137,7 +144,7 @@ class CheckIsNotOwnCaseActorNode(DataLayerCondition):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         case_actor = _find_case_actor(
             self.datalayer, entry.case_id, self.actor_id
         )
@@ -146,19 +153,26 @@ class CheckIsNotOwnCaseActorNode(DataLayerCondition):
         return Status.FAILURE
 
 
-class VerifySenderIsOwnIdNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
+class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["case_actor_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity", "case_actor_id": "/case_actor_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+        self.case_actor_id = self.get_input("case_actor_id")
 
     def update(self) -> Status:
-        sender_id = getattr(self.blackboard.activity, "actor_id", None)
-        case_actor_id = self.blackboard.case_actor_id
+        sender_id = getattr(self.activity, "actor_id", None)
+        case_actor_id = self.case_actor_id
         if sender_id == case_actor_id:
             return Status.SUCCESS
 
@@ -171,19 +185,27 @@ class VerifySenderIsOwnIdNode(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if self.datalayer.read(entry.id_) is None:
             return Status.FAILURE
 
@@ -193,7 +215,7 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class CheckLedgerFreshnessNode(DataLayerCondition):
+class CheckLedgerFreshnessNode(DataLayerConditionWithPorts):
     """Gate: return SUCCESS only when the local ledger for *case_id* is fresh.
 
     "Fresh" means the actor's local ledger entries for the case form a
@@ -224,24 +246,36 @@ class CheckLedgerFreshnessNode(DataLayerCondition):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb: str | None = None
         if self._case_id is None:
-            self.blackboard.register_key(
-                key="case_id", access=py_trees.common.Access.READ
-            )
+            try:
+                self._case_id_bb = self.get_input("case_id")
+            except (NoDataAvailable, NotImplementedError):
+                self._case_id_bb = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
+        case_id: str | None
         if self._case_id is not None:
             case_id = self._case_id
         else:
-            try:
-                case_id = self.blackboard.case_id
-            except KeyError:
+            case_id = self._case_id_bb
+            if case_id is None:
                 self.logger.error(
                     "%s: case_id not on blackboard and not provided at "
                     "construction",

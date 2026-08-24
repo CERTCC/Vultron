@@ -38,7 +38,9 @@ fail.
 import ast
 import pathlib
 
-DEMO_DIR = pathlib.Path(__file__).parent.parent.parent / "vultron" / "demo"
+from test.architecture import _corpus
+
+DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 
 _GUARDED_CMS = {"demo_step", "demo_check"}
 
@@ -155,13 +157,8 @@ def _undefended_in_stmts(stmts: list) -> list:
     return results
 
 
-def _violations_in_file(path: pathlib.Path) -> list:
-    source = path.read_text()
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return []
-
+def _violations_in_tree(tree: ast.AST, path: pathlib.Path) -> list:
+    """Return violations found in an already-parsed tree."""
     found = []
 
     class _V(ast.NodeVisitor):
@@ -179,6 +176,15 @@ def _violations_in_file(path: pathlib.Path) -> list:
     return found
 
 
+def _violations_in_file(path: pathlib.Path) -> list:
+    source = path.read_text()
+    try:
+        tree = _corpus.parse_inline(source, filename=str(path))
+    except SyntaxError:
+        return []
+    return _violations_in_tree(tree, path)
+
+
 # ---------------------------------------------------------------------------
 # The ratchet test
 # ---------------------------------------------------------------------------
@@ -186,7 +192,7 @@ def _violations_in_file(path: pathlib.Path) -> list:
 
 def _parse_function_body(src: str) -> list:
     """Return the body of the first function defined in *src*."""
-    tree = ast.parse(src)
+    tree = _corpus.parse_inline(src)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             return node.body
@@ -318,11 +324,11 @@ def test_no_undefended_demo_step_vars():
     pre-initialized to a safe sentinel (e.g. ``None``) before the block.
     """
     violations = []
-    for path in sorted(DEMO_DIR.rglob("*.py")):
-        if "__pycache__" in path.parts:
-            continue
-        for fpath, lineno, var in _violations_in_file(path):
-            rel = fpath.relative_to(DEMO_DIR.parent.parent)
+    for py_file, tree in _corpus.files_mentioning(
+        "demo_step", "demo_check", under=DEMO_DIR
+    ):
+        for fpath, lineno, var in _violations_in_tree(tree, py_file):
+            rel = fpath.relative_to(_corpus.REPO_ROOT)
             violations.append(f"{rel}:{lineno}: undefended var '{var}'")
 
     assert violations == [], (
