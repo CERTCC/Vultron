@@ -52,11 +52,8 @@ from vultron.wire.as2.factories.case import (
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
-from ._base import _DUMP_KWARGS, _to_wire
+from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -498,7 +495,7 @@ class _ActorsMixin:
         """
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        case = _case_for_wire(self._dl, case_id)
         target = as_Actor(id_=target_actor_id)
         activity = offer_case_participant_role_activity(
             role=role,
@@ -533,7 +530,7 @@ class _ActorsMixin:
         )  # noqa: PLC0415
 
         target = as_Actor(id_=target_actor_id)
-        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
             role=role,
             target_actor=target,
@@ -571,7 +568,7 @@ class _ActorsMixin:
         )  # noqa: PLC0415
 
         target = as_Actor(id_=target_actor_id)
-        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
             role=role,
             target_actor=target,
@@ -607,7 +604,7 @@ class _ActorsMixin:
         from the DataLayer and passed inline so the recipient can distinguish
         this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).
         """
-        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        case = _case_for_wire(self._dl, case_id)
         extra: dict[str, Any] = {
             "actor": actor,
             "to": to or [transferee_id],

@@ -56,18 +56,30 @@ def _poll_until(
 
     Raises:
         AssertionError: If *condition_fn* does not return ``True`` within
-            *timeout_seconds*.
+            *timeout_seconds*. When exceptions were swallowed, the last one is
+            named in the message — a condition that never *ran* is a different
+            fault from one that ran and stayed false, and reporting both as a
+            bare timeout sends the reader looking for a slow protocol instead of
+            a broken read.
     """
     deadline = time.monotonic() + timeout_seconds
+    last_exc: Exception | None = None
     while time.monotonic() < deadline:
         try:
             if condition_fn():
                 return
-        except Exception:  # noqa: BLE001
+            last_exc = None
+        except Exception as exc:  # noqa: BLE001
             if not swallow_exceptions:
                 raise
+            last_exc = exc
         time.sleep(poll_interval)
 
+    if last_exc is not None:
+        raise AssertionError(
+            f"{error_msg} — the check never completed: every attempt raised"
+            f" {type(last_exc).__name__}: {last_exc}"
+        ) from last_exc
     raise AssertionError(error_msg)
 
 

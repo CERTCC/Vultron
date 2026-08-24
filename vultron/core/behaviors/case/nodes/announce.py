@@ -59,6 +59,36 @@ def _store_embedded_reports(case_obj, datalayer) -> None:
             datalayer.save(report_ref)
 
 
+def _store_embedded_embargo(case_obj, datalayer) -> None:
+    """Persist the ``EmbargoEvent`` carried inline on *case_obj*, if any.
+
+    The sender carries it rather than referencing it because the receiver has no
+    way to dereference a URI it does not hold (AKM-03-001) — see
+    ``_case_for_wire``. Storing it here is the other half of that: it is what
+    makes ``case.active_embargo`` resolve in *this* actor's store, so a later
+    read of the case's own embargo does not come back ``None``.
+
+    Without it a replica held a case pointing at an object it could not read.
+    The manager's teardown then failed to announce (``terminate_embargo`` reads
+    the ``EmbargoEvent`` first and raised), and every participant kept an embargo
+    that had already been torn down, with EM stuck at ACTIVE and nothing raised.
+
+    Bare string references are skipped: there is no object to store, and this
+    function is not the place to discover that the sender sent one.
+    """
+    embargo_ref = getattr(case_obj, "active_embargo", None)
+    if embargo_ref is None or isinstance(embargo_ref, str):
+        return
+    embargo_id = getattr(embargo_ref, "id_", None)
+    if not embargo_id or str(getattr(embargo_ref, "type_", "")) not in (
+        "EmbargoEvent",
+        "as_EmbargoEvent",
+    ):
+        return
+    if datalayer.read(embargo_id) is None:
+        datalayer.save(embargo_ref)
+
+
 class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
     """Persist a received ``VulnerabilityCase`` announcement in the DataLayer.
 
@@ -111,6 +141,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             _store_embedded_reports(self.case_obj, self.datalayer)
+            _store_embedded_embargo(self.case_obj, self.datalayer)
             _store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
@@ -145,6 +176,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
             )
             self.datalayer.save(_case_to_save)
             _store_embedded_reports(self.case_obj, self.datalayer)
+            _store_embedded_embargo(self.case_obj, self.datalayer)
             _link_report_case_links(self.datalayer, self.case_obj)
             self.logger.info(
                 "%s: seeded case '%s' from actor '%s'",

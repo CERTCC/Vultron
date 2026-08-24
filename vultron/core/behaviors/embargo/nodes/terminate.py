@@ -19,6 +19,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import PortInformation
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.use_cases._helpers import case_addressees
 
 
 class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
@@ -67,6 +69,44 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
         return self.embargo_id, self.case_manager_id
 
+    def _recipients(self, actor_id: str, case_manager_id: str) -> list[str]:
+        """Return whom this teardown is addressed to (EMB-19-001).
+
+        Two callers share this node, and they are asking different things:
+
+        - An ordinary participant is *requesting* that the manager tear the
+          embargo down, so the manager is the addressee.
+        - The manager itself is *reporting* a teardown it has already applied
+          (the cascade from ``PublicDisclosureBranchNode``, which runs as the
+          CASE_MANAGER because that is who the received tree's ledger commit is
+          gated on). Its audience is every other participant.
+
+        Addressing ``case_manager_id`` unconditionally collapsed the second case
+        into a message from the manager to itself. Delivery discarded it, so
+        every other replica kept an embargo the manager had already removed —
+        EM stayed ACTIVE for everyone but the manager and nothing raised. This is
+        the third site with this defect; ``SendAnnounceEmbargoEventNode`` and the
+        teardown announce tree were the first two, which is why EMB-19-001 exists.
+        """
+        if actor_id != case_manager_id:
+            return [case_manager_id]
+
+        assert self.datalayer is not None
+        case = self.datalayer.read(self._case_id)
+        if not isinstance(case, VulnerabilityCase):
+            # Nothing better to say than the old answer; a missing case is
+            # reported by the nodes that precede this one in the sequence.
+            return [case_manager_id]
+        recipients = case_addressees(case, actor_id)
+        if not recipients:
+            self.logger.debug(
+                "%s: case '%s' has no participants besides the manager"
+                " — nothing to tell (EMB-19-002)",
+                self.name,
+                self._case_id,
+            )
+        return recipients
+
     def _call_factory(
         self, actor_id: str, embargo_id: str, case_manager_id: str
     ) -> tuple[str, object]:
@@ -75,7 +115,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            to=[case_manager_id],
+            to=self._recipients(actor_id, case_manager_id),
         )
 
     def _on_outbox_write_failure(

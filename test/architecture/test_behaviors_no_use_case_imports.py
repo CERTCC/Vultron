@@ -104,6 +104,10 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/core/behaviors/embargo/nodes/emit.py",
         "vultron/core/behaviors/embargo/nodes/proposal.py",
         "vultron/core/behaviors/embargo/nodes/teardown.py",
+        # Same debt as teardown.py above and for the same helper:
+        # `case_addressees`, needed so the manager addresses a teardown to
+        # the case's other participants rather than to itself (EMB-19-001).
+        "vultron/core/behaviors/embargo/nodes/terminate.py",
         "vultron/core/behaviors/report/nodes/emit.py",
         "vultron/core/behaviors/report/nodes/participant.py",
         "vultron/core/behaviors/report/nodes/rm_transitions.py",

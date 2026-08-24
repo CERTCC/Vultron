@@ -26,6 +26,7 @@ import os
 import sys
 from typing import Optional, Tuple
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -855,9 +856,21 @@ def _phase_dump_case_ledgers(
         case_actor_client: Optional DataLayerClient for the CaseActor container.
         demo_name: Sub-directory name under the output root (default ``"fv"``).
     """
+    # Route keys come from the actors' own ids, not from their display names.
+    # These were the literals "finder" and "vendor", which worked only while the
+    # route key was decorative: a shared store returned the combined case log
+    # whichever actor the path named. The route key now *selects the store*
+    # (ADR-0070), so a literal reads whichever actor happens to be hosted under
+    # that slug — a different actor from the one this run used, whose store is
+    # empty. The dump then reported "No case ledger entries for actor='finder'"
+    # while the finder's real store held twelve.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("vendor", vendor_client, "vendor"),
+        LedgerDumpTarget(
+            "finder", finder_client, strip_id_prefix(finder.id_ or "")
+        ),
+        LedgerDumpTarget(
+            "vendor", vendor_client, strip_id_prefix(vendor.id_ or "")
+        ),
     ]
     case_actor_route_key = resolve_case_actor_route_key(case)
     if case_actor_client is not None:

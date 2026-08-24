@@ -18,6 +18,7 @@ from vultron.core.use_cases._helpers import (
 
 from ._helpers import (
     _find_report_case_link,
+    _store_embedded_embargo,
     _store_embedded_participants,
 )
 
@@ -117,6 +118,7 @@ class CreateCaseReceivedUseCase:
                         case_id,
                     )
             _store_embedded_participants(case_obj, self._dl, case_id)
+            _store_embedded_embargo(case_obj, self._dl, case_id)
         else:
             logger.info(
                 "create_case_received: no ReportCaseLink for case '%s' and "
@@ -207,6 +209,7 @@ class CreateCaseReceivedUseCase:
         # This must happen regardless of the idempotency guard above because
         # the inbox router may have already seeded the case before dispatch.
         _store_embedded_participants(case_obj, self._dl, case_id)
+        _store_embedded_embargo(case_obj, self._dl, case_id)
 
         # #589: when participants arrive as bare string IDs (the common case),
         # _store_embedded_participants cannot create records for them.  Ensure

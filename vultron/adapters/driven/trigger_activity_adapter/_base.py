@@ -15,6 +15,7 @@
 
 """Shared constants and base class for TriggerActivityAdapter submodules."""
 
+import logging
 from typing import Any, TypeVar
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -41,6 +42,8 @@ _DUMP_KWARGS: dict[str, Any] = {
     "serialize_as_any": True,
 }
 
+logger = logging.getLogger(__name__)
+
 _BM = TypeVar("_BM", bound=as_Base)
 
 
@@ -63,6 +66,69 @@ def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
     if isinstance(core_obj, wire_cls):
         return core_obj
     return wire_cls.from_core(core_obj)  # type: ignore[attr-defined,return-value,no-any-return]
+
+
+def _case_for_wire(dl: Any, case_id: str) -> Any:
+    """Return the stored case as a wire object, with its embargo carried inline.
+
+    Every activity that puts a case on the wire goes through here, because
+    ``active_embargo`` is a reference the *receiver* cannot dereference: it may
+    not hold the ``EmbargoEvent``, and no dereferencing mechanism is specified
+    (AKM-03-001, the same rule as CP-01-004). Sending the id alone therefore
+    hands the recipient a case pointing at an object it can never read.
+
+    That is not hypothetical. A CaseActor holding such a case tore the embargo
+    down locally and then could not announce it: ``terminate_embargo`` begins by
+    reading the ``EmbargoEvent`` it is about, so it raised
+    ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent, Case)``
+    was ever emitted. Every other participant's replica kept an embargo the
+    manager had already removed, EM stayed ACTIVE for all of them, and nothing
+    surfaced — the receiving side had no way to tell a missing object from an
+    embargo that was genuinely still active.
+
+    ``as_VulnerabilityCase.active_embargo`` is an ``as_EmbargoEventRef``, so it
+    admits the object; ``to_core()`` reduces it back to an id, so a receiver's
+    stored case is unchanged in shape. The recipient stores the carried object
+    separately (see ``_store_embedded_embargo``), which is what makes the id
+    resolve on its side too.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
+    embargo_ref = getattr(case, "active_embargo", None)
+    if not isinstance(embargo_ref, str) or not embargo_ref:
+        # Already an object, or no embargo at all — nothing to carry.
+        return case
+
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    stored = dl.read(embargo_ref)
+    if stored is None:
+        # The sender does not hold it either. Left as an id: this function's job
+        # is to carry what is there, and a sender-side gap is the business of
+        # whoever wrote the dangling reference.
+        logger.warning(
+            "_case_for_wire: case '%s' references active_embargo '%s' which is"
+            " absent from the sending actor's own store, so it cannot be"
+            " carried inline (AKM-03-001); the recipient will receive an"
+            " unresolvable reference",
+            case_id,
+            embargo_ref,
+        )
+        return case
+    try:
+        case.active_embargo = _to_wire(stored, as_EmbargoEvent)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "_case_for_wire: could not project active_embargo '%s' of case"
+            " '%s' to its wire shape (%s); sending the reference alone",
+            embargo_ref,
+            case_id,
+            exc,
+        )
+    return case
 
 
 class _TriggerAdapterBase:
