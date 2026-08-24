@@ -382,6 +382,53 @@ that concern, children of Epic #1394). As each B site migrates, remove its
 Activity type from the DL-05-004 exemption set (DL-06-005) until the set reaches
 zero.
 
+## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
+
+**Principle.** A received Activity is an **artifact** — the exact wire object
+received is worth storing as-is. `_dehydrate_data` in
+`vultron/adapters/driven/db_record.py` deliberately does NOT recursively
+dehydrate the sub-fields of an inline Activity object. When `Accept` stores an
+inline `Offer`, the `Offer`'s own `object_`, `target`, etc. are preserved as a
+snapshot of what they contained at receipt time — not collapsed to ID strings.
+
+This is correct behaviour and must not be changed. The rationale has two parts:
+
+1. **Technical**: inline Activities may not have independent DataLayer records
+   (e.g., a reconstituted `Offer` in the validate-report path, a
+   `CaseLedgerEntry` inside an `Announce` envelope). Collapsing them to a bare
+   ID would make rehydration impossible on read-back.
+
+2. **Semantic (more important)**: even where independent records exist, the
+   snapshot captures state at receipt time — "when you offered me this case, it
+   looked like this." An `Accept(Offer(VulnerabilityCase))` is a contract: it
+   records what was offered at the moment of acceptance, not the current state
+   of the case. The case will evolve; the contract must not.
+
+**Two copies, not one.** If an actor receives `Offer(Case)` and then extracts
+the case to seed a live record in its DataLayer, two distinct things now exist:
+
+- The **artifact** — the stored `Offer` with its frozen `Case` snapshot.
+  Immutable in the context of that offer. Read it to answer "what was I
+  offered?" Never update it.
+- The **live record** — the `VulnerabilityCase` actively maintained by the
+  actor. Participants join, states transition, embargo terms change. This copy
+  evolves.
+
+These two copies diverge over time **by design**. Do not treat the snapshot as
+the current state of the object, and do not write the snapshot back over the
+live record when refreshing or re-seeding.
+
+**Why recursive dehydration would be wrong.** If `_dehydrate_data` were
+extended to recurse into inline Activity sub-fields, `Accept.object_.object_`
+would become a bare ID string pointing to the *current* `VulnerabilityCase` —
+losing the at-offer-time snapshot. Even if Activities eventually gain
+independent DataLayer records (removing the technical constraint), the semantic
+reason alone prohibits recursive dehydration here.
+
+*Source: CONCERN-2219.*
+
+---
+
 ## Vocabulary Registry Entanglement Across Wire, Core, and DataLayer
 
 The vocabulary registry in `vultron/wire/as2/vocab/` was created before
