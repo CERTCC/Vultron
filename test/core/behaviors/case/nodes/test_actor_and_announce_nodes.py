@@ -553,6 +553,24 @@ class TestEmitAddCaseParticipantNode:
         dl.create(case)
         participant = _make_add_node_fixture(dl)
 
+        from vultron.wire.as2.factories import add_participant_to_case_activity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        wire_participant = as_CaseParticipant(
+            id_=EMIT_ADD_PARTICIPANT_ID,
+            attributed_to=EMIT_ADD_INVITEE_ID,
+            context=EMIT_ADD_CASE_ID,
+        )
+        add_activity = add_participant_to_case_activity(
+            participant=wire_participant,
+            target=EMIT_ADD_CASE_ID,
+            actor=EMIT_ADD_ACTOR_ID,
+            id_=EMIT_ADD_ACTIVITY_ID,
+        )
+        dl.create(add_activity)
+
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (
             EMIT_ADD_ACTIVITY_ID
@@ -777,6 +795,24 @@ class TestEmitAddCaseParticipantNode:
             context=EMIT_ADD_CASE_ID,
         )
         dl.create(participant)
+
+        from vultron.wire.as2.factories import add_participant_to_case_activity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant as as_CP,
+        )
+
+        wire_p_to = as_CP(
+            id_=EMIT_ADD_PARTICIPANT_ID,
+            attributed_to=EMIT_ADD_INVITEE_ID,
+            context=EMIT_ADD_CASE_ID,
+        )
+        add_act_to = add_participant_to_case_activity(
+            participant=wire_p_to,
+            target=EMIT_ADD_CASE_ID,
+            actor=EMIT_ADD_ACTOR_ID,
+            id_=EMIT_ADD_ACTIVITY_ID,
+        )
+        dl.create(add_act_to)
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.add_participant_to_case.return_value = (

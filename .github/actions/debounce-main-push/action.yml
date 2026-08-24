@@ -1,0 +1,12 @@
+name: Debounce main-branch merges
+description: >-
+  Sleeps 60 seconds on push-to-main so that back-to-back merges cancel each
+  other before doing real work. No-op on PR and workflow_dispatch events.
+
+runs:
+  using: composite
+  steps:
+    - name: Debounce rapid main-branch merges
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      shell: bash
+      run: sleep 60

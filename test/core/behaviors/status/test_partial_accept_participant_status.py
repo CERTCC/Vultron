@@ -47,6 +47,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.lifecycle import (
     BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
@@ -315,7 +316,9 @@ def _run_tree(
     )
     event = make_payload(activity)
     bridge = BTBridge(
-        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
     )
     tree = add_participant_status_tree(request=event, case_id=CASE_ID)
     # Production passes the parsed event as ``activity`` (see
@@ -652,7 +655,9 @@ class TestLedgerApplyRmRatchet:
         entry = _status_snapshot_entry(rm_state="RECEIVED", vfd_state="VFd")
         event = _announce_event(entry)
 
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
@@ -692,7 +697,9 @@ class TestLedgerApplyRmRatchet:
         entry = _status_snapshot_entry(rm_state="RECEIVED", vfd_state="VFd")
         event = _announce_event(entry)
 
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
@@ -744,7 +751,9 @@ class TestLedgerApplyRmRatchet:
         entry = _status_snapshot_entry(rm_state="RECEIVED", vfd_state="VFd")
         event = _announce_event(entry)
 
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(
+            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+        )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
