@@ -40,6 +40,7 @@ from test.demo._helpers import (
     seed_replicas_for_case_participants,
 )
 from vultron.adapters.utils import strip_id_prefix
+from vultron.core.states.rm import RM
 from vultron.demo.cli import main
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -1232,8 +1233,6 @@ class TestRunTwoActorDemo:
         # Replace the round-trip with the manual fallback that creates the case
         # directly and drives RM state through the same validate/engage
         # sequence.
-        from vultron.core.states.rm import RM as _RM
-
         def _single_server_rm_triage(receiver_client, receiver, offer):
             case = _create_case_from_offer(receiver_client, receiver, offer)
             offer_id = getattr(offer, "id_", str(offer))
@@ -1246,7 +1245,7 @@ class TestRunTwoActorDemo:
                 client=receiver_client,
                 case_id=case.id_,
                 actor_id=receiver.id_,
-                expected_states={_RM.VALID, _RM.ACCEPTED},
+                expected_states={RM.VALID, RM.ACCEPTED},
             )
             demo.vendor_engages_case(
                 vendor_client=receiver_client,
@@ -1878,6 +1877,23 @@ def completed_workflow(
     # Refresh case to get actor_participant_index populated.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
     case = as_VulnerabilityCase(**case_data)
+
+    # Engage the case so the vendor reaches RM.ACCEPTED before any fix-readiness
+    # claim. Without this the fixture went straight from case creation to
+    # `notify_fix_ready`, which the cross-machine entailment rule refuses with
+    # HTTP 422 — VFD='VFd' requires RM ∈ {ACCEPTED, DEFERRED, CLOSED} and RM was
+    # still VALID (rm_em_cs.md § Fix Readiness). `demo_step` logs that 🔴 and
+    # swallows it, so the fixture reported success while its entire fix-lifecycle
+    # half had not run, and three tests asserted against that state.
+    demo.vendor_engages_case(
+        vendor_client=vendor_client, vendor=vendor_in_vendor, case_id=case.id_
+    )
+    demo.wait_for_participant_rm_state(
+        client=vendor_client,
+        case_id=case.id_,
+        actor_id=vendor_in_vendor.id_,
+        expected_states={RM.ACCEPTED},
+    )
 
     # Fix lifecycle: vendor-only actor stops at VFd (CSB-15-002).
     demo.actor_notifies_fix_ready(
