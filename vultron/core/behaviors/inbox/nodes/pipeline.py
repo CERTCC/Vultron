@@ -486,9 +486,3 @@ class BuildOutcomeNode(_InboxNodeWithPorts):
         self._set_output(KEY_OUTCOME_STATUS, "processed")
         self.logger.debug("%s: outcome = processed", self.name)
         return Status.SUCCESS
-
-
-# Backward-compatibility alias: _InboxNode was the pre-migration base class
-# for the six pipeline nodes.  It is not exported and should not be
-# subclassed by new code — use _InboxNodeWithPorts instead.
-_InboxNode = _InboxNodeWithPorts
