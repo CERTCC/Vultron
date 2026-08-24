@@ -835,6 +835,49 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   type names. The Vultron context document imports AS2 internally, so citing
   only the Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
   *Source: CONCERN-2105*
+- **`.agents/skills/` and `.claude/skills/` Are Hard Links — Edit Only `.agents/`**
+  — `.agents/skills/<name>/SKILL.md` and `.claude/skills/<name>/SKILL.md` share
+  the same inode. Editing one modifies both on disk. Always edit only the
+  `.agents/skills/<name>/SKILL.md` copy — the `.claude/skills/` copy updates
+  automatically. Editing both in sequence duplicates the content.
+  *Source: ISSUE-1467*
+- **GH Actions `python3 -c` Multi-Line Block Fails `actionlint`** — when
+  embedding multi-line Python in a `run: |` block via `python3 -c "..."`,
+  all Python lines must stay within the block's indentation level. A line at
+  a lower indentation than the block's first content line terminates the YAML
+  block scalar early; `actionlint` then fails with `could not find expected ':'`.
+  Fix: collapse to a semicolon-separated one-liner, or write to a file in a
+  prior step.
+  *Source: ISSUE-2312*
+- **YAML Single-Quoted String: Double Apostrophes or Use `>-`** — inside a
+  single-quoted YAML value, apostrophes must be escaped as `''` (two single
+  quotes). A bare `'s` (possessive) or contraction terminates the string early;
+  the parser fails with an opaque "did not find expected key" error pointing at
+  the column of the apostrophe, not at a syntax-level message. Alternatively,
+  convert the field to a `>-` block scalar and use apostrophes freely.
+  *Source: ISSUE-2393*
+- **Always Verify Every Acceptance Criterion Against `origin/main` Before
+  Implementing** — check each stated defect and AC in the issue body against
+  current `origin/main` HEAD before writing any code. A prior PR may have
+  partially fixed the issue without a `Closes #N` footer, leaving the issue
+  open but the code already changed. Implement only what is still broken.
+  *Source: ISSUE-1467, ISSUE-2290*
+- **Sub-Agent Spec Splits: Re-Run the Violation Detection Script After the
+  Parallel Pass** — after parallel sub-agents split compound spec requirements,
+  re-run the compound-statement detection script. Agents frequently add new
+  child entries but leave the original parent statement text unchanged (with all
+  semicolons intact). The spec-lint failure surfaces the symptom; the detection
+  script identifies which parent was not trimmed. Do not trust agent completion
+  reports for this class of task.
+  *Source: ISSUE-2393*
+- **Pydantic `model_fields` Is Not Available Inside `__init_subclass__`** —
+  `cls.model_fields` is populated by Pydantic's metaclass after `__init_subclass__`
+  returns. Accessing it inside `__init_subclass__` returns an empty dict for the
+  class being defined (though parent-class fields may be present). To inspect a
+  class's own fields at subclass-registration time, read `cls.__annotations__`
+  directly for declared annotations, or defer field inspection to a
+  `model_post_init` or a class-level `@model_validator(mode="before")`.
+  *Source: ISSUE-2294*
 - **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
   — two distinct failure modes when a boolean field from the matrix (e.g.
   `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:

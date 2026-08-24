@@ -20,8 +20,8 @@
 | Pydantic v2 | ==2.13.4 | Data validation; domain + wire models | `pyproject.toml` |
 | pydantic-settings | >=2.15.0 | Layered settings (env, YAML, defaults) | `pyproject.toml` |
 | SQLModel | >=0.0.39 | SQLite-backed data layer (ORM/schema) | `pyproject.toml` |
-| uvicorn | >=0.52.1 | ASGI server for FastAPI | `pyproject.toml` |
-| py-trees | >=2.2.0 | Behavior tree execution engine | `pyproject.toml` |
+| uvicorn | >=0.52.3 | ASGI server for FastAPI | `pyproject.toml` |
+| py-trees | >=2.5.0 | Behavior tree execution engine | `pyproject.toml` |
 | networkx | >=3.5 | Graph operations for BT and case analysis | `pyproject.toml` |
 | transitions | >=0.9.3 | State machine definitions | `pyproject.toml` |
 | PyYAML | >=6.0 | YAML config + spec file parsing | `pyproject.toml` |

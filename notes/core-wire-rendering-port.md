@@ -223,6 +223,33 @@ implementing #2289. Narrowing what the core model accepts is not a licence to
 narrow what a downstream reader tolerates — the extractor parses artefacts of
 unknown vintage, and DRPT-02-008 is still a MUST.
 
+## `as_Object.model_config` Override Is Load-Bearing Infrastructure
+
+(ISSUE-2294, 2026-08-19)
+
+`as_Object` in `vultron/wire/as2/vocab/base/objects/base.py` carries an
+explicit `model_config = ConfigDict(validate_assignment=False)`. This is
+**not** cosmetic: it blocks the cross-branch MRO inheritance path that
+would otherwise propagate `validate_assignment=True` (set by
+`ValidatedAssignmentMixin` on `VultronObject`) to all 65 wire vocabulary
+classes — violating ARCH-12-002, which requires the wire branch to remain
+lenient for inbound AS2 data.
+
+Pydantic v2 merges `model_config` dicts in MRO order with the most-derived
+class winning, so the `as_Object` override cancels the inherited `True` at
+the wire boundary.
+
+**Rule:** any future change to `VultronObject.model_config` MUST also update
+`as_Object.model_config` if the change should not propagate to wire classes.
+Do not remove or simplify the `as_Object` config override without tracing
+the full MRO impact across `as_Base`, `VultronObject`, and all 65 wire
+subclasses.
+
+The broader fragility — cross-branch MRO coupling at `as_Object` — is
+tracked by issues #2288/#2289 (the `alias_generator=to_camel` contamination,
+same root cause). Full resolution requires completing the ADR-0017
+wire→core separation.
+
 ## Once this lands
 
 - The `xfail(strict=False)` on `test_no_core_object_has_to_camel_alias_generator`

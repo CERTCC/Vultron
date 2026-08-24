@@ -44,9 +44,10 @@
 | `vultron/demo/scenario/fvcv_handoff_demo.py` | Demo exercises many layers; any layer change can break it | 36 commits in 90 days (highest churn in production source) | Run `uv run pytest -m integration` before touching demo scenarios |
 | `specs/multi-actor-demo.yaml` | Demo spec evolves with the demo implementation | 57 commits in 90 days | Cross-check spec requirements when modifying demo scenario code |
 | `specs/behavior-tree-integration.yaml` | BT integration spec tracks active BT refactoring | 36 commits in 90 days | Verify spec IDs in BT tests after any spec change |
-| `vultron/core/behaviors/case/nodes/` | BT node refactoring is ongoing | 26 commits in 90 days | Test BT execution before any node reorganization |
+| `vultron/core/behaviors/case/nodes/` | BT node refactoring is ongoing — `case_setup.py` was split into `case_setup.py` + `case_actor_setup.py` in 2026-08 | High churn; active decomposition | Test BT execution before any node reorganization |
 | `vultron/core/ports/trigger_activity.py` | Trigger port evolves with use-case expansion | 26 commits in 90 days | Run integration tests after changes; check `USE_CASE_MAP` consistency |
 | `.github/workflows/demo-integration.yml` | CI workflow for multi-actor demo is actively tuned | 35 commits in 90 days | Validate any workflow change against actual demo run; YAML boolean coercion is a known footgun |
+| `vultron/core/behaviors/sync/nodes/` | Sync nodes refactored — `conditions.py` split into `conditions.py` + `event_conditions.py` | Active decomposition in 2026-08 | Check both modules when touching sync BT conditions |
 
 ### 6) `[ASK USER]` Questions
 
@@ -58,8 +59,9 @@
 
 ### 7) Evidence
 
-- `.codebase-scan.txt` "HIGH-CHURN FILES" and "TODO / FIXME / HACK" sections (2026-08-14 scan)
+- `.codebase-scan.txt` "HIGH-CHURN FILES" and "TODO / FIXME / HACK" sections (2026-08-24 scan)
 - `test/architecture/test_core_no_adapter_imports.py`
+- `test/architecture/test_no_bare_register_key_datalayer_nodes.py`
 - `vultron/bt/base/bt_node.py`
 - `vultron/wire/as2/vocab/activities/case_participant.py:18-19`
 - `vultron/adapters/driven/datalayer_sqlite/schema.py`

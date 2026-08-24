@@ -190,6 +190,40 @@ violation — `CoreActor` is a core-layer type and must not appear in the wire
 `VOCABULARY`. It is now reachable via `find_in_vocabulary("CoreActor")` through
 the `CORE_TYPE_MAP` fallback.
 
+---
+
+## StorableRecord Normalization Gate (`_NORMALIZE_WIRE_TO_CORE`)
+
+(ISSUE-2283, 2026-08-17)
+
+`_storable_to_record` in `vultron/adapters/driven/datalayer_sqlite/crud.py`
+applies a `to_obj()` → `from_obj()` round-trip to convert stored
+`StorableRecord` data back to its domain shape. This round-trip MUST be
+gated on `record.type_ in _NORMALIZE_WIRE_TO_CORE`.
+
+**Why**: Applying the round-trip to ALL types causes silent field loss for
+subtype-specific fields. For example, storing a `VultronPerson` via
+`StorableRecord(type_="Actor", data_=...)` and round-tripping through
+`find_in_vocabulary("Actor")` → `as_Actor.model_validate()` drops all
+`VultronPerson`-specific fields (e.g. `embargo_policy`) because the base
+`as_Actor` class ignores unknown subtype fields.
+
+**Rule**: `_NORMALIZE_WIRE_TO_CORE` is the exact set of types where core
+and wire shapes are structurally incompatible (currently `CaseParticipant`
+and `ParticipantStatus`). For all other types, return the verbatim `Record`
+directly — either they have no vocabulary entry or their wire vocabulary
+class is a faithful supertype of the stored data.
+
+**When adding a new type to `_NORMALIZE_WIRE_TO_CORE`:**
+
+1. The normalization round-trip is applied automatically — no further
+   changes to `crud.py` required.
+2. If the type is not registered in the wire vocabulary, the
+   `except (ValueError, KeyError)` fallback silently skips normalization.
+   Add a test to catch this when adding a new type to the set.
+
+<!-- Source: ISSUE-2283 -->
+
 ## Related Files
 
 - `specs/vocabulary-model.yaml` — normative requirements (VM-01 through
