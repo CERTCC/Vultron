@@ -3246,6 +3246,8 @@ groups:
       than a restatement of the code.
     adr:
     - ADR-0058
+    lint_suppress:
+    - phantom_path_ref
     tags:
     - demo
     - documentation
