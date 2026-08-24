@@ -134,10 +134,10 @@ jobs:
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}
     steps:
-      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref || github.ref }}
+      - uses: ./.github/actions/debounce-main-push
 
       - name: Select scenario matrix
         id: select

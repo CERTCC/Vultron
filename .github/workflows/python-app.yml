@@ -43,10 +43,10 @@ jobs:
     name: Tests (pytest)
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-tags: true
+      - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Run full pytest suite
@@ -58,8 +58,8 @@ jobs:
     name: Lint (black)
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Check formatting with black
@@ -69,8 +69,8 @@ jobs:
     name: Lint (flake8)
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Lint with flake8
@@ -80,8 +80,8 @@ jobs:
     name: Lint (mypy)
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Type-check with mypy
@@ -91,8 +91,8 @@ jobs:
     name: Lint (pyright)
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/debounce-main-push
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Type-check with pyright

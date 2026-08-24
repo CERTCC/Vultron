@@ -320,7 +320,9 @@ groups:
         kind: project
         statement: >-
           The `.github/actions/debounce-main-push` composite action MUST be
-          invoked as the first step of the `scenarios` job. The action sleeps
+          invoked immediately after `actions/checkout` in each job that
+          performs expensive work (the `scenarios` job in demo-integration.yml,
+          and each stage-1 job in python-app.yml). The action sleeps
           60 seconds only when `github.event_name == 'push'` and
           `github.ref == 'refs/heads/main'`; PR and `workflow_dispatch` runs
           are unaffected.
