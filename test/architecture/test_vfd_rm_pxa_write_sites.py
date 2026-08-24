@@ -92,16 +92,15 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
     ]
 )
 
-
+_TARGET_NAMES = {"VfdDimension", "RmDimension", "PxaDimension"}
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
 
 def _collect_sites() -> list[tuple[str, str]]:
     """Return sorted (rel_path, constructor_name) pairs from an AST scan."""
-    target_names = {"VfdDimension", "RmDimension", "PxaDimension"}
     found: list[tuple[str, str]] = []
     for path, tree in _corpus.files_mentioning(
-        "VfdDimension", "RmDimension", "PxaDimension", under=_BEHAVIORS_ROOT
+        *_TARGET_NAMES, under=_BEHAVIORS_ROOT
     ):
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -112,10 +111,9 @@ def _collect_sites() -> list[tuple[str, str]]:
                 name = func.id
             elif isinstance(func, ast.Attribute):
                 name = func.attr
-            if name in target_names:
-                rel = str(path.relative_to(_BEHAVIORS_ROOT))
-                # Normalise path separators for cross-platform consistency.
-                found.append((rel.replace("\\", "/"), name))
+            if name in _TARGET_NAMES:
+                rel = str(path.relative_to(_BEHAVIORS_ROOT)).replace("\\", "/")
+                found.append((rel, name))
     return sorted(found)
 
 
