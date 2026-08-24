@@ -351,7 +351,7 @@ def test_all_fix_arms_fail_mitigation_arm_rescues(
     )
 
     fix_bundle = DeployFixCallOutBundle(
-        monitoring_requirement_factory=lambda n: AlwaysFail(n),
+        monitoring_requirement_factory=lambda name: AlwaysFail(name),
     )
     tree = create_deploy_tree(
         case_id=CASE_ID,
