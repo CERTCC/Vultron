@@ -581,17 +581,17 @@ groups:
     priority: MUST_NOT
     kind: process
     statement: >-
-      A spec item's `statement` and `verification` fields MUST NOT reference a
-      file path that does not exist.
+      A spec item's `statement`, `verification`, `behavioral step`, `precondition`,
+      and `postcondition` fields MUST NOT reference a file path or directory path
+      that does not exist.
     rationale: >-
       A normative statement naming non-existent infrastructure is a stale-premise
-      landmine: the implementing agent either invents something inconsistent with
-      the codebase or silently ignores a MUST, and the spec stops describing the
-      system. DEMOMA-19-008 named a `conftest.py` registry that had never existed
-      (CONCERN-2004); an audit found 18 such clauses across 13 phantom paths.
-      `statement` and `verification` are checked — `verification` names live
-      test infrastructure and must refer to real paths. `rationale` narrates
-      history by design and legitimately cites paths that are gone.
+      landmine: the agent invents something inconsistent with the codebase or
+      silently ignores a MUST. DEMOMA-19-008 named a `conftest.py` registry that
+      had never existed; an audit found 18 phantom-path clauses. Behavioral step,
+      precondition, and postcondition fields are scanned in addition to statement
+      and verification because they are equally normative. `rationale` legitimately
+      cites gone paths and is excluded.
     relationships:
     - rel_type: derives_from
       spec_id: MS-04-001
