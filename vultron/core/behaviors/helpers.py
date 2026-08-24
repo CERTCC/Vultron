@@ -329,7 +329,219 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         )
 
 
-class FindParticipantByActorIdNode(DataLayerCondition):
+# ---------------------------------------------------------------------------
+# Typed-Ports base classes (BTND-03-009 through BTND-03-011)
+# ---------------------------------------------------------------------------
+
+# BTBridge writes datalayer and actor_id as flat root-level blackboard keys.
+# Ports nodes remap their port names to these absolute paths so that
+# get_input("datalayer") reads the same value that was written by
+# BTBridge.setup_tree().
+_DL_KEY = "/datalayer"
+_ACTOR_KEY = "/actor_id"
+
+
+class DataLayerConditionWithPorts(BehaviourWithPorts):
+    """Base class for typed-Ports BT condition nodes with DataLayer access.
+
+    Declares ``datalayer`` and ``actor_id`` as required input ports, remapped
+    to the flat BTBridge blackboard keys ``/datalayer`` and ``/actor_id``.
+    Subclasses must implement ``input_ports()``, ``output_ports()``, and
+    ``update()``.  They read injected values via ``get_input()`` in
+    ``initialise()``.
+
+    Per BTND-03-009: typed port declarations replace imperative register_key().
+    Per BTND-03-010: setup_ports() with remappings wires BTBridge flat keys.
+    Per BTND-03-011: get_input() replaces direct blackboard attribute access.
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        super().__init__(name=name)
+        self.logger = logging.getLogger(
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "datalayer": PortInformation(data_type=object, required=True),
+            "actor_id": PortInformation(data_type=str, required=True),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Subclasses override to map domain input-port names to absolute blackboard paths.
+
+        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
+        that domain keys declared in ``input_ports()`` resolve to the same global
+        paths written by preceding ``DataLayerAction`` writer nodes.
+        """
+        return {}
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Override for instance-state-dependent port paths (dynamic keys)."""
+        return {}
+
+    def _try_get_input(self, key: str) -> object | None:
+        try:
+            return cast(object, self.get_input(key))
+        except (NoDataAvailable, NotImplementedError):
+            return None
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": _DL_KEY,
+                "actor_id": _ACTOR_KEY,
+                **self._domain_port_remappings(),
+                **self._instance_port_remappings(),
+            }
+        )
+
+    def initialise(self) -> None:
+        try:
+            self.datalayer = self.get_input("datalayer")
+        except NotImplementedError:
+            self.datalayer = None
+        try:
+            self.actor_id = self.get_input("actor_id")
+        except NotImplementedError:
+            self.actor_id = None
+
+    def _require_datalayer(self) -> Status | None:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented"
+        )
+
+
+class DataLayerActionWithPorts(BehaviourWithPorts):
+    """Base class for typed-Ports BT action nodes with DataLayer access.
+
+    Declares ``datalayer``, ``actor_id``, and optionally
+    ``trigger_activity_factory`` as input ports, remapped to BTBridge flat
+    keys.  Subclasses must implement ``input_ports()``, ``output_ports()``,
+    and ``update()``.
+
+    Per BTND-03-009 through BTND-03-011.
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        super().__init__(name=name)
+        self.logger = logging.getLogger(
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+        self.trigger_activity_factory: "TriggerActivityPort | None" = None
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "datalayer": PortInformation(data_type=object, required=True),
+            "actor_id": PortInformation(data_type=str, required=True),
+            "trigger_activity_factory": PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Subclasses override to map domain input-port names to absolute blackboard paths.
+
+        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
+        that domain keys declared in ``input_ports()`` resolve to the same global
+        paths written by preceding ``DataLayerAction`` writer nodes.
+        """
+        return {}
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Override for instance-state-dependent port paths (dynamic keys)."""
+        return {}
+
+    def _try_get_input(self, key: str) -> object | None:
+        try:
+            return cast(object, self.get_input(key))
+        except (NoDataAvailable, NotImplementedError):
+            return None
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": _DL_KEY,
+                "actor_id": _ACTOR_KEY,
+                "trigger_activity_factory": "/trigger_activity_factory",
+                **self._domain_port_remappings(),
+                **self._instance_port_remappings(),
+            }
+        )
+
+    def initialise(self) -> None:
+        try:
+            self.datalayer = self.get_input("datalayer")
+        except NotImplementedError:
+            self.datalayer = None
+        try:
+            self.actor_id = self.get_input("actor_id")
+        except NotImplementedError:
+            self.actor_id = None
+        try:
+            self.trigger_activity_factory = self.get_input(
+                "trigger_activity_factory"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self.trigger_activity_factory = None
+
+    def _require_datalayer(self) -> Status | None:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
+
+    def _require_factory(self) -> Status | None:
+        if self.trigger_activity_factory is None:
+            self.feedback_message = "trigger_activity_factory not available"
+            return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented"
+        )
+
+
+class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
     """
     Resolve and store a case participant by actor ID.
 
@@ -350,10 +562,19 @@ class FindParticipantByActorIdNode(DataLayerCondition):
         self.target_actor_id = target_actor_id
         self.participant_key = participant_key
 
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "participant": PortInformation(data_type=object, required=True)
+        }
+
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key=self.participant_key, access=py_trees.common.Access.WRITE
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "participant": f"/{self.participant_key}",
+            }
         )
 
     def _participant_actor_id(self, participant: object) -> str:
@@ -457,9 +678,7 @@ class FindParticipantByActorIdNode(DataLayerCondition):
 
         if index_match != matched_participant_id:
             if index_match is None:
-                setattr(
-                    self.blackboard, self.participant_key, matched_participant
-                )
+                self._set_output("participant", matched_participant)
                 self.feedback_message = (
                     f"Found participant for actor {self.target_actor_id}"
                 )
@@ -472,7 +691,7 @@ class FindParticipantByActorIdNode(DataLayerCondition):
                 f"actor_participant_index maps to {index_match}."
             )
 
-        setattr(self.blackboard, self.participant_key, matched_participant)
+        self._set_output("participant", matched_participant)
         self.feedback_message = (
             f"Found participant for actor {self.target_actor_id}"
         )
@@ -480,7 +699,7 @@ class FindParticipantByActorIdNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class ReadObject(DataLayerCondition):
+class ReadObject(DataLayerConditionWithPorts):
     """
     Read an object from DataLayer and store in blackboard.
 
@@ -504,12 +723,19 @@ class ReadObject(DataLayerCondition):
         self.table = table
         self.object_id = object_id
 
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "object_data": PortInformation(data_type=object, required=True)
+        }
+
     def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access including output key for retrieved object."""
-        super().setup(**kwargs)
-        # Register key for storing retrieved object (use WRITE access)
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=py_trees.common.Access.WRITE
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "object_data": f"/{self.blackboard_key}",
+            }
         )
 
     def update(self) -> Status:
@@ -533,8 +759,7 @@ class ReadObject(DataLayerCondition):
                 self.logger.debug(self.feedback_message)
                 return Status.FAILURE
 
-            # Store retrieved object in blackboard with simplified key
-            setattr(self.blackboard, self.blackboard_key, record)
+            self._set_output("object_data", record)
             self.feedback_message = f"Read {self.table}/{self.object_id}"
             self.logger.debug(self.feedback_message)
             return Status.SUCCESS
@@ -547,7 +772,7 @@ class ReadObject(DataLayerCondition):
             return Status.FAILURE
 
 
-class UpdateObject(DataLayerAction):
+class UpdateObject(DataLayerActionWithPorts):
     """
     Update an object in DataLayer with new values.
 
@@ -576,13 +801,28 @@ class UpdateObject(DataLayerAction):
         self.object_id = object_id
         self.updates = updates
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["object_data"] = PortInformation(data_type=object, required=True)
+        return ports
+
     def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access including object key for reading."""
-        super().setup(**kwargs)
-        # Register key for reading object to update
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=py_trees.common.Access.READ
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "object_data": f"/{self.blackboard_key}",
+            }
         )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._current_dict = self.get_input("object_data")
+        except (NoDataAvailable, NotImplementedError):
+            self._current_dict = None
 
     def update(self) -> Status:
         """
@@ -595,16 +835,7 @@ class UpdateObject(DataLayerAction):
             return f
 
         try:
-            # Try to read current record from blackboard
-            # py_trees will raise KeyError if key not written to yet
-            try:
-                current_dict = self.blackboard.get(self.blackboard_key)
-            except KeyError:
-                self.feedback_message = (
-                    f"Object not in blackboard: {self.object_id}"
-                )
-                self.logger.error(self.feedback_message)
-                return Status.FAILURE
+            current_dict = self._current_dict
 
             if current_dict is None:
                 self.feedback_message = (
@@ -732,7 +963,7 @@ class CreateObject(DataLayerAction):
             return Status.FAILURE
 
 
-class UpdateActorOutbox(DataLayerAction):
+class UpdateActorOutbox(DataLayerActionWithPorts):
     """
     Update actor's outbox with a new activity.
 
@@ -755,15 +986,27 @@ class UpdateActorOutbox(DataLayerAction):
         """
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access including activity_id and case_id keys."""
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity_id"] = PortInformation(data_type=str, required=True)
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity_id": "/activity_id", "case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.activity_id = self.get_input("activity_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.activity_id = None
+        try:
+            self.case_id = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.case_id = None
 
     def update(self) -> Status:
         """
@@ -778,14 +1021,14 @@ class UpdateActorOutbox(DataLayerAction):
         assert self.actor_id is not None
 
         try:
-            activity_id = self.blackboard.get("activity_id")
+            activity_id = self.activity_id
             if activity_id is None:
                 self.logger.error(
                     f"{self.name}: activity_id not found in blackboard"
                 )
                 return Status.FAILURE
 
-            case_id = self.blackboard.get("case_id")
+            case_id = self.case_id
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id
@@ -803,193 +1046,3 @@ class UpdateActorOutbox(DataLayerAction):
         except Exception as e:
             self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
             return Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# Typed-Ports base classes (BTND-03-009 through BTND-03-011)
-# ---------------------------------------------------------------------------
-
-# BTBridge writes datalayer and actor_id as flat root-level blackboard keys.
-# Ports nodes remap their port names to these absolute paths so that
-# get_input("datalayer") reads the same value that was written by
-# BTBridge.setup_tree().
-_DL_KEY = "/datalayer"
-_ACTOR_KEY = "/actor_id"
-
-
-class DataLayerConditionWithPorts(BehaviourWithPorts):
-    """Base class for typed-Ports BT condition nodes with DataLayer access.
-
-    Declares ``datalayer`` and ``actor_id`` as required input ports, remapped
-    to the flat BTBridge blackboard keys ``/datalayer`` and ``/actor_id``.
-    Subclasses must implement ``input_ports()``, ``output_ports()``, and
-    ``update()``.  They read injected values via ``get_input()`` in
-    ``initialise()``.
-
-    Per BTND-03-009: typed port declarations replace imperative register_key().
-    Per BTND-03-010: setup_ports() with remappings wires BTBridge flat keys.
-    Per BTND-03-011: get_input() replaces direct blackboard attribute access.
-    """
-
-    logger: logging.Logger  # type: ignore[assignment]
-
-    def __init__(self, name: str):
-        super().__init__(name=name)
-        self.logger = logging.getLogger(
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
-        self.datalayer: CasePersistence | None = None
-        self.actor_id: str | None = None
-
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "datalayer": PortInformation(data_type=object, required=True),
-            "actor_id": PortInformation(data_type=str, required=True),
-        }
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        """Subclasses override to map domain input-port names to absolute blackboard paths.
-
-        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
-        that domain keys declared in ``input_ports()`` resolve to the same global
-        paths written by preceding ``DataLayerAction`` writer nodes.
-        """
-        return {}
-
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": _DL_KEY,
-                "actor_id": _ACTOR_KEY,
-                **self._domain_port_remappings(),
-            }
-        )
-
-    def initialise(self) -> None:
-        try:
-            self.datalayer = self.get_input("datalayer")
-        except NotImplementedError:
-            self.datalayer = None
-        try:
-            self.actor_id = self.get_input("actor_id")
-        except NotImplementedError:
-            self.actor_id = None
-
-    def _require_datalayer(self) -> Status | None:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-        return None
-
-    def _require_datalayer_and_actor(self) -> Status | None:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-        return None
-
-    def update(self) -> Status:
-        raise NotImplementedError(
-            f"{self.__class__.__name__}.update() must be implemented"
-        )
-
-
-class DataLayerActionWithPorts(BehaviourWithPorts):
-    """Base class for typed-Ports BT action nodes with DataLayer access.
-
-    Declares ``datalayer``, ``actor_id``, and optionally
-    ``trigger_activity_factory`` as input ports, remapped to BTBridge flat
-    keys.  Subclasses must implement ``input_ports()``, ``output_ports()``,
-    and ``update()``.
-
-    Per BTND-03-009 through BTND-03-011.
-    """
-
-    logger: logging.Logger  # type: ignore[assignment]
-
-    def __init__(self, name: str):
-        super().__init__(name=name)
-        self.logger = logging.getLogger(
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
-        self.datalayer: CasePersistence | None = None
-        self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
-
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "datalayer": PortInformation(data_type=object, required=True),
-            "actor_id": PortInformation(data_type=str, required=True),
-            "trigger_activity_factory": PortInformation(
-                data_type=object, required=False
-            ),
-        }
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        """Subclasses override to map domain input-port names to absolute blackboard paths.
-
-        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
-        that domain keys declared in ``input_ports()`` resolve to the same global
-        paths written by preceding ``DataLayerAction`` writer nodes.
-        """
-        return {}
-
-    def setup(self, **kwargs: Any) -> None:
-        self.setup_ports(
-            port_remappings={
-                "datalayer": _DL_KEY,
-                "actor_id": _ACTOR_KEY,
-                "trigger_activity_factory": "/trigger_activity_factory",
-                **self._domain_port_remappings(),
-            }
-        )
-
-    def initialise(self) -> None:
-        try:
-            self.datalayer = self.get_input("datalayer")
-        except NotImplementedError:
-            self.datalayer = None
-        try:
-            self.actor_id = self.get_input("actor_id")
-        except NotImplementedError:
-            self.actor_id = None
-        try:
-            self.trigger_activity_factory = self.get_input(
-                "trigger_activity_factory"
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self.trigger_activity_factory = None
-
-    def _require_datalayer(self) -> Status | None:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-        return None
-
-    def _require_datalayer_and_actor(self) -> Status | None:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-        return None
-
-    def _require_factory(self) -> Status | None:
-        if self.trigger_activity_factory is None:
-            self.feedback_message = "trigger_activity_factory not available"
-            return Status.FAILURE
-        return None
-
-    def update(self) -> Status:
-        raise NotImplementedError(
-            f"{self.__class__.__name__}.update() must be implemented"
-        )

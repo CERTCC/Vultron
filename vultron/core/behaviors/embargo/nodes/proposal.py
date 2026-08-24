@@ -15,11 +15,10 @@
 
 """Embargo invitation and proposal workflow nodes."""
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
 )
 from vultron.core.models.case_participant import CaseParticipant
@@ -30,7 +29,7 @@ from vultron.core.services.embargo_lifecycle import (
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 
-class UpdateParticipantEmbargoPecNode(DataLayerAction):
+class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
     """Apply a PEC trigger to participant.embargo_consent_state.
 
     Reads participant from blackboard 'participant' key. If participant not found,
@@ -53,20 +52,33 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.pec_trigger = pec_trigger
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="participant", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["participant"] = PortInformation(
+            data_type=object, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"participant": "/participant"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._participant = None
+        try:
+            self._participant = self.get_input("participant")
+        except (NoDataAvailable, NotImplementedError):
+            self._participant = None
 
     def update(self) -> Status:
         if self.datalayer is None:
             self.feedback_message = "DataLayer not available"
             return Status.SUCCESS
 
-        try:
-            participant = self.blackboard.participant
-        except KeyError:
+        participant = self._participant
+        if participant is None:
             self.logger.warning(
                 "%s: participant not found in blackboard", self.name
             )
@@ -89,7 +101,7 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CreateAndStoreInviteNode(DataLayerAction):
+class CreateAndStoreInviteNode(DataLayerActionWithPorts):
     """Idempotent storage of an InviteToEmbargoOnCase activity.
 
     Reads the request from the blackboard 'activity' key and uses
@@ -102,20 +114,31 @@ class CreateAndStoreInviteNode(DataLayerAction):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._activity = None
+        try:
+            self._activity = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self._activity = None
 
     def update(self) -> Status:
         if self.datalayer is None:
             self.feedback_message = "DataLayer not available"
             return Status.SUCCESS
 
-        try:
-            request = self.blackboard.activity
-        except KeyError:
+        request = self._activity
+        if request is None:
             self.logger.warning(
                 "%s: request not found in blackboard", self.name
             )
@@ -250,7 +273,7 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RemoveStaleAcceptanceNode(DataLayerAction):
+class RemoveStaleAcceptanceNode(DataLayerActionWithPorts):
     """Remove stale embargo acceptance from participant (pocket-veto).
 
     Reads participant from blackboard, removes embargo_id from
@@ -267,19 +290,32 @@ class RemoveStaleAcceptanceNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.embargo_id = embargo_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="participant", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["participant"] = PortInformation(
+            data_type=object, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"participant": "/participant"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._participant = None
+        try:
+            self._participant = self.get_input("participant")
+        except (NoDataAvailable, NotImplementedError):
+            self._participant = None
 
     def update(self) -> Status:
         if self.datalayer is None:
             return Status.SUCCESS
 
-        try:
-            participant = self.blackboard.participant
-        except KeyError:
+        participant = self._participant
+        if participant is None:
             self.logger.debug(
                 "%s: participant not found in blackboard", self.name
             )
