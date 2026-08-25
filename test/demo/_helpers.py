@@ -140,7 +140,7 @@ def seed_case_replica_for_actor(
 
 
 def seed_replicas_for_case_participants(
-    source_dl: Any, case_id: str, db_url: str = "sqlite:///:memory:"
+    source_dl: Any, case_id: str, db_url: str | None = None
 ) -> dict[str, Any]:
     """Replicate *case_id* into the store of every actor participating in it.
 
@@ -158,14 +158,25 @@ def seed_replicas_for_case_participants(
     Args:
         source_dl: Store holding the authoritative case (usually the owner's).
         case_id: Case to replicate.
-        db_url: Backing URL for the target stores; must match the one the app's
-            ``get_actor_dl`` override uses or the routes will read a different
-            database.
+        db_url: Storage-deployment template for the target stores. Defaults to
+            *source_dl*'s own, which is nearly always what a caller wants: the
+            replicas belong beside the case they are replicated from. It must
+            match the template the app's ``get_actor_dl`` override uses, and a
+            mismatch does not raise — ``get_datalayer`` caches on
+            ``(actor_id, db_url)``, so the wrong template seeds a real but
+            *separate* database and the routes go on reading an empty one. This
+            defaulted to a bare ``sqlite:///:memory:`` while every node shared
+            that anonymous template; now that each node gets its own named
+            deployment (``test/demo/conftest.py::node_db_url``) a hardcoded
+            default would silently seed nothing any node can see.
 
     Returns:
         Mapping of actor id to the store seeded for it, source actor excluded.
     """
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    if db_url is None:
+        db_url = getattr(source_dl, "db_url", None)
 
     case = source_dl.read(case_id)
     if case is None:

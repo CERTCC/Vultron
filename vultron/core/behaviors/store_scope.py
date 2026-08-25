@@ -37,6 +37,20 @@ logger = logging.getLogger(__name__)
 
 _P = TypeVar("_P")
 
+#: The store handed to :func:`store_for_actor`, whatever port it satisfies.
+#:
+#: Deliberately unbound.  The function reaches every attribute it uses through
+#: ``getattr`` and returns either the store it was given or that store's own
+#: ``clone_for_actor`` result, so it preserves the caller's type rather than
+#: narrowing to one port.  Callers legitimately hold different ones: BT nodes a
+#: :class:`~vultron.core.ports.case_persistence.CasePersistence`, the trigger
+#: routes a :class:`~vultron.core.ports.datalayer.DataLayer` (which is *not* a
+#: ``CasePersistence`` — it declares no ``actor_id``).  Binding to either would
+#: force the other side to cast, and a cast here would assert a shape this
+#: function specifically does not require: a store that reports no ``actor_id``
+#: at all is a supported input, documented below and relied on by test doubles.
+_S = TypeVar("_S")
+
 #: Name of the optional rebinding method a port may expose (DL-07-009).
 _REBIND = "for_store"
 
@@ -60,11 +74,11 @@ def same_authority(a: str, b: str) -> bool:
 
 
 def store_for_actor(
-    store: CasePersistence,
+    store: _S,
     actor_id: str,
     *,
     require_same_authority: bool = False,
-) -> CasePersistence | None:
+) -> _S | None:
     """Return the store belonging to *actor_id*, or ``None`` if unreachable.
 
     Args:
@@ -108,10 +122,12 @@ def store_for_actor(
         actor_id,
     )
     # `clone_for_actor` came from getattr, so it is untyped. The cast is safe
-    # because `CasePersistence.clone_for_actor` is declared to return a
-    # `CasePersistence`; the getattr exists only so that test doubles and any
-    # non-actor-scoped implementation fall through the guards above untouched.
-    return cast(CasePersistence, clone_for_actor(actor_id))
+    # because every port that declares the method declares it as returning that
+    # same port (`CasePersistence.clone_for_actor -> CasePersistence`,
+    # `DataLayer.clone_for_actor -> DataLayer`); the getattr exists only so that
+    # test doubles and any non-actor-scoped implementation fall through the
+    # guards above untouched.
+    return cast(_S, clone_for_actor(actor_id))
 
 
 def port_for_store(port: _P, store: CasePersistence) -> _P:

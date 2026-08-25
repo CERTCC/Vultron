@@ -1112,9 +1112,12 @@ def run_fvcv_handoff_demo(
             )
         )
 
-        # The CaseActor is a dynamic sub-actor on the vendor container (not the
-        # case-actor service).  Discover its ID from the case data before
-        # proceeding.
+        # The case's CaseActor is the container-level identity of whichever node
+        # first received the report (ADR-0041, CP-08-003) — not a per-case
+        # sub-actor, and not necessarily the standalone case-actor service.
+        # After a handoff it is on a container that no longer owns the case, so
+        # which one it is cannot be assumed or constructed from a slug: read it
+        # off the case's own participants.
         dynamic_case_actor_id = find_case_actor_participant_id(
             vendor_client, case.id_
         )

@@ -35,8 +35,8 @@ This module pins down that configuration, because three things have to hold and
 none of them is obvious from reading the emit path:
 
 * the Invite still reaches the invitee, from the CaseActor's identity;
-* it still carries the case (CM-17-002) rather than a bare id string, which it
-  cannot do if the store the emit reads has no case in it;
+* the emitted Invite carries the case (CM-17-002) rather than a bare id string,
+  which it cannot do if the store the emit reads has no case in it;
 * the ledger entry lands in a store somebody reads.
 
 Only a multi-node setup can show this, and only since each node in this harness
@@ -63,6 +63,10 @@ from test.demo.conftest import (
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 
 #: Characters that cannot appear in a hostname label.
@@ -189,6 +193,15 @@ def _seed_case(dl, topo: _Topology, case_id: str) -> None:
     This is the post-handoff shape: the participant wearing
     ``CVDRole.CASE_MANAGER`` is attributed to a CaseActor on a container the
     node holding this replica does not host (CP-09-004).
+
+    The case is seeded **under an active embargo**, and that is load-bearing
+    rather than incidental colour.  ``_project_case_to_stub`` enriches the
+    Invite's ``target`` only when ``em_state == EM.ACTIVE`` and the case names
+    an ``active_embargo`` (CM-17-002); with no embargo it returns a stub
+    carrying nothing but an id, which AS2 serialises to a bare URI string —
+    exactly what a *failed* case read produces.  Under an active embargo the two
+    outcomes finally differ, so ``test_the_invite_carries_the_case_not_a_bare_id``
+    can tell "read the case" from "read an empty store".
     """
     manager = CaseParticipant(
         id_=f"{case_id}/participants/case-actor",
@@ -200,6 +213,10 @@ def _seed_case(dl, topo: _Topology, case_id: str) -> None:
         attributed_to=topo.owner_actor_id,
         case_roles=[CVDRole.VENDOR],
     )
+    embargo = EmbargoEvent(
+        id_=f"{case_id}/embargoes/e0",
+        context=case_id,
+    )
     case = VulnerabilityCase(
         id_=case_id,
         name="remote CaseActor invite",
@@ -209,9 +226,18 @@ def _seed_case(dl, topo: _Topology, case_id: str) -> None:
             topo.ca_actor_id: str(manager.id_),
             topo.owner_actor_id: str(owner_participant.id_),
         },
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=topo.ca_actor_id,
+                em=EmDimension(state=EM.ACTIVE),
+            )
+        ],
+        active_embargo=str(embargo.id_),
     )
     dl.create(manager)
     dl.create(owner_participant)
+    dl.create(embargo)
     dl.create(case)
     if dl.read(topo.ca_actor_id) is None:
         # The owner knows the CaseActor as a peer — a handoff leaves this
@@ -307,27 +333,49 @@ class TestInviteWithARemoteCaseActor:
         )
         assert getattr(invites[0], "actor", None) == topology.ca_actor_id
 
-    def test_the_invite_carries_the_case_not_a_bare_id(self, topology):
-        """CM-17-002: the invitee cannot dereference a URI it does not hold.
+    def test_the_emitted_invite_carries_the_case_not_a_bare_id(self, topology):
+        """CM-17-002: the emit must read a store that actually holds the case.
 
         ``EmitInviteActorToCaseNode._emit`` reads the case from the store the BT
-        runs in and passes ``target=None`` when that read fails, which drops the
-        target to a bare id string.  A store minted for a foreign actor is
-        empty, so a remote CaseActor produces exactly that unless the emit stays
-        in a store that holds the case (AKM-03-001).
+        runs in and passes ``target=None`` when that read fails; the adapter
+        then re-reads from the same store and falls back to the bare ``case_id``
+        string.  A store minted for a foreign actor is empty, so a remote
+        CaseActor produces exactly that unless the emit stays in a store that
+        holds the case (AKM-03-001).
+
+        The embargo terms are the observable difference, and that is why
+        ``_seed_case`` puts the case at ``EM.ACTIVE`` with an ``active_embargo``
+        rather than leaving it bare.  ``_project_case_to_stub`` enriches the
+        stub only under exactly that condition, so an ``activeEmbargo`` on the
+        emitted target means the case *and* its ``EmbargoEvent`` were both read
+        out of a store that really holds them — which an empty phantom store
+        cannot fake.
+
+        Asserted on the **emitting** side, against the requester's own record of
+        what it sent, because that is the boundary this issue governs.  The
+        invitee's copy is not a usable probe for it: the enrichment does not
+        currently survive the wire hop at all, for reasons that have nothing to
+        do with which store the emit ran in (#2624 — the outbox's stub allowlist
+        collapses any stub richer than ``{id, type, summary}``).  Checking the
+        invitee here would fail on that unrelated defect and say "wrong store"
+        while meaning "the outbox flattened the stub".
         """
         case_id = "urn:uuid:remote-ca-target-enrichment"
-        _, _, invitee_dl = _bootstrap(topology, case_id)
+        owner_dl, _, _ = _bootstrap(topology, case_id)
 
         _invite(topology, case_id)
 
-        invites = invitee_dl.list_objects("Invite")
+        invites = owner_dl.list_objects("Invite")
         assert len(invites) == 1
         target = getattr(invites[0], "target", None)
         assert not isinstance(target, str), (
-            "the Invite's target degraded to a bare case id, so the invitee was"
-            " handed a reference it cannot resolve: the emit read a store with"
-            f" no case in it. target={target!r}"
+            "the Invite's target degraded to a bare case id, so the emit read a"
+            f" store with no case in it. target={target!r}"
+        )
+        assert getattr(target, "active_embargo", None) is not None, (
+            "the target is inline but carries no embargo terms, so the invitee"
+            " could not give informed consent (CM-17-002); the case was read but"
+            f" its EmbargoEvent was not. target={target!r}"
         )
 
     def test_no_store_is_minted_for_the_remote_case_actor(self, topology):

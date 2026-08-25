@@ -84,6 +84,20 @@ class SqliteDataLayer:
         """
         return self._actor_id
 
+    @property
+    def db_url(self) -> str:
+        """The storage-deployment **template** this store was built from.
+
+        Not the actor's own resolved URL — :func:`actor_db_url` derives that per
+        actor — but the template every actor in the same deployment shares.  It
+        is the deployment's identity the way :attr:`actor_id` is the store's, and
+        callers that need to reach a *sibling* actor's store have to pass it back
+        to :func:`get_datalayer` to land in the same deployment: the cache is
+        keyed on ``(actor_id, db_url)``, so guessing wrong yields a valid,
+        empty, and entirely separate database rather than an error.
+        """
+        return self._db_url
+
     def close(self) -> None:
         """Dispose this actor's engine, releasing its SQLite connections.
 

@@ -42,8 +42,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
-from vultron.core.behaviors.case.nodes.participant.common import (
+from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_manager_id,
+)
+from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.models.case import VulnerabilityCase

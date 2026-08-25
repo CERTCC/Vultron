@@ -22,6 +22,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.store_scope import same_authority
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -170,7 +171,7 @@ def _read_blackboard():
 
 
 def test_setup_tree_blackboard_datalayer_is_the_executing_actors_store(
-    bridge, datalayer, test_actor_id
+    bridge, datalayer
 ):
     """BT-05-005: the blackboard datalayer is the store of the blackboard actor_id.
 
@@ -181,16 +182,62 @@ def test_setup_tree_blackboard_datalayer_is_the_executing_actors_store(
     disagree, which is how a delegated emit created an activity in the
     requester's store and queued it in the CaseActor's outbox.  The store now
     follows the executing actor, so what must hold is that the two agree.
+
+    The executing actor is a *sibling on the same authority* here, rather than
+    the cross-authority ``test_actor_id`` this once used.  Re-scoping is only
+    meaningful within an authority: a node hosts the actors under its own
+    authority and can open a store for any of them, which is what makes
+    following the executing actor the right move.  Across authorities it is not
+    — see
+    :func:`test_setup_tree_keeps_the_injected_store_for_a_foreign_authority`.
     """
+    sibling_actor_id = "https://test.example/api/v2/actors/other-actor"
+    assert same_authority(datalayer.actor_id, sibling_actor_id)
+
+    bt = bridge.setup_tree(tree=CheckBlackboard(), actor_id=sibling_actor_id)
+    bt.setup()
+
+    blackboard = _read_blackboard()
+    assert blackboard.actor_id == sibling_actor_id
+    assert blackboard.datalayer.actor_id == sibling_actor_id
+    # The injected store belonged to a different actor, so it was re-scoped.
+    assert datalayer.actor_id != sibling_actor_id
+    assert blackboard.datalayer is not datalayer
+
+
+def test_setup_tree_keeps_the_injected_store_for_a_foreign_authority(
+    bridge, datalayer, test_actor_id
+):
+    """A store is never re-scoped to an actor this node does not host (#2484).
+
+    ``_find_case_actor_id`` resolves a case's CaseActor by *identity shape*
+    (``.../actors/case-actor``, ADR-0041), which answers for remote containers
+    just as readily as local ones — deliberately, since after a handoff the
+    CaseActor is on the container that first received the report (CP-08-003)
+    while the case owner is elsewhere.  ``setup_tree`` then runs with that
+    foreign actor as the executing actor.
+
+    Re-scoping there would mint an empty local store under a foreign actor's
+    name, and nothing would raise: the tree would simply run against nothing.
+    That is not a degradation but a hard failure — with no case there is no
+    genesis hash to anchor the ledger chain, so the commit is refused
+    (CLP-08-005) and ``invite-actor-to-case`` answers 422.  So the handed store
+    is kept, and it is the right one: it belongs to the actor whose request this
+    is, and it holds the case and its ledger.  The Invite's *wire* identity is
+    unaffected (PCR-08-007).
+    """
+    assert not same_authority(datalayer.actor_id, test_actor_id)
+
     bt = bridge.setup_tree(tree=CheckBlackboard(), actor_id=test_actor_id)
     bt.setup()
 
     blackboard = _read_blackboard()
     assert blackboard.actor_id == test_actor_id
-    assert blackboard.datalayer.actor_id == test_actor_id
-    # The injected store belonged to a different actor, so it was re-scoped.
-    assert datalayer.actor_id != test_actor_id
-    assert blackboard.datalayer is not datalayer
+    assert blackboard.datalayer is datalayer, (
+        "a foreign-authority executing actor must not cause a fresh local store"
+        " to be minted in its name; the handed store is the only one this node"
+        f" can actually write. got actor_id={blackboard.datalayer.actor_id!r}"
+    )
 
 
 def test_setup_tree_keeps_the_injected_store_when_it_already_matches(
