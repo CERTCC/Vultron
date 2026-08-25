@@ -424,9 +424,9 @@ Blocker graph: `#1558 -> #1808 -> #1809 -> {#1810, #1811}` and
 
 ---
 
-## Nodes with Instance-Computed Blackboard Keys Cannot Use `input_ports()`
+## Nodes with Instance-Computed Blackboard Keys
 
-(ISSUE-1885, 2026-08-21)
+(ISSUE-1885, 2026-08-21; resolved by PR #2530 / #2483, 2026-08-24)
 
 Some nodes compute their blackboard key names dynamically in `__init__` from a
 constructor argument (e.g. `report_id`):
@@ -436,25 +436,21 @@ _seg = report_id.split("/")[-1] if report_id else "default"
 self._participant_case_key = f"participant_case_{_seg}"
 ```
 
-`input_ports()` is a **classmethod** — it cannot access instance state. These
-nodes therefore cannot declare their keys in `input_ports()` and cannot be
-migrated to `DataLayerActionWithPorts`.
+`input_ports()` is a **classmethod** — it cannot access instance state. During
+Part 3/5 (#1885), this meant those nodes could not be migrated to
+`DataLayerActionWithPorts` via the standard classmethod pattern.
 
 Additionally, using `DataLayerActionWithPorts` with `self._blackboard_client.register_key(...)`
 in `setup()` fails because `_blackboard_client` is typed `Optional` and Pyright
 correctly flags `.register_key` on `None`.
 
-**Decision**: nodes with instance-computed keys MUST remain as `DataLayerAction`
-(not `DataLayerActionWithPorts`) until a design that accommodates dynamic key
-names is adopted — e.g. a port template or a runtime-registration extension.
-
-Affected nodes in Part 3/5 (#1885):
+Affected nodes identified in Part 3/5 (#1885):
 
 - `PersistOwnerCaseNode`
 - `AdvanceOwnerRmToAcceptedNode`
 - `RecordOwnerJoinedEventNode`
 
-These are in `case/nodes/participant/owner.py`. They are a known gap in the
-typed-Ports migration; Part 4/5 (#1886) and Part 5/5 (#1887) may surface
-similar patterns. Flag for consideration in the finalization issue (#1887).
-*Source: ISSUE-1885*
+**Resolved**: cleanup PR #2530 (issue #2483) successfully migrated all three
+nodes to `DataLayerActionWithPorts` as part of clearing the `AUDITED_SITES`
+backlog. The dynamic-key pattern was handled during that cleanup.
+*Source: ISSUE-1885, PR #2530*
