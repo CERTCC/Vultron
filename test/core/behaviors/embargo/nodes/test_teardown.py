@@ -510,6 +510,7 @@ class TestApplyEmbargoTeardownNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
 
+    @pytest.mark.spec("EMB-18-001")
     def test_delegates_em_write_to_clear_active_embargo_node(self):
         """AC-1 (issue #2583): EM write is delegated to ClearActiveEmbargoNode.
 

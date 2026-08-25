@@ -622,6 +622,7 @@ class TestSetEmbargoActiveNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.ACTIVE
 
+    @pytest.mark.spec("EMB-18-001")
     def test_em_write_goes_through_write_em_state_node(self):
         """AC-1 (issue #2583): _apply_transition delegates EM write to WriteEmStateNode.
 

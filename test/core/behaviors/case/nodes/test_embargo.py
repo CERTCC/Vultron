@@ -292,6 +292,7 @@ class TestInitializeDefaultEmbargoNode:
 class TestAttachEmbargoToCaseNodeAC1:
     """AC-1 regression for AttachEmbargoToCaseNode (issue #2583)."""
 
+    @pytest.mark.spec("EMB-18-001")
     def test_em_write_delegates_to_write_em_state_node(
         self,
         bt_scenario: BTTestScenario,
