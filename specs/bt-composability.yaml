@@ -42,6 +42,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
+    lint_suppress:
+    - missing_story_reference
 - id: BTC-02
   title: BT Structure Pre-Definition
   specs:

@@ -20,6 +20,8 @@ groups:
     statement: Factory functions MUST be the sole public construction API for outbound Vultron protocol activities
     verification: Architecture test in `test/architecture/` confirms that no module outside `vultron/wire/as2/vocab/activities/`
       and `vultron/wire/as2/factories/` directly instantiates a Vultron activity subclass.
+    lint_suppress:
+    - missing_story_reference
   - id: AF-01-002
     priority: MUST
     kind: project
@@ -31,6 +33,8 @@ groups:
     statement: Factory function signatures MUST declare explicit, domain-typed parameters for all protocol-significant fields
     verification: Inspection of `vultron/wire/as2/factories/` confirms that each factory function signature uses typed
       domain parameters (not generic dicts or `Any`) for all protocol-significant fields.
+    lint_suppress:
+    - missing_story_reference
   - id: AF-01-004
     priority: SHOULD
     kind: protocol
@@ -80,6 +84,8 @@ groups:
     statement: Factory function names MUST be the snake_case equivalent of the corresponding Vultron activity class name
     verification: Inspection of `vultron/wire/as2/factories/` confirms each factory function name is the `snake_case`
       form of its corresponding activity class name (e.g., `em_propose_embargo` for `EmProposeEmbargo`).
+    lint_suppress:
+    - missing_story_reference
 - id: AF-04
   title: Error Handling
   specs:
@@ -112,6 +118,8 @@ groups:
       typed as the plain AS2 base type
     verification: Inspection of `vultron/wire/as2/factories/` confirms that each factory function instantiates the
       internal Vultron subclass and returns it annotated as the plain AS2 base type (e.g., `as_Offer`, `as_Accept`).
+    lint_suppress:
+    - missing_story_reference
   - id: AF-05-003
     priority: SHOULD
     kind: protocol

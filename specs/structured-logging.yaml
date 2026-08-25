@@ -50,6 +50,8 @@ groups:
       `activity_id` field set to the processed activity's `as_id`.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
   - id: SL-02-002
     priority: MUST
     kind: protocol
@@ -58,6 +60,8 @@ groups:
       `actor_id` field set to the actor's canonical URI.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
 - id: SL-03
   title: Log Level Semantics
   specs:

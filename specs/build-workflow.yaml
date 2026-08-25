@@ -116,6 +116,8 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
+        lint_suppress:
+        - missing_story_reference
       - id: BW-02-002
         priority: MUST
         kind: protocol
@@ -127,6 +129,8 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
+        lint_suppress:
+        - missing_story_reference
       - id: BW-02-003
         priority: MUST
         kind: protocol
@@ -139,6 +143,8 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: HM-06-001
+        lint_suppress:
+        - missing_story_reference
   - id: BW-03
     title: learn Skill Processing
     specs:

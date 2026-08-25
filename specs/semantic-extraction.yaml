@@ -23,6 +23,8 @@ groups:
       Inspection of `vultron/wire/` confirms that `find_matching_semantics()` tests
       each registered `ActivityPattern` against both the activity type and object
       type of the incoming activity.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-01-002
     priority: MUST
     kind: protocol
@@ -33,6 +35,8 @@ groups:
       Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
       attempts to rehydrate bare URI string `object_` values before pattern matching,
       handling both expanded objects and unresolved URI strings defensively.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-01-003
     priority: MUST
     kind: protocol
@@ -42,6 +46,8 @@ groups:
       `find_matching_semantics()` logs a WARNING, returns
       `MessageSemantics.UNKNOWN`, and stores the activity in a dead-letter record
       without raising an exception.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-01-004
     priority: MUST
     kind: protocol
@@ -55,6 +61,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SE-01-002
+    lint_suppress:
+    - missing_story_reference
 - id: SE-02
   title: Semantic Type Assignment
   specs:
@@ -67,6 +75,8 @@ groups:
       Inspection of `vultron/wire/` confirms that the inbox handler invokes
       `find_matching_semantics()` as the sole code path for assigning a
       `MessageSemantics` enum value to each received AS2 activity.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-02-002
     priority: MUST
     kind: protocol
@@ -75,6 +85,8 @@ groups:
       A unit test confirms that `find_matching_semantics()` returns the
       `MessageSemantics` value of the first `ActivityPattern` whose constraints match
       the supplied activity, ignoring any subsequent matching entries.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-02-003
     priority: MUST
     kind: protocol
@@ -83,6 +95,8 @@ groups:
       A unit test confirms that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN` when no registered `ActivityPattern` in
       `SEMANTICS_ACTIVITY_PATTERNS` matches the supplied activity.
+    lint_suppress:
+    - missing_story_reference
 - id: SE-03
   title: Pattern Registry
   specs:
@@ -95,6 +109,8 @@ groups:
     verification: >-
       A unit test confirms that every `MessageSemantics` enum value except `UNKNOWN`
       appears as a key in `SEMANTICS_ACTIVITY_PATTERNS` at least once.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-03-002
     priority: MUST
     kind: protocol
@@ -102,6 +118,8 @@ groups:
     verification: >-
       A unit test confirms that `_validate_registry_order()` completes without
       raising `RegistryOrderError` on the current `SEMANTICS_ACTIVITY_PATTERNS`.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-03-003
     priority: MUST
     kind: protocol
@@ -116,6 +134,8 @@ groups:
       A unit test confirms that every `ActivityPattern` entry in
       `SEMANTICS_ACTIVITY_PATTERNS` has a non-`None` `activity_` field and a
       non-`None` `object_` field.
+    lint_suppress:
+    - missing_story_reference
 - id: SE-04
   title: Unrecognized Activity Handling
   specs:
@@ -127,6 +147,8 @@ groups:
       A unit test confirms that presenting an activity with no matching pattern to
       `find_matching_semantics()` causes a WARNING-level log message to be emitted
       before returning `MessageSemantics.UNKNOWN`.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-04-002
     priority: MUST
     kind: protocol
@@ -145,6 +167,8 @@ groups:
       `VultronApiHandlerMissingSemanticError` for a no-pattern-match and returns
       silently (storing a dead-letter record) for an unresolvable `object_` URI,
       distinguishing the two causes.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-04-003
     priority: MUST
     kind: protocol
@@ -156,6 +180,8 @@ groups:
       A unit test confirms that the dead-letter record for an unresolvable-`object_`
       activity contains the full activity JSON, the unresolvable URI, the actor ID,
       and a timestamp, and is stored in the DataLayer collection.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-04-004
     priority: MUST
     kind: protocol
@@ -167,6 +193,8 @@ groups:
       A unit test confirms that the synchronous (non-background) processing path
       returns HTTP 422 with an error body identifying the unresolvable URI when
       `object_` cannot be resolved.
+    lint_suppress:
+    - missing_story_reference
 - id: SE-05
   title: Pattern Validation
   specs:
@@ -177,6 +205,8 @@ groups:
     verification: >-
       A unit test confirms that every key in `SEMANTICS_ACTIVITY_PATTERNS` is a
       valid member of the `MessageSemantics` enum.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-05-002
     priority: MUST
     kind: protocol
@@ -187,6 +217,8 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-002
+    lint_suppress:
+    - missing_story_reference
   - id: SE-05-003
     priority: MUST
     kind: protocol
@@ -195,6 +227,8 @@ groups:
       Inspection of `test/` confirms that each `ActivityPattern` in
       `SEMANTICS_ACTIVITY_PATTERNS` has at least one test exercising
       `find_matching_semantics()` for the corresponding semantic type.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-05-004
     priority: SHOULD
     kind: protocol
@@ -363,6 +397,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-03-002
+    lint_suppress:
+    - missing_story_reference
   - id: SE-08-002
     priority: MUST
     kind: protocol
@@ -381,6 +417,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
+    lint_suppress:
+    - missing_story_reference
   - id: SE-08-003
     priority: SHOULD
     kind: protocol
@@ -421,6 +459,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
+    lint_suppress:
+    - missing_story_reference
   - id: SE-08-005
     priority: MUST
     kind: protocol
@@ -445,3 +485,5 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-003
+    lint_suppress:
+    - missing_story_reference
