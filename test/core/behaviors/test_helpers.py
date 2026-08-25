@@ -15,6 +15,8 @@
 
 """Unit tests for DataLayer-aware BT helper nodes."""
 
+from typing import Callable, Optional
+
 import pytest
 import py_trees
 from py_trees.common import Status
@@ -840,8 +842,10 @@ _ACTOR_URI = "https://example.org/actors/emit-test-actor"
 class _StubEmitNode(_EmitSingleActivityBase):
     """Concrete stub — delegates to injected callables set before use."""
 
-    factory_fn = None
-    on_success_fn = None
+    factory_fn: Optional[Callable[["_StubEmitNode"], tuple[str, dict]]] = None
+    on_success_fn: Optional[Callable[["_StubEmitNode", str, dict], None]] = (
+        None
+    )
 
     def _call_factory(self) -> tuple[str, dict]:
         if self.factory_fn is None:
@@ -873,7 +877,7 @@ class TestEmitSingleActivityBase:
 
         node = _StubEmitNode()
         bridge = BTBridge(datalayer)
-        result = bridge.execute_with_setup(node, actor_id=None)
+        result = bridge.execute_with_setup(node, actor_id=None)  # type: ignore[arg-type]
         assert result.status == Status.FAILURE
 
     def test_update_fails_when_factory_missing(self, datalayer):
