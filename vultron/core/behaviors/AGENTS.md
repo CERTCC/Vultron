@@ -167,6 +167,36 @@ it. Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
 
 ---
 
+## EM State Reads and Writes Must Use Canonical Nodes
+
+**Never read or write `case.current_status.em` inline inside a BT node.**
+All EM state reads MUST go through `ReadEmStateNode`; all writes through
+`WriteEmStateNode`. Both live in
+`vultron/core/behaviors/embargo/nodes/em_state.py`.
+
+Direct field access (`case.current_status.em.state`) bypasses the canonical
+channel: the read or write is invisible to the BT audit trail and creates
+paths where state can diverge from what the canonical nodes report.
+`ReadEmStateNode` was introduced specifically to centralize this read (AC-1,
+issue #1474).
+
+**Pattern for reading EM state in an action node:**
+
+```python
+result_out: dict[str, object] = {}
+read_node = ReadEmStateNode(case_id=case_id, result_out=result_out)
+read_node.datalayer = self.datalayer
+if read_node.update() != Status.SUCCESS:
+    self.feedback_message = read_node.feedback_message
+    return Status.FAILURE
+current_em = result_out["em_before"]
+assert isinstance(current_em, EM)
+```
+
+Source: CONCERN-2559
+
+---
+
 ## See Also
 
 - `notes/bt-integration.md` — architecture decisions, actor isolation,
