@@ -66,6 +66,7 @@ Before running any phase, check for existing artifacts:
 | Both artifacts exist AND last verify verdict was GAPS-FOUND | Delete `.claude/pr-{N}-execute.json`; re-run execute then verify |
 | Both artifacts exist AND last verify verdict was CONFLICTS-FOUND | Delete `.claude/pr-{N}-execute.json`; re-run execute then verify — execute Phase 4 owns the resolution |
 | Both artifacts exist AND last verify verdict was PENDING-MERGE-CHECK | Skip triage and execute; re-run verify only (GitHub just needed time) |
+| Both artifacts exist AND last verify verdict was PENDING-CI | Skip triage and execute; re-run verify only (CI timed out last run; try again now) |
 | Verify ran and cleaned up (no artifacts) | Pipeline already completed; report last comment URL if available |
 
 When resuming, print which phase is being skipped and why.
@@ -212,9 +213,10 @@ delete `.claude/pr-{N}-execute.json` and re-run `/pr-ship` — execute Phase 4 w
 sync and resolve. If a re-run lands on the same conflict twice, stop and hand it
 to the user; the resolution needs judgment the pipeline does not have.
 
-If `PENDING-CI`: print the PR URL and note that CI is still running. Re-run
-`/pr-ship` (or `/pr-verify`) after CI completes to get the final verdict and
-clean up artifacts.
+If `PENDING-CI`: CI timed out during verify's 10-minute wait (or a race
+condition re-triggered CI after execute finished). Print the PR URL and note
+that CI is still running. Artifacts are preserved. Re-run `/pr-ship` (or
+`/pr-verify`) after CI completes to get the final verdict.
 
 If `PENDING-MERGE-CHECK`: GitHub had not finished computing mergeability. Wait a
 moment and re-run `/pr-verify` — no execute re-run is needed.
@@ -229,8 +231,7 @@ If any step fails (unexpected error, not a structured stop):
 - Do NOT clean up artifacts — they preserve the work done up to the failure
   point for manual inspection or resume.
 
-Artifacts are only cleaned up by `pr-verify` on a successful `READY-TO-MERGE`
-or `PENDING-CI` verdict.
+Artifacts are only cleaned up by `pr-verify` on a `READY-TO-MERGE` verdict.
 
 ## Where Merge Conflicts Are Handled
 
