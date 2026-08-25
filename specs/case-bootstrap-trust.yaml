@@ -187,3 +187,24 @@ groups:
     kind: protocol
     statement: Tests MUST verify that late joiners establish trust through `InviteActorToCase` and may then accept CaseActor-originated
       `Announce(VulnerabilityCase)` updates without an intermediate `Create(VulnerabilityCase)` bootstrap.
+  - id: CBT-05-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Tests MUST verify that a valid bootstrap `Create(VulnerabilityCase)` causes the
+      reporter's participant status record to be stored as an embedded participant in the
+      new case, making the reporter addressable without a separate `InviteActorToCase`.
+  - id: CBT-05-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Tests MUST verify that `AddParticipantStatusBT` executes successfully on the
+      reporter's replica after bootstrap, confirming the reporter appears in the
+      CaseActor's participant index.
+  - id: CBT-05-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Tests MUST verify that the reporter's RM state is advanced from `RM.START` to
+      `RM.ACCEPTED` as part of the bootstrap sequence, confirming full case-management
+      relationship establishment.

@@ -194,6 +194,7 @@ class LintWarningCode(StrEnum):
     MISSING_TAGS = "missing_tags"
     DANGLING_ADR_REF = "dangling_adr_ref"
     PHANTOM_PATH_REF = "phantom_path_ref"
+    PHANTOM_SPEC_ID_REF = "phantom_spec_id_ref"
     MUST_WITHOUT_VERIFICATION = "must_without_verification"
 
 

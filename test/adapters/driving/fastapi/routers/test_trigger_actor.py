@@ -221,7 +221,7 @@ def test_trigger_suggest_actor_to_case_ignores_unknown_fields(
 def test_trigger_suggest_actor_to_case_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/suggest-actor-to-case",
         json={
@@ -237,7 +237,7 @@ def test_trigger_suggest_actor_to_case_unknown_actor_returns_404(
 def test_trigger_suggest_actor_to_case_unknown_case_returns_404(
     client_triggers, actor, other_actor
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
@@ -251,7 +251,7 @@ def test_trigger_suggest_actor_to_case_unknown_case_returns_404(
 def test_trigger_suggest_actor_to_case_unknown_suggested_actor_returns_404(
     client_triggers, actor, case_obj
 ):
-    """TB-01-003: Unknown suggested_actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown suggested_actor_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
@@ -330,7 +330,7 @@ def test_trigger_accept_case_invite_ignores_unknown_fields(
 def test_trigger_accept_case_invite_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/accept-case-invite",
         json={"invite_id": "urn:uuid:any-invite"},
@@ -343,7 +343,7 @@ def test_trigger_accept_case_invite_unknown_actor_returns_404(
 def test_trigger_accept_case_invite_unknown_invite_returns_404(
     client_triggers, other_actor
 ):
-    """TB-01-003: Unknown invite_id returns HTTP 404."""
+    """HTTP-03-005: Unknown invite_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{other_actor.id_}/trigger/accept-case-invite",
         json={"invite_id": "urn:uuid:nonexistent-invite"},
@@ -419,7 +419,7 @@ def test_trigger_reject_case_invite_ignores_unknown_fields(
 def test_trigger_reject_case_invite_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/reject-case-invite",
         json={"invite_id": "urn:uuid:any-invite"},
@@ -432,7 +432,7 @@ def test_trigger_reject_case_invite_unknown_actor_returns_404(
 def test_trigger_reject_case_invite_unknown_invite_returns_404(
     client_triggers, other_actor
 ):
-    """TB-01-003: Unknown invite_id returns HTTP 404."""
+    """HTTP-03-005: Unknown invite_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{other_actor.id_}/trigger/reject-case-invite",
         json={"invite_id": "urn:uuid:nonexistent-invite"},
@@ -656,7 +656,7 @@ def test_trigger_invite_actor_to_case_missing_invitee_id_returns_422(
 def test_trigger_invite_actor_to_case_unknown_actor_returns_404(
     client_triggers_invite,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers_invite.post(
         "/actors/nonexistent-actor/trigger/invite-actor-to-case",
         json={
@@ -670,7 +670,7 @@ def test_trigger_invite_actor_to_case_unknown_actor_returns_404(
 def test_trigger_invite_actor_to_case_unknown_case_returns_404(
     client_triggers_invite, actor, other_actor
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
         json={
@@ -684,7 +684,7 @@ def test_trigger_invite_actor_to_case_unknown_case_returns_404(
 def test_trigger_invite_actor_to_case_unknown_invitee_returns_404(
     client_triggers_invite, actor, case_for_invite
 ):
-    """TB-01-003: Unknown invitee_id returns HTTP 404."""
+    """HTTP-03-005: Unknown invitee_id returns HTTP 404."""
     case, _ = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",

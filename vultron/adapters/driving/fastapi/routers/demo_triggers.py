@@ -110,7 +110,7 @@ def demo_add_note_to_case(
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-10-003,
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001,
         TB-03-001, TB-03-002, TB-04-001, TB-06-001, TB-06-002
     """
     with domain_error_translation():

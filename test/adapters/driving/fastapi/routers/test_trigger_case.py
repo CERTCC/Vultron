@@ -199,7 +199,7 @@ def test_trigger_engage_case_ignores_unknown_fields(
 
 
 def test_trigger_engage_case_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/engage-case",
         json={"case_id": "urn:uuid:any-case"},
@@ -211,7 +211,7 @@ def test_trigger_engage_case_unknown_actor_returns_404(client_triggers):
 
 
 def test_trigger_engage_case_unknown_case_returns_404(client_triggers, actor):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/engage-case",
         json={"case_id": "urn:uuid:nonexistent-case"},
@@ -355,7 +355,7 @@ def test_trigger_defer_case_ignores_unknown_fields(
 
 
 def test_trigger_defer_case_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent/trigger/defer-case",
         json={"case_id": "urn:uuid:any"},
@@ -366,7 +366,7 @@ def test_trigger_defer_case_unknown_actor_returns_404(client_triggers):
 
 
 def test_trigger_defer_case_unknown_case_returns_404(client_triggers, actor):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/defer-case",
         json={"case_id": "urn:uuid:nonexistent"},
@@ -648,7 +648,7 @@ def test_trigger_create_case_ignores_unknown_fields(client_triggers, actor):
 
 
 def test_trigger_create_case_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/create-case",
         json={"name": "Case-001", "content": "Case content"},
@@ -730,7 +730,7 @@ def test_trigger_add_report_to_case_missing_report_id_returns_422(
 def test_trigger_add_report_to_case_unknown_case_returns_404(
     client_triggers, actor, report
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/add-report-to-case",
         json={
@@ -744,7 +744,7 @@ def test_trigger_add_report_to_case_unknown_case_returns_404(
 def test_trigger_add_report_to_case_unknown_report_returns_404(
     client_triggers, actor, case_with_participant
 ):
-    """TB-01-003: Unknown report_id returns HTTP 404."""
+    """HTTP-03-005: Unknown report_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/add-report-to-case",
         json={
@@ -831,7 +831,7 @@ def test_trigger_add_object_to_case_missing_object_id_returns_422(
 def test_trigger_add_object_to_case_unknown_object_returns_404(
     client_triggers, actor, case_with_participant
 ):
-    """TB-01-003: Unknown object_id returns HTTP 404 (TRIG-10-001)."""
+    """HTTP-03-005: Unknown object_id returns HTTP 404 (TRIG-10-001)."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/add-object-to-case",
         json={
@@ -845,7 +845,7 @@ def test_trigger_add_object_to_case_unknown_object_returns_404(
 def test_trigger_add_object_to_case_unknown_case_returns_404(
     client_triggers, actor, report
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404 (TRIG-10-001)."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404 (TRIG-10-001)."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/add-object-to-case",
         json={
