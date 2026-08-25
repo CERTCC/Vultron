@@ -924,6 +924,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   new rules edition require N separate factory changes instead of one.
   See BTND-05-007, ADR-0071.
   *Source: CONCERN-2108*
+- **Tests Verifying a Protocol-Kind Requirement MUST Carry `@pytest.mark.spec`** —
+  protocol-kind requirements are conformance-critical; without a marker the
+  CI coverage floor ratchet (SR-05-005, `test/architecture/test_spec_coverage_ratchet.py`)
+  cannot enforce coverage and the requirement becomes unverifiable. Add
+  `@pytest.mark.spec("<ID>")` to every test that exercises a
+  `kind: protocol` spec entry. Run `spec-coverage` to discover which
+  protocol IDs have no markers yet.
+  See SR-05-004, SR-05-005. *Source: ISSUE-2117*
 
 ---
 
