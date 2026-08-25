@@ -316,3 +316,75 @@ def test_no_phrase_uses_unknown_slots(entry):
         f"{entry.semantics.name}: phrase={entry.phrase!r} uses unknown "
         f"slot(s) {sorted(unknown)}. Valid names: {sorted(all_known)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# SE-07-006 — parametrised behavioural render check (AC-2, AC-4)
+# ---------------------------------------------------------------------------
+
+
+_TRAILING_DASH_XFAIL_REASONS = {
+    MessageSemantics.SUBMIT_REPORT: (
+        "SE-07-006: SUBMIT_REPORT phrase ends with {target}; "
+        "event_phrase() fills it with '—', producing trailing dash. "
+        "Tracked in #2150."
+    ),
+    MessageSemantics.OFFER_CASE_PARTICIPANT: (
+        "SE-07-006: OFFER_CASE_PARTICIPANT phrase ends with {object}; "
+        "event_phrase() fills it with '—', producing trailing dash. "
+        "Tracked in #2615."
+    ),
+    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: (
+        "SE-07-006: OFFER_CASE_OWNERSHIP_TRANSFER phrase ends with {object}; "
+        "event_phrase() fills it with '—', producing trailing dash. "
+        "Tracked in #2615."
+    ),
+    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: (
+        "SE-07-006: ADD_PARTICIPANT_STATUS_TO_PARTICIPANT phrase ends with {object}; "
+        "event_phrase() fills it with '—', producing trailing dash. "
+        "Tracked in #2615."
+    ),
+}
+
+
+@pytest.mark.spec("SE-07-006")
+@pytest.mark.parametrize(
+    "entry",
+    [
+        (
+            pytest.param(
+                e,
+                id=e.semantics.name,
+                marks=[
+                    pytest.mark.xfail(
+                        strict=True,
+                        reason=_TRAILING_DASH_XFAIL_REASONS[e.semantics],
+                    )
+                ],
+            )
+            if e.semantics in _TRAILING_DASH_XFAIL_REASONS
+            else pytest.param(e, id=e.semantics.name)
+        )
+        for e in SEMANTIC_REGISTRY
+    ],
+)
+def test_event_phrase_render_no_dangling_output(entry):
+    """Parametrised: event_phrase() must not produce trailing em-dash or leave
+    un-substituted ``{slot}`` markers for any semantic type (SE-07-006, AC-2, AC-4).
+
+    Calls the real runtime render function — unlike the SE-07-004 defaultdict
+    test, which fills every slot (including reserved ones), masking the class of
+    bug where a phrase references a slot the runtime never populates.
+    """
+    import re
+
+    from vultron.demo.report import event_phrase
+
+    _slot_re = re.compile(r"\{(\w+)\}")
+    result = event_phrase(entry.semantics.value)
+    assert not result.endswith(
+        "—"
+    ), f"{entry.semantics.name}: event_phrase() ends with '—': {result!r}"
+    assert not _slot_re.search(
+        result
+    ), f"{entry.semantics.name}: event_phrase() left un-substituted slot: {result!r}"
