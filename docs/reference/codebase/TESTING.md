@@ -29,7 +29,8 @@ uv run pytest -v --tb=short
 
 - **Test directory**: `test/` at repo root; mirrors `vultron/` package layout
 - **Naming convention**: `test_<module>.py` files; test functions named `test_<behavior>()`
-- **Architecture tests**: `test/architecture/` — dedicated boundary-enforcement tests (import graph checks, ratchet pattern for known violations)
+- **Architecture tests**: `test/architecture/` — dedicated boundary-enforcement tests (import graph checks, ratchet pattern for known violations); now includes `test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009 ratchet: asserts no new `register_key()` bare DataLayer nodes)
+- **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for 16 universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007); eliminates copy-paste across scenario test files
 - **Setup files**: `test/conftest.py` — root conftest; sets `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before all imports and registers `spec` marker; `reset_datalayer()` fixture keeps tests isolated
 
 ### 3) Test Scope Matrix
@@ -66,6 +67,8 @@ uv run pytest -v --tb=short
 - `pyproject.toml` `[tool.pytest.ini_options]`
 - `test/conftest.py`
 - `test/architecture/test_core_no_adapter_imports.py`
+- `test/architecture/test_no_bare_register_key_datalayer_nodes.py`
 - `test/ci/invariants/common.py` (and per-scenario `test/ci/invariants/test_*_invariants.py`)
+- `test/ci/invariants/universal_harness.py`
 - `.github/workflows/python-app.yml`
 - `.github/workflows/demo-integration.yml`

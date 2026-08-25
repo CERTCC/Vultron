@@ -16,6 +16,8 @@
 """Unit tests for report RM transition nodes."""
 
 from typing import Any
+
+import pytest
 from py_trees.composites import Sequence
 
 from vultron.core.behaviors.helpers import UpdateActorOutbox
@@ -45,6 +47,8 @@ from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 
+@pytest.mark.spec("RMB-15-001")
+@pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -66,6 +70,8 @@ def test_transition_rm_to_valid(
     bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
 
 
+@pytest.mark.spec("RMB-15-001")
+@pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_invalid(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -81,6 +87,8 @@ def test_transition_rm_to_invalid(
     bt_scenario.assert_rm_state(report.id_, RM.INVALID, actor_id=actor.id_)
 
 
+@pytest.mark.spec("BT-10-001")
+@pytest.mark.spec("BT-03-004")
 def test_full_validation_workflow(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -163,6 +171,7 @@ def _read_status(
     return obj
 
 
+@pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid_context_is_case_uri(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -190,6 +199,7 @@ def test_transition_rm_to_valid_context_is_case_uri(
     ), "ParticipantStatus.context must not be the report URI (CLP-07-007)"
 
 
+@pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_invalid_context_is_case_uri(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -212,6 +222,8 @@ def test_transition_rm_to_invalid_context_is_case_uri(
     )
 
 
+@pytest.mark.spec("BTND-10-001")
+@pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_closed_context_is_case_uri(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -245,6 +257,7 @@ def test_transition_rm_to_closed_context_is_case_uri(
     )
 
 
+@pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid_without_case_fails_without_writing_status(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,

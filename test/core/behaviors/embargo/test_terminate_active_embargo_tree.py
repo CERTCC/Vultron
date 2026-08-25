@@ -116,6 +116,7 @@ def test_authorize_selector_memory_false():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("EMB-14-001")
 def test_child_0_is_has_active_embargo():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -128,6 +129,7 @@ def test_child_0_is_has_active_embargo():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("EMB-14-001")
 def test_child_1_is_reason_selector():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -137,6 +139,7 @@ def test_child_1_is_reason_selector():
     assert reason.name == "ReasonSelector"
 
 
+@pytest.mark.spec("EMB-14-001")
 def test_reason_selector_has_three_children():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -144,6 +147,7 @@ def test_reason_selector_has_three_children():
     assert len(tree.children[1].children) == 3
 
 
+@pytest.mark.spec("EMB-14-001")
 @pytest.mark.parametrize(
     "index,cls",
     [
@@ -160,6 +164,7 @@ def test_reason_selector_deterministic_defaults(index, cls):
     assert isinstance(tree.children[1].children[index], cls)
 
 
+@pytest.mark.spec("EMB-14-001")
 @pytest.mark.parametrize(
     "index,cls",
     [
@@ -182,6 +187,7 @@ def test_reason_selector_stochastic_classes(index, cls):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("EMB-14-002")
 def test_child_2_is_authorize_selector():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -191,6 +197,8 @@ def test_child_2_is_authorize_selector():
     assert auth.name == "AuthorizeEmbargoExit"
 
 
+@pytest.mark.spec("EMB-14-002")
+@pytest.mark.spec("EMB-14-003")
 def test_authorize_selector_has_two_children():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -198,6 +206,7 @@ def test_authorize_selector_has_two_children():
     assert len(tree.children[2].children) == 2
 
 
+@pytest.mark.spec("EMB-14-002")
 def test_authorize_first_child_deterministic_is_always_succeed():
     """EmbargoExitPolicyGuard (p=1.0) → AlwaysSucceed."""
     tree = create_terminate_active_embargo_tree(
@@ -206,6 +215,7 @@ def test_authorize_first_child_deterministic_is_always_succeed():
     assert isinstance(tree.children[2].children[0], AlwaysSucceed)
 
 
+@pytest.mark.spec("EMB-14-003")
 def test_authorize_second_child_deterministic_is_always_fail():
     """EmbargoExitOverride (p=0.0) → AlwaysFail."""
     tree = create_terminate_active_embargo_tree(
@@ -214,6 +224,7 @@ def test_authorize_second_child_deterministic_is_always_fail():
     assert isinstance(tree.children[2].children[1], AlwaysFail)
 
 
+@pytest.mark.spec("EMB-14-002")
 def test_authorize_first_child_stochastic_is_policy_guard():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID,
@@ -223,6 +234,7 @@ def test_authorize_first_child_stochastic_is_policy_guard():
     assert isinstance(tree.children[2].children[0], EmbargoExitPolicyGuard)
 
 
+@pytest.mark.spec("EMB-14-003")
 def test_authorize_second_child_stochastic_is_override():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID,

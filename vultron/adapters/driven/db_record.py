@@ -89,10 +89,20 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
 # AS2 Activity ``type_`` strings (transitive + intransitive) plus
 # ``CaseLedgerEntry``.  When a nested ``_AS_OBJECT_REF_FIELDS`` value has one
 # of these types it MUST be kept inline rather than collapsed to a bare ID
-# string: Activities may not have independent DataLayer records (e.g. a
-# reconstituted Offer in the validate-report path, a CaseLedgerEntry inside an
-# Announce envelope), so dehydrating them would make rehydration impossible on
-# read-back and cause AKM-03-001 outbox-gate failures.
+# string for two independent reasons:
+#
+# 1. Technical: Activities may not have independent DataLayer records (e.g. a
+#    reconstituted Offer in the validate-report path, a CaseLedgerEntry inside
+#    an Announce envelope), so dehydrating them would make rehydration
+#    impossible on read-back and cause AKM-03-001 outbox-gate failures.
+#
+# 2. Semantic (more important): a received Activity is an artifact; its inline
+#    sub-fields are a snapshot of state at receipt time.  An
+#    Accept(Offer(VulnerabilityCase)) captures what was offered at the moment
+#    of acceptance, not the current case state.  This must not be changed even
+#    if Activities eventually gain independent DataLayer records.  See
+#    notes/datalayer-design.md § "Received Activity Artifacts: Inline
+#    Sub-Field Snapshots Are Intentional".
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     {e.value for e in as_TransitiveActivityType}
     | {e.value for e in as_IntransitiveActivityType}
@@ -134,6 +144,13 @@ def _dehydrate_data(
     not — ingress gives a record only to the *first* level of an inbound
     activity's nesting — and a collapse with no counterpart write is silent
     data loss that surfaces far away (#2482).
+
+    Kept-inline values are stored whole, without further recursion into their
+    own sub-fields, so their nested values are a snapshot of state at write
+    time — intentional artifact semantics.  See ``_KEEP_INLINE_NESTED_TYPES``
+    and ``notes/datalayer-design.md``
+    § "Received Activity Artifacts: Inline Sub-Field Snapshots Are
+    Intentional" for why this must not be changed to recursive dehydration.
 
     Args:
         data: Serialised (``model_dump(mode="json")``) field dict of a

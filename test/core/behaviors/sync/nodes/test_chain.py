@@ -48,6 +48,8 @@ def _canonical_case_announce_snapshot() -> dict[str, object]:
     }
 
 
+@pytest.mark.spec("CLP-02-001")
+@pytest.mark.spec("SYNC-01-002")
 def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     result = bridge.execute_with_setup(
         tree=CreateLogEntryNode(
@@ -71,6 +73,7 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     assert blackboard.log_entry.log_index == 0
 
 
+@pytest.mark.spec("CLP-07-011")
 def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
     """Omitting payload_snapshot gives an empty dict on the node instance."""
     node = CreateLogEntryNode(
@@ -135,6 +138,8 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
         ),
     ],
 )
+@pytest.mark.spec("CLP-07-005")
+@pytest.mark.spec("CLP-07-011")
 def test_create_log_entry_node_rejects_non_canonical_snapshots(
     bridge, snapshot, message
 ):
@@ -155,6 +160,7 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
     assert message in result.feedback_message
 
 
+@pytest.mark.spec("CLP-07-003")
 def test_create_log_entry_node_allows_case_authored_announce(bridge):
     result = bridge.execute_with_setup(
         tree=CreateLogEntryNode(
@@ -186,6 +192,8 @@ class TestReconstructChainTailPreGenesisLogging:
     Announce/Create delivery race.
     """
 
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("CLP-08-005")
     def test_pre_genesis_logs_warning_not_error(
         self, bridge, caplog: pytest.LogCaptureFixture
     ):
@@ -208,6 +216,8 @@ class TestReconstructChainTailPreGenesisLogging:
             for r in caplog.records
         ), "expected a WARNING explaining the replay-from-genesis recovery"
 
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("CLP-08-005")
     def test_pre_genesis_writes_replay_sentinel(self, bridge):
         result = bridge.execute_with_setup(
             tree=ReconstructChainTailNode(

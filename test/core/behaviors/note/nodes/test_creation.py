@@ -100,6 +100,7 @@ class TestCreateNoteNode:
 
 
 class TestAttachNoteFromResultNode:
+    @pytest.mark.spec("CM-02-007")
     def test_attaches_note_id_from_result_out(self, bridge, dl):
         dl.create(as_VulnerabilityCase(id_=CASE_ID, name="Test Case"))
         result_out = {"note_id": NOTE_ID}

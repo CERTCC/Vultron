@@ -152,6 +152,7 @@ def test_create_case_tree_second_child_is_sequence(case_obj, actor_id):
     assert isinstance(tree.children[1], py_trees.composites.Sequence)
 
 
+@pytest.mark.spec("CP-04-001")
 def test_propose_case_to_actor_node_wired_after_the_identity_publisher(
     case_obj, actor_id
 ):
@@ -280,6 +281,7 @@ def test_create_case_tree_idempotent(
 # ============================================================================
 
 
+@pytest.mark.spec("CM-02-008")
 def test_create_case_tree_sets_attributed_to(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
@@ -298,6 +300,7 @@ def test_create_case_tree_sets_attributed_to(
     assert attributed == actor.id_
 
 
+@pytest.mark.spec("CM-02-008")
 def test_create_case_tree_creates_case_owner_participant(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):

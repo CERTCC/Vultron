@@ -311,6 +311,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             return [to]
         return []
 
+    @pytest.mark.spec("PCR-08-001")
     def test_outbox_activity_addressed_to_case_actor(self):
         """Activity queued by execute() is addressed to the Case Actor only (PCR-08-001)."""
         from vultron.core.use_cases.triggers.case import (
@@ -1127,6 +1128,7 @@ class TestSoleObserverVfdGuard:
         participant = self.dl.read(self.actor_participant.id_)
         return len(getattr(participant, "participant_statuses", []))
 
+    @pytest.mark.spec("CM-25-005")
     def test_sole_observer_vfd_transition_blocked_end_to_end(self):
         """CM-25-005: sole-OBSERVER actor attempting v→V raises VultronValidationError."""
         from vultron.errors import VultronValidationError

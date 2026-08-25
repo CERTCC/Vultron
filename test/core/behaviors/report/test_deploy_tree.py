@@ -24,7 +24,10 @@ Covers all acceptance criteria:
 """
 
 import py_trees
+import pytest
+from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DeployFixCallOutBundle,
@@ -41,9 +44,17 @@ from vultron.core.behaviors.report.deploy_mitigation_tree import (
     create_deploy_mitigation_tree,
 )
 from vultron.core.behaviors.report.deploy_tree import create_deploy_tree
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension, VfdDimension
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.vultron_types import VultronCase, VultronParticipant
+from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/test-deploy-combinator-001"
 ACTOR_ID = "https://example.org/actors/deployer-combinator-001"
+DEPLOYER_ACTOR_ID = ACTOR_ID
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +215,6 @@ def test_both_bundles_are_invoked_during_construction():
     to their respective subtree factories during construction — confirmed by
     sentinel dicts in custom factory functions.
 
-    Note: tick-level Fallback ordering (fix succeeds → mitigation skipped) is
-    deferred to a DataLayer integration test (see follow-up issue).
     """
     fix_invoked = {"called": False}
     mit_invoked = {"called": False}
@@ -244,3 +253,110 @@ def test_tree_ascii_contains_both_arm_names():
     tree_str = py_trees.display.ascii_tree(tree)
     assert "DeployFixBT" in tree_str
     assert "DeployMitigationBT" in tree_str
+
+
+# ---------------------------------------------------------------------------
+# AC-4 (issue #2002): Tick-level Fallback ordering — DataLayer integration
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def deployer_participant() -> VultronParticipant:
+    return VultronParticipant(
+        id_="https://example.org/participants/deployer-comb-cp-001",
+        attributed_to=DEPLOYER_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.DEPLOYER],
+    )
+
+
+@pytest.fixture
+def case_with_deployer(
+    bt_scenario: BTTestScenario,
+    deployer_participant: VultronParticipant,
+) -> VultronCase:
+    case = VultronCase(
+        id_=CASE_ID,
+        name="Test Deploy Combinator Case",
+        case_participants=[deployer_participant.id_],
+        actor_participant_index={DEPLOYER_ACTOR_ID: deployer_participant.id_},
+    )
+    bt_scenario.seed(deployer_participant, case)
+    return case
+
+
+def _seed_status(
+    bt_scenario: BTTestScenario,
+    case_id: str,
+    actor_id: str,
+    rm: RM = RM.ACCEPTED,
+    vfd: CS_vfd = CS_vfd.VFd,
+) -> None:
+    """Seed a ParticipantStatus record with the given RM and VFD states."""
+    status = ParticipantStatus(
+        context=case_id,
+        attributed_to=actor_id,
+        rm=RmDimension(state=rm),
+        vfd=VfdDimension(state=vfd),
+    )
+    bt_scenario.dl.create(status)
+
+    case = bt_scenario.dl.read(case_id)
+    if not isinstance(case, VultronCase):
+        return
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id:
+        participant = bt_scenario.dl.read(participant_id)
+        if isinstance(participant, CaseParticipant):
+            participant.participant_statuses.append(status)
+            bt_scenario.dl.save(participant)
+
+
+def test_fix_arm_success_skips_mitigation_arm(
+    bt_scenario: BTTestScenario,
+    case_with_deployer: VultronCase,
+) -> None:
+    """Fix arm succeeds via CSinStateFixDeployed → DeployMitigationBT never ticked (issue #2002 AC-1).
+
+    Seeds VFD participant status so the fix arm's early-exit guard (arm 0 of
+    DeployFixBT) returns SUCCESS.  The Selector short-circuits: child[1]
+    (DeployMitigationBT) is never ticked and its status remains INVALID.
+    """
+    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFD)
+    tree = create_deploy_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
+    result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
+    assert result.status == Status.SUCCESS
+    assert tree.children[1].status == Status.INVALID
+
+
+def test_all_fix_arms_fail_mitigation_arm_rescues(
+    bt_scenario: BTTestScenario,
+    case_with_deployer: VultronCase,
+) -> None:
+    """All four fix arms fail → DeployMitigationBT ticks and succeeds (issue #2002 AC-2).
+
+    Seed VFd + RM ACCEPTED so:
+      - arm 0 (CSinStateFixDeployed): FAILURE (not VFD state)
+      - arm 1 (_ShouldStayInRmDeferred): FAILURE (RM ACCEPTED, not DEFERRED)
+      - arm 2 (_DeployFixIfReady): FAILURE (DETERMINISTIC DeployFix=AlwaysFail)
+      - arm 3 (_MonitorDeploymentIfDesired): FAILURE (MonitoringRequirement overridden to AlwaysFail)
+
+    With all fix arms failing, the combinator falls through to DeployMitigationBT.
+    The DETERMINISTIC mitigation bundle succeeds via _DeployMitigationIfAvailable.
+    """
+    _seed_status(
+        bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED, vfd=CS_vfd.VFd
+    )
+
+    fix_bundle = DeployFixCallOutBundle(
+        monitoring_requirement_factory=lambda name: AlwaysFail(name),
+    )
+    tree = create_deploy_tree(
+        case_id=CASE_ID,
+        actor_id=DEPLOYER_ACTOR_ID,
+        fix_call_out=fix_bundle,
+    )
+    result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
+    assert result.status == Status.SUCCESS
+    assert tree.children[0].status == Status.FAILURE
+    assert tree.children[1].status == Status.SUCCESS

@@ -15,6 +15,8 @@
 
 """Unit tests for report condition nodes."""
 
+import pytest
+
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantExists,
     CheckRMStateReceivedOrInvalid,
@@ -35,6 +37,7 @@ from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_rm_state_valid_when_valid(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -55,6 +58,7 @@ def test_check_rm_state_valid_when_valid(
     bt_scenario.assert_success(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_rm_state_valid_when_received(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -75,6 +79,7 @@ def test_check_rm_state_valid_when_received(
     bt_scenario.assert_failure(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_rm_state_valid_when_no_status(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -87,6 +92,7 @@ def test_check_rm_state_valid_when_no_status(
     bt_scenario.assert_failure(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_received(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -108,6 +114,7 @@ def test_check_rm_state_received_or_invalid_when_received(
     bt_scenario.assert_success(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_invalid(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -129,6 +136,7 @@ def test_check_rm_state_received_or_invalid_when_invalid(
     bt_scenario.assert_success(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_valid(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -150,6 +158,7 @@ def test_check_rm_state_received_or_invalid_when_valid(
     bt_scenario.assert_failure(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_no_status(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -225,6 +234,7 @@ def test_ensure_embargo_exists_fails_without_active_embargo(
     bt_scenario.assert_failure(result)
 
 
+@pytest.mark.spec("RMB-09-001")
 def test_evaluate_report_credibility(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -238,6 +248,7 @@ def test_evaluate_report_credibility(
     bt_scenario.assert_success(result)
 
 
+@pytest.mark.spec("RMB-09-001")
 def test_evaluate_report_validity(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -251,6 +262,7 @@ def test_evaluate_report_validity(
     bt_scenario.assert_success(result)
 
 
+@pytest.mark.spec("RMB-10-001")
 def test_evaluate_case_priority(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -270,6 +282,7 @@ def test_evaluate_case_priority(
     bt_scenario.assert_success(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_participant_exists_when_participant_is_present(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -297,6 +310,7 @@ def test_check_participant_exists_when_participant_is_present(
     bt_scenario.assert_success(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_participant_exists_fails_without_case(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
@@ -312,6 +326,7 @@ def test_check_participant_exists_fails_without_case(
     bt_scenario.assert_failure(result)
 
 
+@pytest.mark.spec("BT-03-001")
 def test_check_participant_exists_fails_without_matching_participant(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,

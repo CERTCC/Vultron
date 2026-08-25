@@ -78,6 +78,7 @@ def case(dl):
 
 
 class TestCreateNoteTree:
+    @pytest.mark.spec("CM-02-007")
     def test_saves_note_and_attaches_to_case(
         self, bridge, dl, note_with_case, case
     ):
@@ -101,6 +102,7 @@ class TestCreateNoteTree:
         stored_note = dl.read(NOTE_ID)
         assert stored_note is not None
 
+    @pytest.mark.spec("CM-13-007")
     def test_idempotent_replay(self, bridge, dl, note_with_case, case):
         """Running the same tree twice produces the same outcome."""
         for _ in range(2):

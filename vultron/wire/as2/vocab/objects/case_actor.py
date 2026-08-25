@@ -18,7 +18,10 @@ Defines a CaseActor class for the Vultron ActivityStreams Vocabulary.
 
 from vultron.core.models.case_actor import CaseActor as CoreCaseActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.base import _scalar_ref_id_or_value
+from vultron.wire.as2.vocab.objects.base import (
+    _scalar_ref_id_or_value,
+    _strip_core_context,
+)
 
 
 class as_CaseActor(as_Service):
@@ -34,12 +37,13 @@ class as_CaseActor(as_Service):
 
     @classmethod
     def from_core(cls, core_obj: CoreCaseActor) -> "as_CaseActor":
-        return cls(
-            id_=core_obj.id_,
-            name=core_obj.name,
-            attributed_to=core_obj.attributed_to,
-            context=core_obj.context,
-        )
+        data = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
+        # VultronOutbox is core-internal tracking; as_Actor.outbox expects
+        # an as_OrderedCollection — drop it so the actor's inbox/outbox URIs
+        # are auto-derived from id_ by the as_Actor model validator instead.
+        data.pop("outbox", None)
+        return cls.model_validate(data)
 
     def to_core(self) -> CoreCaseActor:
         return CoreCaseActor.model_validate(

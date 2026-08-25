@@ -63,6 +63,7 @@ def datalayer():
     return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
 
 
+@pytest.mark.spec("SYNC-03-002")
 def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
     tree = ReplayMissingEntriesNode(name="ReplayMissingEntries")
     assert isinstance(tree, py_trees.composites.Sequence)
@@ -72,6 +73,7 @@ def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
     assert isinstance(tree.children[2], SendMissingEntriesNode)
 
 
+@pytest.mark.spec("SYNC-03-002")
 def test_send_missing_entries_node_replays_entries_after_divergence(
     bridge, case_actor
 ):
@@ -98,6 +100,7 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
 
 
+@pytest.mark.spec("SYNC-03-002")
 def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
     first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
@@ -137,6 +140,8 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
     )
 
 
+@pytest.mark.spec("SYNC-02-001")
+@pytest.mark.spec("SYNC-02-003")
 def test_fanout_log_entry_node_is_sequence_with_named_leaf_nodes():
     tree = FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry")
     assert isinstance(tree, py_trees.composites.Sequence)
@@ -145,6 +150,7 @@ def test_fanout_log_entry_node_is_sequence_with_named_leaf_nodes():
     assert isinstance(tree.children[1], SendLogEntryToEachNode)
 
 
+@pytest.mark.spec("SYNC-03-002")
 def test_replay_missing_entries_node_replays_from_divergence(
     bridge, datalayer, case_actor
 ):
@@ -171,6 +177,8 @@ def test_replay_missing_entries_node_replays_from_divergence(
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
 
 
+@pytest.mark.spec("SYNC-02-001")
+@pytest.mark.spec("SYNC-02-003")
 def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
     case_obj = VultronCase(
         id_=CASE_ID,

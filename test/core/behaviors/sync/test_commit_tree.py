@@ -85,6 +85,7 @@ def _make_entry(log_index: int, prev_hash: str):
     )
 
 
+@pytest.mark.spec("CLP-02-001")
 def test_create_commit_log_entry_tree_returns_sequence():
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
@@ -95,6 +96,12 @@ def test_create_commit_log_entry_tree_returns_sequence():
     assert len(tree.children) == 4
 
 
+@pytest.mark.spec("CLP-02-001")
+@pytest.mark.spec("SYNC-01-002")
+@pytest.mark.spec("SYNC-01-003")
+@pytest.mark.spec("SYNC-02-001")
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("CLP-08-004")
 def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     sync_port = MagicMock(spec=SyncActivityPort)
     tree = create_commit_log_entry_tree(
@@ -123,6 +130,8 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     assert call_kwargs["to"] == [PEER_ID]
 
 
+@pytest.mark.spec("SYNC-01-002")
+@pytest.mark.spec("SYNC-01-003")
 def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
     first_entry = _make_entry(0, case_obj.genesis_hash)
     datalayer.save(first_entry)
@@ -151,6 +160,8 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
     assert entries[1].prev_log_hash == first_entry.entry_hash
 
 
+@pytest.mark.spec("SYNC-03-003")
+@pytest.mark.spec("CLP-07-002")
 def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
     sync_port = MagicMock(spec=SyncActivityPort)
     tree = create_commit_log_entry_tree(
@@ -190,6 +201,7 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
     assert len(entries) == 1
 
 
+@pytest.mark.spec("CLP-07-011")
 def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
     """Omitting payload_snapshot passes an empty dict through to CreateLogEntryNode."""
     tree = create_commit_log_entry_tree(

@@ -58,6 +58,7 @@ class TestCreateCaseParticipantNode:
     def finder_actor_id(self) -> str:
         return "https://example.org/actors/finder"
 
+    @pytest.mark.spec("CM-14-012")
     def test_creates_and_attaches_participant(
         self,
         bt_scenario: BTTestScenario,
@@ -160,6 +161,8 @@ class TestCreateCaseParticipantNode:
             for act in add_activities
         )
 
+    @pytest.mark.spec("CM-10-001")
+    @pytest.mark.spec("CM-14-005")
     def test_seeds_participant_as_signatory_when_embargo_active(
         self,
         bt_scenario: BTTestScenario,

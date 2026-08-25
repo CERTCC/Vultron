@@ -185,10 +185,13 @@ def test_cs_enum_is_exactly_the_legacy_valid_state_set():
     assert {state.name for state in CS} == _legacy_valid_states()
 
 
+@pytest.mark.spec("CSB-17-001")
 def test_cs_has_32_states():
     assert len(list(CS)) == 32
 
 
+@pytest.mark.spec("CSB-17-006")
+@pytest.mark.spec("CSB-17-007")
 def test_impossible_vfd_combinations_are_not_constructible():
     """No CS_vfd member has F without V, or D without F."""
     for state in CS_vfd:
@@ -204,6 +207,7 @@ def test_dimension_round_trip():
         assert cs_from_dimensions(*cs_dimensions(state)) is state
 
 
+@pytest.mark.spec("CSB-17-001")
 def test_cs_from_dimensions_covers_the_full_cross_product():
     pairs = {
         cs_from_dimensions(vfd_state, pxa_state)
@@ -216,6 +220,7 @@ def test_cs_from_dimensions_covers_the_full_cross_product():
 # --- ephemeral states -----------------------------------------------------
 
 
+@pytest.mark.spec("CSB-17-003")
 def test_ephemeral_states_are_the_twelve_vp_and_px_states():
     ephemeral = {state.name for state in CS if is_ephemeral_cs_state(state)}
     expected = {
@@ -243,10 +248,13 @@ def test_ephemeral_states_are_the_twelve_vp_and_px_states():
     ],
 )
 @pytest.mark.spec("CSB-17-003")
+@pytest.mark.spec("CSB-17-009")
+@pytest.mark.spec("CSB-17-012")
 def test_required_next_cs_events(state, expected):
     assert required_next_cs_events(state) == frozenset(expected)
 
 
+@pytest.mark.spec("CSB-17-003")
 def test_the_two_ephemeral_rules_are_mutually_exclusive():
     """vP requires P set; pX requires P unset — they cannot both apply."""
     for state in CS:
@@ -254,6 +262,7 @@ def test_the_two_ephemeral_rules_are_mutually_exclusive():
         assert len(required) <= 1
 
 
+@pytest.mark.spec("CSB-17-003")
 def test_ephemeral_states_have_exactly_one_successor():
     for state in CS:
         if is_ephemeral_cs_state(state):
@@ -275,6 +284,7 @@ def test_transition_set_matches_legacy_exactly():
     assert new_edges == _legacy_valid_transitions()
 
 
+@pytest.mark.spec("CSB-17-002")
 def test_there_are_58_valid_transitions():
     count = sum(
         1 for src in CS for dst in CS if is_valid_cs_transition(src, dst)
@@ -332,12 +342,14 @@ def test_structural_conditions_alone_admit_72_transitions():
     assert all(is_ephemeral_cs_state(src) for src, _ in structural - valid)
 
 
+@pytest.mark.spec("CSB-17-002")
 def test_every_transition_changes_exactly_one_dimension():
     for src in CS:
         for dst in next_cs_states(src):
             assert cs_transition_event(src, dst) is not None
 
 
+@pytest.mark.spec("CSB-17-002")
 def test_transitions_are_monotone():
     """No transition ever un-sets a bit; CS events are irreversible."""
     for src in CS:
@@ -355,6 +367,7 @@ def test_ensure_valid_cs_transition_allows_null_when_asked():
     ensure_valid_cs_transition(CS.Vfdpxa, CS.Vfdpxa, allow_null=True)
 
 
+@pytest.mark.spec("CSB-17-002")
 @pytest.mark.parametrize(
     "src,dst",
     [
@@ -373,6 +386,9 @@ def test_valid_transitions(src, dst):
     ensure_valid_cs_transition(src, dst)
 
 
+@pytest.mark.spec("CSB-17-002")
+@pytest.mark.spec("CSB-17-008")
+@pytest.mark.spec("CSB-17-013")
 @pytest.mark.parametrize(
     "src,dst,reason",
     [
@@ -395,6 +411,7 @@ def test_invalid_transitions(src, dst, reason):
         ensure_valid_cs_transition(src, dst)
 
 
+@pytest.mark.spec("CSB-17-013")
 def test_ephemeral_rejection_message_names_the_required_event():
     with pytest.raises(VultronInvalidStateTransitionError) as exc_info:
         ensure_valid_cs_transition(CS.vfdpXa, CS.vfdpXA)
@@ -450,11 +467,14 @@ def test_apply_cs_event_agrees_with_the_transition_predicate():
             assert cs_transition_event(state, result) is event
 
 
+@pytest.mark.spec("CSB-17-002")
 def test_apply_cs_event_rejects_a_repeated_event():
     with pytest.raises(VultronInvalidStateTransitionError, match="already"):
         apply_cs_event(CS.Vfdpxa, CSEvent.V)
 
 
+@pytest.mark.spec("CSB-17-002")
+@pytest.mark.spec("CSB-17-008")
 def test_apply_cs_event_rejects_an_unmet_prerequisite():
     with pytest.raises(
         VultronInvalidStateTransitionError, match="prerequisite"
@@ -462,6 +482,7 @@ def test_apply_cs_event_rejects_an_unmet_prerequisite():
         apply_cs_event(CS.vfdpxa, CSEvent.F)
 
 
+@pytest.mark.spec("CSB-17-013")
 def test_apply_cs_event_rejects_a_violated_ephemeral_rule():
     with pytest.raises(VultronInvalidStateTransitionError, match="ephemeral"):
         apply_cs_event(CS.vfdpXa, CSEvent.A)
@@ -499,27 +520,32 @@ def test_valid_histories_match_legacy_exactly():
     assert new == _legacy_valid_histories()
 
 
+@pytest.mark.spec("CSB-17-004")
 def test_there_are_70_valid_histories():
     assert len(valid_cs_histories()) == 70
 
 
+@pytest.mark.spec("CSB-17-004")
 def test_valid_histories_are_distinct():
     histories = valid_cs_histories()
     assert len(set(histories)) == len(histories)
 
 
+@pytest.mark.spec("CSB-17-004")
 def test_is_valid_cs_history_agrees_with_legacy_on_every_permutation():
     legacy = _legacy_valid_histories()
     for perm in permutations(CS_EVENTS):
         assert is_valid_cs_history(list(perm)) == (_as_string(perm) in legacy)
 
 
+@pytest.mark.spec("CSB-17-004")
 def test_is_valid_cs_history_agrees_with_valid_cs_histories():
     enumerated = set(valid_cs_histories())
     for perm in permutations(CS_EVENTS):
         assert is_valid_cs_history(list(perm)) == (perm in enumerated)
 
 
+@pytest.mark.spec("CSB-17-004")
 @pytest.mark.parametrize(
     "history",
     [
@@ -536,6 +562,7 @@ def test_accepted_histories(history):
     ensure_valid_cs_history(events)
 
 
+@pytest.mark.spec("CSB-17-004")
 @pytest.mark.parametrize(
     "history,reason",
     [
@@ -557,11 +584,13 @@ def test_rejected_histories(history, reason):
         ensure_valid_cs_history(events)
 
 
+@pytest.mark.spec("CSB-17-004")
 def test_every_valid_history_reaches_the_terminal_state():
     for history in valid_cs_histories():
         assert replay_cs_history(history) is CS.VFDPXA
 
 
+@pytest.mark.spec("CSB-17-005")
 def test_is_valid_cs_history_rejects_incomplete_and_repeated_sequences():
     assert not is_valid_cs_history([CSEvent.V, CSEvent.F])
     assert not is_valid_cs_history([CSEvent.V] * 6)
@@ -580,6 +609,8 @@ def test_ensure_valid_cs_history_reports_repeated_events():
 # --- history prefixes -----------------------------------------------------
 
 
+@pytest.mark.spec("CSB-17-005")
+@pytest.mark.spec("CSB-17-010")
 def test_empty_prefix_is_valid():
     assert is_valid_cs_history_prefix([])
 
@@ -617,6 +648,7 @@ def test_accepted_prefixes_are_exactly_the_prefixes_of_valid_histories():
 
 
 @pytest.mark.spec("CSB-17-005")
+@pytest.mark.spec("CSB-17-011")
 def test_every_accepted_prefix_extends_to_a_complete_valid_history():
     """No accepted prefix is a dead end.
 
@@ -636,6 +668,8 @@ def test_every_accepted_prefix_extends_to_a_complete_valid_history():
             ), f"accepted prefix {_as_string(candidate)} has no completion"
 
 
+@pytest.mark.spec("CSB-17-005")
+@pytest.mark.spec("CSB-17-010")
 @pytest.mark.parametrize(
     "prefix",
     [
@@ -646,11 +680,11 @@ def test_every_accepted_prefix_extends_to_a_complete_valid_history():
         [CSEvent.A, CSEvent.V],
     ],
 )
-@pytest.mark.spec("CSB-17-005")
 def test_accepted_prefixes(prefix):
     assert is_valid_cs_history_prefix(prefix)
 
 
+@pytest.mark.spec("CSB-17-005")
 @pytest.mark.parametrize(
     "prefix",
     [
@@ -665,11 +699,13 @@ def test_rejected_prefixes(prefix):
     assert not is_valid_cs_history_prefix(prefix)
 
 
+@pytest.mark.spec("CSB-17-005")
 def test_prefix_can_start_from_a_non_initial_state():
     assert is_valid_cs_history_prefix([CSEvent.F], start=CS.Vfdpxa)
     assert not is_valid_cs_history_prefix([CSEvent.V], start=CS.Vfdpxa)
 
 
+@pytest.mark.spec("CSB-17-004")
 def test_replay_from_a_non_initial_state():
     assert replay_cs_history([CSEvent.F], start=CS.Vfdpxa) is CS.VFdpxa
 
@@ -692,6 +728,7 @@ def test_replay_of_empty_sequence_returns_the_start_state():
 # makes the predicates answer False rather than raise.
 
 
+@pytest.mark.spec("CSB-17-004")
 @pytest.mark.parametrize(
     "history,expected",
     [
@@ -707,6 +744,7 @@ def test_string_histories_match_the_enum_form(history, expected):
     assert is_valid_cs_history([CSEvent(c) for c in history]) is expected
 
 
+@pytest.mark.spec("CSB-17-005")
 def test_string_prefixes_are_accepted():
     assert is_valid_cs_history_prefix("VF")
     assert is_valid_cs_history_prefix(["V", "F"])

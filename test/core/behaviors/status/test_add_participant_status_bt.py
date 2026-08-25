@@ -378,6 +378,7 @@ class TestValidateRMTransitionNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("RSH-06-002")
     def test_rejects_backwards_transition(
         self, populated_dl, populated_bridge
     ):
@@ -454,6 +455,7 @@ class TestValidateRMTransitionNode:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("RSH-06-001")
     def test_accepts_forward_jump(self, populated_dl, populated_bridge):
         """Non-adjacent forward RM jump is accepted (sender authoritative)."""
         p = populated_dl.read(PARTICIPANT_ID)
@@ -942,6 +944,8 @@ class TestAddParticipantStatusTree:
             trigger_activity=TriggerActivityAdapter(dl),
         )
 
+    @pytest.mark.spec("RSH-01-001")
+    @pytest.mark.spec("RSH-01-003")
     def test_full_tree_succeeds_for_case_owner_sender(
         self,
         populated_dl,
@@ -1018,6 +1022,7 @@ class TestAddParticipantStatusTree:
         status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
         assert STATUS_ID not in status_ids
 
+    @pytest.mark.spec("RSH-01-002")
     def test_guard_blocks_non_owner_when_call_out_fails(
         self,
         populated_dl,
@@ -1063,6 +1068,8 @@ class TestAddParticipantStatusTree:
             len(outbox) == 0
         ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
 
+    @pytest.mark.spec("RSH-01-004")
+    @pytest.mark.spec("RSH-03-003")
     def test_no_side_effects_execute_directly_rsh_01_004(
         self,
         populated_dl,
@@ -1096,6 +1103,8 @@ class TestAddParticipantStatusTree:
             "(RSH-01-004: side-effects belong in add_case_status_tree)"
         )
 
+    @pytest.mark.spec("RSH-01-001")
+    @pytest.mark.spec("RSH-01-002")
     def test_emit_node_present_rsh_01_001(
         self,
         populated_dl,
@@ -1203,6 +1212,7 @@ class TestNoAutoCloseSequenceInTree:
 
 
 class TestCheckIsCaseOwnerNode:
+    @pytest.mark.spec("RSH-01-002")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_case_owner_returns_success(self, populated_bridge):
         """CASE_OWNER sender → SUCCESS (gospel bypass)."""
@@ -1215,6 +1225,7 @@ class TestCheckIsCaseOwnerNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("RSH-01-002")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_non_owner_returns_failure(self, populated_bridge):
         """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
@@ -1272,6 +1283,7 @@ class TestEmitAddCaseStatusToSelfNode:
             trigger_activity=TriggerActivityAdapter(dl),
         )
 
+    @pytest.mark.spec("RSH-01-003")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_emits_activity_and_queues_in_outbox(self, dl):
         """With a factory and embedded case_status: activity queued in outbox."""
@@ -1638,6 +1650,7 @@ class TestEmitRMGapNoteNode:
         outbox = populated_dl.outbox_list()
         assert len(outbox) == 0, "No anomaly → no outbox entry expected"
 
+    @pytest.mark.spec("RSH-06-004")
     def test_gap_anomaly_emits_note(self, populated_dl):
         """BB_RM_ANOMALY=gap → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
         bridge = self._bridge_with_factory(populated_dl)
@@ -1656,6 +1669,7 @@ class TestEmitRMGapNoteNode:
             len(outbox) == 1
         ), "Gap anomaly should emit exactly one Add(Note,Case)"
 
+    @pytest.mark.spec("RSH-06-004")
     def test_regression_anomaly_emits_note(self, populated_dl):
         """BB_RM_ANOMALY=regression → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
         bridge = self._bridge_with_factory(populated_dl)

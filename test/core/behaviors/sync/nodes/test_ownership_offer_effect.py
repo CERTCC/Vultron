@@ -97,6 +97,7 @@ def _run_effect(bridge, entry, case_actor):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_condition_succeeds_on_offer_event(bridge, case_actor):
     """SUCCESS when the entry's event_type is offer_case_ownership_transfer."""
     entry = _offer_entry(offer_id=f"urn:uuid:{uuid.uuid4()}")
@@ -110,6 +111,7 @@ def test_condition_succeeds_on_offer_event(bridge, case_actor):
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_condition_fails_on_other_event(bridge, case_actor):
     """FAILURE for any other event_type — the Inverter arm handles routing."""
     entry = _offer_entry(
@@ -131,6 +133,8 @@ def test_condition_fails_on_other_event(bridge, case_actor):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("SYNC-12-002")
 def test_effect_stores_record_from_inline_object(
     bridge, datalayer, case_actor
 ):
@@ -149,6 +153,7 @@ def test_effect_stores_record_from_inline_object(
     assert stored.case_id == CASE_ID
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_effect_accepts_bare_string_object(bridge, datalayer, case_actor):
     """`object` may be a bare URI string rather than an inline dict."""
     offer_id = f"urn:uuid:{uuid.uuid4()}"
@@ -161,6 +166,7 @@ def test_effect_accepts_bare_string_object(bridge, datalayer, case_actor):
     assert stored.case_id == CASE_ID
 
 
+@pytest.mark.spec("SYNC-12-003")
 def test_effect_is_idempotent(bridge, datalayer, case_actor):
     """A replayed entry is a no-op, not an overwrite or an error."""
     offer_id = f"urn:uuid:{uuid.uuid4()}"
@@ -180,6 +186,7 @@ def test_effect_is_idempotent(bridge, datalayer, case_actor):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_effect_declines_to_store_record_without_case_id(
     bridge, datalayer, case_actor
 ):
@@ -197,6 +204,7 @@ def test_effect_declines_to_store_record_without_case_id(
     assert datalayer.read(offer_id) is None
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_effect_falls_back_to_log_object_id(bridge, datalayer, case_actor):
     """A snapshot with no ``id`` key falls back to the entry's log_object_id.
 
@@ -223,6 +231,8 @@ def test_effect_falls_back_to_log_object_id(bridge, datalayer, case_actor):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("SYNC-12-002")
 def test_effect_fails_when_datalayer_write_raises(
     bridge, datalayer, case_actor, monkeypatch
 ):
@@ -290,6 +300,7 @@ def test_record_round_trips_through_datalayer():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_effect_records_offer_actor_and_target(bridge, datalayer, case_actor):
     """actor/target are recorded so the adapter can rebuild the wire Offer."""
     offer_id = f"urn:uuid:{uuid.uuid4()}"
@@ -308,6 +319,7 @@ def test_effect_records_offer_actor_and_target(bridge, datalayer, case_actor):
     assert stored.target_id == "https://example.org/actors/transferee"
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_adapter_accepts_transfer_from_sync_only_replica(
     bridge, datalayer, case_actor, case_obj
 ):

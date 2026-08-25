@@ -48,6 +48,8 @@ def case_with_notes(datalayer):
     return case
 
 
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("SYNC-12-002")
 def test_apply_note_adds_to_case(
     bridge, datalayer, case_actor, case_with_notes
 ):
@@ -72,6 +74,7 @@ def test_apply_note_adds_to_case(
     assert NOTE_ID in note_ids
 
 
+@pytest.mark.spec("SYNC-12-003")
 def test_apply_note_idempotent(bridge, datalayer, case_actor, case_with_notes):
     """Applying the same note twice does not duplicate it."""
     assert case_with_notes is not None
@@ -94,6 +97,7 @@ def test_apply_note_idempotent(bridge, datalayer, case_actor, case_with_notes):
     assert note_ids.count(NOTE_ID) == 1
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_apply_note_skips_missing_case(bridge, case_actor):
     """Node returns SUCCESS when the case is not in the local DataLayer."""
     entry = _make_note_entry(NOTE_ID)

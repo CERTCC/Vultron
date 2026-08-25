@@ -119,6 +119,7 @@ def test_handle_outbox_item_expands_bare_object_for_new_types(
     assert "Expanded" in caplog.text
 
 
+@pytest.mark.spec("MV-09-002")
 @pytest.mark.parametrize(
     "activity_type", ["Add", "Invite", "Accept", "Offer", "Join"]
 )
@@ -268,6 +269,7 @@ def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
     )
 
 
+@pytest.mark.spec("MV-09-002")
 def test_handle_outbox_item_raises_integrity_error_for_bare_object():
     """Malformed bare-string object_ must raise integrity error (OX-09/MV-09)."""
     activity = _make_vultron_activity(

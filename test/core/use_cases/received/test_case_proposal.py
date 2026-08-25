@@ -82,6 +82,9 @@ def _run_create_proposal(dl, proposal, make_payload):
     ).execute()
 
 
+@pytest.mark.spec("CP-05-001")
+@pytest.mark.spec("CP-05-002")
+@pytest.mark.spec("CP-05-003")
 class TestCreateCaseProposalReceivedUseCase:
     """Tests for CreateCaseProposalReceivedUseCase (CP-05-001 through CP-05-004)."""
 
@@ -258,6 +261,7 @@ class TestCreateCaseProposalReceivedUseCase:
         )
 
 
+@pytest.mark.spec("CP-05-006")
 class TestCreateCaseProposalIdempotency:
     """Tests for CP-05-006 duplicate-proposal idempotency."""
 
@@ -379,6 +383,7 @@ class TestCreateCaseProposalIdempotency:
         ), "No new Create should be sent when marker is present (AC-3)"
 
 
+@pytest.mark.spec("CP-05-006")
 class TestCreateCaseProposalIdempotencyIntegration:
     """Integration tests for CP-05-006 duplicate-proposal idempotency (AC-4).
 
@@ -432,6 +437,8 @@ class TestCreateCaseProposalIdempotencyIntegration:
         dl.close()
 
 
+@pytest.mark.spec("CP-06-001")
+@pytest.mark.spec("CP-06-003")
 class TestAcceptCaseProposalReceivedUseCase:
     """Tests for AcceptCaseProposalReceivedUseCase (CP-06-001, CP-06-003)."""
 
@@ -509,6 +516,8 @@ class TestAcceptCaseProposalReceivedUseCase:
         AcceptCaseProposalReceivedUseCase(dl, event).execute()
 
 
+@pytest.mark.spec("CP-06-002")
+@pytest.mark.spec("CP-06-004")
 class TestRejectCaseProposalReceivedUseCase:
     """Tests for RejectCaseProposalReceivedUseCase (CP-06-002, CP-06-004)."""
 

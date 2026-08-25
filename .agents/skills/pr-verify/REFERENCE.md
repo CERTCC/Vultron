@@ -94,7 +94,7 @@ headline the user needs.
 | Verdict | Next step | Artifacts |
 |---|---|---|
 | `READY-TO-MERGE` | Merge | Cleaned up |
-| `PENDING-CI` | Re-run `/pr-verify` after CI finishes | Cleaned up |
+| `PENDING-CI` | Re-run `/pr-verify` after CI finishes | Preserved |
 | `PENDING-MERGE-CHECK` | Re-run `/pr-verify` in a minute — GitHub is still computing | Preserved |
 | `CONFLICTS-FOUND` | Delete the execute artifact, re-run `/pr-execute` (Phase 4 resolves) | Preserved |
 | `GAPS-FOUND` | Fix manually, or delete the execute artifact and re-run `/pr-execute` | Preserved |

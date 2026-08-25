@@ -93,6 +93,7 @@ def bridge(dl):
 class TestAcceptCaseOwnershipTransferNode:
     """Unit tests for AcceptCaseOwnershipTransferNode."""
 
+    @pytest.mark.spec("CM-21-002")
     def test_transfers_ownership(self, bridge, dl) -> None:
         """Happy path: case.attributed_to updated to new_owner_id."""
         case = as_VulnerabilityCase(
@@ -139,6 +140,7 @@ class TestAcceptCaseOwnershipTransferNode:
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("CM-21-002")
     def test_grants_case_owner_role_to_participant(self, bridge, dl) -> None:
         """New owner's participant record gains CVDRole.CASE_OWNER on transfer."""
         participant = CaseParticipant(
@@ -166,6 +168,8 @@ class TestAcceptCaseOwnershipTransferNode:
         assert refreshed_participant is not None
         assert CVDRole.CASE_OWNER in refreshed_participant.case_roles
 
+    @pytest.mark.spec("CM-21-003")
+    @pytest.mark.spec("CM-21-008")
     def test_strips_case_owner_role_from_previous_owner(
         self, bridge, dl
     ) -> None:
@@ -205,6 +209,7 @@ class TestAcceptCaseOwnershipTransferNode:
         # Other roles are preserved — CM-21-003
         assert CVDRole.COORDINATOR in refreshed_old.case_roles
 
+    @pytest.mark.spec("CM-21-001")
     def test_at_most_one_case_owner_after_transfer(self, bridge, dl) -> None:
         """Exactly one participant holds CVDRole.CASE_OWNER after transfer (CM-21-001)."""
         old_owner_participant = CaseParticipant(
@@ -326,6 +331,7 @@ class TestSeedAnnouncedCaseNode:
         """This class executes as ACTOR_ID, so that is its store."""
         return store_for(ACTOR_ID)
 
+    @pytest.mark.spec("CM-06-002")
     def test_saves_case_when_absent(
         self, bridge, dl, case, announce_event
     ) -> None:
@@ -565,6 +571,7 @@ class TestEmitAddCaseParticipantNode:
         """This class executes as EMIT_ADD_ACTOR_ID, so that is its store."""
         return store_for(EMIT_ADD_ACTOR_ID)
 
+    @pytest.mark.spec("CM-17-004")
     def test_emits_add_activity_and_commits_ledger_entry(self, dl):
         """Happy path: emits Add(CaseParticipant) and commits ledger entry."""
         from unittest.mock import MagicMock
@@ -940,9 +947,10 @@ class TestEmitOwnershipTransferNodes:
     production: both parties have a replica naming the same CaseActor.
     """
 
+    @pytest.mark.spec("CM-21-005")
     def test_emit_offer_to_is_case_actor_id(self, store_for):
+        """AC-5a: EmitOfferCaseOwnershipTransferNode sets to=[case_actor_id]."""
         dl = store_for(_OT_OWNER_ID)
-        # AC-5a: EmitOfferCaseOwnershipTransferNode sets to=[case_actor_id].
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
@@ -979,6 +987,7 @@ class TestEmitOwnershipTransferNodes:
             f"got target={activity.get('target')!r}"
         )
 
+    @pytest.mark.spec("CM-21-006")
     def test_emit_accept_to_is_case_actor_id(self, store_for):
         """AC-5b: EmitAcceptCaseOwnershipTransferNode sets to=[case_actor_id].
 

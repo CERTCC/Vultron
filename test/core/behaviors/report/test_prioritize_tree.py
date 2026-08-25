@@ -321,6 +321,7 @@ def case_with_manager_in_cm_store(
 # ============================================================================
 
 
+@pytest.mark.spec("BT-06-002")
 def test_create_engage_case_tree_returns_sequence(
     case_with_participant, actor_id
 ):
@@ -333,6 +334,7 @@ def test_create_engage_case_tree_returns_sequence(
     assert len(tree.children) == 5
 
 
+@pytest.mark.spec("BT-06-002")
 def test_create_defer_case_tree_returns_sequence(
     case_with_participant, actor_id
 ):
@@ -370,6 +372,9 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
 # ============================================================================
 
 
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-13-002")
+@pytest.mark.spec("BT-03-004")
 def test_engage_case_tree_success(
     bridge, datalayer, actor_id, case_with_participant
 ):
@@ -390,6 +395,7 @@ def test_engage_case_tree_success(
     assert latest_status.rm.state == RM.ACCEPTED
 
 
+@pytest.mark.spec("BT-03-001")
 def test_engage_case_tree_fails_no_participant(
     bridge, datalayer, actor_id, case_without_participant
 ):
@@ -405,6 +411,7 @@ def test_engage_case_tree_fails_no_participant(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.spec("BT-03-001")
 def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """EngageCaseBT fails when the case does not exist in the datalayer."""
     case = VultronCase(
@@ -429,6 +436,9 @@ def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
 # ============================================================================
 
 
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-12-001")
+@pytest.mark.spec("BT-03-004")
 def test_defer_case_tree_success(
     bridge, datalayer, actor_id, case_with_participant
 ):
@@ -449,6 +459,7 @@ def test_defer_case_tree_success(
     assert latest_status.rm.state == RM.DEFERRED
 
 
+@pytest.mark.spec("BT-03-001")
 def test_defer_case_tree_fails_no_participant(
     bridge, datalayer, actor_id, case_without_participant
 ):
@@ -464,6 +475,7 @@ def test_defer_case_tree_fails_no_participant(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.spec("BT-03-001")
 def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """DeferCaseBT fails when the case does not exist in the datalayer."""
     case = VultronCase(
@@ -488,6 +500,7 @@ def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
 # ============================================================================
 
 
+@pytest.mark.spec("BT-09-001")
 def test_engage_only_affects_target_actor(bridge, datalayer, actor_id, report):
     """Engaging updates only the target actor's RM state, not other participants.
 
@@ -542,6 +555,7 @@ def test_engage_only_affects_target_actor(bridge, datalayer, actor_id, report):
 # ============================================================================
 
 
+@pytest.mark.spec("BT-09-001")
 def test_engage_case_tree_idempotent(
     bridge, datalayer, actor_id, case_with_participant
 ):
@@ -576,6 +590,7 @@ def test_engage_case_tree_idempotent(
     assert len(accepted_entries) == 1
 
 
+@pytest.mark.spec("BT-09-001")
 def test_defer_case_tree_idempotent(
     bridge, datalayer, actor_id, case_with_participant
 ):
@@ -615,6 +630,7 @@ def test_defer_case_tree_idempotent(
 # ============================================================================
 
 
+@pytest.mark.spec("BT-09-001")
 def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
     case_manager_datalayer,
     actor_id,
@@ -724,6 +740,9 @@ def test_create_prioritize_subtree_returns_selector(
     assert defer_path.children[1].name == "OnDefer"
 
 
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-13-002")
+@pytest.mark.spec("BT-03-004")
 def test_prioritize_subtree_engages_by_default(
     bridge, datalayer, actor_id, trigger_activity, case_with_manager
 ):
@@ -820,6 +839,9 @@ def test_prioritize_subtree_custom_on_defer_factory_used(
     assert defer_path.children[1].name == "CustomOnDefer"
 
 
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-12-001")
+@pytest.mark.spec("BT-03-004")
 def test_prioritize_subtree_defers_when_engage_path_fails(
     bridge,
     datalayer,

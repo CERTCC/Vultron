@@ -117,6 +117,7 @@ def _make_case(case_id: str = CASE_URI) -> VulnerabilityCase:
 
 
 class TestReconstructTailHash:
+    @pytest.mark.spec("CLP-08-004")
     def test_empty_log_returns_genesis(self, dl):
         case = _make_case()
         dl.save(case)
@@ -125,6 +126,7 @@ class TestReconstructTailHash:
         assert len(tail_hash) == 64
         assert tail_index == -1
 
+    @pytest.mark.spec("CLP-08-005")
     def test_empty_log_no_case_raises(self, dl):
         """Without a case in DataLayer, empty ledger raises VultronValidationError.
 
@@ -137,12 +139,14 @@ class TestReconstructTailHash:
         with pytest.raises(VultronValidationError, match="genesis hash"):
             _reconstruct_tail_hash(CASE_URI, dl)
 
+    @pytest.mark.spec("SYNC-01-002")
     def test_one_entry_returns_its_hash(self, dl, first_entry):
         dl.save(first_entry)
         tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == first_entry.entry_hash
         assert tail_index == 0
 
+    @pytest.mark.spec("SYNC-01-002")
     def test_two_entries_returns_last_hash(self, dl, first_entry):
         dl.save(first_entry)
         second = _make_entry(CASE_URI, 1, first_entry.entry_hash)
@@ -151,6 +155,7 @@ class TestReconstructTailHash:
         assert tail_hash == second.entry_hash
         assert tail_index == 1
 
+    @pytest.mark.spec("SYNC-01-002")
     def test_ignores_other_case_entries(self, dl, first_entry):
         dl.save(first_entry)
         other = _make_entry("https://example.org/cases/other", 0, _ZERO_HASH)
@@ -177,6 +182,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         # outbox (matching send_announce_log_entry's explicit-actor queueing).
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
+    @pytest.mark.spec("CLP-02-002")
+    @pytest.mark.spec("SYNC-02-004")
     def test_inline_case_ledger_entry_round_trip(self, first_entry):
         """parse_activity must preserve inline as_CaseLedgerEntry fields (BUG-26041501).
 
@@ -198,6 +205,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI
 
+    @pytest.mark.spec("SYNC-01-001")
+    @pytest.mark.spec("SYNC-01-002")
     def test_accepts_valid_first_entry(self, dl, genesis_entry):
         event = self._make_event(genesis_entry)
         assert (
@@ -210,6 +219,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         stored = dl.read(genesis_entry.id_)
         assert stored is not None
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_rejects_entry_with_wrong_prev_hash(self, dl, first_entry):
         """Entry whose prev_log_hash does not match local tail is rejected."""
         bad_entry = _make_entry(CASE_URI, 0, "deadbeef" * 8)
@@ -220,6 +230,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         # Entry not stored
         assert dl.read(bad_entry.id_) is None
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_mismatch_queues_reject_activity(self, dl, first_entry):
         """Hash mismatch causes a RejectLogEntryActivity to be queued (SYNC-03-001)."""
         # Pre-seed a good entry so tail_hash != the genesis hash
@@ -248,6 +259,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             == as_TransitiveActivityType.REJECT
         )
 
+    @pytest.mark.spec("SYNC-03-001")
+    @pytest.mark.spec("SYNC-03-004")
     def test_mismatch_reject_carries_tail_hash(self, dl, first_entry):
         """The queued Reject carries the local tail hash as context (SYNC-03-001)."""
         dl.save(first_entry)
@@ -262,6 +275,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         reject_obj = dl.read(queued[0])
         assert getattr(reject_obj, "context", None) == first_entry.entry_hash
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_mismatch_reject_addressed_to_sender(self, dl, first_entry):
         """The queued Reject is addressed to the CaseActor who sent the Announce."""
         dl.save(first_entry)
@@ -277,6 +291,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         to_field = getattr(reject_obj, "to", None) or []
         assert ACTOR_URI in to_field
 
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("SYNC-15-002")
+    @pytest.mark.spec("CLP-08-005")
     def test_missing_case_queues_reject_with_empty_tail_hash(self, dl):
         """Announce before VulnerabilityCase is seeded MUST send Reject (SYNC-15-001).
 
@@ -313,6 +330,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         # context field carries last_accepted_hash="" (replay from genesis)
         assert getattr(reject_obj, "context", None) == ""
 
+    @pytest.mark.spec("SYNC-03-003")
     def test_idempotent_second_accept(self, dl, first_entry):
         """Calling execute twice with the same entry stores it only once."""
         dl.save(first_entry)  # pre-store
@@ -327,6 +345,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         ]
         assert len(case_entries) == 1
 
+    @pytest.mark.spec("SYNC-01-002")
+    @pytest.mark.spec("SYNC-01-003")
     def test_sequential_chain(self, dl, genesis_entry):
         """Accept two sequential entries; chain is maintained."""
         event0 = self._make_event(genesis_entry)
@@ -339,6 +359,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert dl.read(genesis_entry.id_) is not None
         assert dl.read(second.id_) is not None
 
+    @pytest.mark.spec("SYNC-13-004")
     def test_semantic_type_is_correct(self, dl, first_entry):
         event = self._make_event(first_entry)
         assert (
@@ -387,6 +408,8 @@ class TestOutOfOrderAnnounceBuffering:
             and isinstance(obj, VultronCaseLedgerEntry)
         }
 
+    @pytest.mark.spec("SYNC-14-001")
+    @pytest.mark.spec("SYNC-14-003")
     def test_reversed_delivery_converges_to_contiguous_prefix(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -407,6 +430,8 @@ class TestOutOfOrderAnnounceBuffering:
 
         assert self._present_indices(dl) == {0, 1, 2}
 
+    @pytest.mark.spec("SYNC-14-001")
+    @pytest.mark.spec("SYNC-14-003")
     def test_single_gap_then_predecessor_clicks_into_place(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -436,6 +461,7 @@ class TestOutOfOrderAnnounceBuffering:
         assert self._present_indices(dl) == {0, 1}
         assert gap_buffer.depth(CASE_URI) == 0
 
+    @pytest.mark.spec("SYNC-14-003")
     def test_multi_gap_cascade_drains_all_successors(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -480,6 +506,8 @@ class TestOutOfOrderAnnounceBuffering:
         assert self._present_indices(dl) == {0, 1, 2, 3, 4, 5, 6}
         assert gap_buffer.depth(CASE_URI) == 0
 
+    @pytest.mark.spec("SYNC-14-003")
+    @pytest.mark.spec("SYNC-03-002")
     def test_replayed_entries_out_of_order_still_converge(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -540,6 +568,8 @@ class TestPreGenesisAnnounceBuffering:
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("SYNC-15-004")
     def test_pre_genesis_entry_is_buffered_not_dropped(self, dl, gap_buffer):
         """With no case seeded, the entry is held in the buffer (not dropped)
         and a Reject is still sent as the loss backstop (SYNC-15-001)."""
@@ -561,6 +591,8 @@ class TestPreGenesisAnnounceBuffering:
         # Reject still queued as the backstop (SYNC-15-001).
         assert len(dl.outbox_list()) == 1
 
+    @pytest.mark.spec("SYNC-15-004")
+    @pytest.mark.spec("SYNC-15-005")
     def test_buffered_pre_genesis_entry_drains_when_case_seeded(
         self, dl, gap_buffer
     ):
@@ -593,6 +625,8 @@ class TestPreGenesisAnnounceBuffering:
         assert dl.read(entry.id_) is not None
         assert gap_buffer.depth(CASE_URI) == 0
 
+    @pytest.mark.spec("SYNC-15-004")
+    @pytest.mark.spec("SYNC-15-005")
     def test_pre_genesis_cascade_drains_full_chain_on_seed(
         self, dl, gap_buffer
     ):

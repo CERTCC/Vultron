@@ -40,6 +40,7 @@ from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 class TestPositiveLedgerEntryConditionNodes:
     """Tests for positive-precondition Is* condition nodes (BTND-08-001)."""
 
+    @pytest.mark.spec("SYNC-12-001")
     def test_succeeds_on_matching_event_type(
         self, bridge, case_actor, node_cls, matching_event_type
     ):
@@ -55,6 +56,7 @@ class TestPositiveLedgerEntryConditionNodes:
 
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("SYNC-12-001")
     def test_fails_on_non_matching_event_type(
         self, bridge, case_actor, node_cls, matching_event_type
     ):
@@ -74,6 +76,7 @@ class TestPositiveLedgerEntryConditionNodes:
         assert result.status == Status.FAILURE
 
 
+@pytest.mark.spec("CLP-01-003")
 def test_check_is_own_case_actor_succeeds_for_case_owner(bridge, case_actor):
     entry = _make_entry(0)
     event = _make_event(entry, actor_id=case_actor.id_)
@@ -99,6 +102,7 @@ def datalayer():
 class TestCheckLedgerFreshnessNodeWithCaseIdArg:
     """Tests using a case_id constructor arg (no blackboard key needed)."""
 
+    @pytest.mark.spec("SYNC-10-005")
     def test_empty_ledger_is_fresh(self, bridge):
         """SYNC-10-005: empty prefix is trivially fresh."""
         result = bridge.execute_with_setup(
@@ -109,6 +113,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("SYNC-10-004")
     def test_contiguous_chain_is_fresh(self, bridge, datalayer, case_obj):
         e0 = _make_entry(0, case_obj.genesis_hash)
         datalayer.save(e0)
@@ -123,6 +128,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("SYNC-10-004")
     def test_gap_in_ledger_is_stale(self, bridge, datalayer):
         """SYNC-10-004: any gap blocks the gate."""
         e0 = _make_entry(0)
@@ -147,6 +153,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("SYNC-10-004")
     def test_hash_mismatch_is_stale(self, bridge, datalayer):
         """SYNC-10-004: hash mismatch at any link is stale."""
         e0 = _make_entry(0)
@@ -170,6 +177,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("SYNC-10-002")
     def test_stale_result_emits_warning(self, bridge, datalayer, caplog):
         """SYNC-10-002: stale gate MUST surface an explicit stale condition."""
         import logging
@@ -205,6 +213,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
             if r.levelno == logging.WARNING
         )
 
+    @pytest.mark.spec("SYNC-10-001")
     def test_fresh_result_no_warning(self, bridge, caplog):
         """Happy path emits no WARNING."""
         import logging
@@ -229,6 +238,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
 class TestCheckLedgerFreshnessNodeWithBlackboard:
     """Tests where case_id is read from the blackboard."""
 
+    @pytest.mark.spec("SYNC-10-001")
     def test_blackboard_case_id_fresh(self, bridge):
         result = bridge.execute_with_setup(
             tree=CheckLedgerFreshnessNode(name="CheckFreshness"),
@@ -237,6 +247,7 @@ class TestCheckLedgerFreshnessNodeWithBlackboard:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("SYNC-10-002")
     def test_missing_blackboard_case_id_fails(self, bridge):
         """No case_id on blackboard and none at construction → FAILURE."""
         result = bridge.execute_with_setup(

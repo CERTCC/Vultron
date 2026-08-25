@@ -67,6 +67,7 @@ def patch_datalayer_call(client: TestClient, base: str):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("VP-08-004")
 class TestSeedContainersFvv:
     """Test that seeding creates actors on all three containers."""
 
@@ -610,6 +611,8 @@ class TestFvvMilestoneAssertions:
         c.get.return_value = {}
         return c
 
+    @pytest.mark.spec("CM-12-001")
+    @pytest.mark.spec("VP-02-015")
     def test_phase_report_submission_calls_verify_case_active(self):
         """_phase_report_submission calls verify_case_active at M1."""
         import contextlib

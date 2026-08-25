@@ -7,13 +7,15 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
 import unittest
 from itertools import product
+
+import pytest
 
 import vultron.core.states.cs as s
 
@@ -27,12 +29,14 @@ class MyTestCase(unittest.TestCase):
 
         self.assertEqual(32, len(self.states))
 
+    @pytest.mark.spec("CSB-17-001")
     def test_state_string_to_enums(self):
         for state_string in self.states:
             vfd, pxa = s.state_string_to_enums(state_string)
             self.assertEqual(state_string[:3], vfd.name)
             self.assertEqual(state_string[3:], pxa.name)
 
+    @pytest.mark.spec("CSB-17-001")
     def test_state_string_to_enum2(self):
         for state_string in self.states:
             result = s.state_string_to_enum2(state_string)
@@ -40,6 +44,7 @@ class MyTestCase(unittest.TestCase):
             for i, c in enumerate(state_string):
                 self.assertEqual(c, str(result[i]))
 
+    @pytest.mark.spec("CSB-17-001")
     def test_CS_vfdpxa(self):
         for state_string in self.states:
             vfd_str = state_string[:3]

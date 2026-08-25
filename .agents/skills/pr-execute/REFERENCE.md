@@ -39,9 +39,13 @@ Proceed to Phase 6.
      it fails there too.
    - At least one causality check: confirm no line in the PR diff plausibly
      causes the failure.
-4. If pre-existing is proven: create/update a Bug issue with evidence via
+4. If pre-existing is proven: assess whether a fix is straightforward and
+   context is in hand. If yes, fix it now — a pre-existing failure you can
+   resolve is still a failure worth resolving. Only proceed to step 5 if the
+   fix is genuinely non-trivial or requires design work outside this PR's scope.
+5. If deferral is warranted: create/update a Bug issue with evidence via
    `manage-github-issue`; wire structured blockers; post a handoff comment.
-5. If evidence is incomplete: treat as PR-owned and continue debugging.
+6. If evidence is incomplete: treat as PR-owned and continue debugging.
 
 ### Integration Tests Fail ❌
 
@@ -52,9 +56,12 @@ Proceed to Phase 6.
 1. Display failure output (first 50 lines + last 20 for context).
 2. Perform targeted causality checks against the PR diff.
 3. Allow "unrelated/pre-existing" only with clean-base + causality evidence.
-4. If pre-existing is proven: create/update a Bug issue with evidence; wire
+4. If pre-existing is proven: assess whether a fix is straightforward and
+   context is in hand. If yes, fix it now. Only proceed to step 5 if the fix
+   is genuinely non-trivial or requires design work outside this PR's scope.
+5. If deferral is warranted: create/update a Bug issue with evidence; wire
    blockers via `manage-github-issue`; add a handoff comment.
-5. Stop only after recording blocked/unblocked status with linked evidence.
+6. Stop only after recording blocked/unblocked status with linked evidence.
 
 Integration tests can fail due to: missing environment setup, timing issues
 in demo orchestration, architectural breaking changes, or infrastructure
@@ -141,7 +148,7 @@ dead or missing reference is treated as unmanaged debt and triggers a
 Stop and surface to the user if:
 
 - Integration test failure with unclear root cause after causality checks
-- 2+ consecutive test failures after fix attempts
+- CI loop reaches 4 iterations with the same failure persisting (see Phase 5 eject condition in SKILL.md)
 - Test output suggests missing context (env vars, setup, infrastructure)
 - Error suggests architectural issue (breaking change to core logic)
 - A merge conflict whose correct resolution is genuinely unclear (see
@@ -159,7 +166,7 @@ explicit blocked/unblocked status.
 
 ### Why sync runs late
 
-The branch is synced in Phase 4 — after all fixes and CI remediation, before the
+The branch is synced in Phase 5 (CI loop, Step 2) — after all fixes, before the
 test suite. Three reasons:
 
 1. **Execute's own fixes can create conflicts.** A fix touching the same lines a
@@ -277,7 +284,7 @@ File: `.claude/pr-{number}-execute.json`
   "pr_number": 1234,
   "timestamp": "2026-01-01T00:00:00Z",
   "integration_tests_run": true,
-  "final_ci_status": "passing",
+  "final_ci_status": "passing",  // "passing" | "failing" | "timeout"
   "merge_state": {
     "base_ref": "main",
     "synced": true,
@@ -357,7 +364,7 @@ cannot produce a READY-TO-MERGE verdict.
 **Issues filed**: <M>
 **Deferred (awaiting your input)**: <K>
 **Tests run**: unit only / unit + integration
-**CI status after push**: ✅ passing / ❌ failing / ⏳ pending
+**CI status**: ✅ passing / ❌ failing / ⏳ timed out
 **Base sync**: ✅ merged `<base_ref>` @ `def5678` — <N> conflicts resolved / ✅ already current / ❌ conflicts unresolved
 
 ---
@@ -401,5 +408,5 @@ _Omit this section entirely when the merge was clean._
 ---
 
 *Execute artifact: `.claude/pr-<number>-execute.json`*
-*Next step: run `/pr-verify` or wait for CI, then `/pr-ship` will continue automatically.*
+*Next step: run `/pr-verify`, or `/pr-ship` will continue automatically.*
 ```

@@ -2,21 +2,25 @@
 
 ## Phase A — Validate the Epic
 
-Before decomposing, validate the Epic against current understanding. Cover:
+Before decomposing, research the Epic against the current codebase and
+present a validation brief — do not ask the user to answer these questions;
+answer them yourself first, then confirm.
 
-1. **Currency check** — What do we know now that wasn't known when this Epic
-   was written? Has adjacent work (e.g., related Epics, merged PRs, new specs)
-   changed what this Epic should cover or how it should be scoped?
-2. **Codebase audit** — Have any of this Epic's ACs been partially or fully
-   addressed already? Search `vultron/` and `test/` before answering.
-3. **AC refinement** — Should any ACs be dropped, rewritten, or added in light
-   of current understanding?
-4. **Hierarchy check** — Does the Epic still belong under its current parent, or
+Research and present findings on:
+
+1. **Currency** — What has changed since this Epic was written? Adjacent
+   Epics, merged PRs, new specs that affect scope or approach.
+2. **Codebase audit** — Which of this Epic's ACs (if any) have been
+   partially or fully addressed already? Search `vultron/` and `test/`.
+3. **AC gaps** — ACs that should be added or rewritten in light of current
+   understanding.
+4. **Hierarchy** — Does the Epic still belong under its current parent, or
    has the project structure shifted?
-5. **Description/title gaps** — Should the Epic title or body be updated to
-   reflect the validated understanding? Draft proposed edits if so.
+5. **Title/body gaps** — Proposed edits to the Epic title or body if the
+   validated understanding differs from what is written.
 
-Apply any agreed Epic title/body edits before proceeding to Phase B:
+Present all findings as a brief, ask for confirmation or correction, and
+apply any agreed Epic title/body edits before proceeding to Phase B:
 
 ```bash
 gh issue edit "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
@@ -26,7 +30,11 @@ gh issue edit "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
 
 ## Phase B — Decompose into Tasks
 
-After validating the Epic, decompose it. Cover:
+After validating the Epic, propose a decomposition. Present a draft task
+breakdown — boundaries, sequencing, AC coverage — and ask "does this look
+right, or should we adjust?" rather than asking each question in sequence.
+
+The decomposition should cover:
 
 1. **Decomposition boundaries** — What is one Task vs. two? Avoid both
    over-splitting (trivial Tasks) and under-splitting (Tasks too large to
@@ -35,6 +43,10 @@ After validating the Epic, decompose it. Cover:
    `blocked-by` relationships.
 3. **AC inheritance** — Which of the Epic's ACs map to which Tasks? Every AC
    must be covered by at least one Task.
+
+Signal when the decomposition is stable: "I think we're almost there —
+here's the full task breakdown. Got more?" rather than declaring done
+unilaterally.
 
 ## Docs Output (optional)
 

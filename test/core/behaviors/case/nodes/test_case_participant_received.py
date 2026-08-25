@@ -65,6 +65,7 @@ def participant(case):
 class TestAddCaseParticipantToCaseReceivedNode:
     """Unit tests for AddCaseParticipantToCaseReceivedNode."""
 
+    @pytest.mark.spec("CM-17-004")
     def test_adds_participant_to_case(
         self, bridge, dl, case, participant
     ) -> None:
@@ -81,6 +82,7 @@ class TestAddCaseParticipantToCaseReceivedNode:
         pids = [getattr(p, "id_", p) for p in refreshed.case_participants]
         assert PARTICIPANT_ID in pids
 
+    @pytest.mark.spec("CM-19-002")
     def test_updates_actor_participant_index(
         self, bridge, dl, case, participant
     ) -> None:
@@ -119,6 +121,7 @@ class TestAddCaseParticipantToCaseReceivedNode:
 class TestRemoveCaseParticipantFromCaseReceivedNode:
     """Unit tests for RemoveCaseParticipantFromCaseReceivedNode."""
 
+    @pytest.mark.spec("CM-23-003")
     def test_removes_participant_from_case(
         self, bridge, dl, case, participant
     ) -> None:

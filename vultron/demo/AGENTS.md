@@ -370,6 +370,44 @@ then, use the existing services with role-alias bindings.
 
 ---
 
+### Exchange Demos: Discover the Canonical Case from the DataLayer, Never Create a Second Case
+
+After `validate-report`, the BT automatically fires `ProposeReportCaseToActorNode`,
+which delivers a `Create(CaseProposal)` to the CaseActor. The CaseActor creates
+the **canonical** `VulnerabilityCase` (ADR-0041) and registers vendor, reporter,
+and CaseActor as initial participants.
+
+Do NOT call `create_case_activity` in exchange demo setup. Doing so creates a
+**second**, vendor-local case that:
+
+- Has no `ReportCaseLink`, so `create_case_received` skips it.
+- Gets no participants because `ProposeCaseToActorNode` finds no linked report.
+- Is completely distinct from the canonical case the CaseActor owns.
+
+**How to find the canonical case** after validate-report:
+
+```python
+def _find_canonical_case(client) -> dict:
+    cases = client.get("/datalayer/VulnerabilityCases/").json()
+    # pick the first case that has participants
+    for case_id, case in cases.items():
+        if case.get("case_participants"):
+            return case
+    raise AssertionError("No canonical case found after validate-report")
+```
+
+`GET /datalayer/VulnerabilityCases/` returns a `dict[str, dict]` keyed by
+object ID. The canonical case will have `case_participants` populated.
+
+Note: `TestClientRouter` does not register `https://vultron.example`, so the
+CaseActor's `Create(VulnerabilityCase)` delivery to vendor is silently dropped
+in the single-backend exchange demo environment. The canonical case IS in the
+DataLayer even though vendor never receives it in their inbox.
+
+<!-- Source: ISSUE-1994 -->
+
+---
+
 ### The Ledger Dump Belongs in the Failure Path, Not After the Last Phase
 
 A scenario's forensic artifacts are worth the most in exactly the run that

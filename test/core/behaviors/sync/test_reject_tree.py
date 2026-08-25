@@ -137,6 +137,10 @@ def test_create_reject_log_entry_tree_returns_sequence():
     assert len(tree.children) == 4
 
 
+@pytest.mark.spec("SYNC-03-001")
+@pytest.mark.spec("SYNC-03-002")
+@pytest.mark.spec("SYNC-04-001")
+@pytest.mark.spec("SYNC-04-002")
 def test_reject_tree_updates_replication_state_and_replays_entries(
     bridge, datalayer, case_actor
 ):
@@ -170,6 +174,7 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
     assert call_kwargs["to"] == [PEER_ID]
 
 
+@pytest.mark.spec("SYNC-03-002")
 def test_reject_tree_replays_all_entries_when_hash_not_found(
     bridge, datalayer, case_actor
 ):
@@ -191,6 +196,8 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
     assert sync_port.send_announce_log_entry.call_count == 2
 
 
+@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-005")
 def test_genesis_reject_queues_announce_vulnerability_case(
     datalayer, case_actor, case_manager_case
 ):
@@ -227,6 +234,7 @@ def test_genesis_reject_queues_announce_vulnerability_case(
     assert call_kwargs["to"] == [PEER_ID]
 
 
+@pytest.mark.spec("SYNC-15-002")
 def test_genesis_reject_without_trigger_port_still_succeeds(
     bridge, datalayer, case_actor
 ):
@@ -248,6 +256,7 @@ def test_genesis_reject_without_trigger_port_still_succeeds(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("SYNC-15-002")
 def test_non_genesis_reject_skips_announce_vulnerability_case(
     datalayer, case_actor, case_manager_case
 ):
@@ -285,6 +294,8 @@ def test_non_genesis_reject_skips_announce_vulnerability_case(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-15-003")
+@pytest.mark.spec("SYNC-15-009")
 def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
     bridge, datalayer, case_actor
 ):
@@ -326,6 +337,7 @@ def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
     assert sync_port.send_announce_log_entry.call_count == len(entries) - 1
 
 
+@pytest.mark.spec("SYNC-15-010")
 def test_reject_at_advanced_hash_replays_again(bridge, datalayer, case_actor):
     """The guard must not wedge a peer that *is* making progress.
 
@@ -356,6 +368,7 @@ def test_reject_at_advanced_hash_replays_again(bridge, datalayer, case_actor):
     assert sync_port.send_announce_log_entry.call_count == 6
 
 
+@pytest.mark.spec("SYNC-15-011")
 def test_reject_at_tail_then_growth_replays_the_new_suffix(
     bridge, datalayer, case_actor
 ):

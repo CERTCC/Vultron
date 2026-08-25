@@ -547,6 +547,7 @@ class TestFccvHandoffMilestoneAssertions:
             )
         assert result is not None
 
+    @pytest.mark.spec("CM-12-001")
     def test_run_fccv_handoff_calls_verify_case_active(self):
         """run_fccv_handoff_demo calls verify_case_active at M1."""
         import contextlib

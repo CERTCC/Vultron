@@ -353,6 +353,8 @@ def _run_tree(
 class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
     """A regressive ``rm`` must not throw away the rest of the snapshot."""
 
+    @pytest.mark.spec("RSH-05-001")
+    @pytest.mark.spec("RSH-05-002")
     def test_regressive_rm_carried_forward_accepted_vfd_and_pxa_recorded(
         self, store_for, make_payload
     ):
@@ -385,6 +387,8 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
             _em_of(latest) == EM.NONE.name
         ), "em is EmbargoTeardownAuthorizationGate's business (#2256)"
 
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-05-003")
     def test_regressive_rm_still_reaches_seam_2_emit(
         self, store_for, make_payload
     ):
@@ -417,6 +421,7 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
 class TestCanonicalLedgerRecordsAcceptedPortion:
     """The refusal is made visible by what the canonical ledger records."""
 
+    @pytest.mark.spec("RSH-05-004")
     def test_ledger_snapshot_carries_accepted_rm_not_asserted_rm(
         self, store_for, make_payload
     ):
@@ -448,6 +453,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert _vfd_of(snapshot_object) == CS_vfd.VFd.name
         assert _pxa_of(snapshot_object) == CS_pxa.Pxa.name
 
+    @pytest.mark.spec("RSH-05-009")
     def test_ledger_snapshot_keeps_the_wire_shape_of_an_unfiltered_snapshot(
         self, store_for, make_payload
     ):
@@ -520,6 +526,7 @@ class TestOmittedCaseStatusIsNotAnAssertion:
     sender never claimed anything to adjudicate (RSH-05-002).
     """
 
+    @pytest.mark.spec("RSH-05-002")
     def test_omitted_case_status_does_not_erase_pxa_and_em(
         self, store_for, make_payload
     ):
@@ -547,6 +554,7 @@ class TestOmittedCaseStatusIsNotAnAssertion:
             _em_of(latest) == EM.NONE.name
         ), "an unasserted em must be carried forward, not blanked"
 
+    @pytest.mark.spec("RSH-05-005")
     def test_omitted_case_status_alone_carries_no_new_state(
         self, store_for, make_payload
     ):
@@ -580,6 +588,7 @@ class TestOmittedCaseStatusIsNotAnAssertion:
 class TestTerminalClosedParticipant:
     """``RM.CLOSED`` freezes ``rm`` only — not the other dimensions."""
 
+    @pytest.mark.spec("RSH-05-006")
     def test_closed_participant_still_accepts_vfd_advance(
         self, store_for, make_payload
     ):
@@ -602,6 +611,7 @@ class TestTerminalClosedParticipant:
         assert _rm_of(latest) == RM.CLOSED.name
         assert _vfd_of(latest) == CS_vfd.VFd.name
 
+    @pytest.mark.spec("RSH-05-005")
     def test_wholly_refused_update_is_not_appended_and_commits_no_entry(
         self, store_for, make_payload
     ):
@@ -668,6 +678,7 @@ def _announce_event(
 class TestLedgerApplyRmRatchet:
     """A replicated entry must not regress a replica's derived RM state."""
 
+    @pytest.mark.spec("RSH-05-007")
     def test_regressive_rm_in_ledger_entry_does_not_regress_replica(
         self, store_for
     ):
@@ -1023,6 +1034,7 @@ class TestRMGapAnomalyFlag:
 
         return py_trees.blackboard.Blackboard.storage.get("/" + BB_RM_ANOMALY)
 
+    @pytest.mark.spec("RSH-06-001")
     def test_nonadjacent_forward_jump_sets_gap_anomaly(
         self, store_for, make_payload
     ):
@@ -1059,6 +1071,7 @@ class TestRMGapAnomalyFlag:
             anomaly is None
         ), f"Expected no anomaly for adjacent transition, got {anomaly}"
 
+    @pytest.mark.spec("RSH-06-002")
     def test_backward_regression_refused_sets_regression_anomaly(
         self, store_for, make_payload
     ):
@@ -1087,6 +1100,7 @@ class TestRMGapAnomalyFlag:
 class TestOverrideIncludesProducerType:
     """AC-1: FilterParticipantStatusDimensionsNode publishes producer_type (RSH-05-011)."""
 
+    @pytest.mark.spec("RSH-05-011")
     def test_published_override_includes_producer_type(
         self, store_for, make_payload
     ):

@@ -3,6 +3,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import (
@@ -24,6 +25,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
 
+@pytest.mark.spec("SYNC-03-001")
 def test_check_hash_or_reject_on_mismatch_is_selector_with_condition_and_action():
     tree = CheckHashOrRejectOnMismatchNode(name="CheckHashOrRejectOnMismatch")
     assert tree.name == "CheckHashOrRejectOnMismatch"
@@ -39,6 +41,7 @@ def test_check_hash_or_reject_on_mismatch_is_selector_with_condition_and_action(
     assert isinstance(reject_node, SendRejectLogEntryNode)
 
 
+@pytest.mark.spec("SYNC-03-001")
 def test_check_hash_matches_node_succeeds_when_hash_matches(
     bridge, case_actor
 ):
@@ -55,6 +58,7 @@ def test_check_hash_matches_node_succeeds_when_hash_matches(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("SYNC-03-001")
 def test_send_reject_log_entry_node_sends_reject(bridge, case_actor):
     entry = _make_entry(1, "deadbeef" * 8)
     event = _make_event(entry, actor_id=case_actor.id_)
@@ -72,6 +76,7 @@ def test_send_reject_log_entry_node_sends_reject(bridge, case_actor):
     sync_port.send_reject_log_entry.assert_called_once()
 
 
+@pytest.mark.spec("SYNC-03-001")
 def test_check_hash_or_reject_on_mismatch_sends_reject(bridge, case_actor):
     entry = _make_entry(1, "deadbeef" * 8)
     event = _make_event(entry, actor_id=case_actor.id_)
@@ -91,6 +96,7 @@ def test_check_hash_or_reject_on_mismatch_sends_reject(bridge, case_actor):
     sync_port.send_reject_log_entry.assert_called_once()
 
 
+@pytest.mark.spec("SYNC-03-001")
 def test_check_hash_or_reject_on_mismatch_short_circuits_on_match(
     bridge, case_actor
 ):
@@ -115,6 +121,8 @@ def test_check_hash_or_reject_on_mismatch_short_circuits_on_match(
 class TestBufferOutOfOrderEntryNode:
     """Direct unit tests for BufferOutOfOrderEntryNode.update() branch paths."""
 
+    @pytest.mark.spec("SYNC-14-001")
+    @pytest.mark.spec("SYNC-14-002")
     def test_buffers_genuine_forward_gap(self, bridge, case_actor):
         """An entry two indices ahead of the tail is a forward gap — buffered → SUCCESS."""
         gap_buffer = LedgerGapBuffer()
@@ -133,6 +141,7 @@ class TestBufferOutOfOrderEntryNode:
         assert result.status == Status.SUCCESS
         assert gap_buffer.depth(entry.case_id) == 1
 
+    @pytest.mark.spec("SYNC-14-001")
     def test_does_not_buffer_at_tail_entry(self, bridge, case_actor):
         """An entry at log_index == tail_index + 1 is not a forward gap — FAILURE."""
         gap_buffer = LedgerGapBuffer()
@@ -151,6 +160,7 @@ class TestBufferOutOfOrderEntryNode:
         assert result.status == Status.FAILURE
         assert gap_buffer.depth(entry.case_id) == 0
 
+    @pytest.mark.spec("SYNC-14-005")
     def test_returns_failure_when_no_gap_buffer_injected(
         self, bridge, case_actor
     ):
