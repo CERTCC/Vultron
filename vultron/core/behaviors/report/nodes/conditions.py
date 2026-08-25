@@ -17,6 +17,9 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    CaseIdInputPortMixin,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
@@ -143,18 +146,24 @@ class CheckRMStateReceivedOrInvalid(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class EnsureEmbargoExists(DataLayerConditionWithPorts):
-    """Check that the case linked to this report has an active embargo.
+class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
+    """Check that the case for this report has an active embargo.
 
-    Returns SUCCESS if the case exists and has a non-None ``active_embargo``.
-    Returns FAILURE if the case is not found or its ``active_embargo`` is None.
+    Returns SUCCESS if the case has a non-None ``active_embargo``, FAILURE
+    otherwise.
 
     Implements DUR-07-004: an embargo end time MUST be established before the
     case reaches RM.VALID.
 
+    The case comes from the ``/case_id`` blackboard key published upstream by
+    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
+    rather than from a second ``find_case_by_report_id`` call, so a tree resolves
+    "the case for this report" exactly once (ARCH-15-004).
+
     Input ports (inherited + declared):
         datalayer (object, required): CasePersistence, remapped to /datalayer.
         actor_id (str, required): Executing actor ID, remapped to /actor_id.
+        case_id (str, optional): remapped to /case_id; required in practice.
 
     Per BTND-03-009: typed port declarations replace register_key().
     """
@@ -163,7 +172,7 @@ class EnsureEmbargoExists(DataLayerConditionWithPorts):
         """Initialize EnsureEmbargoExists node.
 
         Args:
-            report_id: ID of VulnerabilityReport whose linked case to check.
+            report_id: ID of the VulnerabilityReport, used only for log context.
             name: Optional custom node name (defaults to class name).
         """
         super().__init__(name=name or self.__class__.__name__)
@@ -173,15 +182,12 @@ class EnsureEmbargoExists(DataLayerConditionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        case = self.datalayer.find_case_by_report_id(self.report_id)
-        if case is None:
-            self.logger.warning(
-                "%s: No case found for report %s",
-                self.name,
-                self.report_id,
-            )
+
+        case_id = self._resolve_case_id()
+        if case_id is None:
             return Status.FAILURE
 
+        case = self.datalayer.read(case_id)
         if getattr(case, "active_embargo", None) is None:
             self.logger.warning(
                 "%s: Case for report %s has no active embargo — "

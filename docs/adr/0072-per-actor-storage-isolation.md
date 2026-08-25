@@ -2,8 +2,8 @@
 status: accepted
 date: 2026-08-17
 deciders: ahouseholder
-consulted: notes/datalayer-design.md, notes/actor-knowledge-model.md, vultron/core/ports/AGENTS.md, docs/adr/0012-per-actor-datalayer-isolation.md
-informed: specs/datalayer.yaml, specs/architecture.yaml, specs/case-management.yaml, specs/case-proposal.yaml, specs/behavior-tree-integration.yaml, specs/em-behavior.yaml, specs/inbox-endpoint.yaml
+consulted: notes/datalayer-design.md, notes/actor-knowledge-model.md, vultron/core/ports/AGENTS.md, docs/adr/0012-per-actor-datalayer-isolation.md, docs/adr/0041-caseactor-authoritative-case-initialization.md, docs/adr/0058-causal-gating-in-demo-scenarios.md
+informed: specs/datalayer.yaml, specs/architecture.yaml, specs/case-management.yaml, specs/case-proposal.yaml, specs/behavior-tree-integration.yaml, specs/em-behavior.yaml, specs/inbox-endpoint.yaml, specs/participant-case-replica.yaml, specs/idempotency.yaml, specs/case-bootstrap-trust.yaml
 ---
 
 # Give Each Actor Its Own Store; Delete the Unscoped DataLayer
@@ -59,6 +59,29 @@ created in the requester's store and queued in the CaseActor's outbox: the
 CaseActor never delivers it, and its outbox names an activity its own store does
 not hold (PCR-08-007, CM-24-004).
 
+There is a third leak, and it is the one this decision originally failed to
+name. Per-actor storage makes cross-actor *access* impossible; it does nothing
+about cross-actor *expectation*. Code can still be written as though a
+co-located actor's knowledge were its own, and nothing in the layout says
+otherwise — the read simply comes back empty.
+
+Issue #2548 is that leak in the field. A single container hosts the report
+receiver and the CaseActor it self-hosts. Under ADR-0041 the receiver does not
+create the case: it submits a `CaseProposal`, and the CaseActor creates the case
+in **its own** store and replicates it back as `Create(VulnerabilityCase)`. The
+receiver's `validate-report` tree ran before that replica arrived, found no case
+— correctly — and advanced anyway, writing the report-phase `RM.VALID` latch
+while the case-scoped `CaseParticipant` stayed at `RECEIVED`. Because the guard
+that decides whether to run the transition reads that same latch, the two halves
+could never reconverge. The case state had split across two stores and the split
+was permanent.
+
+Nothing in this ADR licensed that, but nothing forbade it either. The invariant
+as originally stated is about writes ("one actor's writes must never affect what
+another actor could read"); the missing half is about reads, and it has to be
+stated as a property of the *protocol* rather than of the storage layout,
+because the temptation it removes is a deployment-shaped one.
+
 An outbox call-site survey missed this, and it is worth recording why. The four
 `record_outbox_item` sites traced below name the actor in an *argument*, and all
 four are genuinely self-directed. This seam is different: the mismatch arrives
@@ -72,6 +95,12 @@ at the trigger seam.
 - The invariant to enforce is absolute: **one actor's writes must never affect
   what another actor could read.** "Ever" rules out guarantees that depend on
   every query being written correctly.
+- **Co-location is an implementation choice the protocol must remain
+  indifferent to.** One host or a hundred, actors exchange information only by
+  protocol message. No back-end cheats: no direct writes into another actor's
+  store, no out-of-band signalling between actors that happen to share a
+  process. A guarantee that holds only when the topology cooperates is not a
+  protocol guarantee.
 - Core must stay agnostic to the storage layout — a robust database, a folder
   of JSON files per actor, or anything between (the DataLayer port is the
   contract; see `notes/datalayer-design.md` § "Key principle").
@@ -179,6 +208,37 @@ Concretely:
   explicit in the type as well as in the code rather than something a forgotten
   filter grants.
 
+- **The protocol is indifferent to co-location, and code must be too.**
+  Normative as PCR-01-003. Actors exchange information *only* through protocol
+  messages — never a direct read or write into another actor's store, never
+  out-of-band communication between actors that happen to share a host. The
+  operative consequence for the case lifecycle: an actor that has asked a
+  CaseActor to create a case MUST treat that case as absent from its own
+  knowledge until the CaseActor's `Create(VulnerabilityCase)` has been delivered
+  to it. Co-location does not make the case visible sooner. Absence of the
+  replica is a legitimate, transient state — the correct response is to fail the
+  case-scoped work and retry, never to proceed as though the case were there
+  (ARCH-15-001).
+
+  This is not merely about where bytes live, so it is worth being exact about
+  who holds what. The CaseActor **creates** the case and holds
+  `CVDRole.CASE_MANAGER`: what it owns is *write privilege on the case ledger*.
+  The actor whose `CaseProposal` caused the case to exist — the report receiver,
+  whatever other roles it also holds — holds `CVDRole.CASE_OWNER`. That role is
+  **never delegated to the CaseActor**. "The case-actor's store holds the
+  canonical case" and "the case-actor owns the case" are different claims, and
+  only the first is true. CBT-01-003 is amended accordingly: it previously said
+  "case creator/owner", which under ADR-0041 names two different actors.
+
+- **The latch is written last.** Normative as ID-04-005. When a transition has
+  more than one half and one half doubles as the evidence a later guard reads,
+  that half MUST be written only after the others have succeeded. Writing it
+  first turns a recoverable "not yet" into a permanent "already done": the guard
+  suppresses every retry, and nothing raises. This is the mechanism by which the
+  #2548 store split became irreversible rather than merely late, and it belongs
+  here because per-actor isolation is what makes "not yet" a routine state
+  instead of a rare one.
+
 This supersedes the "DataLayer isolation strategy" half of ADR-0012, which
 chose *Option B — namespace prefix per actor in one file*. ADR-0012's other
 three decisions (DI-1 closure lambda, IO-A queues in the DataLayer, OX-B
@@ -221,6 +281,17 @@ argument that does not survive being weighed against CM-01-001.
   actor's write cannot change what another reads.
 - `SqliteDataLayer` cannot be constructed without an `actor_id`, so the
   unscoped mode is unreachable rather than merely discouraged.
+- The Leak 3 invariant is asserted where the split appeared. In
+  `test/core/use_cases/received/test_ack_validate_report_received.py`,
+  `test_full_flow_no_rm_valid_before_case_replica_arrives` drives the real
+  submit → validate flow *without* delivering the replica and asserts that no
+  `RM.VALID` record is written at all; the companion test delivers the replica
+  first and asserts both halves advance in lockstep. In
+  `test/demo/test_workflow_rm_triage.py`,
+  `test_validate_gated_on_local_case_replica` asserts the causal ordering
+  (replica present *therefore* validate) rather than mere sequence, so the gate
+  cannot regress to a post-hoc presence check — the shape ADR-0058 rejects and
+  the shape the old code had.
 - `test/core/behaviors/test_bridge.py` asserts the Leak 2 invariant directly: the
   blackboard's `datalayer.actor_id` equals its `actor_id`, and — as the
   complement, so the reconciliation cannot be satisfied by cloning
@@ -261,6 +332,13 @@ argument that does not survive being weighed against CM-01-001.
 ## More Information
 
 - Issue #2238 — the reported defect and its acceptance criteria.
+- Issue #2548 — the case-state split that exposed Leak 3; fixed on the same
+  branch, because it is a problem this change made visible rather than one it
+  found.
+- ADR-0041 — CaseActor-authoritative case initialization; why the report
+  receiver never holds the case until the replica is delivered.
+- ADR-0058 — gate on causal preconditions, not temporal order; why the replica
+  wait is a gate and the old post-hoc case check was not.
 - ADR-0012 — supersedes its DataLayer isolation strategy decision only.
 - ADR-0042 — all inter-actor communication is over HTTP, which is why no
   cross-actor store access is needed for delivery.
@@ -276,7 +354,11 @@ reference inline where the model requires the object to be carried);
 `specs/behavior-tree-integration.yaml` BT-05-005 (a BT's store is its executing
 actor's) and BT-05-006 (role holder, receiving actor and store owner are one
 actor); `specs/em-behavior.yaml` EMB-19 (the teardown announcement's author and
-recipients, unspecified until this change exposed the gap).
+recipients, unspecified until this change exposed the gap);
+`specs/participant-case-replica.yaml` PCR-01-003 (co-location grants no
+visibility; actors exchange information only by protocol message) and
+`specs/idempotency.yaml` ID-04-005 (a guard record is written last, never
+first) — both from #2548.
 
 DL-08 is here because isolation is what exposed it (#2482). A `CaseProposal`
 must carry its report inline (CP-01-004), but persistence dehydrated the
@@ -296,6 +378,9 @@ a short id) survives and is load-bearing, but its wording named
 
 Amends DL-04-002 and DL-04-004 for the collapsed outbox methods and the
 `actor_id`/`clone_for_actor` additions to `CasePersistence`; CM-24-004 to require
-the role gate instead of the `self._actor_id` convention; and BT-17-006, which
+the role gate instead of the `self._actor_id` convention; BT-17-006, which
 required `actor_id=request.receiving_actor_id` outright and so forbade the
-store-owner fallback it should require.
+store-owner fallback it should require; and CBT-01-003, which said "case
+creator/owner" as though one actor, where ADR-0041 makes the CaseActor the
+creator (`CVDRole.CASE_MANAGER`) and the proposal's submitter the owner
+(`CVDRole.CASE_OWNER`).

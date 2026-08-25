@@ -77,6 +77,26 @@ def _add_case_manager(case, dl) -> as_Service:
     return case_actor
 
 
+def _add_self_participant(case, dl, actor_id: str, rm: RM = RM.RECEIVED):
+    """Add *actor_id* as a participant of *case* at RM state *rm*.
+
+    RM.VALID is case-scoped, so an actor can only advance it when it appears in
+    the case's ``actor_participant_index`` — which is exactly what a delivered
+    ``Create(VulnerabilityCase)`` replica provides (ADR-0041, CBT-01-002).
+    Without this the validate-report BT correctly refuses to act (ISSUE-2548).
+    """
+    participant = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    participant.append_rm_state(rm, actor_id, case.id_)
+    dl.create(participant)
+    case.actor_participant_index[actor_id] = participant.id_
+    dl.save(case)
+    return participant
+
+
 def test_submit_report_trigger_creates_report_case_link(dl, actor):
     """submit_report creates an unlinked ReportCaseLink for later replica sync."""
     TriggerService(
@@ -171,6 +191,7 @@ def received_report(dl, actor, report):
     )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
+    _add_self_participant(case_obj, dl, actor.id_, RM.RECEIVED)
     return report
 
 

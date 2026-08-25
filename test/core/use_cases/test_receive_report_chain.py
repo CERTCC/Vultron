@@ -92,6 +92,12 @@ def _build_case(
     """Build a VulnerabilityCase with full participant setup and linked report."""
     case = as_VulnerabilityCase(name="Chain Integration Case")
     case.vulnerability_reports.append(report_id)
+    # DUR-07-004: an embargo must be established before RM.VALID.  This used to
+    # be satisfiable by accident — TransitionRMtoValid wrote its latch before
+    # EnsureEmbargoExists ran, and the latch made CheckRMStateValid pass on the
+    # fallback arm (ISSUE-2548).  The check is now upstream of every write, so
+    # the case replica has to actually carry the embargo.
+    case.active_embargo = f"{case.id_}/embargoes/chain-embargo"
 
     vendor_p = as_CaseParticipant(
         attributed_to=vendor_id,

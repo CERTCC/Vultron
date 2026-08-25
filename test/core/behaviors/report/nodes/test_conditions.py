@@ -180,16 +180,23 @@ def test_ensure_embargo_exists_when_case_has_active_embargo(
     result = bt_scenario.run(
         EnsureEmbargoExists(report_id=report.id_),
         actor_id=actor.id_,
+        case_id=case.id_,
     )
     bt_scenario.assert_success(result)
 
 
-def test_ensure_embargo_exists_fails_without_case(
+def test_ensure_embargo_exists_fails_without_case_id(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
 ) -> None:
-    """EnsureEmbargoExists returns FAILURE when no linked case exists."""
+    """EnsureEmbargoExists returns FAILURE with no ``/case_id`` published.
+
+    The node reads the case from the blackboard key that
+    ``RequireCaseForReport`` publishes rather than repeating the lookup
+    (ARCH-15-004), so an unresolved case shows up as a missing key rather than
+    as a second store miss (ARCH-15-001, ISSUE-2548).
+    """
     result = bt_scenario.run(
         EnsureEmbargoExists(report_id=report.id_),
         actor_id=actor.id_,
@@ -213,6 +220,7 @@ def test_ensure_embargo_exists_fails_without_active_embargo(
     result = bt_scenario.run(
         EnsureEmbargoExists(report_id=report.id_),
         actor_id=actor.id_,
+        case_id=case.id_,
     )
     bt_scenario.assert_failure(result)
 

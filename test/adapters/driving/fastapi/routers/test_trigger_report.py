@@ -161,6 +161,19 @@ def received_report(dl, actor, report):
         case_manager_participant.id_
     )
     case_obj.case_participants.append(case_manager_participant.id_)
+    # RM.VALID is case-scoped: this actor must be a participant of its own case
+    # replica, which is what Create(VulnerabilityCase) delivers (ADR-0041,
+    # CBT-01-002).  Without it the validate-report BT correctly refuses to act
+    # rather than latching a transition that never happened (ISSUE-2548).
+    self_participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    self_participant.append_rm_state(RM.RECEIVED, actor.id_, case_obj.id_)
+    dl.create(self_participant)
+    case_obj.actor_participant_index[actor.id_] = self_participant.id_
+    case_obj.case_participants.append(self_participant.id_)
     dl.save(case_obj)
     return report
 

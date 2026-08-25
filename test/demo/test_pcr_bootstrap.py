@@ -42,12 +42,17 @@ import pytest
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -315,6 +320,39 @@ def _bootstrap_case_for_participant(
             "after trigger/create-case, but none was found."
         )
         case_id = str(all_cases[0]["id_"])
+
+    # trigger/create-case is a shortcut around the real ADR-0041 path, so the
+    # case it leaves behind is missing two things a delivered
+    # Create(VulnerabilityCase) replica always carries.  Both are now load-bearing
+    # on the validate path (ISSUE-2548), where the checks moved upstream of every
+    # write instead of running after the RM.VALID latch had already been written:
+    #
+    #   - active_embargo, without which RM.VALID is refused (DUR-07-004);
+    #   - a CaseParticipant for the owner, reachable through
+    #     actor_participant_index (CM-19-003), without which the case-scoped half
+    #     of the RM.VALID transition has nothing to advance.
+    #
+    # Seed both here, alongside the trust anchor below.
+    case_obj = owner_dl.read(case_id)
+    assert (
+        case_obj is not None
+    ), f"case {case_id!r} not readable from the owner's own store"
+    case_obj.active_embargo = f"{case_id}/embargoes/bootstrap-embargo"
+
+    # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
+    # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking
+    # in the report; RECEIVED → VALID is the legal move validate-report makes.
+    owner_participant = as_CaseParticipant(
+        attributed_to=owner_actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    owner_participant.append_rm_state(RM.RECEIVED, owner_actor_id, case_id)
+    owner_dl.create(owner_participant)
+    case_obj.actor_participant_index[owner_actor_id] = owner_participant.id_
+    if owner_participant.id_ not in case_obj.case_participants:
+        case_obj.case_participants.append(owner_participant.id_)
+    owner_dl.save(case_obj)
 
     # In this test the owner also acts as the CaseActor (its
     # case_actor_service_url points at its own base).  Register that identity in

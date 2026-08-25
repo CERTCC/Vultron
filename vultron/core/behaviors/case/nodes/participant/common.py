@@ -46,6 +46,7 @@ from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import (
     _as_id,
     _report_phase_status_id,
+    report_phase_context,
 )
 
 if TYPE_CHECKING:
@@ -119,11 +120,9 @@ def _get_or_create_accepted_status(
     if report_id is None:
         return None
 
-    # CLP-07-007: context must use the case URI once a case exists.
-    case_obj = dl.find_case_by_report_id(report_id)
-    context = (
-        case_obj.id_ if isinstance(case_obj, VulnerabilityCase) else report_id
-    )
+    # CLP-07-007: context must use the case URI once a case exists.  Single
+    # canonical copy of that selection lives in models/_helpers (ARCH-15-004).
+    context = report_phase_context(dl, report_id)
 
     accepted_status_id = _report_phase_status_id(
         actor_id,

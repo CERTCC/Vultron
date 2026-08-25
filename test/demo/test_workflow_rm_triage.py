@@ -11,13 +11,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression tests for the RM triage causal gates (Bugs #2134 and #2376).
+"""Regression tests for the RM triage causal gates (Bugs #2134, #2376, #2548).
 
 ``run_direct_path_rm_triage`` and ``run_invite_path_rm_triage`` must engage
 the case (RM.VALID → RM.ACCEPTED) only *after* the receiver's own participant
 status has committed RM.VALID.  ``validate-report`` is dispatched
 asynchronously (HTTP 202), so engaging without this gate races the async
 commit and yields ``TransitionParticipantRMtoAccepted`` (HTTP 422).
+
+The direct path carries a second, earlier gate (#2548): ``validate-report``
+itself must wait for the CaseActor's ``Create(VulnerabilityCase)`` replica to
+reach the receiver's own store.  Under ADR-0041 the receiver never creates the
+case, and under PCR-01-003 co-locating the CaseActor grants no access to its
+store — so validating before the replica lands means validating against no case
+at all.
 
 These tests assert causal ordering (x happens THEREFORE y happens), not mere
 sequence, so the fix cannot silently regress to a case-object-presence proxy.
@@ -89,6 +96,82 @@ def test_engage_gated_on_receivers_own_rm_valid(actors):
     assert call_order == ["validate", "wait_valid", "engage", "wait_accepted"]
     # The load-bearing invariant: the VALID gate precedes engagement.
     assert call_order.index("wait_valid") < call_order.index("engage")
+
+
+def test_validate_gated_on_local_case_replica(actors):
+    """validate-report fires only AFTER the case replica is in the local store.
+
+    Regression test for ISSUE-2548.  The old flow triggered validate-report
+    first and only then checked that a case existed, which meant the receiver
+    routinely validated with no case in its own store.  ``TransitionRMtoValid``
+    wrote the report-phase RM.VALID latch anyway, permanently short-circuiting
+    ``CheckRMStateValid`` while the case-scoped participant state stayed at
+    RECEIVED.
+    """
+    receiver, receiver_client, offer, case = actors
+    call_order: list[str] = []
+
+    def _find_case(client, offer_id):
+        call_order.append("find_case")
+        assert client is receiver_client
+        return case
+
+    with (
+        patch.object(
+            workflow,
+            "receiver_validates_report",
+            side_effect=lambda **_kw: call_order.append("validate"),
+        ),
+        patch.object(workflow, "find_case_for_offer", side_effect=_find_case),
+        patch.object(workflow, "wait_for_participant_rm_state"),
+        patch.object(workflow, "receiver_engages_case"),
+    ):
+        result = workflow.run_direct_path_rm_triage(
+            receiver_client=receiver_client,
+            receiver=receiver,
+            offer=offer,
+        )
+
+    assert result is case
+    assert call_order.index("find_case") < call_order.index("validate"), (
+        "the receiver's own case replica must be resolved BEFORE"
+        " validate-report is triggered (ISSUE-2548)"
+    )
+
+
+def test_validate_not_called_when_case_replica_never_arrives(actors):
+    """No replica in the local store → validate-report must never fire.
+
+    Absence of the case is a legitimate transient state, not a condition to
+    write through (ARCH-15-001, ID-04-005).  The gate raises rather than
+    returning ``None``, because every caller dereferences the returned case.
+    """
+    receiver, receiver_client, offer, _case = actors
+    validate_called = MagicMock()
+    engage_called = MagicMock()
+
+    with (
+        patch.object(
+            workflow, "receiver_validates_report", side_effect=validate_called
+        ),
+        patch.object(workflow, "find_case_for_offer", return_value=None),
+        patch.object(workflow, "wait_for_participant_rm_state"),
+        patch.object(
+            workflow, "receiver_engages_case", side_effect=engage_called
+        ),
+        pytest.raises(AssertionError, match="never arrived"),
+    ):
+        workflow.run_direct_path_rm_triage(
+            receiver_client=receiver_client,
+            receiver=receiver,
+            offer=offer,
+            # Short timeout: the point is that the poll never resolves, not how
+            # long the real demo is willing to wait.
+            timeout_seconds=0.05,
+        )
+
+    validate_called.assert_not_called()
+    engage_called.assert_not_called()
 
 
 def test_engage_not_called_when_rm_valid_never_commits(actors):

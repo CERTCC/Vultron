@@ -67,6 +67,9 @@ from py_trees.common import Status
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    RequireCaseForReport,
+)
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
     _get_or_create_accepted_status,
@@ -151,7 +154,7 @@ class _CheckMarkerExistsNode(DataLayerAction):
         return Status.FAILURE
 
 
-class _LoadExistingCaseNode(DataLayerActionWithPorts):
+class _LoadExistingCaseNode(RequireCaseForReport):
     """Find an existing ``VulnerabilityCase`` for *report_id* and load it.
 
     AC-1 / AC-2 (CP-05-006): detects a duplicate ``Create(as_CaseProposal)``
@@ -161,45 +164,14 @@ class _LoadExistingCaseNode(DataLayerActionWithPorts):
 
     Returns FAILURE when no existing case is found, allowing the outer
     Selector to fall through to ``_CreateCaseFromProposalNode`` (normal path).
+
+    Behaviour is inherited wholesale from
+    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
+    — "resolve this store's case for a report, publish ``/case_id``, fail when
+    absent" has exactly one implementation (ARCH-15-004).  The subclass exists
+    only to keep the CP-05-006 node name in BT traces and to document what
+    FAILURE means *here*: no duplicate, so create the case.
     """
-
-    def __init__(
-        self,
-        report_id: str | None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._report_id = report_id
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_id": PortInformation(data_type=str, required=True)}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        if self._report_id is None:
-            return Status.FAILURE
-
-        existing = self.datalayer.find_case_by_report_id(self._report_id)
-        if existing is None:
-            return Status.FAILURE
-
-        self._set_output("case_id", existing.id_)
-        logger.info(
-            "%s: Found existing VulnerabilityCase '%s' for report '%s'"
-            " — reusing for duplicate proposal (CP-05-006 AC-1/AC-2)",
-            self.name,
-            existing.id_,
-            self._report_id,
-        )
-        return Status.SUCCESS
 
 
 class _CreateCaseFromProposalNode(DataLayerActionWithPorts):

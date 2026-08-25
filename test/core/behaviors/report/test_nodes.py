@@ -30,6 +30,7 @@ from vultron.core.behaviors.report.nodes.case_creation import (
     _collect_create_case_addressees,
 )
 from vultron.core.behaviors.report.nodes.emit import _compute_report_addressees
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
@@ -225,11 +226,17 @@ def test_transition_rm_to_valid(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
-    """TransitionRMtoValid updates statuses correctly."""
+    """TransitionRMtoValid updates statuses correctly.
+
+    RM.VALID is case-scoped, so the case replica must be in this actor's store
+    and its URI published as ``/case_id`` (ISSUE-2548).
+    """
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
+        case_id=case_with_participant.id_,
     )
     bt_scenario.assert_success(result)
     bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
@@ -255,6 +262,7 @@ def test_transition_rm_to_valid_same_state(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
     """TransitionRMtoValid succeeds on a same-state write (AC-3)."""
     valid_status = ParticipantStatus(
@@ -268,6 +276,7 @@ def test_transition_rm_to_valid_same_state(
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
+        case_id=case_with_participant.id_,
     )
     bt_scenario.assert_success(result)
 
@@ -343,6 +352,7 @@ def test_transition_rm_to_valid_from_invalid(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
     """TransitionRMtoValid succeeds from RM.INVALID (re-validation path)."""
     invalid_status = ParticipantStatus(
@@ -356,6 +366,7 @@ def test_transition_rm_to_valid_from_invalid(
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
+        case_id=case_with_participant.id_,
     )
     bt_scenario.assert_success(result)
     bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
@@ -635,6 +646,7 @@ def test_full_validation_workflow(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
     """Test full validation workflow using all nodes in sequence."""
     # 1. Check if already valid (should fail initially)
@@ -671,6 +683,7 @@ def test_full_validation_workflow(
         bt_scenario.run(
             TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
             actor_id=actor.id_,
+            case_id=case_with_participant.id_,
         )
     )
 

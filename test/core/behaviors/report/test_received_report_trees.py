@@ -280,7 +280,9 @@ class TestTransitionCaseParticipantRMtoClosed:
         )
 
         node = TransitionCaseParticipantRMtoClosed(report_id=REPORT_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        )
 
         assert result.status == Status.SUCCESS
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -288,8 +290,16 @@ class TestTransitionCaseParticipantRMtoClosed:
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
-    def test_no_case_is_soft_pass(self, dl, bridge, caplog):
-        """No case for report → WARNING logged, SUCCESS returned (soft pass)."""
+    def test_no_case_id_fails(self, dl, bridge, caplog):
+        """No ``/case_id`` on the blackboard → WARNING logged, FAILURE returned.
+
+        This used to soft-pass with SUCCESS "matching the log-and-continue
+        behavior of the original procedural handlers".  A Sequence cannot tell
+        that apart from a real transition, so the RM state silently stayed put
+        while the tree reported success (ARCH-15-001, ISSUE-2548).  The case
+        replica simply has not arrived in this actor's store yet (ADR-0072,
+        PCR-01-003) — a retry is the correct response, not a fake success.
+        """
         report = CoreReport(id_=REPORT_ID)
         dl.save(report)
 
@@ -297,17 +307,29 @@ class TestTransitionCaseParticipantRMtoClosed:
         with caplog.at_level(logging.WARNING):
             result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
-        assert any("no case found" in m.lower() for m in warn_msgs)
+        assert any("no case_id" in m.lower() for m in warn_msgs)
 
-    def test_no_report_id_is_no_op(self, bridge):
-        """report_id=None → no-op SUCCESS (debug only)."""
-        node = TransitionCaseParticipantRMtoClosed(report_id=None)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
+    def test_participant_absent_from_case_fails(self, dl, bridge):
+        """Case present but actor not a participant → FAILURE, not a soft pass.
+
+        A dehydrated case replica (no ``actor_participant_index`` entry) blocks
+        ``update_participant_rm_state``; the node must report that (ISSUE-2548).
+        """
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, vulnerability_reports=[REPORT_ID]
+        )
+        dl.save(case)
+        dl.save(CoreReport(id_=REPORT_ID))
+
+        node = TransitionCaseParticipantRMtoClosed(report_id=REPORT_ID)
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+        assert result.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +345,9 @@ class TestTransitionCaseParticipantRMtoInvalid:
         )
 
         node = TransitionCaseParticipantRMtoInvalid(report_id=REPORT_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        )
 
         assert result.status == Status.SUCCESS
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -331,8 +355,16 @@ class TestTransitionCaseParticipantRMtoInvalid:
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
-    def test_no_case_is_soft_pass(self, dl, bridge, caplog):
-        """No case for report → WARNING logged, SUCCESS returned (soft pass)."""
+    def test_no_case_id_fails(self, dl, bridge, caplog):
+        """No ``/case_id`` on the blackboard → WARNING logged, FAILURE returned.
+
+        This used to soft-pass with SUCCESS "matching the log-and-continue
+        behavior of the original procedural handlers".  A Sequence cannot tell
+        that apart from a real transition, so the RM state silently stayed put
+        while the tree reported success (ARCH-15-001, ISSUE-2548).  The case
+        replica simply has not arrived in this actor's store yet (ADR-0072,
+        PCR-01-003) — a retry is the correct response, not a fake success.
+        """
         report = CoreReport(id_=REPORT_ID)
         dl.save(report)
 
@@ -340,17 +372,29 @@ class TestTransitionCaseParticipantRMtoInvalid:
         with caplog.at_level(logging.WARNING):
             result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
-        assert any("no case found" in m.lower() for m in warn_msgs)
+        assert any("no case_id" in m.lower() for m in warn_msgs)
 
-    def test_no_report_id_is_no_op(self, bridge):
-        """report_id=None → no-op SUCCESS (debug only)."""
-        node = TransitionCaseParticipantRMtoInvalid(report_id=None)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
+    def test_participant_absent_from_case_fails(self, dl, bridge):
+        """Case present but actor not a participant → FAILURE, not a soft pass.
+
+        A dehydrated case replica (no ``actor_participant_index`` entry) blocks
+        ``update_participant_rm_state``; the node must report that (ISSUE-2548).
+        """
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, vulnerability_reports=[REPORT_ID]
+        )
+        dl.save(case)
+        dl.save(CoreReport(id_=REPORT_ID))
+
+        node = TransitionCaseParticipantRMtoInvalid(report_id=REPORT_ID)
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+        assert result.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
@@ -555,22 +599,29 @@ class TestCloseReportReceivedTree:
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
-    def test_no_case_soft_pass_with_warning(self, dl, caplog):
-        """No case linked to report → WARNING, BT still SUCCESS."""
+    def test_no_case_fails_after_storing_activity(self, dl, caplog):
+        """No case linked to report → BT FAILURE, but the activity is stored.
+
+        Previously this soft-passed to SUCCESS.  The RM transition never
+        happened, so reporting success hid the fact that this actor's case
+        replica had not arrived yet (ARCH-15-001, ISSUE-2548).  The stored
+        activity from step 1 is what makes a later retry possible.
+        """
         event = _make_close_report_event()
         tree = create_close_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )
 
-        assert result.status == Status.SUCCESS
-        warn_msgs = [
-            r.message for r in caplog.records if r.levelno == logging.WARNING
-        ]
-        assert any("no case found" in m.lower() for m in warn_msgs)
+        assert result.status == Status.FAILURE
+        msgs = [r.message for r in caplog.records]
+        assert any(
+            "no vulnerabilitycase for report" in m.lower() for m in msgs
+        )
+        assert _activity_stored(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-CLOSED participant stays CLOSED; BT still SUCCESS."""
@@ -604,7 +655,11 @@ class TestCloseReportReceivedUseCase:
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_use_case_warns_when_no_case(self, caplog):
-        """Use case ledgers WARNING when no case is found for the report."""
+        """Use case ledgers WARNING when no case is found for the report.
+
+        The BT now returns FAILURE rather than soft-passing (ISSUE-2548), so the
+        use case's non-SUCCESS branch is what surfaces the diagnostic.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -617,7 +672,9 @@ class TestCloseReportReceivedUseCase:
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
-        assert any("no case found" in m.lower() for m in warn_msgs)
+        assert any(
+            "no vulnerabilitycase for report" in m.lower() for m in warn_msgs
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -644,22 +701,29 @@ class TestInvalidateReportReceivedTree:
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
-    def test_no_case_soft_pass_with_warning(self, dl, caplog):
-        """No case linked to report → WARNING, BT still SUCCESS."""
+    def test_no_case_fails_after_storing_activity(self, dl, caplog):
+        """No case linked to report → BT FAILURE, but the activity is stored.
+
+        Previously this soft-passed to SUCCESS.  The RM transition never
+        happened, so reporting success hid the fact that this actor's case
+        replica had not arrived yet (ARCH-15-001, ISSUE-2548).  The stored
+        activity from step 1 is what makes a later retry possible.
+        """
         event = _make_invalidate_report_event()
         tree = create_invalidate_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )
 
-        assert result.status == Status.SUCCESS
-        warn_msgs = [
-            r.message for r in caplog.records if r.levelno == logging.WARNING
-        ]
-        assert any("no case found" in m.lower() for m in warn_msgs)
+        assert result.status == Status.FAILURE
+        msgs = [r.message for r in caplog.records]
+        assert any(
+            "no vulnerabilitycase for report" in m.lower() for m in msgs
+        )
+        assert _activity_stored(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-INVALID participant stays INVALID; BT still SUCCESS."""
@@ -693,7 +757,11 @@ class TestInvalidateReportReceivedUseCase:
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_use_case_warns_when_no_case(self, caplog):
-        """Use case ledgers WARNING when no case is found for the report."""
+        """Use case ledgers WARNING when no case is found for the report.
+
+        The BT now returns FAILURE rather than soft-passing (ISSUE-2548), so the
+        use case's non-SUCCESS branch is what surfaces the diagnostic.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -706,4 +774,6 @@ class TestInvalidateReportReceivedUseCase:
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
-        assert any("no case found" in m.lower() for m in warn_msgs)
+        assert any(
+            "no vulnerabilitycase for report" in m.lower() for m in warn_msgs
+        )

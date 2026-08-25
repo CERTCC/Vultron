@@ -85,6 +85,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckPendingProposalExistsForReport,
     WritePendingReportCaseLinkNode,
 )
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    RequireCaseForReport,
+)
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
     AttachEmbargoToCaseNode,
@@ -148,6 +151,7 @@ __all__ = [
     "CheckIsCaseManagerNode",
     "CheckIsCaseOwnerNode",
     "CheckPendingProposalExistsForReport",
+    "RequireCaseForReport",
     "WritePendingReportCaseLinkNode",
     # case_setup (leaf nodes)
     "EnsureCaseActorHostedNode",

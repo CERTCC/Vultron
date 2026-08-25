@@ -39,7 +39,8 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
   ``receiver_validates_report``, ``receiver_engages_case``,
   ``find_case_by_report_id``, ``find_case_for_offer``,
-  ``setup_initialized_case``, and ``setup_two_participant_case``.
+  ``wait_for_case_for_offer``, ``setup_initialized_case``, and
+  ``setup_two_participant_case``.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -129,4 +130,5 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     run_invite_path_rm_triage,
     setup_initialized_case,
     setup_two_participant_case,
+    wait_for_case_for_offer,
 )
