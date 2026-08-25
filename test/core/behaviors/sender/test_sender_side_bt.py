@@ -141,3 +141,75 @@ class TestSenderSideBT:
         assert result.status == Status.FAILURE
         reason = BTBridge.get_failure_reason(tree)
         assert "CASE_MANAGER" in reason
+
+
+@pytest.mark.spec("BT-17-003")
+class TestSenderSideStaleKeyRegression:
+    """Back-to-back runs on the same blackboard must not observe stale keys."""
+
+    def test_stale_case_manager_id_cleared_on_resolve_failure(
+        self, dl, bridge
+    ):
+        store, actor = dl
+        storage = py_trees.blackboard.Blackboard.storage
+
+        # Run 1: succeeds — writes /case_manager_id to the global blackboard
+        case1 = _make_case_with_case_manager(store, actor.id_)
+        tree1 = sender_side_bt(
+            case_id=case1.id_,
+            activity_builder=lambda _: [ACTIVITY_ID],
+        )
+        result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
+        assert result1.status == Status.SUCCESS
+        assert storage.get("/case_manager_id") == CASE_ACTOR_ID
+
+        # Run 2 (no blackboard clear between runs): fails — case has no
+        # CASE_MANAGER participant, so ResolveCaseManagerNode takes its no-op
+        # path.  BT-17-003 requires it to clear /case_manager_id to None.
+        case2 = as_VulnerabilityCase(name="No Manager Case")
+        participant2 = FinderParticipant(
+            attributed_to=actor.id_,
+            context=case2.id_,
+        )
+        case2.case_participants = [participant2.id_]
+        case2.actor_participant_index = {actor.id_: participant2.id_}
+        store.create(case2)
+        store.create(participant2)
+
+        tree2 = sender_side_bt(
+            case_id=case2.id_,
+            activity_builder=lambda _: [ACTIVITY_ID],
+        )
+        result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
+        assert result2.status == Status.FAILURE
+
+        assert storage.get("/case_manager_id") is None
+
+    def test_stale_activity_ids_cleared_on_construct_failure(self, dl, bridge):
+        store, actor = dl
+        storage = py_trees.blackboard.Blackboard.storage
+
+        # Run 1: succeeds — writes /activity_ids to the global blackboard
+        case1 = _make_case_with_case_manager(store, actor.id_)
+        tree1 = sender_side_bt(
+            case_id=case1.id_,
+            activity_builder=lambda _: [ACTIVITY_ID],
+        )
+        result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
+        assert result1.status == Status.SUCCESS
+        assert storage.get("/activity_ids") is not None
+
+        # Run 2 (no blackboard clear between runs): ResolveCaseManagerNode
+        # succeeds but ConstructActivitiesNode fails (builder raises).
+        # BT-17-003 requires ConstructActivitiesNode to clear /activity_ids.
+        def _failing_builder(case_manager_id: str) -> list[str]:
+            raise RuntimeError("simulated build failure")
+
+        tree2 = sender_side_bt(
+            case_id=case1.id_,
+            activity_builder=_failing_builder,
+        )
+        result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
+        assert result2.status == Status.FAILURE
+
+        assert storage.get("/activity_ids") is None

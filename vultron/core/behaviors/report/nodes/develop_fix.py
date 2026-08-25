@@ -214,14 +214,14 @@ class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class CheckRMStateAccepted(DataLayerConditionWithPorts):
-    """Guard: actor RM state must be ACCEPTED to create a fix.
+class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
+    """Shared update() skeleton for case-participant RM state guard nodes.
 
-    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
-    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
-
-    Per AC-7 (issue #1812).
+    Reads the actor's latest RM state and returns SUCCESS when it equals
+    ``_target_rm``.  Subclasses set ``_target_rm`` as a class attribute.
     """
+
+    _target_rm: RM
 
     def __init__(
         self,
@@ -258,21 +258,34 @@ class CheckRMStateAccepted(DataLayerConditionWithPorts):
         rm_state, _ = resolve_participant_state_from_dl(
             self.datalayer, participant_id
         )
-
-        if rm_state == RM.ACCEPTED:
+        target = self._target_rm
+        if rm_state == target:
             self.logger.debug(
-                "%s: RM state is ACCEPTED for actor '%s'",
+                "%s: RM state is %s for actor '%s'",
                 self.name,
+                target.name,
                 self._actor_id,
             )
             return Status.SUCCESS
 
         self.feedback_message = (
             f"Actor '{self._actor_id}' RM state is {rm_state!r},"
-            f" expected RM.ACCEPTED"
+            f" expected {target!r}"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+
+class CheckRMStateAccepted(_CheckParticipantRMStateBase):
+    """Guard: actor RM state must be ACCEPTED to create a fix.
+
+    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
+    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
+
+    Per AC-7 (issue #1812).
+    """
+
+    _target_rm = RM.ACCEPTED
 
 
 class TransitionCStoFixReady(DataLayerActionWithPorts):
@@ -366,19 +379,13 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class EmitCFActivity(DataLayerActionWithPorts):
-    """Emit a CF (Fix Readiness) ``Add(ParticipantStatus)`` to the Case Actor.
+class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
+    """Shared guard+factory-dispatch+outbox-write skeleton for
+    ``Add(ParticipantStatus)`` trigger activities (BTND-07-005).
 
-    Calls ``trigger_activity_factory.add_participant_status_to_participant``
-    with the status and participant IDs written to *result_out* by
-    :class:`TransitionCStoFixReady` and queues the resulting activity ID
-    via ``record_outbox_item``.
-
-    Per ADR-0021 CLP-10-001: trigger trees MUST address fix-readiness
-    activities to the Case Actor (CASE_MANAGER) so the CaseActor can
-    commit a canonical ledger entry.
-
-    Per AC-7 (issue #1812).
+    Subclasses provide only a constructor docstring; all protocol logic
+    lives here.  The ``result_out`` dict must be populated by the preceding
+    ``TransitionCStoFix*`` node (keys: ``status_id``, ``participant_id``).
     """
 
     def __init__(
@@ -398,7 +405,7 @@ class EmitCFActivity(DataLayerActionWithPorts):
             return f
         if (f := self._require_factory()) is not None:
             self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit CF activity",
+                "%s: no TriggerActivityPort — cannot emit participant-status activity",
                 self.name,
             )
             return f
@@ -411,7 +418,7 @@ class EmitCFActivity(DataLayerActionWithPorts):
         if not status_id or not participant_id:
             self.feedback_message = (
                 "status_id or participant_id missing from result_out"
-                " — TransitionCStoFixReady must precede EmitCFActivity"
+                f" — a TransitionCS node must precede {self.__class__.__name__}"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -446,21 +453,40 @@ class EmitCFActivity(DataLayerActionWithPorts):
                 self._actor_id, activity_id
             )
             self.logger.info(
-                "%s: CF activity '%s' emitted for actor '%s' in case '%s'",
-                self.name,
-                activity_id,
+                "Actor '%s' emitted %s for case '%s'",
                 self._actor_id,
+                self.__class__.__name__,
                 self._case_id,
             )
             return Status.SUCCESS
         except Exception as e:
             self.logger.error(
-                "%s: Error emitting CF activity: %s", self.name, e
+                "%s: Error emitting participant-status activity: %s",
+                self.name,
+                e,
             )
             return Status.FAILURE
 
 
+class EmitCFActivity(_EmitParticipantStatusActivityBase):
+    """Emit a CF (Fix Readiness) ``Add(ParticipantStatus)`` to the Case Actor.
+
+    Calls ``trigger_activity_factory.add_participant_status_to_participant``
+    with the status and participant IDs written to *result_out* by
+    :class:`TransitionCStoFixReady` and queues the resulting activity ID
+    via ``record_outbox_item``.
+
+    Per ADR-0021 CLP-10-001: trigger trees MUST address fix-readiness
+    activities to the Case Actor (CASE_MANAGER) so the CaseActor can
+    commit a canonical ledger entry.
+
+    Per AC-7 (issue #1812).
+    """
+
+
 __all__ = [
+    "_CheckParticipantRMStateBase",
+    "_EmitParticipantStatusActivityBase",
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",
     "CheckRMStateAccepted",

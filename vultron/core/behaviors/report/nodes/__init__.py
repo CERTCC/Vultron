@@ -37,6 +37,7 @@ from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseNode,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
+    _CheckReportPhaseRMStateBase,
     CheckParticipantExists,
     CheckReportNotClosed,
     CheckRMStateReceivedOrInvalid,
@@ -55,6 +56,8 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     TransitionCStoFixDeployed,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
+    _CheckParticipantRMStateBase,
+    _EmitParticipantStatusActivityBase,
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
     CheckRMStateAccepted,
@@ -70,6 +73,7 @@ from vultron.core.behaviors.report.nodes.participant import (
     TransitionParticipantRMtoDeferred,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
+    _TransitionRMtoReportPhaseState,
     TransitionCaseParticipantRMtoClosed,
     TransitionCaseParticipantRMtoInvalid,
     TransitionRMtoClosed,
@@ -83,6 +87,7 @@ from vultron.core.behaviors.report.nodes.storage import (
 
 __all__ = [
     # conditions
+    "_CheckReportPhaseRMStateBase",
     "CheckRMStateValid",
     "CheckRMStateReceivedOrInvalid",
     "CheckReportNotClosed",
@@ -92,6 +97,7 @@ __all__ = [
     "EvaluateCasePriority",
     "CheckParticipantExists",
     # rm_transitions
+    "_TransitionRMtoReportPhaseState",
     "TransitionRMtoValid",
     "TransitionRMtoInvalid",
     "TransitionRMtoClosed",
@@ -104,6 +110,8 @@ __all__ = [
     "TransitionParticipantRMtoAccepted",
     "TransitionParticipantRMtoDeferred",
     # develop_fix
+    "_CheckParticipantRMStateBase",
+    "_EmitParticipantStatusActivityBase",
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",
     "CheckRMStateAccepted",

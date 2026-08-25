@@ -161,8 +161,8 @@ before proceeding. Do not open a PR with lint failures.
 ```bash
 uv run black vultron/ test/
 uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
-uv run pytest --tb=short 2>&1 | tail -5
-uv run pytest -m integration --tb=short 2>&1 | tail -5
+uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5
+uv run pytest -m integration --tb=short 2>&1 | tee /tmp/pytest-integration.log | tail -5
 ```
 
 Both suites must pass. The first pytest command covers the unit suite

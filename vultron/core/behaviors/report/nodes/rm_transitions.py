@@ -248,9 +248,81 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class TransitionRMtoInvalid(DataLayerActionWithPorts):
+class _TransitionRMtoReportPhaseState(DataLayerActionWithPorts):
+    """Shared update() skeleton for report-phase RM-state transition nodes.
+
+    Persists a ParticipantStatus record with ``_target_rm`` and returns
+    SUCCESS.  Subclasses set ``_target_rm`` as a class attribute.
     """
-    Transition report to RM.INVALID.
+
+    _target_rm: RM
+
+    def __init__(self, report_id: str, offer_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.offer_id = offer_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        target = self._target_rm
+        try:
+            # CLP-07-007: context must use the case URI once a case exists.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            context = (
+                case.id_
+                if isinstance(case, VulnerabilityCase)
+                else self.report_id
+            )
+            current_rm = _current_report_phase_rm_state(
+                self.datalayer, self.actor_id, self.report_id
+            )
+            if current_rm != target and not is_valid_rm_transition(
+                current_rm, target
+            ):
+                self.feedback_message = (
+                    f"Invalid RM transition {current_rm!r} → {target!r}"
+                )
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+            status = ParticipantStatus(
+                id_=_report_phase_status_id(
+                    self.actor_id, self.report_id, target.value
+                ),
+                context=context,
+                attributed_to=self.actor_id,
+                rm=RmDimension(state=target),
+                consent=PecDimension(state=PEC.NO_EMBARGO),
+                cvd_role=[CVDRole.REPORTER],
+            )
+            _idempotent_create(
+                self.datalayer,
+                "ParticipantStatus",
+                status.id_,
+                status,
+                f"ParticipantStatus (report-phase RM.{target.name})",
+            )
+            self.logger.info(
+                "RM → %s for report '%s' (actor '%s')",
+                target.name,
+                self.report_id,
+                self.actor_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:
+            self.logger.error(
+                "%s: Error transitioning to %s: %s",
+                self.name,
+                target.name,
+                e,
+            )
+            return Status.FAILURE
+
+
+class TransitionRMtoInvalid(_TransitionRMtoReportPhaseState):
+    """Transition report to RM.INVALID.
 
     Persists a ParticipantStatus record with RM.INVALID for the actor and
     report in the DataLayer.
@@ -259,86 +331,11 @@ class TransitionRMtoInvalid(DataLayerActionWithPorts):
     This node implements the invalidation path for future fallback sequences.
     """
 
-    def __init__(self, report_id: str, offer_id: str, name: str | None = None):
-        """
-        Initialize TransitionRMtoInvalid node.
-
-        Args:
-            report_id: ID of VulnerabilityReport to update
-            offer_id: ID of Offer to update
-            name: Optional custom node name (defaults to class name)
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self.offer_id = offer_id
-
-    def update(self) -> Status:
-        """
-        Update report status to INVALID in DataLayer.
-
-        Returns:
-            SUCCESS if status updated, FAILURE on error
-        """
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        try:
-            # CLP-07-007: context must use the case URI once a case exists.
-            case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = (
-                case.id_
-                if isinstance(case, VulnerabilityCase)
-                else self.report_id
-            )
-
-            current_rm = _current_report_phase_rm_state(
-                self.datalayer, self.actor_id, self.report_id
-            )
-            if current_rm != RM.INVALID and not is_valid_rm_transition(
-                current_rm, RM.INVALID
-            ):
-                self.feedback_message = (
-                    f"Invalid RM transition {current_rm!r} → {RM.INVALID!r}"
-                )
-                self.logger.info("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
-
-            status = ParticipantStatus(
-                id_=_report_phase_status_id(
-                    self.actor_id, self.report_id, RM.INVALID.value
-                ),
-                context=context,
-                attributed_to=self.actor_id,
-                rm=RmDimension(state=RM.INVALID),
-                consent=PecDimension(state=PEC.NO_EMBARGO),
-                cvd_role=[CVDRole.REPORTER],
-            )
-            _idempotent_create(
-                self.datalayer,
-                "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.INVALID)",
-            )
-            self.logger.info(
-                "RM → INVALID for report '%s' (actor '%s')",
-                self.report_id,
-                self.actor_id,
-            )
-
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                f"{self.name}: Error transitioning to INVALID: {e}"
-            )
-            return Status.FAILURE
+    _target_rm = RM.INVALID
 
 
-class TransitionRMtoClosed(DataLayerActionWithPorts):
-    """
-    Transition report to RM.CLOSED (report-phase ParticipantStatus).
+class TransitionRMtoClosed(_TransitionRMtoReportPhaseState):
+    """Transition report to RM.CLOSED (report-phase ParticipantStatus).
 
     Persists a ParticipantStatus record with RM.CLOSED for the actor and
     report in the DataLayer.
@@ -347,80 +344,7 @@ class TransitionRMtoClosed(DataLayerActionWithPorts):
     Used by both the reject-report and close-report trigger workflows.
     """
 
-    def __init__(self, report_id: str, offer_id: str, name: str | None = None):
-        """
-        Initialize TransitionRMtoClosed node.
-
-        Args:
-            report_id: ID of VulnerabilityReport to update
-            offer_id: ID of Offer being closed/rejected
-            name: Optional custom node name (defaults to class name)
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self.offer_id = offer_id
-
-    def update(self) -> Status:
-        """
-        Update report status to CLOSED in DataLayer.
-
-        Returns:
-            SUCCESS if status updated, FAILURE on error
-        """
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        try:
-            # CLP-07-007: context must use the case URI once a case exists.
-            case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = (
-                case.id_
-                if isinstance(case, VulnerabilityCase)
-                else self.report_id
-            )
-
-            current_rm = _current_report_phase_rm_state(
-                self.datalayer, self.actor_id, self.report_id
-            )
-            if current_rm != RM.CLOSED and not is_valid_rm_transition(
-                current_rm, RM.CLOSED
-            ):
-                self.feedback_message = (
-                    f"Invalid RM transition {current_rm!r} → {RM.CLOSED!r}"
-                )
-                self.logger.info("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
-
-            status = ParticipantStatus(
-                id_=_report_phase_status_id(
-                    self.actor_id, self.report_id, RM.CLOSED.value
-                ),
-                context=context,
-                attributed_to=self.actor_id,
-                rm=RmDimension(state=RM.CLOSED),
-                consent=PecDimension(state=PEC.NO_EMBARGO),
-                cvd_role=[CVDRole.REPORTER],
-            )
-            _idempotent_create(
-                self.datalayer,
-                "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.CLOSED)",
-            )
-            self.logger.info(
-                "RM → CLOSED for report '%s' (actor '%s')",
-                self.report_id,
-                self.actor_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                "%s: Error transitioning to CLOSED: %s", self.name, e
-            )
-            return Status.FAILURE
+    _target_rm = RM.CLOSED
 
 
 class TransitionCaseParticipantRMtoClosed(DataLayerActionWithPorts):
