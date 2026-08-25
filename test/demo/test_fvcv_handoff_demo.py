@@ -1226,7 +1226,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             patch.object(demo, "find_case_invite_for_actor"),
             patch.object(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "_wait_for_case_attributed_to"),
+            patch.object(demo, "wait_for_case_attributed_to"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
