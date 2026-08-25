@@ -30,11 +30,10 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # ---------------------------------------------------------------------------
 # Maximum uncovered protocol-kind spec requirements allowed by the ratchet.
 # Set from the actual uncovered count after issue #2116 (1200 - 253 = 947).
-# Raised to 953 after PR #2576 added 6 new protocol-kind specs without markers.
 # Lower this constant as more @pytest.mark.spec markers are added;
-# never raise it except when new specs are added without markers.
+# never raise it.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 953
+MAX_UNCOVERED_PROTOCOL_SPECS = 947
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
