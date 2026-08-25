@@ -2256,6 +2256,27 @@ groups:
       These counts verify that every actor who received an invitation explicitly
       accepted, and that the ADR-0026 approval path was exercised.
 
+  - id: DEMOMA-16-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVD scenario expected-event-types list MUST include
+      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition to
+      the universal types (DEMOMA-16-001), because the Coordinator invites
+      Finder, Vendor, and Deployer into the case, and all three explicitly accept
+      via the `accept-case-invite` trigger.
+    rationale: >-
+      FCVD exercises a four-actor coordination chain with one full invitation
+      cycle per non-case-owner actor; `invite_actor_to_case` and
+      `accept_invite_actor_to_case` confirm the invitation/accept path was
+      exercised for each. Unlike scenarios with ADR-0026 suggest-actor flows,
+      FCVD uses only direct case-owner invitations.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-24-001
+
 - id: DEMOMA-18
   title: In-Process Fuzz Simulation Scenario
   specs:
@@ -3415,5 +3436,194 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-10-004
+    tags:
+    - demo
+- id: DEMOMA-24
+  title: FCVD Scenario (Finder + Coordinator + Vendor + Deployer)
+  description: >-
+    Requirements for the FCVD scenario, which exercises the Deployer role as a
+    participant distinct from the Vendor. The Vendor develops the fix (VFd) but
+    does not deploy it; the Deployer applies the patch in their own environment
+    (d→D), gated on the causal precondition that at least one Vendor in the case
+    has reached VFd state (CSB-15-004). This is the first scenario in which a
+    DEPLOYER-only participant (holding CVDRole.DEPLOYER but not CVDRole.VENDOR)
+    completes the fix-deployment protocol step.
+  specs:
+  - id: DEMOMA-24-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVD scenario MUST involve five actor identities — Finder, Coordinator,
+      Vendor, Deployer, and CaseActor — each with its own isolated DataLayer and
+      separate container. The CaseActor MUST run as a separate actor identity on
+      its own container; the Coordinator holds CVDRole.CASE_OWNER throughout the
+      scenario.
+    rationale: >-
+      FCVD is the canonical scenario demonstrating the distinction between fix
+      availability (Vendor's F event) and fix deployment (Deployer's D event).
+      Five separate containers enforce true multi-container message delivery and
+      per-actor DataLayer isolation, consistent with DEMOMA-01-001. The Coordinator
+      as CASE_OWNER follows the FCV topology so that the Deployer role is the sole
+      new element introduced.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-12-001
+      note: >-
+        Extends the FCV four-container topology by adding a fifth Deployer
+        container
+    tags:
+    - demo
+  - id: DEMOMA-24-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The Vendor actor MUST hold only CVDRole.VENDOR in the case; it MUST NOT hold
+      CVDRole.DEPLOYER. The Vendor's participant VFD path MUST advance to VFd (fix
+      ready) and MUST NOT advance to VFD (fix deployed). The FCVD scenario MUST
+      verify, after the fix-ready milestone, that the Vendor's VFD state is VFd and
+      that no VFD participant status snapshot exists for the Vendor actor.
+    rationale: >-
+      The central protocol distinction this scenario demonstrates is that fix
+      availability (Vendor at VFd) and fix deployment (Deployer at VFD) are
+      separate events attributed to separate actors. A Vendor-only actor cannot
+      hold CVDRole.DEPLOYER; CSB-15-002 would block d→D for it regardless, but
+      the scenario MUST make this explicit through role assignment and post-
+      milestone verification.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-15-001
+    - rel_type: refines
+      spec_id: CSB-15-002
+    - rel_type: refines
+      spec_id: DEMOMA-15-001
+    tags:
+    - demo
+  - id: DEMOMA-24-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The Deployer actor MUST hold only CVDRole.DEPLOYER in the case; it MUST NOT
+      hold CVDRole.VENDOR. The Deployer MUST be invited to the case by the
+      Coordinator AFTER the fix-ready milestone is verified (Vendor at VFd), so
+      that the causal precondition (CSB-15-004) is satisfied at the time of the
+      Deployer's d→D transition.
+    rationale: >-
+      Inviting the Deployer after fix-ready ensures the causal gate (at least one
+      VENDOR in the case at VFd) is satisfied when the Deployer attempts d→D.
+      Inviting before fix-ready is a valid protocol scenario but requires a
+      separate causal-gate check within the BT; the FCVD scenario intentionally
+      uses the simpler post-fix-ready invite to isolate the pure-Deployer d→D
+      path from the timing complexity of pre-fix-ready invites.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-15-002
+    - rel_type: refines
+      spec_id: CSB-15-004
+    - rel_type: refines
+      spec_id: DEMOMA-15-002
+    tags:
+    - demo
+  - id: DEMOMA-24-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVD scenario MUST exercise the causal-gate d→D path for the
+      DEPLOYER-only participant as specified in CSB-15-004: the BT MUST permit the
+      Deployer's d→D transition because at least one VENDOR participant in the case
+      is at VFd, and MUST block d→D for any participant that holds neither
+      CVDRole.DEPLOYER nor satisfies the causal precondition.
+    rationale: >-
+      CSB-15-004 defines a new guard condition for DEPLOYER-only actors that
+      replaces the per-participant VFD-state check used by VENDOR actors. The FCVD
+      scenario is the primary functional test exercising this path end-to-end in
+      a multi-container context. The scenario-level `verify_fix_deployed` call MUST
+      pass the Deployer actor ID (not the Vendor actor ID) to confirm that
+      DEMOMA-15-002 is satisfied.
+    relationships:
+    - rel_type: implements
+      spec_id: CSB-15-004
+    - rel_type: refines
+      spec_id: DEMOMA-15-002
+    tags:
+    - demo
+  - id: DEMOMA-24-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVD scenario MUST reach a final state where: Vendor VFD = VFd; Deployer
+      VFD = VFD; all participants (Finder, Coordinator, Vendor, Deployer, CaseActor)
+      PXA = Pxa; EM.EXITED; and RM.CLOSED for all participants. The
+      `verify_publicly_disclosed` helper call MUST use the Deployer actor ID as the
+      participant with DEPLOYER role.
+    rationale: >-
+      Verifying Vendor stops at VFd and Deployer reaches VFD confirms the role-
+      separated VFD model. Using the Deployer actor ID in `verify_publicly_disclosed`
+      exercises the existing vfd_roles branch that treats DEPLOYER the same as
+      VENDOR for public-state verification.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-03-002
+    - rel_type: refines
+      spec_id: DEMOMA-12-005
+    tags:
+    - demo
+  - id: DEMOMA-24-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The implementation of the FCVD scenario MUST add a dedicated parallel CI job
+      (`DEMO=fcvd`) to `.github/workflows/demo-integration.yml` in the same PR as
+      the scenario script, so CI failures are independently reported per
+      DEMOCI-03-003.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-03-002
+    - rel_type: refines
+      spec_id: DEMOCI-03-003
+    - rel_type: refines
+      spec_id: DEMOMA-12-007
+    tags:
+    - demo
+  - id: DEMOMA-24-007
+    priority: MUST
+    kind: project
+    lint_suppress:
+    - phantom_path_ref
+    statement: >-
+      The FCVD implementation MUST ship a dedicated per-scenario case-ledger
+      invariant test file (`test/ci/invariants/test_fcvd_invariants.py`) using
+      the shared invariant library; the file MUST assert the scenario-specific
+      checks: (1) `invite_actor_to_case` present at least three times (Finder,
+      Vendor, Deployer invitations), (2) `accept_invite_actor_to_case` present at
+      least three times, (3) `add_participant_status_to_participant` entries show
+      VFd (not VFD) for Vendor and VFD for Deployer, and (4) the Deployer replica
+      holds the full case history from genesis.
+    rationale: >-
+      The VFd-vs-VFD distinction for Vendor and Deployer is the central protocol
+      claim of the FCVD scenario; without an invariant test that explicitly checks
+      both states, a regression that lets the Vendor silently reach VFD would pass
+      CI undetected.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-12-008
+    - rel_type: refines
+      spec_id: DEMOMA-12-009
+    tags:
+    - demo
+  - id: DEMOMA-24-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVD scenario MUST run deterministically end-to-end. The Deployer
+      container MUST be polled for the arriving case invitation before the
+      `accept-case-invite` trigger is driven, following the polling pattern
+      established by DEMOMA-12-013.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-09-004
+    - rel_type: refines
+      spec_id: DEMOMA-12-013
     tags:
     - demo

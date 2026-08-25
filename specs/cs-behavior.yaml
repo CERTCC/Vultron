@@ -1689,6 +1689,62 @@ groups:
         P event trigger must not imply D event; separates participant-agnostic
         public awareness from participant-specific fix deployment
 
+  - id: CSB-15-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A DEPLOYER-only actor (holds CVDRole.DEPLOYER but not CVDRole.VENDOR)
+      attempting the d→D transition MUST be permitted to proceed when at least one
+      participant holding CVDRole.VENDOR in the same case has reached VFd state
+      (fix-ready). The DEPLOYER-only actor''s own participant VFD state prior to
+      the transition is vfd; the resulting ParticipantStatus snapshot records
+      vfd_state=VFD, reflecting deployment of an externally-produced fix.
+    rationale: >-
+      A pure Deployer does not develop or supply the fix; V (vendor awareness)
+      and F (fix readiness) transitions carry no semantic meaning for a
+      DEPLOYER-only participant. The causal gate — requiring at least one VENDOR
+      to be at VFd or VFD — captures the real-world dependency: a Deployer can
+      only apply a fix that exists. Checking the DEPLOYER-only participant''s own
+      VFD state (as the existing CheckCSFixNotYetDeployed guard does) permanently
+      blocks d→D because the participant can never reach VFd through normal V and
+      F transitions. The vfd→VFD snapshot is semantically correct for a Deployer:
+      it records that the deployment event occurred; V and F are not separately
+      recorded because they do not apply to this actor.
+    testable: true
+    preconditions:
+    - description: >-
+        Actor holds CVDRole.DEPLOYER but not CVDRole.VENDOR in the case;
+        at least one other participant holds CVDRole.VENDOR and has VFd or VFD
+        participant VFD state
+    steps:
+    - order: 1
+      actor: trigger
+      action: >-
+        Check that the requesting actor holds CVDRole.DEPLOYER; check that it
+        does not hold CVDRole.VENDOR; check that at least one participant in
+        the case holds CVDRole.VENDOR and has VFd or VFD state (causal gate)
+      expected: All checks pass; d→D transition allowed
+    - order: 2
+      actor: trigger
+      action: Create ParticipantStatus with vfd_state=VFD
+      expected: >-
+        Status record created with vfd_state=VFD (prior state was vfd);
+        activity emitted to Case Manager
+    postconditions:
+    - description: >-
+        DEPLOYER-only participant records vfd_state=VFD; at least one VENDOR
+        participant remains at VFd or VFD in the same case
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-15-002
+      note: >-
+        CSB-15-002 gates d→D on CVDRole.DEPLOYER; CSB-15-004 adds the causal
+        precondition for DEPLOYER-only actors whose own VFD state never reaches
+        VFd through V and F transitions
+    tags:
+    - state-machine
+    - protocol
+
 - id: CSB-16
   title: CS Write-Boundary Transition Validation
   description: >-
