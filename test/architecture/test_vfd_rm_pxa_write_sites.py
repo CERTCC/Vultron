@@ -79,8 +79,8 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("report/nodes/deploy_fix.py", "VfdDimension"),
         # PREDICATE — develop_fix.py: VfdDimension.is_fix_ready()
         ("report/nodes/develop_fix.py", "VfdDimension"),
-        # RM-TRACKED — rm_transitions.py: RM.VALID / RM.INVALID / RM.CLOSED writes
-        ("report/nodes/rm_transitions.py", "RmDimension"),
+        # RM-TRACKED — rm_transitions.py: RM.VALID write (TransitionRMtoValid) +
+        #              parameterised write in _TransitionRMtoReportPhaseState base
         ("report/nodes/rm_transitions.py", "RmDimension"),
         ("report/nodes/rm_transitions.py", "RmDimension"),
         # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
