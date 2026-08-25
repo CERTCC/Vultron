@@ -26,6 +26,7 @@ from vultron.core.behaviors.helpers import (
     ReadObject,
     UpdateObject,
     CreateObject,
+    _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VultronCase
@@ -827,3 +828,135 @@ def test_action_logger_emits_via_caplog(bridge, datalayer, caplog):
     assert any(
         "BT action log message emitted" in r.message for r in caplog.records
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for _EmitSingleActivityBase
+# ---------------------------------------------------------------------------
+
+_ACTOR_URI = "https://example.org/actors/emit-test-actor"
+
+
+class _StubEmitNode(_EmitSingleActivityBase):
+    """Concrete stub — delegates to injected callables set before use."""
+
+    factory_fn = None
+    on_success_fn = None
+
+    def _call_factory(self) -> tuple[str, dict]:
+        if self.factory_fn is None:
+            raise NotImplementedError("no factory_fn set on _StubEmitNode")
+        return self.factory_fn(self)
+
+    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+        if self.on_success_fn is not None:
+            self.on_success_fn(self, activity_id, activity_dict)
+
+
+class TestEmitSingleActivityBase:
+    """Unit tests for _EmitSingleActivityBase guard+emit+outbox contract."""
+
+    def test_call_factory_raises_not_implemented_on_base(self):
+        """`_call_factory()` raises NotImplementedError when not overridden."""
+        node = _EmitSingleActivityBase.__new__(_EmitSingleActivityBase)
+        with pytest.raises(NotImplementedError):
+            node._call_factory()
+
+    def test_on_success_default_is_noop(self):
+        """`_on_success()` does nothing when not overridden."""
+        node = _EmitSingleActivityBase.__new__(_EmitSingleActivityBase)
+        node._on_success("some-id", {})  # must not raise
+
+    def test_update_fails_when_datalayer_missing(self, datalayer):
+        """Returns FAILURE immediately when DataLayer is not available."""
+        from vultron.core.behaviors.bridge import BTBridge
+
+        node = _StubEmitNode()
+        bridge = BTBridge(datalayer)
+        result = bridge.execute_with_setup(node, actor_id=None)
+        assert result.status == Status.FAILURE
+
+    def test_update_fails_when_factory_missing(self, datalayer):
+        """Returns FAILURE when trigger_activity_factory is not wired."""
+        from vultron.core.behaviors.bridge import BTBridge
+
+        node = _StubEmitNode()
+        bridge = BTBridge(datalayer)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+        assert result.status == Status.FAILURE
+
+    def test_update_succeeds_and_queues_outbox(self, datalayer):
+        """SUCCESS path: calls factory, queues outbox, returns SUCCESS."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-001"
+        activity_dict = {"id": activity_id, "type": "Create"}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode()
+        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.SUCCESS
+
+    def test_update_stores_activity_in_captured(self, datalayer):
+        """When _captured is provided, sets captured['activity'] on success."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-002"
+        activity_dict = {"id": activity_id, "type": "Accept"}
+        captured: dict = {}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode(captured=captured)
+        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert captured.get("activity") == activity_dict
+
+    def test_update_calls_on_success_hook(self, datalayer):
+        """_on_success() is called with activity_id and activity_dict on SUCCESS."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-003"
+        activity_dict = {"id": activity_id}
+        calls: list = []
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode()
+        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        node.on_success_fn = lambda self_node, aid, adict: calls.append(
+            (aid, adict)
+        )
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.SUCCESS
+        assert calls == [(activity_id, activity_dict)]
+
+    def test_update_returns_failure_on_factory_exception(self, datalayer):
+        """Returns FAILURE and sets feedback_message when factory raises."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        def _raising(self_node):
+            raise RuntimeError("factory exploded")
+
+        node = _StubEmitNode()
+        node.factory_fn = _raising
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.FAILURE
+        assert "failed" in node.feedback_message
