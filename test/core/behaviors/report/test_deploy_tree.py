@@ -215,8 +215,6 @@ def test_both_bundles_are_invoked_during_construction():
     to their respective subtree factories during construction — confirmed by
     sentinel dicts in custom factory functions.
 
-    Note: tick-level Fallback ordering (fix succeeds → mitigation skipped) is
-    deferred to a DataLayer integration test (see follow-up issue).
     """
     fix_invoked = {"called": False}
     mit_invoked = {"called": False}
