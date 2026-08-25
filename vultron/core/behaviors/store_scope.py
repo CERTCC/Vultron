@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""One place that answers "which store belongs to this actor?" (ADR-0072).
+"""One place that answers "which store belongs to this actor?" (ADR-0073).
 
 Under per-actor storage a store is always some actor's own, so any node that
 operates on behalf of an actor other than the one whose DataLayer it was handed

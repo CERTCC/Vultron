@@ -862,7 +862,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         store answers only when this CaseActor received the
         ``Offer(VulnerabilityReport)`` itself — which a co-located one does not,
         because the ``OfferRecord`` belongs to the sibling that did and there is
-        no read across that line (ADR-0072, PCR-01-003).
+        no read across that line (ADR-0073, PCR-01-003).
 
         The fallback is not a nicety. Every invited actor rebuilds its
         ``VultronOfferRecord`` from this entry's ``offerId``
@@ -1468,7 +1468,7 @@ class _EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         # `outbox_append`, not `record_outbox_item`: the queue lives in the
-        # owning actor's store, so it takes no actor argument (ADR-0072).
+        # owning actor's store, so it takes no actor argument (ADR-0073).
         cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity.id_)
         self._set_output("accept_activity_id", activity.id_)
         logger.info(

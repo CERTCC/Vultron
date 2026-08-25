@@ -389,7 +389,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
     Returns SUCCESS unconditionally (missing trigger port is only a WARNING so
     that the replay still runs in environments without a trigger port).
 
-    Authored as the executing actor, gated on CASE_MANAGER (ADR-0072).
+    Authored as the executing actor, gated on CASE_MANAGER (ADR-0073).
     """
 
     @classmethod

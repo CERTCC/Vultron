@@ -862,7 +862,7 @@ def _phase_dump_case_ledgers(
     # These were the literals "finder" and "vendor", which worked only while the
     # route key was decorative: a shared store returned the combined case log
     # whichever actor the path named. The route key now *selects the store*
-    # (ADR-0072), so a literal reads whichever actor happens to be hosted under
+    # (ADR-0073), so a literal reads whichever actor happens to be hosted under
     # that slug — a different actor from the one this run used, whose store is
     # empty. The dump then reported "No case ledger entries for actor='finder'"
     # while the finder's real store held twelve.
@@ -1030,7 +1030,7 @@ def main(
     vendor_client = DataLayerClient(base_url=v_url)
     # actor_id must be bound here: the dedicated CaseActor container hosts the
     # `case-actor` actor, and a /datalayer/ read has to name whose store it is
-    # about (ADR-0072).  Leaving it unset makes every dl_path() call raise.
+    # about (ADR-0073).  Leaving it unset makes every dl_path() call raise.
     case_actor_client = (
         DataLayerClient(base_url=c_url, actor_id=case_actor_id_on(c_url))
         if c_url

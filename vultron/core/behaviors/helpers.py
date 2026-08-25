@@ -541,6 +541,73 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         )
 
 
+class _EmitSingleActivityBase(DataLayerActionWithPorts):
+    """Base class for emit nodes that create one activity and queue it in the actor's outbox.
+
+    Subclasses override ``_call_factory()`` (required) to invoke the
+    appropriate ``TriggerActivityPort`` method and return
+    ``(activity_id, activity_dict)``.  The optional ``_on_success()`` hook
+    is called after a successful outbox write and is useful for domain-specific
+    log messages.
+
+    When *captured* is provided, ``captured["activity"]`` is set to the
+    serialised activity dict on success, avoiding a follow-up ``dl.read()``
+    (AC-1, AC-2, DL-06-001).
+
+    Implements BTND-07-005, BTND-07-009, BTND-07-010.
+    """
+
+    def __init__(
+        self,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._captured = captured
+
+    def _call_factory(self) -> tuple[str, dict]:
+        """Invoke the trigger-activity factory.  Subclasses must implement this.
+
+        Returns:
+            ``(activity_id, activity_dict)``
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method.
+        """
+        raise NotImplementedError
+
+    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+        """Optional hook called after a successful outbox write.
+
+        Override in concrete nodes to emit domain-specific log messages or
+        post-emit side-effects.  The default implementation is a no-op.
+        """
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        if (f := self._require_factory()) is not None:
+            self.logger.error(self.feedback_message)
+            return f
+        try:
+            activity_id, activity_dict = self._call_factory()
+            # `outbox_append`, not the retired `record_outbox_item(actor_id, …)`:
+            # this store is already the executing actor's own, so naming the
+            # actor again is both redundant and a way to get it wrong (ADR-0073,
+            # see `CaseOutboxPersistence`).
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
+            )
+            if self._captured is not None:
+                self._captured["activity"] = activity_dict
+        except Exception as e:
+            self.feedback_message = f"{self.__class__.__name__} failed: {e}"
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+        self._on_success(activity_id, activity_dict)
+        return Status.SUCCESS
+
+
 class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
     """
     Resolve and store a case participant by actor ID.

@@ -14,7 +14,7 @@ up to `main`:
 - It became ADR-0069. `main` then landed a different ADR-0069, "Adopt
   certcc.github.io/Vultron as the Vocabulary Namespace Host" (#2105), during the
   same session.
-- It is now ADR-0072.
+- It is now ADR-0073.
 
 Each renumber moved ~224 citations across ~124 files, plus the file rename,
 `mkdocs.yml` nav, the superseded ADR's pointer, and the generated index.

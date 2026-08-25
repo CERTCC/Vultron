@@ -15,7 +15,7 @@
 
 """Which actors does *this node* host?
 
-This is the one legitimately node-level fact left after ADR-0072 removed the
+This is the one legitimately node-level fact left after ADR-0073 removed the
 unscoped DataLayer. It is deliberately **not** a data store and holds no
 protocol state: it answers "which actors run here" and "what canonical URI does
 this URL path segment mean", and nothing else. No actor can learn anything about
@@ -55,7 +55,7 @@ ACTORS_SEGMENT = "actors"
 def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     """Return the canonical actor URI for a URL path *segment*.
 
-    This replaces the pre-ADR-0072 approach of scanning every actor row in a
+    This replaces the pre-ADR-0073 approach of scanning every actor row in a
     shared store to find one whose id ended in ``/{segment}``. That scan was the
     last thing genuinely requiring a cross-actor view, and it had a
     chicken-and-egg problem under per-actor stores: choosing which store to open
@@ -65,7 +65,7 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     under a *foreign* authority, which is therefore **not** rewritten into this
     node's namespace. That is deliberate: a peer's id is the URL outbound
     delivery posts to, so rewriting it would turn a reachable peer into a local
-    phantom (ADR-0072 decision 5). The cost is that a foreign id reaching a
+    phantom (ADR-0073 decision 5). The cost is that a foreign id reaching a
     store-opening call site mints a local store for an actor this node does not
     host, where :func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug`
     can collide it with a co-hosted actor. Tracked in issue #2549; the collision
@@ -180,7 +180,7 @@ def storage_ready(db_url: str | None = None) -> bool:
     """Return ``True`` when the configured storage location is usable.
 
     Readiness is a property of the storage *location*, not of any one actor's
-    store. Before ADR-0072 this was answered by ``ping()`` on the shared
+    store. Before ADR-0073 this was answered by ``ping()`` on the shared
     DataLayer, which selected an arbitrary actor's rows; with per-actor stores
     there is no such thing as "the" store to ping, and inventing a probe actor
     would create a stray store that :func:`hosted_actor_slugs` would then report
@@ -229,7 +229,7 @@ def local_actor_id(base_url: str | None = None) -> str | None:
     (CFG-07-005). It belongs on ``AppConfig.actor`` per CFG-07-005..007 and
     should migrate there; this reads the environment so that the migration is a
     separate, reviewable change rather than a config-schema edit buried in
-    ADR-0072's rollout. Tracked in issue #2550: the move also has to keep the
+    ADR-0073's rollout. Tracked in issue #2550: the move also has to keep the
     single-underscore ``VULTRON_ACTOR_ID`` working, since every compose file sets
     it, and nested ``ActorConfig`` fields would otherwise be read as
     ``VULTRON_ACTOR__ACTOR_ID``.

@@ -189,7 +189,7 @@ class OutboxMonitor:
         # No shared-DataLayer registration: the wakeup callback used to be
         # registered there so that record_outbox_item() on the shared DL would
         # wake the monitor.  Both are gone — every DataLayer is actor-scoped and
-        # registers its own callback above (ADR-0072).
+        # registers its own callback above (ADR-0073).
 
     async def _run_loop(self) -> None:
         """Main drain loop — wakes on enqueue or safety-net timeout."""

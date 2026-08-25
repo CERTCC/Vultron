@@ -152,7 +152,7 @@ class TestFullReportFlow:
 
         Per ADR-0041 the vendor does *not* create the case at RM.RECEIVED — it
         writes a pending link and proposes the case to the CaseActor, which
-        creates the case in its own store (ADR-0072) and replicates it back.
+        creates the case in its own store (ADR-0073) and replicates it back.
         Under PCR-01-003 that replica is the only way the case reaches this
         actor, co-located or not, so the vendor's case-scoped RM state cannot
         advance until it lands (ISSUE-2548).

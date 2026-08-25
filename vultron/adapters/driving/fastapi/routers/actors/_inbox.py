@@ -111,7 +111,7 @@ def _names_an_individual_actor(addr: str) -> bool:
 
     An earlier reading asked the receiving actor's own DataLayer whether it knew
     the addressee.  That was already a loose proxy for the question, and under
-    per-actor storage isolation (ADR-0072) it became a vacuous one: a store
+    per-actor storage isolation (ADR-0073) it became a vacuous one: a store
     holds its owner's knowledge, not the node's roster, so a peer is never in it
     and *every* misaddressed Activity naming a real peer fell through to Liberal
     Accept.  IE-11-001 refused nothing.
@@ -149,7 +149,7 @@ def _activity_addressed_to(
 
     The former ``dl`` parameter is gone.  It asked the receiving actor's store
     whether it knew the addressee, and treated "not known" as unresolvable and
-    therefore acceptable.  Under ADR-0072 a store holds its *owner's* knowledge
+    therefore acceptable.  Under ADR-0073 a store holds its *owner's* knowledge
     and never the node's roster, so that lookup answered a question about the
     receiver's acquaintances, not about the address — and it made acceptance
     depend on whichever store the request happened to resolve to.  Resolvability
@@ -257,7 +257,7 @@ def _store_nested_inbox_object(
     pre-store is needed for routing.
 
     Args:
-        dl: The receiving actor's own DataLayer (ADR-0072).
+        dl: The receiving actor's own DataLayer (ADR-0073).
         activity: The parsed AS2 activity whose ``object_`` to store.
         body: Optional raw JSON request body dict.  When present, used to
             re-parse the nested object with the correct specific class.

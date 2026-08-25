@@ -72,7 +72,7 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
 
         # The recommended actor is a peer by definition — the whole point of a
         # recommendation is to name an actor the *case* does not yet have. Under
-        # ADR-0072 its record is in the store of whoever knows it, so demanding
+        # ADR-0073 its record is in the store of whoever knows it, so demanding
         # one here refused every genuinely remote candidate.
         _record_named_peer(
             self._dl, request.suggested_actor_id, "suggested_actor_id"
@@ -165,7 +165,7 @@ def _record_named_peer(dl: Any, actor_id: str, field: str) -> None:
     """Record *actor_id* as a peer this actor now knows, if not already known.
 
     Being named by URI is enough: a peer's record lives in the store of
-    whichever actor knows it (ADR-0072 decision 5), and in a real deployment the
+    whichever actor knows it (ADR-0073 decision 5), and in a real deployment the
     peer is on another node whose record will never be here.  Refusing with
     "Actor '…' not found" therefore refused every cross-node peer — which is
     what made ``suggest-actor-to-case`` answer 404 for a vendor that existed and
@@ -218,7 +218,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         #
         # This record is *not* what keeps the outbound Invite deliverable. The
         # Invite is queued in the **Case Actor's** outbox, whose store is not
-        # this one (ADR-0072), so a record written here was never readable at
+        # this one (ADR-0073), so a record written here was never readable at
         # rehydration time and the Invite went out carrying a bare string —
         # which delivery then refused for AKM-03-001, silently, after its
         # retries. Carrying the invitee is now the model's own declared

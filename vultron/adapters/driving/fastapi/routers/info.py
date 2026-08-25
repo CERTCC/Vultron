@@ -5,7 +5,7 @@ Info endpoint for the Vultron API (D5-1-G1).
 Returns the configured ``VULTRON_SERVER__BASE_URL`` and the list of actor IDs
 this node hosts so that demo scripts and operators can confirm container
 identity at startup.  The list comes from ``hosted_actor_ids()``, not from
-scanning a shared DataLayer — there is no unscoped store to scan (ADR-0072).
+scanning a shared DataLayer — there is no unscoped store to scan (ADR-0073).
 
 References: specs/multi-actor-demo.yaml DEMOMA-02-001,
 notes/multi-actor-architecture.md §4 G1.
@@ -40,7 +40,7 @@ def get_info() -> dict:
     this node **hosts**.  Useful for demo scripts and operators to confirm which
     container they are talking to at startup.
 
-    Before ADR-0072 this scanned the shared DataLayer for every actor-typed row,
+    Before ADR-0073 this scanned the shared DataLayer for every actor-typed row,
     which also returned the container's *peers* — actors it merely knew an
     address for.  Peers are not hosted here, so they are no longer listed.
     """

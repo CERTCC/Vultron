@@ -107,7 +107,7 @@ def executing_actor_id(request):
 
     Declared per test with ``@pytest.mark.executes_as(...)``; defaults to
     ``ACTOR_ID``. Every store fixture below derives from it, because a BT's store
-    follows its executing actor (ADR-0072) — so declaring the actor once keeps the
+    follows its executing actor (ADR-0073) — so declaring the actor once keeps the
     whole fixture chain (``dl`` → ``bridge`` → ``populated_dl`` →
     ``populated_bridge``) consistent without threading it through each signature.
     """
@@ -1451,7 +1451,7 @@ class TestRejectionValidatorBeforeCommit:
         from vultron.enums.roles import CVDRole
 
         # The tree runs as the case manager, so this is the case manager's
-        # own store (BT-05-005, ADR-0072).
+        # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
         cm_participant = as_CaseParticipant(
             id_=CM_PARTICIPANT_ID,
@@ -1536,7 +1536,7 @@ class TestRejectionValidatorBeforeCommit:
         from vultron.enums.roles import CVDRole
 
         # The tree runs as the case manager, so this is the case manager's
-        # own store (BT-05-005, ADR-0072).
+        # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
         cm_participant = as_CaseParticipant(
             id_=CM_PARTICIPANT_ID,
@@ -1618,7 +1618,7 @@ class TestEmitRMGapNoteNode:
 
     Every test here runs the node as the case manager, so ``dl`` — and the
     ``populated_dl`` built on it — must be the *case manager's* store: a BT's
-    store follows its executing actor (BT-05-005, ADR-0072), and the node
+    store follows its executing actor (BT-05-005, ADR-0073), and the node
     enqueues to whichever store it was handed.
     """
 

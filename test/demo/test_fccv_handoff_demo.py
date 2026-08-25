@@ -243,7 +243,7 @@ class TestWaitForObjectStored:
             timeout_seconds=1.0,
         )
         # The read must be actor-scoped, and must ask the client to build the
-        # path rather than hand-writing it (ADR-0072): a MagicMock would happily
+        # path rather than hand-writing it (ADR-0073): a MagicMock would happily
         # accept any string, so assert the delegation too.
         client.dl_path.assert_called_with(self.OBJ_ID)
         client.get.assert_called_with(client.dl_path(self.OBJ_ID))
@@ -344,7 +344,7 @@ def _bound_client(slug: str) -> MagicMock:
     """A dump client stub bound to a *generated* actor id, as the real one is.
 
     ``actor_id`` must be a real string: the dump derives its route key from it
-    (``replica_route_key``, ADR-0072) and writes the key into the manifest, so a
+    (``replica_route_key``, ADR-0073) and writes the key into the manifest, so a
     bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
     deliberately *not* the docker-compose seed names — that is the whole point of
     deriving the key, and a stub carrying ``actor_id="finder"`` would pass even if
@@ -406,7 +406,7 @@ class TestPhaseDumpCaseLedgersFccv:
             / f"{case_slug}-case-ledger.jsonl"
         ).exists()
 
-        # The route key selects the store (ADR-0072), so it must be the
+        # The route key selects the store (ADR-0073), so it must be the
         # client's own actor id — not the seed name the directory is named
         # after.  Note the FCCV handoff deliberately crosses the two: c1 is
         # the actor written under "vendor".

@@ -99,11 +99,11 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
 def get_actors(http_request: Request):
     """Returns the actors this node hosts.
 
-    Under ADR-0072 this enumerates hosted actors and reads each one's record
+    Under ADR-0073 this enumerates hosted actors and reads each one's record
     from its own store.  It previously scanned a shared pool for every
     actor-typed row, which also returned the node's *peers* — actors it merely
     holds an address for.  A peer is not hosted here, so peers are no longer
-    listed (ADR-0072 decision 4).
+    listed (ADR-0073 decision 4).
 
     Each store is opened in the serving app's own deployment
     (:func:`node_db_url_template`), so the records listed are the ones the rest
@@ -184,11 +184,11 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     adopting it. The record's id then named an endpoint this node does not serve,
     so its store was reachable under one id and ``GET /actors/{slug}`` resolved to
     another. Handing the canonicalizer a bare slug is what makes the id and the
-    serving endpoint the same string by construction (ADR-0072 decision 2).
+    serving endpoint the same string by construction (ADR-0073 decision 2).
 
     A client-supplied id under another authority is adopted **verbatim**, because
     it names a process *elsewhere* — a peer, whose address a hosted actor may know
-    (ADR-0072 decision 5) and whose real URI is what outbound delivery has to
+    (ADR-0073 decision 5) and whose real URI is what outbound delivery has to
     post to. Canonicalizing it into this node's namespace would rewrite the peer
     into a local phantom, so ``canonical_actor_uri`` deliberately passes any
     scheme-bearing id through unchanged.
@@ -380,7 +380,7 @@ def get_actor_inbox(
     from vultron.core.models.base import CoreObject as _CoreObject
 
     # 404 if this node does not host the addressed actor.  No clone is needed:
-    # the injected DataLayer already *is* this actor's store (ADR-0072).
+    # the injected DataLayer already *is* this actor's store (ADR-0073).
     _resolve_actor_or_404(actor_id, datalayer)
     items = cast(
         list[as_Object | as_Link | str | _CoreObject | None],

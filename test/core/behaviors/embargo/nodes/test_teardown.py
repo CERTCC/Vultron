@@ -579,6 +579,38 @@ class TestApplyEmbargoTeardownNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
 
+    @pytest.mark.spec("EMB-18-001")
+    def test_delegates_em_write_to_clear_active_embargo_node(self):
+        """AC-1 (issue #2583): EM write is delegated to ClearActiveEmbargoNode.
+
+        When ClearActiveEmbargoNode.update() is patched to return FAILURE the
+        EM state is not mutated and the node still returns SUCCESS (sync
+        context graceful fallback).  This proves the inline write was
+        replaced by delegation.
+        """
+        from py_trees.common import Status as BtStatus
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("ac1-del", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with patch.object(
+            ClearActiveEmbargoNode, "update", return_value=BtStatus.FAILURE
+        ):
+            bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        unchanged = cast(VulnerabilityCase, dl.read(case.id_))
+        assert unchanged.current_status.em.state == EM.ACTIVE
+
 
 class TestRemoveFromProposedEmbargoesNode:
     """Tests for RemoveFromProposedEmbargoesNode."""

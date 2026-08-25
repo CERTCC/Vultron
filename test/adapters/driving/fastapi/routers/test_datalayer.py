@@ -209,7 +209,7 @@ def test_get_actor_outbox_returns_empty_items_when_queue_is_empty(
 
     An outbox is addressed as the path actor's *own* — there is no
     ``Actors/{other}/outbox/`` form, because a store holds exactly one actor's
-    queue (ADR-0072). So the actor under test is the store's own actor.
+    queue (ADR-0073). So the actor under test is the store's own actor.
     """
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -264,7 +264,7 @@ def test_get_actor_outbox_returns_queued_activity_ids(
 
 
 class TestResetFansOutOverEveryHostedActor:
-    """Under ADR-0072 there is no single store to clear.
+    """Under ADR-0073 there is no single store to clear.
 
     The demo harness and the autouse isolation fixture both depend on this
     endpoint actually emptying the node. Clearing one actor and reporting success
@@ -364,7 +364,7 @@ class TestResetFansOutOverEveryHostedActor:
 
     def test_it_is_not_mounted_on_the_actor_scoped_router(self):
         """Kept off ``/actors/{id}/`` so it cannot read as one actor reaching
-        into another's data — the shape ADR-0072 exists to prevent."""
+        into another's data — the shape ADR-0073 exists to prevent."""
         from vultron.adapters.driving.fastapi.routers import (
             datalayer as datalayer_router,
         )

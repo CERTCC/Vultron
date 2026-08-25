@@ -43,7 +43,7 @@ class AdrFrontmatter(BaseModel):
     ``partially_superseded_by`` is distinct from ``superseded_by`` and does not
     retire the ADR: it marks one decision inside an otherwise live ADR as
     replaced, so the ADR keeps ``status: accepted`` and stays in the accepted
-    list. ADR-0012 is the case that motivated it — ADR-0072 replaced its
+    list. ADR-0012 is the case that motivated it — ADR-0073 replaced its
     DataLayer-isolation decision and nothing else, so retiring the whole thing
     would have discarded the decisions still in force. Declared here rather than
     left as an extra key because pydantic drops unknown fields silently, which

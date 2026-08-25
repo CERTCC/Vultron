@@ -18,6 +18,7 @@
 import pytest
 
 from vultron.core.behaviors.report.nodes.conditions import (
+    _CheckReportPhaseRMStateBase,
     CheckParticipantExists,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -35,6 +36,32 @@ from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
 from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
+
+# ---------------------------------------------------------------------------
+# AC-4: _CheckReportPhaseRMStateBase base-class contract
+# ---------------------------------------------------------------------------
+
+
+def test_check_rm_state_valid_is_subclass_of_base() -> None:
+    """CheckRMStateValid inherits _CheckReportPhaseRMStateBase."""
+    assert issubclass(CheckRMStateValid, _CheckReportPhaseRMStateBase)
+
+
+def test_check_rm_state_received_or_invalid_is_subclass_of_base() -> None:
+    """CheckRMStateReceivedOrInvalid inherits _CheckReportPhaseRMStateBase."""
+    assert issubclass(
+        CheckRMStateReceivedOrInvalid, _CheckReportPhaseRMStateBase
+    )
+
+
+def test_check_rm_state_valid_success_when_valid_flag() -> None:
+    """CheckRMStateValid._success_when_valid is True."""
+    assert CheckRMStateValid._success_when_valid is True
+
+
+def test_check_rm_state_received_or_invalid_success_when_valid_flag() -> None:
+    """CheckRMStateReceivedOrInvalid._success_when_valid is False."""
+    assert CheckRMStateReceivedOrInvalid._success_when_valid is False
 
 
 @pytest.mark.spec("BT-03-001")

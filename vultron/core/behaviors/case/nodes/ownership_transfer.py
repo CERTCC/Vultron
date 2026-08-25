@@ -34,22 +34,24 @@ BTND-07-003.
 """
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models._helpers import _as_id
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
-class EmitOfferCaseOwnershipTransferNode(DataLayerActionWithPorts):
+class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
     """Emit ``Offer(VulnerabilityCase)`` (ownership transfer) to ``transferee_id``.
 
     Calls ``trigger_activity_factory.offer_case_ownership_transfer()`` with
@@ -65,13 +67,12 @@ class EmitOfferCaseOwnershipTransferNode(DataLayerActionWithPorts):
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(captured=captured, name=name)
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.content = content
-        self._captured = captured
 
-    def _emit(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
@@ -89,36 +90,16 @@ class EmitOfferCaseOwnershipTransferNode(DataLayerActionWithPorts):
             to=case_actor_id,
         )
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' offered case ownership transfer for case '%s' to '%s'",
-                self.actor_id,
-                self.case_id,
-                self.transferee_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = (
-                f"EmitOfferCaseOwnershipTransfer failed: {e}"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+        self.logger.info(
+            "Actor '%s' offered case ownership transfer for case '%s' to '%s'",
+            self.actor_id,
+            self.case_id,
+            self.transferee_id,
+        )
 
 
-class EmitAcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
+class EmitAcceptCaseOwnershipTransferNode(_EmitSingleActivityBase):
     """Emit ``Accept(Offer(VulnerabilityCase))`` (ownership transfer) to offerer.
 
     Calls ``trigger_activity_factory.accept_case_ownership_transfer()``
@@ -133,12 +114,11 @@ class EmitAcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(captured=captured, name=name)
         self.offer_id = offer_id
         self.case_id = case_id
-        self._captured = captured
 
-    def _emit(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
@@ -154,32 +134,12 @@ class EmitAcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
             to=case_actor_id,
         )
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' accepted case ownership transfer offer '%s'",
-                self.actor_id,
-                self.offer_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = (
-                f"EmitAcceptCaseOwnershipTransfer failed: {e}"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+        self.logger.info(
+            "Actor '%s' accepted case ownership transfer offer '%s'",
+            self.actor_id,
+            self.offer_id,
+        )
 
 
 class AcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):

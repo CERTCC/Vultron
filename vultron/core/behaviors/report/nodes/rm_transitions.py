@@ -226,7 +226,7 @@ class TransitionRMtoValid(CaseIdInputPortMixin, _ReportPhaseRMTransition):
     the report to be present in this actor's own store — supplied as ``case_id``
     on the blackboard by
     :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`.
-    When it is absent, the case replica has not been delivered yet (ADR-0072,
+    When it is absent, the case replica has not been delivered yet (ADR-0073,
     PCR-01-003) and the node returns FAILURE (ARCH-15-001).
 
     Order matters (ID-04-005).  The case-scoped ``CaseParticipant`` RM state is

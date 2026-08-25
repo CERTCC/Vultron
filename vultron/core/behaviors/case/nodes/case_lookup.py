@@ -44,7 +44,7 @@ class RequireCaseForReport(DataLayerActionWithPorts):
 
     Why absence is a hard failure, not a soft pass
     ----------------------------------------------
-    ADR-0072 gives every actor its own store, and PCR-01-003 makes co-location
+    ADR-0073 gives every actor its own store, and PCR-01-003 makes co-location
     irrelevant to the protocol: whether the CaseActor runs on this host or
     another, its case reaches this actor only as a ``Create(VulnerabilityCase)``
     replica (ADR-0041, CBT-01-002).  So "no case here" is a real, expected,
@@ -149,7 +149,7 @@ class CaseIdInputPortMixin:
 
         Callers turn ``None`` into ``Status.FAILURE``.  Absence is expected and
         transient — the case replica has not been delivered to this actor's
-        store yet (ADR-0072, PCR-01-003) — but it still means the case-scoped
+        store yet (ADR-0073, PCR-01-003) — but it still means the case-scoped
         work cannot be performed, so it must never be reported as SUCCESS
         (ARCH-15-001, ISSUE-2548).
         """

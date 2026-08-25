@@ -24,12 +24,77 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
+from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_participant_state_from_dl,
+)
 from vultron.core.states.rm import RM
 from vultron.core.models._helpers import _report_phase_status_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import VultronInvalidStateTransitionError
 
 
-class CheckRMStateValid(DataLayerConditionWithPorts):
+class _CheckReportPhaseRMStateBase(DataLayerConditionWithPorts):
+    """Shared update() skeleton for report-phase RM presence checks.
+
+    Resolves actor_id, computes the RM.VALID status key, and dispatches on
+    ``_success_when_valid`` to determine which Status value to return.
+    Subclasses set ``_success_when_valid = True`` (succeed when VALID) or
+    ``False`` (succeed when NOT VALID).
+    """
+
+    _success_when_valid: bool
+
+    def __init__(
+        self,
+        report_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        actor_id = (
+            self.sender_actor_id if self.sender_actor_id else self.actor_id
+        )
+        if actor_id is None:
+            self.logger.error(f"{self.name}: actor_id not available")
+            return Status.FAILURE
+
+        valid_id = _report_phase_status_id(
+            actor_id, self.report_id, RM.VALID.value
+        )
+        is_valid = self.datalayer.read(valid_id) is not None
+
+        if is_valid:
+            if self._success_when_valid:
+                self.logger.debug(
+                    f"{self.name}: Report {self.report_id} already VALID"
+                )
+                return Status.SUCCESS
+            self.logger.debug(
+                f"{self.name}: Report {self.report_id}"
+                " already VALID - precondition failed"
+            )
+            return Status.FAILURE
+
+        if self._success_when_valid:
+            self.logger.debug(
+                f"{self.name}: Report {self.report_id} not in VALID state"
+            )
+            return Status.FAILURE
+        self.logger.debug(
+            f"{self.name}: Report {self.report_id}"
+            " in acceptable state for validation"
+        )
+        return Status.SUCCESS
+
+
+class CheckRMStateValid(_CheckReportPhaseRMStateBase):
     """Check if report is already in RM.VALID state.
 
     Returns SUCCESS if report status is RM.VALID (early exit optimization).
@@ -42,52 +107,10 @@ class CheckRMStateValid(DataLayerConditionWithPorts):
     Per BTND-03-009: typed port declarations replace register_key().
     """
 
-    def __init__(
-        self,
-        report_id: str,
-        sender_actor_id: str | None = None,
-        name: str | None = None,
-    ):
-        """Initialize CheckRMStateValid node.
-
-        Args:
-            report_id: ID of VulnerabilityReport to check.
-            sender_actor_id: Explicit actor ID to use instead of the blackboard
-                ``actor_id``.  Thread this in when the tree runs under
-                ``receiving_actor_id`` but the RM check must target the message
-                sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name).
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self.sender_actor_id = sender_actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        actor_id = (
-            self.sender_actor_id if self.sender_actor_id else self.actor_id
-        )
-        if actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
-            return Status.FAILURE
-
-        valid_id = _report_phase_status_id(
-            actor_id, self.report_id, RM.VALID.value
-        )
-        if self.datalayer.read(valid_id) is not None:
-            self.logger.debug(
-                f"{self.name}: Report {self.report_id} already VALID"
-            )
-            return Status.SUCCESS
-        self.logger.debug(
-            f"{self.name}: Report {self.report_id} not in VALID state"
-        )
-        return Status.FAILURE
+    _success_when_valid = True
 
 
-class CheckRMStateReceivedOrInvalid(DataLayerConditionWithPorts):
+class CheckRMStateReceivedOrInvalid(_CheckReportPhaseRMStateBase):
     """Check if report is in RM.RECEIVED or RM.INVALID state.
 
     Returns SUCCESS if report is in acceptable precondition state.
@@ -100,50 +123,81 @@ class CheckRMStateReceivedOrInvalid(DataLayerConditionWithPorts):
     Per BTND-03-009: typed port declarations replace register_key().
     """
 
+    _success_when_valid = False
+
+
+class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
+    """Shared update() skeleton for case-participant RM state guard nodes.
+
+    Reads the actor's latest RM state and returns SUCCESS when it equals
+    ``_target_rm``.  Subclasses set ``_target_rm`` as a class attribute.
+    """
+
+    _target_rm: RM
+
     def __init__(
         self,
-        report_id: str,
-        sender_actor_id: str | None = None,
+        case_id: str,
+        actor_id: str,
         name: str | None = None,
-    ):
-        """Initialize CheckRMStateReceivedOrInvalid node.
-
-        Args:
-            report_id: ID of VulnerabilityReport to check.
-            sender_actor_id: Explicit actor ID to use instead of the blackboard
-                ``actor_id``.  Thread this in when the tree runs under
-                ``receiving_actor_id`` but the RM check must target the message
-                sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name).
-        """
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self.sender_actor_id = sender_actor_id
+        self._case_id = case_id
+        self._actor_id = actor_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        actor_id = (
-            self.sender_actor_id if self.sender_actor_id else self.actor_id
-        )
-        if actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
-            return Status.FAILURE
 
-        valid_id = _report_phase_status_id(
-            actor_id, self.report_id, RM.VALID.value
-        )
-        if self.datalayer.read(valid_id) is not None:
-            self.logger.debug(
-                f"{self.name}: Report {self.report_id} already VALID - precondition failed"
+        case = self.datalayer.read(self._case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.logger.warning(
+                "%s: case '%s' not found", self.name, self._case_id
             )
             return Status.FAILURE
 
-        self.logger.debug(
-            f"{self.name}: Report {self.report_id} in acceptable state for validation"
+        participant_id = case.actor_participant_index.get(self._actor_id)
+        if participant_id is None:
+            self.logger.warning(
+                "%s: actor '%s' not in case '%s'",
+                self.name,
+                self._actor_id,
+                self._case_id,
+            )
+            return Status.FAILURE
+
+        rm_state, _ = resolve_participant_state_from_dl(
+            self.datalayer, participant_id
         )
-        return Status.SUCCESS
+        target = self._target_rm
+        if rm_state == target:
+            self.logger.debug(
+                "%s: RM state is %s for actor '%s'",
+                self.name,
+                target.name,
+                self._actor_id,
+            )
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Actor '{self._actor_id}' RM state is {rm_state!r},"
+            f" expected {target!r}"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class CheckRMStateAccepted(_CheckParticipantRMStateBase):
+    """Guard: actor RM state must be ACCEPTED to create a fix.
+
+    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
+    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
+
+    Per AC-7 (issue #1812).
+    """
+
+    _target_rm = RM.ACCEPTED
 
 
 class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):

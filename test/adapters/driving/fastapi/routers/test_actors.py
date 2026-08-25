@@ -439,7 +439,7 @@ class TestCreateActor:
         here under that authority and opens a local store for it. That is
         deliberate for the peer-registration use it was built for — a peer's id is
         the URL outbound delivery posts to, so rewriting it into this node's
-        namespace would turn a reachable peer into a local phantom (ADR-0072
+        namespace would turn a reachable peer into a local phantom (ADR-0073
         decision 5).
 
         It is not free, though: the store is keyed by the final path segment
@@ -496,7 +496,7 @@ def test_get_actor_by_final_path_segment_returns_actor(client_actors):
 
     Retitled from "surrogate key". There is no surrogate: the segment is simply
     the tail of the actor's id, and ``base_url + "actors/" + segment`` reassembles
-    the id exactly (ADR-0072). The previous version stored an actor under a
+    the id exactly (ADR-0073). The previous version stored an actor under a
     *foreign* authority and expected this node to return it, which conflated
     "an actor I know the address of" with "an actor I host".
     """

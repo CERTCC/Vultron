@@ -127,7 +127,7 @@ class as_CaseProposal(VultronAS2Object):
     # snapshot (ADR-0035 DL-06-002, SYNC-02-002). The CaseActor cannot look the
     # offer up: the `OfferRecord` lives in the store of the actor that received
     # the Offer, and a co-located CaseActor has its own store and no read into a
-    # sibling's (ADR-0072, PCR-01-003). So the offer travels here, on the
+    # sibling's (ADR-0073, PCR-01-003). So the offer travels here, on the
     # proposal, for the same reason and by the same rule as the report itself
     # (CP-01-004).
     #

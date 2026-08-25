@@ -51,9 +51,11 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     RMinStateDeferred,
     TransitionCStoFixDeployed,
 )
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+)
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
-    CheckRMStateAccepted,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfdDimension
@@ -74,7 +76,7 @@ def bt_scenario():
     """Scenario scoped to DEPLOYER_ACTOR_ID — the deployer, who deploys the fix.
 
     Shadows the harness default so the store belongs to the actor these trees
-    execute as: a BT's store follows its executing actor (ADR-0072).
+    execute as: a BT's store follows its executing actor (ADR-0073).
     """
     return BTTestScenario(DEPLOYER_ACTOR_ID)
 

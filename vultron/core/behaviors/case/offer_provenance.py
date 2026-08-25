@@ -41,7 +41,7 @@ def find_offer_for_report(
     Returns ``(None, None)`` when this store holds no ``OfferRecord`` for the
     report — which is the normal answer for an actor that never received the
     ``Offer(VulnerabilityReport)`` itself, a co-located CaseActor included
-    (ADR-0072, PCR-01-003).
+    (ADR-0073, PCR-01-003).
     """
     if not report_id:
         return None, None

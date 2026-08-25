@@ -38,11 +38,13 @@ from vultron.core.behaviors.call_out.bundles.develop_fix import (
 from vultron.core.behaviors.report.develop_fix_tree import (
     create_develop_fix_tree,
 )
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+)
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
-    CheckRMStateAccepted,
     EmitCFActivity,
     TransitionCStoFixReady,
 )
@@ -64,7 +66,7 @@ def bt_scenario():
     """Scenario scoped to VENDOR_ACTOR_ID — the vendor, who develops the fix.
 
     Shadows the harness default so the store belongs to the actor these trees
-    execute as: a BT's store follows its executing actor (ADR-0072).
+    execute as: a BT's store follows its executing actor (ADR-0073).
     """
     return BTTestScenario(VENDOR_ACTOR_ID)
 

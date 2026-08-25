@@ -1009,7 +1009,7 @@ def _phase_dump_case_ledgers(
     # Devlog directory names use scenario-role names (DEMOMA-19-007):
     # finder, c1, v1, c2, v2, case-actor.
     # Route keys come from each client's own actor id, not its display name:
-    # the key selects the store (ADR-0072), so a literal is right only while
+    # the key selects the store (ADR-0073), so a literal is right only while
     # the scenario seeds deterministic named ids. The literal passed to
     # replica_route_key() is the docker-compose seed name, kept as the fallback
     # for a client that was never bound.

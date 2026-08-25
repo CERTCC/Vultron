@@ -37,7 +37,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 # The read endpoint is actor-scoped: `/actors/{actor_id}/datalayer/{key}`
-# (ADR-0072 — there is no unscoped `/datalayer/…` view, because it would read
+# (ADR-0073 — there is no unscoped `/datalayer/…` view, because it would read
 # across actors).  The path segment resolves to a canonical URI by computation,
 # so the actor these tests address has to be one this node could host: an id
 # under some other authority resolves to a *different* actor, in a different

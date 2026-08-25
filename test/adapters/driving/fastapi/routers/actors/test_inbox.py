@@ -444,7 +444,7 @@ def test_activity_addressed_to_refuses_when_every_address_names_another_actor():
 def test_activity_addressed_to_refuses_peer_absent_from_the_receivers_store():
     """IE-11-001: a peer the receiver's store has never heard of is still a peer.
 
-    Regression for the ADR-0072 interaction: resolvability used to be probed
+    Regression for the ADR-0073 interaction: resolvability used to be probed
     with ``dl.find_actor_by_short_id``, which asks the *receiving actor's own*
     store whether it knows the addressee.  Under per-actor isolation the answer
     is structurally "no" for every peer — a store holds its owner's knowledge,
@@ -468,7 +468,7 @@ def test_activity_addressed_to_refuses_peer_absent_from_the_receivers_store():
 class TestNamesAnIndividualActor:
     """IE-11-002 asks about the *address*, so each recognised shape is pinned.
 
-    The predicate consults no store, which is what fixed the ADR-0072
+    The predicate consults no store, which is what fixed the ADR-0073
     interaction: a store holds its owner's knowledge, not the node's roster, so
     "do I know this addressee?" answered "no" for every peer and IE-11-001
     refused nothing. Since the answer now comes entirely from the string, the

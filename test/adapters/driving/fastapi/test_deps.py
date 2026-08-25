@@ -20,7 +20,7 @@ a short id or path segment:
 
 - ``get_actor_dl()`` resolves a path segment to the canonical URI *by
   computation* — ``{node base URL}/actors/{segment}`` — so the store it opens is
-  keyed by that URI.  There is no lookup: the pre-ADR-0072 sequence of
+  keyed by that URI.  There is no lookup: the pre-ADR-0073 sequence of
   ``dl.read()``, then ``find_actor_by_short_id()``, then ``clone_for_actor()``
   is gone, along with the shared store it scanned.
 - ``node_base_url`` supplies the base for that computation, and is *app*-scoped
@@ -35,7 +35,7 @@ a short id or path segment:
 ARCH-13-004 is no longer covered here: it required the ``actor_id`` passed to
 ``record_outbox_item`` to match the one the reading DataLayer was constructed
 with, and both that method and the mismatch it guarded against are gone
-(ADR-0072). ARCH-13-003's own wording still names ``ActorScopedDataLayer`` and
+(ADR-0073). ARCH-13-003's own wording still names ``ActorScopedDataLayer`` and
 ``record_outbox_item``; its *statement* survives the change but its phrasing
 needs the Phase 6 amendment.
 """
@@ -59,7 +59,7 @@ from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 # Canonical *for this node*: an actor id is the URL that reaches it here, so a
-# hosted actor is named base_url + "actors/" + slug (ADR-0072). An id under
+# hosted actor is named base_url + "actors/" + slug (ADR-0073). An id under
 # another authority names a process elsewhere and cannot be resolved from a path
 # segment on this node, which is what these tests exercise.
 CANONICAL_URI = canonical_actor_uri("myactor")
@@ -122,7 +122,7 @@ def test_get_actor_dl_expands_a_bare_segment_to_the_canonical_uri(
 ) -> None:
     """AC-1b: A bare path segment is expanded, not looked up.
 
-    ``/actors/myactor/...`` carries only the final segment.  Pre-ADR-0072 that was
+    ``/actors/myactor/...`` carries only the final segment.  Pre-ADR-0073 that was
     resolved by ``dl.find_actor_by_short_id()`` scanning a shared store; it is now
     ``{node base URL}/actors/myactor``, computed without touching any store.  The
     returned DL must still be keyed by the canonical URI, not the segment
@@ -171,7 +171,7 @@ def test_get_actor_dl_does_not_require_the_actor_to_exist(
 
 
 def test_one_actor_has_exactly_one_queue_regardless_of_spelling() -> None:
-    """BUG-2026040901 is structurally impossible now (ADR-0072).
+    """BUG-2026040901 is structurally impossible now (ADR-0073).
 
     This used to document the failure mode: ``record_outbox_item`` wrote under the
     canonical URI while a DL cloned to the *short id* read a different queue
@@ -302,7 +302,7 @@ def test_get_actor_dl_resolves_into_the_serving_apps_namespace(
     ``node_base_url`` is app-scoped precisely so the demo harness can run several
     nodes in one process. If the segment resolved against process-global config
     instead, ``vendor`` on node A and ``vendor`` on node B would be one canonical
-    URI and one store — cross-node knowledge leakage that ADR-0072 exists to
+    URI and one store — cross-node knowledge leakage that ADR-0073 exists to
     prevent.
     """
     node_a = cast(

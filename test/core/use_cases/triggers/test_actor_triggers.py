@@ -187,7 +187,7 @@ class TestSvcInviteActorToCaseUseCase:
         This asserted a 404 before. Holding a local record was never a protocol
         requirement — the record was read and discarded, delivery derives the
         invitee's inbox from its URI alone, and under per-actor storage a peer's
-        record lives in *its* store, not the inviter's (ADR-0072 decision 5). So
+        record lives in *its* store, not the inviter's (ADR-0073 decision 5). So
         the old behaviour refused invitations to actors that exist and are
         reachable, which is every cross-node invitee in a real deployment.
 
@@ -665,7 +665,7 @@ class TestSvcSuggestActorToCaseUseCase:
         This asserted a 404 before, for the same reason the invite path did, and
         it was wrong for the same reason: the whole point of a recommendation is
         to name an actor the case does not have yet, and under per-actor storage
-        that actor's record lives in *its* store (ADR-0072 decision 5). The old
+        that actor's record lives in *its* store (ADR-0073 decision 5). The old
         behaviour refused every genuinely remote candidate — in the fcvcv demo,
         ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
         found`` for a vendor that was running and reachable in another container
@@ -1112,7 +1112,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         """A transferee is a peer named by URI; a local record is not required.
 
         Handing a case to an actor on another node is the ordinary case, and
-        under per-actor storage that node's record is in *its* store (ADR-0072
+        under per-actor storage that node's record is in *its* store (ADR-0073
         decision 5) — so the old 404 refused exactly the transfers the protocol
         exists to support. Same defect as the invite and recommend paths; all
         three now share ``_record_named_peer``.
@@ -1199,7 +1199,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
     def test_accept_creates_activity(self):
         # The *transferee* accepts, so the store is the transferee's own: it is
         # the actor that received the Offer, and the store an execution runs
-        # against is the executing actor's (ADR-0072, DL-07-009).
+        # against is the executing actor's (ADR-0073, DL-07-009).
         owner, _ = _make_actor_dl("Vendor")
         transferee, dl = _make_actor_dl("Coordinator")
         dl.create(owner)
@@ -1362,7 +1362,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         """
         # The store is the *transferee's*: it is the requesting actor, so it is
         # the actor the BT executes as, and a BT reads and writes its executing
-        # actor's own store (ADR-0072).  Holding the owner's store instead left
+        # actor's own store (ADR-0073).  Holding the owner's store instead left
         # the tree looking for the case in an empty one, and `to` fell back to an
         # actor that is not the case manager — the assertion below failed on a
         # value that had nothing to do with `_resolve_case_manager_id`.

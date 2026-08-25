@@ -33,7 +33,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 @pytest.fixture
 def datalayer(actor_id):
-    """The vendor's own store — the actor these trees execute as (ADR-0072).
+    """The vendor's own store — the actor these trees execute as (ADR-0073).
 
     Scoped to ``actor_id`` rather than a generic test actor because a BT's store
     follows its executing actor: these trees run as the vendor, so the vendor's

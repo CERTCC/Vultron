@@ -27,7 +27,7 @@ from vultron.adapters.utils import strip_id_prefix
 class VultronObjectRecord(SQLModel, table=True):
     """Persistent storage row for a single domain object.
 
-    There is no ``actor_id`` column: under ADR-0072 each actor has its own
+    There is no ``actor_id`` column: under ADR-0073 each actor has its own
     store, so every row in this table belongs to that store's actor by
     construction.  The column used to exist as a *filter*, which partitioned
     reads but not writes — one actor's ``save()`` could overwrite another's row
@@ -68,7 +68,7 @@ class OutboxAttemptEntry(SQLModel, table=True):
 
     Like :class:`VultronObjectRecord` and :class:`QueueEntry`, this carries no
     ``actor_id``: the counter lives in the store of the actor whose outbox is
-    being drained (ADR-0072).  ``activity_id`` is the primary key rather than a
+    being drained (ADR-0073).  ``activity_id`` is the primary key rather than a
     surrogate integer, which makes the counter structurally single-valued —
     there is no layout in which one activity accumulates two rival counts for
     one actor, so the upsert in

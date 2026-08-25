@@ -14,7 +14,7 @@
 """Participant reads about a case must address the CaseActor's own store.
 
 A self-hosted CaseActor shares its owner's *container* but not its *store*
-(ADR-0072 decision 5, CP-08-003).  It is the CaseActor that applies a
+(ADR-0073 decision 5, CP-08-003).  It is the CaseActor that applies a
 participant's RM transition, and it emits no
 ``add_participant_status_to_participant`` ledger entry when it does — so the
 host actor's replica of that participant never advances past the state it was

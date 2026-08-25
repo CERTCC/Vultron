@@ -36,7 +36,7 @@ def clear_blackboard():
 
 @pytest.fixture
 def datalayer():
-    """The participant's own replica store (ADR-0072).
+    """The participant's own replica store (ADR-0073).
 
     These effect nodes apply an announced ledger entry to the replica of the
     actor executing them, and that actor is PARTICIPANT_ACTOR_ID for every file

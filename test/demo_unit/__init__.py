@@ -16,5 +16,5 @@
 Separate from ``test/demo/`` because that package's ``conftest`` auto-marks every
 test it collects as ``integration``, and ``integration`` is deselected by default.
 A pure function tested there is invisible to the unit suite and to the ``Tests
-(pytest)`` CI tier, which is how several ADR-0072 defects reached review.
+(pytest)`` CI tier, which is how several ADR-0073 defects reached review.
 """

@@ -63,7 +63,7 @@ def _fetch_participant(
         actor_id: Full URI of the actor whose participant record to fetch.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
             not the client's own actor.  Needed for a self-hosted CaseActor: it
-            shares its owner's container but not its store (ADR-0072 decision
+            shares its owner's container but not its store (ADR-0073 decision
             5), so reading the owner's replica reports the owner's view of a
             participant, not the CaseActor's authoritative one.
 
@@ -526,7 +526,7 @@ def verify_case_actor_unused(
         case_actor_client: Optional client connected to the dedicated
             CaseActor container.  Must carry a bound ``actor_id`` (see
             :func:`~vultron.demo.utils.case_actor_id_on`), because the read is
-            per-actor under ADR-0072.  When ``None`` the check is skipped.
+            per-actor under ADR-0073.  When ``None`` the check is skipped.
         case_id: Full URI of the case that should be absent.
 
     Raises:

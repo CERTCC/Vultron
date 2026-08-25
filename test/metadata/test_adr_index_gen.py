@@ -71,7 +71,7 @@ class TestGenerateIndex:
         Retiring the whole ADR would discard the decisions that still hold, so
         the status stays ``accepted``. But an unannotated accepted entry reads as
         wholly current, and the index is where a reader chooses what to open —
-        which is how ADR-0012 kept being cited for a DataLayer layout ADR-0072
+        which is how ADR-0012 kept being cited for a DataLayer layout ADR-0073
         had replaced.
         """
         adr_dir = _scaffold(tmp_path)

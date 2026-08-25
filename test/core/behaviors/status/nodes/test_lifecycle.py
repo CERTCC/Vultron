@@ -63,7 +63,7 @@ def clear_blackboard():
 @pytest.fixture
 def dl():
     # ACTOR_ID's own store: the trees in this module execute as ACTOR_ID, and a
-    # BT's store follows its executing actor (ADR-0072). CASE_MANAGER_ID appears
+    # BT's store follows its executing actor (ADR-0073). CASE_MANAGER_ID appears
     # here as a *role holder named in the case*, not as the store's owner.
     return SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 

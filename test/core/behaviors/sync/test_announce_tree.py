@@ -50,7 +50,7 @@ def clear_blackboard():
 
 @pytest.fixture
 def datalayer():
-    """The participant's own replica store (ADR-0072).
+    """The participant's own replica store (ADR-0073).
 
     Almost every tree here executes as PARTICIPANT_ACTOR_ID, applying an
     announced ledger entry to that participant's replica.  ``case_actor.id_``

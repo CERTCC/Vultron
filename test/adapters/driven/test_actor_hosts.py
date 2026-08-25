@@ -15,7 +15,7 @@
 
 """Tests for ``vultron.adapters.driven.actor_hosts``.
 
-``actor_hosts`` is the one node-level fact ADR-0072 leaves standing: which
+``actor_hosts`` is the one node-level fact ADR-0073 leaves standing: which
 actors run here, and what canonical URI a URL path segment means.  It holds no
 protocol state, so these tests are about the *mapping* — in particular that it
 is derivable in both directions, which is why no registry is persisted.
@@ -66,7 +66,7 @@ class TestCanonicalActorUri:
         assert canonical_actor_uri(canonical, _BASE) == canonical
 
     def test_adopts_a_foreign_authority_verbatim(self):
-        """ADR-0072 decision 5: a peer's id is the URL delivery posts to.
+        """ADR-0073 decision 5: a peer's id is the URL delivery posts to.
 
         Rewriting it into this node's namespace would turn a reachable peer into
         a local phantom.  The cost — a local store minted for an actor this node

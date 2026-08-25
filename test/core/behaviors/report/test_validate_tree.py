@@ -269,7 +269,7 @@ def test_tree_structure_matches_spec(report, offer):
     assert validation_flow.children[1].name == "EvaluateReportCredibility"
     assert validation_flow.children[2].name == "EvaluateReportValidity"
     # Case-scoped preconditions precede any write (ISSUE-2548): the case must
-    # be in *this* actor's store (ADR-0072, PCR-01-003) and carry an embargo
+    # be in *this* actor's store (ADR-0073, PCR-01-003) and carry an embargo
     # (DUR-07-004).
     assert validation_flow.children[3].name == "RequireCaseForReport"
     assert validation_flow.children[4].name == "EnsureEmbargoExists"

@@ -32,6 +32,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
+    _ReportPhaseRMTransition,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
@@ -257,6 +258,46 @@ def test_transition_rm_to_closed_context_is_case_uri(
     )
 
 
+# ---------------------------------------------------------------------------
+# AC-1: _ReportPhaseRMTransition base-class contract
+# ---------------------------------------------------------------------------
+
+
+def test_transition_rm_to_invalid_is_subclass_of_base() -> None:
+    """TransitionRMtoInvalid inherits _ReportPhaseRMTransition."""
+    assert issubclass(TransitionRMtoInvalid, _ReportPhaseRMTransition)
+
+
+def test_transition_rm_to_closed_is_subclass_of_base() -> None:
+    """TransitionRMtoClosed inherits _ReportPhaseRMTransition."""
+    assert issubclass(TransitionRMtoClosed, _ReportPhaseRMTransition)
+
+
+def test_transition_rm_to_valid_is_subclass_of_base() -> None:
+    """TransitionRMtoValid inherits _ReportPhaseRMTransition too.
+
+    The base started out covering only the Invalid/Closed pair. ISSUE-2548
+    widened it to carry the shared latch write, so `TransitionRMtoValid` — the
+    one transition that also writes case-scoped state — must sit under the same
+    base rather than reimplementing the report-phase half.
+    """
+    assert issubclass(TransitionRMtoValid, _ReportPhaseRMTransition)
+
+
+def test_transition_rm_to_invalid_target_rm() -> None:
+    """TransitionRMtoInvalid._target_rm is RM.INVALID."""
+    from vultron.core.states.rm import RM
+
+    assert TransitionRMtoInvalid._target_rm is RM.INVALID
+
+
+def test_transition_rm_to_closed_target_rm() -> None:
+    """TransitionRMtoClosed._target_rm is RM.CLOSED."""
+    from vultron.core.states.rm import RM
+
+    assert TransitionRMtoClosed._target_rm is RM.CLOSED
+
+
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid_without_case_fails_without_writing_status(
     bt_scenario: BTTestScenario,
@@ -268,7 +309,7 @@ def test_transition_rm_to_valid_without_case_fails_without_writing_status(
 
     ISSUE-2548.  RM.VALID is a *case-scoped* transition: DUR-07-004 requires an
     established embargo, and the participant's RM state lives on the case.  When
-    the case has not been delivered to this actor's store yet (ADR-0072 gives
+    the case has not been delivered to this actor's store yet (ADR-0073 gives
     every actor its own store; co-located actors still exchange state only by
     protocol message, PCR-01-003), neither half can be performed — so the node
     MUST return FAILURE (ARCH-15-001) and MUST NOT write the report-phase

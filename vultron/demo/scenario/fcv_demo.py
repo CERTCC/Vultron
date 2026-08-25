@@ -706,7 +706,7 @@ def _phase_dump_case_ledgers(
     only names FCV's participants and where each one's ledger lives.
     """
     # Route keys come from each client's own actor id, not from its display
-    # name: the key selects the store (ADR-0072), so a literal only happens to
+    # name: the key selects the store (ADR-0073), so a literal only happens to
     # be right while this scenario seeds deterministic named ids. See
     # :func:`replica_route_key`.
     targets = [

@@ -150,7 +150,7 @@ identified which layer broke.
 
 ## Case-Ledger Endpoint Is Now Per-Replica
 
-**Superseded by ADR-0072.** This section warned that `demo_get_case_ledger`
+**Superseded by ADR-0073.** This section warned that `demo_get_case_ledger`
 ignored its `actor_id` path parameter and returned a combined view from the shared
 DataLayer. There is no shared DataLayer (DL-07-002), and the route now resolves
 `actor_id` through `get_trigger_dl`, which opens *that* actor's store. The

@@ -31,6 +31,8 @@ groups:
       spec_id: CM-01-001
     - rel_type: refines
       spec_id: AKM-01-002
+    stories:
+    - story_2022_092
   - id: PCR-01-002
     priority: MUST
     kind: protocol
@@ -42,6 +44,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
+    stories:
+    - story_2022_046
   - id: PCR-01-003
     priority: MUST
     kind: protocol
@@ -56,7 +60,7 @@ groups:
     rationale: >-
       Co-location is a deployment convenience; a back-end cheat that only works when two Actors
       happen to share a host encodes that convenience into the protocol and stops being a protocol
-      at all. Per-actor stores (ADR-0072) make the cheat impossible for reads and writes, but they
+      at all. Per-actor stores (ADR-0073) make the cheat impossible for reads and writes, but they
       do not stop code from *expecting* it. Issue #2548 is the worked example: a co-located
       CaseActor created the case in its own store, and the report receiver's behavior tree
       proceeded as though the case were already its own. It was not — under ADR-0041 the receiver
@@ -70,6 +74,8 @@ groups:
       spec_id: AKM-01-002
     - rel_type: implements
       spec_id: DL-07-001
+    stories:
+    - story_2022_088
 - id: PCR-02
   title: Replica Bootstrap
   specs:
@@ -88,6 +94,9 @@ groups:
       spec_id: AKM-03-001
     - rel_type: implements
       spec_id: SYNC-02-001
+    stories:
+    - story_2022_088
+    - story_2022_045
   - id: PCR-02-002
     priority: MUST
     kind: protocol
@@ -103,6 +112,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-06-001
+    stories:
+    - story_2022_092
   - id: PCR-02-003
     priority: MUST
     kind: protocol
@@ -113,6 +124,9 @@ groups:
       A unit test confirms that receiving `Announce(VulnerabilityCase)` when no
       prior local replica exists causes the participant actor to create and
       persist a new case replica in its DataLayer.
+    stories:
+    - story_2022_088
+    - story_2022_045
   - id: PCR-02-004
     priority: MUST
     kind: protocol
@@ -124,6 +138,9 @@ groups:
       A unit test confirms that receiving `Announce(VulnerabilityCase)` when a
       local replica already exists causes the participant actor to replace the
       existing replica with the received state.
+    stories:
+    - story_2022_088
+    - story_2022_045
   - id: PCR-02-005
     priority: MUST_NOT
     kind: protocol
@@ -146,6 +163,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-06-002
+    stories:
+    - story_2022_088
+    - story_2022_089
   - id: PCR-03-002
     priority: MUST_NOT
     kind: protocol
@@ -165,6 +185,9 @@ groups:
       before applying any case-state update.
     scope:
     - production
+    stories:
+    - story_2022_089
+    - story_2022_090
   - id: PCR-03-004
     priority: MUST_NOT
     kind: protocol
@@ -194,6 +217,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-03-002
+    stories:
+    - story_2022_045
+    - story_2022_106
   - id: PCR-03-006
     priority: MUST
     kind: protocol
@@ -208,6 +234,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-03-002
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: PCR-04
   title: Case Context Routing
   specs:
@@ -226,6 +255,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-01-002
+    stories:
+    - story_2022_088
   - id: PCR-04-002
     priority: MUST
     kind: protocol
@@ -236,6 +267,8 @@ groups:
       A unit test confirms that `Announce(CaseLedgerEntry)` and
       `Announce(VulnerabilityCase)` emitted by the CaseActor each carry
       `context` equal to the case's ID.
+    stories:
+    - story_2022_092
   - id: PCR-04-003
     priority: MUST_NOT
     kind: protocol
@@ -256,6 +289,9 @@ groups:
       Inspection of `vultron/core/models/report_case_link.py` confirms that
       `ReportCaseLink` persists the report-to-case mapping in the DataLayer,
       and a unit test confirms the mapping is queryable by report ID.
+    stories:
+    - story_2022_030
+    - story_2022_031
   - id: PCR-05-002
     priority: MUST
     kind: protocol
@@ -267,6 +303,9 @@ groups:
       Integration tests in `test/demo/test_find_case_by_report.py` confirm
       that receiving `Announce(VulnerabilityCase)` updates the report-to-case
       index so that a lookup by report ID returns the linked case.
+    stories:
+    - story_2022_030
+    - story_2022_088
 - id: PCR-06
   title: Unknown Case Context Handling
   specs:
@@ -303,6 +342,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
+    lint_suppress:
+    - missing_story_reference
 - id: PCR-08
   title: Outbound Participant Message Routing
   specs:
@@ -318,6 +359,9 @@ groups:
       Integration tests in `test/demo/test_pcr_engage_case.py` confirm that
       every outbound participant activity carries `to` set solely to the
       CaseActor's ID, with no direct peer-to-peer addressing.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: PCR-08-002
     priority: MUST_NOT
     kind: protocol
@@ -339,6 +383,9 @@ groups:
       that each accepted participant message produces exactly one
       CaseLedgerEntry and one `Announce(CaseLedgerEntry)` broadcast to all
       case participants.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: PCR-08-004
     priority: MUST_NOT
     kind: protocol
@@ -362,6 +409,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-003
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: PCR-08-005
     priority: MUST
     kind: protocol
@@ -376,6 +426,9 @@ groups:
       `CVDRole.CASE_MANAGER` from the participant list and set that ID as the
       sole `to:` recipient, and that `case_addressees()` is not permitted as
       the recipient source.
+    stories:
+    - story_2022_046
+    - story_2022_039
   - id: PCR-08-006
     priority: MUST
     kind: protocol
@@ -386,6 +439,8 @@ groups:
       Integration tests in `test/demo/test_pcr_engage_case.py` assert that
       every outbound participant activity has exactly one entry in `to` and
       that recipient is the CaseActor's ID.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-08-007
     priority: MUST
     kind: protocol
@@ -401,6 +456,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
+    stories:
+    - story_2022_053
+    - story_2022_052
   - id: PCR-08-008
     priority: MUST
     kind: protocol
@@ -415,6 +473,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
+    stories:
+    - story_2022_054
+    - story_2022_052
   - id: PCR-08-009
     priority: MUST
     kind: protocol
@@ -430,6 +491,9 @@ groups:
       spec_id: PCR-08-001
     - rel_type: refines
       spec_id: PCR-08-003
+    stories:
+    - story_2022_054
+    - story_2022_088
   - id: PCR-08-014
     priority: MUST_NOT
     kind: protocol
@@ -485,6 +549,8 @@ groups:
       spec_id: PCR-08-002
       note: Using case_addressees() or None as the recipient in a trigger BT is
         the specific violation this requirement prevents
+    stories:
+    - story_2022_039
   - id: PCR-08-016
     priority: MUST
     kind: protocol
@@ -498,6 +564,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-011
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-08-017
     priority: MUST_NOT
     kind: protocol
@@ -529,6 +597,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-009
+    stories:
+    - story_2022_054
+    - story_2022_006
 - id: PCR-07
   title: Testing
   specs:
@@ -542,6 +613,8 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that `Announce(VulnerabilityCase)` from the CaseActor creates a
       new local replica when no prior replica exists for that case ID.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-002
     priority: MUST
     kind: protocol
@@ -552,6 +625,8 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that `Announce(VulnerabilityCase)` from the CaseActor replaces
       the existing local replica with the received state.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-003
     priority: MUST
     kind: protocol
@@ -562,6 +637,8 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that `Announce(VulnerabilityCase)` from a non-CaseActor sender
       is rejected and produces a WARNING-level log entry.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-004
     priority: MUST
     kind: protocol
@@ -572,6 +649,8 @@ groups:
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       asserts that the `context` field of an incoming activity is used to
       dispatch to the matching case-handler instance.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-005
     priority: MUST
     kind: protocol
@@ -583,6 +662,8 @@ groups:
       asserts that an activity with an unknown context ID is queued, triggers
       a resync request, and is discarded after timeout without modifying any
       local state.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-006
     priority: MUST
     kind: protocol
@@ -595,6 +676,8 @@ groups:
       walks the complete bootstrap sequence: case creation, CaseActor sending
       `Announce(VulnerabilityCase)`, participant replica creation, and correct
       routing of subsequent case-scoped activities.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-007
     priority: MUST
     kind: protocol
@@ -607,6 +690,8 @@ groups:
       walks the complete late-joiner sequence: Invite → Accept → CaseActor
       sending `Announce(VulnerabilityCase)` → new participant creating its
       local replica.
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-008
     priority: MUST
     kind: protocol
@@ -624,6 +709,8 @@ groups:
       spec_id: PCR-08-007
     - rel_type: verifies
       spec_id: PCR-08-008
+    lint_suppress:
+    - missing_story_reference
   - id: PCR-07-009
     priority: MUST
     kind: protocol
@@ -639,3 +726,5 @@ groups:
       spec_id: PCR-08-009
     - rel_type: verifies
       spec_id: PCR-08-010
+    lint_suppress:
+    - missing_story_reference

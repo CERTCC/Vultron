@@ -27,17 +27,13 @@ Composite subtrees assembling these nodes are defined in
 """
 
 import logging
-from typing import cast
 
-from py_trees.common import Status
-
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 
 logger = logging.getLogger(__name__)
 
 
-class EmitAcceptCaseInviteNode(DataLayerActionWithPorts):
+class EmitAcceptCaseInviteNode(_EmitSingleActivityBase):
     """Create Accept(Invite) and queue in the invitee's outbox.
 
     Uses ``trigger_activity_factory.accept_case_invite()`` — the factory
@@ -50,11 +46,10 @@ class EmitAcceptCaseInviteNode(DataLayerActionWithPorts):
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(captured=captured, name=name)
         self.invite_id = invite_id
-        self._captured = captured
 
-    def _emit(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.accept_case_invite(
@@ -62,33 +57,15 @@ class EmitAcceptCaseInviteNode(DataLayerActionWithPorts):
             actor=self.actor_id,
         )
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' accepted case invite '%s'",
-                self.actor_id,
-                self.invite_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = f"EmitAcceptCaseInvite failed: {e}"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+        self.logger.info(
+            "Actor '%s' accepted case invite '%s'",
+            self.actor_id,
+            self.invite_id,
+        )
 
 
-class EmitRejectCaseInviteNode(DataLayerActionWithPorts):
+class EmitRejectCaseInviteNode(_EmitSingleActivityBase):
     """Create Reject(Invite) and queue in the invitee's outbox.
 
     Uses ``trigger_activity_factory.reject_case_invite()`` — the factory
@@ -101,11 +78,10 @@ class EmitRejectCaseInviteNode(DataLayerActionWithPorts):
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(captured=captured, name=name)
         self.invite_id = invite_id
-        self._captured = captured
 
-    def _emit(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.reject_case_invite(
@@ -113,27 +89,9 @@ class EmitRejectCaseInviteNode(DataLayerActionWithPorts):
             actor=self.actor_id,
         )
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' rejected case invite '%s'",
-                self.actor_id,
-                self.invite_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = f"EmitRejectCaseInvite failed: {e}"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+        self.logger.info(
+            "Actor '%s' rejected case invite '%s'",
+            self.actor_id,
+            self.invite_id,
+        )

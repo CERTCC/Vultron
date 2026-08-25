@@ -90,10 +90,10 @@ def actor_slug(actor_id: str) -> str:
     reversible: given the node's configured base URL, ``slug`` maps back to
     ``{base_url}actors/{slug}``.  That reversibility is what lets the node
     enumerate the actors it hosts from the set of per-actor database files
-    without a separate registry (ADR-0072).
+    without a separate registry (ADR-0073).
 
     Two actors **under one authority** cannot share a slug, because under
-    ADR-0072 the URL path segment *is* the actor's identity within that node —
+    ADR-0073 the URL path segment *is* the actor's identity within that node —
     same segment means same actor.  The guarantee stops at the authority
     boundary: the scheme and netloc are dropped, so ``http://vendor/…/case-actor``
     and ``http://case-actor:7999/…/case-actor`` produce the same slug and hence
@@ -133,7 +133,7 @@ def actor_slug(actor_id: str) -> str:
 def actor_db_url(db_url: str, actor_id: str) -> str:
     """Return the per-actor database URL derived from *db_url*.
 
-    Under ADR-0072 every actor gets its own store, so the configured
+    Under ADR-0073 every actor gets its own store, so the configured
     ``db_url`` is a **template** rather than a location:
 
     - ``sqlite:////app/data/mydb.sqlite`` becomes

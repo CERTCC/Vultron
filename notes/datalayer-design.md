@@ -470,7 +470,7 @@ Files to investigate:
 
 ## RETIRED: `outbox_list()` Requires `clone_for_actor` in Tests
 
-(ISSUE-1298, 2026-07-10; retired by ADR-0072 / ISSUE-2238, 2026-08-20)
+(ISSUE-1298, 2026-07-10; retired by ADR-0073 / ISSUE-2238, 2026-08-20)
 
 This pitfall no longer exists. It described a writer and a reader disagreeing
 about which `actor_id` string keyed a queue row — `record_outbox_item(actor_id,
@@ -520,7 +520,7 @@ the case where only one of the two required activities was emitted.
 
 ## RETIRED: Dual-DataLayer Isolation Guard in Tests
 
-(ISSUE-1749, 2026-08-08; retired by ADR-0072 / ISSUE-2238, 2026-08-20)
+(ISSUE-1749, 2026-08-08; retired by ADR-0073 / ISSUE-2238, 2026-08-20)
 
 This pattern no longer has anything to guard. It asserted that a BT node had not
 written to the process-global *unscoped* singleton instead of the injected
@@ -553,7 +553,7 @@ recorded rather than deleted:
   that it only handles the between-test case; both hazards above can occur
   *within* a single test, where no fixture can help.
 
-References: ADR-0072 and ISSUE-2238 for the decision itself. The rewritten
+References: ADR-0073 and ISSUE-2238 for the decision itself. The rewritten
 tests are in
 `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTCaseActorRecords`,
 which now asserts against each actor's own store rather than against an empty

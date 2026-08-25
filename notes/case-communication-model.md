@@ -228,7 +228,7 @@ Case Actor's AcceptInviteActorToCaseReceivedUseCase:
 
 ### Implementation Pattern: Role-Gated Emit, Case Actor Executes
 
-**Updated by ADR-0072 / CM-24-004.** The emit must sit inside a composite gated
+**Updated by ADR-0073 / CM-24-004.** The emit must sit inside a composite gated
 on the executing actor holding `CVDRole.CASE_MANAGER` for the case
 (`create_case_manager_gated_tree`). Code MUST NOT instead resolve a
 `case_actor_id` and compare it against `actor_id`: the authority is a *role* held

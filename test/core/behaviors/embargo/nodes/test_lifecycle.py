@@ -675,3 +675,41 @@ class TestSetEmbargoActiveNode:
         assert any("state-sync override" in r.message for r in caplog.records)
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.ACTIVE
+
+    @pytest.mark.spec("EMB-18-001")
+    def test_em_write_goes_through_write_em_state_node(self):
+        """AC-1 (issue #2583): _apply_transition delegates EM write to WriteEmStateNode.
+
+        Patch WriteEmStateNode.update() (autospec) to return SUCCESS and confirm
+        it is invoked during the PROPOSED → ACTIVE transition, proving that the
+        EM write goes through the canonical node rather than inline mutation.
+        """
+        from unittest.mock import patch
+
+        from vultron.core.behaviors.embargo.nodes.em_state import (
+            WriteEmStateNode,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
+        case, embargo = make_case_and_embargo("sea-ac1", em_state=EM.PROPOSED)
+        case.active_embargo = None
+        dl.create(case)
+
+        _setup_blackboard_simple(dl)
+        node = SetEmbargoActiveNode(case_id=case.id_, embargo_id=embargo.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with patch.object(
+            WriteEmStateNode,
+            "update",
+            autospec=True,
+            return_value=py_trees.common.Status.SUCCESS,
+        ) as mock_update:
+            bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert mock_update.called, "WriteEmStateNode.update() was never called"

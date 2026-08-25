@@ -21,7 +21,7 @@ Covers SqliteDataLayer methods added for OX-13-001 through OX-13-004:
 
 Fixtures ``dl`` and ``scoped_dl`` come from conftest.py.
 
-Retry bookkeeping is *per actor* (ADR-0072): an attempt counter and a
+Retry bookkeeping is *per actor* (ADR-0073): an attempt counter and a
 dead-letter entry both describe one actor's own failed delivery, so they live in
 that actor's store.  Each test therefore reads back from the same store it wrote
 to.  These tests originally read back through a second DataLayer on the
@@ -146,7 +146,7 @@ def test_dead_letter_list_is_actor_scoped(dl):
 
     This replaces a test that asserted ``dead_letter_list`` "returns all
     entries regardless of originating actor" — true of the shared pool it was
-    written against, and made impossible by ADR-0072.  A node-wide operator
+    written against, and made impossible by ADR-0073.  A node-wide operator
     view is an explicit fan-out over hosted actors, which is what the second
     half of this test performs.
     """

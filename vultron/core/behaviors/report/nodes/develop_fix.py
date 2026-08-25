@@ -13,13 +13,17 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Production-layer BT nodes for the fix development workflow.
 
-Five nodes implement the ``DevelopFixBT`` guard/action logic:
+Four nodes implement the ``DevelopFixBT`` guard/action logic:
 
 - :class:`CheckIsVendorRoleNode` — short-circuit: actor is not a vendor
 - :class:`CheckCSFixNotYetReady` — short-circuit: fix already ready
-- :class:`CheckRMStateAccepted` — guard: actor RM must be ACCEPTED
 - :class:`TransitionCStoFixReady` — persist VFD VFd snapshot
 - :class:`EmitCFActivity` — emit CF (Fix Readiness) to Case Actor
+
+The tree's RM guard, ``CheckRMStateAccepted``, lives in ``conditions.py``
+alongside the other RM-state condition nodes: three trees use it
+(``DevelopFixBT``, ``DeployFixBT``, ``DeployMitigationBT``), so it is a
+participant-RM condition rather than anything specific to developing a fix.
 
 References
 ----------
@@ -56,7 +60,6 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -213,67 +216,6 @@ class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
             self.name,
             vfd_state,
         )
-        return Status.FAILURE
-
-
-class CheckRMStateAccepted(DataLayerConditionWithPorts):
-    """Guard: actor RM state must be ACCEPTED to create a fix.
-
-    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
-    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
-
-    Per AC-7 (issue #1812).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
-
-        participant_id = case.actor_participant_index.get(self._actor_id)
-        if participant_id is None:
-            self.logger.warning(
-                "%s: actor '%s' not in case '%s'",
-                self.name,
-                self._actor_id,
-                self._case_id,
-            )
-            return Status.FAILURE
-
-        rm_state, _ = resolve_participant_state_from_dl(
-            self.datalayer, participant_id
-        )
-
-        if rm_state == RM.ACCEPTED:
-            self.logger.debug(
-                "%s: RM state is ACCEPTED for actor '%s'",
-                self.name,
-                self._actor_id,
-            )
-            return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Actor '{self._actor_id}' RM state is {rm_state!r},"
-            f" expected RM.ACCEPTED"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -488,7 +430,6 @@ __all__ = [
     "_EmitParticipantStatusActivityBase",
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",
-    "CheckRMStateAccepted",
     "TransitionCStoFixReady",
     "EmitCFActivity",
 ]

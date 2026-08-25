@@ -250,7 +250,7 @@ class RejectInviteActorToCaseReceivedUseCase:
             return
 
         # The store we hold *is* the receiving actor's, so this resolves
-        # without scanning for an actor object (ADR-0072).
+        # without scanning for an actor object (ADR-0073).
         actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )

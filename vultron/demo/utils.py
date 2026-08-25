@@ -227,7 +227,7 @@ class DataLayerClient(BaseModel):
 
     ``base_url`` addresses a *container*; ``actor_id`` names which of the actors
     that container hosts a DataLayer read is about.  Both are needed under
-    ADR-0072: a container hosts an actor plus the CaseActors it self-hosts
+    ADR-0073: a container hosts an actor plus the CaseActors it self-hosts
     (CP-08-003), so ``/datalayer/{case_id}`` alone no longer says whose replica
     to read.  Use :meth:`dl_path` to build inspection paths rather than
     hand-writing ``/datalayer/...``.
@@ -263,7 +263,7 @@ class DataLayerClient(BaseModel):
         Returns:
             ``/actors/{segment}/datalayer/{key}``, where *segment* is the
             actor's final URI path segment.  The server recomputes the canonical
-            URI from its own base URL (ADR-0072), which is why the short segment
+            URI from its own base URL (ADR-0073), which is why the short segment
             is what travels — the same convention already used for inbox and
             trigger paths.
 
@@ -277,7 +277,7 @@ class DataLayerClient(BaseModel):
         if not actor:
             raise ValueError(
                 "DataLayerClient.dl_path requires an actor_id: DataLayer reads "
-                "are per-actor (ADR-0072). Set actor_id on the client or pass "
+                "are per-actor (ADR-0073). Set actor_id on the client or pass "
                 "it explicitly."
             )
         segment = parse_id(actor)["object_id"]
@@ -379,7 +379,7 @@ def reset_datalayer(client: DataLayerClient) -> dict:
     logger.debug("Resetting data layer...")
     # Node-level, not actor-scoped: resetting is an operation on the node's
     # storage rather than a read of one actor's replica, so it deliberately does
-    # *not* go through `dl_path` (ADR-0072 moved it to /admin/).
+    # *not* go through `dl_path` (ADR-0073 moved it to /admin/).
     return client.delete("/admin/datalayer/reset/")
 
 
@@ -567,7 +567,7 @@ def verify_object_stored(
         client: DataLayerClient for the container to read from.
         obj_id: Id of the object to fetch.
         actor_id: Whose replica to look in.  Defaults to *client*'s own actor.
-            "Is this object stored?" has no answer under ADR-0072 without naming
+            "Is this object stored?" has no answer under ADR-0073 without naming
             an actor, so pass this whenever the read is about an actor other than
             the one the client is bound to — typically because the activity was
             delivered to a different recipient's inbox.
@@ -657,7 +657,7 @@ def log_case_state(
 #: ``(slug, name, actor_type)``.
 #:
 #: Slugs, not absolute URIs: ``POST /actors/`` canonicalizes a bare slug into
-#: ``{base_url}actors/{slug}`` (ADR-0072 decision 2), so the id names the very
+#: ``{base_url}actors/{slug}`` (ADR-0073 decision 2), so the id names the very
 #: endpoint this node serves.  A hard-coded absolute id would instead name an
 #: actor on some *other* node — the mistake the retired example actors made, and
 #: the reason they could not be addressed here.
@@ -702,7 +702,7 @@ def seed_exchange_actors(
     # large majority of them.  Reads about the finder's or coordinator's replica
     # pass `actor_id=` explicitly at the call site, which is what makes those
     # reads legible as cross-actor rather than silently answering from the wrong
-    # store (ADR-0072 decision 7).
+    # store (ADR-0073 decision 7).
     client.actor_id = vendor.id_
     logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
 
@@ -716,7 +716,7 @@ def setup_clean_environment(
 
     Clears every store on the node, then creates the Finder, Vendor and
     Coordinator actors.  The seeding step is explicit because clearing a node
-    leaves it hosting nothing at all: under ADR-0072 there is no store that
+    leaves it hosting nothing at all: under ADR-0073 there is no store that
     outlives the reset for a server-side ``init`` to populate.
 
     Returns:
@@ -792,7 +792,7 @@ def case_actor_id_on(base_url: str) -> str:
 
     Demo inspection clients need this to bind ``DataLayerClient.actor_id``: the
     dedicated ``case-actor`` container hosts an actor whose store is the one a
-    ``/datalayer/`` read has to name (ADR-0072), and the container's base URL is
+    ``/datalayer/`` read has to name (ADR-0073), and the container's base URL is
     the only thing a demo entry point knows before any actor exists.
 
     Args:
@@ -858,7 +858,7 @@ def seed_case_actor_for_report(
     In the exchange demos one container plays both the participant node and the
     CaseActor service, so that container is the one that must host it.  Going
     through ``POST /actors/`` is what puts the record in the CaseActor's own
-    store, since the route opens the store the id names (ADR-0072).
+    store, since the route opens the store the id names (ADR-0073).
 
     Spawning a CaseActor on demand for an unknown-in-advance case is a separate
     protocol question (CP-08-003, #1872); this helper deliberately only does what
@@ -881,7 +881,7 @@ def seed_case_actor_for_report(
     case_actor_id = case_actor_id_for_report(report_id)
 
     # Co-located only. ``POST /actors/`` recomputes the canonical URI from the
-    # *serving* node's base URL (ADR-0072 — which is why only the short segment
+    # *serving* node's base URL (ADR-0073 — which is why only the short segment
     # travels), so posting a remote CaseActor's id here does not provision that
     # container: it fabricates a local actor under the same slug. In the Docker
     # topology that produced a spurious ``http://vendor:7999/api/v2/actors/

@@ -15,7 +15,7 @@
 
 """Architecture invariant: a demo CaseActor client is constructed *bound*.
 
-Under ADR-0072 a ``/datalayer/`` read names an actor, so
+Under ADR-0073 a ``/datalayer/`` read names an actor, so
 ``DataLayerClient.dl_path()`` raises ``ValueError`` when the client carries no
 ``actor_id``.  A scenario that builds its CaseActor client as
 ``DataLayerClient(base_url=ca_url)`` therefore fails deterministically the first
@@ -98,7 +98,7 @@ def test_case_actor_client_is_constructed_with_an_actor_id(scenario: Path):
     unbound = _unbound_case_actor_clients(_SCENARIO_TREES[scenario])
     assert not unbound, (
         f"{scenario.relative_to(_corpus.REPO_ROOT)} constructs {unbound} without"
-        " actor_id. A /datalayer/ read names an actor (ADR-0072), so"
+        " actor_id. A /datalayer/ read names an actor (ADR-0073), so"
         " dl_path() raises ValueError on the first verification step that"
         " inspects the CaseActor's replica. Pass"
         " actor_id=case_actor_id_on(<base_url>)."

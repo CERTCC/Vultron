@@ -16,7 +16,7 @@
 """Architecture ratchet: a ledger dump route key is derived, never a literal.
 
 A ``LedgerDumpTarget``'s ``route_key`` selects the *store* the ledger is read
-from (ADR-0072); it is no longer decoration on a path into a store the whole
+from (ADR-0073); it is no longer decoration on a path into a store the whole
 container shares.  A literal key therefore names whichever actor happens to be
 hosted under that slug, which is the actor this run used only while the scenario
 seeds deterministic named ids.  The moment an id is generated, the dump reports
@@ -105,7 +105,7 @@ def test_ledger_route_keys_are_not_literals(scenario: Path) -> None:
     assert not offenders, (
         f"{scenario.relative_to(_corpus.REPO_ROOT)} passes literal route key(s)"
         f" {offenders} to LedgerDumpTarget. The route key selects the store"
-        " (ADR-0072), so a literal reads whichever actor is hosted under that"
+        " (ADR-0073), so a literal reads whichever actor is hosted under that"
         " slug and the dump silently reports an empty ledger. Derive it:"
         " replica_route_key(client, <fallback>)."
     )

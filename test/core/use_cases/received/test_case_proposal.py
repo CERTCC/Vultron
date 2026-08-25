@@ -65,7 +65,7 @@ def _run_create_proposal(dl, proposal, make_payload):
 
     The event names ``_CASE_ACTOR_URI`` as the receiving actor, so *dl* must be
     that actor's store: the tree executes as the receiving actor and reads and
-    writes its own store (ADR-0072).  Callers that passed a generic marker
+    writes its own store (ADR-0073).  Callers that passed a generic marker
     actor's store saw the tree run against an empty one — and their assertions
     were comparative ("no *second* case", "no *new* Accept"), so several passed
     while nothing happened at all.

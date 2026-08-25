@@ -827,7 +827,7 @@ def test_invite_keeps_the_invited_peer_inline():
     """The invitee must survive storage as an object, not an id (DL-08-003).
 
     Nothing in the sender's store can give this id a record: the invitee is a
-    peer on another node, and under ADR-0072 a peer's record lives in the store
+    peer on another node, and under ADR-0073 a peer's record lives in the store
     of whichever actor knows it — which for an Invite emitted by the Case Actor
     is not the Case Actor's store. Dehydrating it therefore had nothing to read
     back from, so the stored Invite returned a bare string and outbox delivery

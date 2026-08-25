@@ -44,7 +44,7 @@ CASE_ID = "https://example.org/cases/test-case-delegation"
 @pytest.fixture
 def dl():
     # These trees execute as ACTOR_ID, so the store under test is ACTOR_ID's
-    # own (BT-05-005).  There is no unscoped DataLayer to open (ADR-0072).
+    # own (BT-05-005).  There is no unscoped DataLayer to open (ADR-0073).
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     case = as_VulnerabilityCase(id_=CASE_ID, name="Delegation Test Case")
     dl.create(case)

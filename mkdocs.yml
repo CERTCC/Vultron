@@ -292,7 +292,8 @@ nav:
       - 'Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host': 'adr/0069-vultron-namespace-uri.md'
       - 'Reuse validate-report for Invited Actors; Derive VultronOfferRecord from Ledger Backfill': 'adr/0070-invited-actor-rm-triage-via-ledger-backfill.md'
       - 'CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined': 'adr/0071-cna-eligibility-reference-baseline.md'
-      - Give Each Actor Its Own Store; Delete the Unscoped DataLayer: 'adr/0072-per-actor-storage-isolation.md'
+      - 'Use a Dedicated stories: Field for Spec-to-Story Traceability': 'adr/0072-stories-field-for-spec-to-story-traceability.md'
+      - Give Each Actor Its Own Store; Delete the Unscoped DataLayer: 'adr/0073-per-actor-storage-isolation.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

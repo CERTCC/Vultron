@@ -41,7 +41,7 @@ Why the guards precede the actions
 ``RM.VALID`` is case-scoped: DUR-07-004 requires an established embargo, and
 engage-case reads the participant's case-scoped RM state.  Both live on the
 ``VulnerabilityCase``, which reaches a non-CaseActor participant only as a
-``Create(VulnerabilityCase)`` replica (ADR-0041, ADR-0072, PCR-01-003).  Every
+``Create(VulnerabilityCase)`` replica (ADR-0041, ADR-0073, PCR-01-003).  Every
 precondition that depends on that replica is therefore checked *before* the
 first write, so a tick that runs ahead of the replica does nothing at all rather
 than half of the transition (ID-04-005, ISSUE-2548).

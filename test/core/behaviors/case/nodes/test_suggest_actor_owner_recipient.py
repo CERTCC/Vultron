@@ -17,7 +17,7 @@
 
 ``EmitOfferCaseParticipantToOwnerNode`` and
 ``EmitNoteDuplicateRecommendationToOwnerNode`` run *as the CaseActor*, in the
-CaseActor's own store (ADR-0072 decision 5).  There, ``VulnerabilityCase.
+CaseActor's own store (ADR-0073 decision 5).  There, ``VulnerabilityCase.
 attributed_to`` names the **CaseActor** — it authored that case (CM-22-001,
 CP-05-003, ADR-0041/ADR-0023).  Both nodes used to read ``attributed_to`` and
 call the result "the Case Owner", so the CaseActor addressed the

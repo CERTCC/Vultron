@@ -297,7 +297,7 @@ class TestTransitionCaseParticipantRMtoClosed:
         behavior of the original procedural handlers".  A Sequence cannot tell
         that apart from a real transition, so the RM state silently stayed put
         while the tree reported success (ARCH-15-001, ISSUE-2548).  The case
-        replica simply has not arrived in this actor's store yet (ADR-0072,
+        replica simply has not arrived in this actor's store yet (ADR-0073,
         PCR-01-003) — a retry is the correct response, not a fake success.
         """
         report = CoreReport(id_=REPORT_ID)
@@ -362,7 +362,7 @@ class TestTransitionCaseParticipantRMtoInvalid:
         behavior of the original procedural handlers".  A Sequence cannot tell
         that apart from a real transition, so the RM state silently stayed put
         while the tree reported success (ARCH-15-001, ISSUE-2548).  The case
-        replica simply has not arrived in this actor's store yet (ADR-0072,
+        replica simply has not arrived in this actor's store yet (ADR-0073,
         PCR-01-003) — a retry is the correct response, not a fake success.
         """
         report = CoreReport(id_=REPORT_ID)

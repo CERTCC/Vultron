@@ -979,7 +979,7 @@ def _phase_dump_case_ledgers(
     only names FCCV-handoff's participants and where each ledger lives.
     """
     # Route keys come from each client's own actor id, not its display
-    # name: the key selects the store (ADR-0072), so a literal is right
+    # name: the key selects the store (ADR-0073), so a literal is right
     # only while the scenario seeds deterministic named ids.
     targets = [
         LedgerDumpTarget(
@@ -1236,7 +1236,7 @@ def main(
     c2_client = DataLayerClient(base_url=_c2_url)
     # actor_id must be bound here: the dedicated CaseActor container hosts the
     # `case-actor` actor, and a /datalayer/ read has to name whose store it is
-    # about (ADR-0072).  Leaving it unset makes every dl_path() call raise.
+    # about (ADR-0073).  Leaving it unset makes every dl_path() call raise.
     case_actor_client = DataLayerClient(
         base_url=ca_url, actor_id=case_actor_id_on(ca_url)
     )

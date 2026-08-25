@@ -271,7 +271,7 @@ def create_isolated_actor_app(
         store, which is what made this harness unable to find an actor it had
         just created: ``create_actor`` writes through the per-actor factory
         (correctly), so creation and lookup landed in different stores and the
-        actor came back ``404 Actor not found`` (ADR-0072 / ISSUE-2238). Only the
+        actor came back ``404 Actor not found`` (ADR-0073 / ISSUE-2238). Only the
         backing URL is replaced here; which store a segment selects is part of
         what these tests exercise.
         """

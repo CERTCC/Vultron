@@ -111,7 +111,7 @@ groups:
       Makes the current narrow-port contract explicit without freezing the interface against future legitimate
       query helpers. The enumeration is the *declared* Protocol, so a drift between it and
       `vultron/core/ports/case_persistence.py` is a spec defect rather than a code one. `get` and `by_type`
-      were listed here until ADR-0072 and are deliberately absent now: they are not declared on the Protocol
+      were listed here until ADR-0073 and are deliberately absent now: they are not declared on the Protocol
       and have no remaining core call site (see DL-04-005).
   - id: DL-04-003
     lint_suppress:
@@ -136,7 +136,7 @@ groups:
       documented architectural smell rather than normal design.'
     rationale: >-
       Makes outbound side effects explicit and highlights mixed inbound-plus-broadcast handlers for later
-      refactoring. `record_outbox_item(actor_id, ...)` was removed from this surface by ADR-0072: it existed
+      refactoring. `record_outbox_item(actor_id, ...)` was removed from this surface by ADR-0073: it existed
       so that an unscoped DataLayer could name the actor explicitly, and every one of its call sites passed
       the executing actor's own id, so under a mandatory actor scope it was exactly `outbox_append`. Keeping
       both would have preserved a way to write to a queue that is not the store's own.
@@ -425,7 +425,7 @@ groups:
       primary key, so reads were partitioned and writes were not: `save()` on one actor's DataLayer
       overwrote another actor's row while leaving it owned by the original actor, and `create()`
       raised a spurious duplicate error for the second actor. Both are unreachable when the layout —
-      not the WHERE clause — carries the isolation. Decided in ADR-0072; source issue #2238.
+      not the WHERE clause — carries the isolation. Decided in ADR-0073; source issue #2238.
     relationships:
     - rel_type: implements
       spec_id: CM-01-001
@@ -436,7 +436,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-002
     priority: MUST
     kind: project
@@ -459,7 +459,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-003
     priority: MUST
     kind: project
@@ -478,7 +478,7 @@ groups:
     - persistence
     - configuration
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-004
     lint_suppress:
     - rationale_too_long
@@ -501,7 +501,7 @@ groups:
     - persistence
     - testing
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-005
     priority: MUST
     kind: project
@@ -518,7 +518,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-006
     priority: MUST
     kind: project
@@ -537,7 +537,7 @@ groups:
     - persistence
     - protocol
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-007
     priority: MUST
     kind: project
@@ -557,7 +557,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-008
     priority: MUST
     kind: project
@@ -579,7 +579,7 @@ groups:
     - persistence
     - messaging
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-07-009
     lint_suppress:
     - rationale_too_long
@@ -617,7 +617,7 @@ groups:
     - persistence
     - behavior-tree
     adr:
-    - ADR-0072
+    - ADR-0073
 - id: DL-08
   title: Storage Fidelity for Inline-Required References
   description: >-
@@ -654,7 +654,7 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0072
+    - ADR-0073
   - id: DL-08-002
     priority: MUST
     kind: architecture
@@ -679,7 +679,7 @@ groups:
     statement: >-
       An activity whose reference field names another *actor* MUST declare that field inline-required.
     rationale: >-
-      Under ADR-0072 an actor's record lives in its own store, so a peer named by an outbound activity
+      Under ADR-0073 an actor's record lives in its own store, so a peer named by an outbound activity
       has no record in the sending actor's store and never will — actor discovery is not implemented
       (ADR-0024). Dehydration is only reversible against such a record (DL-08-001), so collapsing a peer
       actor to its id is unrecoverable by construction rather than by accident of write order. Three
@@ -708,4 +708,4 @@ groups:
     tags:
     - persistence
     adr:
-    - ADR-0072
+    - ADR-0073

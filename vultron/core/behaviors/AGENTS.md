@@ -149,8 +149,8 @@ package, perform these checks (BTND-07-005, BTND-07-009, BTND-07-010):
    |--------|-----------|------|
    | Report | `_EmitCaseActorReportActivityBase` | `report/nodes/emit.py` |
    | Embargo | `_SendEmbargoActivityBase` | `embargo/nodes/emit.py` |
-   | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` *(create if absent)* |
-   | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` *(create if absent)* |
+   | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` |
+   | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` |
 
    **If no base exists for your domain: create it first, then write the
    concrete node.** Do not implement `update()` inline in a concrete node

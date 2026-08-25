@@ -301,7 +301,7 @@ def test_invite_path_caseactor_checks_read_the_case_actors_own_store(
     """The "CaseActor reflects …" checks must read the CaseActor's own store.
 
     ``auth_client`` addresses the *container* that hosts the CaseActor, and its
-    own ``actor_id`` is the host actor — not the CaseActor.  Under ADR-0072
+    own ``actor_id`` is the host actor — not the CaseActor.  Under ADR-0073
     decision 5 those are separate stores: the CaseActor writes the participant's
     RM transition to its own replica and emits no
     ``add_participant_status_to_participant`` ledger entry for it, so nothing

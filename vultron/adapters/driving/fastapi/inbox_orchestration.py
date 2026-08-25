@@ -87,7 +87,7 @@ class FastAPIIngressAdapter:
 
     ``parse`` parses a raw JSON request-body dict into a typed
     ``as_Activity`` and stores the activity in the *receiving actor's* store so
-    later rehydration can resolve references (ADR-0072: there is no shared
+    later rehydration can resolve references (ADR-0073: there is no shared
     DataLayer; the ``dl`` handed in is already one actor's own).  ``rehydrate`` deep-hydrates
     the *in-memory* parsed activity's reference fields via the DataLayer.
 
@@ -361,7 +361,7 @@ async def run_inbox_pipeline(
         body: Raw JSON request body dict, forwarded from the endpoint for
             nested-object re-parsing (preserves domain-specific fields).
         actor_dl: The receiving actor's DataLayer — ingress, dispatch, queues
-            and stored activities alike.  Before ADR-0072 a separate shared
+            and stored activities alike.  Before ADR-0073 a separate shared
             DataLayer was threaded alongside it; the two only differed because
             the shared pool could see every actor's rows.
         actor_id: Canonical URI of the receiving actor.

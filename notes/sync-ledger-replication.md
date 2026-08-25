@@ -449,7 +449,7 @@ redesign of the replay loop was needed. A companion fix made
 receiving `actor_id` rather than assuming the DL it was handed already belonged to
 that actor, matching `send_announce_log_entry`.
 
-**Updated by ADR-0072.** `record_outbox_item` is gone: every call site passed the
+**Updated by ADR-0073.** `record_outbox_item` is gone: every call site passed the
 executing actor's own id, so with a mandatory actor scope it was exactly
 `outbox_append`. There is also no shared or differently-scoped DataLayer to be
 delivered *from* — a store is always some actor's own (DL-07-001/002). Enqueuing

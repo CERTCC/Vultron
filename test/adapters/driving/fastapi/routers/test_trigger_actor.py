@@ -66,7 +66,7 @@ def _store_for(actor_id: str) -> SqliteDataLayer:
     ``get_trigger_service`` builds its ``TriggerService`` from the store of the
     actor named in the URL, so an override that hands every request one fixed
     store is not a stand-in for the routing — it is a shared multi-tenant store,
-    the thing ADR-0072 removes. Two of these endpoints are addressed to an actor
+    the thing ADR-0073 removes. Two of these endpoints are addressed to an actor
     other than the ``dl`` fixture's, and with one store they read an invitation
     the accepting actor had never received (#2548, DL-07-009).
 
@@ -103,7 +103,7 @@ def client_triggers(dl):
 
 @pytest.fixture
 def other_actor_and_dl(dl):
-    """A second actor **and its own store** (ADR-0072).
+    """A second actor **and its own store** (ADR-0073).
 
     What this actor knows lives here, not in the inviter's store: an invitation
     addressed to it is something it received. The inviter's store gets the actor
@@ -309,7 +309,7 @@ def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
     resource *of this API*, and a recommended peer's own actor record is not
     one: the whole point of a recommendation is to name an actor the case does
     not have, and under per-actor storage a peer's record lives in the store of
-    whichever actor knows it (ADR-0072 decision 5). Refusing therefore refused
+    whichever actor knows it (ADR-0073 decision 5). Refusing therefore refused
     every genuinely remote candidate (#2548, fcvcv).
 
     A ``urn:uuid:`` id is still refused — just for the real reason. That id is
@@ -331,7 +331,7 @@ def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
 def test_trigger_suggest_actor_to_case_unrecorded_remote_peer_is_accepted(
     client_triggers, actor, case_obj
 ):
-    """A deliverable peer URI with no local record proceeds (ADR-0072)."""
+    """A deliverable peer URI with no local record proceeds (ADR-0073)."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
@@ -780,7 +780,7 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
 
     A local record is not required: it was read and discarded, delivery derives
     the invitee's inbox from its URI alone, and under per-actor storage a peer's
-    record lives in its own store (ADR-0072 decision 5) — so refusing meant
+    record lives in its own store (ADR-0073 decision 5) — so refusing meant
     refusing every cross-node invitee. The use case logs a WARNING instead, since
     actor discovery does not exist yet and the unverifiable invitee should not
     pass unremarked.

@@ -6,7 +6,7 @@ source: ISSUE-2548
 signal: spec-gap
 ---
 
-ADR-0072 gave every actor its own store, and the invariant it states is about
+ADR-0073 gave every actor its own store, and the invariant it states is about
 **writes**: "one actor's writes must never affect what another actor could read."
 That closed the access hole. It left the *expectation* hole wide open, and
 nothing in the storage layout hints at it — the read simply comes back empty.
@@ -23,7 +23,7 @@ knowledge.
 The gap was real: no requirement said co-location grants no visibility. Two now
 do — `PCR-01-003` (actors exchange information only by protocol message; an actor
 that asked a CaseActor for a case MUST treat it as absent until the replica
-arrives) and `ID-04-005` (a guard record is written last, never first). ADR-0072
+arrives) and `ID-04-005` (a guard record is written last, never first). ADR-0073
 carries the matching "Leak 3" section. **These are already in `specs/`; `learn`
 does not need to promote them again.**
 

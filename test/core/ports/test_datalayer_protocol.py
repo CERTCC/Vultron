@@ -16,7 +16,7 @@
 """Tests for DataLayer protocol conformance (DL-07-002, DL-07-005).
 
 ARCH-13-005 asked for a separate ``ActorScopedDataLayer`` protocol so a
-type-checker could police the scope boundary at signature level. ADR-0072 made
+type-checker could police the scope boundary at signature level. ADR-0073 made
 that unnecessary by construction — a DataLayer cannot exist unscoped — so the
 refinement was merged back into ``DataLayer`` and the requirement retired.
 

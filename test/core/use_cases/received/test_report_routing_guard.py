@@ -21,7 +21,7 @@ participant, not the sender's.  Before the fix both use cases passed
 When ``receiving_actor_id`` is absent, the answer is the actor whose store the
 use case was handed — see ``resolve_receiving_actor_id``.  It is *not*
 ``request.actor_id``: falling back to the sender is the defect BT-17-006 exists
-to forbid, and under ADR-0072 it would also route every read and write into an
+to forbid, and under ADR-0073 it would also route every read and write into an
 actor other than the one whose replica is being updated.  The fallback tests
 below therefore pin the store owner, and do it by parametrizing over which
 actor owns the store so that the store is demonstrably what decides.
@@ -96,7 +96,7 @@ def _make_dl(
     replica of the case, not two actors' worth of state.
 
     *actor_id* defaults to the receiving actor, which is who a received-side
-    use case executes as (ADR-0072): the store a use case is handed is the
+    use case executes as (ADR-0073): the store a use case is handed is the
     store the BT reads and writes.  The fallback tests override it to show that
     this fact — and not the sender on the request — is what decides.
     """

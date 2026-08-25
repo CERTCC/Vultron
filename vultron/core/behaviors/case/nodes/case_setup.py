@@ -275,14 +275,14 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
     """Make this container's CaseActor a *hosted* actor so its inbox answers.
 
     ``POST /actors/{slug}/inbox/`` resolves the actor from the store that slug
-    names (``_resolve_actor_or_404``, ADR-0072), so the record has to be in the
+    names (``_resolve_actor_or_404``, ADR-0073), so the record has to be in the
     CaseActor's **own** store before ``Create(as_CaseProposal)`` is delivered.
     Writing it only into the sending actor's store is why delivery answered
     ``404 Actor not found`` and the proposal round-trip never began (#1872,
     CP-04-002, CP-04-004).
 
     A copy also goes into the sending actor's own store, as an address-book entry
-    for a peer it now knows (ADR-0072 decision 5) — sibling nodes resolve the
+    for a peer it now knows (ADR-0073 decision 5) — sibling nodes resolve the
     CaseActor from the *executing* actor's store.  The two writes are not
     redundant: one publishes an endpoint, the other records knowledge.  Under a
     shared store they were indistinguishable, which is why one used to do.

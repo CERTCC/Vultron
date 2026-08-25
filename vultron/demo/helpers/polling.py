@@ -426,7 +426,7 @@ def _poll_datalayer_for(
     """Poll the client's own DataLayer until *discriminator_fn* matches.
 
     The path is ``client.dl_path()`` — the *actor-scoped* collection, not the
-    retired unscoped ``/datalayer/``.  Under ADR-0072 there is no store that is
+    retired unscoped ``/datalayer/``.  Under ADR-0073 there is no store that is
     not some actor's own, so a poll must name whose store it is reading.
 
     Scans the full DataLayer dict on each tick and calls *discriminator_fn*
@@ -714,7 +714,7 @@ def resolve_case_actor_store_id(
     """Return the CaseActor URI to read *case_id*'s authoritative state through.
 
     A CaseActor owns the case: it is where the participant records are written
-    when it applies an RM/EM transition.  Under ADR-0072 decision 5 it also has
+    when it applies an RM/EM transition.  Under ADR-0073 decision 5 it also has
     a store of its own, so a participant's authoritative state is *not* visible
     in the store of the actor that merely self-hosts it — the host's replica
     only advances when a ledger entry it recognises tells it to, and the

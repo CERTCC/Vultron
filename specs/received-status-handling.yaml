@@ -32,6 +32,9 @@ groups:
       "adopt the claim as canonical" decision.
     verification: Inspection of `vultron/core/behaviors/status/` confirms `add_participant_status_tree` positions
       `StatusAdoptionGate` after `AppendParticipantStatusNode` and before any canonicalization step.
+    stories:
+    - story_2022_046
+    - story_2022_088
   - id: RSH-01-002
     priority: MUST
     kind: protocol
@@ -44,6 +47,9 @@ groups:
       Non-owner reports pass through a configurable approval gate per ADR-0046.
     verification: Inspection of `vultron/core/behaviors/status/` confirms `StatusAdoptionGate` is a Fallback node with
       `CheckIsCaseOwnerNode` as first child and `CaseOwnerApprovesStatusUpdate` as second child.
+    stories:
+    - story_2022_046
+    - story_2022_088
   - id: RSH-01-003
     priority: MUST
     kind: protocol
@@ -64,6 +70,9 @@ groups:
       duplicate), then pass the resulting `case_status.id_` to the factory.
       If `.case_status` is absent on the `ParticipantStatus`, the node MUST
       return FAILURE (ISSUE-1841).
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-01-004
     priority: MUST_NOT
     kind: protocol
@@ -94,6 +103,9 @@ groups:
       independently of the canonical write authorization.
     verification: Inspection of `vultron/core/behaviors/status/` confirms `EmbargoTeardownAuthorizationGate` is positioned
       after `AppendCaseStatusToCaseNode` and before `ThreatTerminationBranchNode` in `add_case_status_tree`.
+    stories:
+    - story_2022_023
+    - story_2022_026
   - id: RSH-02-002
     priority: MUST
     kind: protocol
@@ -106,6 +118,8 @@ groups:
     verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
       `EmbargoTeardownAuthorizationGate` is `AlwaysSucceed`, preserving existing demo behavior.
 
+    lint_suppress:
+    - missing_story_reference
 - id: RSH-03
   title: ThreatTerminationBranchNode
   description: >
@@ -125,6 +139,10 @@ groups:
       did) leaves exploit and attack signals without a teardown trigger.
     verification: Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py` confirm `ThreatTerminationBranchNode`
       triggers embargo teardown when `CaseStatus` carries CS.P, CS.X, or CS.A.
+    stories:
+    - story_2022_018
+    - story_2022_019
+    - story_2022_081
   - id: RSH-03-002
     priority: MUST_NOT
     kind: protocol
@@ -150,6 +168,8 @@ groups:
     verification: Inspection of `vultron/core/behaviors/status/` confirms `PublicDisclosureBranchNode` is absent from
       `add_participant_status_tree` and `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
 
+    stories:
+    - story_2022_081
 - id: RSH-04
   title: CaseStatus Emission Authority and Outbound Emit Invariant
   description: >
@@ -174,6 +194,9 @@ groups:
       Add(CaseStatus) directly would bypass the two-seam authorization model.
     verification: Inspection of `vultron/core/behaviors/status/` confirms only the CASE_MANAGER emits `Add(CaseStatus)`
       directly; unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` cover the non-owner path.
+    stories:
+    - story_2022_045
+    - story_2022_046
   - id: RSH-04-002
     priority: MUST
     kind: protocol
@@ -189,6 +212,9 @@ groups:
       (observed in fv/fcv/fvv CI scenarios — see CONCERN-1667).
     verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates EM state is
       immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
+    stories:
+    - story_2022_014
+    - story_2022_045
   - id: RSH-04-003
     priority: MUST
     kind: protocol
@@ -202,6 +228,9 @@ groups:
       stale and breaks the Avoid Surprise principle.
     verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates PXA state is
       immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
+    stories:
+    - story_2022_045
+    - story_2022_081
   - id: RSH-04-004
     priority: MUST
     kind: protocol
@@ -232,6 +261,9 @@ groups:
       place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
       ledger writes as well. That refactor is blocked-by the impl issue.
 
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: RSH-05
   title: Per-Dimension Partial Accept (liberal accept)
   description: >
@@ -263,6 +295,9 @@ groups:
       precondition guard of `add_participant_status_tree`. It supersedes
       `CheckParticipantRMNotClosedNode`, whose all-or-nothing RM refusal was
       the defect reported in ISSUE-2235.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-002
     priority: MUST
     kind: protocol
@@ -277,6 +312,9 @@ groups:
       just refused.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
       confirm the refused dimension is replaced by the current value in the recorded `ParticipantStatus`.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-003
     priority: MUST
     kind: protocol
@@ -290,6 +328,9 @@ groups:
       reported in ISSUE-2235.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
       confirm a refused dimension does not suppress the self-addressed `Add(CaseStatus)` StatusAdoptionGate emit.
+    stories:
+    - story_2022_023
+    - story_2022_088
   - id: RSH-05-004
     priority: MUST
     kind: protocol
@@ -313,6 +354,9 @@ groups:
       The override is a *patch* — `{"object_id": ..., "fields": {...}}` keyed by
       wire alias — merged onto the snapshot's existing `object`, not a
       replacement object. See RSH-05-009 for why.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-005
     priority: MUST
     kind: protocol
@@ -327,6 +371,8 @@ groups:
       recording any state change.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a wholly
       refused status update is not appended and commits no canonical ledger entry.
+    stories:
+    - story_2022_045
   - id: RSH-05-006
     priority: MUST
     kind: protocol
@@ -340,6 +386,9 @@ groups:
       snapshot at RM closure discards real protocol state.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a participant
       at `RM.CLOSED` still has accepted VFD dimension values recorded.
+    stories:
+    - story_2022_088
+    - story_2022_107
   - id: RSH-05-007
     priority: MUST
     kind: protocol
@@ -358,6 +407,9 @@ groups:
       applied unchanged.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm applying an
       `Announce(CaseLedgerEntry)` never moves a replica's RM state backward on the RM progress scale.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-008
     priority: SHOULD
     kind: protocol
@@ -394,6 +446,9 @@ groups:
       nested object's own `id` and remaining fields. A patched alias also drops
       any stale snake_case twin of the same field, so a consumer that prefers
       the snake_case spelling cannot read the value the receiver refused.
+    stories:
+    - story_2022_045
+    - story_2022_106
   - id: RSH-05-010
     priority: MUST
     kind: protocol
@@ -416,6 +471,8 @@ groups:
       the producer node is migrated to the typed-Ports base class (ISSUE-1808),
       the base class SHOULD auto-clear declared output ports in `initialise()`,
       making this obligation structural.
+    lint_suppress:
+    - missing_story_reference
   - id: RSH-05-011
     priority: MUST
     kind: protocol
@@ -431,6 +488,8 @@ groups:
       to emit a warning on unrecognized producers without failing the commit.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm every
       `ledger_payload_object_override` dict includes a `producer_type` field identifying the source node.
+    stories:
+    - story_2022_074
   - id: RSH-05-012
     priority: MUST
     kind: protocol
@@ -450,6 +509,8 @@ groups:
       `vultron/core/behaviors/case/nodes/lifecycle.py` — the module-level dict
       that maps each camelCase wire alias to its snake_case twin for
       `CommitCaseLedgerEntryNode`.
+    stories:
+    - story_2022_045
   - id: RSH-05-013
     priority: MUST
     kind: protocol
@@ -465,6 +526,8 @@ groups:
       and continue.
     verification: Unit tests in `test/core/behaviors/case/nodes/test_lifecycle.py` confirm `CommitCaseLedgerEntryNode` raises
       a hard failure (not a warning) when `fields` contains a key not present in `_SNAKE_TWINS`.
+    stories:
+    - story_2022_045
   - id: RSH-05-014
     priority: SHOULD
     kind: protocol
@@ -509,6 +572,9 @@ groups:
       Implemented by `FilterParticipantStatusDimensionsNode._rm_is_acceptable()`
       in the production path and by `ValidateRMTransitionNode` in the standalone
       path. Both paths MUST accept with the same policy.
+    stories:
+    - story_2022_074
+    - story_2022_088
   - id: RSH-06-002
     priority: MUST
     kind: protocol
@@ -526,6 +592,9 @@ groups:
     note: >
       The refusal is per-dimension only (RSH-05-001). Other dimensions of the
       same status snapshot are still adjudicated and accepted if valid.
+    stories:
+    - story_2022_074
+    - story_2022_088
   - id: RSH-06-003
     priority: MUST
     kind: protocol
@@ -540,6 +609,9 @@ groups:
       diagnosis impossible for both parties and breaks protocol observability.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm both anomaly
       types emit a WARNING log naming the sender, the before/after `rm` states, and the anomaly type.
+    stories:
+    - story_2022_074
+    - story_2022_077
   - id: RSH-06-004
     priority: SHOULD
     kind: protocol
@@ -575,3 +647,7 @@ groups:
       clarify.
     verification: Inspection of `vultron/core/behaviors/status/` confirms `EmitRMGapNoteNode` constructs the note payload
       with the sender's ID, before/after `rm` states, and an anomaly-type description.
+    stories:
+    - story_2022_039
+    - story_2022_074
+    - story_2022_077

@@ -116,7 +116,7 @@ boundary with a ratchet (`KNOWN_VIOLATIONS`) so new violations fail immediately.
 
 ### There is no shared DataLayer
 
-ADR-0072 made per-actor storage the layout rather than a per-query filter. Every
+ADR-0073 made per-actor storage the layout rather than a per-query filter. Every
 `SqliteDataLayer` belongs to exactly one actor, `actor_id` is a required keyword,
 and `actor_id=None` no longer constructs (DL-07-001, DL-07-002). One actor's
 writes cannot change what another reads, including writes to the same object ID —

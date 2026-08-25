@@ -15,7 +15,7 @@
 
 """Tests for per-actor store resolution in ``datalayer_sqlite.engine``.
 
-This module is where ADR-0072's central claim lives: a URL *template* plus an
+This module is where ADR-0073's central claim lives: a URL *template* plus an
 actor id resolves to exactly one store, and two different actors never resolve to
 the same one under a single authority.  Everything above it — which store a route
 reads, which store a BT node writes — is that resolution applied.

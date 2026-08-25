@@ -220,7 +220,7 @@ def case_id_slug(case_id: str) -> str:
 def replica_route_key(client: DataLayerClient, fallback: str) -> str:
     """Return the route key naming *client*'s own actor, else *fallback*.
 
-    A route key now *selects the store* (ADR-0072) rather than decorating a path
+    A route key now *selects the store* (ADR-0073) rather than decorating a path
     into a store shared by everyone in the container.  A literal key therefore
     reads whichever actor happens to be hosted under that slug — which is the
     actor this run used only when the scenario seeded deterministic named ids.
@@ -246,7 +246,7 @@ def replica_route_key(client: DataLayerClient, fallback: str) -> str:
         logger.debug(
             "ledger dump: client for %s is unbound, falling back to the"
             " literal route key '%s'; it names whichever actor is hosted under"
-            " that slug (ADR-0072)",
+            " that slug (ADR-0073)",
             client.base_url,
             fallback,
         )

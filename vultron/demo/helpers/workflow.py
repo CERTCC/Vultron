@@ -76,7 +76,7 @@ def _provision_case_actor(receiver_client, report) -> None:
 
     ``ProposeReportCaseToActorNode`` derives the CaseActor's URI from the report
     and delivery is an ordinary HTTP POST to that actor's inbox (ADR-0042). The
-    inbox route resolves the actor from the store its URI names (ADR-0072), so
+    inbox route resolves the actor from the store its URI names (ADR-0073), so
     the CaseActor has to be a hosted actor *before* the proposal is delivered —
     otherwise the POST answers 404 and the round-trip never starts.
 
@@ -199,7 +199,7 @@ def reporter_submits_report(
     # These checks name the receiver explicitly rather than relying on
     # `receiver_client`'s binding. The check text says whose replica it is about,
     # so the read should say so too — and not every caller binds its client, in
-    # which case `dl_path` refuses to guess (ADR-0072).
+    # which case `dl_path` refuses to guess (ADR-0073).
     with demo_check("Report stored in receiver's DataLayer"):
         verify_object_stored(
             receiver_client, report.id_, actor_id=receiver.id_
@@ -393,7 +393,7 @@ def run_invite_path_rm_triage(
     # Read the CaseActor's own store, not the store of the actor that hosts it:
     # the CaseActor applies the participant RM transition to its own replica and
     # emits no add_participant_status_to_participant ledger entry for it, so the
-    # host's replica of the participant stays at RM.START forever (ADR-0072
+    # host's replica of the participant stays at RM.START forever (ADR-0073
     # decision 5).  None means "the case has no CaseActor" and preserves the
     # previous read.
     case_actor_store_id = resolve_case_actor_store_id(auth_client, case.id_)
@@ -704,7 +704,7 @@ def wait_for_case_for_offer(
 
     This is the causal precondition for ``validate-report`` (ADR-0058).  Under
     ADR-0041 the receiver does not create the case: it proposes one to the
-    CaseActor, which creates the case in *its own* store (ADR-0072) and
+    CaseActor, which creates the case in *its own* store (ADR-0073) and
     replicates it back as ``Create(VulnerabilityCase)``.  PCR-01-003 makes that
     the *only* route — co-locating the CaseActor on the same host grants no
     visibility into its store — so the receiver genuinely has no case until the

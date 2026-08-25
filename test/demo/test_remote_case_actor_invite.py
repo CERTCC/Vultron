@@ -18,7 +18,7 @@
 PCR-08-007 has the Invite go out from the *CaseActor's* identity, so
 ``SvcInviteActorToCaseUseCase._prepare`` sets ``self._actor_id`` to whatever
 ``_find_case_actor_id`` resolves and the BT then runs as that actor.  Under
-ADR-0072 "runs as that actor" means "in that actor's store", which
+ADR-0073 "runs as that actor" means "in that actor's store", which
 ``BTBridge._store_for_actor`` arranges by cloning the handed DataLayer.
 
 That is sound while the CaseActor is co-hosted with the actor holding the case.

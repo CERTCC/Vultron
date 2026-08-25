@@ -206,7 +206,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
       and never persisted as a record of its own, so its id resolves to nothing
       (DL-08-001).  Since ``Offer`` is an initiating type, the outbox gate then
       refuses the whole activity for carrying a bare string (AKM-03-001).
-    - ``target`` is the *peer* receiving the role.  Under ADR-0072 a peer's
+    - ``target`` is the *peer* receiving the role.  Under ADR-0073 a peer's
       record lives in the store of whichever actor knows it, which is not the
       sender's (DL-08-003) — the same reason ``_RmInviteToCaseActivity``
       declares its invitee.
@@ -310,7 +310,7 @@ class _RmInviteToCaseActivity(as_Invite):
     roles: inherited from as_Invite (CM-17-003)
 
     Declares ``object_`` in :attr:`inline_required_refs` (DL-08-003). The
-    invitee is by definition a *peer* — under ADR-0072 its record lives in the
+    invitee is by definition a *peer* — under ADR-0073 its record lives in the
     store of whichever actor knows it, and the sender here is the Case Actor,
     which does not. Dehydrating the invitee to its id therefore had nothing to
     read it back from, so the stored Invite came back carrying a bare string and

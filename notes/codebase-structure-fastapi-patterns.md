@@ -27,7 +27,7 @@ relevant_packages:
 
 ## Router Test Override Pattern: override the per-actor dependency
 
-**Superseded by ADR-0072.** This section used to describe patching a
+**Superseded by ADR-0073.** This section used to describe patching a
 module-level `_shared_dl` binding in `routers/actors.py`. Neither exists now:
 `routers/actors.py` is a package (`routers/actors/`), and there is no
 `get_shared_dl` because no DataLayer is unscoped (DL-07-002). Overriding the

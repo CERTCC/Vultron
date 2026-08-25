@@ -61,7 +61,7 @@ _actor_instances: dict[tuple[str, str], SqliteDataLayer] = {}
 def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
     """Factory that returns (or creates) the DataLayer for *actor_id*.
 
-    Every actor gets its own store (ADR-0072).  There is no shared or
+    Every actor gets its own store (ADR-0073).  There is no shared or
     "admin" DataLayer: an unscoped view would be able to read across actors,
     which CM-01-001 forbids.  Code that needs a node-wide picture must
     enumerate hosted actors and fan out.
@@ -87,7 +87,7 @@ def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
     if not actor_id:
         raise ValueError(
             "get_datalayer requires a canonical actor URI; there is no "
-            "unscoped DataLayer (ADR-0072, CM-01-001)"
+            "unscoped DataLayer (ADR-0073, CM-01-001)"
         )
     _url = db_url if db_url is not None else get_config().database.db_url
     key = (actor_id, _url)
@@ -110,7 +110,7 @@ def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
     The cache is keyed by ``(actor_id, db_url)``, so an actor could in
     principle appear under two URLs.  That does not happen in a running node —
     every call resolves the same configured URL — and it would mean two stores
-    for one actor, which ADR-0072 forbids.  The last one registered wins and
+    for one actor, which ADR-0073 forbids.  The last one registered wins and
     the collision is logged rather than passed over.
     """
     collapsed: dict[str, SqliteDataLayer] = {}
@@ -118,7 +118,7 @@ def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
         if actor_id in collapsed:
             logger.warning(
                 "Actor %r has cached DataLayers under more than one db_url;"
-                " using %r. Two stores for one actor contradicts ADR-0072.",
+                " using %r. Two stores for one actor contradicts ADR-0073.",
                 actor_id,
                 url,
             )

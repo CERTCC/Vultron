@@ -579,7 +579,7 @@ class TestFindCaseActorId:
 class TestResolveReceivingActorId:
     """``resolve_receiving_actor_id`` — whose replica is this message applied to?
 
-    Under ADR-0072 ``actor_id`` *selects the store*, so this is not a labelling
+    Under ADR-0073 ``actor_id`` *selects the store*, so this is not a labelling
     question. The ``or "unknown"`` fabrication it replaced would now route every
     read and write into an empty scratch store named ``unknown``, losing the work
     with no error raised anywhere (ARCH-15-001). That is why the no-answer case
@@ -614,7 +614,7 @@ class TestResolveReceivingActorId:
 
         The fallback is not a guess: a received-side use case is by construction
         invoked with the receiving actor's own store (CM-01-001), and under
-        ADR-0072 a DataLayer is always some specific actor's.
+        ADR-0073 a DataLayer is always some specific actor's.
         """
         assert (
             resolve_receiving_actor_id(cm_dl, None)

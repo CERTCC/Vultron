@@ -40,7 +40,7 @@ get_hosted_actor_dls
 get_trigger_service
     Construct and return a :class:`~vultron.core.use_cases.triggers.service.TriggerService`.
 
-Under ADR-0072 there is no shared DataLayer to inject, so every one of these
+Under ADR-0073 there is no shared DataLayer to inject, so every one of these
 resolves the path segment to a canonical actor URI by computation and returns
 that actor's own store.  The ``{actor_id}`` path parameter is no longer
 "accepted but unused".
@@ -120,7 +120,7 @@ def get_actor_dl(
     """FastAPI dependency: the DataLayer belonging to the addressed actor.
 
     Resolves the ``{actor_id}`` path segment to a canonical actor URI by
-    computation and returns that actor's own store (ADR-0072).
+    computation and returns that actor's own store (ADR-0073).
 
     This replaces the previous two-step dance — inject the shared DataLayer,
     scan it to turn a short id into a canonical URI, then ``clone_for_actor`` —
@@ -181,7 +181,7 @@ def get_hosted_actor_dls(
     """FastAPI dependency: every store this node hosts, keyed by actor URI.
 
     Node-level operations (the admin reset) have no single store to act on under
-    ADR-0072, so they need the whole set.  Resolving it through a dependency
+    ADR-0073, so they need the whole set.  Resolving it through a dependency
     rather than calling ``get_datalayer`` in a loop is what makes it
     *overridable*: an app whose stores were supplied by
     ``_auto_inject_isolated_datalayer`` or a test fixture keeps them in

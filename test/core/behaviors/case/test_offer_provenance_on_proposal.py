@@ -20,7 +20,7 @@ The chain this pins, end to end:
 1. the actor that received ``Offer(VulnerabilityReport)`` holds the only
    ``VultronOfferRecord`` for it, in its own store;
 2. it puts that offer's id on the ``as_CaseProposal`` it sends the CaseActor,
-   because the CaseActor cannot read a sibling's store (ADR-0072, PCR-01-003);
+   because the CaseActor cannot read a sibling's store (ADR-0073, PCR-01-003);
 3. the CaseActor writes it into the canonical ``add_report_to_case`` ledger
    entry;
 4. every invited actor rebuilds its own ``VultronOfferRecord`` from that entry

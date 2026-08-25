@@ -44,7 +44,7 @@ is amended in place to say which actor is which, and now also names `CASE_MANAGE
   because its claim (one CaseActor per case) survives either reading, but it is
   the next place a reader will be misled.
 - Resolve authority by role held in the case, never by comparing an actor id to a
-  computed `case_actor_id` — ADR-0072 already made that normative (CM-24-004);
+  computed `case_actor_id` — ADR-0073 already made that normative (CM-24-004);
   the wording gap here is what let the two ideas drift.
 - Related: [[a-spec-can-assert-the-premise-that-causes-the-bug]] — same failure
   mode, where the spec text is the thing that needs fixing.

@@ -179,7 +179,7 @@ def _create_case_from_offer(
         dl: Store to seed into.  Defaults to *actor*'s own store, which is the
             one the downstream BTs read, since a tree executes against the store
             of the actor it runs as (BT-05-005).  There is no shared
-            module-level DataLayer to fall back on any more (ADR-0072), so
+            module-level DataLayer to fall back on any more (ADR-0073), so
             leaving this ``None`` used to seed nothing and fail later with
             ``'NoneType' has no attribute 'read'``.
 
@@ -1234,7 +1234,7 @@ class TestRunTwoActorDemo:
         # to a per-case `case-actor-<slug>` identity that the sender derived and no
         # container hosted, so delivery 404'd permanently — and, once the identity
         # became the container's, the record still had to be written to the
-        # *CaseActor's own* store to make it resolvable at all (ADR-0072).
+        # *CaseActor's own* store to make it resolvable at all (ADR-0073).
         #
         # If this test starts failing at "as_VulnerabilityCase exists after
         # validate-report", check the CaseActor's inbox for a 404 before assuming
@@ -1627,7 +1627,7 @@ class TestDeliveryIsolation:
 
         # Build DataLayerClient wrappers routed to their respective apps.
         # Bound to their own actors: a DataLayer read has to say whose store it
-        # is about (ADR-0072), and each of these apps hosts its actor plus any
+        # is about (ADR-0073), and each of these apps hosts its actor plus any
         # CaseActor it self-hosts (CP-08-003), so the container alone is not
         # enough. Unbound, `dl_path` refuses rather than guessing.
         finder_dc = demo.DataLayerClient(
@@ -1814,7 +1814,7 @@ def completed_workflow(
     **Per-test, not per-class.** This fixture's value is store state, and
     ``_dispose_actor_stores_between_tests`` in ``test/conftest.py`` is autouse and
     per-test: it calls ``reset_datalayer()``, which disposes every per-actor
-    engine and so destroys the named in-memory databases (ADR-0072). A
+    engine and so destroys the named in-memory databases (ADR-0073). A
     class-scoped workflow therefore survived only until the first test finished —
     the second and third read a case-actor store that no longer existed and got
     ``404 Case not found``, which looked like a fan-out defect rather than a

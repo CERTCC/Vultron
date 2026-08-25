@@ -474,7 +474,7 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest.
     """
     # Route keys come from each client's own actor id, not its display
-    # name: the key selects the store (ADR-0072), so a literal is right
+    # name: the key selects the store (ADR-0073), so a literal is right
     # only while the scenario seeds deterministic named ids.
     targets = [
         LedgerDumpTarget(

@@ -33,7 +33,7 @@ calling a queue method on it silently operated on a phantom queue keyed by
 ``""`` rather than any actor's real queue. The ARCH-13 requirement group exists
 to police that hazard.
 
-Under ADR-0072 every DataLayer belongs to exactly one actor, so the distinction
+Under ADR-0073 every DataLayer belongs to exactly one actor, so the distinction
 has no referent: there is no unscoped DataLayer to guard against, and the queue
 methods are as safe as any other. The refinement is therefore gone and its
 methods are declared directly on :class:`DataLayer` — the design deletes the

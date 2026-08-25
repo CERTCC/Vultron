@@ -37,7 +37,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -384,9 +383,22 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
                 self.case_id,
             )
         case.set_embargo(self.embargo_id)
-        case.current_status.em = EmDimension(state=EM.ACTIVE)
         assert self.datalayer is not None
         self.datalayer.save(case)
+        # AC-1: delegate EM state write to WriteEmStateNode.
+        result_out: dict[str, object] = {"em_after": EM.ACTIVE}
+        write_node = WriteEmStateNode(
+            case_id=self.case_id, result_out=result_out
+        )
+        write_node.datalayer = self.datalayer
+        if write_node.update() != Status.SUCCESS:
+            self.logger.warning(
+                "%s: Failed to write EM state for case '%s': %s",
+                self.name,
+                self.case_id,
+                write_node.feedback_message,
+            )
+            return
         self.feedback_message = (
             f"Activated embargo '{self.embargo_id}' on case"
             f" '{self.case_id}' (EM {current_em} → ACTIVE)"

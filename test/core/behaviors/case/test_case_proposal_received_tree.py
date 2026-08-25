@@ -1948,10 +1948,10 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
 
 # ---------------------------------------------------------------------------
 # Per-actor isolation: the case-actor's records land in the case-actor's store
-# and are invisible from any other actor's (CM-01-001, ADR-0072).
+# and are invisible from any other actor's (CM-01-001, ADR-0073).
 #
 # These tests used to compare the injected DataLayer against the process-global
-# singleton for the *same* actor.  ADR-0072 makes those the same store by
+# singleton for the *same* actor.  ADR-0073 makes those the same store by
 # construction — store identity is the configured URL plus the actor — so that
 # comparison can no longer fail and would assert nothing.  The invariant worth
 # guarding is the one #2238 was filed about: another actor must not be able to
@@ -2211,7 +2211,7 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
 
     Co-location is what makes CM-02-010 worth asserting: this store belongs to
     the CaseActor and the vendor is a participant in it, so nothing about the
-    layout would stop the two from collapsing into one identity. Under ADR-0072
+    layout would stop the two from collapsing into one identity. Under ADR-0073
     that collapse would also merge two stores that must stay separate.
     """
 

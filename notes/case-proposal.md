@@ -282,7 +282,7 @@ Normative: CP-04-003, BT-10-002.
 ### Being addressable also means writing to the right store
 
 A stable identity is necessary but not sufficient. `POST /actors/{slug}/inbox/`
-resolves the actor from the store that slug names (ADR-0072), so the record has to
+resolves the actor from the store that slug names (ADR-0073), so the record has to
 be in the **CaseActor's own** store. A copy in the sending actor's store is an
 address-book entry — knowledge of a peer — and publishes no endpoint. Writing only
 that one is the other half of the same 404. Normative: CP-04-004.
@@ -365,7 +365,7 @@ The runner uses **option (a): on-startup scan**:
    This step is critical on crash/restart: the process cache is empty, but the
    per-actor SQLite files still hold the obligation rows.
 
-   There is no shared/unscoped DataLayer to scan (ADR-0072, DL-07-002), which is
+   There is no shared/unscoped DataLayer to scan (ADR-0073, DL-07-002), which is
    why the scan enumerates hosted actors — ``hosted_actor_ids()`` derives them
    from the per-actor stores that exist, so it also finds CaseActors created at
    runtime that appear in no config file.

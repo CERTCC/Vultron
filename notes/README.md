@@ -89,7 +89,7 @@ post-P75-2 architectural findings.
 DataLayer backends, or planning domain/wire layer decoupling.
 
 **`datalayer-design.md`**
-DataLayer architecture notes: **per-actor storage isolation (ADR-0072)** — one
+DataLayer architecture notes: **per-actor storage isolation (ADR-0073)** — one
 store per hosted actor, holding only that actor's knowledge, resolved by
 `get_datalayer(actor_id)`; `DataLayer` vs. `CasePersistence` narrowing,
 deprecated `get()`/`by_type()` methods, `CaseOutboxPersistence` as a smell

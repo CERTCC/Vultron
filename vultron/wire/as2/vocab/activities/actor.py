@@ -37,7 +37,7 @@ class _RecommendActorActivity(as_Offer):
 
     Declares ``object_`` in :attr:`inline_required_refs` (DL-08-003) for the
     same reason as ``_RmInviteToCaseActivity``: the recommended actor is a peer,
-    so under ADR-0072 the recommender's own store holds no record of it and a
+    so under ADR-0073 the recommender's own store holds no record of it and a
     dehydrated id has nothing to be read back from. Delivery then refuses the
     recommendation for carrying a bare string (AKM-03-001).
     """

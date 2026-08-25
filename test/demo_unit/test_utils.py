@@ -16,7 +16,7 @@
 """Unit tests for ``vultron.demo.utils`` — the parts that need no running node.
 
 ``DataLayerClient.dl_path`` and ``_is_same_node`` are pure, and both encode
-ADR-0072 decisions whose failure mode is a *wrong answer* rather than an error:
+ADR-0073 decisions whose failure mode is a *wrong answer* rather than an error:
 ``dl_path`` deciding which actor's replica a demo assertion reads, and
 ``_is_same_node`` deciding whether ``POST /actors/`` reaches the container that
 would host the actor. A demo that reads the wrong replica reports a protocol
@@ -53,7 +53,7 @@ class TestDlPath:
         """The server recomputes the canonical URI from its own base URL.
 
         Sending the full URI would embed the *client's* idea of the authority in
-        the path, which is exactly the coupling ADR-0072 removed — and it matches
+        the path, which is exactly the coupling ADR-0073 removed — and it matches
         the convention inbox and trigger paths already use.
         """
         path = DataLayerClient(base_url=_NODE, actor_id=_VENDOR).dl_path()
@@ -143,7 +143,7 @@ class TestExchangeActorRoster:
     """
 
     def test_the_roster_names_actors_by_slug(self):
-        """A slug is expanded against the serving node's base URL (ADR-0072).
+        """A slug is expanded against the serving node's base URL (ADR-0073).
 
         An absolute URI here would seed actors under whatever authority the demo
         author typed, and the node would adopt it verbatim (#2549) — so the demo

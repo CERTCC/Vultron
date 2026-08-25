@@ -59,7 +59,7 @@ def _bound_client(slug: str) -> MagicMock:
     """A dump client stub bound to a *generated* actor id, as the real one is.
 
     ``actor_id`` must be a real string: the dump derives its route key from it
-    (``replica_route_key``, ADR-0072) and writes the key into the manifest, so a
+    (``replica_route_key``, ADR-0073) and writes the key into the manifest, so a
     bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
     deliberately *not* the docker-compose seed names — that is the whole point of
     deriving the key, and a stub carrying ``actor_id="finder"`` would pass even if
@@ -121,7 +121,7 @@ class TestPhaseDumpCaseLedgersFvcv:
             / f"{case_slug}-case-ledger.jsonl"
         ).exists()
 
-        # The route key selects the store (ADR-0072), so it must be the client's
+        # The route key selects the store (ADR-0073), so it must be the client's
         # own actor id — not the seed name the output directory is named after.
         manifest = json.loads(
             (tmp_path / "fvcv-handoff" / "dump-manifest.json").read_text()
@@ -722,7 +722,7 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
         router = _TestClientRouter()
         # `actor_slug` decides which actor's store `iso.dl` is. These actors are
         # created under the module slugs below, and a store belongs to exactly one
-        # actor (ADR-0072), so leaving the default `"primary"` points `dl` at an
+        # actor (ADR-0073), so leaving the default `"primary"` points `dl` at an
         # empty database — the finder's Announce assertion then reads a store
         # nothing was ever delivered to.
         vendor_iso = create_isolated_actor_app(

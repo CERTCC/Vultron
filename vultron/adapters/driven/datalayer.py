@@ -23,7 +23,7 @@ import from this module::
 Switching the backend only requires updating the import below.
 
 There is deliberately no ``get_shared_dl``: every DataLayer belongs to exactly
-one actor (ADR-0072), so an unscoped/"admin" instance has no referent. Code that
+one actor (ADR-0073), so an unscoped/"admin" instance has no referent. Code that
 needs a node-wide picture enumerates hosted actors and fans out.
 """
 

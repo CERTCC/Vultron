@@ -876,7 +876,7 @@ def _phase_dump_case_ledgers(
     only names FVCV-extension's participants and where each ledger lives.
     """
     # Route keys come from each client's own actor id, not its display
-    # name: the key selects the store (ADR-0072), so a literal is right
+    # name: the key selects the store (ADR-0073), so a literal is right
     # only while the scenario seeds deterministic named ids.
     targets = [
         LedgerDumpTarget(

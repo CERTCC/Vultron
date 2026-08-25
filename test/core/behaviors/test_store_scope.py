@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for ``vultron.core.behaviors.store_scope`` (ADR-0072, DL-07-005).
+"""Tests for ``vultron.core.behaviors.store_scope`` (ADR-0073, DL-07-005).
 
 This module is the single answer to "which store belongs to this actor?", created
 because three copies of the logic — ``BTBridge._store_for_actor``,
@@ -131,7 +131,7 @@ class TestStoreForActorFallThroughs:
         assert store.cloned_for == []
 
     def test_a_store_that_names_no_actor_is_left_alone(self):
-        """BT-05-005's one exception: test doubles were correct before ADR-0072."""
+        """BT-05-005's one exception: test doubles were correct before ADR-0073."""
         store = _UnscopedStore()
         assert _scope(store, _SIBLING) is store
 

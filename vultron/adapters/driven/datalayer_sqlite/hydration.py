@@ -94,7 +94,7 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
     """Convert a domain object to a storage row.
 
     No ``actor_id`` column is written: the store *is* the actor's, so
-    stamping ownership on each row would be redundant (ADR-0072).
+    stamping ownership on each row would be redundant (ADR-0073).
     """
     rec = Record.from_obj(obj)
     return VultronObjectRecord(
