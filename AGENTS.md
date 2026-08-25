@@ -926,11 +926,19 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   *Source: CONCERN-2108*
 - **Tests Verifying a Protocol-Kind Requirement MUST Carry `@pytest.mark.spec`** —
   protocol-kind requirements are conformance-critical; without a marker the
-  CI coverage floor ratchet (SR-05-005, `test/architecture/test_spec_coverage_ratchet.py`)
+  CI uncovered-count ratchet (SR-05-005, `test/architecture/test_spec_coverage_ratchet.py`)
   cannot enforce coverage and the requirement becomes unverifiable. Add
   `@pytest.mark.spec("<ID>")` to every test that exercises a
   `kind: protocol` spec entry. Run `spec-coverage` to discover which
   protocol IDs have no markers yet.
+  See SR-05-004, SR-05-005. *Source: ISSUE-2117*
+- **When You Touch a Protocol-Kind Spec Entry, Fix Its Marker Coverage in the Same PR** —
+  adding or modifying a `kind: protocol` spec entry without a corresponding
+  `@pytest.mark.spec("<ID>")` marker in a test raises the uncovered count and
+  will fail the ratchet (`MAX_UNCOVERED_PROTOCOL_SPECS` in
+  `test/architecture/test_spec_coverage_ratchet.py`). The ratchet ceiling can
+  only be lowered, never raised — so the only exit is adding the marker.
+  Treat this as a same-PR requirement, not a follow-up.
   See SR-05-004, SR-05-005. *Source: ISSUE-2117*
 
 ---

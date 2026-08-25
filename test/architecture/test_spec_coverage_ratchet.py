@@ -14,10 +14,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """CI ratchet: @pytest.mark.spec coverage for protocol-kind requirements.
 
-Asserts that at least PROTOCOL_COVERAGE_FLOOR_PCT percent of all
-protocol-kind spec IDs are referenced by at least one @pytest.mark.spec
-marker in the test suite, preventing marker adoption from drifting back
-toward zero.
+Asserts that the number of *uncovered* protocol-kind spec IDs stays at or
+below MAX_UNCOVERED_PROTOCOL_SPECS, preventing coverage from regressing and
+making the goal (zero uncovered) concrete. Lower the constant as more markers
+are added; never raise it.
 
 Spec: SR-05-005.
 """
@@ -29,12 +29,12 @@ import pytest
 from test.architecture import _corpus
 
 # ---------------------------------------------------------------------------
-# Minimum acceptable coverage for protocol-kind spec requirements.
-# This floor was calibrated from the actual coverage achieved after issue
-# #2116 (253/1200 = 21.1%). Raise this constant as coverage improves;
-# never lower it.
+# Maximum uncovered protocol-kind spec requirements allowed by the ratchet.
+# Set from the actual uncovered count after issue #2116 (1200 - 253 = 947).
+# Lower this constant as more @pytest.mark.spec markers are added;
+# never raise it.
 # ---------------------------------------------------------------------------
-PROTOCOL_COVERAGE_FLOOR_PCT = 21
+MAX_UNCOVERED_PROTOCOL_SPECS = 947
 
 _SPEC_MARKER_RE = re.compile(r'@pytest\.mark\.spec\(["\']([^"\']+)["\']\)')
 
@@ -58,10 +58,10 @@ def _collect_marked_ids() -> frozenset[str]:
 
 @pytest.mark.spec("SR-05-005")
 def test_protocol_spec_coverage_floor():
-    """At least PROTOCOL_COVERAGE_FLOOR_PCT% of protocol-kind specs have a marker.
+    """Uncovered protocol-kind specs must not exceed MAX_UNCOVERED_PROTOCOL_SPECS.
 
-    Raises the floor is the only allowed change — never lower
-    PROTOCOL_COVERAGE_FLOOR_PCT or remove spec markers without adding new ones.
+    Lowering the constant is the only allowed change — never raise
+    MAX_UNCOVERED_PROTOCOL_SPECS or remove spec markers without adding new ones.
 
     Spec: SR-05-005.
     """
@@ -74,22 +74,16 @@ def test_protocol_spec_coverage_floor():
         for spec_id, spec in registry.all_specs.items()
         if spec.kind == SpecKind.PROTOCOL
     )
-    total = len(protocol_ids)
-    if total == 0:
+    if not protocol_ids:
         return  # nothing to enforce
 
     marked_ids = _collect_marked_ids()
-    covered = protocol_ids & marked_ids
-    covered_count = len(covered)
+    uncovered = sorted(protocol_ids - marked_ids)
+    uncovered_count = len(uncovered)
 
-    meets_floor = covered_count * 100 >= PROTOCOL_COVERAGE_FLOOR_PCT * total
-
-    sample_uncovered = sorted(protocol_ids - covered)[:10]
-
-    assert meets_floor, (
-        f"Protocol-kind @pytest.mark.spec coverage fell below floor: "
-        f"{covered_count}/{total} "
-        f"({100 * covered_count / total:.1f}% < {PROTOCOL_COVERAGE_FLOOR_PCT}%). "
+    assert uncovered_count <= MAX_UNCOVERED_PROTOCOL_SPECS, (
+        f"Uncovered protocol-kind specs ({uncovered_count}) exceeds ratchet "
+        f"ceiling ({MAX_UNCOVERED_PROTOCOL_SPECS}). "
         f"Run `spec-coverage` to list all uncovered IDs. "
-        f"First uncovered (up to 10): {sample_uncovered}"
+        f"First uncovered (up to 10): {uncovered[:10]}"
     )
