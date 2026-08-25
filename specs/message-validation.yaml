@@ -112,6 +112,10 @@ groups:
       `object_` field; a bare URI reference or `as_Link` is not permitted because
       the recipient has no access to the sender's DataLayer and cannot resolve the
       reference to determine the activity's semantic type.
+    verification: >-
+      Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
+      `VultronValidationError` is raised when `object_` is a bare string URI rather
+      than a typed object.
   - id: MV-09-002
     priority: MUST
     kind: protocol

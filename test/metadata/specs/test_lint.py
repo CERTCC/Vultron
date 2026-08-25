@@ -1249,3 +1249,20 @@ def test_phantom_spec_id_no_ids_in_file_no_error(tmp_path):
     (vultron_dir / "module.py").write_text("def hello():\n    return 42\n")
 
     assert lint(spec_dir) == 0
+
+
+def test_phantom_spec_id_unknown_in_test_dir_is_hard_error(tmp_path, capsys):
+    """A .py file under a non-allowlisted test/ subdir citing an unknown spec ID is a hard error."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    test_core_dir = tmp_path / "test" / "core"
+    test_core_dir.mkdir(parents=True)
+    (test_core_dir / "test_something.py").write_text(
+        '"""Spec: XX-99-001."""\n'
+    )
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "XX-99-001" in captured.err

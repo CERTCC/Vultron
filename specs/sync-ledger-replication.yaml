@@ -273,6 +273,8 @@ groups:
   - id: SYNC-07-004
     priority: MUST
     kind: protocol
+    lint_suppress:
+    - must_without_verification
     statement: >-
       Unit tests MUST cover pending-assertion suppression semantics: add,
       is_suppressed, clear, timeout expiry, zero-timeout disable, and the
@@ -280,6 +282,8 @@ groups:
   - id: SYNC-07-005
     priority: MUST
     kind: protocol
+    lint_suppress:
+    - must_without_verification
     statement: >-
       Unit tests MUST cover per-actor pending-assertion store isolation via
       the module-level registry: distinct store instances per actor, configurable

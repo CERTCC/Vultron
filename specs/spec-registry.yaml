@@ -176,6 +176,9 @@ groups:
       (an RM, EM, or CS state value), and `scenario_start` (a named demo or integration
       scenario). Enumerating kinds allows conformance tooling to classify trigger groups
       without parsing prose.
+    verification: >-
+      `TriggerType` StrEnum in `vultron/metadata/specs/schema.py` defines exactly three
+      members: `message_received`, `state_entered`, and `scenario_start`.
   - id: SR-02-018
     priority: MUST
     kind: project
@@ -184,6 +187,9 @@ groups:
       naming the specific message type (e.g. `EP`) or protocol state (e.g. `RM.VALID`)
       that activates the behavior; for `scenario_start` triggers `value` names the
       scenario (e.g. `fv`, `fvv`).
+    verification: >-
+      `Trigger` model in `vultron/metadata/specs/schema.py` has required fields
+      `type: TriggerType` and `value: str`.
   - id: SR-02-019
     priority: MUST
     kind: project
@@ -194,6 +200,10 @@ groups:
       hypercube pattern string) as typed fields enabling conformance tooling to
       evaluate the precondition by matching against protocol state-machine enums
       directly.
+    verification: >-
+      `Precondition` model in `vultron/metadata/specs/schema.py` has a required
+      `description: str` field and optional typed state fields `rm_state`, `em_state`,
+      `role`, and `cs_pattern`.
   - id: SR-02-020
     priority: SHOULD
     kind: project
@@ -338,6 +348,17 @@ groups:
       a non-existent spec ID is a hard error caught by the pre-commit lint gate
       (`_check_phantom_spec_id_citations`). Files under `test/metadata/specs/` are
       exempted because they legitimately use synthetic fixture IDs.
+    rationale: >-
+      When no spec entry exists for the described behaviour, prefer a clear prose
+      description over inventing a spec ID. A phantom citation misleads readers more
+      than no citation at all — it converts an undocumented choice into an apparently
+      settled requirement, forcing the next reviewer to disprove a mandate rather than
+      evaluate a decision (see issue #2468).
+    verification: >-
+      `uv run spec-lint` exits 1 when any `.py` file under `vultron/` or `test/`
+      (outside `test/metadata/specs/`) cites a spec ID absent from the registry, and
+      exits 0 when all cited IDs resolve. Covered by the phantom-spec-id tests in
+      `test/metadata/specs/test_lint.py`.
 - id: SR-05
   title: Pytest Integration
   specs:
