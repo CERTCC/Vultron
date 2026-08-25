@@ -56,6 +56,10 @@ groups:
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
 
+    stories:
+    - story_2022_002
+    - story_2022_038
+    - story_2022_016
   - id: RMB-01-002
     priority: MUST
     kind: protocol
@@ -108,6 +112,10 @@ groups:
       spec_id: MSM-01-001
       note: 'RS shorthand wire-type mapping'
 
+    stories:
+    - story_2022_038
+    - story_2022_111
+    - story_2022_081
   - id: RMB-01-003
     priority: SHOULD
     kind: protocol
@@ -962,6 +970,9 @@ groups:
       spec_id: VP-02-014
       note: SHOULD perform a prioritization evaluation for Valid reports
 
+    stories:
+    - story_2022_086
+    - story_2022_087
   - id: RMB-10-002
     priority: MUST_NOT
     kind: protocol
@@ -1257,6 +1268,9 @@ groups:
     - rm_state:
         - ACCEPTED
       description: Participant is in RM Accepted
+    stories:
+    - story_2022_006
+    - story_2022_013
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1464,3 +1478,5 @@ groups:
       spec_id: SDO-02-004
     - rel_type: refines
       spec_id: BTND-10-001
+    lint_suppress:
+    - missing_story_reference

@@ -23,6 +23,9 @@ groups:
       Integration tests in `test/demo/` confirm that the inbox handler rejects
       payloads missing required AS2 fields (e.g., `type`) with an HTTP 4xx response
       before dispatch.
+    stories:
+    - story_2022_012
+    - story_2022_038
   - id: MV-01-005
     priority: MUST
     kind: protocol
@@ -33,6 +36,8 @@ groups:
       A unit test confirms that passing activities with `None` or absent `type`,
       `actor`, and `object` fields to the dispatch router returns a dispatch result
       rather than raising an unhandled exception.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-01-006
     priority: MUST
     kind: protocol
@@ -46,6 +51,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MV-01-005
+    lint_suppress:
+    - missing_story_reference
   - id: MV-01-007
     priority: MUST_NOT
     kind: protocol
@@ -91,6 +98,8 @@ groups:
       A unit test confirms that activity-type-specific validators raise
       `ValidationError` when required per-type fields are absent from an otherwise
       valid AS2 payload.
+    lint_suppress:
+    - missing_story_reference
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -101,6 +110,8 @@ groups:
     verification: >-
       A unit test confirms that an activity carrying an `object` whose `type` is not
       in the Vultron vocabulary is rejected with a validation error before dispatch.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-04-002
     priority: SHOULD
     kind: protocol
@@ -119,6 +130,9 @@ groups:
       A unit test confirms that the activity validator rejects activities whose `id`,
       `actor`, or `object` reference fields contain non-URI strings, and accepts
       well-formed URIs.
+    stories:
+    - story_2022_034
+    - story_2022_030
   - id: MV-05-002
     priority: MUST
     kind: protocol
@@ -127,6 +141,8 @@ groups:
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
       strings.
+    lint_suppress:
+    - missing_story_reference
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
@@ -142,6 +158,9 @@ groups:
       Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
       `VultronValidationError` is raised when `object_` is a bare string URI rather
       than a typed object.
+    stories:
+    - story_2022_039
+    - story_2022_106
   - id: MV-09-002
     priority: MUST
     kind: protocol
@@ -152,6 +171,8 @@ groups:
     verification: >-
       A unit test confirms that submitting an outbound activity with `object_` set to a
       bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-09-003
     priority: MUST
     kind: protocol
@@ -165,6 +186,8 @@ groups:
       Inspection of activity class definitions in `vultron/wire/` confirms that classes
       whose dispatch logic inspects `object_.type` declare `object_` as a required field
       with no `None` default.
+    lint_suppress:
+    - missing_story_reference
 - id: MV-10
   title: Stub Objects
   specs:
@@ -178,6 +201,8 @@ groups:
       A unit test confirms that the stub-object validator rejects objects missing either
       `id` or `type`, and accepts objects containing only those two required fields plus
       an optional `summary`.
+    stories:
+    - story_2022_039
   - id: MV-10-002
     priority: MUST
     kind: protocol
@@ -186,6 +211,8 @@ groups:
       Inspection of the inbound message validator confirms that stub detection runs only
       on `actor`, `object`, `target`, and `origin` fields; stubs in other field positions
       are treated as full-object validation failures.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-10-003
     priority: MUST_NOT
     kind: protocol
@@ -225,6 +252,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: MV-10-006
+    stories:
+    - story_2022_088
+    - story_2022_023
+    - story_2022_045
   - id: MV-10-006
     priority: MUST
     kind: protocol
@@ -239,3 +270,7 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
+    stories:
+    - story_2022_023
+    - story_2022_026
+    - story_2022_052

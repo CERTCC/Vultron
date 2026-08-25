@@ -124,6 +124,8 @@ groups:
       trailing-underscore convention where needed. Class names retain `as_`.
     verification: Inspection of `vultron/` confirms no Pydantic field name (as opposed to class name) begins with `as_`;
       the `as_` prefix convention applies only to class names.
+    lint_suppress:
+    - missing_story_reference
 - id: CS-08
   title: Optional Field Non-Emptiness
   specs:
@@ -247,6 +249,8 @@ groups:
     statement: Wire-format datetime fields MUST serialize to RFC 3339 / ISO 8601 format with explicit UTC offset (`Z` or `+00:00`)
     verification: A unit test confirms that wire-layer model serialization produces datetime strings with an explicit `Z`
       or `+00:00` UTC offset rather than naive or offset-free formats.
+    lint_suppress:
+    - missing_story_reference
 - id: CS-14
   title: Wire Model Configuration
   specs:

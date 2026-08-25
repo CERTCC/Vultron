@@ -40,6 +40,8 @@ groups:
     statement: >-
       An Actor MUST NOT assume that a recipient has knowledge of any object that has not been
       explicitly included in a prior activity sent to that recipient.
+    stories:
+    - story_2022_053
   - id: AKM-02-002
     priority: MUST_NOT
     kind: protocol
@@ -54,6 +56,9 @@ groups:
       activity in selective-disclosure scenarios.
     verification: Inspection of `vultron/wire/as2/factories/` confirms that only the `target` field of `Invite`
       activities is permitted to carry an object reference rather than a fully inline object.
+    stories:
+    - story_2022_053
+    - story_2022_024
 - id: AKM-03
   title: Outbound Activity Object Integrity
   specs:
@@ -65,6 +70,8 @@ groups:
       Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object.
     verification: Integration tests in `test/demo/` confirm that outbound initiating activities include a
       fully-serialized `object` field rather than a bare URI reference.
+    stories:
+    - story_2022_053
   - id: AKM-03-002
     priority: MUST
     kind: protocol
@@ -73,6 +80,8 @@ groups:
       guard.
     verification: A unit test confirms that the outbox handler rejects an activity whose `object` field is a bare URI
       reference rather than a fully inline typed domain object.
+    lint_suppress:
+    - missing_story_reference
 - id: AKM-04
   title: 'Future: Known-Object Tracking'
   specs:
