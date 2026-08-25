@@ -669,12 +669,12 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
     CaseLedgerEntry with event_type == "accept_case_ownership_transfer".
     """
 
-    def test_finder_receives_announce_ledger_entry(self, monkeypatch):
+    def test_finder_receives_announce_ledger_entry(self):
         from vultron.adapters.driving.fastapi.outbox_handler import (
             configure_default_emitter,
             get_default_emitter,
         )
-        from vultron.config import reload_config
+        from vultron.config import config_override
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.factories.case import (
             offer_case_ownership_transfer_activity,
@@ -687,175 +687,171 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
             as_CaseParticipant,
         )
 
-        monkeypatch.setenv(
-            "VULTRON_SERVER__BASE_URL",
-            f"{_OTC_COORDINATOR_BASE}/api/v2",
-        )
-        monkeypatch.setenv(
-            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
-            f"{_OTC_COORDINATOR_BASE}/api/v2",
-        )
-        reload_config()
+        with config_override(
+            VULTRON_SERVER__BASE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
+            VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
+        ):
+            router = _TestClientRouter()
+            vendor_iso = create_isolated_actor_app(
+                base_url=_OTC_VENDOR_BASE, router=router
+            )
+            coordinator_iso = create_isolated_actor_app(
+                base_url=_OTC_COORDINATOR_BASE, router=router
+            )
+            finder_iso = create_isolated_actor_app(
+                base_url=_OTC_FINDER_BASE, router=router
+            )
 
-        router = _TestClientRouter()
-        vendor_iso = create_isolated_actor_app(
-            base_url=_OTC_VENDOR_BASE, router=router
-        )
-        coordinator_iso = create_isolated_actor_app(
-            base_url=_OTC_COORDINATOR_BASE, router=router
-        )
-        finder_iso = create_isolated_actor_app(
-            base_url=_OTC_FINDER_BASE, router=router
-        )
+            previous_emitter = get_default_emitter()
+            configure_default_emitter(router)  # type: ignore[arg-type]
 
-        previous_emitter = get_default_emitter()
-        configure_default_emitter(router)  # type: ignore[arg-type]
+            try:
+                with (
+                    vendor_iso.client as vendor_tc,
+                    coordinator_iso.client as coordinator_tc,
+                    finder_iso.client as _finder_tc,
+                ):
+                    coordinator_base_api = f"{_OTC_COORDINATOR_BASE}/api/v2"
+                    vendor_base_api = f"{_OTC_VENDOR_BASE}/api/v2"
+                    finder_base_api = f"{_OTC_FINDER_BASE}/api/v2"
 
-        try:
-            with (
-                vendor_iso.client as vendor_tc,
-                coordinator_iso.client as coordinator_tc,
-                finder_iso.client as _finder_tc,
-            ):
-                coordinator_base_api = f"{_OTC_COORDINATOR_BASE}/api/v2"
-                vendor_base_api = f"{_OTC_VENDOR_BASE}/api/v2"
-                finder_base_api = f"{_OTC_FINDER_BASE}/api/v2"
-
-                vendor_id = _otc_create_actor(
-                    vendor_tc, vendor_base_api, _OTC_VENDOR_SLUG, "Vendor OTC"
-                )
-                coordinator_id = _otc_create_actor(
-                    coordinator_tc,
-                    coordinator_base_api,
-                    _OTC_COORDINATOR_SLUG,
-                    "Coordinator OTC",
-                )
-                finder_id = _otc_create_actor(
-                    _finder_tc,
-                    finder_base_api,
-                    _OTC_FINDER_SLUG,
-                    "Finder OTC",
-                )
-
-                # Build a case on the Coordinator's DataLayer directly so
-                # CommitCaseLedgerEntryNode can read participants and the
-                # FanOutLogEntryNode knows to broadcast to Finder.
-                case = as_VulnerabilityCase(
-                    name="OTC Test Case",
-                    attributed_to=vendor_id,
-                    content="AC-5c integration test case",
-                )
-                case_id = case.id_
-
-                vendor_p = as_CaseParticipant(
-                    attributed_to=vendor_id,
-                    context=case_id,
-                    case_roles=[CVDRole.CASE_OWNER],
-                )
-                coordinator_p = as_CaseParticipant(
-                    attributed_to=coordinator_id,
-                    context=case_id,
-                    case_roles=[CVDRole.CASE_MANAGER],
-                )
-                finder_p = as_CaseParticipant(
-                    attributed_to=finder_id,
-                    context=case_id,
-                    case_roles=[CVDRole.FINDER],
-                )
-                case.actor_participant_index[vendor_id] = vendor_p.id_
-                case.actor_participant_index[coordinator_id] = (
-                    coordinator_p.id_
-                )
-                case.actor_participant_index[finder_id] = finder_p.id_
-                case.case_participants.extend(
-                    [vendor_p.id_, coordinator_p.id_, finder_p.id_]
-                )
-
-                cdl = coordinator_iso.dl
-                cdl.create(case)
-                cdl.create(vendor_p)
-                cdl.create(coordinator_p)
-                cdl.create(finder_p)
-                # Coordinator's DL needs to know about the other actors for
-                # outbox delivery routing.
-                from vultron.wire.as2.vocab.base.objects.actors import (
-                    as_Service,
-                )
-
-                cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
-                cdl.create(as_Service(id_=finder_id, name="Finder OTC"))
-
-                # Seed the Offer on the Coordinator's DL (as if the Vendor
-                # had already sent it and the Coordinator stored it).
-                case_wire = as_VulnerabilityCase.model_validate(
-                    {"id": case_id, "name": case.name or "OTC Test Case"}
-                )
-                offer = offer_case_ownership_transfer_activity(
-                    case=case_wire,
-                    target=coordinator_id,
-                    actor=vendor_id,
-                    to=[coordinator_id],
-                )
-                cdl.create(offer)
-
-                # Build and deliver Accept(Offer) to Coordinator's inbox.
-                # The Coordinator IS the CaseActor so it processes the Accept,
-                # updates attributed_to, commits the ledger entry, and fans out
-                # Announce(CaseLedgerEntry) to all case participants.
-                accept = accept_case_ownership_transfer_activity(
-                    offer=offer,
-                    actor=coordinator_id,
-                    to=[coordinator_id],
-                )
-                _otc_post_inbox(coordinator_tc, _OTC_COORDINATOR_SLUG, accept)
-
-                # The TestClient processes BackgroundTasks synchronously;
-                # the outbox drains during the POST and _TestClientRouter
-                # delivers Announce(CaseLedgerEntry) to Finder's inbox.
-                # by_type returns a dict keyed by ID; values are model dicts
-                # with type_ / object_ fields (SQLite DataLayer row format).
-                announces = finder_iso.dl.by_type("Announce")
-                announce_values = (
-                    list(announces.values())
-                    if isinstance(announces, dict)
-                    else list(announces)
-                )
-
-                def _is_ot_announce(a: object) -> bool:
-                    obj = (
-                        a.get("object_")
-                        if isinstance(a, dict)
-                        else getattr(a, "object_", None)
+                    vendor_id = _otc_create_actor(
+                        vendor_tc,
+                        vendor_base_api,
+                        _OTC_VENDOR_SLUG,
+                        "Vendor OTC",
                     )
-                    if obj is None:
-                        return False
-                    event_type = (
-                        obj.get("event_type")
-                        if isinstance(obj, dict)
-                        else getattr(obj, "event_type", None)
+                    coordinator_id = _otc_create_actor(
+                        coordinator_tc,
+                        coordinator_base_api,
+                        _OTC_COORDINATOR_SLUG,
+                        "Coordinator OTC",
                     )
-                    return event_type == "accept_case_ownership_transfer"
+                    finder_id = _otc_create_actor(
+                        _finder_tc,
+                        finder_base_api,
+                        _OTC_FINDER_SLUG,
+                        "Finder OTC",
+                    )
 
-                ot_announces = [
-                    a for a in announce_values if _is_ot_announce(a)
-                ]
-                assert len(ot_announces) >= 1, (
-                    "Finder's DataLayer must contain at least one "
-                    "Announce(CaseLedgerEntry[event_type=accept_case_ownership_transfer]) "
-                    "after ownership transfer — no manual trigger (AC-5c). "
-                    f"Got announces: {announce_values!r}"
-                )
-        finally:
-            configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-            vendor_iso.dl.close()
-            coordinator_iso.dl.close()
-            finder_iso.dl.close()
-            # Undo the env patches BEFORE reloading, otherwise the reload
-            # re-caches this test's coordinator URLs and every subsequent test
-            # in the session inherits them (#2086).  monkeypatch's own undo
-            # runs after this fixture teardown, which is too late.
-            monkeypatch.undo()
-            reload_config()
+                    # Build a case on the Coordinator's DataLayer directly so
+                    # CommitCaseLedgerEntryNode can read participants and the
+                    # FanOutLogEntryNode knows to broadcast to Finder.
+                    case = as_VulnerabilityCase(
+                        name="OTC Test Case",
+                        attributed_to=vendor_id,
+                        content="AC-5c integration test case",
+                    )
+                    case_id = case.id_
+
+                    vendor_p = as_CaseParticipant(
+                        attributed_to=vendor_id,
+                        context=case_id,
+                        case_roles=[CVDRole.CASE_OWNER],
+                    )
+                    coordinator_p = as_CaseParticipant(
+                        attributed_to=coordinator_id,
+                        context=case_id,
+                        case_roles=[CVDRole.CASE_MANAGER],
+                    )
+                    finder_p = as_CaseParticipant(
+                        attributed_to=finder_id,
+                        context=case_id,
+                        case_roles=[CVDRole.FINDER],
+                    )
+                    case.actor_participant_index[vendor_id] = vendor_p.id_
+                    case.actor_participant_index[coordinator_id] = (
+                        coordinator_p.id_
+                    )
+                    case.actor_participant_index[finder_id] = finder_p.id_
+                    case.case_participants.extend(
+                        [vendor_p.id_, coordinator_p.id_, finder_p.id_]
+                    )
+
+                    cdl = coordinator_iso.dl
+                    cdl.create(case)
+                    cdl.create(vendor_p)
+                    cdl.create(coordinator_p)
+                    cdl.create(finder_p)
+                    # Coordinator's DL needs to know about the other actors
+                    # for outbox delivery routing.
+                    from vultron.wire.as2.vocab.base.objects.actors import (
+                        as_Service,
+                    )
+
+                    cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
+                    cdl.create(as_Service(id_=finder_id, name="Finder OTC"))
+
+                    # Seed the Offer on the Coordinator's DL (as if the
+                    # Vendor had already sent it and the Coordinator stored it).
+                    case_wire = as_VulnerabilityCase.model_validate(
+                        {"id": case_id, "name": case.name or "OTC Test Case"}
+                    )
+                    offer = offer_case_ownership_transfer_activity(
+                        case=case_wire,
+                        target=coordinator_id,
+                        actor=vendor_id,
+                        to=[coordinator_id],
+                    )
+                    cdl.create(offer)
+
+                    # Build and deliver Accept(Offer) to Coordinator's inbox.
+                    # The Coordinator IS the CaseActor so it processes the
+                    # Accept, updates attributed_to, commits the ledger entry,
+                    # and fans out Announce(CaseLedgerEntry) to all
+                    # case participants.
+                    accept = accept_case_ownership_transfer_activity(
+                        offer=offer,
+                        actor=coordinator_id,
+                        to=[coordinator_id],
+                    )
+                    _otc_post_inbox(
+                        coordinator_tc, _OTC_COORDINATOR_SLUG, accept
+                    )
+
+                    # The TestClient processes BackgroundTasks synchronously;
+                    # the outbox drains during the POST and _TestClientRouter
+                    # delivers Announce(CaseLedgerEntry) to Finder's inbox.
+                    # by_type returns a dict keyed by ID; values are model
+                    # dicts with type_ / object_ fields (SQLite DataLayer
+                    # row format).
+                    announces = finder_iso.dl.by_type("Announce")
+                    announce_values = (
+                        list(announces.values())
+                        if isinstance(announces, dict)
+                        else list(announces)
+                    )
+
+                    def _is_ot_announce(a: object) -> bool:
+                        obj = (
+                            a.get("object_")
+                            if isinstance(a, dict)
+                            else getattr(a, "object_", None)
+                        )
+                        if obj is None:
+                            return False
+                        event_type = (
+                            obj.get("event_type")
+                            if isinstance(obj, dict)
+                            else getattr(obj, "event_type", None)
+                        )
+                        return event_type == "accept_case_ownership_transfer"
+
+                    ot_announces = [
+                        a for a in announce_values if _is_ot_announce(a)
+                    ]
+                    assert len(ot_announces) >= 1, (
+                        "Finder's DataLayer must contain at least one "
+                        "Announce(CaseLedgerEntry[event_type="
+                        "accept_case_ownership_transfer]) "
+                        "after ownership transfer — no manual trigger (AC-5c). "
+                        f"Got announces: {announce_values!r}"
+                    )
+            finally:
+                configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+                vendor_iso.dl.close()
+                coordinator_iso.dl.close()
+                finder_iso.dl.close()
 
 
 # ---------------------------------------------------------------------------
