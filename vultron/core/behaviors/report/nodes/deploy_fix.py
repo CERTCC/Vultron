@@ -34,25 +34,23 @@ Notes: ``notes/bt-fuzzer-rm-fix.md``.
 """
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.nodes.participant.common import (
-    resolve_case_manager_id,
     resolve_participant_state_from_dl,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.report.nodes.develop_fix import (
+    _EmitParticipantStatusActivityBase,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import VfdDimension
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 
@@ -395,7 +393,7 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class EmitCDActivity(DataLayerActionWithPorts):
+class EmitCDActivity(_EmitParticipantStatusActivityBase):
     """Emit a CD (Fix Deployed) ``Add(ParticipantStatus)`` to the Case Actor.
 
     Calls ``trigger_activity_factory.add_participant_status_to_participant``
@@ -407,86 +405,9 @@ class EmitCDActivity(DataLayerActionWithPorts):
     activities to the Case Actor (CASE_MANAGER) so the CaseActor can commit
     a canonical ledger entry.
 
-    Per AC-5 (issue #1825); mirrors ``EmitCFActivity`` from ``develop_fix.py``.
+    Per AC-5 (issue #1825); uses ``_EmitParticipantStatusActivityBase`` from
+    ``develop_fix.py`` (BTND-07-005).
     """
-
-    def __init__(
-        self,
-        case_id: str,
-        actor_id: str,
-        result_out: dict,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
-        self._result_out = result_out
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit CD activity",
-                self.name,
-            )
-            return f
-
-        assert self.datalayer is not None
-        assert self.trigger_activity_factory is not None
-
-        status_id = self._result_out.get("status_id")
-        participant_id = self._result_out.get("participant_id")
-        if not status_id or not participant_id:
-            self.feedback_message = (
-                "status_id or participant_id missing from result_out"
-                " — TransitionCStoFixDeployed must precede EmitCDActivity"
-            )
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
-
-        case_manager_id = resolve_case_manager_id(case, self.datalayer)
-        if not case_manager_id:
-            self.feedback_message = (
-                f"No CASE_MANAGER found for case '{self._case_id}'"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        # When actor IS the case manager (single-actor scenario) to=None means
-        # the activity is self-addressed; no external delivery needed.
-        to = [case_manager_id] if case_manager_id != self._actor_id else None
-
-        try:
-            activity_id = self.trigger_activity_factory.add_participant_status_to_participant(
-                status_id=status_id,
-                participant_id=participant_id,
-                actor=self._actor_id,
-                to=to,
-            )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self._actor_id, activity_id
-            )
-            self.logger.info(
-                "%s: CD activity '%s' emitted for actor '%s' in case '%s'",
-                self.name,
-                activity_id,
-                self._actor_id,
-                self._case_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
-                "%s: Error emitting CD activity: %s", self.name, e
-            )
-            return Status.FAILURE
 
 
 __all__ = [
