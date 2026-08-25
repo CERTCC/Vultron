@@ -34,6 +34,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -116,3 +117,18 @@ jobs:
           [ "$MISSING" -eq 0 ]
 
           echo "Scenario matrix OK: $(jq -r length "$FILE") total, ${PR_COUNT} in PR set."
+
+      - name: Notify CI failure
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-actions-lint
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-actions-lint
+          token: ${{ secrets.GITHUB_TOKEN }}
