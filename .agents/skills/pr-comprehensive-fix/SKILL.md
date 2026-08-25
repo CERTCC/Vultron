@@ -70,7 +70,7 @@ If proceeding, invoke sub-skills in order:
 
 Based on Step 1 decision point:
 
-- **Unit only**: `uv run pytest --tb=short 2>&1 | tail -5`
+- **Unit only**: `uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5`
 - **Full (unit + integration)**: Run both unit and integration test suites
 
 If tests fail:
