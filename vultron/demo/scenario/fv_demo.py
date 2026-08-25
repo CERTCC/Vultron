@@ -452,7 +452,7 @@ def _phase_report_submission(
         wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
-            expected_actor_ids={FINDER_ACTOR_ID, VENDOR_ACTOR_ID},
+            expected_actor_ids={finder.id_, vendor.id_},
         )
 
         with demo_check(
