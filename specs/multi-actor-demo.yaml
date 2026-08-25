@@ -3446,17 +3446,19 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The VC scenario MUST involve exactly two actor identities — Vendor and
-      Coordinator — each with its own isolated DataLayer and separate container.
-      The Vendor container MUST serve as its own CaseActor host
-      (`VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://vendor:7999/api/v2`); no
-      dedicated third CaseActor container is required.
+      The VC scenario MUST involve three actor identities — Vendor, Coordinator,
+      and CaseActor — each with its own isolated DataLayer and separate container.
+      The CaseActor MUST run as a separate actor identity on the dedicated
+      `case-actor` container (not co-located on the Vendor container), and
+      `docker-compose-multi-actor.yml` MUST configure Vendor with
+      `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2`.
     rationale: >-
-      VC is the minimal vendor-self-discovers scenario: no external Finder, no
-      dedicated CaseActor container. Vendor self-hosts CaseActor (CP-08-003),
-      which is the correct configuration in `docker-compose-multi-actor.yml`
-      for the vendor container. Using the two existing containers (vendor,
-      coordinator) avoids introducing new Docker infrastructure.
+      Using the shared `case-actor` container for Vendor-owned cases matches the
+      topology used by other scenarios where a non-Coordinator actor holds
+      CASE_OWNER, keeps the CaseActor identity consistent across scenarios, and
+      exercises true multi-container message delivery. All three containers
+      (vendor, coordinator, case-actor) already exist in
+      `docker-compose-multi-actor.yml`; no new infrastructure is required.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
