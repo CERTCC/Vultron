@@ -55,6 +55,7 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     TransitionCStoFixDeployed,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
+    _EmitParticipantStatusActivityBase,
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
     CheckRMStateAccepted,
@@ -104,6 +105,7 @@ __all__ = [
     "TransitionParticipantRMtoAccepted",
     "TransitionParticipantRMtoDeferred",
     # develop_fix
+    "_EmitParticipantStatusActivityBase",
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",
     "CheckRMStateAccepted",
