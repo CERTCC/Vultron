@@ -168,3 +168,20 @@ See `specs/` directory for detailed requirements with testable verification
 criteria.
 
 ---
+
+## Adding or Modifying a `kind: protocol` Entry Requires a Same-PR Marker Test (SR-05-005, ISSUE-2117)
+
+The CI ratchet (`MAX_UNCOVERED_PROTOCOL_SPECS` in
+`test/architecture/test_spec_coverage_ratchet.py`) counts uncovered
+protocol-kind IDs. Its ceiling can only be lowered, never raised. Adding or
+modifying a `kind: protocol` spec entry without a corresponding
+`@pytest.mark.spec("<ID>")` marker in a test raises the uncovered count and
+fails CI.
+
+**Fix:** add `@pytest.mark.spec("<new-id>")` to a test in the same PR, before
+the branch lands. Run `spec-coverage` to verify coverage after adding the
+marker.
+
+See SR-05-004, SR-05-005.
+
+---
