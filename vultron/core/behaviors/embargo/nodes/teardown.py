@@ -239,48 +239,23 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
             entry = _require_log_entry(self._activity, self.name)
             case_id = entry.case_id
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.feedback_message = f"Case '{case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        current_em = case.current_status.em.state
-
-        if current_em == EM.EXITED:
+        # AC-1: delegate EM state read/write to canonical nodes.
+        clear_node = ClearActiveEmbargoNode(case_id=case_id)
+        clear_node.datalayer = self.datalayer
+        clear_node.actor_id = self.actor_id
+        if clear_node.update() != Status.SUCCESS:
             self.feedback_message = (
-                f"Case '{case_id}' EM already EXITED — idempotent no-op"
+                f"Case '{case_id}' not found — teardown skipped"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        if not is_valid_em_transition(current_em, EM.EXITED):
-            self.logger.warning(
-                "%s: EM transition %s → EXITED is not a standard machine"
-                " transition for case '%s'; applying state-sync override",
-                self.name,
-                current_em,
-                case_id,
-            )
+        reset_node = ResetParticipantConsentNode(case_id=case_id)
+        reset_node.datalayer = self.datalayer
+        reset_node.update()
 
-        case.current_status.em = EmDimension(state=EM.EXITED)
-        case.active_embargo = None
-        reset_case_participant_embargo_consent(self.datalayer, case)
-        self.datalayer.save(case)
-
-        self.feedback_message = (
-            f"Embargo teardown applied on case '{case_id}'"
-            f" (EM {current_em} → EXITED)"
-        )
+        self.feedback_message = f"Embargo teardown applied on case '{case_id}'"
         self.logger.debug("%s: %s", self.name, self.feedback_message)
-        # SL-04-001/SL-04-006: embargo teardown is a protocol milestone.
-        log_em_transition(
-            self.logger,
-            self.actor_id or "<unknown>",
-            case_id,
-            current_em,
-            EM.EXITED,
-        )
         return Status.SUCCESS
 
 
