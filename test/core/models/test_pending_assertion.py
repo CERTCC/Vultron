@@ -111,6 +111,7 @@ class TestPendingAssertionDataclass:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-07-004")
 class TestAddAndIsSuppress:
     def test_new_store_does_not_suppress(self, store):
         assert not store.is_suppressed(CASE_ID, EVENT_TYPE, OBJECT_ID)
@@ -315,6 +316,7 @@ class TestExpireTimedOut:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-07-005")
 class TestRegistry:
     def test_get_store_creates_new_for_new_actor(self):
         s = get_pending_assertion_store(ACTOR_A)

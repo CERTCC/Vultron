@@ -20,6 +20,9 @@ groups:
     kind: protocol
     statement: Non-CaseActor activities that participate in a report, proto-case, or case workflow MUST be treated as participant
       assertions awaiting CaseActor processing
+    verification: Integration tests in `test/demo/` confirm that activities sent by non-CaseActor participants
+      are routed through assertion intake and buffered as participant assertions before the CaseActor processes
+      them into canonical ledger entries.
   - id: CLP-01-002
     priority: MUST_NOT
     kind: protocol
@@ -29,6 +32,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: The CaseActor MUST be the only actor that emits canonical case-history entries used by replicas
+    verification: 'Integration tests in `test/demo/` confirm that every `CaseLedgerEntry` in the canonical ledger
+      is authored by the CaseActor: the `actor` on the enclosing `Announce(CaseLedgerEntry)` transport always
+      matches `case_actor_id`.'
   - id: CLP-01-004
     priority: MUST_NOT
     kind: protocol
@@ -40,20 +46,31 @@ groups:
     priority: MUST
     kind: protocol
     statement: For each case-resolvable assertion processed at the case layer, the CaseActor MUST append a canonical `CaseLedgerEntry`
+    verification: Integration tests in `test/demo/` confirm that after each protocol-significant activity is
+      processed at the case layer, the CaseActor's ledger grows by exactly one new `CaseLedgerEntry` for
+      that case.
   - id: CLP-02-002
     priority: MUST
     kind: protocol
     statement: '`CaseLedgerEntry` MUST be a canonical content object distinct from any transport envelope used to replicate
       it'
+    verification: Inspection of `vultron/core/models/case_ledger_entry.py` confirms that `CaseLedgerEntry` is
+      a standalone Pydantic model that shares no inheritance with the `Announce` transport wrapper and can be
+      serialized and validated independently.
   - id: CLP-02-003
     priority: MUST
     kind: protocol
     statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a normalized immutable snapshot of it, containing
       all fields required for deterministic replay'
+    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that each committed
+      `CaseLedgerEntry` contains a non-empty `payloadSnapshot` that round-trips through `model_validate` on
+      the corresponding wire vocabulary class.'
   - id: CLP-02-004
     priority: MUST
     kind: protocol
     statement: '`CaseLedgerEntry` MUST include a disposition field with at least `recorded` and `rejected`'
+    verification: Inspection of `vultron/core/models/case_ledger_entry.py` confirms that the `disposition`
+      field is a typed literal or enum accepting at least `"recorded"` and `"rejected"` as valid values.
   - id: CLP-02-005
     priority: SHOULD
     kind: protocol
@@ -63,12 +80,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`CaseLedgerEntry` MUST include a `log_index` field corresponding to SYNC-01-002.'
+    verification: Inspection of `vultron/core/models/case_ledger_entry.py` confirms that `CaseLedgerEntry`
+      declares a `log_index` field, and integration tests confirm it is populated on every committed entry.
   - id: CLP-02-008
     priority: MUST
     kind: protocol
     statement: The `log_index` field of a `CaseLedgerEntry` MUST be set by the CaseActor's single authoritative write path.
     rationale: Centralising log_index assignment in the single authoritative write path prevents gaps, duplicates, and
       out-of-order index values that would break hash-chain integrity.
+    verification: Unit tests for `CommitCaseLedgerEntryNode` confirm that `log_index` is assigned within the
+      authoritative commit node and that no external code path sets this field directly on the entry before
+      commit.
   - id: CLP-02-009
     priority: MUST_NOT
     kind: protocol
@@ -91,6 +113,8 @@ groups:
       with the current Raft term at time of append.
     rationale: The Raft term anchors each ledger entry to the leader epoch in which it was written, enabling followers
       to detect stale leader writes during leader-change scenarios.
+    verification: Integration tests confirm that `CaseLedgerEntry` objects produced in a multi-node CaseActor
+      cluster deployment carry a non-null `term` field equal to the Raft term at the time of append.
 - id: CLP-03
   title: Audit Scope and Continuity
   specs:
@@ -99,16 +123,24 @@ groups:
     kind: protocol
     statement: Only assertions that can be resolved to a specific report, proto-case, or case MUST be appended to the case
       audit ledger
+    verification: Integration tests in `test/demo/` confirm that activities lacking a resolvable report,
+      proto-case, or case ID are dropped before reaching `CommitCaseLedgerEntryNode` and produce no
+      `CaseLedgerEntry` in the ledger.
   - id: CLP-03-002
     priority: MUST
     kind: protocol
     statement: Malformed, unauthenticated, or otherwise unrouteable inbound messages that cannot be attached to a report or
       case MUST be handled outside the case audit ledger
+    verification: Integration tests in `test/demo/` confirm that malformed or unauthenticated inbound messages
+      are handled in a pre-ledger error path and that no `CaseLedgerEntry` is written for them.
   - id: CLP-03-003
     priority: MUST
     kind: protocol
     statement: The assertion-recording model MUST support continuity from report receipt through the case lifecycle so that
       all history — including the proto-case stage (RM.RECEIVED / RM.INVALID) — is captured in the case audit ledger
+    verification: Integration tests in `test/demo/test_receive_report_demo.py` confirm that `CaseLedgerEntry`
+      objects are present for the initial report-receipt stage (RM.RECEIVED) before any case has been
+      promoted, establishing audit continuity from first contact.
 - id: CLP-04
   title: Recorded Projection and Replication
   specs:
@@ -117,20 +149,31 @@ groups:
     kind: protocol
     statement: The authoritative recorded history of a case MUST be a filtered projection of `CaseLedgerEntry` objects whose
       disposition is `recorded`
+    verification: '`test/demo/test_ledger_dump.py` confirms that the recorded history projection contains only
+      `CaseLedgerEntry` objects with `disposition="recorded"` and that no `disposition="rejected"` entries
+      appear in it.'
   - id: CLP-04-002
     priority: MUST
     kind: protocol
     statement: Case-state reconstruction MUST use only the recorded projection and MUST ignore rejected entries
+    verification: Integration tests in `test/demo/` confirm that case-state reconstruction reads exclusively
+      from the recorded projection; when a rejected entry is present in the ledger, the reconstructed state
+      matches the state derived from recorded-only entries.
   - id: CLP-04-003
     priority: MUST
     kind: protocol
     statement: Replicated hash chains, Merkle proofs, and replay state MUST be computed over recorded `CaseLedgerEntry` objects
       only
+    verification: Integration tests in `test/demo/test_sync_ledger_replication.py` confirm that hash chain
+      verification (`verify_hash_chain`) is computed only over recorded `CaseLedgerEntry` objects and passes
+      for a correctly formed ledger.
   - id: CLP-04-004
     priority: MUST
     kind: protocol
     statement: CaseActor fan-out replication MUST deliver the canonical `CaseLedgerEntry` content, wrapped in an ActivityStreams
       transport envelope such as `Announce`
+    verification: Integration tests in `test/demo/` confirm that each canonical ledger entry replicated from the
+      CaseActor arrives at participants wrapped in an `Announce(CaseLedgerEntry)` ActivityStreams activity.
   - id: CLP-04-005
     priority: SHOULD
     kind: protocol
@@ -140,6 +183,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'The canonical recorded log MUST be the authoritative source of truth for case participant membership and case state; implementations MUST NOT derive participant membership or case state from any other source.'
+    verification: Integration tests in `test/demo/` confirm that participant membership lists and case state
+      values are derived exclusively from the canonical recorded log rather than from any other data source
+      such as the outbox or actor-local state.
 - id: CLP-05
   title: Rejection Handling
   specs:
@@ -175,11 +221,16 @@ groups:
     kind: protocol
     statement: Implementations that provide pending assertion suppression MUST support a configurable timeout; the default
       timeout SHOULD be 180 seconds
+    verification: A unit test confirms that the pending assertion suppression store's timeout defaults to 180
+      seconds and that a constructor argument overrides the default to any positive value.
   - id: CLP-06-004
     priority: MUST
     kind: protocol
     statement: When a pending assertion reaches timeout without matching canonical confirmation, it MUST transition to a timed-out
       state and the system MUST emit an error log
+    verification: A unit test confirms that when a pending assertion's suppression window elapses without a
+      matching canonical confirmation, the entry transitions to a timed-out state and the system emits an
+      error-level log message.
   - id: CLP-06-005
     priority: MUST_NOT
     kind: protocol
@@ -190,6 +241,9 @@ groups:
     kind: protocol
     statement: A pending assertion entry MUST be cleared when a matching canonical `CaseLedgerEntry(recorded|rejected)` is
       observed
+    verification: A unit test confirms that when a `CaseLedgerEntry` with either `disposition="recorded"` or
+      `disposition="rejected"` arrives matching a pending assertion, that assertion entry is immediately
+      removed from the pending store.
 - id: CLP-07
   title: Canonical Entry Criteria and Ledger/Process-Log Separation
   specs:
@@ -198,6 +252,9 @@ groups:
     kind: protocol
     statement: A `CaseLedgerEntry` committed to the canonical case ledger MUST correspond to exactly one CaseActor-accepted
       protocol-significant assertion.
+    verification: Integration tests in `test/demo/` confirm that each protocol-significant assertion accepted by
+      the CaseActor produces exactly one new `CaseLedgerEntry` in the canonical ledger, with no duplicate
+      entries for the same protocol event.
   - id: CLP-07-011
     priority: MUST
     kind: protocol
@@ -205,6 +262,9 @@ groups:
       deterministic canonical normalization of it.
     rationale: The payload snapshot is the replication substrate; receivers must be able to reconstitute the asserted
       activity from the snapshot alone without an out-of-band lookup.
+    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that for every committed
+      `CaseLedgerEntry`, the `payloadSnapshot` field contains a valid AS2 activity that revalidates through
+      its wire vocabulary class via `model_validate` without transformation.'
   - id: CLP-07-012
     priority: MUST_NOT
     kind: protocol
@@ -216,12 +276,18 @@ groups:
     kind: protocol
     statement: Each logical state change MUST produce at most one canonical `CaseLedgerEntry`; the CaseActor MUST NOT commit
       both an accepted-participant-assertion entry and a separately-synthesized CaseActor entry for the same state change
+    verification: Integration tests in `test/demo/` confirm that each logical state change produces at most one
+      `CaseLedgerEntry`; no test scenario produces both an accepted-participant-assertion entry and a
+      separately-synthesized CaseActor entry for the same state change.
   - id: CLP-07-003
     priority: MUST
     kind: protocol
     statement: The `payloadSnapshot.actor` field of a `CaseLedgerEntry(recorded)` MUST preserve the original asserting actor's
       identity; the CaseActor's own identity appears only on the `Announce(CaseLedgerEntry)` transport envelope and in CaseLedgerEntry
       recording metadata, never as a substitute for the asserter
+    verification: Integration tests in `test/demo/` confirm that the `actor` field of every recorded
+      `CaseLedgerEntry.payloadSnapshot` identifies the original asserting participant, not the CaseActor, even
+      when the CaseActor is the one appending the entry.
   - id: CLP-07-004
     priority: MUST_NOT
     kind: protocol
@@ -239,11 +305,17 @@ groups:
     statement: Nested protocol objects referenced from a `payloadSnapshot` (e.g., `EmbargoEvent`, `VulnerabilityReport`, `Note`,
       `ParticipantStatus`) MUST be embedded inline as full objects in the snapshot; ID-string substitutions that require an
       out-of-band DataLayer lookup to resolve MUST NOT be used in canonical snapshots
+    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that nested objects such as
+      `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in committed
+      snapshots, with no bare ID strings remaining for those types.'
   - id: CLP-07-007
     priority: MUST
     kind: protocol
     statement: '`payloadSnapshot` context values MUST use the case URI once a case exists; report URIs MUST NOT appear as
       the context for ParticipantStatus or other case-scoped snapshots after the report→case promotion has occurred'
+    verification: Integration tests in `test/demo/` confirm that `CaseLedgerEntry` objects created after
+      report-to-case promotion carry the case URI (not the report URI) as the `payloadSnapshot.context`
+      field for case-scoped entries such as `ParticipantStatus`.
   - id: CLP-07-008
     priority: MUST
     kind: project
@@ -298,6 +370,9 @@ groups:
     rationale: 'A shared global constant provides no cryptographic origin-binding: a ledger with all entries stripped is indistinguishable
       from a legitimately new empty ledger, and the well-known constant enables sync DoS amplification by allowing full-replay
       requests without any case-specific knowledge'
+    verification: Unit tests in `test/core/models/test_case_ledger.py` confirm that `CaseLedger.tail_hash`
+      returns the case-specific genesis hash (not a global constant) when no recorded entries exist, and
+      that a second case produces a different genesis hash.
   - id: CLP-08-002
     priority: MUST
     kind: protocol
@@ -306,22 +381,34 @@ groups:
       is the URI of the CaseActor created for this case
     rationale: Including all three values cryptographically anchors the chain's starting point to the specific case's origin
       identity and timestamp, allowing any party who knows the case metadata to independently verify the ledger's genesis
+    verification: A unit test confirms that `compute_genesis_hash(case_id, created_at, case_actor_id)` returns
+      the SHA-256 hex digest of the concatenated string
+      `case_id + "|" + created_at.isoformat() + "|" + case_actor_id`.
   - id: CLP-08-003
     priority: MUST
     kind: protocol
     statement: The case-specific genesis hash MUST be stored on `VulnerabilityCase` as a required field computed at case creation
       time, so that receivers can verify that a ledger starts correctly for this case
+    verification: Inspection of `vultron/core/models/` confirms that `VulnerabilityCase` declares `genesis_hash`
+      as a required field, and integration tests confirm it is populated with the per-case genesis hash at
+      case creation time.
   - id: CLP-08-004
     priority: MUST
     kind: protocol
     statement: '`CaseLedger.tail_hash` MUST return the case-specific genesis hash when no recorded entries exist; it MUST
       NOT return a globally-shared constant sentinel'
+    verification: Unit tests in `test/core/models/test_case_ledger.py` confirm that `CaseLedger.tail_hash`
+      returns the per-case genesis hash when the recorded entry list is empty and returns the hash of the
+      last recorded entry otherwise.
   - id: CLP-08-005
     priority: MUST
     kind: protocol
     statement: Sync replay and backfill requests that supply a `from_hash` value MUST use the case-specific genesis hash (or
       the hash of a known recorded entry) as the starting point; implementations MUST treat any unrecognized `from_hash` value
       as a request to replay from the beginning of the recorded projection
+    verification: Integration tests in `test/demo/test_sync_ledger_replication.py` confirm that a sync replay
+      request using the case-specific genesis hash as `from_hash` delivers the full recorded projection, and
+      that an unrecognized `from_hash` falls back to replaying from the beginning.
   - id: CLP-08-006
     priority: MUST
     kind: protocol
@@ -330,6 +417,9 @@ groups:
       `https://example.org/cases/<uuid>`).
     rationale: A cryptographically random path segment makes the genesis hash unique and unguessable per case, so a
       ledger with all entries stripped is distinguishable from a legitimately new empty ledger.
+    verification: Static analysis (grep) confirms that the case URI factory generates case URIs containing a
+      UUID4 component in the path segment; unit tests assert that newly created case URIs parse to a valid
+      UUID4.
   - id: CLP-08-007
     priority: MUST_NOT
     kind: protocol
@@ -351,6 +441,9 @@ groups:
       ten call sites guarded the commit, and it did so with an ad hoc Python-level identity check outside the BT rather than
       a role check inside it. The other call sites committed unconditionally. Stating this as one vague authorization line
       (see BT-10-004) was not specific enough to prevent the gap from accumulating call site by call site.'
+    verification: Unit tests for `GuardedCommitCaseLedgerEntryBT` confirm that the commit node only executes
+      when the active actor's role list includes `CVDRole.CASE_MANAGER`, and integration tests in `test/demo/`
+      confirm no unauthorized commit reaches the ledger.
   - id: CLP-09-002
     priority: MUST_NOT
     kind: protocol
@@ -367,6 +460,8 @@ groups:
     rationale: '`validate_report`, `ack_report`, and `close_case` produced no canonical ledger entry at all on `main` for
       an unknown span of time (issue #998/#1022). Dispatch completeness is already enforced structurally for `USE_CASE_MAP`
       (DR-02-002, UCORG-02-002); commit completeness had no equivalent structural check and was found only by a manual re-audit.'
+    verification: A coverage test enumerates all use cases reachable via `USE_CASE_MAP` and asserts that each
+      one produces at least one `CaseLedgerEntry` with `disposition="recorded"` in a representative demo run.
   - id: CLP-09-004
     priority: MUST
     kind: protocol
@@ -378,6 +473,9 @@ groups:
       and once with the finder as a relay target; only the case-actor invocation may commit. This is the same shape of bug
       that produced the original hash-chain fork in issue #923, and it recurs at every new dual-invocation call site unless
       authorization is re-evaluated per invocation rather than per use-case class.'
+    verification: Integration tests in `test/demo/test_acknowledge_demo.py` confirm that when the same use-case
+      class is invoked for both the CaseActor and a relay target for the same activity, only the CaseActor
+      invocation produces a canonical ledger entry.
 - id: CLP-10
   title: CaseActor Inbox Routing for Canonical Ledger Entry Authorship
   description: Requirements for the end-to-end routing path that delivers protocol-significant activities to the CaseActor's
@@ -488,6 +586,9 @@ groups:
     kind: protocol
     statement: Any operation that is procedural code in `execute()` (including the use case's main operation) MUST be expressed
       as a node in the single BT tree built by the tree-factory function.
+    verification: Inspection of every `execute()` method in `vultron/core/use_cases/received/` confirms that
+      domain-significant operations are expressed as BT nodes within the single tree-factory function and
+      that no procedural domain logic appears directly in `execute()`.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
@@ -496,6 +597,9 @@ groups:
     kind: protocol
     statement: The guarded-commit subtree MUST be composed as a child of the tree-factory function, not invoked as a separate
       `execute_with_setup()` call.
+    verification: '`test/architecture/test_single_bt_execution_received_side.py` confirms that no received-side
+      `execute()` method calls `BTBridge.execute_with_setup()` more than once, enforcing that the
+      guarded-commit subtree is composed into the single tree rather than invoked separately.'
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
@@ -584,6 +688,8 @@ groups:
     rationale: 'The outbox is a delivery queue: entries are removed when the activity is sent and MUST NOT be used to infer
       protocol state. The case ledger is the canonical append-only protocol history and survives actor restarts. Any code
       that reads the outbox to determine whether a request is still in-flight is architecturally incorrect and MUST be replaced.'
+    verification: A unit test confirms that `CasePersistence.find_protocol_pair()` queries the `CaseLedgerEntry`
+      log to determine open/closed state, and that no code path reads the outbox to make this determination.
   - id: CLP-11-002
     priority: MUST_NOT
     kind: protocol
@@ -597,6 +703,9 @@ groups:
     statement: '`ProtocolPair` MUST be the shared value type for both `find_protocol_pair()` and `PendingAssertionStore`.
       Named reply-type constants (`OFFER_CASE_PARTICIPANT_REPLY_TYPES`, `INVITE_ACTOR_TO_CASE_REPLY_TYPES`) MUST be used when
       constructing or querying a `ProtocolPair` to avoid hard-coding reply event-type strings at call sites.'
+    verification: Static analysis (grep) confirms that all call sites constructing or querying a `ProtocolPair`
+      use the named constants `OFFER_CASE_PARTICIPANT_REPLY_TYPES` or `INVITE_ACTOR_TO_CASE_REPLY_TYPES`
+      rather than inline event-type strings.
   - id: CLP-11-004
     priority: SHOULD
     kind: protocol

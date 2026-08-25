@@ -1183,3 +1183,86 @@ def test_lint_phantom_path_behavioral_step_suppress(tmp_path):
     }
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
+
+
+# ---------------------------------------------------------------------------
+# _check_phantom_spec_id_citations (SR-04-008)
+# ---------------------------------------------------------------------------
+
+
+def test_phantom_spec_id_unknown_in_vultron_is_hard_error(tmp_path, capsys):
+    """A .py file under vultron/ citing an unknown spec ID is a hard error."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    vultron_dir = tmp_path / "vultron"
+    vultron_dir.mkdir()
+    (vultron_dir / "module.py").write_text('"""Spec: XX-99-001."""\n')
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "XX-99-001" in captured.err
+
+
+def test_phantom_spec_id_known_id_no_error(tmp_path, capsys):
+    """A .py file under vultron/ citing a known spec ID returns 0."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    vultron_dir = tmp_path / "vultron"
+    vultron_dir.mkdir()
+    (vultron_dir / "module.py").write_text(
+        '"""Spec: TST-01-001 MUST do the thing."""\n'
+    )
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[ERROR]" not in captured.err
+
+
+def test_phantom_spec_id_allowlisted_dir_no_error(tmp_path, capsys):
+    """Files under test/metadata/specs/ citing synthetic IDs are not flagged."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    allowlist_dir = tmp_path / "test" / "metadata" / "specs"
+    allowlist_dir.mkdir(parents=True)
+    (allowlist_dir / "test_fixture.py").write_text(
+        '"""Uses synthetic IDs like XX-99-001."""\n'
+    )
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[ERROR]" not in captured.err
+
+
+def test_phantom_spec_id_no_ids_in_file_no_error(tmp_path):
+    """A .py file with no spec ID tokens returns 0."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    vultron_dir = tmp_path / "vultron"
+    vultron_dir.mkdir()
+    (vultron_dir / "module.py").write_text("def hello():\n    return 42\n")
+
+    assert lint(spec_dir) == 0
+
+
+def test_phantom_spec_id_unknown_in_test_dir_is_hard_error(tmp_path, capsys):
+    """A .py file under a non-allowlisted test/ subdir citing an unknown spec ID is a hard error."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    test_core_dir = tmp_path / "test" / "core"
+    test_core_dir.mkdir(parents=True)
+    (test_core_dir / "test_something.py").write_text(
+        '"""Spec: XX-99-001."""\n'
+    )
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "XX-99-001" in captured.err

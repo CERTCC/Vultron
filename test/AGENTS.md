@@ -429,3 +429,18 @@ assert result is True
 
 "No case stored → trivially fresh" tests must be clearly labeled and MUST NOT
 be the sole coverage for the genesis-hash path.
+
+---
+
+## Tests Verifying a Protocol-Kind Requirement MUST Carry `@pytest.mark.spec` (SR-05-004, ISSUE-2117)
+
+Protocol-kind requirements are conformance-critical. Without a marker the CI
+uncovered-count ratchet (SR-05-005,
+`test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage and
+the requirement becomes unverifiable.
+
+Add `@pytest.mark.spec("<ID>")` to every test that exercises a `kind: protocol`
+spec entry. Run `spec-coverage` to discover which protocol IDs have no markers
+yet.
+
+See SR-05-004, SR-05-005.

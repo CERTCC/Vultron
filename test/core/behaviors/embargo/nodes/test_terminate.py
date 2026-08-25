@@ -109,6 +109,35 @@ def _seed_case_with_manager(dl, executing_actor_id: str):
     return case
 
 
+def _seed_manager_only_case(dl):
+    """Seed a case whose only participant is the CASE_MANAGER."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.enums.roles import CVDRole
+
+    participant = CaseParticipant(
+        id_=f"{CASE_ID}/participants/manager",
+        attributed_to=_MANAGER_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(participant)
+    dl.create(EmbargoEvent(id_=_EMBARGO_ID, context=CASE_ID))
+
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        name="EMB-19-002",
+        attributed_to=_MANAGER_ID,
+        active_embargo=_EMBARGO_ID,
+    )
+    case.add_participant(participant)
+    dl.create(case)
+    return case
+
+
+@pytest.mark.spec("EMB-19-001")
+@pytest.mark.spec("EMB-19-002")
 class TestTeardownRecipients:
     """EMB-19-001: the teardown must not be addressed to its own author.
 
@@ -191,3 +220,40 @@ class TestTeardownRecipients:
             "a participant that is not the manager is *requesting* the"
             f" teardown, so the manager is the right addressee; got to={to!r}"
         )
+
+    def test_a_manager_with_no_audience_emits_nothing(self) -> None:
+        """EMB-19-002: skipped, not emitted with an empty ``to``.
+
+        The node used to log "nothing to tell" and then build the activity
+        anyway. An activity addressed to nobody is undeliverable and delivery
+        discards it, so the only lasting effect was an outbox entry that could
+        never resolve. SUCCESS because the teardown itself already happened —
+        there is simply no one to tell.
+        """
+        from unittest.mock import MagicMock
+
+        import py_trees
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER_ID)
+        _seed_manager_only_case(dl)
+
+        factory = MagicMock()
+        py_trees.blackboard.Blackboard.storage.clear()
+        py_trees.blackboard.Blackboard.storage["/embargo_id"] = _EMBARGO_ID
+        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+            _MANAGER_ID
+        )
+
+        result = BTBridge(
+            datalayer=dl, trigger_activity=factory
+        ).execute_with_setup(
+            tree=SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            actor_id=_MANAGER_ID,
+        )
+
+        assert result.status == py_trees.common.Status.SUCCESS
+        factory.terminate_embargo.assert_not_called()
+        assert dl.outbox_list() == []

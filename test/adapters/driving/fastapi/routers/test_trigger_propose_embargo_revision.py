@@ -103,7 +103,7 @@ def test_trigger_propose_embargo_revision_missing_end_time_returns_422(
 def test_trigger_propose_embargo_revision_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/propose-embargo-revision",
         json={"case_id": "urn:uuid:any-case", "end_time": FUTURE_END_TIME},
@@ -116,7 +116,7 @@ def test_trigger_propose_embargo_revision_unknown_actor_returns_404(
 def test_trigger_propose_embargo_revision_unknown_case_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo-revision",
         json={

@@ -63,7 +63,7 @@ def trigger_engage_case(
     Trigger the engage-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -95,7 +95,7 @@ def trigger_defer_case(
     Trigger the defer-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -128,7 +128,7 @@ def trigger_add_object_to_case(
     """Add an existing AS2 object to a case.
 
     Implements:
-        TRIG-10-001, TB-01-001, TB-01-002, TB-01-003, TB-02-001,
+        TRIG-10-001, TB-01-001, TB-01-002, HTTP-03-005, TB-02-001,
         TB-03-001, TB-03-002, TB-04-001, TB-06-001, TB-06-002
     """
     with domain_error_translation():
@@ -164,7 +164,7 @@ def trigger_create_case(
     Trigger the create-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
     with domain_error_translation():
@@ -200,7 +200,7 @@ def trigger_add_report_to_case(
     Trigger the add-report-to-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
     with domain_error_translation():

@@ -164,6 +164,15 @@ _REPO_TOP_LEVEL_DIRS = frozenset(
     }
 )
 
+#: Regex for bare spec ID tokens (e.g. ``HTTP-03-005``, ``CBT-05-007``) in
+#: Python source files.  Matched with ``\b`` word boundaries so that version
+#: strings like ``1.2.3`` or ``ADR-0001`` are not mistaken for spec IDs.
+_SPEC_ID_RE = re.compile(r"\b([A-Z]{2,8}-\d{2}-\d{3})\b")
+
+#: Directories (relative to repo root) whose Python files legitimately cite
+#: synthetic fixture IDs and are therefore excluded from the phantom-ID scan.
+_PHANTOM_ID_ALLOWLIST_DIRS = frozenset(["test/metadata/specs"])
+
 #: Directories skipped when resolving a package-relative path suffix — build
 #: artifacts and virtualenvs would otherwise satisfy a reference that no
 #: tracked file does.
@@ -603,6 +612,43 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
     return warnings
 
 
+def _check_phantom_spec_id_citations(
+    registry: SpecRegistry, repo_root: Path
+) -> list[str]:
+    """Hard error when Python source cites a spec ID that does not exist (SR-04-008).
+
+    Scans ``vultron/`` and ``test/`` Python files for bare spec ID tokens
+    (pattern ``[A-Z]{2,8}-\\d{2}-\\d{3}``) and rejects any that are not
+    present in the registry.  Files under ``test/metadata/specs/`` are
+    allowlisted because they legitimately cite synthetic fixture IDs.
+    """
+    errors: list[str] = []
+    scan_roots = [repo_root / "vultron", repo_root / "test"]
+    known_ids = set(registry.all_specs.keys())
+
+    for scan_root in scan_roots:
+        if not scan_root.is_dir():
+            continue
+        for py_file in sorted(scan_root.rglob("*.py")):
+            try:
+                rel = py_file.relative_to(repo_root)
+            except ValueError:
+                continue
+            rel_str = str(rel).replace("\\", "/")
+            if any(rel_str.startswith(d) for d in _PHANTOM_ID_ALLOWLIST_DIRS):
+                continue
+
+            text = py_file.read_text(encoding="utf-8", errors="replace")
+            seen_in_file: set[str] = set()
+            for match in _SPEC_ID_RE.finditer(text):
+                sid = match.group(1)
+                if sid not in known_ids and sid not in seen_in_file:
+                    seen_in_file.add(sid)
+                    errors.append(f"{rel_str}: cites unknown spec ID {sid}")
+
+    return errors
+
+
 def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -637,6 +683,9 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
     hard_errors.extend(_check_scenario_start_groups(registry))
     hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
+    hard_errors.extend(
+        _check_phantom_spec_id_citations(registry, spec_dir.parent)
+    )
 
     warnings.extend(_check_per_spec_advisory_warnings(registry))
 

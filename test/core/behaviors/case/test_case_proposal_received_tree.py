@@ -2190,3 +2190,91 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
     )
     assert result.status == py_trees.common.Status.SUCCESS
     assert isinstance(dl.read(_REPORT_URI_2482), VulnerabilityReport)
+
+
+# ---------------------------------------------------------------------------
+# CM-02-001 / CM-02-010 — one CaseActor per case, distinct from the case owner
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-02-001")
+@pytest.mark.spec("CM-02-010")
+class TestCaseActorIsOneParticipantDistinctFromTheOwner:
+    """The bootstrap snapshot names exactly one CaseActor, and it is not the owner.
+
+    Under ADR-0041 "CaseActor" is the participant holding
+    ``CVDRole.CASE_MANAGER``, not a per-case ``Service`` object — the earlier
+    reading is what produced the phantom per-case identity (#1872), and the
+    tests that covered these two requirements went with the node that minted it.
+    Both requirements survive the rewording and are asserted here against the
+    snapshot the CaseActor actually builds.
+
+    Co-location is what makes CM-02-010 worth asserting: this store belongs to
+    the CaseActor and the vendor is a participant in it, so nothing about the
+    layout would stop the two from collapsing into one identity. Under ADR-0072
+    that collapse would also merge two stores that must stay separate.
+    """
+
+    def _bootstrap_case(self, make_payload):
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        cases = [
+            c
+            for c in dl.list_objects("VulnerabilityCase")
+            if isinstance(c, VulnerabilityCase)
+        ]
+        assert len(cases) == 1, "the proposal bootstraps exactly one case"
+        self._dl = dl
+        return cases[0]
+
+    def _managers(self, case) -> list[str]:
+        """Return the actor ids of the participants holding CASE_MANAGER."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        managers = []
+        for actor_id, participant_id in case.actor_participant_index.items():
+            participant = self._dl.read(participant_id)
+            if not isinstance(participant, CaseParticipant):
+                continue
+            if CVDRole.CASE_MANAGER in participant.roles:
+                managers.append(actor_id)
+        return managers
+
+    def test_exactly_one_participant_holds_case_manager(self, make_payload):
+        """CM-02-001, read as the role rather than as a ``Service`` record.
+
+        Two managers would mean two actors each entitled to write the canonical
+        ledger, which is the authority CM-02-002 makes exclusive.
+        """
+        case = self._bootstrap_case(make_payload)
+        assert self._managers(case) == [_CASE_ACTOR_URI]
+
+    def test_the_case_manager_is_not_the_case_owner(self, make_payload):
+        """CM-02-010: distinct identities, co-located in one store or not.
+
+        If these ever coincided, the CaseActor's replication to the owner would
+        become a message an actor sends itself — delivery discards those, so the
+        owner would silently never receive its own case.
+        """
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        case = self._bootstrap_case(make_payload)
+        owner_participant_id = case.actor_participant_index.get(_VENDOR_URI)
+        assert (
+            owner_participant_id is not None
+        ), "the proposer is a participant"
+        owner = self._dl.read(owner_participant_id)
+        assert isinstance(owner, CaseParticipant)
+        assert CVDRole.CASE_OWNER in owner.roles
+
+        assert _VENDOR_URI not in self._managers(case)
+        assert CVDRole.CASE_MANAGER not in owner.roles

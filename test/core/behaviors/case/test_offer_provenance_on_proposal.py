@@ -243,6 +243,7 @@ def _add_report_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
 
 
 @pytest.mark.spec("CP-01-007")
+@pytest.mark.spec("PCR-01-003")
 class TestCaseActorCommitsTheProvenance:
     """CaseActor side: what the proposal carried reaches the ledger entry.
 

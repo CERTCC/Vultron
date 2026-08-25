@@ -63,7 +63,7 @@ def trigger_validate_report(
     Trigger the validate-report behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-03-001, TB-03-002, TB-03-003,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-03-001, TB-03-002, TB-03-003,
         TB-04-001, TB-05-001, TB-05-002, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -96,7 +96,7 @@ def trigger_invalidate_report(
     Trigger the invalidate-report behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -113,7 +113,7 @@ def trigger_invalidate_report(
         "Triggers the reject-report behavior for the given actor. "
         "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
         "and returns it in the response body (TB-04-001). "
-        "A non-empty note is required (TB-03-004). "
+        "A non-empty note is required (TRIG-03-004). "
         "Persists a ParticipantStatus record with RM.CLOSED for the actor "
         "and report."
     ),
@@ -130,8 +130,8 @@ def trigger_reject_report(
     Trigger the reject-report (hard-close) behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
-        TB-03-004, TB-04-001, TB-06-001, TB-06-002, TB-07-001
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
+        TRIG-03-004, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
         result = svc.reject_report(actor_id, body.offer_id, body.note)
@@ -167,7 +167,7 @@ def trigger_close_report(
     Trigger the close-report (RM → CLOSED) behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():

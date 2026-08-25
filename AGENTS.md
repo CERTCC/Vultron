@@ -323,9 +323,11 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Splits Must Not Produce New God Modules** — submodules ≤500 lines; split
   recursively when they re-accumulate. See CS-18-001 through CS-18-004.
 - **BT Emit Nodes: Inherit Base Classes, Never Reimplement Guard Boilerplate**
-  — use `_EmitCaseActorReportActivityBase` (report domain) or
-  `_SendEmbargoActivityBase` (embargo domain); override only `_call_factory()`
-  and the three hook methods. See BTND-07-005.
+  — before writing any emit, send, or state-transition node, check the
+  domain base-class table and discovery gate in
+  [`vultron/core/behaviors/AGENTS.md`](vultron/core/behaviors/AGENTS.md)
+  § "Compose Before Create". If no base exists for your domain, create it
+  first. See BTND-07-005, BTND-07-009, BTND-07-010.
 - **Peer Broadcast Nodes Must Not Mask Delivery Failure with SUCCESS** —
   see [notes/peer-broadcast-failure-semantics.md](notes/peer-broadcast-failure-semantics.md) BT-14-001.
 - **Negative-Guard Condition Nodes Are a Readability Anti-Pattern** — use

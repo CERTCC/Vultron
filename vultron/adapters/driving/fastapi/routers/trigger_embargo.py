@@ -65,7 +65,7 @@ def trigger_propose_embargo(
     Trigger the propose-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -100,7 +100,7 @@ def trigger_accept_embargo(
     Trigger the accept-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -133,7 +133,7 @@ def trigger_reject_embargo(
     Trigger the reject-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -168,7 +168,7 @@ def trigger_propose_embargo_revision(
     Trigger the propose-embargo-revision behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
@@ -204,7 +204,7 @@ def trigger_terminate_embargo(
     Trigger the terminate-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():

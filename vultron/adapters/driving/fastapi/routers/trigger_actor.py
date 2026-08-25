@@ -67,7 +67,7 @@ def trigger_suggest_actor_to_case(
     Trigger the suggest-actor-to-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
     with domain_error_translation():
@@ -103,7 +103,7 @@ def trigger_accept_case_invite(
     Trigger the accept-case-invite behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
     with domain_error_translation():
@@ -137,7 +137,7 @@ def trigger_reject_case_invite(
     Trigger the reject-case-invite behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
     with domain_error_translation():
@@ -171,7 +171,7 @@ def trigger_invite_actor_to_case(
     Trigger the invite-actor-to-case behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
     with domain_error_translation():
@@ -216,7 +216,7 @@ def trigger_accept_actor_recommendation(
     """
     Trigger the accept-actor-recommendation behavior for the given actor.
 
-    Implements: ADR-0026 (CM-16-006); TB-01-001, TB-01-002, TB-01-003,
+    Implements: ADR-0026 (CM-16-006); TB-01-001, TB-01-002, HTTP-03-005,
         TB-02-001, TB-03-001, TB-03-002, TB-04-001
     """
     with domain_error_translation():
@@ -288,7 +288,7 @@ def trigger_offer_case_ownership_transfer(
     Trigger the offer-case-ownership-transfer behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001; TRIG-11-001
     """
     with domain_error_translation():
@@ -324,7 +324,7 @@ def trigger_accept_case_ownership_transfer(
     Trigger the accept-case-ownership-transfer behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001; TRIG-11-002
     """
     with domain_error_translation():

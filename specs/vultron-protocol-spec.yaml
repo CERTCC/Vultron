@@ -42,16 +42,27 @@ groups:
     statement: >-
       Coordinators MUST have a formally documented, publicly available mechanism for receiving
       reports
+    verification: >-
+      Inspection of `vultron/core/use_cases/received/` confirms that a
+      report-reception use-case handler is defined for participant actors.
   - id: VP-02-002
     priority: MUST
     kind: protocol
     statement: >-
       Participants MUST assign Valid cases a higher processing priority than
       Received (untriaged) cases and Closed cases in their case-management workflow.
+    verification: >-
+      Integration tests in `test/demo/test_workflow_rm_triage.py` confirm that
+      the RM triage workflow only advances to Accepted from the Valid state,
+      enforcing priority ordering over Received and Closed cases.
   - id: VP-02-003
     priority: MUST
     kind: protocol
     statement: Participants initiating CVD with others MUST do so from the Accepted state
+    verification: >-
+      Integration tests in `test/demo/test_initialize_case_demo.py` confirm
+      that `RmInviteToCaseActivity` is only emitted when the initiating
+      participant's RM state is Accepted.
   - id: VP-02-004
     priority: MUST_NOT
     kind: protocol
@@ -235,12 +246,19 @@ groups:
     statement: >-
       Participants MUST be in RM Accepted to send a Report Submission ($RS$) message to someone
       else
+    verification: >-
+      A unit test confirms that the RS message precondition guard raises an
+      error when the sender's RM state is not Accepted.
   - id: VP-03-002
     priority: MUST
     kind: protocol
     statement: >-
       Vendor Recipients receiving a new Report Submission MUST transition their CVD Case State
       to Vendor Aware ($q^{cs} \xrightarrow{\mathbf{V}} Vfd\cdots$)
+    verification: >-
+      Integration tests in `test/demo/test_receive_report_demo.py` confirm
+      that processing an RS message sets the recipient vendor's CS state to
+      the Vendor Aware substates.
   - id: VP-03-003
     priority: SHOULD
     kind: protocol
@@ -307,6 +325,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Every accepted embargo MUST have a non-null end_time; embargoes without a specified endpoint MUST NOT be accepted.
+    verification: >-
+      Inspection of `vultron/core/models/embargo_event.py` confirms that
+      `end_time` is a required `datetime` field with no `None` default, and a
+      unit test confirms that embargo acceptance fails when `end_time` is absent.
     relationships:
     - rel_type: refines
       spec_id: VP-05-001
@@ -314,6 +336,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: A CVD case SHALL NOT have more than one active embargo at a time
+    verification: >-
+      Inspection of `vultron/core/states/em.py` confirms the EM state machine
+      has at most one active-embargo state at any time, enforcing the
+      single-active-embargo invariant.
   - id: VP-04-003
     priority: MAY
     kind: protocol
@@ -334,6 +360,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: An embargo SHALL specify an unambiguous date and time as its endpoint
+    verification: >-
+      Inspection of `vultron/core/models/embargo_event.py` confirms that
+      `end_time` is typed as `datetime` (not a date-only or free-form string),
+      enforcing an unambiguous endpoint at the model level.
   - id: VP-05-002
     priority: SHOULD
     kind: protocol
@@ -345,16 +375,28 @@ groups:
     priority: MUST
     kind: protocol
     statement: An embargo SHALL begin at the moment it is accepted
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that the EM state transitions to Active with the acceptance timestamp as
+      the effective start, not a future date.
   - id: VP-05-004
     priority: MUST
     kind: protocol
     statement: >-
       Adding Participants to an existing embargo SHALL NOT constitute release or publication
       so long as those Participants accept the terms of the embargo
+    verification: >-
+      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
+      that inviting a participant to a case with an Active embargo leaves the
+      EM state unchanged.
   - id: VP-05-005
     priority: MUST
     kind: protocol
     statement: Embargo termination SHALL NOT be construed as an obligation to publish
+    verification: >-
+      Inspection of `vultron/core/states/em.py` confirms that the
+      embargo-termination transition does not trigger any publication action
+      or CS state change.
   - id: VP-05-006
     priority: SHOULD_NOT
     kind: protocol
@@ -493,6 +535,10 @@ groups:
     statement: >-
       Submitting a report when an embargo proposal is pending ($q^{em} \in P$) SHALL be construed
       as the Sender's acceptance of the proposed terms
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that sending RS while EM is in the Proposed state causes EM to advance
+      to Active.
   - id: VP-06-008
     priority: MAY
     kind: protocol
@@ -567,12 +613,20 @@ groups:
     statement: >-
       If neither Sender nor Receiver proposes an embargo and no policy defaults apply, no
       embargo SHALL exist
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that EM initializes and remains in the None state when neither party has
+      a default policy and no proposal is made.
   - id: VP-07-002
     priority: MUST
     kind: protocol
     statement: >-
       A Receiver's default embargo specified in its vulnerability disclosure policy SHALL
       be treated as an initial embargo proposal
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that a receiver with a policy-defined default embargo presents it as a
+      Proposed embargo upon receiving a report.
   - id: VP-07-003
     priority: MUST
     kind: protocol
@@ -580,18 +634,30 @@ groups:
       If the Receiver has declared a default embargo in its vulnerability disclosure policy
       and the Sender proposes nothing to the contrary, the Receiver's default embargo SHALL
       be considered as an accepted proposal
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that EM advances to Active using the receiver's default when the sender
+      makes no counter-proposal.
   - id: VP-07-004
     priority: MUST
     kind: protocol
     statement: >-
       If the Sender proposes an embargo longer than the Receiver's default, the Receiver's
       default SHALL be taken as accepted and the Sender's proposal taken as a proposed revision
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that the shorter receiver-default embargo is accepted and the sender's
+      longer proposal is stored as a pending revision.
   - id: VP-07-005
     priority: MUST
     kind: protocol
     statement: >-
       If the Sender proposes an embargo shorter than the Receiver's default, the Sender's
       proposal SHALL be taken as accepted and the Receiver's default taken as a proposed revision
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that the sender's shorter proposal is accepted and the receiver's default
+      is stored as a pending revision.
   - id: VP-07-006
     priority: SHOULD
     kind: protocol
@@ -650,6 +716,10 @@ groups:
     statement: >-
       When inviting a new Participant to a case with an existing embargo, the inviting Participant
       SHALL propose the existing embargo to the invited Participant
+    verification: >-
+      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
+      that the invite payload carries the existing embargo terms when an Active
+      embargo is in place.
   - id: VP-08-002
     priority: SHOULD
     kind: protocol
@@ -771,6 +841,10 @@ groups:
     statement: >-
       Embargoes SHALL terminate immediately when information about the vulnerability becomes
       public ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that the EM state transitions to Terminated when the CS state advances
+      to include public awareness.
   - id: VP-09-002
     priority: SHOULD
     kind: protocol
@@ -822,6 +896,10 @@ groups:
       If no new embargo has been proposed or agreement has not been reached following a case
       merge, the earliest of the previously accepted embargo dates SHALL be adopted for the
       merged case
+    verification: >-
+      Inspection of `vultron/core/` confirms that the case-merge handler
+      selects the earliest `end_time` across all merging embargo agreements
+      when no new embargo has been proposed.
   - id: VP-10-002
     priority: MUST
     kind: protocol
@@ -830,12 +908,20 @@ groups:
       the inherited date, the CASE_MANAGER of that child case SHALL notify the
       CASE_MANAGERs of all sibling child cases before the earlier end time takes
       effect, documenting the rationale in the case ledger.
+    verification: >-
+      Inspection of `vultron/core/use_cases/` confirms that the case-split
+      handler emits a notification to sibling case managers before any earlier
+      child-case embargo end time takes effect.
   - id: VP-10-003
     priority: MUST
     kind: protocol
     statement: >-
       Participants in a child case SHALL communicate any subsequently agreed changes from
       the inherited embargo to the Participants of the other child cases
+    verification: >-
+      Integration tests in `test/demo/` confirm that embargo revision
+      activities on a child case are forwarded to all sibling child-case
+      participants.
   - id: VP-10-004
     priority: SHOULD
     kind: protocol
@@ -873,18 +959,30 @@ groups:
     statement: >-
       Participants SHALL NOT negotiate embargoes where the vulnerability or its exploit is
       public or attacks are known to have occurred
+    verification: >-
+      Inspection of `vultron/core/states/em.py` confirms that EM guard
+      conditions block new embargo proposals when the CS state includes
+      P, X, or A substates.
   - id: VP-11-002
     priority: MUST
     kind: protocol
     statement: >-
       If information about the vulnerability or an exploit has been made public, Participants
       SHALL terminate the embargo ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that the EM state transitions to Terminated when a CP or CX message is
+      received.
   - id: VP-11-003
     priority: MUST
     kind: protocol
     statement: >-
       Participants SHALL initiate embargo termination upon becoming aware of publicly available
       information about the vulnerability or its exploit code
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CP or CX event automatically triggers the ET
+      embargo-termination transition.
   - id: VP-11-004
     priority: SHOULD
     kind: protocol
@@ -1018,6 +1116,10 @@ groups:
       A Participant's closure or deferral ($q^{rm} \in \{C, D\}$) of a report while an embargo
       remains active ($q^{em} \in \{A, R\}$) and while other Participants remain engaged SHALL
       NOT automatically terminate the embargo
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that RM Closed or Deferred transitions leave the EM Active state
+      unchanged.
   - id: VP-13-010
     priority: MAY
     kind: protocol
@@ -1080,24 +1182,40 @@ groups:
     statement: >-
       Once Public Awareness has happened ($q^{cs} \in \cdots P \cdots$), new embargoes SHALL
       NOT be sought and any existing embargo SHALL terminate
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CP event both blocks new embargo proposals and terminates any
+      Active embargo.
   - id: VP-14-002
     priority: MUST
     kind: protocol
     statement: >-
       Once Exploit Publication has occurred ($q^{cs} \in \cdots X \cdot$), new embargoes SHALL
       NOT be sought and any existing embargo SHALL terminate
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CX event both blocks new embargo proposals and terminates any
+      Active embargo.
   - id: VP-14-003
     priority: MUST
     kind: protocol
     statement: >-
       Once Attacks have been observed ($q^{cs} \in \cdots A$), new embargoes SHALL NOT be
       sought
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CA event blocks all new embargo proposal activities.
   - id: VP-14-004
     priority: MUST
     kind: protocol
     statement: >-
       Participants MUST treat attacks as an event that could occur at any time and adapt their
       process as needed in light of available information
+    verification: >-
+      Inspection of `vultron/core/states/cs.py` confirms the CS state machine
+      accepts the `a` transition from any pre-attack CS state, and integration
+      tests in `test/demo/test_manage_embargo_demo.py` confirm a CA message
+      triggers the EM guard correctly.
   - id: VP-14-005
     priority: SHOULD
     kind: protocol
@@ -1233,6 +1351,11 @@ groups:
       state changes flow through the actor's consistency checks and persistence layer.
       The CS participant-specific axes (RM, VFD) are owned by each participant's
       `CaseParticipant` record and are intentionally excluded from this restriction.
+    verification: >-
+      Inspection of `vultron/core/models/case_actor.py` confirms that
+      canonical case state is encapsulated within the CaseActor, and
+      integration tests in `test/demo/` confirm no use-case handler writes
+      to canonical state outside the actor boundary.
     relationships:
     - rel_type: refines
       spec_id: VP-02-001
@@ -1264,6 +1387,11 @@ groups:
       The ledger record provides the audit trail and ordering guarantees for all case
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
       idempotency controls.
+    verification: >-
+      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
+      that every accepted participant message produces a CaseLedgerEntry and an
+      `Announce(CaseLedgerEntry)` broadcast before delivery to other
+      participants.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -1288,6 +1416,10 @@ groups:
     rationale: >-
       Mediation through the CaseActor ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
+    verification: >-
+      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
+      that no participant receives a case-state update before the CaseActor has
+      committed the corresponding CaseLedgerEntry.
     relationships:
     - rel_type: refines
       spec_id: VP-18-001

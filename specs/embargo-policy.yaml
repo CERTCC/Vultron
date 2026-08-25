@@ -25,6 +25,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'The embargo policy record MUST include the following fields: actor_id (full URI string identifying the Actor to which this policy applies), inbox (URL string of the Actor''s ActivityPub inbox), preferred_duration (ISO 8601 duration string representing the Actor''s preferred embargo length)'
+    verification: >-
+      Inspection of the `EmbargoPolicy` Pydantic model confirms that `actor_id`,
+      `inbox`, and `preferred_duration` are declared as required fields with no
+      default values.
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
@@ -56,10 +60,17 @@ groups:
     statement: >-
       The embargo policy record MUST be serializable as a Pydantic model and persisted in
       the DataLayer
+    verification: >-
+      A unit test confirms that an `EmbargoPolicy` instance round-trips through
+      Pydantic serialization and that the DataLayer `save()` and `get()` operations
+      accept and return the model without data loss.
   - id: EP-01-005
     priority: MUST
     kind: protocol
     statement: The embargo policy record MUST use full-URI IDs for `actor_id`
+    verification: >-
+      A unit test confirms that `EmbargoPolicy` raises `ValidationError` when
+      `actor_id` is a non-URI string and accepts a well-formed `https://` URI.
     relationships:
     - rel_type: depends_on
       spec_id: OID-01-001
@@ -103,6 +114,10 @@ groups:
     statement: >-
       The policy endpoint MUST be machine-readable (returns JSON) and MUST be listed in the
       Actor's ActivityPub profile under a well-known key (e.g., `vultron:embargoPolicy`)
+    verification: >-
+      Inspection of the Actor profile endpoint handler confirms the response uses
+      `Content-Type: application/json` and the profile document includes a
+      `vultron:embargoPolicy` key whose value is the embargo-policy endpoint URL.
     scope:
     - production
 - id: EP-03
@@ -130,6 +145,10 @@ groups:
     statement: >-
       Compatibility evaluation MUST check that the proposed duration falls within the target
       actor's `minimum_duration`–`maximum_duration` range, if declared
+    verification: >-
+      A unit test confirms that the compatibility evaluator returns incompatible when the
+      proposed duration falls outside the declared `minimum_duration`–`maximum_duration`
+      range, and compatible when it falls within the range.
     scope:
     - production
     relationships:
@@ -154,6 +173,10 @@ groups:
       submitted no explicit embargo proposal, the initial `CaseStatus.em_state` MUST be set
       to `EM.ACTIVE`, not `EM.PROPOSED`. The sender's report submission without a counter-proposal
       constitutes tacit acceptance of the receiver's default embargo.
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm that a
+      case created without a sender-side embargo proposal immediately enters `EM.ACTIVE`,
+      with no intermediate `EM.PROPOSED` record persisted in the DataLayer.
     relationships:
     - rel_type: refines
       spec_id: DUR-07-003
@@ -179,12 +202,20 @@ groups:
       the contested portion. This is strictly better than rejecting outright: both parties
       secure the overlap they both wanted. See docs/topics/process_models/em/defaults.md
       for the full vector-agreement derivation.
+    verification: >-
+      A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
+      `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
+      when both parties carry a proposal at case creation.
   - id: EP-04-004
     priority: MUST
     kind: protocol
     statement: >-
       EP-04-003 is contingent on a sender-proposal mechanism being available. Until such a
       mechanism exists, only the no-sender-proposal case (EP-04-001) applies at case creation.
+    verification: >-
+      Inspection of `InitializeDefaultEmbargoNode` in `vultron/core/behaviors/` confirms
+      that only the no-sender-proposal code path is implemented; no sender-proposal
+      branch exists.
 - id: EP-05
   title: Counter-Revision PEC Cascade Rule
   specs:
@@ -199,6 +230,10 @@ groups:
       Without the PEC cascade, a participant who signed for embargo terms `T1` would
       remain `SIGNATORY` when the embargo is revised to `T2` — implying consent they
       never gave. The cascade makes re-consent explicit.
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm that an
+      `ACTIVE→REVISE` transition resets each `SIGNATORY` participant's PEC state to
+      `INVITED` via `_cascade_pec_revise()`.
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
@@ -256,6 +291,10 @@ groups:
       Aligning the fallback with the pre-existing CM-18-002 policy window means
       an invitation that omits `end_time` behaves exactly as it does today, so
       adopting CM-28 changes no existing behaviour. See ADR-0065.
+    verification: >-
+      Inspection of the embargo invite handler in `vultron/core/` confirms a
+      configurable default RSVP window setting and that invitations arriving without
+      `end_time` apply this default measured from their `published` timestamp.
     relationships:
     - rel_type: implements
       spec_id: CM-28-002
@@ -273,6 +312,10 @@ groups:
       An unbounded-downward deadline weaponises the mechanism: a one-minute RSVP
       window formally invites a participant while guaranteeing they cannot
       answer, excluding them with the appearance of due process. See ADR-0065.
+    verification: >-
+      A unit test confirms that the outbound invite builder raises a validation error
+      when the supplied `end_time` is less than `published` plus the configured
+      minimum window.
     adr:
     - ADR-0065
   - id: EP-07-003
@@ -293,6 +336,9 @@ groups:
       Rejecting the invitation outright would hand the sender exactly what a
       hostile sender wants — an invite that never takes effect — and would
       punish the invitee for the inviter's misbehaviour. See ADR-0065.
+    verification: >-
+      A unit test confirms that the invite receiver replaces a sub-minimum `end_time`
+      with `published + minimum_window` rather than using the on-wire value.
     relationships:
     - rel_type: refines
       spec_id: EP-07-002
@@ -322,6 +368,10 @@ groups:
     rationale: >-
       Logging the clamp makes the adjustment observable for auditing and
       debugging without rejecting the invitation.
+    verification: >-
+      A unit test confirms that clamping a sub-minimum deadline emits a log entry at
+      the appropriate level recording both the original and the effective deadline
+      values.
     relationships:
     - rel_type: refines
       spec_id: EP-07-003
