@@ -164,6 +164,9 @@ class QueueToOutboxNode(DataLayerActionWithPorts):
         assert self.actor_id is not None
 
         activity_ids = self.activity_ids
+        if activity_ids is None:
+            self.feedback_message = "activity_ids not in blackboard"
+            return Status.FAILURE
 
         try:
             dl = self.datalayer
