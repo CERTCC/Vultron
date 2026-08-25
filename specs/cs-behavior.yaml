@@ -1710,6 +1710,12 @@ groups:
       F transitions. The vfd→VFD snapshot is semantically correct for a Deployer:
       it records that the deployment event occurred; V and F are not separately
       recorded because they do not apply to this actor.
+    verification: >-
+      Integration tests in `test/demo/` confirm that the fix-deployed trigger returns
+      FAILURE for a DEPLOYER-only actor when no VENDOR participant in the case is at
+      VFd or VFD (causal gate not satisfied), and creates ParticipantStatus with
+      vfd_state=VFD for a DEPLOYER-only actor when at least one VENDOR participant
+      is at VFd or VFD.
     testable: true
     preconditions:
     - description: >-
