@@ -926,6 +926,18 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   new rules edition require N separate factory changes instead of one.
   See BTND-05-007, ADR-0071.
   *Source: CONCERN-2108*
+- **Adding a `kind: protocol` Spec Without Coverage Raises the Ratchet — Never Raise the Ceiling** —
+  the protocol-spec coverage ratchet (`test_protocol_spec_coverage_floor` in
+  `test/architecture/test_spec_coverage_ratchet.py`, ceiling = `MAX_UNCOVERED_PROTOCOL_SPECS`)
+  counts uncovered `kind: protocol` specs immediately. If no test carries
+  `@pytest.mark.spec("SPEC-ID")`, the uncovered count rises above the ceiling and CI fails.
+  The ceiling comment says "never raise it." Pattern for a spec whose implementation does not yet
+  exist: write a test asserting the not-yet-implemented behavior → mark it
+  `@pytest.mark.xfail(strict=True, reason="SPEC-ID: <short description>. Tracked by Bug #N.")`
+  and `@pytest.mark.spec("SPEC-ID")`. Do NOT add a stub class — use an existing node or
+  assertion that fails for the right reason. The xfail auto-promotes to passing once the feature
+  lands and the `reason=` links the test back to the implementation issue.
+  *Source: ISSUE-2606*
 
 ---
 

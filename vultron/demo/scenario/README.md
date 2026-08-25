@@ -33,6 +33,7 @@ illustrate individual message semantics in isolation.
 | `fcvcv`           | `fcvcv_demo.py`           | FCVCV (Finder + Coordinator + Vendor + Coordinator2) full lifecycle |
 | `fcv`             | `fcv_demo.py`             | FCV (Finder + Coordinator + Vendor) full VFDPxa lifecycle           |
 | `fcv-reject`      | `fcv_reject_demo.py`      | FCV with Vendor rejecting the case invitation (RM rejection)        |
+| `vc`              | `vc_demo.py`              | VC (Vendor self-discovers, Coordinator joins as Observer)           |
 
 ## Running scenario demos
 

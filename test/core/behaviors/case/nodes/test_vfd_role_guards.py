@@ -398,6 +398,40 @@ def test_not_sole_observer_failure_when_case_missing(
     assert result.status == Status.FAILURE
 
 
+# ---------------------------------------------------------------------------
+# CSB-15-004: DEPLOYER-only d→D causal gate (not yet implemented)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CSB-15-004: CheckDeployerRoleNode does not yet enforce the VFd causal gate. "
+        "A DEPLOYER-only actor MUST be blocked (FAILURE) when no VENDOR participant "
+        "in the case has reached VFd. Tracked by Bug #2606."
+    ),
+)
+@pytest.mark.spec("CSB-15-004")
+def test_deployer_only_blocked_when_no_vendor_at_vfd(
+    bt_scenario: BTTestScenario,
+    case_with_vendor_and_deployer: VultronCase,
+) -> None:
+    """DEPLOYER-only d→D MUST be FAILURE when no VENDOR has reached VFd (CSB-15-004).
+
+    The fixture seeds a VENDOR participant at default vfd state (not VFd).
+    The causal gate MUST return FAILURE. Currently xfails: CheckDeployerRoleNode
+    returns SUCCESS for any DEPLOYER without checking the VENDOR's VFd state.
+    """
+    result = bt_scenario.run(
+        CheckDeployerRoleNode(
+            case_id=case_with_vendor_and_deployer.id_,
+            actor_id=DEPLOYER_ACTOR_ID,
+        ),
+        actor_id=DEPLOYER_ACTOR_ID,
+    )
+    assert result.status == Status.FAILURE
+
+
 def test_not_sole_observer_failure_when_actor_not_in_case(
     bt_scenario: BTTestScenario,
     observer_participant: VultronParticipant,
