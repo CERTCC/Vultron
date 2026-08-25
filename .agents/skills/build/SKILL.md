@@ -169,7 +169,7 @@ on what "done" means — loaded by `orient-agent` in Phase 1.
       existing base class whose `update()` frame covers the same
       guard+emit+outbox or guard+transition+log pattern. Consult the domain
       base-class table in
-      [`vultron/core/behaviors/AGENTS.md`](../../vultron/core/behaviors/AGENTS.md).
+      [`vultron/core/behaviors/AGENTS.md`](../../../vultron/core/behaviors/AGENTS.md).
       If a matching base exists, subclass it. If none exists for your domain,
       create it first, then write the concrete node.
 
