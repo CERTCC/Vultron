@@ -596,12 +596,12 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
-            self._on_success(activity_id, activity_dict)
-            return Status.SUCCESS
         except Exception as e:
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
             self.logger.error(self.feedback_message)
             return Status.FAILURE
+        self._on_success(activity_id, activity_dict)
+        return Status.SUCCESS
 
 
 class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
