@@ -296,7 +296,7 @@ def test_trigger_validate_report_ignores_unknown_fields(
 
 
 def test_trigger_validate_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/validate-report",
         json={"offer_id": "urn:uuid:any-offer"},
@@ -313,7 +313,7 @@ def test_trigger_validate_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_validate_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/validate-report",
         json={"offer_id": "urn:uuid:nonexistent-offer"},
@@ -452,7 +452,7 @@ def test_trigger_invalidate_report_ignores_unknown_fields(
 
 
 def test_trigger_invalidate_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent/trigger/invalidate-report",
         json={"offer_id": "urn:uuid:any"},
@@ -465,7 +465,7 @@ def test_trigger_invalidate_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_invalidate_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/invalidate-report",
         json={"offer_id": "urn:uuid:nonexistent"},
@@ -551,7 +551,7 @@ def test_trigger_reject_report_response_contains_activity_key(
 def test_trigger_reject_report_missing_note_returns_422(
     client_triggers, actor, offer, invalid_report
 ):
-    """TB-03-004: reject-report without note field returns HTTP 422."""
+    """TRIG-03-004: reject-report without note field returns HTTP 422."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-report",
         json={"offer_id": offer.id_},
@@ -562,7 +562,7 @@ def test_trigger_reject_report_missing_note_returns_422(
 def test_trigger_reject_report_empty_note_emits_warning(
     client_triggers, actor, offer, invalid_report, caplog
 ):
-    """TB-03-004: reject-report with empty note emits a WARNING."""
+    """TRIG-03-004: reject-report with empty note emits a WARNING."""
     import logging
 
     with caplog.at_level(logging.WARNING):
@@ -597,7 +597,7 @@ def test_trigger_reject_report_ignores_unknown_fields(
 
 
 def test_trigger_reject_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent/trigger/reject-report",
         json={"offer_id": "urn:uuid:any", "note": "Reason."},
@@ -610,7 +610,7 @@ def test_trigger_reject_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_reject_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-report",
         json={"offer_id": "urn:uuid:nonexistent", "note": "Reason."},
@@ -713,7 +713,7 @@ def test_trigger_close_report_with_note_returns_202(
 
 
 def test_trigger_close_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent/trigger/close-report",
         json={"offer_id": "urn:uuid:any"},
@@ -726,7 +726,7 @@ def test_trigger_close_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_close_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": "urn:uuid:nonexistent"},

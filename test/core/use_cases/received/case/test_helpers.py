@@ -183,6 +183,7 @@ class TestBootstrapCreateReporterParticipant:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-05-007")
 class TestBootstrapReporterUpgradesFromStart:
     """Bootstrap Create upgrades an existing RM.START participant to RM.ACCEPTED.
 

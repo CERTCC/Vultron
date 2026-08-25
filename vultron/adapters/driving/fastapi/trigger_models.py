@@ -77,7 +77,7 @@ class RejectReportRequest(BaseModel):
 
     TB-03-001: Must include offer_id to identify the target offer.
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
-    TB-03-004: note is required (hard-close decisions warrant documented
+    TRIG-03-004: note is required (hard-close decisions warrant documented
         justification); an empty note emits a WARNING.
     """
 

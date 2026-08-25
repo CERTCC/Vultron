@@ -176,6 +176,7 @@ _GENERIC_TRANSITIVE_CLASSES = (
 )
 
 
+@pytest.mark.spec("MV-09-001")
 class TestBareStringObjectRejected(unittest.TestCase):
     """Bare string IDs must be rejected at construction time (INLINE-OBJ-B)."""
 

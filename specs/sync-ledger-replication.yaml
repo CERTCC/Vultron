@@ -377,6 +377,24 @@ groups:
       Integration tests in `test/demo/` confirm conflict and idempotency scenarios:
       mismatched predecessor hash is rejected, duplicate delivery produces no
       duplicates, and the leader retries after rejection.
+  - id: SYNC-07-004
+    priority: MUST
+    kind: protocol
+    lint_suppress:
+    - must_without_verification
+    statement: >-
+      Unit tests MUST cover pending-assertion suppression semantics: add,
+      is_suppressed, clear, timeout expiry, zero-timeout disable, and the
+      expire_timed_out sweep helper.
+  - id: SYNC-07-005
+    priority: MUST
+    kind: protocol
+    lint_suppress:
+    - must_without_verification
+    statement: >-
+      Unit tests MUST cover per-actor pending-assertion store isolation via
+      the module-level registry: distinct store instances per actor, configurable
+      timeout applied on first creation, and _reset_stores cleanup.
 - id: SYNC-08
   title: System Invariants
   specs:
