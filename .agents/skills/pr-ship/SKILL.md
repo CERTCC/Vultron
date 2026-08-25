@@ -64,7 +64,7 @@ Before running any phase, check for existing artifacts:
 | `pr-{N}-triage.json` exists, `pr-{N}-execute.json` absent | Skip triage; start at execute |
 | Both artifacts exist AND last verify verdict was not GAPS-FOUND / CONFLICTS-FOUND | Skip triage and execute; start at verify |
 | Both artifacts exist AND last verify verdict was GAPS-FOUND | Delete `.claude/pr-{N}-execute.json`; re-run execute then verify |
-| Both artifacts exist AND last verify verdict was CONFLICTS-FOUND | Delete `.claude/pr-{N}-execute.json`; re-run execute then verify — execute Phase 4 owns the resolution |
+| Both artifacts exist AND last verify verdict was CONFLICTS-FOUND | Delete `.claude/pr-{N}-execute.json`; re-run execute then verify — execute Phase 5 (CI Loop) owns the resolution |
 | Both artifacts exist AND last verify verdict was PENDING-MERGE-CHECK | Skip triage and execute; re-run verify only (GitHub just needed time) |
 | Both artifacts exist AND last verify verdict was PENDING-CI | Skip triage and execute; re-run verify only (CI timed out last run; try again now) |
 | Verify ran and cleaned up (no artifacts) | Pipeline already completed; report last comment URL if available |
@@ -102,7 +102,7 @@ Create a PR first, then re-run /pr-ship.
 
 Print the base branch and merge state alongside the PR title. Do **not** stop on
 a conflicting or draft PR — resolving conflicts is exactly what the pipeline is
-for. `pr-execute` Phase 4 syncs and resolves; `pr-verify` Phase 2 gates the
+for. `pr-execute` Phase 5 (CI Loop) syncs and resolves; `pr-verify` Phase 2 gates the
 verdict. A conflicted PR at this point is a normal input, not an error.
 
 If the PR is a draft carrying the `needs-rebase` label, note that `create-pr`
@@ -158,7 +158,7 @@ If execute stops due to a blocking test failure (pre-existing with linked Bug
 issue): report the blocked status and stop pr-ship. The user must resolve the
 blocker before re-running.
 
-If execute stops because a merge conflict could not be resolved safely (Phase 4):
+If execute stops because a merge conflict could not be resolved safely (Phase 5, CI Loop):
 report the conflicting paths and stop. Do not skip ahead to verify — an
 unresolved conflict is a hard stop, and running verify would only restate it.
 
@@ -209,7 +209,7 @@ If `GAPS-FOUND`: print which findings are unresolved. To retry:
    artifact and re-run execute before verify.
 
 If `CONFLICTS-FOUND`: print the conflicting paths from verify's comment, then
-delete `.claude/pr-{N}-execute.json` and re-run `/pr-ship` — execute Phase 4 will
+delete `.claude/pr-{N}-execute.json` and re-run `/pr-ship` — execute Phase 5 (CI Loop) will
 sync and resolve. If a re-run lands on the same conflict twice, stop and hand it
 to the user; the resolution needs judgment the pipeline does not have.
 
@@ -241,7 +241,7 @@ the pipeline runs:
 | Phase | Check | Role |
 |---|---|---|
 | `pr-triage` Phase 12 | Read merge state, emit a FAIL finding | Early warning; recorded in `pr_metadata` |
-| `pr-execute` Phase 4 | Sync with base, resolve conflicts, re-verify | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included, and before the test suite so tests see the merged tree |
+| `pr-execute` Phase 5 (CI Loop) | Sync with base, resolve conflicts, re-verify | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included, and before the test suite so tests see the merged tree |
 | `pr-verify` Phase 2 | Live re-check as a hard gate | The **authoritative** answer. Blocks `READY-TO-MERGE` |
 
 Execute resolves rather than verify because verify is a read-only reporter by
