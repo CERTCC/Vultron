@@ -26,7 +26,68 @@ from vultron.core.models._helpers import _report_phase_status_id
 from vultron.errors import VultronInvalidStateTransitionError
 
 
-class CheckRMStateValid(DataLayerConditionWithPorts):
+class _CheckReportPhaseRMStateBase(DataLayerConditionWithPorts):
+    """Shared update() skeleton for report-phase RM presence checks.
+
+    Resolves actor_id, computes the RM.VALID status key, and dispatches on
+    ``_success_when_valid`` to determine which Status value to return.
+    Subclasses set ``_success_when_valid = True`` (succeed when VALID) or
+    ``False`` (succeed when NOT VALID).
+    """
+
+    _success_when_valid: bool
+
+    def __init__(
+        self,
+        report_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        actor_id = (
+            self.sender_actor_id if self.sender_actor_id else self.actor_id
+        )
+        if actor_id is None:
+            self.logger.error(f"{self.name}: actor_id not available")
+            return Status.FAILURE
+
+        valid_id = _report_phase_status_id(
+            actor_id, self.report_id, RM.VALID.value
+        )
+        is_valid = self.datalayer.read(valid_id) is not None
+
+        if is_valid:
+            if self._success_when_valid:
+                self.logger.debug(
+                    f"{self.name}: Report {self.report_id} already VALID"
+                )
+                return Status.SUCCESS
+            self.logger.debug(
+                f"{self.name}: Report {self.report_id}"
+                " already VALID - precondition failed"
+            )
+            return Status.FAILURE
+
+        if self._success_when_valid:
+            self.logger.debug(
+                f"{self.name}: Report {self.report_id} not in VALID state"
+            )
+            return Status.FAILURE
+        self.logger.debug(
+            f"{self.name}: Report {self.report_id}"
+            " in acceptable state for validation"
+        )
+        return Status.SUCCESS
+
+
+class CheckRMStateValid(_CheckReportPhaseRMStateBase):
     """Check if report is already in RM.VALID state.
 
     Returns SUCCESS if report status is RM.VALID (early exit optimization).
@@ -39,52 +100,10 @@ class CheckRMStateValid(DataLayerConditionWithPorts):
     Per BTND-03-009: typed port declarations replace register_key().
     """
 
-    def __init__(
-        self,
-        report_id: str,
-        sender_actor_id: str | None = None,
-        name: str | None = None,
-    ):
-        """Initialize CheckRMStateValid node.
-
-        Args:
-            report_id: ID of VulnerabilityReport to check.
-            sender_actor_id: Explicit actor ID to use instead of the blackboard
-                ``actor_id``.  Thread this in when the tree runs under
-                ``receiving_actor_id`` but the RM check must target the message
-                sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name).
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self.sender_actor_id = sender_actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        actor_id = (
-            self.sender_actor_id if self.sender_actor_id else self.actor_id
-        )
-        if actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
-            return Status.FAILURE
-
-        valid_id = _report_phase_status_id(
-            actor_id, self.report_id, RM.VALID.value
-        )
-        if self.datalayer.read(valid_id) is not None:
-            self.logger.debug(
-                f"{self.name}: Report {self.report_id} already VALID"
-            )
-            return Status.SUCCESS
-        self.logger.debug(
-            f"{self.name}: Report {self.report_id} not in VALID state"
-        )
-        return Status.FAILURE
+    _success_when_valid = True
 
 
-class CheckRMStateReceivedOrInvalid(DataLayerConditionWithPorts):
+class CheckRMStateReceivedOrInvalid(_CheckReportPhaseRMStateBase):
     """Check if report is in RM.RECEIVED or RM.INVALID state.
 
     Returns SUCCESS if report is in acceptable precondition state.
@@ -97,50 +116,7 @@ class CheckRMStateReceivedOrInvalid(DataLayerConditionWithPorts):
     Per BTND-03-009: typed port declarations replace register_key().
     """
 
-    def __init__(
-        self,
-        report_id: str,
-        sender_actor_id: str | None = None,
-        name: str | None = None,
-    ):
-        """Initialize CheckRMStateReceivedOrInvalid node.
-
-        Args:
-            report_id: ID of VulnerabilityReport to check.
-            sender_actor_id: Explicit actor ID to use instead of the blackboard
-                ``actor_id``.  Thread this in when the tree runs under
-                ``receiving_actor_id`` but the RM check must target the message
-                sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name).
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self.sender_actor_id = sender_actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        actor_id = (
-            self.sender_actor_id if self.sender_actor_id else self.actor_id
-        )
-        if actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
-            return Status.FAILURE
-
-        valid_id = _report_phase_status_id(
-            actor_id, self.report_id, RM.VALID.value
-        )
-        if self.datalayer.read(valid_id) is not None:
-            self.logger.debug(
-                f"{self.name}: Report {self.report_id} already VALID - precondition failed"
-            )
-            return Status.FAILURE
-
-        self.logger.debug(
-            f"{self.name}: Report {self.report_id} in acceptable state for validation"
-        )
-        return Status.SUCCESS
+    _success_when_valid = False
 
 
 class EnsureEmbargoExists(DataLayerConditionWithPorts):
