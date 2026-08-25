@@ -2,10 +2,16 @@
 
 Schema requirements: specs/spec-registry.yaml SR-02, SR-03.
 Pytest integration: specs/spec-registry.yaml SR-05.
+Coverage reporter: specs/spec-registry.yaml SR-05-004, SR-05-005.
 """
 
 import warnings
 
+from vultron.metadata.specs.coverage import (
+    ProtocolCoverageReport,
+    collect_marked_ids,
+    compute_protocol_coverage,
+)
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 
 
@@ -36,8 +42,11 @@ def warn_unknown_spec_id(spec_id: str, registry: SpecRegistry) -> None:
 
 
 __all__ = [
+    "ProtocolCoverageReport",
     "SpecRegistry",
     "UnknownSpecIdWarning",
+    "collect_marked_ids",
+    "compute_protocol_coverage",
     "load_registry",
     "warn_unknown_spec_id",
 ]
