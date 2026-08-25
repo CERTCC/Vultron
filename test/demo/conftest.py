@@ -14,6 +14,7 @@
 """Shared fixtures and helpers for demo tests."""
 
 import functools
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -46,6 +47,39 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
 demo_utils.DEFAULT_WAIT_SECONDS = 0.0
 
 logger = logging.getLogger(__name__)
+
+#: Characters that cannot appear in a SQLite in-memory deployment name.
+_NODE_NAME_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def node_db_url(base_url: str) -> str:
+    """Return a named in-memory storage deployment private to one node.
+
+    ``actor_db_url`` derives a store from the **final path segment** of an actor
+    id, dropping scheme and netloc, so ``http://vendor.test/…/actors/case-actor``
+    and ``http://coordinator.test/…/actors/case-actor`` resolve to one store
+    (:func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug`, #2549).
+    Under Docker that collision is harmless-by-accident: each container has its
+    own volume, so the two ``mydb-case-actor.sqlite`` files are different files.
+    In this harness every node is an app in one process, so the anonymous
+    ``sqlite:///:memory:`` template put them in the *same* store — and a node
+    that wrongly opened a store for a **foreign** actor found the real one
+    sitting there, fully populated. The defect this harness exists to catch
+    became undetectable precisely where it matters most.
+
+    Naming the deployment per node restores the container boundary: the base
+    name is carried through to every per-actor store, so a cross-node slug
+    collision resolves to two distinct empty stores exactly as it does in
+    Docker (``_memory_base_name``).
+
+    Args:
+        base_url: The node's base URL, e.g. ``"http://vendor.test"``.
+
+    Returns:
+        A named shared-cache in-memory URL template for that node alone.
+    """
+    name = _NODE_NAME_UNSAFE_RE.sub("_", base_url.rstrip("/"))
+    return f"sqlite:///file:node-{name}?mode=memory&cache=shared&uri=true"
 
 
 class _TestClientRouter:
@@ -146,6 +180,8 @@ class IsolatedActorApp:
         base_url: The base URL used to construct actor IDs.
         actor_id: Canonical URI of this app's own actor — the one ``dl`` belongs
             to. Exposed so a test can address it without rebuilding the URL.
+        db_url: This node's storage-deployment template, private to it the way a
+            container's volume is (see :func:`node_db_url`).
     """
 
     app: FastAPI
@@ -153,6 +189,7 @@ class IsolatedActorApp:
     dl: SqliteDataLayer
     base_url: str
     actor_id: str = ""
+    db_url: str = "sqlite:///:memory:"
 
     def store_for(self, actor_id: str) -> SqliteDataLayer:
         """Return the store of *actor_id* as hosted by this app.
@@ -164,16 +201,18 @@ class IsolatedActorApp:
         different store than ``dl``.  Reading ``dl`` in that case reports an empty
         store and the assertion fails for the wrong reason.
 
-        Built through ``get_datalayer`` with the same in-memory ``db_url`` the
-        app's ``get_actor_dl`` override uses, so it is the *same instance* the
-        routes are handed.
+        Built through ``get_datalayer`` with the same ``db_url`` the app's
+        ``get_actor_dl`` override uses, so it is the *same instance* the routes
+        are handed — and, because that template is this node's alone, a store
+        this method opens is this node's copy and not a same-slug actor's on
+        another node (:func:`node_db_url`).
 
         Args:
             actor_id: Canonical URI of an actor hosted by this app.
         """
         from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 
-        return get_datalayer(actor_id, db_url="sqlite:///:memory:")
+        return get_datalayer(actor_id, db_url=self.db_url)
 
 
 def create_isolated_actor_app(
@@ -220,6 +259,11 @@ def create_isolated_actor_app(
     # single configured answer that is right for all of them (ISSUE-2238).
     node_root = f"{base_url.rstrip('/')}/api/v2"
 
+    # This node's own storage deployment, so a store opened for a foreign actor
+    # is this node's empty copy rather than the owning node's populated one —
+    # the container boundary Docker gets from separate volumes (see node_db_url).
+    db_url = node_db_url(base_url)
+
     def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
         """Route per actor, in memory.
 
@@ -233,17 +277,23 @@ def create_isolated_actor_app(
         """
         return get_datalayer(
             canonical_actor_uri(actor_id, base_url=node_root),
-            db_url="sqlite:///:memory:",
+            db_url=db_url,
         )
 
     app = create_app(docs_url=None, openapi_url=None, node_base_url=node_root)
     app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
+    # Declared on the app, not only wired into the override: routes whose subject
+    # actor is named in the request body (actor creation) have no path segment to
+    # scope on and read this instead (``deps.node_db_url_template``).  Without it
+    # they would open the process-global store while every other route reads this
+    # node's, so an actor would 404 immediately after being created.
+    app.state.db_url = db_url
 
     # `dl` is this app's own actor's store, for tests that seed or assert
     # directly. Built through `get_datalayer` so it is the *same instance* the
     # override hands the routes, and so the actor registers as hosted here.
     own_actor_id = f"{base_url.rstrip('/')}/api/v2/actors/{actor_slug}"
-    isolated_dl = get_datalayer(own_actor_id, db_url="sqlite:///:memory:")
+    isolated_dl = get_datalayer(own_actor_id, db_url=db_url)
 
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
@@ -254,6 +304,7 @@ def create_isolated_actor_app(
         dl=isolated_dl,
         base_url=base_url,
         actor_id=own_actor_id,
+        db_url=db_url,
     )
 
 

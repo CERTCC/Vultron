@@ -36,12 +36,52 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_case_owner_id,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
     _snapshot_with_context,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.enums.roles import CVDRole
+
+
+def _resolve_owner_recipient(
+    dl: CasePersistence,
+    case_id: str,
+    emitting_actor_id: str,
+) -> str | None:
+    """Return the Case Owner's actor URI to address a CaseActor DM to.
+
+    The CaseActor's own copy of the case is ``attributed_to`` **itself** — it
+    authored it (CM-22-001, CP-05-003).  Addressing the Case Owner from that
+    field therefore made the CaseActor DM itself, and the owner never saw the
+    ``Offer(CaseParticipant)`` it was required to decide on (CM-16-004): the
+    fcvcv ADR-0026 chain stalled there, and ``accept-actor-recommendation``
+    returned 422 because no offer had ever arrived.
+
+    The CASE_OWNER participant role is the authoritative record of ownership
+    (CM-21-002), so resolve that first.  ``attributed_to`` stays as a fallback
+    for a store where no participant carries the role yet, but only when it
+    names somebody other than *emitting_actor_id* — a self-addressed DM is
+    never the intent, and returning ``None`` lets the caller fail loudly
+    instead of silently delivering to itself (ARCH-15-001).
+    """
+    case_obj = dl.read(case_id)
+    if isinstance(case_obj, VulnerabilityCase):
+        owner_id = resolve_case_owner_id(case_obj, dl)
+        if owner_id:
+            return owner_id
+
+    raw_owner = getattr(case_obj, "attributed_to", None)
+    fallback = getattr(raw_owner, "id_", raw_owner) or None
+    if fallback and fallback != emitting_actor_id:
+        return cast(str, fallback)
+    return None
 
 
 class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
@@ -177,13 +217,13 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
         try:
-            case_obj = self.datalayer.read(self.case_id)
-            raw_owner = getattr(case_obj, "attributed_to", None)
-            owner_id = getattr(raw_owner, "id_", raw_owner) or None
+            owner_id = _resolve_owner_recipient(
+                self.datalayer, self.case_id, self.actor_id
+            )
             if not owner_id:
                 self.feedback_message = (
-                    f"case '{self.case_id}' has no attributed_to (Case Owner) "
-                    "— cannot address Offer(CaseParticipant)"
+                    f"case '{self.case_id}' names no Case Owner other than "
+                    f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
@@ -437,13 +477,14 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
 
         factory = self.trigger_activity_factory  # guaranteed non-None
         try:
-            case_obj = self.datalayer.read(self.case_id)
-            raw_owner = getattr(case_obj, "attributed_to", None)
-            owner_id = getattr(raw_owner, "id_", raw_owner) or None
+            owner_id = _resolve_owner_recipient(
+                self.datalayer, self.case_id, self.actor_id
+            )
             if not owner_id:
                 self.feedback_message = (
-                    f"case '{self.case_id}' has no attributed_to (Case Owner) "
-                    "— cannot address duplicate-recommendation Note"
+                    f"case '{self.case_id}' names no Case Owner other than "
+                    f"'{self.actor_id}' — cannot address the "
+                    "duplicate-recommendation Note"
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE

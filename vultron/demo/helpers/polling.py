@@ -22,7 +22,7 @@ import logging
 import time
 from typing import Callable
 
-from vultron.adapters.utils import strip_id_prefix
+from vultron.adapters.utils import parse_id, strip_id_prefix
 from vultron.demo.utils import DataLayerClient, logfmt
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -677,18 +677,23 @@ def find_case_actor_participant_id(
     client: DataLayerClient,
     case_id: str,
 ) -> str | None:
-    """Return the CaseActor participant URI for *case_id* from *client*'s replica.
+    """Return the CaseActor's *actor* URI for *case_id* from *client*'s replica.
 
     Scans ``actor_participant_index`` for an actor ID whose bare segment starts
     with ``"case-actor"``.  A single read, not a poll: callers use it to resolve
     the CaseActor's URI once the case replica is already known to be present.
+
+    The index is keyed by actor URI (its values are the participant-record
+    URIs), so what comes back names the CaseActor itself — it is usable as a
+    ``DataLayerClient.dl_path`` actor scope, which is what
+    :func:`resolve_case_actor_store_id` builds on.
 
     Args:
         client: DataLayerClient connected to any container holding the case.
         case_id: Full URI of the ``as_VulnerabilityCase``.
 
     Returns:
-        The CaseActor participant URI, or ``None`` when the case is unreadable
+        The CaseActor's actor URI, or ``None`` when the case is unreadable
         or has no CaseActor participant.
     """
     try:
@@ -700,6 +705,51 @@ def find_case_actor_participant_id(
     except Exception:  # noqa: BLE001
         pass
     return None
+
+
+def resolve_case_actor_store_id(
+    client: DataLayerClient,
+    case_id: str,
+) -> str | None:
+    """Return the CaseActor URI to read *case_id*'s authoritative state through.
+
+    A CaseActor owns the case: it is where the participant records are written
+    when it applies an RM/EM transition.  Under ADR-0072 decision 5 it also has
+    a store of its own, so a participant's authoritative state is *not* visible
+    in the store of the actor that merely self-hosts it — the host's replica
+    only advances when a ledger entry it recognises tells it to, and the
+    per-participant RM transitions the CaseActor makes are not ledgered as
+    ``add_participant_status_to_participant`` events.  Reading the host's
+    replica therefore reports a stale ``RM.START`` indefinitely.
+
+    Returns ``None`` — meaning "read *client*'s own actor, as before" — when
+    either the case has no CaseActor participant, or the CaseActor lives in some
+    other container.  In the latter case *client* cannot address its store at
+    all, and scoping to it would 404 on every poll rather than fall back.
+
+    Args:
+        client: DataLayerClient for the container to read through.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+
+    Returns:
+        The CaseActor's actor URI when it is co-hosted with *client*'s own
+        actor, else ``None``.
+    """
+    case_actor_id = find_case_actor_participant_id(client, case_id)
+    if case_actor_id is None or client.actor_id is None:
+        return None
+    if (
+        parse_id(case_actor_id)["base_url"]
+        != parse_id(client.actor_id)["base_url"]
+    ):
+        logger.debug(
+            "CaseActor %s is not hosted by %s — reading %s's own store",
+            case_actor_id,
+            client.base_url,
+            client.actor_id,
+        )
+        return None
+    return case_actor_id
 
 
 def wait_for_object_stored(
@@ -763,6 +813,7 @@ def _wait_for_participant_status_field(
     expected_states: "set",
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Poll until *actor_id*'s latest participant status field is in *expected_states*.
 
@@ -778,6 +829,8 @@ def _wait_for_participant_status_field(
         expected_states: Set of state values that satisfy the condition.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — see :func:`_fetch_participant`.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -791,7 +844,9 @@ def _wait_for_participant_status_field(
     poll_count = 0
     while time.monotonic() < deadline:
         poll_count += 1
-        participant = _fetch_participant(client, case_id, actor_id)
+        participant = _fetch_participant(
+            client, case_id, actor_id, dl_actor_id=dl_actor_id
+        )
         if participant is not None:
             latest = participant.participant_status
             n_statuses = len(participant.participant_statuses or [])
@@ -823,27 +878,31 @@ def _wait_for_participant_status_field(
             )
         time.sleep(poll_interval)
 
-    participant = _fetch_participant(client, case_id, actor_id)
+    participant = _fetch_participant(
+        client, case_id, actor_id, dl_actor_id=dl_actor_id
+    )
     latest = (
         participant.participant_status if participant is not None else None
     )
     current_val = (
         getattr(latest, field_name) if latest is not None else "unknown"
     )
+    store = dl_actor_id or client.actor_id
     logger.debug(
         "_wait_for_participant_status_field timed out after %.1f s: "
-        "actor=%r case=%r field=%r current=%r expected=%r",
+        "actor=%r case=%r field=%r current=%r expected=%r store=%r",
         timeout_seconds,
         actor_id,
         case_id,
         field_name,
         current_val,
         expected_states,
+        store,
     )
     raise AssertionError(
         f"Timed out waiting for actor '{actor_id}' {field_name} to be in "
         f"{expected_states!r}; current={current_val!r}"
-        f" (polled {client.base_url})"
+        f" (polled {client.base_url}, store of {store!r})"
     )
 
 
@@ -854,6 +913,7 @@ def wait_for_participant_vfd_state(
     expected_states: "set",
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Poll until *actor_id*'s latest participant ``vfd_state`` is in
     *expected_states*.
@@ -865,6 +925,8 @@ def wait_for_participant_vfd_state(
         expected_states: Set of ``CS_vfd`` values that satisfy the condition.
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — typically a self-hosted CaseActor.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -877,6 +939,7 @@ def wait_for_participant_vfd_state(
         expected_states,
         timeout_seconds,
         poll_interval,
+        dl_actor_id=dl_actor_id,
     )
 
 
@@ -925,6 +988,7 @@ def wait_for_participant_rm_state(
     expected_states: "set",
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Poll until *actor_id*'s latest participant ``rm_state`` is in
     *expected_states*.
@@ -936,6 +1000,8 @@ def wait_for_participant_rm_state(
         expected_states: Set of ``RM`` values that satisfy the condition.
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — typically a self-hosted CaseActor.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -948,6 +1014,7 @@ def wait_for_participant_rm_state(
         expected_states,
         timeout_seconds,
         poll_interval,
+        dl_actor_id=dl_actor_id,
     )
 
 

@@ -1125,7 +1125,13 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 side_effect=lambda _: __import__("contextlib").nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = MagicMock(id_="urn:t:invite")
+            # actor="urn:t:ca" matches the case_actor_id passed below: the
+            # phase now asserts the Invite went out attributed to the CaseActor
+            # (PCR-08-008), which is the property that used to be pursued by
+            # posting the trigger to the CaseActor's container instead.
+            mock_ta.model_validate.return_value = MagicMock(
+                id_="urn:t:invite", actor="urn:t:ca"
+            )
             demo._phase_coordinator_invites_vendor2(
                 finder_client=finder_client,
                 vendor_client=vendor_client,

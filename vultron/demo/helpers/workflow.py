@@ -27,6 +27,7 @@ from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
     _poll_until,
+    resolve_case_actor_store_id,
     wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
 )
@@ -358,8 +359,11 @@ def run_invite_path_rm_triage(
         report: The VulnerabilityReport in the case.
         finder: The actor that originally submitted the Offer (unused; kept for
             call-site compatibility).
-        auth_client: Client for an actor that can see the CaseActor state
-            (e.g. the coordinating actor or vendor1_client).
+        auth_client: Client for the container that hosts the CaseActor (e.g.
+            the coordinating actor's or vendor1_client).  The CaseActor's own
+            store is what gets read through it when the case has one — see
+            :func:`resolve_case_actor_store_id`; the host actor's replica is
+            read only when the case has no CaseActor participant.
         case: The VulnerabilityCase.
         invited_obj: The invited actor's top-level object (used for actor_id lookup).
         timeout_seconds: Polling timeout per wait call (default 20s).
@@ -386,6 +390,14 @@ def run_invite_path_rm_triage(
         offer_id=offer_id,
     )
 
+    # Read the CaseActor's own store, not the store of the actor that hosts it:
+    # the CaseActor applies the participant RM transition to its own replica and
+    # emits no add_participant_status_to_participant ledger entry for it, so the
+    # host's replica of the participant stays at RM.START forever (ADR-0072
+    # decision 5).  None means "the case has no CaseActor" and preserves the
+    # previous read.
+    case_actor_store_id = resolve_case_actor_store_id(auth_client, case.id_)
+
     with demo_check(f"CaseActor reflects {invited_obj.id_} at RM.VALID"):
         wait_for_participant_rm_state(
             client=auth_client,
@@ -393,6 +405,7 @@ def run_invite_path_rm_triage(
             actor_id=invited_obj.id_,
             expected_states={RM.VALID, RM.ACCEPTED},
             timeout_seconds=timeout_seconds,
+            dl_actor_id=case_actor_store_id,
         )
 
     # Gate engage-case on the invited actor's OWN RM.VALID commit.
@@ -425,6 +438,7 @@ def run_invite_path_rm_triage(
                 actor_id=invited_obj.id_,
                 expected_states={RM.ACCEPTED},
                 timeout_seconds=timeout_seconds,
+                dl_actor_id=case_actor_store_id,
             )
         with demo_check(f"{invited_obj.id_} own container at RM.ACCEPTED"):
             wait_for_participant_rm_state(

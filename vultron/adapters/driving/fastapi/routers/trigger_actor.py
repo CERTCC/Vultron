@@ -39,6 +39,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     RejectCaseInviteRequest,
     SuggestActorToCaseRequest,
 )
+from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
@@ -184,12 +185,22 @@ def trigger_invite_actor_to_case(
     # The invite is stored in the CaseActor's outbox (PCR-08-007), not the
     # requesting actor's outbox.  Use emitting_actor_id so the outbox_handler
     # drains the correct outbox queue.
+    #
+    # Unless the CaseActor is on another container, which it is after a handoff
+    # (CP-08-003).  A node cannot reach a foreign authority's store, so
+    # ``BTBridge._store_for_actor`` keeps the emit in the requesting actor's own
+    # store and the Invite is queued *there*; resolving the queue any other way
+    # would drain an empty store minted for a foreign slug and deliver nothing.
+    # ``store_for_actor`` is the same guard the bridge applies, so the two
+    # cannot disagree about which queue holds the activity (#2484).
     emitting_id = result.get("emitting_actor_id", actor_id)
     emitting_dl = (
-        dl.clone_for_actor(emitting_id)
+        store_for_actor(dl, emitting_id, require_same_authority=True)
         if emitting_id != actor_id
         else actor_dl
     )
+    if emitting_dl is None:
+        emitting_id, emitting_dl = actor_id, actor_dl
     background_tasks.add_task(outbox_handler, emitting_id, emitting_dl)
     return result
 

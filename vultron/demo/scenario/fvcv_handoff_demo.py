@@ -50,6 +50,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     demo_gate,
     demo_step,
     post_to_trigger,
+    ref_id,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
@@ -473,13 +474,21 @@ def _phase_coordinator_invites_vendor2(
     logger.info("Phase 3: Coordinator invites Vendor2 (AC-2)")
     logger.info("─" * 80)
 
-    # Trigger on vendor_client (the CaseActor's host container) so the invite is
-    # emitted as CaseActor.  Vendor2's Accept then routes to CaseActor, not to
-    # Coordinator, enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
+    # Post to the Coordinator's OWN container.  A trigger URL is built from the
+    # named actor's bare ID against the client's base_url, so naming an actor a
+    # container does not host 404s — which is exactly what posting Coordinator's
+    # trigger to vendor_client did.
+    #
+    # Emitting as the CaseActor needs no cross-container hack:
+    # ``SvcInviteActorToCaseUseCase._prepare`` resolves the case's CaseActor and
+    # sets ``self._actor_id`` to it, so the Invite goes out attributed to the
+    # CaseActor and Vendor2's Accept routes back to the CaseActor rather than to
+    # the Coordinator, letting AcceptInviteActorToCaseBT run (PCR-08-007,
+    # PCR-08-008).  The assertion below is what holds that property honest.
     invite_result = None
     with demo_step("Coordinator invites Vendor2 to the case"):
         invite_result = post_to_trigger(
-            client=vendor_client,
+            client=coordinator_client,
             actor_id=coordinator_in_coordinator.id_,
             behavior="invite-actor-to-case",
             body={
@@ -490,6 +499,16 @@ def _phase_coordinator_invites_vendor2(
         )
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Vendor2 invite created by Coordinator: %s", invite.id_)
+
+    with demo_check(
+        "Vendor2 invite was emitted as the CaseActor (PCR-08-008)"
+    ):
+        emitting_actor = ref_id(invite.actor)
+        assert emitting_actor == case_actor_id, (
+            f"Invite '{invite.id_}' was emitted as '{emitting_actor}', not as"
+            f" the CaseActor '{case_actor_id}' — Vendor2's Accept would route"
+            " to the Coordinator and AcceptInviteActorToCaseBT would not run"
+        )
 
     with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
         find_case_invite_for_actor(

@@ -29,6 +29,7 @@ import time
 from contextlib import contextmanager
 from http import HTTPMethod
 from typing import Any, Generator, Optional, Sequence, Tuple, cast
+from urllib.parse import urlsplit
 
 # Third-party imports
 import httpx2 as httpx
@@ -37,6 +38,7 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.core.behaviors.store_scope import same_authority
 from vultron.core.models.base import NonEmptyString
 from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -483,7 +485,12 @@ def post_to_trigger(
 
     Returns:
         Response dict from the trigger endpoint.
+
+    Raises:
+        ValueError: If *actor_id* names an actor that *client*'s container does
+            not host.  See :func:`_assert_client_hosts_actor`.
     """
+    _assert_client_hosts_actor(client, actor_id, behavior)
     actor_obj_id = parse_id(actor_id)["object_id"]
     logger.info(
         "Posting trigger '%s' for actor '%s': %s",
@@ -494,6 +501,55 @@ def post_to_trigger(
     return client.post(
         f"/actors/{actor_obj_id}/{path_prefix}/{behavior}", json=body
     )
+
+
+def _assert_client_hosts_actor(
+    client: DataLayerClient,
+    actor_id: str,
+    behavior: str,
+) -> None:
+    """Fail loudly when *client* and *actor_id* name different containers.
+
+    The trigger URL keeps only *actor_id*'s bare object ID and resolves it
+    against ``client.base_url``, so a mismatched pair does not address the actor
+    it names — it addresses whatever the target container happens to host under
+    that slug.  There is no error at the HTTP layer to notice: if the slug is
+    unknown there the request 404s three frames from the real mistake, and if it
+    *is* known ``get_actor_dl`` mints an empty store for it and the trigger runs
+    against the wrong actor's state (#2549).
+
+    fvcv-handoff spent a CI run on the 404 form of this — the Coordinator's
+    ``invite-actor-to-case`` posted to the vendor container — so the check is
+    here rather than in each scenario.
+
+    Skipped when either side is not a real absolute URI: test doubles pass a
+    ``MagicMock`` ``base_url`` and unit fixtures use bare actor slugs, neither of
+    which can be checked and neither of which can mis-address a live container.
+    """
+    if not isinstance(actor_id, str) or not _has_authority(actor_id):
+        return
+    base_url = str(getattr(client, "base_url", "") or "")
+    if not _has_authority(base_url):
+        return
+    if not same_authority(base_url, actor_id):
+        raise ValueError(
+            f"trigger '{behavior}' names actor '{actor_id}', which is not"
+            f" hosted by '{base_url}' — post it to that actor's own container"
+        )
+
+
+def _has_authority(value: str) -> bool:
+    """True when *value* parses as a URI carrying a scheme and a netloc.
+
+    ``httpx``'s ``base_url`` is a ``URL``, a ``MagicMock``'s is its repr, and a
+    unit fixture's actor ID may be a bare slug; only a real absolute URI can be
+    compared, and only a real absolute URI can mis-address a live container.
+    """
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return bool(parts.scheme and parts.netloc)
 
 
 def verify_object_stored(

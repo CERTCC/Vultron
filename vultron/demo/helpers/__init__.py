@@ -21,7 +21,8 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
   ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
-  ``wait_for_object_stored``, and all ``wait_for_*`` helpers.
+  ``resolve_case_actor_store_id``, ``wait_for_object_stored``, and all
+  ``wait_for_*`` helpers.
 - :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
   and named CVD lifecycle action wrappers.
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory.
@@ -77,6 +78,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     find_case_invite_for_actor,
     find_cp_offer_for_case,
     find_ownership_transfer_offer_for_actor,
+    resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,

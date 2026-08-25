@@ -25,6 +25,10 @@ Functions
 get_actor_dl
     Return the DataLayer belonging to the actor named by the ``{actor_id}``
     path segment.  This is the single actor-scoping seam for all routes.
+node_db_url_template
+    Return the storage template the serving app was built with, so a route
+    whose subject actor is named in the *body* opens a store in the same
+    deployment the path-scoped routes read.
 get_trigger_dl
     Alias of :func:`get_actor_dl`, kept as a distinct override point for
     trigger-route tests.
@@ -81,6 +85,34 @@ def node_base_url(request: Request | None) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def node_db_url_template(request: Request | None) -> str | None:
+    """Return the storage template the serving app was built with, if any.
+
+    Every store this node opens must come from one deployment.  ``get_actor_dl``
+    guarantees that for routes whose subject actor arrives as a path segment,
+    because they can be given an overridden dependency.  A route whose subject
+    actor is named in the *request body* — actor creation — has no segment to
+    scope on and so reached for the module-global ``get_datalayer`` instead,
+    which reads process-global configuration and ignores
+    ``dependency_overrides`` entirely.
+
+    In deployment the two agree: one process is one node with one configured
+    ``db_url``.  In a harness running several nodes in one process they do not,
+    and the split is silent — the *record* of a newly created actor lands in the
+    process-global store while every subsequent route reads the app's own, so
+    the actor answers ``404`` immediately after a ``201``.
+
+    App-scoped for the same reason :func:`node_base_url` is: it is fixed when
+    the app is built and is not derivable from the incoming request.  Returning
+    ``None`` when the app declares nothing leaves callers on configuration,
+    which keeps production behaviour unchanged.
+    """
+    if request is None:
+        return None
+    value = getattr(request.app.state, "db_url", None)
+    return value if isinstance(value, str) and value else None
+
+
 def get_actor_dl(
     actor_id: str = Path(...),
     request: Request = None,  # type: ignore[assignment]
@@ -104,7 +136,8 @@ def get_actor_dl(
     return cast(
         DataLayer,
         get_datalayer(
-            canonical_actor_uri(actor_id, base_url=node_base_url(request))
+            canonical_actor_uri(actor_id, base_url=node_base_url(request)),
+            db_url=node_db_url_template(request),
         ),
     )
 

@@ -172,15 +172,39 @@ class BTBridge:
         The guard logic itself lives in
         :func:`~vultron.core.behaviors.store_scope.store_for_actor` so that this
         node, ``WritePendingReportCaseLinkNode`` and the demo seeding helpers
-        cannot drift apart on what "that actor's store" means.  Reconciliation
-        here never refuses: the executing actor is by definition one this node
-        runs as, so ``require_same_authority`` is not set and the result is never
-        ``None``.
+        cannot drift apart on what "that actor's store" means.
+
+        ``require_same_authority`` is set, and the fall-through is the point of
+        it.  The executing actor is not always one this node hosts: after a
+        handoff the case's CaseActor is on the container that first received the
+        report (CP-08-003) while the owner is elsewhere, and
+        ``_find_case_actor_id`` resolves it by *identity shape*
+        (``.../actors/case-actor``, ADR-0041) which answers for remote
+        containers too.  ``clone_for_actor`` would then mint an empty local
+        store under a foreign actor's name, and the tree would run against
+        nothing: no case to enrich the wire object from (CM-17-002), no case to
+        read a genesis hash out of, so ``ReconstructChainTailNode`` cannot
+        anchor the chain and the ledger commit fails outright (CLP-08-005) —
+        ``invite-actor-to-case`` returns 422 rather than degrading (#2484).
+
+        So a foreign-authority actor keeps the store it was handed: the store of
+        the actor whose request this is, which does hold the case and its
+        ledger.  The *wire* identity is unaffected — the Invite still goes out
+        with ``actor`` set to the CaseActor and ``attributedTo`` the requester
+        (PCR-08-007) — and the CaseActor's canonical ledger learns of it the
+        only way a remote store ever can, over the wire via the ``cc:`` copy
+        (CLP-10-001).  Callers that queue work for the executing actor must fall
+        back the same way; see ``trigger_invite_actor_to_case``.
 
         Reconciling the store is necessary but not sufficient — see
         :meth:`_ports_for_store` for the other half.
         """
-        return store_for_actor(self.datalayer, actor_id) or self.datalayer
+        return (
+            store_for_actor(
+                self.datalayer, actor_id, require_same_authority=True
+            )
+            or self.datalayer
+        )
 
     def _ports_for_store(self, store: CasePersistence) -> tuple[
         "TriggerActivityPort | None",
@@ -205,16 +229,49 @@ class BTBridge:
         owner runs with ``actor_id`` set to the CaseActor, so the two references
         disagree by construction rather than by mistake.
 
+        A port this bridge was not given is *inherited* from the blackboard
+        rather than left alone, because the blackboard is process-global
+        (``Blackboard.storage``) and the nested-bridge pattern relies on that:
+        an emit node builds its ledger-commit tree with
+        ``BTBridge(datalayer=...)`` and no ports, so whatever the last execution
+        wrote is what the commit tree's ``LedgerFanoutNode`` picks up.  Within
+        one request that inheritance is intended — the ports belong to the
+        execution in progress.  Across requests it is a store leak: a node
+        hosting several actors runs actor A's trigger, then actor B's, and B's
+        ``Announce(CaseLedgerEntry)`` is persisted through A's adapter into A's
+        store (ADR-0072, CM-01-001).  Rebinding on the way through makes the
+        inheritance safe by construction instead of safe by luck, so the port a
+        nested tree reads always writes the store that tree runs in.
+
         Ports that do not opt in are returned unchanged; see
         :func:`~vultron.core.behaviors.store_scope.port_for_store`.
         """
-        if store is self.datalayer:
-            return self.trigger_activity, self.sync_port, self.wire_render_port
         return (
-            port_for_store(self.trigger_activity, store),
-            port_for_store(self.sync_port, store),
-            port_for_store(self.wire_render_port, store),
+            port_for_store(
+                self.trigger_activity
+                or self._inherited_port("trigger_activity_factory"),
+                store,
+            ),
+            port_for_store(
+                self.sync_port or self._inherited_port("sync_port"), store
+            ),
+            port_for_store(
+                self.wire_render_port
+                or self._inherited_port("wire_render_port"),
+                store,
+            ),
         )
+
+    @staticmethod
+    def _inherited_port(key: str) -> Any:
+        """Return the port currently on the blackboard under *key*, or ``None``.
+
+        Read straight out of ``Blackboard.storage`` rather than through a
+        ``Client``: registering READ access for a key that may never have been
+        written raises, and "no port has been set yet" is the ordinary case for
+        the first execution in a process.
+        """
+        return py_trees.blackboard.Blackboard.storage.get(f"/{key}")
 
     def setup_tree(
         self,

@@ -38,7 +38,11 @@ from pydantic import BaseModel, Field
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer import get_datalayer
-from vultron.adapters.driving.fastapi.deps import get_actor_dl, node_base_url
+from vultron.adapters.driving.fastapi.deps import (
+    get_actor_dl,
+    node_base_url,
+    node_db_url_template,
+)
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
@@ -92,7 +96,7 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
     description="Returns a list of Actor examples.",
     operation_id="actors_list",
 )
-def get_actors():
+def get_actors(http_request: Request):
     """Returns the actors this node hosts.
 
     Under ADR-0072 this enumerates hosted actors and reads each one's record
@@ -100,10 +104,15 @@ def get_actors():
     actor-typed row, which also returned the node's *peers* — actors it merely
     holds an address for.  A peer is not hosted here, so peers are no longer
     listed (ADR-0072 decision 4).
+
+    Each store is opened in the serving app's own deployment
+    (:func:`node_db_url_template`), so the records listed are the ones the rest
+    of this app's routes read.
     """
+    db_url = node_db_url_template(http_request)
     objects: list[AnyActor] = []
     for actor_id in actor_hosts.hosted_actor_ids():
-        actor_dl = get_datalayer(actor_id)
+        actor_dl = get_datalayer(actor_id, db_url=db_url)
         for t in _ACTOR_RECORD_TYPES:
             rec = actor_dl.get(t, actor_id)
             if isinstance(rec, dict):
@@ -194,6 +203,13 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     (``deps.node_base_url``), falling back to configuration. Creating an actor and
     then addressing it have to agree on that namespace, or the record lands in a
     store no request can reach.
+
+    The same agreement is needed on the *storage deployment*: the subject actor
+    is named in the body, so there is no path segment to hang an injectable
+    per-actor dependency on, and the store is opened directly. Opening it in the
+    serving app's deployment (``deps.node_db_url_template``) rather than the
+    process-global one is what keeps this route reading the same stores as the
+    rest of the app when several nodes share a process.
     """
     try:
         actor_id = actor_hosts.canonical_actor_uri(
@@ -208,7 +224,9 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
-    datalayer = get_datalayer(actor_id)
+    datalayer = get_datalayer(
+        actor_id, db_url=node_db_url_template(http_request)
+    )
 
     # Idempotency: return existing record unchanged.
     existing = _find_actor_record(datalayer, actor_id)

@@ -860,6 +860,11 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
         finder = self._actor("urn:test:finder")
         invite = MagicMock()
         invite.id_ = "urn:test:invite"
+        # Matches the case_actor_id passed below: the phase now asserts the
+        # Invite went out attributed to the CaseActor (PCR-08-008), which is the
+        # property that used to be pursued by posting the trigger to the
+        # CaseActor's container instead.
+        invite.actor = "urn:test:case-actor"
 
         call_order: list[str] = []
 

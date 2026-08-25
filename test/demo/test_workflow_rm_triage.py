@@ -295,6 +295,65 @@ def test_invite_path_engage_gated_on_own_rm_valid(invite_actors):
     assert call_order.index("wait_own_valid") < call_order.index("engage")
 
 
+def test_invite_path_caseactor_checks_read_the_case_actors_own_store(
+    invite_actors,
+):
+    """The "CaseActor reflects …" checks must read the CaseActor's own store.
+
+    ``auth_client`` addresses the *container* that hosts the CaseActor, and its
+    own ``actor_id`` is the host actor — not the CaseActor.  Under ADR-0072
+    decision 5 those are separate stores: the CaseActor writes the participant's
+    RM transition to its own replica and emits no
+    ``add_participant_status_to_participant`` ledger entry for it, so nothing
+    ever advances the host's copy.  Reading the host's replica therefore reports
+    ``RM.START`` until the timeout expires, no matter how healthy the run is
+    (observed in fcvcv for both the RM.VALID and RM.ACCEPTED checks).
+    """
+    (
+        invited_client,
+        invited_actor,
+        offer,
+        report,
+        finder,
+        auth_client,
+        case,
+        invited_obj,
+    ) = invite_actors
+    case_actor_id = "http://coordinator:7999/api/v2/actors/case-actor"
+    scopes: list[str | None] = []
+
+    def _wait_rm(*, client, dl_actor_id=None, **_kwargs):
+        if client is auth_client:
+            scopes.append(dl_actor_id)
+
+    with (
+        patch.object(workflow, "wait_for_event_type_in_ledger"),
+        patch.object(workflow, "receiver_validates_report"),
+        patch.object(
+            workflow, "resolve_case_actor_store_id", return_value=case_actor_id
+        ),
+        patch.object(
+            workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
+        ),
+        patch.object(workflow, "receiver_engages_case"),
+    ):
+        workflow.run_invite_path_rm_triage(
+            invited_client=invited_client,
+            invited_actor=invited_actor,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=auth_client,
+            case=case,
+            invited_obj=invited_obj,
+        )
+
+    assert scopes == [case_actor_id, case_actor_id], (
+        "both CaseActor checks must be scoped to the CaseActor's store; "
+        f"got {scopes!r}"
+    )
+
+
 def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
     invite_actors,
 ):

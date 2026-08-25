@@ -53,6 +53,7 @@ def _fetch_participant(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
+    dl_actor_id: str | None = None,
 ) -> Optional[as_CaseParticipant]:
     """Fetch the as_CaseParticipant record for *actor_id* in *case_id*.
 
@@ -60,18 +61,25 @@ def _fetch_participant(
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose participant record to fetch.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor.  Needed for a self-hosted CaseActor: it
+            shares its owner's container but not its store (ADR-0072 decision
+            5), so reading the owner's replica reports the owner's view of a
+            participant, not the CaseActor's authoritative one.
 
     Returns:
         The ``as_CaseParticipant`` or ``None`` if the actor or participant
         record is not found.
     """
     try:
-        case_data = client.get(client.dl_path(case_id))
+        case_data = client.get(client.dl_path(case_id, actor_id=dl_actor_id))
         case = as_VulnerabilityCase.model_validate(case_data)
         participant_id = case.actor_participant_index.get(actor_id)
         if participant_id is None:
             return None
-        p_data = client.get(client.dl_path(_dl_key(participant_id)))
+        p_data = client.get(
+            client.dl_path(_dl_key(participant_id), actor_id=dl_actor_id)
+        )
         return as_CaseParticipant(**p_data)
     except (httpx.HTTPStatusError, AssertionError):
         return None
