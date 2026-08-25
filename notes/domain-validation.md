@@ -6,7 +6,10 @@ description: >
   None/unresolved fields) to "strict" (all required fields guaranteed),
   and how helpers must fail fast when strict guarantees are violated.
 related_specs:
-  - specs/architecture.yaml (ARCH-10-001, ARCH-15-001 through ARCH-15-004)
+  - specs/architecture.yaml (ARCH-10-001, ARCH-15-001 through ARCH-15-004,
+    ARCH-21-001 through ARCH-21-005)
+  - specs/case-management.yaml (CM-27-001 through CM-27-003)
+  - specs/participant-role-management.yaml (PRM-03-003)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/bt-integration.md
@@ -113,6 +116,181 @@ Duplicate copies in other modules MUST NOT be maintained — import from the
 canonical location instead.
 `behaviors/status/nodes/broadcast.py` was deleted in #1378 after its only
 content (`_find_case_manager_id`) was consolidated into `_resolve_case_manager_id`.
+
+### Exception: shape guards live in `models/_wire_spelling.py`
+
+`vultron/core/models/_helpers.py` cannot import from `vultron.core.states` —
+that is a circular import through `states/__init__.py`. Shape guards tend to
+grow state references (a guard that knows about `rm` eventually wants `RM`), so
+they live in `vultron/core/models/_wire_spelling.py` instead of being colocated
+with `_as_id()` and friends. This is a deliberate deviation from the rule above,
+not an oversight; it exists so the cycle cannot be reintroduced by the next
+guard that needs a state enum.
+
+The trap: `states/rm.py`'s own imports look clean (logging, enum, transitions,
+`states.common`), so inspecting the target module tells you nothing. The cycle
+runs through the package `__init__.py` — `models/base.py` imports `_helpers`,
+which triggers `states/__init__.py`, which pulls `states/cs.py` → `states/common.py`
+→ back into `models/base.py` while it is still partially initialised. The error
+looks like a missing symbol in `models.base`, not a cycle.
+
+### Type-specific canonical readers live with their type
+
+A helper that reads one dimension of one model type (e.g. `participant_status_rm_state`)
+belongs in the same module as that type (`vultron/core/models/participant_status.py`),
+not in `_helpers.py`. Two reasons:
+
+1. It cannot go to `_helpers.py` if it needs a state enum (see above).
+2. Colocating the canonical reader with the type keeps the authorship contract
+   clear: the module that defines a type owns its read semantics.
+
+The distinction from shape guards in `_wire_spelling.py`: shape guards are
+cross-cutting (they need to know about the core/wire boundary across multiple
+types); canonical readers are type-specific. Cross-cutting → `_wire_spelling.py`;
+type-specific → the type's own module.
+
+BT-node-level wrappers that combine multiple readers (e.g. `read_rm_states()`)
+live in `vultron/core/behaviors/helpers.py`, which has no circular-import
+restriction (it is below use-cases, above models, and can import from either).
+
+---
+
+## Shape Guards: One Canonical Reader per Dimension (#2232)
+
+`ParticipantStatus` exists in two incompatible shapes: core nests
+`rm: RmDimension` / `vfd: VfdDimension` (SDO-03-002, ADR-0036), while the wire
+projection carries flat `rm_state` / `vfd_state`. Reading a dimension off the
+wrong shape yields `None` — which every reader then quietly substituted an
+initial state for, resetting the participant's ladder (#2264).
+
+**Read a dimension only through its canonical reader.** Both live in
+`vultron/core/models/participant_status.py`:
+
+| Reader | Returns | Raises |
+|---|---|---|
+| `participant_status_rm_state(status)` | the `RM` state | `VultronValidationError` on a non-core shape |
+| `participant_status_vfd_state(status)` | the `CS_vfd` state | `VultronValidationError` on a non-core shape |
+
+```python
+# Wrong — a wire-shaped status degrades to the initial state, silently.
+rm_dim = getattr(status, "rm", None)
+state = getattr(rm_dim, "state", None)
+if not isinstance(state, RM):
+    state = RM.START
+
+# Right — absence and shape mismatch are different outcomes.
+state = participant_status_rm_state(status)
+```
+
+This is the strict/loose rule applied to *shape*: an **empty** status list is a
+legitimate absence and callers must handle it (check `participant_statuses`
+before calling); a status that exists but exposes no usable dimension is a shape
+mismatch and must raise (ARCH-15-001, ARCH-15-002).
+
+**Where a raise is wrong.** At a wire→core ingress boundary, a wire-shaped
+status is *legitimate inbound data*, not a corrupt row. Those sites must
+**project** before reading — `as_ParticipantStatus.to_core()`, or
+`_project_to_core_participant()` in
+`vultron/core/use_cases/received/case/_helpers.py` — rather than let the reader
+raise. Making the reader strict without projecting at ingress first aborted the
+entire received-case behavior tree on every inbound `Announce`, which is how the
+first fix for #2232 regressed.
+
+The mirror-image guard is `reject_wire_spelled_keys()` in
+`vultron/core/models/_wire_spelling.py`: a core type validated against a
+wire-spelled (camelCase) payload drops every snake-only key in silence, because
+Pydantic v2 ignores unknown keys. It is computed per exact class, so a
+`CaseParticipant` role subclass that adds a field is covered without any
+registration step.
+
+---
+
+## Post-Construction Mutation: Three Doors, One Lock (#2261)
+
+Pydantic v2 validates a model at **construction**. Nothing else. The same value
+the constructor rejects is silently accepted through two other doors:
+
+```python
+case = VulnerabilityCase(case_participants=[wire_obj])  # ValidationError
+case.case_participants = [wire_obj]                     # accepted
+case.case_participants.append(wire_obj)                 # accepted
+```
+
+Combine that with the shape duality above and you get the #2232 / #2264 failure:
+a wire-shaped object in a core-typed field does not raise when read — it reads as
+*absent*, so the reader substitutes an initial state and the participant's ladder
+silently resets.
+
+**The two remedies are different mechanisms, because they close different
+doors.** `validate_assignment=True` closes the assignment door. It does
+*nothing* for `append` — an in-place list mutation is not an attribute
+assignment, so Pydantic never observes it. That door is closed by prohibition
+plus canonical mutators plus an architecture ratchet (CM-27-001, PRM-03-003),
+the same way PRM-03-001 closed it for `case_roles`. The established canonical
+mutators are `add_case_status()` (on `VulnerabilityCase`, CM-27-003) and
+`add_participant_status()` (on `CaseParticipant`, PRM-03-003), alongside the
+existing `add_participant()` / `remove_participant()` for `case_participants`.
+
+### Where `validate_assignment` goes — and where it must not
+
+| Layer | `validate_assignment` | Why |
+|---|---|---|
+| Core models (`vultron/core/models/`) | **on** (ARCH-21-001) | Core fields carry a shape guarantee that readers depend on |
+| `VultronBase` | **never** (ARCH-21-002) | Shared base of both branches; `as_Base` inherits it (ARCH-12-001/002) |
+| Wire (`vultron/wire/`) | **never** (ARCH-21-003) | Inbound data is legitimately loose; strictness belongs at the projection |
+
+Setting the flag on `VultronBase` is the one-line fix that looks right and is
+not. It contradicts ARCH-12-002 and, when measured, produced the largest blast
+radius of any variant (747 failed, 423 errors).
+
+### Pitfall: never assign to `self` in a `mode="after"` validator
+
+This is the trap that makes the whole change non-trivial, and it is invisible
+from reading the model:
+
+```python
+# Wrong — with validate_assignment on, this recurses until the stack is gone.
+@model_validator(mode="after")
+def _set_role(self) -> FinderParticipant:
+    self.case_roles = []          # assignment re-runs this validator...
+    self.add_role(CVDRole.FINDER)
+    return self
+
+# Right — derive before validation, so the derived value is itself validated.
+@model_validator(mode="before")
+@classmethod
+def _set_role(cls, data: Any) -> Any:
+    ...
+```
+
+`validate_assignment` re-runs **every** `mode="after"` validator on each
+assignment, so a validator that writes to `self` re-enters itself. A guarded one
+(`if self.name is None: self.name = ...`) terminates at depth 2; an unguarded one
+never terminates. Enabling the flag before this rule holds aborts 400+ tests with
+`RecursionError` **and nothing else** — the recursion masks every real type
+failure, so the actual blast radius cannot be measured until the validators are
+fixed. ARCH-21-004 makes this a MUST NOT for `vultron/core/`.
+
+Writing the field through `self.__dict__["field"]` was considered and rejected:
+it stops the recursion but leaves the derived value unvalidated, trading one
+silent hole for a smaller one.
+
+Wire-layer validators are **exempt by design** — the wire branch never enables
+the flag, so they cannot re-enter. Twelve of them still assign to `self`. If the
+wire branch ever gains `validate_assignment`, this trap returns.
+
+### Cost
+
+Scalar attribute assignment measured **475 ns → 1464 ns** (3.1×, ~1 µs
+absolute) — immaterial for BT tick loops. Collection fields are O(N) per
+assignment: assigning `case_participants` re-validates all N items. Step 2
+(issue #2294, AC-6) benchmarked `list[FakeParticipant]` reassignment and found
+**3.8× overhead at N=100 (~3 µs absolute)** — O(N) confirmed, within the
+acceptable range.
+
+See ADR-0064 for the decision and the three-step rollout, and
+`test/architecture/test_validate_assignment_ratchet.py` for the enumerated
+backlogs that track it.
 
 ---
 

@@ -11,25 +11,46 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Report closure behavior tree composition (Phase 1 stub).
+"""Close Readiness Monitoring seam tree.
 
-This module provides :func:`create_close_report_tree`, which hosts the
-close-report call-out points wired per ADR-0025 / BT-18-004:
+This module provides :func:`create_close_report_tree`, which exposes the
+``OtherCloseCriteriaMet`` call-out point as an injection seam for a future
+Close Readiness Monitoring Sentinel (see epic #1147 / #1143 Sentinel agent
+type).
 
-Evaluator node:
-- ``OtherCloseCriteriaMet``
+**Design note — no autonomous close path**
 
-Actuator node (reserved for Phase 2 — accepted but not yet wired):
-- ``PreCloseAction``
+Case closure in Vultron is always Case Owner-triggered: the Case Owner (or
+Case Manager acting on their behalf) issues a ``Leave(VulnerabilityCase)``
+activity, which flows through :func:`create_close_case_trigger_tree`.
+There is no autonomous close path because:
 
-Phase 1 contains only the ``OtherCloseCriteriaMet`` Evaluator as a stub
-tree.  The full close-report workflow (deployed/deferred/invalid short-circuit
-arms, pre-close actions) is deferred to a future issue.
+- Standard simulator closure criteria (CS.DEPLOYED, RM.DEFERRED, RM.INVALID)
+  are necessary but not sufficient — the Case Owner judges when to close.
+- ``CS.P`` already triggers embargo teardown; wiring ``EM.EXITED + CS.P`` as
+  an auto-close signal would close every case on public disclosure.
+
+This tree is therefore a **seam-only stub**, not called by any use case.
+Its intended future use is: a Sentinel backend injected via
+``other_close_criteria_factory`` that observes case state, detects that
+objective close conditions are met, and posts an observational note to the
+Case Owner.  The Case Owner then issues the ``Leave`` voluntarily.
+
+``PreCloseAction`` (the pre-close Actuator) is wired in
+:func:`create_close_case_trigger_tree` (completed in #1854), between the
+``CheckReportNotClosed`` guard and ``TransitionRMtoClosed``.
+
+Nodes hosted here
+-----------------
+- ``OtherCloseCriteriaMet`` — Evaluator seam; DETERMINISTIC default =
+  ``AlwaysFail`` (correct: seam fires only when a real Sentinel is injected)
 
 References
 ----------
+- IDEA-1253: planning rationale for this design
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-18-004
+- Notes: ``notes/bt-fuzzer-rm-closure.md`` § "Design Rationale"
 """
 
 import logging
@@ -38,7 +59,7 @@ from typing import TYPE_CHECKING
 import py_trees
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.close_report import (
+    from vultron.core.behaviors.call_out.bundles.close_report import (
         CloseReportCallOutBundle,
     )
 
@@ -49,31 +70,33 @@ def create_close_report_tree(
     case_id: str,
     call_out: "CloseReportCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
-    """Create behavior tree for the report closure workflow (Phase 1 stub).
+    """Build the Close Readiness Monitoring seam tree.
 
-    Phase 1 exposes the ``OtherCloseCriteriaMet`` Evaluator call-out point
-    as a stub root node.  The ``pre_close_action_factory`` Actuator parameter
-    is accepted for BT-18-004 compliance but reserved for Phase 2 when the
-    full pre-close sequence is built.  The full workflow (deployed/deferred/
-    invalid short-circuit arms, pre-close actions, RM state transition) is
-    deferred to a future issue.
+    Exposes the ``OtherCloseCriteriaMet`` Evaluator call-out point as the
+    injection seam for a future Close Readiness Monitoring Sentinel.  The
+    DETERMINISTIC default (``AlwaysFail``) is correct: this tree should not
+    fire unless a real Sentinel backend is injected — case closure is always
+    Case Owner-triggered via :func:`create_close_case_trigger_tree`.
+
+    The ``pre_close_action_factory`` bundle field is not wired here;
+    ``PreCloseAction`` is wired in :func:`create_close_case_trigger_tree`
+    (completed in #1854 — see ``notes/bt-fuzzer-rm-closure.md``).
 
     Args:
         case_id: ID of VulnerabilityCase being processed.
         call_out: Bundle of call-out backend factories for this domain.
-            Defaults to :data:`~vultron.demo.fuzzer.bundles.close_report.CLOSE_REPORT_DETERMINISTIC`
+            Defaults to
+            :data:`~vultron.core.behaviors.call_out.bundles.close_report.CLOSE_REPORT_DETERMINISTIC`
             (BT-23-003, BT-23-005).
 
     Returns:
-        Root node of the close-report behavior tree (Phase 1 stub).
+        Root node of the close readiness monitoring seam tree.
     """
-    from vultron.demo.fuzzer.bundles.close_report import (
+    from vultron.core.behaviors.call_out.bundles.close_report import (
         CLOSE_REPORT_DETERMINISTIC,
     )
 
     bundle = call_out if call_out is not None else CLOSE_REPORT_DETERMINISTIC
-    # Phase 2: bundle.pre_close_action_factory is reserved for the full pre-close
-    # sequence.
     root = bundle.other_close_criteria_factory("OtherCloseCriteriaMet")
-    logger.info(f"Created CloseReportBT (Phase 1 stub) for case={case_id}")
+    logger.info("Created CloseReadinessMonitoringBT for case=%s", case_id)
     return root

@@ -5,7 +5,7 @@ description: >-
   is triggered by either a received EM message or a local EM state transition, and
   specifies typed preconditions, ordered steps, and postconditions that implementations
   must satisfy.
-version: 0.1.0
+version: 0.3.0
 tags:
 - behavioral
 - state-machine
@@ -756,7 +756,6 @@ groups:
       following up with GI allows the sender to explain the error and enables
       recovery. EE does not trigger an EM state transition.
     testable: true
-    preconditions: []
     steps:
     - order: 1
       actor: receiver
@@ -798,7 +797,6 @@ groups:
     testable: false
     lint_suppress:
     - testable_without_steps
-    preconditions: []
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -1153,3 +1151,673 @@ groups:
     - rel_type: satisfies
       spec_id: VP-14-003
       note: Once Attacks observed, new embargoes SHALL NOT be sought
+
+- id: EMB-14
+  title: Actor-Voluntary Embargo Termination (Trigger Side)
+  trigger:
+    type: state_entered
+    value: EM.ACTIVE
+  specs:
+  - id: EMB-14-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory MUST require the actor
+      to supply a termination reason before delegating to terminate_embargo_bt.
+      Valid reasons are: fix-deployed, fix-ready, or other. The reason is
+      recorded via the matching Evaluator call-out point (ExitEmbargoWhenDeployed,
+      ExitEmbargoWhenFixReady, or ExitEmbargoForOtherReason).
+    rationale: >-
+      Voluntary termination requires an auditable reason. Structuring reason
+      selection as a Selector of Evaluator call-out points gives actors a
+      clear interface (three buttons) while preserving the audit trail and
+      allowing policy-rule backends to be injected per ADR-0025.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise
+    steps:
+    - order: 1
+      actor: actor
+      action: Select termination reason (ExitEmbargoWhenDeployed,
+        ExitEmbargoWhenFixReady, or ExitEmbargoForOtherReason)
+      expected: Matching Evaluator call-out point returns SUCCESS; reason recorded
+    - order: 2
+      actor: system
+      action: Run EmbargoExitPolicyGuard or EmbargoExitOverride
+      expected: Policy check passes or actor override accepted
+    - order: 3
+      actor: system
+      action: Run OnEmbargoExit actuator
+      expected: Site-specific integration hooks execute
+    - order: 4
+      actor: system
+      action: Delegate to terminate_embargo_bt
+      expected: ET emitted; EM transitions to EXITED
+    postconditions:
+    - description: EM state is EXITED; ET queued; termination reason recorded
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-07-001
+      note: Voluntary actor termination is a sub-case of active-embargo termination
+
+  - id: EMB-14-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory MUST include an
+      EmbargoExitPolicyGuard Evaluator call-out point that runs after the
+      reason Selector and before OnEmbargoExit. The guard MAY veto termination
+      regardless of the chosen reason.
+    rationale: >-
+      Separating the reason selection (actor intent) from the policy check
+      (system authorization) allows external policy engines to block termination
+      on grounds orthogonal to the stated reason (e.g., active revision
+      negotiation, pending approvals) without coupling the guard logic to the
+      reason semantics.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; reason Selector has succeeded
+    steps:
+    - order: 1
+      actor: system
+      action: Run EmbargoExitPolicyGuard call-out point
+      expected: Returns SUCCESS (policy permits) or FAILURE (policy vetoes)
+    postconditions:
+    - description: >-
+        SUCCESS: pipeline continues to OnEmbargoExit and terminate_embargo_bt.
+        FAILURE: termination blocked; actor may retry with override.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-14-001
+
+  - id: EMB-14-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory SHOULD include an
+      EmbargoExitOverride Evaluator call-out point in a Selector alongside
+      EmbargoExitPolicyGuard. When the actor explicitly accepts responsibility
+      for overriding policy, EmbargoExitOverride SHOULD return SUCCESS so that
+      termination proceeds despite a policy veto.
+    rationale: >-
+      Providing an override seam lets actors exercise their authority to exit
+      in exceptional circumstances without requiring code changes. The override
+      is a distinct call-out point so that integrators can log, gate, or audit
+      it separately from the normal policy path.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: >-
+        EM state is Active or Revise; reason Selector succeeded;
+        EmbargoExitPolicyGuard returned FAILURE
+    steps:
+    - order: 1
+      actor: actor
+      action: Invoke EmbargoExitOverride call-out point
+      expected: Override accepted; pipeline continues to OnEmbargoExit
+    postconditions:
+    - description: Override recorded; termination proceeds; audit trail reflects override
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-14-002
+      note: Override is the fallback arm of the policy authorization Selector
+
+- id: EMB-15
+  title: Inbound Embargo-Response Decision (Received Side)
+  description: >-
+    Behaviors triggered when an actor receives an inbound embargo overture and
+    must decide how to respond. Two overture flows are distinguished: (Flow A)
+    an EM-level embargo proposal (EP) proposing terms, whose acceptance moves
+    the shared EM state; and (Flow B) a PEC-level invitation
+    (InviteToEmbargoOnCase) asking the actor to become a signatory to an
+    embargo, whose acceptance advances that participant's Participant Embargo
+    Consent (PEC) state. The pre-PEC simulator conflated these into a single
+    _ChooseEmProposedResponse fallback; the production protocol separates the
+    shared EM lifecycle (EMB-01..EMB-09) from per-participant consent (CM-18,
+    ADR-0048). This group specifies a single decision seam layered over both
+    flows: it selects the response (accept / defer-to-owner / reject / counter)
+    while delegating the mechanical transition to the existing received and
+    trigger BTs. The mechanics already exist (invite/accept/reject trees,
+    propose/accept/reject trigger use cases); what is missing is the decision
+    layer that chooses among them, with a default-accept policy and a
+    plug-in seam for owner adjudication.
+  trigger:
+    type: message_received
+    value: EP | InviteToEmbargoOnCase
+  specs:
+  - id: EMB-15-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The inbound embargo-response decision seam MUST default to accepting a
+      well-formed embargo overture (Flow A: EP proposing terms; Flow B:
+      InviteToEmbargoOnCase).
+    rationale: >-
+      The recommended CVD behavior is to accept an offered embargo and negotiate
+      revisions separately rather than block coordination. A deterministic
+      accept-by-default keeps actors runnable without a human in the loop, and
+      the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
+      acceptance as an Evaluator call-out point preserves the seam for later
+      owner/agent adjudication without changing the tree.
+    testable: true
+    preconditions:
+    - description: >-
+        Inbound EP or InviteToEmbargoOnCase received; case is embargo-eligible
+        (CS not public/exploit/attacks per EMB-01-002); no external
+        adjudication backend injected (deterministic default in force).
+    steps:
+    - order: 1
+      actor: system
+      action: Run EvaluateEmbargoProposal Evaluator call-out point
+      expected: Returns SUCCESS (default-accept) under the DETERMINISTIC bundle
+    - order: 2
+      actor: system
+      action: Delegate to the flow-appropriate acceptance BT
+      expected: >-
+        Flow A activates/records via accept_embargo_trigger_bt; Flow B advances
+        PEC to SIGNATORY via accept_invite_to_embargo_tree
+    postconditions:
+    - description: >-
+        Overture accepted by default; EM (Flow A) or PEC (Flow B) advanced by
+        the existing mechanism
+    relationships:
+    - rel_type: satisfies
+      spec_id: BT-18-004
+      note: Decision node accepts a CallOutBackendFactory; deterministic default
+    - rel_type: refines
+      spec_id: EMB-01-001
+      note: Adds the response-decision layer above EP receipt
+    - rel_type: refines
+      spec_id: CM-18-003
+      note: Flow B acceptance advances the PEC state machine (INVITED → SIGNATORY)
+  - id: EMB-15-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When no external adjudication backend is injected, the EvaluateEmbargoProposal
+      Evaluator call-out point MUST return SUCCESS so the actor accepts by default,
+      delegating to the existing acceptance mechanism (`accept_embargo_trigger_bt`
+      for Flow A; `accept_invite_to_embargo_tree` for Flow B).
+    rationale: >-
+      A deterministic accept-by-default keeps actors runnable without a human in
+      the loop; the DETERMINISTIC call-out bundle (BT-23) supplies the default.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-001
+
+  - id: EMB-15-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The decision seam MUST include a CASE_OWNER hard-bypass arm ahead of the
+      adjudication call-out point.
+    rationale: >-
+      This mirrors the two-seam authorization model (ADR-0046) and the
+      case_proposal_received_tree pattern: the CASE_OWNER is the human
+      decision-maker whose choice is gospel, while other actors need an
+      adjudication seam that a UI or LLM agent can later fulfil. The distinction
+      matters because a CaseActor may process an overture routed to it without
+      being the party whose consent is being recorded.
+    testable: true
+    preconditions:
+    - description: Inbound EP or InviteToEmbargoOnCase received by the deciding actor
+    steps:
+    - order: 1
+      actor: system
+      action: Run CheckIsCaseOwner guard (hard-bypass arm of the Selector)
+      expected: >-
+        SUCCESS when actor holds CASE_OWNER (owner's response is authoritative);
+        FAILURE otherwise, falling through to the adjudication call-out point
+    - order: 2
+      actor: system
+      action: >-
+        For non-owners, run CaseOwnerApprovesEmbargoResponse call-out point
+      expected: Returns SUCCESS (default) or FAILURE (adjudication withholds)
+    postconditions:
+    - description: >-
+        Owner responses proceed unconditionally; non-owner responses gated by
+        the adjudication seam
+    relationships:
+    - rel_type: satisfies
+      spec_id: BT-18-004
+    - rel_type: refines
+      spec_id: EMB-15-001
+  - id: EMB-15-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the deciding actor holds `CVDRole.CASE_OWNER`, the owner's stated
+      response is authoritative and the seam MUST NOT require external approval.
+    rationale: >-
+      The CASE_OWNER is the human decision-maker whose choice is gospel; requiring
+      external approval for the owner's response would violate the authorization model.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-002
+  - id: EMB-15-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Non-owner actors (e.g., a CaseActor processing an overture on the owner's
+      behalf) MUST route through the `CaseOwnerApprovesEmbargoResponse` call-out
+      point, which defaults to SUCCESS under the DETERMINISTIC bundle.
+    rationale: >-
+      Non-owner actors need an adjudication seam that a UI or LLM agent can later
+      fulfil; defaulting to SUCCESS keeps them runnable without an external backend.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-002
+
+  - id: EMB-15-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      For Flow A (EP proposing terms), the decision seam SHOULD provide a
+      counter-proposal arm gated by a WillingToCounterEmbargoProposal Evaluator
+      call-out point. Countering MUST NOT introduce a new mechanism: when the
+      arm is taken, the seam delegates to the existing embargo proposal trigger
+      (propose_embargo_trigger_bt via SvcProposeEmbargoUseCase), which emits a
+      fresh EP while the EM state remains PROPOSED. The default DETERMINISTIC
+      backend for this call-out point SHOULD return FAILURE (do not counter),
+      reflecting the recommended practice of accepting and revising rather than
+      countering.
+    rationale: >-
+      A counter-proposal is operationally identical to proposing: the propose
+      trigger already records a "counter-proposed, no state change" outcome when
+      invoked in PROPOSED. Modeling counter as routing to the existing trigger
+      avoids duplicate mechanism and keeps the EM lifecycle single-sourced.
+      Countering is intentionally low-automation and off by default; the
+      recommended path is accept-then-revise.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: >-
+        Flow A only; inbound EP received; actor declined to accept outright and
+        the adjudication arm elects to counter
+    steps:
+    - order: 1
+      actor: system
+      action: Run WillingToCounterEmbargoProposal Evaluator call-out point
+      expected: SUCCESS elects the counter arm; FAILURE (default) skips it
+    - order: 2
+      actor: actor
+      action: Delegate to propose_embargo_trigger_bt with new terms
+      expected: New EP emitted; EM remains PROPOSED (counter recorded)
+    postconditions:
+    - description: >-
+        Counter EP emitted via the existing proposal mechanism; no new
+        counter-specific transition introduced
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-001
+    - rel_type: satisfies
+      spec_id: EMB-01-001
+      note: Counter reuses the EP proposal path
+
+  - id: EMB-15-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the decision resolves to reject, the seam MUST delegate to the
+      flow-appropriate existing rejection mechanism rather than duplicating the
+      transition: reject_embargo_trigger_bt (Flow A, emitting ER and returning
+      the shared EM to NONE per EMB-06) or reject_invite_to_embargo_tree
+      (Flow B, advancing that participant's PEC to DECLINED per CM-18-003). The
+      seam MUST also honor the mandatory rejection required by EMB-01-002 when
+      CS is public/exploit/attacks, independent of any adjudication outcome.
+    rationale: >-
+      Rejection paths are already implemented and carry the correct EM-vs-PEC
+      semantics. The decision layer selects among them; it must not re-implement
+      the transition. The pre-public constraint (EMB-01-002) is a hard protocol
+      rule that overrides the default-accept policy.
+    testable: true
+    preconditions:
+    - description: >-
+        Inbound overture received; decision resolves to reject, OR CS is
+        public/exploit/attacks forcing rejection (EMB-01-002)
+    steps:
+    - order: 1
+      actor: system
+      action: Select the flow-appropriate rejection BT
+      expected: >-
+        Flow A emits ER (EM → NONE); Flow B advances PEC to DECLINED
+    postconditions:
+    - description: Overture rejected via the existing mechanism with correct semantics
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-06-001
+      note: Flow A rejection reuses the ER emission path
+    - rel_type: refines
+      spec_id: CM-18-003
+      note: Flow B rejection advances PEC to DECLINED
+    - rel_type: satisfies
+      spec_id: EMB-01-002
+      note: Mandatory rejection when public/exploit/attacks overrides default-accept
+
+- id: EMB-16
+  title: CS Public/Exploit/Attacks Detected While EM Proposed
+  description: >-
+    Behaviors required when a Participant detects that the vulnerability has
+    become public (q^cs ∈ ···P··), an exploit is available (q^cs ∈ ····X·),
+    or attacks have been observed (q^cs ∈ ·····A) while the case EM state is
+    still Proposed (q^em ∈ P). Embargo negotiation is not viable in any of
+    these states; the proposed embargo MUST be abandoned.
+  trigger:
+    type: state_entered
+    value: CS.public_exploit_attacks
+  specs:
+  - id: EMB-16-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Proposed (q^em ∈ P) that detects a CS transition into
+      a public (q^cs ∈ ···P··), exploit-available (q^cs ∈ ····X·), or
+      attacks-observed (q^cs ∈ ·····A) state MUST abandon the proposed embargo
+      by transitioning EM from Proposed to None (q^em P → N) and MUST emit ER
+      to notify other Participants.
+    rationale: >-
+      EMB-01-002 establishes that embargo negotiation is not viable once public
+      disclosure, exploit availability, or attacks have occurred. EMB-01-002 is
+      framed as a guard on receiving EP, but the same viability constraint
+      applies when a P/X/A state change arrives while a proposal is already in
+      flight. Continuing to negotiate a proposed embargo in these conditions
+      would be misleading to other Participants and counter to the purpose of
+      coordinated disclosure. The existing reject path (EM P → N + ER) is the
+      correct mechanism; no new transition is introduced.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: EM state is Proposed
+    - cs_pattern: "...P.."
+      description: CS transitions to public (q^cs ∈ ···P··)
+    - cs_pattern: "....X."
+      description: CS transitions to exploit-available (q^cs ∈ ····X·)
+    - cs_pattern: ".....A"
+      description: CS transitions to attacks-observed (q^cs ∈ ·····A)
+    steps:
+    - order: 1
+      actor: system
+      action: >-
+        Detect that CS has transitioned to a P/X/A state while EM is Proposed
+      expected: PublicDisclosureBranchNode recognises EM is Proposed (not skipped)
+    - order: 2
+      actor: system
+      action: >-
+        Transition EM from Proposed to None via reject_embargo_trigger_bt
+        (RejectEmbargoLifecycleNode → sender_side_bt)
+      expected: EM state transitions to NO_EMBARGO; ER queued for sender
+    postconditions:
+    - description: EM state is NO_EMBARGO; ER emitted; proposed embargo abandoned
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-01-002
+      note: >-
+        EMB-01-002 guards against entering PROPOSED with P/X/A set;
+        this entry covers the symmetric case where P/X/A fires while already in PROPOSED
+    - rel_type: refines
+      spec_id: EMB-06-001
+      note: ER emission semantics apply; EM returns to NONE
+- id: EMB-17
+  title: Late Accept of an Expired Embargo Invitation
+  description: >-
+    Behaviors required when an `Accept(Invite(EmbargoEvent))` arrives after the
+    invitation's RSVP deadline (CM-28-001) has passed. The protocol is liberal
+    in what it accepts: a late accepter has signalled willingness to coordinate
+    and MUST NOT be sent away. Codified by ADR-0065. Source: IDEA-2066.
+  trigger:
+    type: message_received
+    value: EA
+  specs:
+  - id: EMB-17-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CaseActor receiving an `Accept(Invite(EmbargoEvent))` after the
+      invitation's effective RSVP deadline MUST NOT reject it solely because the
+      deadline has passed. It MUST evaluate whether the accepted embargo is still
+      compatible with the case's current embargo and then apply EMB-17-002,
+      EMB-17-003, or EMB-17-004.
+    rationale: >-
+      Being liberal in what is accepted serves CVD outcomes. A late accepter is
+      volunteering to coordinate; refusing them converts a missed deadline into
+      a lost participant, which is worse for the case than a late consent.
+      See ADR-0065.
+    testable: true
+    preconditions:
+    - description: The referenced invitation's effective RSVP deadline has passed
+    postconditions:
+    - description: >-
+        The Accept is not refused on deadline grounds; one of EMB-17-002,
+        EMB-17-003, or EMB-17-004 has been applied
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-28-003
+    adr:
+    - ADR-0065
+  - id: EMB-17-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the accepted embargo is the case's current embargo, the CaseActor MUST
+      honour the late Accept and record the participant's PEC transition to
+      SIGNATORY, exactly as it would for an on-time Accept.
+    rationale: >-
+      If the terms the participant agreed to are the terms in force, the
+      participant is a valid signatory. The deadline governs whether the
+      *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+      description: EM state is Active
+    - description: >-
+        The accepted embargo ID matches the case's current active embargo
+    steps:
+    - order: 1
+      actor: system
+      action: Record the PEC ACCEPT transition for the accepting participant
+      expected: Participant PEC state is SIGNATORY; embargo_adherence is true
+    postconditions:
+    - description: Participant PEC state is SIGNATORY
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    adr:
+    - ADR-0065
+  - id: EMB-17-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the accepted embargo is NOT the case's current embargo (for example
+      the embargo was revised or replaced after the invitation was sent), the
+      CaseActor MUST issue a fresh `Invite(EmbargoEvent)` to the accepting actor
+      carrying the case's current embargo.
+    rationale: >-
+      Recording the stale Accept as consent would make the participant a
+      signatory to terms they never saw. Rejecting them would discard a
+      willing participant. Re-inviting resolves both: the actor stays in the
+      case and is asked to consent to the terms actually in force. See ADR-0065.
+    testable: true
+    preconditions:
+    - description: >-
+        The accepted embargo ID does not match the case's current active embargo,
+        and the case has a current embargo
+    steps:
+    - order: 1
+      actor: system
+      action: >-
+        Emit a fresh Invite(EmbargoEvent) to the accepting actor carrying the
+        case's current embargo
+      expected: >-
+        Accepting participant PEC state is INVITED for the current embargo;
+        stale Accept is not recorded as consent
+    postconditions:
+    - description: >-
+        A fresh invitation for the current embargo has been sent; the actor
+        remains a case participant
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    adr:
+    - ADR-0065
+  - id: EMB-17-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the accepted embargo is not the case's current embargo, the CaseActor
+      MUST NOT record the stale Accept as consent to the current terms.
+    rationale: >-
+      Recording the stale Accept as consent would make the participant a signatory
+      to terms they never saw. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    adr:
+    - ADR-0065
+  - id: EMB-17-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the accepted embargo is not the case's current embargo, the CaseActor
+      MUST NOT reject the accepting actor.
+    rationale: >-
+      Rejecting a willing participant discards coordination capacity; re-inviting
+      to the current terms is the correct response. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    adr:
+    - ADR-0065
+  - id: EMB-17-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE),
+      the CaseActor MUST acknowledge the late Accept as a no-op on embargo state,
+      leaving the participant's PEC state at NONE.
+    note: >-
+      EMB-13-002 independently forbids seeking or accepting new embargoes for a
+      case whose CS state is public, exploit-public, or attacks-observed. This
+      entry closes the remaining gap: an Accept arriving after EM has EXITED
+      while CS is not yet P/X/A previously had no specified behaviour.
+    rationale: >-
+      Follows the EMB-07-003 precedent for post-terminal messages: acknowledge
+      without transitioning. There is nothing to invite the actor to, so a fresh
+      invitation would manufacture a negotiation nobody requested — but the
+      actor's case participation is independent of embargo consent and MUST
+      survive. See ADR-0065.
+    testable: true
+    preconditions:
+    - em_state:
+        - EXITED
+        - NONE
+      description: EM state is EXITED (embargo terminated) or NONE (no embargo started)
+    steps:
+    - order: 1
+      actor: system
+      action: Acknowledge the Accept without applying a PEC transition
+      expected: >-
+        Participant PEC state remains NO_EMBARGO; participant remains in the
+        case; no fresh invitation is emitted
+    postconditions:
+    - description: >-
+        No embargo state change; accepting actor remains a case participant
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    - rel_type: extends
+      spec_id: EMB-13-002
+      note: >-
+        EMB-13-002 covers the P/X/A case; this entry covers an Accept arriving
+        after EM EXITED when CS is not yet P/X/A
+    adr:
+    - ADR-0065
+  - id: EMB-17-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE), the
+      CaseActor MUST NOT issue a fresh embargo invitation to the accepting actor.
+    rationale: >-
+      There is no active embargo to invite the actor to; a fresh invitation would
+      manufacture a negotiation nobody requested. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0065
+  - id: EMB-17-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE), the
+      CaseActor MUST NOT remove the accepting actor from the case.
+    rationale: >-
+      Case participation is independent of embargo consent; the actor's
+      willingness to coordinate must not result in their removal. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0065
+
+- id: EMB-18
+  title: EM Write-Boundary Consolidation
+  description: >-
+    Requirements ensuring that all EM state transitions are executed through
+    the EmbargoLifecycle service layer rather than written directly to
+    case.current_status.em in BT nodes or helpers. Identified by audit in
+    CONCERN-2412: three BT nodes (EmActivateEmbargo, ClearEmbargo,
+    SetDefaultActiveEmbargoNode) bypass EmbargoLifecycle with direct
+    EmDimension assignment. Complements SM-04-001 (general write-boundary guard
+    requirement) with an EM-specific routing rule.
+  specs:
+  - id: EMB-18-001
+    priority: MUST
+    kind: architecture
+    statement: >-
+      All EM state transitions MUST be executed through EmbargoLifecycle
+      (specifically _drive_em_transition() or its public wrappers such as
+      propose_embargo(), accept_embargo_invite(), reject_embargo_invite(), and
+      terminate_active_embargo()). BT nodes and helper functions MUST NOT
+      directly assign a new EmDimension to case.current_status.em and then
+      call dl.save(case) as a substitute for routing through EmbargoLifecycle.
+    rationale: >-
+      EmbargoLifecycle is the sole service-layer authority for EM state writes.
+      It validates the transition (raising VultronInvalidStateTransitionError in
+      STRICT mode) and cascades any required PEC side-effects. Bypassing it via
+      direct EmDimension assignment — even when paired with a non-blocking
+      is_valid_em_transition() warning log — allows invalid EM transitions to be
+      persisted silently and skips PEC cascade logic. Source: CONCERN-2412 audit.
+    relationships:
+    - rel_type: refines
+      spec_id: SM-04-001
+  - id: EMB-18-002
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A BT node or helper MUST NOT use is_valid_em_transition() as a
+      non-blocking warning-only guard and then proceed to write EM state
+      regardless of the validation result. A failed EM transition check MUST
+      either raise or cause the node to return Status.FAILURE without writing
+      to the DataLayer.
+    rationale: >-
+      Warning-only guards create the illusion of validation while allowing
+      invalid states to be persisted. The correct pattern is to route through
+      EmbargoLifecycle (EMB-18-001), which enforces fail-closed behavior in
+      STRICT mode. Source: CONCERN-2412.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001

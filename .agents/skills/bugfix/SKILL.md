@@ -1,22 +1,37 @@
 ---
 name: bugfix
 description: >
-  Fix a bug using test-first development. Gates implementation on confirmed
-  shared understanding with the user — no code is written until both the agent
-  and the user agree on what bug is being fixed and why. Use when the user
-  asks to fix a bug.
+  Fix a bug using investigate-first discipline. The agent does all its
+  homework before talking to the user — reproduces the symptom, forms a
+  root-cause hypothesis, scans peer files, and drafts a fix plan. The user
+  gets one structured briefing and confirms before any code is written.
 ---
 
 # Skill: Bugfix
 
-No implementation work begins until both the agent and the user agree on what
-bug is being fixed and why.
+No code is written until the agent has completed its own investigation and
+the user has confirmed the plan. The reporter is not omniscient — treat the
+issue as a symptom description and determine the facts independently before
+presenting findings.
 
-## Phase 1 — Identify the Bug
+See [REFERENCE.md](REFERENCE.md) for the sibling-scan pattern, escalation
+pattern, and archive format.
 
-1. Invoke `orient-agent` to load baseline context.
-2. If the user specified a GitHub issue number, skip to step 4.
-3. Query open Bug-type issues and present them via `ask_user`. Include a
+## Phase 0 — Sync
+
+Move the worktree HEAD to `origin/main` before loading any context. Do **not**
+use `git checkout main` — that branch may be checked out in another worktree.
+
+```bash
+git fetch origin main && git reset --hard origin/main
+```
+
+If this fails, stop and investigate before proceeding.
+
+## Phase 1 — Identify and Claim
+
+1. If the user specified a GitHub issue number, skip to step 3.
+2. Query open Bug-type issues and present via `ask_user`. Include a
    **"Create a new bug"** option at the end:
 
    ```bash
@@ -25,21 +40,20 @@ bug is being fixed and why.
      --jq '.[] | select(.issueType.name == "Bug") | "#\(.number): \(.title)"'
    ```
 
-   If the user selects **"Create a new bug"**: ask for a description
-   (freeform), synthesize a title, and create the issue:
+   If the user selects **"Create a new bug"**: ask for a description,
+   synthesize a title, and create the issue:
 
    ```bash
+   BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
    ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "${BUG_TITLE}" \
      --body "${BUG_BODY}" \
-     --issue-type-id "IT_kwDOAjf0s84AcFLq")
+     --issue-type-id "${BUG_TYPE_ID}")
    ```
 
-4. Fetch the issue body and comments. Use the content as bug context
-   throughout Phases 2–3.
-5. Summarize for the user: issue number/title, observed vs. expected
-   behaviour, likely file(s)/component(s) involved.
-6. **Claim the issue**:
+3. Invoke `orient-agent` to load baseline context.
+4. Fetch the issue body and comments.
+5. Claim the issue:
 
    ```bash
    bash .agents/skills/shared/claim-issue.sh <N> bug <slug>
@@ -47,92 +61,109 @@ bug is being fixed and why.
 
    Abort immediately if this exits non-zero.
 
-## Phase 2 — Clarify (BLOCKING)
+## Phase 2 — Investigate (no user questions)
 
-Before writing any code or tests, use `ask_user` to verify shared
-understanding. Ask **one question at a time**. Do **not** skip this phase.
+Before presenting anything to the user, complete the full investigation.
+The reporter is not omniscient — treat the issue as a symptom description
+and determine the facts independently.
 
-Mandatory questions (stop early if the user signals sufficient clarity):
+### 2a — Verify the symptom exists
 
-1. **Confirm the selected bug**: "I'm planning to work on [bug title]. Is that
-   the right bug to address right now, or would you prefer a different one?"
+Search `vultron/`, `test/`, and `.claude/skills/` for the reported behavior.
+Locate the specific file and line where it manifests.
 
-2. **Confirm reproduction scenario**: "My understanding of the bug is
-   [description]. Does that match what you're seeing?"
+**Prior-fix check**: run `git log -S "<key term>" -- <file>` on `origin/main`
+to confirm the bug has not already been fixed by a prior PR that lacked a
+`Closes #N` footer. If it is already fixed, post a reference comment and
+close the issue. Do not proceed.
 
-3. **Confirm expected behaviour**: "The fix should make [expected behaviour]
-   happen. Is that correct?" — Probe for edge-cases if any are unclear.
+### 2b — Identify the root cause
 
-4. **Confirm scope**: "Do you want this fix scoped to [identified
-   files/component], or are there other areas that should change?"
+Trace the code path that produces the symptom. Form a specific hypothesis
+with file:line evidence — not "looks like X" but "Y at `path/to/file.py:42`
+is called with Z, which causes W because...".
 
-5. **Open questions**: Continue asking until all assumptions are resolved.
+### 2c — Verify the hypothesis
 
-**Do not proceed to Phase 2b until every point is explicitly confirmed.**
+Confirm the root cause accounts for the symptom (not just correlated). Ask:
+"If I fix this, does the symptom disappear? Could the same symptom arise
+from a different path?"
 
-## Phase 2b — Root Cause Depth (BLOCKING)
+### 2d — Sibling scan (MANDATORY)
 
-Ask one targeted question before locking in scope:
+Search for the same structural pattern in:
 
-> "My working theory for the root cause is [code path / invariant / data
-> flow]. Does this look like an isolated defect, or might it be a symptom of
-> a deeper issue in [module / design pattern]?"
+- Peer files in the same directory or module
+- Sibling demo scenarios (same naming convention, e.g., `fvcv_*`, `fccv_*`)
+- Other actors or handlers that implement the same protocol step
 
-- **Isolated defect**: proceed to Phase 3.
-- **Deeper issue**: ask which related concerns this fix should address, then
-  file each remaining concern as a new Bug-type issue:
+Document each hit with file:line and whether it exhibits the same bug. Do
+not skip this step even if the issue body says the bug is isolated. See
+[REFERENCE.md](REFERENCE.md) § "Sibling Scan Pattern".
 
-  ```bash
-  .agents/skills/manage-github-issue/manage_github_issue.sh \
-    --title "<short bug title>" \
-    --body "## Symptoms
-  <one sentence>
+### 2e — Fix options
 
-  ## Root cause (hypothesis)
-  <what was observed during analysis of #N>
+Identify 1–2 concrete approaches to fix the root cause. For each, note the
+key tradeoff (e.g., minimal-invasive vs. root-cause-correct; fix-in-place
+vs. file-sibling-issues).
 
-  ## Components involved
-  - \`path/to/module.py\`" \
-    --issue-type-id "IT_kwDOAjf0s84AcFLq"
-  ```
+### 2f — Test strategy
 
-  Confirm the narrowed scope before proceeding.
+Identify the specific failing test that will prove the bug exists. Name it:
+"I'll add `test_<what>_<when>_<expected>` in `test/<path>.py`."
 
-See `specs/bugfix-workflow.yaml` BFW-02-001–BFW-02-004 for question
-templates and escalation patterns.
+### 2g — Deepen context
 
-**Do not proceed to Phase 3 until Phase 2b scope is confirmed.**
+Invoke `deepen-context` with focus hints derived from the investigation
+(e.g., `"BT node write boundary"`, `"EM state transition"`).
 
-## Phase 3 — Implement
+## Phase 3 — Present Findings (BLOCKING)
 
-See `.claude/skills/shared/completeness-doctrine.md` for the project standard
-on what "done" means — loaded by `orient-agent` in Phase 1.
+Present a single structured briefing via `ask_user`. Include every item
+from Phase 2 with concrete evidence:
 
-Once shared understanding is confirmed, invoke `deepen-context` with
-focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
+```text
+Reproduced at: <file:line>
+Root cause:    <specific hypothesis with evidence>
+Sibling hits:  <list of file:line instances, or "none found">
+Proposed fix:  <approach>
+Alternative:   <if any>
+Test strategy: <specific test name and location>
+```
 
-1. **Verify Before Changes** — Search `vultron/` and `test/` to confirm the
-   bug exists as understood. Do not assume; confirm via code search.
+Ask: **"Proceed with this plan, redirect, or narrow scope?"**
 
-2. **Reproduce with a Failing Test** — Add or modify a test that fails due to
-   the bug. Confirm the test fails before implementing the fix. A bug fix
-   without a regression test is not a bug fix.
+- **Confirms**: proceed to Phase 4.
+- **Redirects** to a different area: update understanding and return to
+  Phase 2 for the redirected scope.
+- **Narrows scope**: note which sibling hits will be filed as new Bug issues
+  rather than fixed in this PR.
+
+**Do not begin implementation until the user confirms the plan.**
+
+## Phase 4 — Implement
+
+Once the plan is confirmed:
+
+1. **Write a failing test first** — confirm it fails before fixing.
 
    **Regression test exception**: if test infrastructure cost is genuinely
-   disproportionate (requires long-running infrastructure or complex setup far
-   exceeding the fix's scope), skip the test but create a follow-up GitHub Bug
-   issue explaining the specific reason. Do not silently omit the test.
+   disproportionate, skip the test but create a follow-up Bug issue explaining
+   why. Do not silently omit the test.
 
-3. **Fix the Root Cause** — Fix what actually caused the bug, not just the
-   symptom. If the root cause is provably out of scope, fix the symptom anyway
-   but create a Bug issue for the root cause before closing this one. Never
-   ship a symptom-only fix without documenting the underlying cause.
+2. **Fix the root cause** — not just the symptom. If the root cause is
+   provably out of scope, fix the symptom and create a Bug issue for the
+   root cause before closing this one.
 
-4. **Iterate** — Run `format-code`, `run-linters`, `run-tests`; refine until
+3. **Handle sibling hits**:
+   - Hits small enough to fix in the same PR: fix them.
+   - Hits out of scope: file each as a new Bug-type issue via the
+     `manage-github-issue` helper. Reference each in the PR description
+     (`Also filed: #NNN`). See [REFERENCE.md](REFERENCE.md) § "Escalation".
+
+4. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
-   rules from `completeness-doctrine.md` § "Finding Severity". If pre-existing
-   is proven, create/update a Bug issue with evidence, wire structured blockers
-   via `manage-github-issue`, and add a handoff comment with pickup context.
+   rules from `completeness-doctrine.md`.
 
 5. **Finalize**:
    - Invoke `archive-history`:
@@ -145,30 +176,26 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
      ```
 
    - Run the **upward-reflection checklist** per
-     `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
-     as a learning file.
+     `.agents/skills/shared/upward-reflection.md`. Record triggered signals
+     as learning files.
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
-   - Invoke the `create-pr` skill to push and open the PR:
+   - Invoke `create-pr`:
 
      ```text
      type:         implementation
      title:        fix: <short title>
-     body:         <composed per pr-body-guide.md implementation template>
+     body:         <per pr-body-guide.md implementation template>
      labels:       size:<X>
      issue_number: <N>
      ```
 
-     `create-pr` performs the rebase on `origin/main`, validates, pushes, and
-     returns the PR URL. Use the returned URL in the `archive-history` call.
-
-   - Invoke `commit` if any learning files were created in `plan/incoming/learnings/`
-     outside the PR branch.
+   - Invoke `commit` if any learning files were created in
+     `plan/incoming/learnings/` outside the PR branch.
 
 ## Constraints
 
-- Implementation is blocked until **both** Phase 2 and Phase 2b produce
-  confirmed shared understanding. Non-negotiable.
+- Implementation is blocked until the user confirms the Phase 3 plan.
 - Follow test-first discipline; never fix before the failing test exists.
 - **If the session is interrupted**: invoke `bugfix-handoff` immediately.
   Do not attempt further resolution.

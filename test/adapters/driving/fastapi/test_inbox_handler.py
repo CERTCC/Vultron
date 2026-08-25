@@ -647,6 +647,86 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     assert kwargs["actor_config"].auto_create_case is False
 
 
+def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
+    """_case_proposal_port_factory returns actor_config and wire_render_port.
+
+    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
+    CaseActor grants the proposing actor its real roles alongside CASE_OWNER
+    (CFG-07-002, CFG-07-004), and ``wire_render_port`` so ledger entries are
+    rendered via the wire adapter (issue #2287).
+    """
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.config.actor import ActorConfig
+    from vultron.enums.roles import CVDRole
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    fake = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
+
+    kwargs = pf._case_proposal_port_factory(
+        SqliteDataLayer("sqlite:///:memory:")
+    )
+
+    assert kwargs["actor_config"] == fake
+    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
+    assert set(kwargs) == {"actor_config", "wire_render_port"}
+
+
+def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
+    monkeypatch,
+):
+    """The factory returns only wire_render_port when config load fails.
+
+    The owner gets CASE_OWNER only (no inherited role guess) but ledger
+    entries are still rendered via the wire adapter (issue #2287).
+    """
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
+
+    kwargs = pf._case_proposal_port_factory(
+        SqliteDataLayer("sqlite:///:memory:")
+    )
+
+    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
+    assert set(kwargs) == {"wire_render_port"}
+
+
+def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
+    """make_dispatcher() must wire _case_proposal_port_factory for
+    CREATE_CASE_PROPOSAL so the CaseActor sees ``default_case_roles``."""
+    from vultron.config.actor import ActorConfig
+    from vultron.enums.roles import CVDRole
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(default_case_roles=[CVDRole.COORDINATOR]),
+    )
+
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.CREATE_CASE_PROPOSAL
+    assert (
+        sem in captured["port_factories"]
+    ), "CREATE_CASE_PROPOSAL must have a factory"
+    kwargs = captured["port_factories"][sem](
+        SqliteDataLayer("sqlite:///:memory:")
+    )
+    actor_config = kwargs.get("actor_config")
+    assert isinstance(actor_config, ActorConfig)
+    assert actor_config.default_case_roles == [CVDRole.COORDINATOR]
+
+
 def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     monkeypatch,
 ):

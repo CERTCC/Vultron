@@ -59,8 +59,8 @@ sequenceDiagram
     note over F,CA: Phase 2 — Replica Synchronization Verification
 
     note right of V: trigger: sync-log-entry
-    V->>F: Announce(CaseLedgerEntry)<br/>[SYNC-2 verification]
-    note over F,CA: ✓ M2 — Finder replica synchronized (SYNC-2)
+    V->>F: Announce(CaseLedgerEntry)<br/>[LedgerFanout verification]
+    note over F,CA: ✓ M2 — Finder replica synchronized (LedgerFanout)
 
     note over F,CA: Phase 3 — Notes Exchange
 
@@ -219,7 +219,7 @@ The demo runner calls trigger endpoints on both actors:
 1. **Vendor** commits a demo verification case ledger entry and queues `Announce(CaseLedgerEntry)` in its outbox.
 2. Outbox delivery delivers the `Announce(CaseLedgerEntry)` to the Finder.
 3. **Finder** processes the log entry and updates its local replica.
-4. The demo runner verifies the Finder replica matches the authoritative Vendor state (SYNC-2).
+4. The demo runner verifies the Finder replica matches the authoritative Vendor state (LedgerFanout).
 
 ### Example: Announce(CaseLedgerEntry)
 
@@ -232,7 +232,7 @@ The demo runner calls trigger endpoints on both actors:
   "object": {
     "type": "CaseLedgerEntry",
     "id": "http://vendor:7999/api/v2/datalayer/{entry-uuid}",
-    "content": "SYNC-2 replication verification",
+    "content": "LedgerFanout replication verification",
     "hash": "sha256:..."
   },
   "target": {
@@ -249,7 +249,7 @@ The demo runner calls trigger endpoints on both actors:
 | Finder DataLayer has case ID | ✓ |
 | Matching `actor_participant_index` | ✓ |
 | Matching `active_embargo` | ✓ |
-| Matching log tail hash (SYNC-2) | ✓ |
+| Matching log tail hash (LedgerFanout) | ✓ |
 
 ---
 

@@ -17,13 +17,59 @@
 
 """Provides a Record model for document database storage."""
 
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
 
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.errors import VultronValidationError
+from vultron.wire.as2.enums import (
+    as_IntransitiveActivityType,
+    as_TransitiveActivityType,
+)
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+
+_WIRE_MODULE_PREFIX = "vultron.wire.as2"
+
+# Wire vocabulary ``type_`` values are *bare* names ("CaseParticipant"), not
+# ``as_``-prefixed, so the ``as_`` guard in ``Record.from_obj`` never fires for
+# them.  Fifteen wire classes therefore shadow a ``CORE_VOCABULARY`` entry and
+# can be written into a core-typed row, producing a row whose field shape does
+# not match the class that reads it back (issue #2232).
+#
+# Types listed here are normalised to their core counterpart via ``to_core()``
+# before serialisation, so the persisted row always carries the canonical core
+# shape.  The set may only GROW as the remaining shadowing types are migrated;
+# it is the write-side analogue of ``KNOWN_WIRE_ESCAPES`` in
+# ``test/architecture/test_dl_read_returns_core_objects.py`` (DL-05-004).
+#
+# ``ParticipantStatus`` and ``CaseParticipant`` are normalised because their
+# two shapes are structurally incompatible: core nests ``rm: RmDimension``
+# while wire uses a flat ``rm_state``, so a wire-shaped row silently yields
+# ``None`` for ``status.rm.state``.  All fifteen shadowing types are now
+# normalised — the five actor types via issue #2402, the remaining ten object
+# types via issue #2268.
+_NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
+    {
+        "CaseLedgerEntry",
+        "CaseParticipant",
+        "CaseReference",
+        "CaseStatus",
+        "EmbargoEvent",
+        "EmbargoPolicy",
+        "ParticipantStatus",
+        "VulnerabilityCase",
+        "VulnerabilityRecord",
+        "VulnerabilityReport",
+        "VultronApplication",
+        "VultronGroup",
+        "VultronOrganization",
+        "VultronPerson",
+        "VultronService",
+    }
+)
 
 # ActivityStreams fields typed as ``as_ObjectRef`` (accept URI string
 # references).  Only these fields are candidates for dehydration.  Fields
@@ -38,6 +84,29 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
         "result",  # optional result
         "instrument",  # optional instrument
     }
+)
+
+# AS2 Activity ``type_`` strings (transitive + intransitive) plus
+# ``CaseLedgerEntry``.  When a nested ``_AS_OBJECT_REF_FIELDS`` value has one
+# of these types it MUST be kept inline rather than collapsed to a bare ID
+# string for two independent reasons:
+#
+# 1. Technical: Activities may not have independent DataLayer records (e.g. a
+#    reconstituted Offer in the validate-report path, a CaseLedgerEntry inside
+#    an Announce envelope), so dehydrating them would make rehydration
+#    impossible on read-back and cause MV-09-001 outbox-gate failures.
+#
+# 2. Semantic (more important): a received Activity is an artifact; its inline
+#    sub-fields are a snapshot of state at receipt time.  An
+#    Accept(Offer(VulnerabilityCase)) captures what was offered at the moment
+#    of acceptance, not the current case state.  This must not be changed even
+#    if Activities eventually gain independent DataLayer records.  See
+#    notes/datalayer-design.md § "Received Activity Artifacts: Inline
+#    Sub-Field Snapshots Are Intentional".
+_KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
+    {e.value for e in as_TransitiveActivityType}
+    | {e.value for e in as_IntransitiveActivityType}
+    | {"CaseLedgerEntry"}
 )
 
 # Fields that hold a *list* of object references (ID strings or inline
@@ -62,6 +131,14 @@ def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
     reference to the nested object instead of an inline copy, eliminating
     redundant storage.
 
+    Inline Activity objects and ``CaseLedgerEntry`` instances are kept whole
+    without further recursion into their own sub-fields.  Their nested values
+    are stored as a snapshot of state at write time — intentional artifact
+    semantics.  See ``_KEEP_INLINE_NESTED_TYPES`` and
+    ``notes/datalayer-design.md``
+    § "Received Activity Artifacts: Inline Sub-Field Snapshots Are
+    Intentional" for why this must not be changed to recursive dehydration.
+
     Args:
         data: Serialised (``model_dump(mode="json")``) field dict of a
               domain object.
@@ -73,14 +150,13 @@ def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in data.items():
         if key in _AS_OBJECT_REF_FIELDS and isinstance(value, dict):
-            # SYNC-13-002/SYNC-02-004: a CaseLedgerEntry is never stored as an
-            # independent DataLayer record by ingress, so collapsing it to a
-            # bare ID here would lose it (the referent is not resolvable on
-            # read/replay).  SYNC-02-004 also requires the full inline entry to
-            # travel inside the Announce envelope.  Keep it inline so a
-            # replayed Announce(CaseLedgerEntry) still routes and applies its
-            # effects.
-            if value.get("type_") == "CaseLedgerEntry":
+            # Keep Activity-type and CaseLedgerEntry nested objects inline.
+            # These may not have independent DataLayer records (e.g. a
+            # reconstituted Offer in validate-report, or a CaseLedgerEntry
+            # inside an Announce envelope), so collapsing them to a bare ID
+            # would make rehydration impossible on outbox read-back, causing
+            # MV-09-001 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
+            if value.get("type_") in _KEEP_INLINE_NESTED_TYPES:
                 result[key] = value
                 continue
             nested_id = value.get("id_")
@@ -138,8 +214,11 @@ def _retype_inline_object_refs(
     """
     updates: dict[str, Any] = {}
     for field_name in _AS_OBJECT_REF_FIELDS:
-        typed = _retype_inline_ref(obj, field_name, data.get(field_name))
+        raw_sub = data.get(field_name)
+        typed = _retype_inline_ref(obj, field_name, raw_sub)
         if typed is not None:
+            if isinstance(raw_sub, dict):
+                typed = _retype_inline_object_refs(typed, raw_sub)
             updates[field_name] = typed
     if not updates:
         return obj
@@ -147,6 +226,115 @@ def _retype_inline_object_refs(
         return obj.model_copy(update=updates)
     except (ValidationError, TypeError):
         return obj
+
+
+def _project_shadowing_wire_obj(obj: "BaseModel") -> "BaseModel":
+    """Project one object to its core counterpart when it shadows a core type.
+
+    Returns *obj* unchanged unless it is a wire class whose bare ``type_``
+    shadows a :data:`_NORMALIZE_WIRE_TO_CORE` entry.
+
+    Raises:
+        VultronValidationError: when the wire object cannot be projected to its
+            core counterpart.  Core types are stricter than wire types, so a
+            projection failure means the object was never valid domain data;
+            surfacing it beats persisting a row nothing can read (ARCH-15-002).
+            A dedicated error type — not a bare ``ValueError`` — because
+            ``crud.create`` raises ``ValueError`` for an already-existing row
+            and callers legitimately swallow *that*; the two must stay
+            distinguishable.
+    """
+    if not type(obj).__module__.startswith(_WIRE_MODULE_PREFIX):
+        return obj
+    type_ = getattr(obj, "type_", None)
+    if not isinstance(type_, str):
+        return obj
+    if type_ not in _NORMALIZE_WIRE_TO_CORE or type_ not in CORE_VOCABULARY:
+        return obj
+    to_core = getattr(obj, "to_core", None)
+    if to_core is None:
+        raise VultronValidationError(
+            f"Wire class {type(obj).__name__} shadows core type '{type_}' but"
+            " has no to_core() projection, so it cannot be persisted in the"
+            " canonical core shape (issue #2232)."
+        )
+    _PROJECTION_ERRORS = (
+        ValidationError,
+        VultronValidationError,
+        ValueError,
+        TypeError,
+    )
+    try:
+        return cast("BaseModel", to_core())
+    except _PROJECTION_ERRORS as exc:
+        raise VultronValidationError(
+            f"Cannot persist {type(obj).__name__}"
+            f" '{getattr(obj, 'id_', '<no id>')}': projecting it to core type"
+            f" '{type_}' failed ({exc}). A wire-shaped '{type_}' row must not"
+            " be stored — normalise at the wire→core boundary instead"
+            " (issue #2232)."
+        ) from exc
+
+
+def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
+    """Return the core-shaped equivalent of *obj*, or *obj* unchanged.
+
+    A wire vocabulary class whose bare ``type_`` shadows a ``CORE_VOCABULARY``
+    entry would otherwise be written into a core-typed row in the wire field
+    shape, so whichever class reads the row back decides what the data means
+    (issue #2232).  For the types in :data:`_NORMALIZE_WIRE_TO_CORE` the
+    difference is structural — core ``ParticipantStatus`` nests
+    ``rm: RmDimension`` where the wire shape carries a flat ``rm_state`` — so
+    the row is normalised here, at the persistence boundary, and no
+    wire-shaped row is ever stored.
+
+    Both the object itself **and its direct children** are projected.  Only
+    checking the top level left the invariant unmet in the case that motivated
+    it: a ``VulnerabilityCase`` row stores its ``case_participants`` inline, so
+    a wire-shaped participant nested inside a core-shaped case still persisted a
+    flat ``rm_state``.  One level of child projection is sufficient because
+    ``to_core()`` recurses — projecting an ``as_CaseParticipant`` also projects
+    its ``as_ParticipantStatus`` children.
+
+    Raises:
+        VultronValidationError: when a wire object (at either level) cannot be
+            projected to its core counterpart.
+    """
+    if not isinstance(obj, BaseModel):
+        return obj
+    model = _project_shadowing_wire_obj(obj)
+    updates: dict[str, Any] = {}
+    for field_name in type(model).model_fields:
+        if field_name in _AS_OBJECT_REF_FIELDS:
+            # These fields are dehydrated to ID strings by _dehydrate_data; their
+            # in-memory shape is irrelevant to the stored row.  Skipping them
+            # prevents spurious to_core() calls on stub/reference objects (e.g.
+            # VulnerabilityCaseStub in Invite.target) that are never stored
+            # standalone and have no full core projection.
+            continue
+        value = getattr(model, field_name, None)
+        if isinstance(value, BaseModel):
+            projected = _project_shadowing_wire_obj(value)
+            if projected is not value:
+                updates[field_name] = projected
+        elif isinstance(value, list) and value:
+            items = [
+                (
+                    _project_shadowing_wire_obj(item)
+                    if isinstance(item, BaseModel)
+                    else item
+                )
+                for item in value
+            ]
+            if any(new is not old for new, old in zip(items, value)):
+                updates[field_name] = items
+    if not updates:
+        return cast(PersistableModel, model)
+    # ``model_copy`` rather than re-validation: the parent's field is declared
+    # with the *wire* child type, so validating a core child against it would
+    # fail.  ``model_dump(serialize_as_any=True)`` in ``from_obj`` serialises
+    # each child by its runtime type, so the core shape is what reaches the row.
+    return cast(PersistableModel, model.model_copy(update=updates))
 
 
 class Record(StorableRecord):
@@ -168,14 +356,20 @@ class Record(StorableRecord):
         Returns:
             Record: The created Record.
         """
-        if obj.type_.startswith("as_"):
+        obj_type = obj.type_
+        if obj_type is None or obj_type.startswith("as_"):
             raise ValueError(
                 "Object 'type_' attribute cannot start with 'as_' for Record conversion"
             )
 
+        # Wire ``type_`` values are bare, so the guard above cannot catch a
+        # wire class shadowing a core type.  Normalise those to the canonical
+        # core shape before serialising (issue #2232).
+        obj = _normalize_to_core(obj)
+
         record = Record(
             id_=obj.id_,
-            type_=obj.type_,
+            type_=obj_type,
             # serialize_as_any=True serializes each nested object by its runtime
             # type, preserving subtype fields (e.g. a CaseLedgerEntry inline in
             # an Announce keeps case_id/event_type/…).  Without it, an inline

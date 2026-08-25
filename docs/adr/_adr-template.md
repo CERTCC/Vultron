@@ -1,6 +1,12 @@
 ---
-# These are optional elements. Feel free to remove any of them.
-status: {proposed | rejected | accepted | deprecated | … | superseded by (link to new ADR)}
+# status: choose deliberately — this is the confidence signal agents read.
+# See the decision tree in notes/specs-vs-adrs.md ("Choosing the ADR status value").
+# Values: proposed | accepted | accepted-provisional | deprecated | rejected
+#         | superseded by (link to new ADR)
+# Cardinal rule (lint-enforced, MS-14): status and prose MUST agree. If the body
+# says the design is provisional / "formed in sand" / expected to converge, use
+# accepted-provisional, never accepted.
+status: {proposed | accepted | accepted-provisional | deprecated | rejected | superseded by (link to new ADR)}
 date: {YYYY-MM-DD when the decision was last updated}
 deciders: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}

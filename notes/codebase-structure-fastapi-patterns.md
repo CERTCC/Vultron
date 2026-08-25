@@ -259,6 +259,79 @@ subscript returns an empty tuple silently.
 
 ---
 
+## Cross-Actor TestClient Router: Offload Blocking `post()` off the Portal Loop
+
+(ISSUE-1779, 2026-07-29)
+
+In the isolated multi-actor demo harness (`test/demo/conftest.py`), a
+`_TestClientRouter.emit()` method runs `async` inside a FastAPI
+`BackgroundTask` on the *sending* app's `TestClient` event loop (an `anyio`
+blocking portal on a dedicated thread). `TestClient.post()` is **blocking**
+and drives the target app through its own portal on a separate thread. Calling
+`TestClient.post()` directly from the sending portal's event loop risks:
+
+1. **Blocking the sending event loop** — the call holds the portal thread
+   until the target app finishes processing.
+2. **Deadlocking anyio portals** — two blocking portals on separate threads
+   can deadlock if the second portal call attempts to re-enter the first.
+
+**Fix**: Wrap the blocking `TestClient.post()` in
+`asyncio.get_event_loop().run_in_executor(None, ...)` so it runs on the
+default thread-pool executor, off the sending portal's event loop:
+
+```python
+async def emit(self, activity: dict) -> None:
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(
+        None,
+        lambda: self._target_client.post(
+            "/inbox",
+            json=activity,
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+```
+
+This satisfies ADR-0042 / OX-12-003 (inter-actor delivery via HTTP) while
+keeping the harness deadlock-free. The `run_in_executor` call releases the
+sending portal's event loop thread immediately; the blocking `post()` runs
+on a worker thread and the awaitable completes when the target finishes.
+
+<!-- Source: ISSUE-1779 -->
+
+---
+
+## Phrase Tests Using `defaultdict` Cannot Detect Unfillable Slot Bugs
+
+(ISSUE-1787, 2026-07-29)
+
+The SE-07 phrase tests in `test/test_semantic_registry.py`
+(`test_every_entry_has_non_empty_phrase`,
+`test_phrase_format_map_with_defaults_returns_non_empty`) render each phrase
+via `phrase.format_map(defaultdict(lambda: "X"))`. Because a `defaultdict`
+supplies a value for **every** slot, these tests cannot detect the class of
+bug where a phrase references a slot that the real render pipeline never fills.
+
+**Example**: `"{actor} proposed a case to {target}"` passed both tests while
+producing `"Vendor proposed a case to —"` in production because the real
+renderer (`vultron/demo/report.py` `event_phrase()`) never populates `target`
+for that phrase type.
+
+**The real render pipeline fills only**: `actor` (always), `object` /
+`target` (only when `target_label` resolves). Slots `context`, `origin`,
+and `inner_object` are never populated with real data.
+
+**How to write a meaningful phrase regression test**: Assert that the phrase
+rendered with only the runtime-populated slots (`actor`, `object`/`target`
+where applicable) does not produce a trailing em-dash (`—`) and does not
+contain un-substituted `{slot}` markers. A generalized `defaultdict`-only
+test is insufficient — add a companion test that calls the actual
+`event_phrase()` helper with a representative event type.
+
+<!-- Source: ISSUE-1787; concern tracked in #1898 -->
+
+---
+
 ## Logger Names: Verify from Source, Not Assumption
 
 (DEMO-CI-DIAGNOSTICS-951, 2026-06-15)

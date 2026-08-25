@@ -27,20 +27,21 @@ Enforces the bottom-of-stack constraints from
 """
 
 import ast
-import pathlib
+from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = pathlib.Path(__file__).parents[2]
+from test.architecture import _corpus
 
 
 def _assert_no_forbidden_imports(
-    source_dir: pathlib.Path, layer: str, forbidden_prefix: str
+    source_dir: Path, layer: str, forbidden_prefix: str
 ) -> None:
     """Raise AssertionError if any .py file under *source_dir* imports from *forbidden_prefix*."""
     violations: list[str] = []
-    for py_file in source_dir.rglob("*.py"):
-        tree = ast.parse(py_file.read_text())
+    for py_file, tree in _corpus.files_mentioning(
+        forbidden_prefix, under=source_dir
+    ):
         for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 module = (
@@ -76,13 +77,15 @@ class TestEnumsLayerImportGraph:
     def test_enums_does_not_import_vultron_core(self) -> None:
         """``vultron.enums`` MUST NOT import from ``vultron.core``."""
         _assert_no_forbidden_imports(
-            _REPO_ROOT / "vultron" / "enums", "vultron.enums", "vultron.core"
+            _corpus.REPO_ROOT / "vultron" / "enums",
+            "vultron.enums",
+            "vultron.core",
         )
 
     def test_enums_does_not_import_vultron_config(self) -> None:
         """``vultron.enums`` MUST NOT import from ``vultron.config``."""
         _assert_no_forbidden_imports(
-            _REPO_ROOT / "vultron" / "enums",
+            _corpus.REPO_ROOT / "vultron" / "enums",
             "vultron.enums",
             "vultron.config",
         )
@@ -90,7 +93,7 @@ class TestEnumsLayerImportGraph:
     def test_enums_does_not_import_vultron_adapters(self) -> None:
         """``vultron.enums`` MUST NOT import from ``vultron.adapters``."""
         _assert_no_forbidden_imports(
-            _REPO_ROOT / "vultron" / "enums",
+            _corpus.REPO_ROOT / "vultron" / "enums",
             "vultron.enums",
             "vultron.adapters",
         )
@@ -102,7 +105,7 @@ class TestConfigLayerImportGraph:
     def test_config_does_not_import_vultron_core(self) -> None:
         """``vultron.config`` MUST NOT import from ``vultron.core``."""
         _assert_no_forbidden_imports(
-            _REPO_ROOT / "vultron" / "config",
+            _corpus.REPO_ROOT / "vultron" / "config",
             "vultron.config",
             "vultron.core",
         )
@@ -110,7 +113,7 @@ class TestConfigLayerImportGraph:
     def test_config_does_not_import_vultron_adapters(self) -> None:
         """``vultron.config`` MUST NOT import from ``vultron.adapters``."""
         _assert_no_forbidden_imports(
-            _REPO_ROOT / "vultron" / "config",
+            _corpus.REPO_ROOT / "vultron" / "config",
             "vultron.config",
             "vultron.adapters",
         )

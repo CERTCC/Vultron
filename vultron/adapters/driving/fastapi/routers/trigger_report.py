@@ -176,7 +176,7 @@ def trigger_close_report(
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
-        result = svc.close_report(actor_id, body.offer_id, body.note)
+        result = svc.close_case(actor_id, body.offer_id, body.note)
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 

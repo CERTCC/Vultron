@@ -25,9 +25,10 @@ Tree structure::
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
     ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-    ├── CreateInviteeParticipantAtAcceptedNode — build participant at RM.ACCEPTED
+    ├── CreateInviteeParticipantAtReceivedNode — build participant at RM.RECEIVED
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
     ├── PersistInviteeParticipantNode          — dl.create, attach, save case
+    ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
     ├── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
     └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
 
@@ -41,11 +42,21 @@ from typing import cast
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.case.nodes import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.case.nodes.accept_invite import (
+    EmitAddCaseParticipantNode,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
+from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -54,11 +65,7 @@ from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
-    apply_pec_trigger,
-)
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import validate_roles
 from vultron.core.models._helpers import _as_id
@@ -66,7 +73,7 @@ from vultron.core.models._helpers import _as_id
 logger = logging.getLogger(__name__)
 
 
-class CapturePreCommitBackfillTargetNode(DataLayerAction):
+class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
     """Snapshot the current last ledger-entry index for resume-case backfill.
 
     This node MUST appear AFTER ``CheckInviteeNotAlreadyParticipantNode`` in
@@ -94,31 +101,47 @@ class CapturePreCommitBackfillTargetNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="invitee_already_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["invitee_already_participant"] = PortInformation(
+            data_type=object, required=False
         )
-        self.blackboard.register_key(
-            key="pre_commit_backfill_target",
-            access=py_trees.common.Access.WRITE,
-        )
+        return ports
 
-    def update(self) -> Status:
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "pre_commit_backfill_target": PortInformation(
+                data_type=object, required=False
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "invitee_already_participant": "/invitee_already_participant",
+            "pre_commit_backfill_target": "/pre_commit_backfill_target",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
         try:
-            already_participant = self.blackboard.get(
+            self._already_participant_bb = self.get_input(
                 "invitee_already_participant"
             )
-        except KeyError:
-            already_participant = False
+        except (NoDataAvailable, NotImplementedError):
+            self._already_participant_bb = False
+
+    def update(self) -> Status:
+        already_participant = self._already_participant_bb
 
         if not already_participant:
             # Fresh case: commit fan-out won't reach invitee (not yet
             # registered).  Write None to pre_commit_backfill_target so that
             # BackfillCanonicalLedgerToInviteeNode uses the post-commit target,
             # and any stale value from a prior resume test is overwritten.
-            self.blackboard.pre_commit_backfill_target = None
+            self._set_output("pre_commit_backfill_target", None)
             self.logger.debug(
                 "%s: fresh invite — clearing pre-commit backfill target"
                 " (backfill will include post-commit entry)",
@@ -130,7 +153,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerAction):
         # Capture the current last index so backfill doesn't re-send the
         # accept-invite entry that the commit fan-out will deliver.
         if self.datalayer is None:
-            self.blackboard.pre_commit_backfill_target = -1
+            self._set_output("pre_commit_backfill_target", -1)
             return Status.SUCCESS
 
         entries: list[CaseLedgerEntry] = [
@@ -139,7 +162,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerAction):
             if isinstance(obj, CaseLedgerEntry) and obj.case_id == self.case_id
         ]
         target = entries[-1].log_index if entries else -1
-        self.blackboard.pre_commit_backfill_target = target
+        self._set_output("pre_commit_backfill_target", target)
         self.logger.debug(
             "%s: resume case — pre-commit backfill target for case '%s' is %d",
             self.name,
@@ -149,12 +172,29 @@ class CapturePreCommitBackfillTargetNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
-    """Idempotency guard: FAILURE when invitee is already a participant.
+class CheckInviteeNotAlreadyParticipantNode(
+    SilentIdempotencyGuardMixin, DataLayerConditionWithPorts
+):
+    """Idempotency guard: FAILURE when invitee is already a fully-joined participant.
 
     Returns SUCCESS (allow proceeding) when the invitee is NOT yet
-    registered in ``case.actor_participant_index``.
-    Returns FAILURE (abort tree) when the invitee is already a participant.
+    registered in ``case.actor_participant_index``, or when the invitee IS
+    registered but join-time backfill is still incomplete (resume path).
+
+    Returns FAILURE (abort tree) with no ledger write when the invitee is
+    already a participant AND backfill is complete — a true idempotent no-op
+    (CLP-13-001, CLP-13-002).
+
+    Three paths:
+
+    1. **Fresh invite**: invitee not yet a participant → SUCCESS, tree runs in full.
+    2. **Backfill-incomplete resume**: invitee is a participant but backfill is
+       still in progress → SUCCESS with ``invitee_already_participant = True``,
+       so downstream effect nodes skip participant-creation while the commit and
+       backfill steps still run.
+    3. **Backfill-complete (true duplicate)**: invitee is a participant and
+       backfill is done → ``_idempotent_failure`` (FAILURE, INFO log, no ledger
+       write — CLP-13-001).
     """
 
     def __init__(
@@ -164,16 +204,21 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="invitee_case",
-            access=py_trees.common.Access.WRITE,
-        )
-        self.blackboard.register_key(
-            key="invitee_already_participant",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "invitee_case": PortInformation(data_type=object, required=True),
+            "invitee_already_participant": PortInformation(
+                data_type=object, required=True
+            ),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "invitee_case": "/invitee_case",
+            "invitee_already_participant": "/invitee_already_participant",
+        }
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -200,16 +245,21 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
                 state.join_backfill_complete
                 or state.join_backfill_target_index == -1
             ):
-                self.logger.info(
+                # True duplicate: backfill complete — silent FAILURE, no ledger
+                # write (CLP-13-001).
+                self._set_output("invitee_already_participant", True)
+                return self._idempotent_failure(
+                    self.logger,
                     "%s: actor '%s' already participant in case '%s'"
-                    " — skipping (idempotent)",
+                    " — skipping (idempotent, CLP-13-001)",
                     self.name,
                     self.invitee_id,
                     self.case_id,
                 )
-                self.blackboard.invitee_already_participant = True
-                return Status.FAILURE
 
+            # Resume path: backfill is incomplete (or no marker yet).  Set the
+            # flag so downstream effect nodes skip participant-creation, but
+            # return SUCCESS to allow the commit + backfill steps to run.
             if state is None:
                 self.logger.info(
                     "%s: actor '%s' already participant in case '%s' with no "
@@ -226,13 +276,13 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
                     self.invitee_id,
                     self.case_id,
                 )
-            self.blackboard.invitee_already_participant = True
-            self.blackboard.invitee_case = case
+            self._set_output("invitee_already_participant", True)
+            self._set_output("invitee_case", case)
             return Status.SUCCESS
 
         # Cache the case object for downstream nodes
-        self.blackboard.invitee_already_participant = False
-        self.blackboard.invitee_case = case
+        self._set_output("invitee_already_participant", False)
+        self._set_output("invitee_case", case)
         return Status.SUCCESS
 
     def _read_replication_state(
@@ -250,13 +300,13 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
         return None
 
 
-class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
-    """Build a ``VultronParticipant`` for the invitee at RM.ACCEPTED.
+class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
+    """Build a ``VultronParticipant`` for the invitee at RM.RECEIVED.
 
-    Per PCR-08-010, ``Accept(Invite)`` IS the engage signal.  The
-    participant's full RECEIVED→VALID→ACCEPTED arc is implicit; the
-    CaseActor records RM.ACCEPTED directly in its own DataLayer rather
-    than running an engage-case BT as the invitee.
+    Per CM-11-001, ``Accept(Invite)`` signals willingness to join; the
+    CaseActor records RM.RECEIVED only.  The full triage cycle
+    (VALID/ACCEPTED) is a distinct subsequent step run by the invitee
+    after the case replica has been delivered (PCR-08-010).
 
     Writes ``new_invite_participant`` to the blackboard.
     """
@@ -268,24 +318,51 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="invitee_already_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["invitee_already_participant"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="invitee_case",
-            access=py_trees.common.Access.READ,
+        ports["invitee_case"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="new_invite_participant",
-            access=py_trees.common.Access.WRITE,
-        )
-        self.blackboard.register_key(
-            key="activity",
-            access=py_trees.common.Access.READ,
-        )
+        ports["activity"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "new_invite_participant": PortInformation(
+                data_type=object, required=True
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "invitee_already_participant": "/invitee_already_participant",
+            "invitee_case": "/invitee_case",
+            "activity": "/activity",
+            "new_invite_participant": "/new_invite_participant",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._invitee_case_bb = self.get_input("invitee_case")
+        except (NoDataAvailable, NotImplementedError):
+            self._invitee_case_bb = None
+        try:
+            self._already_participant_bb = self.get_input(
+                "invitee_already_participant"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self._already_participant_bb = False
+        try:
+            self._activity_bb = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self._activity_bb = None
 
     def _read_invite_roles(self) -> list:
         """Read roles from the Invite stored in DataLayer (CM-17-003).
@@ -295,9 +372,8 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
         Returns an empty list when the invite carries no roles or cannot
         be read.
         """
-        try:
-            event = self.blackboard.get("activity")
-        except (AttributeError, KeyError):
+        event = self._activity_bb
+        if event is None:
             return []
         invite_id = getattr(event, "object_id", None)
         if not invite_id or self.datalayer is None:
@@ -321,14 +397,14 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
-        case = self.blackboard.get("invitee_case")
+        case = self._invitee_case_bb
         if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 "%s: invitee_case not found in blackboard", self.name
             )
             return Status.FAILURE
 
-        if self.blackboard.get("invitee_already_participant"):
+        if self._already_participant_bb:
             participant_id = case.actor_participant_index.get(self.invitee_id)
             if participant_id is None:
                 self.logger.error(
@@ -346,8 +422,8 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
                     participant_id,
                 )
                 return Status.FAILURE
-            self.blackboard.new_invite_participant = cast(
-                VultronParticipant, existing
+            self._set_output(
+                "new_invite_participant", cast(VultronParticipant, existing)
             )
             self.logger.info(
                 "%s: reusing existing participant '%s' for backfill resume",
@@ -361,18 +437,13 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             id_=f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}",
             attributed_to=self.invitee_id,
             context=self.case_id,
-            case_roles=roles if roles else [],
+            case_roles=roles,
         )
-        # PCR-08-010: Accept(Invite) IS the engage signal; record all three
-        # RM transitions on behalf of the invitee in the CaseActor's DataLayer.
+        # CM-11-001: Accept(Invite) records RM.RECEIVED only. The full
+        # triage cycle is a distinct step run by the invitee after replica
+        # delivery (PCR-08-010).
         participant.append_rm_state(
             RM.RECEIVED, actor=self.invitee_id, context=self.case_id
-        )
-        participant.append_rm_state(
-            RM.VALID, actor=self.invitee_id, context=self.case_id
-        )
-        participant.append_rm_state(
-            RM.ACCEPTED, actor=self.invitee_id, context=self.case_id
         )
         if roles:
             self.logger.info(
@@ -382,10 +453,10 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
                 roles,
                 self.invitee_id,
             )
-        self.blackboard.new_invite_participant = participant
+        self._set_output("new_invite_participant", participant)
         self.logger.info(
-            "%s: created participant object for invitee '%s' at RM.ACCEPTED"
-            " (PCR-08-010)",
+            "%s: created participant object for invitee '%s' at RM.RECEIVED"
+            " (CM-11-001)",
             self.name,
             self.invitee_id,
         )
@@ -419,65 +490,96 @@ class MaybeSignEmbargoConsentNode(py_trees.composites.Selector):
         )
 
 
-class _CheckEmbargoActiveStateNode(DataLayerAction):
+class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
     """Return SUCCESS iff the case has an active embargo in EM.ACTIVE state."""
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="invitee_case",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["invitee_case"] = PortInformation(
+            data_type=object, required=False
         )
-        self.blackboard.register_key(
-            key="active_embargo_id",
-            access=py_trees.common.Access.WRITE,
-        )
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "active_embargo_id": PortInformation(
+                data_type=object, required=False
+            )
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "invitee_case": "/invitee_case",
+            "active_embargo_id": "/active_embargo_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._invitee_case_bb = self.get_input("invitee_case")
+        except (NoDataAvailable, NotImplementedError):
+            self._invitee_case_bb = None
 
     def update(self) -> Status:
-        case = self.blackboard.get("invitee_case")
+        case = self._invitee_case_bb
         if not isinstance(case, VulnerabilityCase):
             self.logger.error("%s: invitee_case not available", self.name)
             # Initialize key so downstream nodes can safely read it.
-            self.blackboard.active_embargo_id = None
+            self._set_output("active_embargo_id", None)
             return Status.FAILURE
 
         active_embargo_id = _as_id(case.active_embargo)
         em_state = case.current_status.em.state
         if active_embargo_id and em_state == EM.ACTIVE:
-            self.blackboard.active_embargo_id = active_embargo_id
+            self._set_output("active_embargo_id", active_embargo_id)
             return Status.SUCCESS
         # Always write the key so PersistInviteeParticipantNode can read it
         # even when there is no active embargo (py_trees raises KeyError for
         # unwritten READ-registered keys — see AGENTS.md pitfalls).
-        self.blackboard.active_embargo_id = None
+        self._set_output("active_embargo_id", None)
         return Status.FAILURE
 
 
-class _SignEmbargoConsentLeafNode(DataLayerAction):
+class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
     """Sign embargo consent on the participant and record the event."""
 
     def __init__(self, invitee_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.invitee_id = invitee_id
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="new_invite_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["new_invite_participant"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="active_embargo_id",
-            access=py_trees.common.Access.READ,
+        ports["active_embargo_id"] = PortInformation(
+            data_type=str, required=True
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "new_invite_participant": "/new_invite_participant",
+            "active_embargo_id": "/active_embargo_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.new_invite_participant = self.get_input("new_invite_participant")
+        self.active_embargo_id: str = self.get_input("active_embargo_id")
 
     def update(self) -> Status:
-        participant = self.blackboard.get("new_invite_participant")
-        active_embargo_id = self.blackboard.get("active_embargo_id")
+        participant = self.new_invite_participant
+        active_embargo_id = self.active_embargo_id
         if not isinstance(participant, VultronParticipant) or not isinstance(
             active_embargo_id, str
         ):
@@ -487,9 +589,7 @@ class _SignEmbargoConsentLeafNode(DataLayerAction):
             return Status.FAILURE
 
         participant.accepted_embargo_ids.append(active_embargo_id)
-        participant.embargo_consent_state = apply_pec_trigger(
-            PEC.NO_EMBARGO, PEC_Trigger.ACCEPT
-        )
+        participant.apply_pec_transition(PEC_Trigger.ACCEPT)
         self.logger.info(
             "%s: signed embargo consent for invitee '%s' (EM.ACTIVE,"
             " CM-10-001)",
@@ -526,7 +626,7 @@ class _AlwaysSucceedNode(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
-class PersistInviteeParticipantNode(DataLayerAction):
+class PersistInviteeParticipantNode(DataLayerActionWithPorts):
     """Persist the participant, attach to case, record events, save case."""
 
     def __init__(
@@ -536,31 +636,46 @@ class PersistInviteeParticipantNode(DataLayerAction):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="invitee_already_participant",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["invitee_already_participant"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="new_invite_participant",
-            access=py_trees.common.Access.READ,
+        ports["new_invite_participant"] = PortInformation(
+            data_type=object, required=True
         )
-        self.blackboard.register_key(
-            key="invitee_case",
-            access=py_trees.common.Access.READ,
+        ports["invitee_case"] = PortInformation(
+            data_type=object, required=True
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "invitee_already_participant": "/invitee_already_participant",
+            "new_invite_participant": "/new_invite_participant",
+            "invitee_case": "/invitee_case",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.invitee_already_participant = self.get_input(
+            "invitee_already_participant"
+        )
+        self.new_invite_participant = self.get_input("new_invite_participant")
+        self.invitee_case = self.get_input("invitee_case")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        if self.blackboard.get("invitee_already_participant"):
+        if self.invitee_already_participant:
             return Status.SUCCESS
 
-        participant = self.blackboard.get("new_invite_participant")
-        case = self.blackboard.get("invitee_case")
+        participant = self.new_invite_participant
+        case = self.invitee_case
         if not isinstance(participant, VultronParticipant) or not isinstance(
             case, VulnerabilityCase
         ):
@@ -575,7 +690,7 @@ class PersistInviteeParticipantNode(DataLayerAction):
         self.datalayer.save(case)
         self.logger.info(
             "%s: participant '%s' persisted and attached to case '%s'"
-            " (RM.ACCEPTED, PCR-08-010)",
+            " (RM.RECEIVED, CM-11-001)",
             self.name,
             participant.id_,
             self.case_id,
@@ -583,7 +698,7 @@ class PersistInviteeParticipantNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
+class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
     """Send canonical CaseLedgerEntry history to a joiner in strict order."""
 
     def __init__(
@@ -594,38 +709,47 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
         self.invitee_id = invitee_id
         self._sync_port: SyncActivityPort | None = None
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="sync_port", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["sync_port"] = PortInformation(data_type=object, required=False)
+        ports["pre_commit_backfill_target"] = PortInformation(
+            data_type=object, required=False
         )
-        self.blackboard.register_key(
-            key="pre_commit_backfill_target",
-            access=py_trees.common.Access.READ,
-        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "sync_port": "/sync_port",
+            "pre_commit_backfill_target": "/pre_commit_backfill_target",
+        }
 
     def initialise(self) -> None:
         super().initialise()
         try:
-            self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
-        except (AttributeError, KeyError):
+            self._sync_port = cast(
+                SyncActivityPort, self.get_input("sync_port")
+            )
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
+        try:
+            self._pre_commit_backfill_target = self.get_input(
+                "pre_commit_backfill_target"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self._pre_commit_backfill_target = None
 
     def _resolve_backfill_target(self, entries: list[CaseLedgerEntry]) -> int:
         """Resolve the backfill target index.
 
-        Reads ``pre_commit_backfill_target`` from the blackboard when set to a
-        non-None int (resume case: CapturePreCommitBackfillTargetNode wrote the
-        last index BEFORE the commit so backfill does not re-send the new entry
-        that the commit fan-out already delivered).  ``None`` or a missing key
-        means fresh case — fall back to the post-commit last entry.
+        Uses ``pre_commit_backfill_target`` captured in ``initialise()`` when
+        set (resume case: CapturePreCommitBackfillTargetNode wrote the last
+        index BEFORE the commit so backfill does not re-send the new entry
+        that the commit fan-out already delivered).  ``None`` means fresh case
+        — fall back to the post-commit last entry.
         """
-        try:
-            pre_commit_target = self.blackboard.get(
-                "pre_commit_backfill_target"
-            )
-        except KeyError:
-            pre_commit_target = None
+        pre_commit_target = self._pre_commit_backfill_target
         if pre_commit_target is not None:
             return int(pre_commit_target)
         return entries[-1].log_index if entries else -1
@@ -811,11 +935,20 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-        ├── CreateInviteeParticipantAtAcceptedNode — build participant at ACCEPTED
+        ├── CreateInviteeParticipantAtReceivedNode — build participant at RM.RECEIVED
         ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
         ├── PersistInviteeParticipantNode          — persist, attach, save case
+        ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
         ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
         └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
+
+    The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
+    :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
+    to enforce CLP-13-001: when a true duplicate is detected (invitee already
+    joined AND backfill is complete), the guard returns ``Status.FAILURE`` with
+    an INFO log and no ledger write.  When backfill is incomplete, it returns
+    SUCCESS with ``invitee_already_participant = True`` so the tree continues
+    to the commit + backfill steps without re-creating the participant.
 
     Args:
         case_id: ID of the VulnerabilityCase the invitee accepted.
@@ -835,7 +968,7 @@ def create_accept_invite_actor_to_case_tree(
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
         effect_nodes=[
-            CreateInviteeParticipantAtAcceptedNode(
+            CreateInviteeParticipantAtReceivedNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
             MaybeSignEmbargoConsentNode(
@@ -844,6 +977,7 @@ def create_accept_invite_actor_to_case_tree(
             PersistInviteeParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
+            EmitAddCaseParticipantNode(case_id=case_id, invitee_id=invitee_id),
             EmitAnnounceCaseToInviteeNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
@@ -857,7 +991,8 @@ def create_accept_invite_actor_to_case_tree(
 __all__ = [
     "CapturePreCommitBackfillTargetNode",
     "CheckInviteeNotAlreadyParticipantNode",
-    "CreateInviteeParticipantAtAcceptedNode",
+    "CreateInviteeParticipantAtReceivedNode",
+    "EmitAddCaseParticipantNode",
     "MaybeSignEmbargoConsentNode",
     "PersistInviteeParticipantNode",
     "EmitAnnounceCaseToInviteeNode",

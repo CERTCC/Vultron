@@ -436,6 +436,14 @@ reporter at RM.ACCEPTED, receiver at RM.RECEIVED. RM state is tracked
 in `VultronParticipant.participant_status[].rm_state` from the moment
 of case creation.
 
+> **ADR-0015 is superseded by ADR-0041.** In the CaseActor-authoritative model
+> the vendor tree no longer creates the `VulnerabilityCase` directly.  The vendor
+> stores the report, writes a pending `VultronReportCaseLink`, and sends
+> `Create(as_CaseProposal)` to the CaseActor; the CaseActor creates the case,
+> adds participants, and initializes embargo before emitting
+> `Create(VulnerabilityCase)` back to the vendor.  See `notes/case-proposal.md`
+> for the corrected flow (CM-22, CP-09).
+
 `ReportStatus` in the flat status layer is a **transient pre-case
 mechanism** that was previously used for reports not yet associated with
 a case (pre-case RM states: RECEIVED, INVALID). Under ADR-0015, the case

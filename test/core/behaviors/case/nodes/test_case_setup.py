@@ -39,7 +39,7 @@ from vultron.core.behaviors.case.nodes import (
     RecordOfferReceivedEventNode,
     UpdateActorOutbox,
 )
-from vultron.core.behaviors.case.nodes.case_setup import (
+from vultron.core.behaviors.case.nodes.case_actor_setup import (
     CreateCaseActorServiceNode,
     RegisterCaseActorParticipantNode,
     ResolveCaseActorUrlsNode,
@@ -77,6 +77,10 @@ def configure_case_actor_url(monkeypatch):
 
     reload_config()
     yield
+    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URL into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
     reload_config()
 
 
@@ -321,6 +325,8 @@ class TestRecordCaseCreationEvents:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CM-02-001")
+@pytest.mark.spec("CM-02-010")
 class TestCreateCaseActorNodeBlackboard:
     """CreateCaseActorNode reads case_id from blackboard when not given at construction."""
 

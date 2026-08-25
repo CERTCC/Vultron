@@ -16,11 +16,8 @@ from test.core.behaviors.sync.nodes.conftest import (
 from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
     PersistLogEntryNode,
+    ReconstructChainTailNode,
 )
-from vultron.core.behaviors.sync.nodes.chain import (
-    _validate_canonical_entry,
-)
-from vultron.errors import VultronCanonicalEntryError
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -51,6 +48,8 @@ def _canonical_case_announce_snapshot() -> dict[str, object]:
     }
 
 
+@pytest.mark.spec("CLP-02-001")
+@pytest.mark.spec("SYNC-01-002")
 def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     result = bridge.execute_with_setup(
         tree=CreateLogEntryNode(
@@ -74,6 +73,7 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     assert blackboard.log_entry.log_index == 0
 
 
+@pytest.mark.spec("CLP-07-011")
 def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
     """Omitting payload_snapshot gives an empty dict on the node instance."""
     node = CreateLogEntryNode(
@@ -83,17 +83,6 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
     )
     assert node.payload_snapshot == {}
     assert node.payload_snapshot is not None
-
-
-def test_validate_canonical_entry_rejects_empty_snapshot():
-    with pytest.raises(VultronCanonicalEntryError):
-        _validate_canonical_entry(
-            case_id=CASE_ID,
-            actor_id=OWNER_ACTOR_ID,
-            disposition="recorded",
-            payload_snapshot={},
-            event_type="note_added",
-        )
 
 
 @pytest.mark.parametrize(
@@ -149,6 +138,8 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
         ),
     ],
 )
+@pytest.mark.spec("CLP-07-005")
+@pytest.mark.spec("CLP-07-011")
 def test_create_log_entry_node_rejects_non_canonical_snapshots(
     bridge, snapshot, message
 ):
@@ -169,6 +160,7 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
     assert message in result.feedback_message
 
 
+@pytest.mark.spec("CLP-07-003")
 def test_create_log_entry_node_allows_case_authored_announce(bridge):
     result = bridge.execute_with_setup(
         tree=CreateLogEntryNode(
@@ -186,112 +178,64 @@ def test_create_log_entry_node_allows_case_authored_announce(bridge):
     assert result.status == Status.SUCCESS
 
 
-# ---------------------------------------------------------------------------
-# Actor provenance checks (CLP-07-003)
-# ---------------------------------------------------------------------------
+class TestReconstructChainTailPreGenesisLogging:
+    """Bug #2169: the pre-genesis bootstrap window (empty ledger + no per-case
+    genesis hash) is an expected, self-healing condition, not a fault.
 
-CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+    ``ReconstructChainTailNode`` writes the replay-from-genesis sentinel
+    (``tail_hash=""``, ``tail_index=-1``) so the downstream
+    ``ReconstructOrRejectOnMissingCase`` selector fires a
+    ``Reject(CaseLedgerEntry)`` and the CaseActor replays the chain
+    (SYNC-15-001, CLP-08-005).  Because this recovery is by design, it MUST be
+    logged at WARNING — not ERROR — so it does not surface as spurious error
+    noise on replica containers (e.g. ``finder-1``) during the initial
+    Announce/Create delivery race.
+    """
 
-
-def _note_snapshot_with_actor(actor_id: str) -> dict[str, object]:
-    return {
-        "type": "Add",
-        "actor": actor_id,
-        "object": {
-            "type": "Note",
-            "id": "https://example.org/notes/note-prov",
-            "context": CASE_ID,
-        },
-        "context": CASE_ID,
-    }
-
-
-def test_validate_canonical_entry_rejects_case_actor_as_snapshot_actor_for_non_case_authored():
-    """CLP-07-003: non-CaseActor-authored signatures must not have case_actor as actor."""
-    with pytest.raises(
-        VultronCanonicalEntryError, match="must not be the CaseActor"
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("CLP-08-005")
+    def test_pre_genesis_logs_warning_not_error(
+        self, bridge, caplog: pytest.LogCaptureFixture
     ):
-        _validate_canonical_entry(
-            case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
-            disposition="recorded",
-            payload_snapshot=_note_snapshot_with_actor(CASE_ACTOR_ID),
-            event_type="note_added",
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.DEBUG, logger=node_logger):
+            result = bridge.execute_with_setup(
+                tree=ReconstructChainTailNode(
+                    case_id=CASE_ID, name="ReconstructChainTail"
+                ),
+                actor_id=OWNER_ACTOR_ID,
+            )
+
+        assert result.status == Status.FAILURE
+        assert not any(r.levelno == logging.ERROR for r in caplog.records), (
+            "pre-genesis bootstrap window must not log at ERROR — it is an "
+            "expected, self-healing Reject/replay recovery (Bug #2169)"
+        )
+        assert any(
+            r.levelno == logging.WARNING and "CLP-08-005" in r.message
+            for r in caplog.records
+        ), "expected a WARNING explaining the replay-from-genesis recovery"
+
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("CLP-08-005")
+    def test_pre_genesis_writes_replay_sentinel(self, bridge):
+        result = bridge.execute_with_setup(
+            tree=ReconstructChainTailNode(
+                case_id=CASE_ID, name="ReconstructChainTail"
+            ),
+            actor_id=OWNER_ACTOR_ID,
         )
 
-
-def test_validate_canonical_entry_allows_participant_actor_for_non_case_authored():
-    """CLP-07-003: participant actor is valid for non-CaseActor-authored signatures."""
-    _validate_canonical_entry(
-        case_id=CASE_ID,
-        actor_id=OWNER_ACTOR_ID,
-        case_actor_id=CASE_ACTOR_ID,
-        disposition="recorded",
-        payload_snapshot=_note_snapshot_with_actor(PARTICIPANT_ACTOR_ID),
-        event_type="note_added",
-    )
-
-
-def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature():
-    """CLP-07-003: CaseActor is the expected actor for Announce(VulnerabilityCase)."""
-    snapshot = {
-        "type": "Announce",
-        "actor": CASE_ACTOR_ID,
-        "object": {
-            "type": "VulnerabilityCase",
-            "id": CASE_ID,
-            "context": CASE_ID,
-        },
-        "context": CASE_ID,
-    }
-    _validate_canonical_entry(
-        case_id=CASE_ID,
-        actor_id=CASE_ACTOR_ID,
-        case_actor_id=CASE_ACTOR_ID,
-        disposition="recorded",
-        payload_snapshot=snapshot,
-        event_type="case_announced",
-    )
-
-
-def test_validate_canonical_entry_allows_case_actor_for_invite_vulnerability_case():
-    """Regression #1526: Invite(VulnerabilityCase) is case-authored; CaseActor must be allowed."""
-    participant_actor_id = "https://example.org/actors/participant-1"
-    snapshot = {
-        "type": "Invite",
-        "actor": CASE_ACTOR_ID,
-        "object": {
-            "type": "Organization",
-            "id": participant_actor_id,
-        },
-        "target": {
-            "type": "VulnerabilityCase",
-            "id": CASE_ID,
-            "context": CASE_ID,
-        },
-        "context": CASE_ID,
-    }
-    _validate_canonical_entry(
-        case_id=CASE_ID,
-        actor_id=CASE_ACTOR_ID,
-        case_actor_id=CASE_ACTOR_ID,
-        disposition="recorded",
-        payload_snapshot=snapshot,
-        event_type="invite_actor_to_case",
-    )
-
-
-def test_validate_canonical_entry_provenance_skipped_when_no_case_actor_id():
-    """Provenance check is skipped when case_actor_id is not provided."""
-    _validate_canonical_entry(
-        case_id=CASE_ID,
-        actor_id=OWNER_ACTOR_ID,
-        case_actor_id=None,
-        disposition="recorded",
-        payload_snapshot=_note_snapshot_with_actor(OWNER_ACTOR_ID),
-        event_type="note_added",
-    )
+        assert result.status == Status.FAILURE
+        blackboard = py_trees.blackboard.Client(name="assert-sentinel")
+        blackboard.register_key(
+            key="tail_hash", access=py_trees.common.Access.READ
+        )
+        blackboard.register_key(
+            key="tail_index", access=py_trees.common.Access.READ
+        )
+        assert blackboard.tail_hash == ""
+        assert blackboard.tail_index == -1
 
 
 class TestPersistLogEntryNodeLogging:

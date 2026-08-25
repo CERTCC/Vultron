@@ -10,9 +10,18 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for AckReport, ValidateReport, and full-flow integration."""
+"""Tests for AckReport, ValidateReport, and full-flow integration.
+
+ADR-0041: SubmitReportReceivedUseCase no longer creates a VulnerabilityCase.
+Instead it writes a pending VultronReportCaseLink and sends Create(as_CaseProposal).
+"""
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VultronObject
 from vultron.core.models.events import MessageSemantics
@@ -22,6 +31,7 @@ from vultron.core.models.events.report import (
     ValidateReportReceivedEvent,
 )
 from vultron.core.models.report import VultronReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
@@ -31,6 +41,25 @@ from vultron.core.use_cases.received.report import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+
+_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
+
+@pytest.fixture(autouse=True)
+def configure_case_actor_url(monkeypatch):
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for all tests in this module."""
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    yield
+    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URL into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
+    reload_config()
 
 
 class TestAckReportNoStandaloneStatus:
@@ -144,25 +173,25 @@ class TestFullReportFlow:
         )
 
     def test_full_flow_case_created_at_received(self):
-        """SubmitReportReceivedUseCase creates exactly one case at RM.RECEIVED.
+        """SubmitReportReceivedUseCase writes a pending VultronReportCaseLink (ADR-0041).
 
-        Per ADR-0015: case creation happens at RM.RECEIVED, not RM.VALID.
+        Per ADR-0041, the vendor no longer creates a VulnerabilityCase at
+        RM.RECEIVED.  Instead a pending link is written and a CaseProposal
+        is sent to the CaseActor.
         """
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
 
-        cases = dl.get_all("VulnerabilityCase")
-        assert len(cases) == 1, "Expected exactly one as_VulnerabilityCase"
-        case_report_ids = [
-            rid
-            for c in cases
-            for rid in (c.get("data_", {}) or {}).get(
-                "vulnerability_reports", []
-            )
-        ]
-        assert (
-            self.REPORT_ID in case_report_ids
-        ), f"as_VulnerabilityCase must reference report {self.REPORT_ID}"
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        link = dl.read(link_id)
+        assert isinstance(
+            link, VultronReportCaseLink
+        ), "Expected a pending VultronReportCaseLink (ADR-0041)"
+        assert link.case_id is None
 
     def test_full_flow_validate_does_not_recreate_case(self):
         """validate-report does NOT create a new case after Offer(Report) receipt.
@@ -207,49 +236,53 @@ class TestFullReportFlow:
         ), f"Vendor {self.VENDOR_ID} must have RM.VALID in history after validate-report"
 
     def test_full_flow_finder_remains_rm_accepted(self):
-        """Finder participant is RM.ACCEPTED after submit and remains so after validate.
+        """ADR-0041: finder RM.ACCEPTED status is not written by the vendor tree.
 
-        The finder submitted the report, so they enter RM.ACCEPTED at receipt.
-        The subsequent validate-report step must not change the finder's state.
+        Per ADR-0041, the vendor tree only writes a pending VultronReportCaseLink.
+        CaseParticipant records (including finder RM.ACCEPTED) are created when
+        Create(VulnerabilityCase) arrives from the CaseActor.
         """
         from vultron.core.states.rm import RM
 
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
 
         accepted_id = _report_phase_status_id(
             self.FINDER_ID, self.REPORT_ID, RM.ACCEPTED.value
         )
-        assert (
-            dl.get("ParticipantStatus", accepted_id) is not None
-        ), f"Finder {self.FINDER_ID} must be RM.ACCEPTED after Offer(Report) receipt"
-
-        ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
-        ).execute()
-
-        assert (
-            dl.get("ParticipantStatus", accepted_id) is not None
-        ), f"Finder {self.FINDER_ID} must remain RM.ACCEPTED after validate-report"
+        assert dl.get("ParticipantStatus", accepted_id) is None, (
+            "ADR-0041: finder RM.ACCEPTED status must NOT be written by the"
+            " vendor receive-report tree (only by CreateCaseReceivedUseCase)"
+        )
 
     def test_full_flow_produces_correct_final_state(self):
-        """Full flow from Offer receipt to validation produces the expected state.
+        """ADR-0041: submit + validate flow produces pending link + vendor RM.VALID.
 
-        Verifies the combined invariants of ADR-0015:
-        - Exactly one as_VulnerabilityCase
-        - Vendor participant has RM.VALID in history after validate-report
-        - Finder participant at RM.ACCEPTED (reporter is accepted upon submission)
+        After ADR-0041:
+        - SubmitReportReceivedUseCase writes a pending VultronReportCaseLink.
+        - ValidateReportReceivedUseCase records vendor RM.VALID status.
+        - No VulnerabilityCase is created by either use case.
         """
         from vultron.core.states.rm import RM
 
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
         ValidateReportReceivedUseCase(
             dl, self._make_validate_event()
         ).execute()
 
-        cases = dl.get_all("VulnerabilityCase")
-        assert len(cases) == 1, "Expected exactly one as_VulnerabilityCase"
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert isinstance(
+            dl.read(link_id), VultronReportCaseLink
+        ), "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
 
         valid_id = _report_phase_status_id(
             self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
@@ -257,13 +290,6 @@ class TestFullReportFlow:
         assert (
             dl.get("ParticipantStatus", valid_id) is not None
         ), "Vendor must have RM.VALID in history after validate-report"
-
-        accepted_id = _report_phase_status_id(
-            self.FINDER_ID, self.REPORT_ID, RM.ACCEPTED.value
-        )
-        assert (
-            dl.get("ParticipantStatus", accepted_id) is not None
-        ), "Finder must be RM.ACCEPTED after full Offer(Report) to Accept flow"
 
 
 class TestValidateReportReceivedGuardedCommit:

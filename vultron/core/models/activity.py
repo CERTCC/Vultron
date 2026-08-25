@@ -62,6 +62,18 @@ class VultronActivity(VultronObject):
     origin: NonEmptyString | None = None
     to: list[str] | None = None
     cc: list[str] | None = None
+    # CM-16-003: the wire dump this model is validated from is camelCase, so
+    # the alias is required — without it the field silently validates to None
+    # and the suggested roles vanish from the delivered activity.
+    suggested_roles: list[str] | None = Field(
+        default=None,
+        validation_alias="suggestedRoles",
+        serialization_alias="suggestedRoles",
+    )
+    # Single-word, so the camelCase wire name is identical and no alias is
+    # needed; stated explicitly because the neighbouring field shows what the
+    # omission costs when the names do differ.
+    roles: list[str] | None = None
 
 
 class VultronOffer(VultronActivity):
@@ -111,8 +123,12 @@ class VultronCreateCaseActivity(VultronActivity):
     Mirrors the essential fields of ``as_CreateCase``.
     ``type_`` is ``"Create"`` to match the wire value.
 
-    ``context`` carries the URI of the ``Accept(CaseProposal)`` activity
-    that authorised case creation (CP-05-003 causal traceability).
+    Per CP-05-003 and ADR-0045:
+
+    - ``context`` MUST be the URI of the new ``VulnerabilityCase`` (consistent
+      with all other case-scoped activities; required for inbox deferral routing).
+    - ``in_reply_to`` carries the URI of the ``Accept(CaseProposal)`` activity
+      that authorised case creation (causal antecedent in the AS2-correct field).
     """
 
     type_: Literal["Create"] = Field(
@@ -122,5 +138,17 @@ class VultronCreateCaseActivity(VultronActivity):
     )
     context: str | None = Field(
         default=None,
-        description="URI of the Accept(CaseProposal) that authorised this Create.",
+        description=(
+            "URI of the VulnerabilityCase this activity is scoped to "
+            "(CP-05-003, ADR-0045). MUST be the case URI, not the Accept URI."
+        ),
+    )
+    in_reply_to: str | None = Field(
+        default=None,
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
+        description=(
+            "URI of the Accept(CaseProposal) that authorised this Create "
+            "(CP-05-003, ADR-0045). Causal antecedent in the AS2-correct field."
+        ),
     )

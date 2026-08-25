@@ -19,16 +19,19 @@ import from ``vultron.demo.helpers`` directly.
 Sub-modules
 -----------
 - :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
-  ``find_case_invite_for_actor``, ``wait_for_object_stored``, and all
-  ``wait_for_*`` helpers.
+  ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
+  ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
+  ``wait_for_object_stored``, and all ``wait_for_*`` helpers.
 - :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
   and named CVD lifecycle action wrappers.
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory.
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
-  ``seed_containers``, ``seed_containers_fvv``, and ``reset_containers``.
-- :mod:`~vultron.demo.helpers.sync` — SYNC-2 ``trigger_log_commit`` and
+  ``seed_containers``, ``seed_containers_fvv``, ``seed_containers_fccv``,
+  ``seed_containers_fcv``, ``seed_containers_fcvcv``, and
+  ``reset_containers``.
+- :mod:`~vultron.demo.helpers.sync` — LedgerFanout ``trigger_log_commit`` and
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
   case-state assertion primitives, plus ``verify_activity_in_inbox``,
@@ -69,7 +72,10 @@ from vultron.demo.helpers.notes import (  # noqa: F401
 )
 from vultron.demo.helpers.polling import (  # noqa: F401
     _poll_until,
+    find_case_actor_participant_id,
     find_case_invite_for_actor,
+    find_cp_offer_for_case,
+    find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -86,6 +92,9 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
     get_actor_by_id,
     reset_containers,
     seed_containers,
+    seed_containers_fccv,
+    seed_containers_fcv,
+    seed_containers_fcvcv,
     seed_containers_fvv,
 )
 from vultron.demo.helpers.sync import (  # noqa: F401
@@ -117,6 +126,7 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
     setup_initialized_case,
     setup_two_participant_case,
 )

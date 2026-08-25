@@ -31,6 +31,28 @@ from pydantic import BaseModel
 
 CORE_VOCABULARY: dict[str, type[BaseModel]] = {}
 
+# Maps each CoreObject subclass's serialized ``type_`` string to its class.
+# Used by ``find_in_vocabulary`` as a fallback so that core-layer types can be
+# reconstructed from persistent storage without being registered in the wire
+# ``VOCABULARY`` dict (ARCH-12-003).  Populated by
+# ``CoreObject.__init_subclass__`` when a concrete subclass is first defined.
+CORE_TYPE_MAP: dict[str, type[BaseModel]] = {}
+
+
+def find_in_core_type_map(type_name: str) -> type[BaseModel]:
+    """Find a core class by its serialized ``type_`` string.
+
+    Args:
+        type_name: The ``type_`` value as stored in a Record (e.g. ``"OfferRecord"``).
+    Returns:
+        The core class registered under that type string.
+    Raises:
+        KeyError: If the type string is not registered.
+    """
+    if type_name not in CORE_TYPE_MAP:
+        raise KeyError(f"Unknown core type: {type_name!r}")
+    return CORE_TYPE_MAP[type_name]
+
 
 def find_in_core_vocabulary(item_name: str) -> type[BaseModel]:
     """Find a class in the core vocabulary by type name.

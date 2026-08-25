@@ -29,10 +29,11 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_case_invite_trigger_bt,
     accept_case_ownership_transfer_trigger_bt,
     invite_actor_to_case_trigger_bt,
-    offer_case_manager_role_trigger_bt,
     offer_case_ownership_transfer_trigger_bt,
+    reject_case_invite_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -44,8 +45,9 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
     AcceptCaseOwnershipTransferTriggerRequest,
     InviteActorToCaseTriggerRequest,
-    OfferCaseManagerRoleTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
+    OfferCaseParticipantRoleTriggerRequest,
+    RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
@@ -71,6 +73,9 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
             raise VultronNotFoundError("Actor", request.suggested_actor_id)
 
         self._suggested_actor_id = request.suggested_actor_id
+        self._suggested_roles = (
+            [r.value for r in request.roles] if request.roles else None
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -79,6 +84,7 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
                 case_id=self._case.id_,
                 actor=self._actor_id,
                 to=[case_manager_id],
+                roles=self._suggested_roles,
             )
             self._captured["activity"] = activity_dict
             return [activity_id]
@@ -214,55 +220,36 @@ class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcOfferCaseManagerRoleUseCase(SvcBTTriggerBase):
-    """Offer the CASE_MANAGER role to the Case Actor (trigger-side path).
+class SvcRejectCaseInviteUseCase(SvcBTTriggerBase):
+    """Reject a case invitation by emitting RmRejectInviteToCaseActivity.
 
-    Emits ``_OfferCaseManagerRoleActivity`` from the Case Actor's identity to
-    itself, initiating the CASE_MANAGER delegation handshake.  This is the
-    manual trigger-side counterpart to the automatic path wired into
-    ``receive_report_case_tree.py`` (DEMOMA-08-007).
-
-    The Case Actor service must already exist in the DataLayer (spawned by
-    the CaseActor spawning protocol, issue #1092).
+    The invitee actor reads the invite from the DataLayer and queues the
+    Reject activity for delivery to the Case Actor.
     """
 
     def _prepare(self) -> None:
-        request = cast(OfferCaseManagerRoleTriggerRequest, self._request)
-        # Validate the requesting actor exists in the DataLayer.
-        resolve_actor(request.actor_id, self._dl)
-        self._case = resolve_case(request.case_id, self._dl)
+        request = cast(RejectCaseInviteTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
 
-        case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
-        if case_actor_id is None:
-            raise VultronNotFoundError("CaseActor", self._case.id_)
-
-        participant_id = self._case.actor_participant_index.get(case_actor_id)
-        if not participant_id:
+        if self._dl.read(request.invite_id) is None:
             raise VultronNotFoundError(
-                "CaseParticipant for CaseActor", case_actor_id
+                "RmInviteToCaseActivity", request.invite_id
             )
 
-        self._case_actor_id: str = case_actor_id
-        self._case_actor_participant_id: str = participant_id
-        # BT runs under the Case Actor's identity so the offer is queued in
-        # the Case Actor's outbox (mirrors the automatic path in
-        # receive_report_case_tree.py).
-        self._actor_id = case_actor_id
+        self._invite_id = request.invite_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        return offer_case_manager_role_trigger_bt(captured=self._captured)
-
-    def _extra_execute_kwargs(self) -> dict[str, Any]:
-        return {
-            "case_id": self._case.id_,
-            "case_actor_id": self._case_actor_id,
-            "case_actor_participant_id": self._case_actor_participant_id,
-        }
+        return reject_case_invite_trigger_bt(
+            invite_id=self._invite_id,
+            captured=self._captured,
+        )
 
     def _handle_result(self) -> None:
         logger.info(
-            "CASE_MANAGER role offered for case '%s'",
-            self._case.id_,
+            "Actor '%s' rejected case invite '%s'",
+            self._actor_id,
+            self._invite_id,
         )
 
 
@@ -316,16 +303,31 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        if self._dl.read(request.offer_id) is None:
+        offer = self._dl.read(request.offer_id)
+        if offer is None:
             raise VultronNotFoundError(
-                "_OfferCaseOwnershipTransferActivity", request.offer_id
+                "VultronOwnershipTransferOfferRecord", request.offer_id
             )
 
         self._offer_id = request.offer_id
 
+        # Two shapes reach this point for the same Offer: the SYNC replica path
+        # stores a VultronOwnershipTransferOfferRecord (case URI in `case_id`),
+        # while the HTTP-inbox path stores the wire Offer activity (case in
+        # `object_`, possibly rehydrated to a typed object).  Accept either.
+        raw_case_id = _as_id(
+            getattr(offer, "case_id", None) or getattr(offer, "object_", None)
+        )
+        if not raw_case_id:
+            raise VultronNotFoundError(
+                "VulnerabilityCase (in Offer case reference)", request.offer_id
+            )
+        self._case_id = raw_case_id
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return accept_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,
+            case_id=self._case_id,
             captured=self._captured,
         )
 
@@ -337,15 +339,15 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcAcceptCaseManagerRoleUseCase:
-    """Stub for the manual accept-case-manager-role trigger path.
+class SvcOfferCaseParticipantRoleUseCase:
+    """Offer a CVDRole to a target Actor via the canonical ADR-0039 wire format.
 
-    The auto-accept path in ``OfferCaseManagerRoleReceivedUseCase`` handles
-    CASE_MANAGER role acceptance automatically for the demo.  This class is
-    a stub satisfying the interface contract (DEMOMA-08-008); full manual
-    override is deferred until required.
+    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    from the requesting actor.  The trigger_activity adapter's
+    ``offer_case_participant_role`` method handles wire construction and
+    DataLayer persistence.  No BT orchestration is needed on the sending side.
 
-    TODO(#1127): Implement when a manual override trigger is needed.
+    See SE-08-003, ADR-0039.
     """
 
     def __init__(
@@ -356,10 +358,29 @@ class SvcAcceptCaseManagerRoleUseCase:
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
-    def execute(self) -> dict:
-        raise NotImplementedError(
-            "SvcAcceptCaseManagerRoleUseCase.execute() is not yet implemented."
-            " The auto-accept path (OfferCaseManagerRoleReceivedUseCase)"
-            " handles CASE_MANAGER acceptance automatically."
+    def execute(self) -> dict[str, Any]:
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
+            )
+        req = cast(OfferCaseParticipantRoleTriggerRequest, self._request)
+        factory = cast(TriggerActivityPort, self._trigger_activity)
+        activity_id, activity_dict = factory.offer_case_participant_role(
+            case_id=req.case_id,
+            role=req.role,
+            target_actor_id=req.target_actor_id,
+            actor=req.actor_id,
         )
+        logger.info(
+            "SvcOfferCaseParticipantRoleUseCase: queued Offer(CaseParticipantRole)"
+            " '%s' for case '%s' role '%s' → actor '%s'",
+            activity_id,
+            req.case_id,
+            req.role,
+            req.target_actor_id,
+        )
+        return {"activity_id": activity_id, "activity": activity_dict}

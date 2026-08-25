@@ -55,6 +55,53 @@ codebase. They care about:
 - Use unexplained acronyms (BT, EM, RM, AS2, etc.) without a brief gloss
 - Claim something is fully functional if issues were found post-close
 - Include every commit; focus on the 5–10 most significant changes
+- Use internal shorthand for numbered work items without describing what they are
+  (e.g., "Production Collapse 3", "FUZZ-08e", "ADR-0042" all need a plain-language
+  gloss or should be replaced with a description of the actual change)
+
+---
+
+## Jargon Glossary and Rewrite Guide
+
+When any of the following terms appear in a draft without an inline explanation,
+either add the gloss shown or rewrite using the plain-language alternative.
+
+| Term | First-use gloss or plain-language rewrite |
+|---|---|
+| BT / behavior tree | "behavior tree — a decision-automation technique borrowed from game AI and robotics" |
+| PEC | "PEC (per-participant embargo-consent state machine)" — or just "embargo-consent state machine" |
+| EM / embargo management | "embargo management — tracking the active embargo agreement" |
+| RM / report management | "report management — the state machine governing a vulnerability report's lifecycle" |
+| CS / case status | "case status — the aggregate fix/deploy/disclosure state of the case" |
+| VFD state flags | "VFD fix-state flags (Vendor fix-ready / Fix-deployed / Disclosed)" — or describe the specific transition in plain terms |
+| f→F / d→D transitions | describe the meaning: "marking a fix as developed" / "marking a fix as deployed" |
+| ADR / ADR-NNNN | "architectural decision record (ADR-NNNN)" on first use; subsequent mentions can use the abbreviation |
+| call-out seam / call-out point | "injectable call-out point — a hook where a custom backend can be plugged in" |
+| DataLayer | "the internal data layer — which separates wire-format messages from domain objects" |
+| wire vocab / wire format | "wire-format messages (ActivityStreams 2.0, a standard social-web protocol)" |
+| blackboard | "shared blackboard — the in-memory store behavior tree nodes read from and write to" |
+| ledger | explain on first use: "case ledger — the append-only log of all events for a case" |
+| FUZZ-08x | do not use; describe what changed (e.g., "the exploit-strategy evaluation fuzzer nodes were converted to call-out point abstractions") |
+| Production Collapse N | do not use; describe what changed (e.g., "the notification loop was collapsed from a stub into a full call-out abstraction") |
+| ASGIEmitter | "the in-process delivery shim (ASGIEmitter)" — or just describe what it did |
+| CaseActor | "the CaseActor service — a dedicated container that owns the canonical case record" |
+| DEMOMA-NN | do not use alone; describe the scenario by its actors and workflow |
+| ECA format | "ECA (Event–Condition–Action) spec format" |
+| ratchet test | "architecture ratchet test — an automated check that prevents a design boundary from eroding" |
+
+### Bad/good rewrite examples
+
+❌ "PEC state machine transitions from NO_EMBARGO were fixed."
+✅ "The embargo-consent state machine was corrected: participants can now accept or decline an embargo offer even when they are not currently party to one."
+
+❌ "Production Collapses 1, 3, and 4 were completed."
+✅ "Three fuzzer subsystems — the exploit-strategy evaluator, the suggest-actor notification loop, and the publication leaf — were converted from simplified simulation placeholders to full call-out abstractions ready for production backend wiring."
+
+❌ "VFD role guards were added for f→F and d→D."
+✅ "Role guards now ensure that only a vendor actor can mark a fix as developed, and only a deployer actor can mark it as deployed — previously these checks were absent."
+
+❌ "FUZZ-08e retriever call-out points were implemented."
+✅ "The actor-retrieval step in the multi-actor suggestion workflow was refactored to expose an injectable call-out point for custom retrieval backends."
 
 ---
 

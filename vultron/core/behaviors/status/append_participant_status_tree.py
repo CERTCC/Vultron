@@ -51,6 +51,7 @@ def append_participant_status_tree(
     status_id: str,
     participant_id: str,
     status_obj_fallback: PersistableModel | None,
+    validate_rm: bool = True,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for appending ParticipantStatus to a participant.
 
@@ -58,7 +59,7 @@ def append_participant_status_tree(
     1. Load participant from DataLayer
     2. Check idempotency (status not already appended)
     3. Resolve or persist the status object
-    4. Validate RM state transition rules
+    4. Validate RM state transition rules (when ``validate_rm=True``)
     5. Append status to participant and save
 
     All protocol-significant behavior (participant lookup, idempotency,
@@ -73,24 +74,39 @@ def append_participant_status_tree(
         participant_id: The URI of the CaseParticipant to update.
         status_obj_fallback: Fallback domain object to persist if status_id
             not yet in DataLayer (used for bootstrap activities).
+        validate_rm: When ``False``, skip ``ValidateRMTransitionNode``.
+            Set to ``False`` when called from ``add_participant_status_tree``
+            where ``FilterParticipantStatusDimensionsNode`` in
+            ``precondition_guards`` has already adjudicated the ``rm``
+            dimension (CLP-10-009). Defaults to ``True`` for standalone use.
 
     Returns:
         Root node of the ``AppendParticipantStatusBT`` Sequence.
     """
+    process_children: list[py_trees.behaviour.Behaviour] = [
+        ResolveAndPersistStatusObjectNode(
+            status_id=status_id,
+            status_obj_fallback=status_obj_fallback,
+        ),
+    ]
+    if validate_rm:
+        process_children.append(
+            ValidateRMTransitionNode(
+                participant_id=participant_id,
+                status_id=status_id,
+            )
+        )
+    process_children.append(
+        AppendStatusAndSaveParticipantNode(
+            status_id=status_id,
+            participant_id=participant_id,
+        )
+    )
+
     append_subtree = py_trees.composites.Sequence(
         name="AppendParticipantStatusProcessNode",
         memory=False,
-        children=[
-            ResolveAndPersistStatusObjectNode(
-                status_id=status_id,
-                status_obj_fallback=status_obj_fallback,
-            ),
-            ValidateRMTransitionNode(participant_id=participant_id),
-            AppendStatusAndSaveParticipantNode(
-                status_id=status_id,
-                participant_id=participant_id,
-            ),
-        ],
+        children=process_children,
     )
 
     root = py_trees.composites.Sequence(

@@ -15,14 +15,17 @@
 
 """Tree factory for Accept(OfferCaseOwnershipTransfer) received activities.
 
-Wraps ``AcceptCaseOwnershipTransferNode`` for use with
-``BTBridge.execute_with_setup()``.
+Wraps ``AcceptCaseOwnershipTransferNode`` in the standard guarded-commit
+pattern for use with ``BTBridge.execute_with_setup()``.
 """
 
 import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
 )
@@ -36,6 +39,10 @@ def create_accept_ownership_transfer_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AcceptCaseOwnershipTransferReceivedUseCase``.
 
+    Uses the standard ``create_receive_activity_tree`` factory to enforce the
+    CLP-10-006 ordering: guarded-commit (CaseLedgerEntry + Announce broadcast)
+    fires after ``AcceptCaseOwnershipTransferNode`` succeeds (CM-21-007).
+
     Args:
         case_id: URI of the case whose ownership is being transferred.
         new_owner_id: URI of the actor accepting (and becoming) the new owner.
@@ -43,13 +50,20 @@ def create_accept_ownership_transfer_tree(
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
-    root = AcceptCaseOwnershipTransferNode(
+    tree = create_receive_activity_tree(
+        name="AcceptOwnershipTransferBT",
         case_id=case_id,
-        new_owner_id=new_owner_id,
+        precondition_guards=[],
+        effect_nodes=[
+            AcceptCaseOwnershipTransferNode(
+                case_id=case_id,
+                new_owner_id=new_owner_id,
+            ),
+        ],
     )
     logger.debug(
         "Created AcceptOwnershipTransferBT for case='%s' new_owner='%s'",
         case_id,
         new_owner_id,
     )
-    return root
+    return tree

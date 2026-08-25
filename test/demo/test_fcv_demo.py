@@ -176,6 +176,8 @@ class TestResetContainersFcv:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CM-17-001")
+@pytest.mark.spec("CM-17-004")
 class TestFindCaseInviteForActor:
     """Test the shared polling helper that locates the CaseActor Invite for the invitee."""
 
@@ -311,3 +313,348 @@ class TestFcvCliCommand:
         runner = CliRunner()
         result = runner.invoke(main, ["fcv", "--help"])
         assert "--vendor-id" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Milestone assertion tests — AC-4 of ISSUE-1976
+# ---------------------------------------------------------------------------
+
+
+class TestFcvMilestoneAssertions:
+    """Verify that _phase_* functions call the required milestone helpers.
+
+    Each test patches the milestone function to a Mock and asserts it was
+    called during the relevant phase, confirming phase-boundary assertions
+    are wired in.  All network/DataLayer calls are patched so no real HTTP
+    is performed.
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    @pytest.mark.spec("CM-12-001")
+    @pytest.mark.spec("VP-02-015")
+    def test_phase_report_submission_calls_verify_case_active(self):
+        """_phase_report_submission calls verify_case_active at M1."""
+        import contextlib
+
+        finder_client = self._client()
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        finder = self._actor("urn:test:finder")
+        coordinator = self._actor("urn:test:coordinator")
+        vendor = self._actor("urn:test:vendor")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fcv",
+                return_value=(finder, coordinator, vendor),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                return_value=coordinator_in_coordinator,
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "verify_case_active") as mock_m1,
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                case_actor_client=None,
+                finder_id=None,
+                coordinator_id=None,
+                vendor_id=None,
+            )
+        mock_m1.assert_called_once()
+
+    def test_phase_fix_lifecycle_calls_verify_fix_ready(self):
+        """_phase_fix_lifecycle calls verify_fix_ready at M5."""
+        import contextlib
+
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        coordinator = self._actor("urn:test:coordinator")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_fix_ready") as mock_m5,
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_fix_lifecycle(
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                coordinator=coordinator,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+            )
+        mock_m5.assert_called()
+
+    def test_phase_publication_calls_verify_publicly_disclosed(self):
+        """_phase_publication calls verify_publicly_disclosed at M6."""
+        import contextlib
+
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        finder_client = self._client()
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        finder_in_finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_published"),
+            patch.object(demo, "wait_for_case_em_terminated"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_publicly_disclosed") as mock_m6,
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_publication(
+                finder_client=finder_client,
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                vendor_in_vendor=vendor_in_vendor,
+                finder_in_finder=finder_in_finder,
+                case=case,
+            )
+        mock_m6.assert_called()
+
+    def test_phase_case_closure_calls_verify_case_closed(self):
+        """_phase_case_closure calls verify_case_closed at M7."""
+        import contextlib
+
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        finder_client = self._client()
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        finder_in_finder = self._actor("urn:test:finder")
+        case = self._case()
+        case.id_ = "urn:test:case"
+        coordinator_client.get.return_value = {
+            "e0": {
+                "case_id": case.id_,
+                "log_index": 0,
+                "entry_hash": "h0",
+                "event_type": "close_case",
+            }
+        }
+
+        with (
+            patch.object(demo, "actor_closes_case"),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed") as mock_m7,
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                vendor_in_vendor=vendor_in_vendor,
+                finder_in_finder=finder_in_finder,
+                case=case,
+            )
+        mock_m7.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for Bug #2135: CLP-08-005 unanchored chain bootstrap
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CLP-08-005")
+class TestFinderCaseReplicaWaitBeforeVendorTriage:
+    """_phase_invite_vendor must confirm the Finder has the case replica
+    before calling run_invite_path_rm_triage for Vendor (Bug #2135).
+
+    Vendor's RM triage broadcasts Announce(CaseLedgerEntry) to all
+    participants including the Finder.  If the Finder's DataLayer does not
+    yet hold the VulnerabilityCase (genesis hash unavailable), the chain
+    bootstrap fails with CLP-08-005.
+    """
+
+    @staticmethod
+    def _actor(id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    @staticmethod
+    def _case(id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    @staticmethod
+    def _client():
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_finder_client_in_signature(self):
+        """_phase_invite_vendor must accept finder_client as a parameter."""
+        import inspect
+
+        sig = inspect.signature(demo._phase_invite_vendor)
+        assert "finder_client" in sig.parameters, (
+            "_phase_invite_vendor must accept finder_client to gate Vendor RM "
+            "triage on the Finder having the case replica (Bug #2135)"
+        )
+
+    def test_finder_wait_before_vendor_triage(self):
+        """wait_for_case_on_container(finder_client) precedes run_invite_path_rm_triage."""
+        import contextlib
+
+        finder_client = self._client()
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case("urn:test:case")
+
+        call_order: list[str] = []
+
+        def _wait_for_case(client, case_id, **_kwargs):
+            if client is finder_client:
+                call_order.append("finder_wait")
+
+        def _triage(**_kwargs):
+            call_order.append("triage")
+
+        with (
+            patch.object(
+                demo, "wait_for_case_on_container", side_effect=_wait_for_case
+            ),
+            patch.object(
+                demo, "run_invite_path_rm_triage", side_effect=_triage
+            ),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={
+                    "activity": {"id": "urn:test:act", "type": "Offer"}
+                },
+            ),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(
+                demo, "get_actor_by_id", return_value=vendor_in_vendor
+            ),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = MagicMock(
+                id_="urn:test:invite"
+            )
+            demo._phase_invite_vendor(
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                finder_client=finder_client,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                vendor=vendor,
+                case=case,
+                offer=MagicMock(id_="urn:test:offer"),
+                report=MagicMock(),
+                finder=finder,
+            )
+
+        assert (
+            "finder_wait" in call_order
+        ), "wait_for_case_on_container(finder_client) was never called before Vendor triage"
+        assert (
+            "triage" in call_order
+        ), "run_invite_path_rm_triage was never called"
+        finder_idx = next(
+            i for i, v in enumerate(call_order) if v == "finder_wait"
+        )
+        triage_idx = next(i for i, v in enumerate(call_order) if v == "triage")
+        assert finder_idx < triage_idx, (
+            f"Finder case-replica wait (index {finder_idx}) must come BEFORE "
+            f"run_invite_path_rm_triage (index {triage_idx}). "
+            f"Call order: {call_order} — Bug #2135 (CLP-08-005)"
+        )

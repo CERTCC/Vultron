@@ -13,16 +13,19 @@ from vultron.wire.as2.errors import (
 from vultron.wire.as2.parser import parse_activity
 
 
+@pytest.mark.spec("MV-01-001")
 def test_parse_activity_raises_missing_type_when_type_absent():
     with pytest.raises(VultronParseMissingTypeError):
         parse_activity({})
 
 
+@pytest.mark.spec("MV-01-001")
 def test_parse_activity_raises_unknown_type_for_unrecognized_type():
     with pytest.raises(VultronParseUnknownTypeError):
         parse_activity({"type": "NoSuchActivityType"})
 
 
+@pytest.mark.spec("MV-01-001")
 def test_parse_activity_raises_validation_error_for_invalid_data(monkeypatch):
     from vultron.wire.as2 import parser as p
     from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -37,6 +40,7 @@ def test_parse_activity_raises_validation_error_for_invalid_data(monkeypatch):
         parse_activity({"type": "Create"})
 
 
+@pytest.mark.spec("MV-01-001")
 def test_parse_activity_returns_typed_activity_for_valid_create():
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
@@ -104,3 +108,23 @@ def test_parse_activity_extracts_invite_response_semantics_from_nested_stub_case
             getattr(event, "invitee_id", None)
             == "https://example.org/actors/coordinator"
         )
+
+
+def test_parsing_activity_line_is_debug_not_info(caplog):
+    """ "Parsing activity from body" is HTTP handler internals (SL-04-007)."""
+    import logging
+
+    with caplog.at_level(logging.DEBUG, logger="vultron.wire.as2.parser"):
+        parse_activity(
+            {
+                "type": "Create",
+                "actor": "https://example.org/alice",
+                "object": "https://example.org/notes/1",
+            }
+        )
+
+    parsing = [
+        r for r in caplog.records if "Parsing activity from" in r.getMessage()
+    ]
+    assert parsing, "Expected the 'Parsing activity from body' log entry"
+    assert all(r.levelno == logging.DEBUG for r in parsing)

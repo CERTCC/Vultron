@@ -65,10 +65,11 @@ Ask the user to describe the idea (`ask_user`, freeform). Synthesize a
 short title, then create the issue via the `manage-github-issue` helper:
 
 ```bash
+IDEA_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Idea)
 ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "${TITLE}" \
   --body "${BODY}" \
-  --issue-type-id "IT_kwDOAjf0s84B_EoA")
+  --issue-type-id "${IDEA_TYPE_ID}")
 ```
 
 ### Phase 0b — Sync
@@ -120,6 +121,17 @@ EPIC_NUMBER=$(gh api graphql -f query='{
 
 Use the title and body from `ISSUE_JSON` as source material throughout.
 
+### Phase 1b — Claim the Issue and Create Task Branch
+
+Claim the issue now — as soon as it is validated — so others can see work
+has started. Derive `<slug>` from the issue title (lowercase, hyphenated).
+Delegate to `claim-issue.sh` for idempotency guard, branch creation,
+assignee, and claim comment — exactly as `build` and `bugfix` do:
+
+```bash
+bash .agents/skills/shared/claim-issue.sh "${ISSUE_NUMBER}" plan "<slug>"
+```
+
 ### Phase 2 — Orient (invoke `orient-agent`)
 
 Invoke the `orient-agent` skill to load required baseline context.
@@ -133,39 +145,38 @@ baseline rather than blank-slate context.
 
 ### Phase 4 — Grill-Me Interview (invoke `grill-me`)
 
-Invoke the `grill-me` skill. Resolve every decision branch one at a time
-via `ask_user`, providing a recommendation for each.
+Invoke the `grill-me` skill. The interview is conversation-driven and
+bottom-up — conclusions (scope, ACs, ADR, options, recommendation) emerge
+from the discussion rather than being asked as structured questions.
 
-**Shared base questions (all types):**
+**General pattern (all types):**
 
-1. **Scope** — What is in scope? What is explicitly out of scope?
-2. **Acceptance criteria** — How do we verify this is fully addressed?
-   Drive one GitHub issue per distinct AC cluster. Be exhaustive: if an
-   acceptance criterion is clearly needed but missing from the issue, add
-   it here. Do not produce a plan that leaves obvious ACs out simply
-   because the issue didn't spell them out. Deferring a clearly-needed AC
-   requires explicit user acknowledgment.
-3. **ADR determination** — Apply the `notes/specs-vs-adrs.md` decision tree
-   (MS-11-001 through MS-11-006). Form a recommendation with reasoning.
-   Present for approval before proceeding.
+1. **Open with a synthesis brief** — Before asking anything, present what
+   the research from Phase 3 reveals: what the issue says, what the current
+   codebase/specs show about the landscape, and 2–3 plausible directions.
+   Ask whether this reading is accurate before proceeding.
 
-**Type-specific questions:** see the loaded companion file.
+2. **Conversation** — Walk through the problem bottom-up. Ask clarifying
+   questions as understanding builds. Do not impose a predetermined question
+   structure. Scope, ACs, and ADR applicability are conclusions to confirm,
+   not questions to ask.
+
+3. **Signal the transition** — When understanding is forming, say so:
+   "I think we're almost there — here's what I have so far. Got more?"
+   Do not declare done unilaterally.
+
+4. **Confirm conclusions** — After the user closes the conversation, propose
+   the full plan as a confirmation block: what to implement, what docs to
+   update, whether an ADR is warranted. These are proposals to confirm, not
+   a new round of questions.
+
+**Type-specific opening and conversation guidance:** see the loaded
+companion file.
 
 Do **not** write anything until grill-me is complete.
 
 If the interview surfaces focus areas not covered in Phase 3, invoke
 `deepen-context` again with those additional hints before proceeding.
-
-### Phase 4b — Create Task Branch
-
-Always create a `plan/` branch, regardless of whether Phase 5 will produce
-doc changes. Re-sync first to catch any updates that landed during the
-planning session:
-
-```bash
-git fetch origin main && git reset --hard origin/main
-git switch -c "plan/${ISSUE_NUMBER}-<slug>"
-```
 
 ### Phase 5 — Update Docs (conditional)
 
@@ -251,6 +262,7 @@ IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 
 ## Reference
 Source: #${ISSUE_NUMBER}
+$([ -n "${PR_URL}" ] && echo "Docs PR: ${PR_URL}")
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --label "size:<S|M|L>" \
@@ -270,6 +282,42 @@ Add each new issue to Project #24:
 bash .agents/skills/shared/add-to-project.sh "${IMPL_NUMBER}"
 ```
 
+**Then route it onto the epic forest.** An impl issue wired as a sub-issue of a
+parent Epic (`EPIC_NUMBER` non-empty) is already on the right glacier — leave
+it at its inherited tier. But an impl issue with **no** parent epic should not
+be left flat at Someday: invoke the **`calve-epics`** skill (Mode 1) to route
+it onto the epic it matches, inheriting that epic's Schedule tier. If no epic
+fits, `calve-epics` leaves it at root as a calving candidate — do not mint a
+new epic inline here.
+
+### Phase 8b — Add Implementation Issue References to Docs PR (Ideas and Concerns only)
+
+After all impl issues are created, edit the PR body to add a forward-tracing
+section. This ensures the docs PR links forward to the work it spawned.
+
+Collect all impl issue numbers created in Phase 8 into `IMPL_NUMBERS` (array).
+Then compose an edit to the PR body:
+
+```bash
+IMPL_LIST=""
+for n in "${IMPL_NUMBERS[@]}"; do
+  IMPL_LIST="${IMPL_LIST}
+- #${n}"
+done
+
+# Append to existing PR body (or patch inline if section already present)
+CURRENT_BODY=$(gh pr view "${PR_URL}" --repo CERTCC/Vultron --json body --jq '.body')
+NEW_BODY="${CURRENT_BODY}
+
+## Implementation Issues
+${IMPL_LIST}"
+
+gh pr edit "${PR_URL}" --repo CERTCC/Vultron --body "${NEW_BODY}"
+```
+
+Skip this step for Epics — the Epic docs PR does not close the source issue
+and the impl issues are wired differently.
+
 ### Phase 9 — Archive, Close, or Annotate
 
 See the loaded companion file for the type-specific completion step:
@@ -286,32 +334,35 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Worktree reset to `origin/main` (Phase 0b — planning baseline)
 - [ ] Issue body fetched; type auto-detected (Idea, Concern, or Epic); issue is open
 - [ ] Type-specific companion file loaded (`idea.md`, `concern.md`, or `epic.md`)
+- [ ] Issue claimed via `claim-issue.sh` (`plan/<N>-<slug>`) — always (Phase 1b)
 - [ ] `orient-agent` invoked
 - [ ] `deepen-context` invoked with focus hints from the issue
-- [ ] All grill-me branches resolved (shared + type-specific)
+- [ ] Grill-me conversation complete — conclusions confirmed as proposals (scope, ACs, ADR, options)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
-- [ ] Worktree re-synced to `origin/main` before branch creation (Phase 4b — catches updates during planning session)
-- [ ] Task branch created (`plan/<N>-<slug>`) — always
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
 - [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
+- [ ] Impl issues reference docs PR URL in their body (Ideas/Concerns only — Phase 8)
+- [ ] Docs PR body updated with Implementation Issues section (Ideas/Concerns only — Phase 8b)
 - [ ] Completion step executed per type (archive+close for Ideas/Concerns; annotate for Epics)
 
 ---
 
 ## Conventions
 
-- **Branch name**: `plan/<N>-<slug>` (always created in Phase 4b)
+- **Branch name**: `plan/<N>-<slug>` (always created via `claim-issue.sh` in Phase 1b)
 - **History source**: `IDEA-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
 - **History type**: `idea` for Ideas; `learning` for Concerns (not used for Epics)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
 - **Notes file names**: same base name as spec, `.md` in `notes/`
 - **Close behavior**: `Closes #N` in the PR body closes on merge for Ideas
   and Concerns. Epics are never closed by this skill.
-- **Project board**: all new issues added with `Schedule=Someday` via
-  `shared/add-to-project.sh`
+- **Project board**: new issues are added via `shared/add-to-project.sh`, then
+  routed onto the epic forest via `calve-epics` (Mode 1) — inheriting the parent
+  epic's Schedule tier. Only true orphans (no matching epic) stay at
+  `Schedule=Someday` as calving candidates.
 
 ## Relationship to Other Skills
 

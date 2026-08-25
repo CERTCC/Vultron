@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Received-side BT factory for the InviteActorToCase workflow.
+"""Received-side BT factories for the InviteActorToCase workflow.
 
 See CLP-10-001, CLP-10-006; Issue #1293.
 """
@@ -28,6 +28,30 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 
 logger = logging.getLogger(__name__)
+
+
+def create_reject_invite_actor_to_case_received_tree(
+    case_id: str,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for ``Reject(Invite(actor, case))`` on the CaseActor inbox.
+
+    Commits the canonical ``CaseLedgerEntry`` for the invite rejection when the
+    receiving actor holds ``CVDRole.CASE_MANAGER`` (CLP-10-006).  No additional
+    effect nodes are required: the rejection is self-contained — the CaseActor
+    simply records that the invitee declined.
+
+    Args:
+        case_id: ID of the VulnerabilityCase referenced by the invite.
+
+    Returns:
+        Root ``RejectInviteActorToCaseReceivedBT`` Sequence node.
+    """
+    return create_receive_activity_tree(
+        name="RejectInviteActorToCaseReceivedBT",
+        case_id=case_id if case_id else None,
+        precondition_guards=[],
+        effect_nodes=[],
+    )
 
 
 def create_invite_actor_to_case_received_tree(

@@ -1,6 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
+from typing import cast
 
 from py_trees.common import Status
 
@@ -12,10 +13,19 @@ from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.ledger_gap_buffer import (
+    LedgerGapBuffer,
+    get_ledger_gap_buffer,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +63,13 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AnnounceVulnerabilityCaseReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
+        gap_buffer: LedgerGapBuffer | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._sync_port = sync_port
+        self._gap_buffer = gap_buffer
 
     def execute(self) -> None:
         request = self._request
@@ -116,7 +130,11 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=(
+                request.receiving_actor_id
+                if request.receiving_actor_id is not None
+                else request.actor_id
+            ),
             activity=request,
         )
         if result.status != Status.SUCCESS:
@@ -125,4 +143,22 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " for case '%s': %s",
                 case_id,
                 BTBridge.get_failure_reason(tree),
+            )
+            return
+
+        # The case (and therefore its deterministic per-case genesis hash) is
+        # now seeded locally.  Any Announce(CaseLedgerEntry) that arrived during
+        # the pre-genesis window was parked in the actor-local gap buffer rather
+        # than dropped (SYNC-15-004, #2186); drain it now so the ledger converges
+        # without waiting on the reject → replay round-trip (SYNC-15-005, #2180).
+        gap_buffer = self._gap_buffer
+        if gap_buffer is None and request.receiving_actor_id:
+            gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
+        if gap_buffer is not None and gap_buffer.depth(case_id) > 0:
+            drain_gap_buffer(
+                cast(CaseOutboxPersistence, self._dl),
+                case_id,
+                request.receiving_actor_id or "unknown",
+                gap_buffer,
+                self._sync_port,
             )

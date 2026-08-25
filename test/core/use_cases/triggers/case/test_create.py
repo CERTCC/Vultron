@@ -218,6 +218,48 @@ class TestSvcCreateCaseUseCase:
                 trigger_activity=TriggerActivityAdapter(self.dl),
             ).execute()
 
+    def test_create_case_outbox_activity_addressed_to_case_actor(self):
+        """Activity is addressed to the Case Actor only when ``to`` is set (PCR-08-001)."""
+        case_actor = as_Service(name="Case Actor")
+        self.dl.create(case_actor)
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            name="Test Case PCR",
+            content="Test content",
+            to=[case_actor.id_],
+        )
+        before = set(self.dl.outbox_list())
+        SvcCreateCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list())
+        new_ids = after - before
+        assert new_ids, "CreateCase must queue at least one outbox activity"
+        activity_id = next(iter(new_ids))
+        activity = self.dl.read(activity_id)
+        assert activity is not None
+        to = getattr(activity, "to", None)
+        to_ids = (
+            [
+                (
+                    item
+                    if isinstance(item, str)
+                    else getattr(item, "id_", str(item))
+                )
+                for item in to
+            ]
+            if isinstance(to, list)
+            else ([to] if isinstance(to, str) else [])
+        )
+        assert (
+            case_actor.id_ in to_ids
+        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        assert (
+            len(to_ids) == 1
+        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+
     def test_create_case_activity_queued_in_delivery_queue(self):
         """SvcCreateCaseUseCase queues activity in delivery queue for outbox_handler."""
         request = CreateCaseTriggerRequest(

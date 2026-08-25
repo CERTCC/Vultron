@@ -143,7 +143,14 @@ six-step checklist (enum → pattern → use-case → map → tests).
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py` defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
-- **Case States**: `vultron/case_states/` — enums are authoritative
+- **Case States**: `vultron/core/states/cs.py` — CS/VFD/PXA enums are
+  authoritative; `vultron/core/states/cs_invariants.py` holds the CS validity,
+  transition and history invariants (CSB-17). `vultron/core/case_states/` is the
+  legacy string-pattern reference model, retained as an independent oracle and
+  still imported by `states/cs.py` and `use_cases/query/action_rules.py`. Reach
+  for `cs_invariants.py` for new protocol-path work; the legacy module's only
+  remaining new-code use is as the oracle in the CSB-17 equivalence tests
+  (ADR-0060)
 
 Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
 Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
@@ -261,9 +268,28 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   all matching functions before commit.
 - **Case-Actor Broadcast Guard Tests Need a Third Participant** — include at
   least one non-sender peer or the assertion is vacuous.
-- **Case Participant Lookup**: `case_participants` is authoritative; check
-  `actor_participant_index` first (fast path), fall back to `case_participants`.
-  Fail only on contradictions, not cache misses.
+- **Case Participant Lookup**: `actor_participant_index` is the authoritative fast
+  path. Two lookup patterns exist — pick by context:
+  - **RM state mutation** (`update_participant_rm_state`): MUST use
+    `actor_participant_index → dl.read()` exclusively (CM-19-003). Never read
+    inline objects from `case_participants`; they may be stale snapshots (#2233).
+  - **BT-level resolution** (`FindParticipantByActorIdNode`): check
+    `actor_participant_index` first; fall back to `case_participants` scan for
+    bootstrap compatibility. Fail only on index↔scan contradictions, not cache
+    misses.
+- **Construction-Time Validation Does Not Cover Assignment or `append`** —
+  Pydantic validates a model when it is built, and not again. `case.field = x`
+  and `case.field.append(x)` both bypass every type guarantee, so a wire-shaped
+  object can occupy a core-typed field and then read as *absent* rather than
+  raising (#2232, #2264). Do not hand-mutate `case_participants`,
+  `case_statuses` or `participant_statuses`; use the canonical mutators
+  (CM-27-001, PRM-03-003). Corollary: **never assign to `self` inside a
+  `mode="after"` model validator** (ARCH-21-004) — once `validate_assignment` is
+  on, the assignment re-runs the validator and it re-enters itself, which
+  presents as a baffling `RecursionError` far from the cause. Derive in
+  `mode="before"` instead. See
+  [notes/domain-validation.md](notes/domain-validation.md)
+  § "Post-Construction Mutation: Three Doors, One Lock".
 - **Orphan Module Cleanup Requires Importer Proof** — verify no live importers
   in `vultron/` and `test/` before deleting.
 - **Worktree Sync Checks Need Ancestry Verification** — use `ensure-synced`
@@ -271,13 +297,35 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core)** — all classes
   in `vultron/wire/as2/vocab/objects/` use `as_` prefix. Bare name = core type.
   See ARCH-14-001.
+- **Never add a new `from vultron.core.models import …` inside `vultron/wire/`** —
+  wire code that needs to convert a core object to wire form MUST use the
+  `as_Foo.from_core(core_obj)` class method already present on every wire vocab
+  object (e.g. `as_VulnerabilityCase.from_core(vc)`). Adding a raw core-model
+  import in wire code expands the KNOWN_VIOLATIONS set in
+  `test/architecture/test_wire_no_core_model_imports.py` and fails CI. See
+  ARCH-22-001 and ARCH-22-002.
+- **Never Reach for `alias_generator` or `by_alias=True` in Core to Get camelCase**
+  — core needs wire-shaped JSON only for `CaseLedgerEntry.payloadSnapshot`, and it
+  MUST get it from the `WireRenderPort` driven port, not from the domain model.
+  A core-side alias cannot express structural core/wire differences (nested
+  `consent: PecDimension` vs flat `emConsentState`), so it always accretes
+  per-field hand-patches that drift from `from_core()`. See ARCH-20-001,
+  CLP-07-009, CLP-07-010 and
+  [notes/core-wire-rendering-port.md](notes/core-wire-rendering-port.md).
+- **Deleting a Wire-Spelling Shim Without a Reject-Guard Is a Silent Data-Loss
+  Bug** — Pydantic v2 defaults to `extra="ignore"`, so removing a validator that
+  accepted a legacy key makes that key *silently dropped* and the field default
+  to its start value (a lost RM ladder, not an error). Always pair the deletion
+  with a `model_validator(mode="before")` built on `reject_wire_spelled_keys`
+  (`vultron/core/models/_wire_spelling.py`). See SDO-03-005, ARCH-15-002.
 - **Flat `nodes.py` in BT Areas Is Non-Compliant** — use `nodes/` subpackage;
   `__init__.py` MUST re-export all public names. See BTND-07-001, BTND-07-003.
 - **Splits Must Not Produce New God Modules** — submodules ≤500 lines; split
   recursively when they re-accumulate. See CS-18-001 through CS-18-004.
 - **BT Emit Nodes: Inherit Base Classes, Never Reimplement Guard Boilerplate**
-  — use `_EmitCaseActorReportActivityBase`; override only `_call_factory()`.
-  See BTND-07-005.
+  — use `_EmitCaseActorReportActivityBase` (report domain) or
+  `_SendEmbargoActivityBase` (embargo domain); override only `_call_factory()`
+  and the three hook methods. See BTND-07-005.
 - **Peer Broadcast Nodes Must Not Mask Delivery Failure with SUCCESS** —
   see [notes/peer-broadcast-failure-semantics.md](notes/peer-broadcast-failure-semantics.md) BT-14-001.
 - **Negative-Guard Condition Nodes Are a Readability Anti-Pattern** — use
@@ -297,6 +345,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Inline `EMAdapter` Instantiation Is an Anti-Pattern** — delegate to
   `EmbargoLifecycle` (#538); cascade PEC alongside EM transitions.
   See [notes/embargo-lifecycle.md](notes/embargo-lifecycle.md).
+- **BT Write Nodes Must Validate Transitions at Their Own Boundary** —
+  A BT node that writes CS/VFD/PXA/EM/RM state MUST call the relevant
+  `is_valid_*_transition()` function inside the write node itself, not only
+  in upstream guard or condition nodes. Upstream guards can be absent or
+  bypassed when the write node is reused in a new tree. For VFD writes see
+  CSB-16-001; for PXA writes see CSB-16-002 and SM-09-001; for EM writes
+  route through `EmbargoLifecycle` (EMB-18-001).
+  See [notes/embargo-lifecycle.md](notes/embargo-lifecycle.md). Source: CONCERN-2412.
 - **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — all RM/EM
   transitions are protocol-significant (BT-15-001) and MUST live in BT leaf nodes.
   See [notes/bt-integration.md](notes/bt-integration.md) § "Trigger/Received Parity".
@@ -317,15 +373,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   Manager ID in a read-only guard node BEFORE state-mutation node. See BT-19-001,
   BT-19-002. [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Routing-Gated
   State Mutation".
-- **Superseded `notes/*.md` Files Must Move to `archived_notes/`** — use `git mv`;
-  update both READMEs. See PD-03-004, PD-03-005.
+- **Superseded Notes Sections Are Archived via `append-history note`** — stale
+  sections (or whole files) go to `plan/history/YYMM/note/` with source ID
+  `NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
+  See PD-03-002, PD-03-004.
 - **Stub Adapter Files Must Raise `NotImplementedError`** — docstring-only stubs
   hide integration gaps. See OX-10-004, OX-11-004.
 - **Trigger Use Cases Need Per-Use-Case Tests** — incidental coverage via
   `test_trignotify.py` is insufficient. See
   [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
-- **Hash-Chain Ledger Record vs. Domain Model** — `HashChainLedgerRecord` (in-memory
-  SYNC-1) vs. `CaseLedgerEntry` (wire-serializable). Import by full module path.
+- **Hash-Chain Ledger Record vs. Domain Model** — `HashChainLedgerRecord` (AppendOnlyLedger
+  phase, in-memory) vs. `CaseLedgerEntry` (wire-serializable). Import by full module path.
   See ARCH-12-007.
 - **Case Ledger Is Not a Process Log** — only CaseActor-accepted protocol-significant
   assertions; `payloadSnapshot` MUST NOT be empty. See ADR-0019, CLP-07,
@@ -333,6 +391,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Canonical Ledger Commits Must Be Role-Gated** — `CommitCaseLedgerEntryNode`
   MUST be wrapped in a role-gated composite. See CLP-09,
   [notes/case-ledger-authority.md](notes/case-ledger-authority.md).
+- **`create_receive_activity_tree` Already Injects the Guarded Commit — Do Not
+  Add a Second One to `effect_nodes`** — `create_receive_activity_tree` calls
+  `create_guarded_commit_case_ledger_entry_tree` as its first committed step.
+  Placing a bare `CommitCaseLedgerEntryNode` in `effect_nodes` creates an
+  unguarded second write that fires for ALL receiving actors, not just the
+  CaseActor. Both writers target the same `log_index` but produce different
+  `entry_hash` values (different `received_at`, different `payload_snapshot`
+  state), forking the hash chain irrecoverably (ISSUE-2252, CLP-09-001).
+  `effect_nodes` is for protocol state mutations only; ledger commit belongs
+  exclusively in `create_receive_activity_tree`'s own guarded slot.
+  See [notes/ownership-transfer.md](notes/ownership-transfer.md).
 - **Use-Case Subpackage Splits Must Re-Export Both Classes and Request Models** —
   `__init__.py` must re-export both; mirror split in test layout.
 - **Transport-Role Naming Must Stay Explicit** — update core ports docs, adapter
@@ -345,6 +414,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `RM.CLOSED` terminal rules before `current == new` no-op check.
 - **Do Not Downgrade Existing Consent on Idempotent Retries** — preserve non-null
   consent on embargo accept/reject retry paths.
+- **PEC Consent Must Go Through `apply_pec_transition()`, Never Direct Field
+  Assignment** — `participant.embargo_consent_state = PEC.SIGNATORY` bypasses both
+  the PEC machine and `_sync_latest_status_metadata()`, leaving the latest
+  `ParticipantStatus` stale so the ledger snapshot emits the contradictory pair
+  `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Use
+  `participant.apply_pec_transition(trigger)` as the single authoritative
+  consent-write path — it is fail-closed and raises
+  `VultronInvalidStateTransitionError` on an illegal trigger. Guard idempotent
+  sites with `if participant.embargo_consent_state != PEC.<TARGET>:` before
+  calling. See CM-18-005, CM-18-006, ADR-0048,
+  [notes/participant-embargo-consent.md](notes/participant-embargo-consent.md).
 - **DataLayer Scope Tests: Use `call_args.args`, Not `call_args[0]`** — named
   attribute raises `AttributeError` clearly; index returns empty tuple silently.
 - **Inbox Policy Logic Must Live in the Core BT Module** — all inbox processing
@@ -400,13 +480,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
-- **`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` Share
-  `Offer(VulnerabilityCase)` — Registry Order and Required `target` Field Are
-  the Current Guards** — `OFFER_CASE_MANAGER_ROLE` MUST appear before
-  `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
-  `_validate_registry_order()`). `_OfferCaseManagerRoleActivity.target` MUST
-  remain required. Do NOT add a third `Offer(VulnerabilityCase)` pattern without
-  a distinct object type. See SE-08-001, SE-08-002, ADR-0039,
+- **`ActivityPattern.target_` Is Always Permissive Unless `strict=True`** —
+  `_match_activity_field` follows `self.strict` for the `target_` field pair
+  (permissive by default). When `strict=True`, bare URI strings do NOT match a
+  typed target constraint. When `target_` is the sole discriminator between two
+  competing patterns (same `activity_` + `object_`),
+  set `strict=True` on the more-specific pattern; otherwise an unresolved target
+  URI bypasses the discriminator and makes registry ordering the only guard.
+  Prefer a dedicated object type (SE-08-003) over target-field discrimination
+  whenever possible. See SE-08-001, SE-08-004, ADR-0039, CONCERN-2322,
   [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md)
   § "Target-Field Discriminators".
 - **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix**
@@ -440,11 +522,51 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **FastAPI `dependency_overrides` Key Must Be Re-Exported When Converting a
   Router Module to a Package** — scan tests for `module.dependency_function`
   patterns. Issue #970.
-- **Guarded-Commit Tests Must Use the CASE_MANAGER Actor as `receiving_actor_id`**
-  — `CheckIsCaseManagerNode` checks the participant entry, not the service ID.
-  See BT-17-005.
+- **Guarded-Commit BTs Must Execute Under the CASE_MANAGER Actor's Identity** —
+  `CheckIsCaseManagerNode` compares the *blackboard* `actor_id` against the case's
+  CASE_MANAGER participant. Any code that calls `execute_with_setup` for a BT
+  containing `GuardedCommitCaseLedgerEntryBT` MUST pass the *receiving* actor's
+  ID (e.g. `request.receiving_actor_id`), NOT the sender's (`request.actor_id`).
+  This applies to production received-side use cases and to tests alike. In tests,
+  use `actor_id=case_manager_actor_id`; in received-side use cases, use
+  `actor_id=request.receiving_actor_id if request.receiving_actor_id is not None
+  else request.actor_id`. BT nodes that also need the *sender* ID must store it as
+  a private attribute (e.g. `self._target_actor_id`); `DataLayerAction.setup()` will
+  overwrite the blackboard `actor_id` and a stored attribute is the only safe way to
+  keep it. See BT-17-005, BT-17-006. *Source: ISSUE-2300*
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
+- **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —
+  *Fixed in #1784.* The script now runs cherry-pick with `core.hooksPath=/dev/null`
+  (preventing pre-commit hook interference) and guards the cleanup checkout with
+  `|| git checkout -` (preventing silent exit when `cherry-pick --abort` leaves
+  conflict markers). If both checkout attempts still fail (rare: genuine conflict
+  marker blocking every branch switch), manual recovery is required:
+  `git branch --show-current` (confirm `temp-freshen-*`), resolve conflict
+  markers, `git add <file>`, `git cherry-pick --continue --no-edit`, then
+  `git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH" && git branch -D "$TEMP"`.
+  Use `manage_worktree.sh ensure-synced` in preference to the raw script.
+- **A Red CI Job Is Not Evidence That Its Assertions Ran** — a job that dies in
+  an earlier step (artifact download, dependency setup, container build) never
+  reaches pytest, so its red status says nothing about what the tests assert.
+  Open the log and identify the failing *step* before concluding a test is
+  wrong, unsatisfiable, or "can never pass". A permanently-red
+  `<scenario> Invariant Harness` job was misread this way in CONCERN-2243: it
+  failed at `actions/download-artifact` on every run, so the assertion blamed
+  for the failure had never once executed. Note the inverse trap too — an
+  all-skipped pytest run exits 0 and reports **green** while checking nothing.
+  See [notes/demo-ci-invariants.md](notes/demo-ci-invariants.md) § "Reading a
+  Red Invariant Harness Job".
+- **Trace Shared Helper Layers Before Declaring an Event Unemitted** — in the
+  demo suite, protocol activity is emitted from shared helpers in
+  `vultron/demo/helpers/workflow.py` (e.g. `receiver_engages_case()`,
+  `run_direct_path_rm_triage()`), not from the scenario files. Grepping a
+  scenario file — or even all of `vultron/demo/scenario/` — finds nothing and
+  invites the false conclusion that no code emits the event. Search the helper
+  and semantic-registry layers, and confirm against
+  `graphify explain "<function>"` call edges, before asserting absence.
+  CONCERN-2243 filed a Concern on this basis for an event emitted by all nine
+  scenarios. *Source: CONCERN-2243*
 - **`git rebase` "local changes would be overwritten" With a Clean Working Tree**
   — this error can be a false positive when the rebased branch diverges far from
   main and both sides touched the same files. Fix: cherry-pick onto a fresh branch
@@ -452,11 +574,356 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   instead of rebasing. The error message is misleading — it is NOT evidence of
   uncommitted work. See also: single large-commit branches with 70+ files trigger a
   sequencer duplicate-pick bug; the cherry-pick workaround resolves both variants.
-  *Sources: ISSUE-1518, ISSUE-1504*
+  If `freshen-branch.sh` took this path and then hit a conflict, it can leave the
+  temp branch behind — delete it by hand. *Fixed in #1784: the script now guards
+  the cleanup checkout.*
+  *Sources: ISSUE-1518, ISSUE-1504, ISSUE-1784*
+- **Fix One, Miss the Siblings: Scan Peer Files Before Closing a Bug** — when a
+  bug is fixed in one location, always search for the same structural pattern in
+  sibling files and scenarios before closing. Unscanned peer instances surface as
+  separate backlog issues, each requiring its own investigation cycle. The bugfix
+  skill mandates this scan at Phase 2d; see
+  `.claude/skills/bugfix/REFERENCE.md` § "Sibling Scan Pattern".
+  *Source: CONCERN-2413*
 - **Verify Issue ACs Against Current Code Before Starting** — an issue may already
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
   Check current `main` against all ACs before writing any code; if satisfied, close
   the issue with a reference comment instead. *Sources: ISSUE-1510, ISSUE-1484*
+- **Docs/Learn PRs That Fix a Bug Must Include `Closes #N`** — when a docs PR
+  fixes a bug as a side effect, the closing footer is the only thing that
+  closes the issue automatically. Without it the issue stays OPEN after merge.
+  *Source: ISSUE-1787*
+- **Guard Name Must Reflect the State-Machine Transition Precondition, Not Just
+  Symptom Absence** — look up the transition in `vultron/core/states/` before
+  naming and implementing a guard node; "not yet X" names under-constrain the
+  guard and allow invalid state jumps. See
+  [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Guard Name Must Match…".
+  *Source: ISSUE-1825*
+- **Leaf Modules Near the 500-Line Cap Block Documentation Edits** — check
+  `wc -l` before adding docstrings or audit comments to a leaf module. If it is
+  within ~20 lines of 500, extract a semantic concern into a sibling submodule
+  (BTND-07-006) *first*, then write the documentation. See BTND-07-004,
+  BTND-07-006. *Source: ISSUE-1777*
+- **`CheckIsCaseOwnerNode` Lives in `vfd_role_guards.py`, Not `conditions.py`** —
+  placed there because `conditions.py` was at the 500-line cap when the node was
+  added (ISSUE-1841). `__init__.py` re-exports it alongside the other role guards.
+  If `conditions.py` grows further, consider extracting proposal-related nodes
+  into `proposal_conditions.py`. *Source: ISSUE-1841*
+- **ADR "What Is Removed" Lists Are Scoped to One Use, Not Global Existence** —
+  grep the spec corpus for MUSTs describing the *operation* the node implements
+  before deleting it. An ADR may list a component as removed from one specific
+  initialization flow while spec entries still require it in another. *Source:
+  ISSUE-1777; see also [notes/bt-pitfalls.md](notes/bt-pitfalls.md)*
+- **Large Migration Tasks: Partition by Node Shape (Type), Then Domain for Size**
+  — for tasks that migrate many nodes (e.g., Ports adoption), classify nodes by
+  their structural shape first (trivial reparent / read-only extra inputs /
+  complex output ports), then split by domain only to balance PR size. "Each PR
+  should be a lot of the same thing." See ISSUE-1809 for the typed-Ports chain
+  decomposition as the reference example.
+- **When a `Closes #N` Footer Is Missing from a Merged PR, the Issue Stays Open**
+  — check open issues before starting a session; an issue may be fully implemented
+  but not closed. Use `git log -S "<fix string>" -- <file>` against `origin/main`
+  to confirm. *Source: ISSUE-1787*
+- **`Reject(Invite(actor, case))` Carries the Case in `inner_target`, Not Top-Level `target`**
+  — `extract_event` does NOT populate `request.target` for the Reject; the case
+  reference is on the nested Invite's `target` field, exposed as `request.inner_target_id`.
+  Always read `request.inner_target_id or request.target_id` (or use a typed `case_id`
+  property on the event class) when resolving `case_id` for
+  `RejectInviteActorToCaseReceivedUseCase`. The same nesting applies to
+  `Accept(Invite(actor, case))` — `AcceptInviteActorToCaseReceivedEvent.case_id` already
+  follows this pattern. See CM-11-003. *Source: ISSUE-1747*
+- **Retiring a File or Label Requires Auditing All Specs for Bare-Filename References** —
+  `MS-15` (`_check_phantom_paths`) only flags backtick-quoted tokens containing a directory
+  separator (e.g. `` `plan/PRIORITIES.md` ``). Bare filenames such as `PRIORITIES.md` or
+  bare label names such as `group:unscheduled` written without backticks or without a `/`
+  pass the lint check silently. When retiring any file, label, or convention, grep
+  `specs/` for the bare name as well as the quoted/path form, and update every spec entry
+  that references it — including `statement:`, `rationale:`, and cross-reference fields.
+  *Source: ISSUE-2011*
+- **`embargo_adherence` Is a `@computed_field`, Not a Settable Field** —
+  `ParticipantStatus.embargo_adherence` is derived from `consent.state`
+  (`True` iff `PEC.SIGNATORY`). Do NOT set it directly or declare it as a
+  stored field. To change the value, apply a PEC trigger via
+  `CaseParticipant.apply_pec_transition()`. See CM-18-008, ADR-0056.
+  *Source: CONCERN-2091*
+- **Delegated-Emit Trigger Use Cases MUST Set `actor=case_actor_id`,
+  `attributed_to=requesting_actor_id`** — trigger use cases that emit an
+  Activity on behalf of the CaseActor (invite, ownership transfer, and any
+  future delegated flows) MUST set `self._actor_id = case_actor_id` and
+  `self._attributed_to = requesting_actor_id` in `_prepare()`, then queue
+  the Activity in the CaseActor's outbox (CM-24-001 through CM-24-004).
+  Setting `actor` to the requesting actor directly causes receivers to reject
+  the message (ISSUE-2142).  Use the shared `_prepare_delegated_context()`
+  helper (or equivalent) — never reconstruct the pattern inline (CM-24-005).
+  See [notes/case-communication-model.md](notes/case-communication-model.md)
+  § "Delegated-Message Pattern". *Source: CONCERN-2170*
+- **Multiple Related Fix PRs Targeting a Shared CI Suite Must Use an Integration
+  Branch, Not Race to `main`** — when 3+ related bug fix PRs are open
+  simultaneously and all affect the same CI suite (e.g. Demo Integration), open
+  a single `fix/<area>` integration branch off `main` and target all child PRs
+  there. Run the full CI suite against the integration branch after each child PR
+  merges into it. Merge the integration branch to `main` only when the full suite
+  is green. Racing parallel PRs to `main` means each PR can only confirm its own
+  scenario passes — none can confirm it hasn't perturbed other currently-passing
+  scenarios. *Source: CONCERN-2137*
+- **Delivery Retry Caps That Compose Into an Unbounded Total Are a Resource Hazard** —
+  verify that `inner_retries × per_pass_cap × requeue_cadence` yields a finite total
+  delivery budget before shipping. A bounded inner retry (`max_retries + 1 = 4`)
+  combined with a per-pass-local `err_count` (resets every drain invocation) and an
+  unconditional requeue is unbounded: the composition is `4 × ∞`. Add a persisted
+  per-activity total-attempt counter and a give-up condition (OX-13-001, OX-13-002,
+  ADR-0066). *Source: CONCERN-2302*
+- **New Push-to-`main` or Scheduled Workflows MUST Wire the `notify-failure`
+  Composite Action** — any workflow that triggers on `push: branches: [main]` or
+  on `schedule:` MUST include `.github/actions/notify-failure` as a final step
+  (CISEC-05-001). Without it, failures on `main` or unattended scheduled runs go
+  undetected until someone manually audits the Actions tab. Two separate steps are
+  required: one on failure (file/update a `ci:main-failure` issue, CISEC-05-001)
+  and one on success (close the issue for recovery visibility, CISEC-05-002).
+  *Source: CONCERN-2132*
+- **Demo Steps Must Be Gated on Their Cause, Not Their Position in the Script** —
+  a scenario step that depends on an asynchronous effect MUST gate on the
+  committed state of the actor that *produces* that effect, read from that actor's
+  own container. An HTTP 202 return, elapsed time, and step order are not
+  evidence; neither is an observable that resolves synchronously during the
+  triggering request (ISSUE-2134). Discover a forwarded object by discriminator
+  scan, never by the sender's original ID (ISSUE-2178). Use `demo_gate` (stops
+  dependent steps) for preconditions and `demo_check` (advisory) for assertions,
+  and never patch either out with `nullcontext` in tests. See EDF-06, DEMOMA-22,
+  DEMOCI-01-007, ADR-0058,
+  [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
+  § "Temporal Sequence vs. Causal Sequence", and
+  [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md). *Source: CONCERN-2181*
+- **`SemanticEntry` Phrases MUST Use Only `{actor}`, `{object}`, `{target}`** —
+  the runtime render pipeline (`CaseTimelineEvent.summary`, `event_phrase()`)
+  never fills `{context}`, `{origin}`, or `{inner_object}`. A phrase referencing
+  one of those slots passes the `defaultdict`-based SE-07-004 test (which fills
+  every slot with `"X"`) but produces a dangling `"—"` in production. The
+  allowlist test (SE-07-005 in `test/test_semantic_registry.py`) enforces this
+  structurally. *Source: CONCERN-1898*
+- **`py_trees` Blackboard Is Process-Global — Clear Between Test BT Runs** —
+  `py_trees.blackboard.Blackboard.storage` is a module-level singleton.
+  Constructing a fresh `BtNode` tree per test does **not** clear it; keys set
+  by a previous `execute_with_setup` remain visible to the next run. Either use
+  a scoped namespace per run or clear the blackboard explicitly between executions.
+  In production, BT-17-003 already requires domain-specific output keys to be
+  reset on every tick; tests must also prevent cross-test contamination.
+  See CONCERNS.md § "BT blackboard is process-global across BT runs".
+  *Source: ISSUE-2232*
+- **`caplog` Captures Fixture-Setup-Phase Records** — `caplog.set_level()` set
+  in a fixture captures log records emitted during other fixtures' setup, not just
+  the test body. Set it inside the test function to scope capture to the test
+  body only, and call `caplog.clear()` at the start of the assertion block if
+  setup noise accumulates. See TESTING.md § "Known gaps/flaky areas". *Source: ISSUE-2086*
+- **Outbox `BackgroundTasks` Emitter Has Two Resolution Paths — Patch Both in Tests** —
+  `POST /actors/{id}/outbox/` schedules `outbox_handler` with no emitter argument
+  and resolves it via `get_default_emitter()` → patch with
+  `configure_default_emitter(router)`. `POST /actors/{id}/inbox/` schedules
+  `outbox_handler` with `emitter=getattr(request.app.state, "emitter", None)` and
+  bypasses `get_default_emitter()` when `app.state.emitter` is set. A test fixture
+  that patches only one path will miss deliveries from the other. Patch both:
+  `configure_default_emitter(router)` **and** `api_app.state.emitter = router`.
+  *Source: ISSUE-1780*
+- **Designed Self-Healing Recovery Paths MUST NOT Log at ERROR** — a BT node
+  whose failure is handled by a downstream fallback node (Selector sibling,
+  reject-and-replay loop) is logging a self-healing event. Log at `WARNING`
+  (recoverable) or `INFO`, not `ERROR`. `ERROR` is for conditions with no recovery
+  path. Ask: is there a wired fallback that guarantees convergence? If yes,
+  downgrade and name the recovery in the message. *Source: ISSUE-2169*
+- **Prefer `config_override()` Over `monkeypatch` + `reload_config()` for Config Overrides** —
+  `vultron/config/app.py` exports a `config_override(**env_updates)` context manager that
+  atomically patches env vars, reloads the cache, yields the updated `AppConfig`, and restores
+  env and cache on exit — even on exception. Prefer it over the raw `monkeypatch.setenv()` +
+  `reload_config()` pattern, which is order-sensitive: calling `reload_config()` in fixture
+  teardown before `monkeypatch.undo()` re-caches stale values that leak into subsequent tests
+  as CI flakiness (`pytest-randomly`-dependent). When `config_override()` cannot be used
+  (e.g., session-scoped fixtures that hold `monkeypatch` open), the MUST-follow order is
+  `monkeypatch.undo()` first, then `reload_config()`. The autouse guard
+  `restore_case_actor_url_after_each_test` in `test/demo/conftest.py` detects function-scoped
+  leaks but is NOT a substitute for correct ordering in higher-scoped fixtures.
+  See [notes/configuration.md](notes/configuration.md) § "Testing Pattern". CFG-06-006,
+  CFG-06-007. *Source: ISSUE-2086, CONCERN-2323*
+- **`_TestClientRouter` WARNING for Unregistered Hosts Is a Bug Signal** —
+  `_TestClientRouter.emit` in `test/demo/conftest.py` drops deliveries when no client is
+  registered for the recipient's base URL. Drops to hosts in `_KNOWN_FICTIONAL_HOSTS`
+  (e.g. `vultron.example`) log at `DEBUG` — those are intentionally unreachable. Drops to
+  any *other* unregistered host (e.g. a `.test` host) log at `WARNING` — that is almost
+  always a config leak or fixture bug. A WARNING in the demo-test output means a `Create(
+  CaseProposal)` or similar activity was misaddressed; look for a stale-config leak upstream.
+  See [notes/configuration.md](notes/configuration.md) § "_TestClientRouter WARNING".
+  *Source: CONCERN-2323*
+- **`claim-issue.sh` Requires the Current Branch to Be Up to Date with `origin/main`** —
+  the script checks that your branch is ancestor-or-equal to `origin/main`. If
+  `main` has moved since you last synced, the check fails with a confusing error.
+  Run `manage_worktree.sh ensure-synced` or `git fetch origin && git rebase
+  origin/main` first. The presence of an existing task branch for the same issue
+  may also indicate the issue was started (or completed) via another PR — check
+  `git log --oneline origin/main | grep -i "<issue title>"` before assuming
+  nothing was done. *Source: ISSUE-2017*
+- **`create-pr` Cannot Target Integration Branches** — the `create-pr` skill
+  always targets `origin/main`. When multiple related fix PRs share an integration
+  branch (see the integration-branch pitfall above), you must use
+  `gh pr create --base <integration-branch>` directly. *Source: ISSUE-2030*
+- **`references:` Key in Spec YAML Is Silently Dropped by `spec-dump`** — the
+  `StatementSpec` schema does not include a `references:` field; unknown YAML
+  keys are silently discarded. The correct field for linking a spec entry to an
+  ADR is `adr:`, which `spec-lint` validates against known ADR filenames. After
+  adding any new key to a spec YAML, verify it appears in `PYTHONPATH= uv run
+  spec-dump` output before treating it as persisted. *Source: ISSUE-2237*
+- **A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug** —
+  a test whose docstring says "falls back to X" or "defaults to X" for
+  *malformed* (not absent) input is asserting the ARCH-15 violation as intended
+  behavior. Absent input and unreadable input are different: `RM.START` is the
+  right answer when no statuses exist; it is never the right answer when a status
+  exists but cannot be read. A test that locks in the fallback turns the
+  regression suite against the fix. When writing a test for a defensive fallback,
+  distinguish "not present" from "present but invalid" and assert a
+  raise/`FAILURE` for the latter. *Source: ISSUE-2232, ISSUE-2264*
+- **Delete `devlogs/` Before Validating a Branch If the Integration Suite Ran** —
+  `test/demo/test_fv_demo.py` runs `run_fv_demo()` in-process and writes real
+  ledger files into repo-root `devlogs/fv/` (the default path). A subsequent
+  `uv run pytest test/ci/invariants/` then reads those local files instead of
+  skipping, and a second run accumulates two chains whose `prevLogHash` values
+  mismatch. `devlogs/` is gitignored so `git status` shows nothing. Fix:
+  `rm -rf devlogs/` after running the integration suite and before running the
+  invariant harness locally. Bug #2274. *Source: ISSUE-2266*
+- **Git Credential Helper May Point at a Nonexistent `gh` Path** — the git
+  config sets `credential.https://github.com.helper = !/usr/local/bin/gh auth
+  git-credential`, but in this devcontainer `gh` lives at `/usr/bin/gh`. If
+  `git push` fails with `/usr/local/bin/gh: not found`, do **not** try `gh auth
+  setup-git` — `~/.gitconfig` is bind-mounted read-only here. Instead pass a
+  one-shot override: `git -c
+  credential.https://github.com.helper='!/usr/bin/gh auth git-credential' push
+  -u origin <branch>`. *Source: ISSUE-2186*
+- **A Killed `pytest` Run Reports Exit 0 Under `tail -5`** — when
+  `pytest-timeout` kills a test that exceeds the budget, it dumps a stack trace
+  and exits non-zero, but the `uv run pytest ... 2>&1 | tail -5` pipeline
+  returns `tail`'s exit code (0) and shows dump frames where the `N passed`
+  summary line would be. Absence of a summary line from `tail -5` is the signal.
+  Redirect to a file and check pytest's own exit code: `uv run pytest --tb=short
+  > /tmp/unit.log 2>&1; echo $?`. The spec-lint test
+  (`test_real_specs_lint_no_hard_errors`) is particularly load-sensitive at ~3s
+  against the 5s budget. *Source: ISSUE-2232*
+- **`ledger_payload_object_override` Producers MUST Clear the Key on Every No-Op Tick** —
+  the override key is process-global on the py_trees blackboard.  A producer node
+  that only writes on its active path leaves a stale patch for `CommitCaseLedgerEntryNode`
+  to apply to an unrelated payload snapshot on the next call.  Write `None` (or
+  equivalent `self._publish((), None)`) as the *first* statement in `update()`,
+  before any conditional branch (BT-17-003).  The override dict shape is
+  `{"object_id": …, "producer_type": <node class name>, "fields": {<wire alias>: …}}`
+  (RSH-05-010 through RSH-05-012).  The consumer hard-fails on unrecognized aliases
+  and warns on unknown `producer_type` (RSH-05-013, RSH-05-014).  Once the node is
+  migrated to the typed-Ports base class (ISSUE-1808), the base class SHOULD
+  auto-clear declared output ports in `initialise()`, making the clear structural.
+  See [notes/received-status-authorization.md](notes/received-status-authorization.md)
+  § "Per-dimension partial accept".  *Source: CONCERN-2326*
+- **Never Restate Counts in Cross-References or Long-Lived Docs** — when a
+  spec entry, notes file, or AGENTS.md pitfall cross-references another spec,
+  omit the count: write "the universal types (DEMOMA-16-001)" not "the five
+  universal types (DEMOMA-16-001)". Counts drift silently when the authoritative
+  source is updated — the linter validates that the spec ID resolves, not the
+  prose next to it. The same applies to any long-lived doc: avoid counts like
+  "there are 4 unimplemented nodes" or "15 xfails" — these are stale snapshots.
+  See MS-16-001 and [notes/specs-vs-adrs.md](notes/specs-vs-adrs.md).
+  *Source: CONCERN-2277*
+- **Outbound `@context` MUST Cite the Vultron Namespace, Not Only the AS2 Namespace** —
+  `VultronAS2Object.context_` MUST default to the Vultron JSON-LD context URI
+  (`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
+  ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
+  namespace does not declare Vultron-specific types (`VulnerabilityCase`,
+  `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those
+  type names. The Vultron context document imports AS2 internally, so citing
+  only the Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
+  *Source: CONCERN-2105*
+- **`.agents/skills/` and `.claude/skills/` Are Hard Links — Edit Only `.agents/`**
+  — `.agents/skills/<name>/SKILL.md` and `.claude/skills/<name>/SKILL.md` share
+  the same inode. Editing one modifies both on disk. Always edit only the
+  `.agents/skills/<name>/SKILL.md` copy — the `.claude/skills/` copy updates
+  automatically. Editing both in sequence duplicates the content.
+  *Source: ISSUE-1467*
+- **GH Actions `python3 -c` Multi-Line Block Fails `actionlint`** — when
+  embedding multi-line Python in a `run: |` block via `python3 -c "..."`,
+  all Python lines must stay within the block's indentation level. A line at
+  a lower indentation than the block's first content line terminates the YAML
+  block scalar early; `actionlint` then fails with `could not find expected ':'`.
+  Fix: collapse to a semicolon-separated one-liner, or write to a file in a
+  prior step.
+  *Source: ISSUE-2312*
+- **YAML Single-Quoted String: Double Apostrophes or Use `>-`** — inside a
+  single-quoted YAML value, apostrophes must be escaped as `''` (two single
+  quotes). A bare `'s` (possessive) or contraction terminates the string early;
+  the parser fails with an opaque "did not find expected key" error pointing at
+  the column of the apostrophe, not at a syntax-level message. Alternatively,
+  convert the field to a `>-` block scalar and use apostrophes freely.
+  *Source: ISSUE-2393*
+- **Always Verify Every Acceptance Criterion Against `origin/main` Before
+  Implementing** — check each stated defect and AC in the issue body against
+  current `origin/main` HEAD before writing any code. A prior PR may have
+  partially fixed the issue without a `Closes #N` footer, leaving the issue
+  open but the code already changed. Implement only what is still broken.
+  *Source: ISSUE-1467, ISSUE-2290*
+- **Sub-Agent Spec Splits: Re-Run the Violation Detection Script After the
+  Parallel Pass** — after parallel sub-agents split compound spec requirements,
+  re-run the compound-statement detection script. Agents frequently add new
+  child entries but leave the original parent statement text unchanged (with all
+  semicolons intact). The spec-lint failure surfaces the symptom; the detection
+  script identifies which parent was not trimmed. Do not trust agent completion
+  reports for this class of task.
+  *Source: ISSUE-2393*
+- **Pydantic `model_fields` Is Not Available Inside `__init_subclass__`** —
+  `cls.model_fields` is populated by Pydantic's metaclass after `__init_subclass__`
+  returns. Accessing it inside `__init_subclass__` returns an empty dict for the
+  class being defined (though parent-class fields may be present). To inspect a
+  class's own fields at subclass-registration time, read `cls.__annotations__`
+  directly for declared annotations, or defer field inspection to a
+  `model_post_init` or a class-level `@model_validator(mode="before")`.
+  *Source: ISSUE-2294*
+- **Do Not Add Recursive Dehydration to Inline Activity Sub-Fields in
+  `_dehydrate_data`** — `_dehydrate_data`
+  (`vultron/adapters/driven/db_record.py`) intentionally does NOT recurse into
+  inline Activity objects' sub-fields. A received Activity is an artifact; its
+  sub-field values are a snapshot of state at receipt time (e.g., the
+  `VulnerabilityCase` inside a stored `Offer` captures what the case looked
+  like when the offer was made). Even if Activities gain independent DataLayer
+  records and the technical reason in `_KEEP_INLINE_NESTED_TYPES` is resolved,
+  the snapshot semantic must be preserved. If you extract an object from a
+  received Activity and maintain it as a live record, the two copies diverge by
+  design — never write the snapshot back over the live record. See
+  `notes/datalayer-design.md`
+  § "Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional".
+  *Source: CONCERN-2219*
+- **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
+  — two distinct failure modes when a boolean field from the matrix (e.g.
+  `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:
+  (1) **Job-level `if:`**: the `matrix` context does not exist yet — GitHub
+  evaluates job-level `if:` conditions *before* expanding the matrix. The
+  workflow is rejected with a startup failure: zero jobs scheduled, no logs, no
+  per-job status, and the run name is reported as the file path. The failure
+  reads as noise, not a regression (DEMOCI-06-004, ISSUE-2118).
+  (2) **Step-level `if:`**: the `matrix` context IS available, but GitHub
+  coerces JSON boolean `false` to the string `"false"`. The comparison
+  `matrix.full_suite_only == false` then always evaluates to `false` because a
+  string never equals a boolean, silently defeating the intended filter
+  (CONCERN-2327).
+  Fix for both: resolve the boolean filter *before* matrix expansion using a
+  dedicated `scenarios` job that calls `jq 'select(.full_suite_only == false)'`
+  on the JSON source and exposes a filtered matrix as a job output. Both
+  downstream jobs expand `fromJSON()` of that output — the boolean comparison
+  lives in `jq`, which understands JSON natively. See DEMOCI-06-004,
+  DEMOCI-06-007, DEMOCI-06-008 and
+  [notes/demo-ci-scenario-coverage.md](notes/demo-ci-scenario-coverage.md).
+  *Source: CONCERN-2327, ISSUE-2118*
+- **Capabilities Grounded in External Versioned Standards Should Be One
+  Call-Out Unit, Not One Per Criterion** — when a BT capability is grounded
+  in an external, independently-versioned specification (e.g. CNA Operational
+  Rules), treat the full capability as a single Evaluator call-out point
+  rather than exposing each criterion as a separate call-out. The correct
+  substitution unit is the whole capability (replace the evaluator for the new
+  rules edition), not individual criteria. Modeling it as N individual
+  call-out points misrepresents the update boundary and makes adoption of a
+  new rules edition require N separate factory changes instead of one.
+  See BTND-05-007, ADR-0071.
+  *Source: CONCERN-2108*
 
 ---
 
@@ -501,7 +968,7 @@ message.
   scalar string. Schema: `vultron/metadata/notes/schema.py`.
 - **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
   go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
-  Use `mkdocs.dev.yml` to validate `docs/developer/` locally.
+  `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.
 - **Demo script lifecycle logging**: see
   [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for `demo_step` /
   `demo_check` pattern.

@@ -68,12 +68,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state APIs; the *decision* to exit still requires policy-rule evaluation or human confirmation.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Wired in two factories —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`exit_embargo_when_deployed_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
-  (issue #1256) — condition guard in the TerminateEmbargo Selector, checked
-  before delegating to `terminate_embargo_trigger_bt`
+  (`exit_embargo_when_deployed_factory` param, PR #1357) and
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`exit_embargo_when_deployed_factory` param, PR #1957 / issue #1891) —
+  condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`
 
 ### `ExitEmbargoWhenFixReady`
 
@@ -90,12 +90,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — fix-readiness flag is queryable automatically; the exit decision depends on configurable organizational policy that may require human override.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenFixReady`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Wired in two factories —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`exit_embargo_when_fix_ready_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
-  (issue #1256) — condition guard in the TerminateEmbargo Selector, checked
-  before delegating to `terminate_embargo_trigger_bt`
+  (`exit_embargo_when_fix_ready_factory` param, PR #1357) and
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`exit_embargo_when_fix_ready_factory` param, PR #1957 / issue #1891) —
+  condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`
 
 ### `ExitEmbargoForOtherReason`
 
@@ -112,12 +112,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — rare edge case representing extraordinary circumstances; fundamentally requires human judgment that cannot be anticipated by a general policy rule.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Wired in two factories —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`exit_embargo_for_other_reason_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
-  (issue #1256) — rare fallback condition guard in the TerminateEmbargo
-  Selector for extraordinary circumstances
+  (`exit_embargo_for_other_reason_factory` param, PR #1357) and
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`exit_embargo_for_other_reason_factory` param, PR #1957 / issue #1891) —
+  rare fallback condition guard in the ReasonSelector for extraordinary circumstances
 
 ### `EmbargoTimerExpired`
 
@@ -140,7 +140,7 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   independently or fire a trigger endpoint. A timestamp comparison is the simplest kind of
   structured fact (ADR-0024 BT-18-006: binary on-demand queries are Retrievers, not Sentinels).
 - **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
+  `vultron.core.behaviors.embargo.create_terminate_active_embargo_tree`
   (issue #1256) — Retriever condition guard early in the
   `_SufficientCauseToTerminateActiveEmbargo` Sequence; reads embargo expiry
   timestamp from DataLayer and compares to system clock
@@ -161,11 +161,60 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — integration hook (notifications, state updates, downstream triggers); can be fully automated via API calls to notification and case-management systems.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoExit`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo exit; invokes notification APIs, case-management state-write calls, and downstream trigger endpoints. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
-  (issue #1256) — Actuator effect node in
-  `_ConsiderTerminatingActiveEmbargo` Sequence, after the condition Selector
-  succeeds and before `terminate_embargo_trigger_bt`
+- **Factory-fn placement**: Implemented in PR #1957 (issue #1891) —
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`on_embargo_exit_factory` param) — Actuator effect node in the
+  `TerminateActiveEmbargoBT` Sequence, after the AuthorizeEmbargoExit Selector
+  and before `terminate_embargo_bt`
+
+### `EmbargoExitPolicyGuard`
+
+- **Node name**: `EmbargoExitPolicyGuard`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeEmbargoExit` (within
+  `create_terminate_active_embargo_tree`)
+- **Semantic function**: Condition — check whether site policy permits the
+  actor to proceed with voluntary embargo termination after a reason has been
+  selected (e.g., no active revision negotiation, no pending approvals)
+- **Input dependency**: Automated policy evaluation; integration with
+  case-management or approval-workflow systems
+- **Notes**: Always succeeds in simulation (happy path assumes policy permits);
+  in production may invoke an approval queue or rule engine
+- **Automation potential**: **High** — rule-based checks (pending revision,
+  approval status) are fully automatable via case-management API calls.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoExitPolicyGuard`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: Implemented in PR #1957 (issue #1891) —
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`embargo_exit_policy_guard_factory` param) — first arm of the
+  AuthorizeEmbargoExit Selector, after the ReasonSelector succeeds and before
+  OnEmbargoExit
+
+### `EmbargoExitOverride`
+
+- **Node name**: `EmbargoExitOverride`
+- **btz type**: `AlwaysFail` (p=0.00)
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeEmbargoExit` (within
+  `create_terminate_active_embargo_tree`)
+- **Semantic function**: Condition — actor explicitly accepts responsibility
+  for overriding a policy veto and proceeding with voluntary embargo
+  termination; produces a distinct audit-trail entry for the override
+- **Input dependency**: Explicit actor acknowledgment; may invoke an
+  escalation endpoint or confirmation dialog
+- **Notes**: Always fails in simulation (override is not active by default);
+  in production an integrator wires this to an escalation acknowledgment
+  mechanism; the override is logged separately from the normal policy path
+- **Automation potential**: **Low** — override requires explicit actor
+  acknowledgment for accountability; should not be auto-approved.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoExitOverride`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: Implemented in PR #1957 (issue #1891) —
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`embargo_exit_override_factory` param) — second (fallback) arm of the
+  AuthorizeEmbargoExit Selector; reached only when EmbargoExitPolicyGuard
+  returns FAILURE
 
 ### `StopProposingEmbargo`
 
@@ -184,10 +233,14 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`stop_proposing_embargo_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in
-  `_ConsiderAbandoningProposedEmbargo` Selector
+  (`stop_proposing_embargo_factory` param). FUTURE full placement (revised by
+  #1257 planning): **simulator-only** — this gates the sim's tick-based
+  "keep proposing until effort exhausted" negotiation loop
+  (`_EnsureSufficientEffortToAchieveEmbargo`), which has no event trigger in
+  the trunk-removed prototype. Like `StopProposingEmbargo` in the #1256
+  termination analysis, it is dropped from production factory placement. The
+  Phase-1 stub seam remains for simulation parity only; there is no
+  `create_propose_embargo_decision_tree`.
 
 ### `SelectEmbargoOfferTerms`
 
@@ -207,10 +260,13 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`select_embargo_offer_terms_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator action node in `_ProposeNewEmbargo` and
-  `_ProposeEmbargoRevision` Sequences, before the proposal trigger BT
+  (`select_embargo_offer_terms_factory` param). FUTURE full placement (revised
+  by #1257 planning): belongs to the **outbound propose** flow, not the inbound
+  response seam. The outbound propose decision is already the propose trigger
+  use case (`SvcProposeEmbargoUseCase` → `propose_embargo_trigger_bt`); this
+  term-selection Evaluator is the seam that supplies proposal terms ahead of
+  it. It is also reused by the EMB-15-003 counter arm (counter = re-propose).
+  No monolithic `create_propose_embargo_decision_tree`.
 
 ### `WantToProposeEmbargo`
 
@@ -229,10 +285,13 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`want_to_propose_embargo_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in `_ConsiderProposingEmbargo`
-  Sequence (within `_EmNone` Selector)
+  (`want_to_propose_embargo_factory` param). FUTURE full placement (revised by
+  #1257 planning): belongs to the **outbound propose** flow, not the inbound
+  response seam. In the trunk-removed prototype, "do I want to propose an
+  embargo?" is the operator/policy decision to *invoke*
+  `SvcProposeEmbargoUseCase` at all — i.e. a gate on triggering the propose
+  use case, not a node in a decision tree. The Phase-1 stub seam is retained;
+  no monolithic `create_propose_embargo_decision_tree`.
 
 ### `WillingToCounterEmbargoProposal`
 
@@ -252,11 +311,13 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`willing_to_counter_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in `_AvoidCounterProposal`
-  Selector; determines whether a counter-proposal is sent instead of
-  accept/reject
+  (`willing_to_counter_factory` param). FUTURE full placement (revised by
+  #1257 planning): Evaluator gating the **counter arm** of the inbound
+  embargo-response decision seam (spec `EMB-15-003`), Flow A (EP) only. Its
+  DETERMINISTIC default is FAILURE (do not counter — accept-then-revise is
+  preferred). When SUCCESS, the arm delegates to `propose_embargo_trigger_bt`
+  (counter = re-propose; no new mechanism). Not a monolithic
+  `create_propose_embargo_decision_tree`.
 
 ### `ReasonToProposeEmbargoWhenDeployed`
 
@@ -275,10 +336,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`reason_to_propose_when_deployed_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in
-  `_AvoidNewEmbargoesInCsDeployedUnlessReason` Selector
+  (`reason_to_propose_when_deployed_factory` param). FUTURE full placement
+  (revised by #1257 planning): belongs to the **outbound propose** flow as an
+  exceptional-case guard on invoking `SvcProposeEmbargoUseCase` after fix
+  deployment (CS ···D··). It is a precondition on the propose trigger, not a
+  node in a monolithic decision tree; no
+  `create_propose_embargo_decision_tree`.
 
 ### `EvaluateEmbargoProposal`
 
@@ -298,11 +361,14 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`evaluate_embargo_proposal_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in
-  `_EvaluateAndAcceptProposedEmbargo` Sequence; precedes
-  `accept_embargo_trigger_bt`
+  (`evaluate_embargo_proposal_factory` param). FUTURE full placement
+  (revised by #1257 planning): the **inbound embargo-response decision seam**
+  (spec `EMB-15`), NOT a monolithic `create_propose_embargo_decision_tree`.
+  This is the default-accept Evaluator (EMB-15-001): under the DETERMINISTIC
+  bundle it returns SUCCESS so the actor accepts, then delegates to the
+  flow-appropriate accept BT (`accept_embargo_trigger_bt` for a Flow A EP;
+  `accept_invite_to_embargo_tree` for a Flow B invitation). Sits behind the
+  CASE_OWNER-bypass authorization Selector (EMB-15-002).
 
 ### `OnEmbargoAccept`
 
@@ -319,11 +385,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — notification dispatch, timer initialization, and state-update actions are all integration-automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoAccept`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo acceptance; invokes notification APIs, embargo timer-service initialization calls, and case-management state writes. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Actuator effect node in
-  `_EvaluateAndAcceptProposedEmbargo` Sequence, after the Evaluator and
-  `accept_embargo_trigger_bt`
+- **Factory-fn placement**: FUTURE (revised by #1257 planning): Actuator
+  effect node on the accept arm of the **inbound embargo-response decision
+  seam** (spec `EMB-15`), firing after the flow-appropriate accept BT. Not a
+  monolithic `create_propose_embargo_decision_tree`.
 
 ### `OnEmbargoReject`
 
@@ -340,11 +405,40 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — notification dispatch and logging actions are fully automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoReject`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo rejection; invokes notification APIs and case-management state writes for the rejection rationale. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Actuator effect node in `_RejectProposedEmbargo`
-  Sequence (within `_ChooseEmProposedResponse`), after
-  `reject_embargo_trigger_bt`
+- **Factory-fn placement**: FUTURE (revised by #1257 planning): Actuator
+  effect node on the reject arm of the **inbound embargo-response decision
+  seam** (spec `EMB-15-004`), firing after the flow-appropriate reject BT
+  (`reject_embargo_trigger_bt` for Flow A; `reject_invite_to_embargo_tree`
+  for Flow B). Not a monolithic `create_propose_embargo_decision_tree`.
+
+### `CaseOwnerApprovesEmbargoResponse`
+
+- **Node name**: `CaseOwnerApprovesEmbargoResponse`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeSelector` (within `create_embargo_response_decision_tree`,
+  as the second child of the `AuthorizeSelector` Selector — reached only when
+  the deciding actor is NOT a `CVDRole.CASE_OWNER`)
+- **Semantic function**: Condition — a non-CASE_OWNER actor (e.g. a CaseActor
+  processing an inbound overture on the owner's behalf) requests authorization
+  from the case owner before accepting or countering. Defaults to approval in
+  simulation (owner approval assumed).
+- **Input dependency**: Human approval / adjudication — final authority rests
+  with the case owner (a human or configured policy agent)
+- **Notes**: Gate only; no content artifact placed on the blackboard. In
+  production this seam would be fulfilled by an Evaluator-type Coordination
+  Agent (UI prompt, LLM adjudicator, or policy rule) returning the owner's
+  decision.
+- **Automation potential**: **Low** — final authority rests with the case
+  owner; not auto-approvable by default.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
+- **Call-out point shape**: Evaluator — records an adjudication decision
+  (approve/deny); no blackboard output_keys (pass/fail gate only per BT-18-006).
+- **Factory-fn placement**: Implemented in PR #1983 (issue #1942) —
+  `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree`
+  (`case_owner_approves_embargo_response_factory` param in
+  `EmbargoCallOutBundle`) — second child of the `AuthorizeSelector`,
+  reached when `CheckIsCaseOwnerNode` returns FAILURE (EMB-15-002).
 
 ### `CurrentEmbargoAcceptable`
 
@@ -363,10 +457,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`current_embargo_acceptable_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in `_ChooseEmActiveResponse`
-  Selector; SUCCESS = no revision needed, FAILURE = revision proposal path
-  taken
+  (`current_embargo_acceptable_factory` param). FUTURE full placement (revised
+  by #1257 planning): this is a **continuous-monitoring** evaluator with no
+  inbound-message trigger — it belongs to the active-embargo review/monitoring
+  concern (Sentinel shape, like `EmbargoTimerExpired`), tracked as a companion
+  Idea under monitoring epic #1147, NOT the inbound embargo-response decision
+  seam (EMB-15) and NOT a monolithic `create_propose_embargo_decision_tree`.
 
 ---

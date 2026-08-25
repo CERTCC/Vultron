@@ -12,7 +12,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Append-only canonical case ledger for SYNC-1.
+"""Append-only canonical case ledger for AppendOnlyLedger.
 
 This module provides:
 
@@ -64,6 +64,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
+from vultron.core.models.base import ValidatedAssignmentMixin
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ def _sha256_hex(data: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-class HashChainLedgerRecord(BaseModel):
+class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
     """A single canonical case ledger entry.
 
     Each entry is created by the CaseActor's single authoritative write path
@@ -238,18 +239,56 @@ class HashChainLedgerRecord(BaseModel):
         description="Human-readable rejection reason detail (for rejected dispositions)",
     )
 
-    @model_validator(mode="after")
-    def _compute_entry_hash(self) -> "HashChainLedgerRecord":
+    @model_validator(mode="before")
+    @classmethod
+    def _compute_entry_hash(cls, data: Any) -> Any:
         """Compute ``entry_hash`` from canonical content if not already set."""
-        if not self.entry_hash:
-            self.entry_hash = self._hash_content()
-        return self
+        if not isinstance(data, dict):
+            return data
+        if data.get("entry_hash"):
+            return data
+        data = dict(data)
+        if "received_at" not in data:
+            data["received_at"] = _now_utc()
+        received_val = data["received_at"]
+        received_iso = (
+            received_val.isoformat()
+            if hasattr(received_val, "isoformat")
+            else str(received_val)
+        )
+        hashable = {
+            "case_id": data.get("case_id", ""),
+            "log_index": data.get("log_index", -1),
+            "disposition": data.get("disposition", "recorded"),
+            "term": data.get("term"),
+            "object_id": data.get("object_id", ""),
+            "event_type": data.get("event_type", ""),
+            "payload_snapshot": data.get("payload_snapshot", {}),
+            "prev_log_hash": data.get("prev_log_hash", ""),
+            "received_at": received_iso,
+            "reason_code": data.get("reason_code"),
+            "reason_detail": data.get("reason_detail"),
+        }
+        data["entry_hash"] = _sha256_hex(hashable)
+        return data
 
     def _hashable_dict(self) -> dict[str, Any]:
         """Return the canonical dict used for hash computation.
 
         Excludes ``entry_hash`` to avoid a self-referential dependency.
         All datetime values are serialised to ISO 8601 strings.
+
+        ``received_at`` is the CaseActor's server-generated UTC timestamp,
+        set once at append time and never modified.  Replicas receive this
+        entry via ``Announce(CaseLedgerEntry)`` with ``received_at`` already
+        embedded; they MUST preserve its value rather than regenerating it,
+        otherwise ``verify_hash()`` will return ``False`` on any replica that
+        re-computes the hash (CLP-02-008, SYNC-01-003).
+
+        ``payload_snapshot`` is the activity as captured by the CaseActor at
+        commit time.  Replicas receive and store it verbatim; they MUST NOT
+        reconstruct it locally, as local actor state (e.g. inbox item counts,
+        timestamps) may differ from the CaseActor's snapshot (SYNC-01-003).
         """
         return {
             "case_id": self.case_id,

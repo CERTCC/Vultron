@@ -214,6 +214,61 @@ migrating it out of core is tracked as a **separate concern** (#1506, decided
 in ADR-0035), not part of the DL-05 entity work. Until then, the ratchet
 exemption set enumerates these Activity types explicitly so it can only shrink.
 
+## Write Path Normalises Wire → Core (#2232, ADR-0062)
+
+The read-path rule above says nothing about what gets *written*, and that gap
+was load-bearing. `Record.from_obj()` rejected objects whose `type_` starts with
+`as_` — but wire vocabulary `type_` values are **bare** (`"CaseParticipant"`, not
+`"as_CaseParticipant"`), so the guard never fired for the 15 wire classes that
+shadow a `CORE_VOCABULARY` entry. A wire-shaped object was written into a
+core-typed row, and whichever class read the row back decided what the data
+meant.
+
+For `ParticipantStatus` and `CaseParticipant` the two shapes are *structurally*
+incompatible — core nests `rm: RmDimension` where wire carries a flat `rm_state`
+— so a wire-shaped row makes `status.rm.state` yield `None` rather than merely
+misspell a key.
+
+**Rule:** `Record.from_obj()` normalises through `_normalize_to_core()`
+(`vultron/adapters/driven/db_record.py`) before serialising. The object **and its
+direct children** are projected via `to_core()`; one level of children is
+sufficient because `to_core()` recurses. Child projection is not optional
+polish: a `VulnerabilityCase` row stores its `case_participants` inline, so
+checking only the top level still persisted a flat `rm_state` inside a
+core-shaped case.
+
+`_NORMALIZE_WIRE_TO_CORE` enumerates the migrated types. It is the write-side
+analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
+**grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). The
+remaining 5 shadowing types are all actor types (`VultronApplication`,
+`VultronGroup`, `VultronOrganization`, `VultronPerson`, `VultronService`);
+none has a `to_core()` projection yet — tracked in #2268.
+
+**`StorableRecord` inputs to `create()` and `update()` are also normalised.**
+`crud.create()` and `crud.update()` receive `StorableRecord` from core BT nodes
+(e.g. `CreateObject`, `UpdateObject` in `vultron/core/behaviors/helpers.py`).
+Before #2283 these bypassed the normalisation entirely. The fix routes them
+through `_storable_to_record()` (`vultron/adapters/driven/datalayer_sqlite/crud.py`),
+which gates the same `to_obj()` → `from_obj()` round-trip on `record.type_ in
+_NORMALIZE_WIRE_TO_CORE`, preserving other types verbatim to avoid data loss
+on polymorphic wire classes (e.g. `VultronPerson` stored under `type_="Actor"`
+would be silently truncated to the base class). If the round-trip fails for a
+type that is in `_NORMALIZE_WIRE_TO_CORE`, a `WARNING` is logged and the row is
+stored verbatim — a regressive fallback, but observable.
+
+**A projection failure raises `VultronValidationError`, not `ValueError`.**
+`crud.create()` raises `ValueError` for an already-existing row and callers
+legitimately swallow *that*; sharing the type meant an unprojectable object was
+silently never stored and never logged. The two causes must stay distinguishable
+— see `_pre_store_nested_object` in
+`vultron/adapters/driving/fastapi/routers/actors/_inbox.py` for the correct
+two-branch handler.
+
+**This is defense in depth, not the primary boundary.** Projection belongs at
+wire→core ingress; the persistence boundary is the backstop that guarantees no
+wire-shaped row exists regardless of which ingress path missed it. ADR-0062
+records why both are kept.
+
 ## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
 
 **Decided (ADR-0035).** `dl.read(activity_id)` in `vultron/core/` is a
@@ -262,8 +317,9 @@ activity into the API response; the factory already built the object):
 - `vultron/core/use_cases/triggers/report.py` — `_handle_result` in
   `SvcValidateReportUseCase`, `SvcInvalidateReportUseCase`, `SvcRejectReportUseCase`,
   `SvcCloseReportUseCase` (4 sites).
-- `vultron/core/behaviors/case/nodes/delegation.py:160` — re-reads the
-  just-created `Offer(CaseManagerRole)`.
+- ~~`vultron/core/behaviors/case/nodes/delegation.py`~~ — `CreateOfferCaseManagerActivityNode`
+  re-read the just-created `Offer(CaseManagerRole)`. Deleted in issue #2429 when
+  `OFFER_CASE_MANAGER_ROLE` infrastructure was removed (ADR-0039).
 - *Fix*: `TriggerActivityPort` returns `(activity_id, activity_dict)`; delete the
   re-reads. Not even a semantic read.
 
@@ -325,6 +381,53 @@ Implementation is tracked in the issues filed from concern #1506 (blocked by
 that concern, children of Epic #1394). As each B site migrates, remove its
 Activity type from the DL-05-004 exemption set (DL-06-005) until the set reaches
 zero.
+
+## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
+
+**Principle.** A received Activity is an **artifact** — the exact wire object
+received is worth storing as-is. `_dehydrate_data` in
+`vultron/adapters/driven/db_record.py` deliberately does NOT recursively
+dehydrate the sub-fields of an inline Activity object. When `Accept` stores an
+inline `Offer`, the `Offer`'s own `object_`, `target`, etc. are preserved as a
+snapshot of what they contained at receipt time — not collapsed to ID strings.
+
+This is correct behaviour and must not be changed. The rationale has two parts:
+
+1. **Technical**: inline Activities may not have independent DataLayer records
+   (e.g., a reconstituted `Offer` in the validate-report path, a
+   `CaseLedgerEntry` inside an `Announce` envelope). Collapsing them to a bare
+   ID would make rehydration impossible on read-back.
+
+2. **Semantic (more important)**: even where independent records exist, the
+   snapshot captures state at receipt time — "when you offered me this case, it
+   looked like this." An `Accept(Offer(VulnerabilityCase))` is a contract: it
+   records what was offered at the moment of acceptance, not the current state
+   of the case. The case will evolve; the contract must not.
+
+**Two copies, not one.** If an actor receives `Offer(Case)` and then extracts
+the case to seed a live record in its DataLayer, two distinct things now exist:
+
+- The **artifact** — the stored `Offer` with its frozen `Case` snapshot.
+  Immutable in the context of that offer. Read it to answer "what was I
+  offered?" Never update it.
+- The **live record** — the `VulnerabilityCase` actively maintained by the
+  actor. Participants join, states transition, embargo terms change. This copy
+  evolves.
+
+These two copies diverge over time **by design**. Do not treat the snapshot as
+the current state of the object, and do not write the snapshot back over the
+live record when refreshing or re-seeding.
+
+**Why recursive dehydration would be wrong.** If `_dehydrate_data` were
+extended to recurse into inline Activity sub-fields, `Accept.object_.object_`
+would become a bare ID string pointing to the *current* `VulnerabilityCase` —
+losing the at-offer-time snapshot. Even if Activities eventually gain
+independent DataLayer records (removing the technical constraint), the semantic
+reason alone prohibits recursive dehydration here.
+
+*Source: CONCERN-2219.*
+
+---
 
 ## Vocabulary Registry Entanglement Across Wire, Core, and DataLayer
 
@@ -416,3 +519,52 @@ fixture so `dl.read()` resolves correctly.
 **Assertion depth**: the Accept happy path emits both an Accept notification
 and an Invite (2 activities). Assert `len(outbox) >= 2`, not `>= 1`, to catch
 the case where only one of the two required activities was emitted.
+
+---
+
+## Dual-DataLayer Isolation Guard in Tests
+
+(ISSUE-1749, 2026-08-08)
+
+A single-DataLayer test cannot catch a BT node that accidentally calls
+`get_datalayer()` (the process-global singleton) instead of `self.datalayer`.
+Such a node writes records to the singleton while the injected DataLayer stays
+empty — all positive assertions on the injected DL still pass.
+
+**The dual-DL isolation pattern** uses two separate in-memory DataLayer
+instances and asserts the global singleton is empty after the BT runs:
+
+```python
+from vultron.adapters.driven.datalayer_sqlite import get_datalayer, reset_datalayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+@pytest.fixture(autouse=True)
+def _reset_singleton(self):
+    reset_datalayer()
+    yield
+    reset_datalayer()
+
+def test_records_on_injected_dl_not_singleton(self, make_payload):
+    case_actor_dl = SqliteDataLayer("sqlite:///:memory:")  # injected DL
+    _seed_and_run(make_payload, case_actor_dl)
+
+    assert list(case_actor_dl.list_objects("VulnerabilityCase")), \
+        "record must appear on the injected DataLayer"
+    assert not list(get_datalayer().list_objects("VulnerabilityCase")), \
+        "singleton must stay empty — a get_datalayer() call in the BT node would fail this"
+```
+
+Key points:
+
+- `reset_datalayer()` before **and** after each test ensures test order
+  independence — a previous test that did call `get_datalayer()` won't poison
+  the singleton check.
+- `get_datalayer()` called with no arguments returns the shared/admin singleton
+  (unscoped). It is never the same object as `SqliteDataLayer("sqlite:///:memory:")`
+  created directly — the two have independent backing stores.
+- Apply this pattern for any BT-backed use case that receives a DataLayer as a
+  constructor argument: `CreateCaseProposalReceivedUseCase`,
+  `SvcCreateCaseUseCase`, and any future CaseActor-initialisation BTs.
+
+Reference: `test/core/behaviors/case/test_case_proposal_received_tree.py`,
+class `TestCreateCaseProposalReceivedBTCaseActorRecords`.

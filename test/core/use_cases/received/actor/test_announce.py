@@ -17,6 +17,10 @@ from typing import Any, cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -207,6 +211,89 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert dl.read(_CASE_ID) is None
+
+
+# ---------------------------------------------------------------------------
+# #2186 / #2180: pre-genesis Announce(CaseLedgerEntry) drains on case seed
+# ---------------------------------------------------------------------------
+
+
+def _genesis_entry_for(
+    case_id: str, genesis_hash: str
+) -> VultronCaseLedgerEntry:
+    """Build a genesis (log_index 0) entry anchored to *genesis_hash*."""
+    chain = HashChainLedgerRecord(
+        case_id=case_id,
+        log_index=0,
+        object_id="https://example.org/activities/genesis",
+        event_type="test_event",
+        payload_snapshot={"key": "value"},
+        prev_log_hash=genesis_hash,
+    )
+    return VultronCaseLedgerEntry(
+        case_id=chain.case_id,
+        log_index=chain.log_index,
+        disposition=chain.disposition,
+        term=chain.term,
+        log_object_id=chain.object_id,
+        event_type=chain.event_type,
+        payload_snapshot=dict(chain.payload_snapshot),
+        prev_log_hash=chain.prev_log_hash,
+        entry_hash=chain.entry_hash,
+    )
+
+
+class TestAnnounceDrainsPreGenesisBuffer:
+    """Seeding a VulnerabilityCase must drain any pre-genesis ledger entries.
+
+    Regression for #2186 (root cause) / #2180 (symptom): an
+    ``Announce(CaseLedgerEntry)`` that arrives before the ``VulnerabilityCase``
+    is seeded is parked in the actor-local gap buffer (SYNC-15-004) instead of
+    being permanently dropped.  Once the case seed lands — anchoring the
+    deterministic per-case genesis hash — the buffered entry MUST drain into the
+    local ledger via the same effects-before-persist path (SYNC-15-005).
+    """
+
+    @pytest.fixture()
+    def case_with_actor(self):
+        """A case whose attributed_to yields a deterministic genesis hash."""
+        return as_VulnerabilityCase(
+            id_=_CASE_ID,
+            name="DR-10 Announce Case (pre-genesis drain)",
+            attributed_to=_CASE_ACTOR_ID,
+        )
+
+    def test_pre_genesis_entry_drains_when_case_is_announced(
+        self, dl, make_payload, case_with_actor
+    ):
+        genesis_hash = case_with_actor.genesis_hash
+        assert genesis_hash, "case must expose a deterministic genesis hash"
+        entry = _genesis_entry_for(_CASE_ID, genesis_hash)
+
+        gap_buffer = LedgerGapBuffer()
+        assert gap_buffer.buffer(entry) is True
+        assert gap_buffer.depth(_CASE_ID) == 1
+        assert dl.read(entry.id_) is None  # not yet applicable — case absent
+
+        activity = announce_vulnerability_case_activity(
+            case_with_actor,
+            actor=_CASE_ACTOR_ID,
+            context=_CASE_ID,
+        )
+        event = make_payload(activity)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            gap_buffer=gap_buffer,
+        ).execute()
+
+        # Case seeded ...
+        assert dl.read(_CASE_ID) is not None
+        # ... and the buffered pre-genesis entry drained into the ledger.
+        assert dl.read(entry.id_) is not None
+        assert gap_buffer.depth(_CASE_ID) == 0
 
 
 # ---------------------------------------------------------------------------

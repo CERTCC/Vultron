@@ -113,6 +113,48 @@ non-implemented sub-behaviors as named placeholder nodes in the BTs.
 
 ---
 
+## Do-Work as Triggerable Use Cases (Design Direction)
+
+The simulation's `RMDoWorkBt` Fallback (see
+`vultron/bt/report_management/_behaviors/do_work.py`) composed eight
+sub-behaviors into a single BT subtree: `AcquireExploit`, `AssignVulID`,
+`Deployment`, `DevelopFix`, `MonitorThreats`, `Publication`,
+`MaybeReportToOthers`, and `OtherWork`.
+
+As the reference implementation has matured, this structure has proven to be
+an artifact of the simulation layer rather than a model to replicate in
+`vultron/core/`. The individual sub-behaviors have migrated in two directions:
+
+1. **Triggerable use cases** — behaviors such as deploy-fix, develop-fix,
+   publication, and report-to-others are better expressed as discrete use
+   cases (each with its own core factory function) that an external actor,
+   API call, or sentinel agent can trigger when preconditions are met.
+
+2. **Sentinel / event-detection touchpoints** — behaviors like
+   `MonitorThreats` cannot be automated inside Vultron; they require an
+   external sentinel agent that observes the environment and calls back into
+   the system when it detects a relevant event (e.g., a public exploit,
+   an attack in the wild).
+
+**Consequence**: A `create_do_work_tree` factory function that replicates
+the `RMDoWorkBt` compositor is **not needed** in the reference implementation.
+The role of the old compositor is replaced by:
+
+- Individual factory functions in `vultron/core/behaviors/report/` for each
+  triggerable sub-behavior (most already exist).
+- Specialized sentinel agents (outside `vultron/core/`) that recognize when
+  a case-relevant event has occurred and trigger the appropriate use case.
+
+The `OtherWork` placeholder node (an extensibility hook for unmodeled
+activities) similarly has no direct core equivalent: anything that was
+`OtherWork` in the simulation is either a future triggerable use case or a
+future sentinel agent touchpoint. No `AlwaysSucceed` placeholder is needed
+in the core layer.
+
+**See also**: `specs/triggerable-behaviors.yaml`, `notes/agentic-workflow.md`.
+
+---
+
 ## Partially Implementable Behaviors
 
 The following behaviors can be partially supported by the application:
@@ -207,6 +249,38 @@ basis if Vultron aims for interoperability with the broader security community.
 
 **Cross-reference**: `specs/embargo-policy.yaml` EP-01; `vultron/wire/as2/vocab/
 objects/vultron_actor.py` (`VultronActorMixin.embargo_policy`).
+
+---
+
+---
+
+## Deploy-Fix Tree: Non-Vendor Public-Aware Precondition Is Not Implemented
+
+(ISSUE-1825, 2026-07-30)
+
+The **legacy** `Deployment` tree (`vultron/bt/report_management/_behaviors/
+deploy_fix.py`) gated non-vendor deployers via:
+
+```text
+_DecideAbilityToDeploy = RoleIsVendor OR CSinStateNotDeployedButPublicAware
+```
+
+A non-vendor deployer (e.g., Deployer role only) could only deploy a fix after
+the case became public. The **new** `create_deploy_fix_tree`
+(ISSUE-1825 AC-1) gates only on `CheckDeployerRoleNode` +
+`CheckRMStateAccepted` + `CheckCSFixNotYetDeployed` + call-outs — the
+public-aware check for non-vendor deployers was **not re-introduced**.
+
+**This is a protocol-behavior difference from the legacy simulation.** A
+non-vendor deployer can now deploy before public awareness. This was accepted
+as a best-judgment call (honoring the AC as written, not re-introducing the
+legacy gate as an unscoped expansion).
+
+**If MPCVD correctness requires the public-aware precondition**: add a
+`CheckCSPublicAwareOrVendorDeployer` guard node to the `_DeployFixIfReady`
+arm. That change requires a spec entry and potentially an ADR amendment.
+
+<!-- Source: ISSUE-1825 -->
 
 ---
 

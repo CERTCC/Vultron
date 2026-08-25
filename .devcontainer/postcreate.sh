@@ -24,36 +24,6 @@ prompt pure
 EOF
 fi
 
-# --- Persistent data volume ---
-DATA="$HOME/.data"
-sudo chown "$(id -u):$(id -g)" "$DATA" 2>/dev/null || true
-mkdir -p "$DATA/claude" "$DATA/shell-history"
-
-# Symlink ~/.claude to persistent volume
-if [ -d "$HOME/.claude" ] && [ ! -L "$HOME/.claude" ]; then
-    if [ -z "$(ls -A "$DATA/claude" 2>/dev/null)" ]; then
-        cp -a "$HOME/.claude/." "$DATA/claude/"
-    fi
-    rm -rf "$HOME/.claude"
-fi
-ln -sfn "$DATA/claude" "$HOME/.claude"
-
-# Persist ~/.claude.json on the volume
-if [ ! -f "$HOME/.claude/claude.json" ]; then
-    echo '{}' > "$HOME/.claude/claude.json"
-fi
-ln -sf "$HOME/.claude/claude.json" "$HOME/.claude.json"
-
-# --- Persistent shell history ---
-touch "$DATA/shell-history/.bash_history" "$DATA/shell-history/.zsh_history"
-
-if ! grep -q 'HISTFILE=.*\.data' "$HOME/.bashrc" 2>/dev/null; then
-    echo 'export HISTFILE="$HOME/.data/shell-history/.bash_history"' >> "$HOME/.bashrc"
-fi
-if [ -f "$HOME/.zshrc" ] && ! grep -q 'HISTFILE=.*\.data' "$HOME/.zshrc" 2>/dev/null; then
-    echo 'export HISTFILE="$HOME/.data/shell-history/.zsh_history"' >> "$HOME/.zshrc"
-fi
-
 # Claude Code installs to ~/.local/bin and registers it in .bashrc, but we use zsh
 if ! grep -q 'local/bin' "$HOME/.zshrc" 2>/dev/null; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
@@ -66,14 +36,16 @@ set -s extended-keys on
 set -as terminal-features ',xterm-256color:extkeys'
 set -g history-limit 50000
 set -g mouse on
+set -g set-clipboard on
 set -g default-shell /bin/zsh
 EOF
 
-# --- User-level skills ---
-# Point ~/.claude/skills at the Mac host user skills mounted by start-dev.sh.
-# Project skills (.claude/skills/ in the working tree) are auto-discovered by Claude Code separately.
-if [ -d "$HOME/.agents/skills" ]; then
-    ln -sfn "$HOME/.agents/skills" "$HOME/.data/claude/skills"
+# Wire user-level skills into Claude Code's discovery path.
+# start-dev.sh mounts the host's ~/.agents/skills into the container at
+# ~/.agents/skills. Claude Code looks for skills under ~/.claude/skills, so
+# create the symlink if the mount landed and the link doesn't already exist.
+if [ -d "$HOME/.agents/skills" ] && [ ! -e "$HOME/.claude/skills" ]; then
+    ln -s "$HOME/.agents/skills" "$HOME/.claude/skills"
 fi
 
 echo ""

@@ -26,8 +26,8 @@ from vultron.wire.as2.extractor._extract import extract_intent  # noqa: F401
 # Pattern instances — all exported so semantic_registry sub-modules and tests
 # can continue to import directly from vultron.wire.as2.extractor.
 from vultron.wire.as2.extractor._instances import (  # noqa: F401
-    AcceptCaseManagerRolePattern,
     AcceptCaseOwnershipTransferActivityPattern,
+    AcceptCaseParticipantRolePattern,
     AcceptCaseProposalPattern,
     AcceptInviteActorToCasePattern,
     AcceptInviteToEmbargoOnCasePattern,
@@ -58,10 +58,10 @@ from vultron.wire.as2.extractor._instances import (  # noqa: F401
     InviteToEmbargoOnCasePattern,
     InvalidateReportPattern,
     OfferActorToCasePattern,
-    OfferCaseManagerRolePattern,
     OfferCaseOwnershipTransferActivityPattern,
-    RejectCaseManagerRolePattern,
+    OfferCaseParticipantRolePattern,
     RejectCaseOwnershipTransferActivityPattern,
+    RejectCaseParticipantRolePattern,
     RejectCaseProposalPattern,
     RejectInviteActorToCasePattern,
     RejectInviteToEmbargoOnCasePattern,
@@ -81,8 +81,8 @@ __all__ = [
     # Extractor
     "extract_intent",
     # Pattern instances
-    "AcceptCaseManagerRolePattern",
     "AcceptCaseOwnershipTransferActivityPattern",
+    "AcceptCaseParticipantRolePattern",
     "AcceptCaseProposalPattern",
     "AcceptInviteActorToCasePattern",
     "AcceptInviteToEmbargoOnCasePattern",
@@ -113,10 +113,10 @@ __all__ = [
     "InviteToEmbargoOnCasePattern",
     "InvalidateReportPattern",
     "OfferActorToCasePattern",
-    "OfferCaseManagerRolePattern",
     "OfferCaseOwnershipTransferActivityPattern",
-    "RejectCaseManagerRolePattern",
+    "OfferCaseParticipantRolePattern",
     "RejectCaseOwnershipTransferActivityPattern",
+    "RejectCaseParticipantRolePattern",
     "RejectCaseProposalPattern",
     "RejectInviteActorToCasePattern",
     "RejectInviteToEmbargoOnCasePattern",

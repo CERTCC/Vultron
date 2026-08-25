@@ -179,7 +179,8 @@ class TestCloseCaseLedgerRouting:
         because the close_case signature IS case-authored (DEMOMA-07-003 step 5).
 
         This test pins the _CASE_AUTHORED_SIGNATURES entry for
-        ("Leave", "VulnerabilityCase") in chain.py.  Without it the
+        ("Leave", "VulnerabilityCase") in
+        vultron/core/behaviors/sync/nodes/canonical_entry.py.  Without it the
         _validate_canonical_entry check raises:
         "payloadSnapshot.actor must not be the CaseActor for non-case-authored
         entries (signature=('Leave', 'VulnerabilityCase'))"

@@ -28,9 +28,11 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
@@ -59,7 +61,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         HTTPException: 400 if the `type` field is missing; 422 for all other
             parse failures (unknown type, validation error).
     """
-    logger.info(
+    logger.debug(
         "Parsing activity from request body (type=%r):\n%s",
         body.get("type"),
         json.dumps(body, indent=2, default=str),
@@ -76,6 +78,56 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
+
+
+def _collect_addresses(activity: as_Activity) -> list[str]:
+    """Collect all addressee URIs from to/cc/bto/bcc fields."""
+    result: list[str] = []
+    for field_name in ("to", "cc", "bto", "bcc"):
+        val = getattr(activity, field_name, None)
+        if val is None:
+            continue
+        items: list[Any] = val if isinstance(val, list) else [val]
+        for item in items:
+            if isinstance(item, str):
+                result.append(item)
+            elif hasattr(item, "id_") and item.id_ is not None:
+                result.append(item.id_)
+    return result
+
+
+def _activity_addressed_to(
+    activity: as_Activity,
+    canonical_actor_id: str,
+    dl: DataLayer | None = None,
+) -> bool:
+    """Return True if the Activity addresses canonical_actor_id.
+
+    Absent addressing returns True (Liberal Accept — AC-3, IE-11-002). A
+    non-empty address set is checked against the canonical URI and the
+    short-ID suffix, so both spellings satisfy the check (AC-4).
+
+    When ``dl`` is supplied, any address that does not resolve to a known
+    actor in the DataLayer (e.g. a collection URI like
+    ``{case_id}/participants``) is also treated as unresolvable and falls
+    through to Liberal Accept (IE-11-002). Without ``dl`` the legacy
+    short-ID-only check applies.
+    """
+    addresses = _collect_addresses(activity)
+    if not addresses:
+        return True
+    canonical_short = strip_id_prefix(canonical_actor_id)
+    for addr in addresses:
+        if (
+            addr == canonical_actor_id
+            or strip_id_prefix(addr) == canonical_short
+        ):
+            return True
+    if dl is not None:
+        for addr in addresses:
+            if dl.find_actor_by_short_id(strip_id_prefix(addr)) is None:
+                return True
+    return False
 
 
 def _activity_already_received(actor: CoreActor, activity_id: str) -> bool:
@@ -193,9 +245,47 @@ def _store_nested_inbox_object(
     )
 
     try:
-        dl.create(object_to_record(typed_nested))
+        # Normalise case_participants to string IDs in the *serialised record*
+        # before persisting so the stored VulnerabilityCase row carries only ID
+        # refs (#2233 write-path).  The Python object is never mutated —
+        # downstream BT nodes must see the original inline objects so they can
+        # project them to core and create standalone DataLayer records.
+        record: "StorableRecord | PersistableModel" = object_to_record(
+            typed_nested
+        )
+        if (
+            hasattr(typed_nested, "case_participants")
+            and isinstance(record, dict)
+            and isinstance(record.get("case_participants"), list)
+        ):
+            record["case_participants"] = [
+                (
+                    entry["id_"]
+                    if isinstance(entry, dict) and "id_" in entry
+                    else entry
+                )
+                for entry in record["case_participants"]
+                if isinstance(entry, (str, dict))
+            ]
+        dl.create(record)
+    except VultronValidationError:
+        # A shape/projection failure, NOT an "already exists" collision — the
+        # object cannot be persisted in the canonical core shape at all
+        # (issue #2232).  Swallowing this silently alongside the duplicate case
+        # left the row absent and downstream nodes reporting a misleading
+        # "participant not found", so it is logged loudly instead.
+        logger.error(
+            "Not pre-storing inline %s %s from ingress: it cannot be projected"
+            " to the canonical core shape.",
+            nested.type_,
+            getattr(nested, "id_", "<no id>"),
+            exc_info=True,
+        )
     except ValueError:
-        pass
+        logger.debug(
+            "Inline object %s already exists in shared DL; skipping re-store.",
+            getattr(nested, "id_", "<no id>"),
+        )
 
 
 def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:

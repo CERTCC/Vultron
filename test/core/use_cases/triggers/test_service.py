@@ -61,7 +61,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
 
 
-def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
+def _add_case_manager(case, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
     case_actor = as_Service(name=f"Case Actor for {case.name}")
     dl.create(case_actor)
@@ -149,37 +149,92 @@ def offer(dl, report, actor, reporter):
 
 
 @pytest.fixture
-def received_report(dl, actor, reporter, report, offer):
-    """Pre-create a as_VulnerabilityCase for the report at RM.RECEIVED.
+def received_report(dl, actor, report):
+    """Pre-create a VulnerabilityCase with embargo for the report at RM.RECEIVED.
 
-    Per ADR-0015, the case is created at report receipt.  The validate_report
-    BT's EnsureEmbargoExists node requires a case to exist.
+    ADR-0041: vendor tree no longer creates VulnerabilityCase.  Create one
+    directly to satisfy EnsureEmbargoExists in the validate_report BT.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.receive_report_case_tree import (
-        create_receive_report_case_tree,
-    )
+    from vultron.core.models.case import VulnerabilityCase
 
-    bridge = BTBridge(datalayer=dl)
-    tree = create_receive_report_case_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-        reporter_actor_id=reporter.id_,
+    embargo_id = f"{actor.id_}/embargoes/test-embargo"
+    case_obj = VulnerabilityCase(
+        id_=f"{actor.id_}/cases/test-case-received",
+        name="Test Case at Received",
+        attributed_to=actor.id_,
+        vulnerability_reports=[report.id_],
+        active_embargo=embargo_id,
     )
-    bridge.execute_with_setup(tree, actor_id=actor.id_)
-    case_obj = dl.find_case_by_report_id(report.id_)
-    assert case_obj is not None
+    dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return report
 
 
 @pytest.fixture
-def accepted_report(report):
+def accepted_report(dl, report, actor):
+    """Seed the report as ready for close: actor holds CASE_OWNER and RM.ACCEPTED."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=actor.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_obj = VulnerabilityCase(name="Owner Case for Close")
+    case_obj.vulnerability_reports.append(report.id_)
+    case_obj.actor_participant_index[actor.id_] = owner_p.id_
+    dl.create(owner_p)
+    _add_case_manager(case_obj, dl)
+    # Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001).
+    accepted_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.ACCEPTED),
+    )
+    dl.create(accepted_status)
+    return report
+
+
+@pytest.fixture
+def rejected_report(dl, report, actor):
+    """Seed the report at RM.INVALID — valid predecessor for INVALID→CLOSED."""
+    from vultron.core.models.case import VulnerabilityCase
+
+    case_obj = VulnerabilityCase(
+        id_=f"{actor.id_}/cases/test-case-reject",
+        name="Test Case for Reject",
+        attributed_to=actor.id_,
+        vulnerability_reports=[report.id_],
+    )
+    dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
+    invalid_status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    dl.create(invalid_status)
     return report
 
 
 @pytest.fixture
 def closed_report(dl, report, actor):
+    """Seed report as CLOSED (duplicate-close guard test); also needs a linked case."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=actor.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_obj = VulnerabilityCase(name="Owner Case for Closed")
+    case_obj.vulnerability_reports.append(report.id_)
+    case_obj.actor_participant_index[actor.id_] = owner_p.id_
+    dl.create(owner_p)
+    _add_case_manager(case_obj, dl)
+
     status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
@@ -205,6 +260,7 @@ def case_with_participant(dl, actor):
         RM.VALID, actor=actor.id_, context=case_obj.id_
     )
     case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
     dl.create(case_obj)
     dl.create(participant)
     _add_case_manager(case_obj, dl)
@@ -401,7 +457,7 @@ def test_invalidate_report_trigger_non_report_offer_raises_404(
 
 
 def test_reject_report_trigger_returns_activity_dict(
-    dl, actor, offer, received_report
+    dl, actor, offer, rejected_report
 ):
     """reject_report_trigger returns dict with non-None 'activity'."""
     result = TriggerService(
@@ -428,7 +484,7 @@ def test_reject_report_trigger_unknown_offer_raises_404(dl, actor):
 
 
 def test_reject_report_trigger_adds_activity_to_outbox(
-    dl, actor, offer, received_report
+    dl, actor, offer, rejected_report
 ):
     """reject_report_trigger adds a new activity to the actor's outbox."""
     before = set(dl.outbox_list_for_actor(actor.id_))
@@ -466,7 +522,7 @@ def test_close_report_trigger_returns_activity_dict(
     """close_report_trigger returns dict with non-None 'activity'."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
-    ).close_report(actor.id_, offer.id_, None)
+    ).close_case(actor.id_, offer.id_, None)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -478,7 +534,7 @@ def test_close_report_trigger_already_closed_raises_409(
     with pytest.raises(VultronInvalidStateTransitionError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).close_report(actor.id_, offer.id_, None)
+        ).close_case(actor.id_, offer.id_, None)
 
 
 def test_close_report_trigger_unknown_actor_raises_404(dl, offer):

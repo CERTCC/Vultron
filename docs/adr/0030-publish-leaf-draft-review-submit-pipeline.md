@@ -11,6 +11,15 @@ deciders: [adh]
 > question about participant-comment broadcast in the review phase (AC-4) was
 > **deferred** to a follow-on issue — the pipeline functions without it using
 > the default auto-approve `ReviewAdvisoryDraft` Evaluator.
+>
+> **Deferred design question resolved (issue #1783, 2026-08-03):** The original
+> implementation included an `approved: bool = True` field on `AdvisoryReviewDecision`
+> as informational metadata, with a note that gating submission on `approved=False`
+> was a follow-on design question.  That question is now resolved: the field was
+> **removed** as redundant.  An Evaluator that needs to block submission for any
+> reason (legal hold, compliance failure, editorial rejection) MUST return
+> `Status.FAILURE` from `update()` — that is the universal BT blocking idiom and
+> no separate approval flag is needed.  See spec entry BT-18-007.
 
 ## Context and Problem Statement
 
@@ -77,4 +86,6 @@ platform).
 - Each per-artifact arm in `create_publication_tree` (exploit arm, fix arm, report arm)
   uses this pipeline for its Publish step
 
-Generated spec requirements: `behavior-tree-integration.yaml` BT-20-004 (provisional)
+Generated spec requirements: `behavior-tree-integration.yaml` BT-20-004 (a
+BT-20 fuzzer-seam entry, whose group is subject to revision at implementation
+time per the BT-20 group description).

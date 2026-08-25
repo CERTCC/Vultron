@@ -22,12 +22,16 @@ groups:
       for that machine.
     rationale: Dimension objects are embedded value objects; they have no independent identity and do not require CORE_VOCABULARY
       registration or AS2 id_. See ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-01-002
     priority: MUST_NOT
     kind: protocol
     statement: Dimension objects MUST NOT be registered in CORE_VOCABULARY or given an id_ field.
     rationale: They are always embedded in CaseStatus or ParticipantStatus, which already carries identity. Independent registration
       would create unnecessary schema complexity. See ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-01-003
     priority: MUST
     kind: project
@@ -35,6 +39,8 @@ groups:
       (RM state), VfdDimension (CS_vfd state), and PecDimension (PEC state).'
     rationale: The "Dimension" suffix avoids collision with existing VfdState and PxaState NamedTuples in vultron/core/states/cs.py.
       See ADR-0036.
+    adr:
+    - ADR-0036
 - id: SDO-02
   title: transition() Contract
   specs:
@@ -45,6 +51,8 @@ groups:
       state, applies the state machine rules, and returns a NEW dimension object with the updated state.
     rationale: Immutable transitions are consistent with Pydantic's design philosophy and with the append-only status history
       model. Callers replace the embedded field rather than mutating the existing object. See ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-02-002
     priority: MUST
     kind: protocol
@@ -54,11 +62,44 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-15-001
+    adr:
+    - ADR-0032
   - id: SDO-02-003
     priority: MUST_NOT
     kind: protocol
     statement: transition() MUST NOT mutate self. The caller MUST use the returned dimension object as the updated state.
     rationale: Mutation of embedded Pydantic models is fragile and inconsistent with the append-only history model. See ADR-0036.
+    adr:
+    - ADR-0036
+  - id: SDO-02-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Dimension objects MUST reject construction with an invalid
+      (current_state → target_state) transition at construction time, regardless of
+      call site. A same-state write (target == current) is always permitted; a None
+      target (preserve current) requires no validation.
+    rationale: >-
+      Constructing a dimension object by target state bypasses the transition()
+      validation contract established in SDO-02-001/SDO-02-002. BT write nodes
+      that build snapshots this way must apply the same validity check themselves.
+      See issue #1896 and BTND-10-001.
+    relationships:
+    - rel_type: refines
+      spec_id: SDO-02-002
+      note: Extends the transition() contract to direct-construction call sites
+    - rel_type: refines
+      spec_id: BTND-10-001
+  - id: SDO-02-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The SDO-02-004 transition-rejection invariant MUST be enforced via Pydantic
+      field or model validators so that validation occurs at model construction time,
+      not via caller-side pre-checks.
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-02-004
 - id: SDO-03
   title: CaseStatus and ParticipantStatus Field Shape
   specs:
@@ -69,12 +110,16 @@ groups:
       fields: em: EmDimension and pxa: PxaDimension.'
     rationale: Flat enum fields provide no transition validation or guard methods. Dimension objects make illegal transitions
       unrepresentable. See ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-03-002
     priority: MUST
     kind: protocol
     statement: 'ParticipantStatus MUST replace its flat enum fields (rm_state: RM, vfd_state: CS_vfd, em_consent_state: PEC
       | None) with embedded dimension object fields: rm: RmDimension, vfd: VfdDimension, and consent: PecDimension | None.'
     rationale: Same rationale as SDO-03-001. See ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-03-003
     priority: MUST_NOT
     kind: protocol
@@ -82,6 +127,8 @@ groups:
       as aliases or shim properties after the migration is complete.
     rationale: Keeping both representations creates an extended half-migrated state and perpetuates the flat-enum problem.
       See ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-03-004
     priority: MUST
     kind: project
@@ -92,6 +139,31 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: LST-05-003
+    adr:
+    - ADR-0033
+    - ADR-0036
+  - id: SDO-03-005
+    priority: MUST
+    kind: project
+    statement: Because unknown keys are ignored by default in Pydantic v2, removing a flat-field migration shim from `CaseStatus`
+      or `ParticipantStatus` MUST be accompanied by a `model_validator(mode="before")` that raises `VultronValidationError`
+      when a retired flat key (`rm_state`/`rmState`, `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`, `em_state`/`emState`,
+      `pxa_state`/`pxaState`) is present. Deleting the shim without such a guard is prohibited.
+    rationale: 'With `extra="ignore"`, a flat `rm_state` key would be silently discarded and `rm.state` would default to `RM.START`
+      — a whole RM ladder lost with no error, which is the defect class of issue #2232 and a violation of ARCH-15-001/ARCH-15-002.
+      The guard converts the loss into a loud failure that `DataLayer._from_row` already catches and recovers via the wire→core
+      projection path (ADR-0062).'
+    verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise `VultronValidationError`;
+      neither yields a model whose `rm.state` is `RM.START`.'
+    relationships:
+    - rel_type: depends_on
+      spec_id: SDO-03-003
+      note: SDO-03-003 requires the shims to go; this requirement constrains how they are removed safely.
+    - rel_type: refines
+      spec_id: ARCH-15-002
+    adr:
+    - ADR-0062
+    - ADR-0063
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:
@@ -102,6 +174,8 @@ groups:
       as the core model changes so that from_core() and to_core() correctly handle the new dimension-object field shape.
     rationale: Deferring wire changes creates an extended period of core/wire divergence requiring shim adapters. Both layers
       are in scope per ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-04-002
     priority: MUST
     kind: project
@@ -110,6 +184,8 @@ groups:
       .rm.state) in the same implementation.
     rationale: A partial migration leaves the codebase in an incoherent state with two representations active simultaneously.
       See ADR-0036.
+    adr:
+    - ADR-0036
   - id: SDO-04-003
     priority: MUST_NOT
     kind: project

@@ -113,7 +113,7 @@ class SyncActivityAdapter:
         )
         self._dl.save(announce)
         add_activity_to_outbox(actor_id, announce.id_, self._dl)
-        logger.info(
+        logger.debug(
             "sync adapter: queued Announce(CaseLedgerEntry) '%s' → %s",
             announce.id_,
             to,

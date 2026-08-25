@@ -13,13 +13,14 @@
 
 """Shared fixtures and helpers for demo tests."""
 
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
 import logging
 
-import httpx2 as httpx
+import anyio.to_thread
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi import FastAPI
@@ -33,7 +34,6 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.main import app as api_app
-from vultron.adapters.driven.asgi_emitter import ASGIEmitter
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
 from vultron.core.models.activity import VultronActivity
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
@@ -48,61 +48,43 @@ demo_utils.DEFAULT_WAIT_SECONDS = 0.0
 logger = logging.getLogger(__name__)
 
 
-class _NullDeliveryAdapter:
-    """No-op ``ActivityEmitter`` that silently drops deliveries.
-
-    Used in tests to replace ``DemoHttpDeliveryAdapter`` as the HTTP fallback
-    inside ``ASGIEmitter``.  Demo actors use fictional URLs
-    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
-    in the test environment.  The default ``DemoHttpDeliveryAdapter`` attempts
-    real HTTP POST requests with a 5 s timeout and 3 retries (3.5 s of
-    ``asyncio.sleep`` per recipient), which caused the integration suite to
-    take 17+ minutes in CI (#527).
-
-    Replacing the fallback with this no-op adapter eliminates all HTTP
-    overhead.  The outbox pipeline (emitter → ``_is_local_recipient`` →
-    fallback) is still exercised; only the unreachable HTTP delivery is
-    skipped.
-    """
-
-    async def emit(
-        self, activity: VultronActivity, recipients: list[str]
-    ) -> None:
-        logger.debug(
-            "NullDeliveryAdapter: skipping HTTP delivery to %d"
-            " unreachable recipient(s): %s",
-            len(recipients),
-            recipients,
-        )
-
-
-class _TestASGIRouter:
+class _TestClientRouter:
     """Cross-app delivery adapter for isolated multi-actor test setups.
 
-    Routes outbound activity delivery to the correct ASGI app based on
-    the recipient actor's base URL.  Replace each actor app's
-    ``ASGIEmitter._http_fallback`` with a shared instance of this class so
-    that when Actor A cannot deliver locally (the recipient is on Actor B's
-    app), the delivery is forwarded to Actor B's ASGI app via
-    ``httpx.ASGITransport`` instead of making a real HTTP request.
+    Routes outbound activity delivery to the correct actor app based on the
+    recipient's base URL, POSTing to that app's :class:`TestClient` inbox
+    endpoint.  Install via ``configure_default_emitter`` so that when Actor A
+    delivers to a recipient hosted on Actor B's app, the activity is routed
+    to Actor B's ``TestClient`` — the only sanctioned in-process transport
+    (ADR-0042, ``outbox.yaml`` OX-12-003) — instead of a real HTTP request.
 
-    Use :meth:`register` to map base URLs to their ASGI apps before
-    entering the TestClient context.
+    Use :meth:`register` to map base URLs to their ``TestClient`` instances
+    after entering each client's context (the ``TestClient`` must be entered so
+    its portal is live before any delivery is routed to it).
+
+    .. note::
+
+       ``emit()`` runs inside a FastAPI ``BackgroundTask`` on the *sending*
+       app's ``TestClient`` portal event loop.  The target ``TestClient.post``
+       call is blocking and drives the target app on its own portal thread, so
+       it is dispatched via :func:`anyio.to_thread.run_sync` to avoid blocking
+       (and, for CaseActor ``cc:``-to-self loopback delivery where sender and
+       target share one portal, deadlocking) the calling event loop.
     """
 
     def __init__(self) -> None:
-        self._apps: dict[str, "FastAPI"] = {}
+        self._clients: dict[str, "TestClient"] = {}
 
-    def register(self, base_url: str, app: "FastAPI") -> None:
-        """Register *app* as the delivery target for *base_url*."""
-        self._apps[base_url.rstrip("/")] = app
+    def register(self, base_url: str, client: "TestClient") -> None:
+        """Register *client* as the delivery target for *base_url*."""
+        self._clients[base_url.rstrip("/")] = client
 
     async def emit(
         self, activity: VultronActivity, recipients: list[str]
     ) -> None:
-        """Deliver *activity* to each recipient via the registered ASGI app."""
-        # serialize_as_any=True mirrors the production emitters (ASGIEmitter /
-        # DemoHttpDeliveryAdapter) so inline nested-object subtype fields
+        """Deliver *activity* to each recipient via the registered client."""
+        # serialize_as_any=True mirrors the production HttpDeliveryAdapter so
+        # inline nested-object subtype fields
         # (e.g. a CaseLedgerEntry's case_id/event_type) survive the wire hop
         # between isolated apps — otherwise this test double would silently
         # drop them and mask SYNC-02-004 / SYNC-13-004 regressions.
@@ -112,10 +94,10 @@ class _TestASGIRouter:
         for recipient_id in recipients:
             parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
             base = f"{parsed.scheme}://{parsed.netloc}"
-            app = self._apps.get(base)
-            if app is None:
+            client = self._clients.get(base)
+            if client is None:
                 logger.debug(
-                    "_TestASGIRouter: no app registered for %s,"
+                    "_TestClientRouter: no client registered for %s,"
                     " dropping delivery to %s",
                     base,
                     recipient_id,
@@ -123,25 +105,25 @@ class _TestASGIRouter:
                 continue
             inbox_path = parsed.path
             try:
-                transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
-                async with httpx.AsyncClient(
-                    transport=transport, base_url=base
-                ) as client:
-                    response = await client.post(
-                        inbox_path,
-                        content=json_body,
-                        headers={"Content-Type": "application/json"},
-                        timeout=10.0,
-                    )
-                    response.raise_for_status()
-                    logger.info(
-                        "_TestASGIRouter: delivered to %s (HTTP %s)",
-                        inbox_path,
-                        response.status_code,
-                    )
+                # TestClient.post is blocking and drives the target app on its
+                # own portal thread; run it off the calling event loop so a
+                # loopback delivery (sender == target) cannot deadlock.
+                post = functools.partial(
+                    client.post,
+                    inbox_path,
+                    content=json_body,
+                    headers={"Content-Type": "application/json"},
+                )
+                response = await anyio.to_thread.run_sync(post)
+                response.raise_for_status()
+                logger.info(
+                    "_TestClientRouter: delivered to %s (HTTP %s)",
+                    inbox_path,
+                    response.status_code,
+                )
             except Exception as exc:
                 logger.warning(
-                    "_TestASGIRouter: delivery to %s failed: %s",
+                    "_TestClientRouter: delivery to %s failed: %s",
                     inbox_path,
                     exc,
                 )
@@ -153,7 +135,7 @@ class IsolatedActorApp:
 
     Each ``IsolatedActorApp`` instance represents a separate logical actor
     container in tests.  The ``app`` has its own ``DataLayer`` injected via
-    ``dependency_overrides`` and its own ``ASGIEmitter`` stored on
+    ``dependency_overrides`` and its own ``HttpDeliveryAdapter`` stored on
     ``app.state.emitter``, so no state leaks between actors.
 
     Attributes:
@@ -172,24 +154,25 @@ class IsolatedActorApp:
 
 def create_isolated_actor_app(
     base_url: str,
-    router: "_TestASGIRouter",
+    router: "_TestClientRouter",
 ) -> "IsolatedActorApp":
     """Create an isolated FastAPI app for a single actor in tests.
 
     Creates a fresh :class:`FastAPI` application via :func:`create_app`,
     injects an in-memory :class:`SqliteDataLayer` via ``dependency_overrides``,
-    and wires a :class:`_TestASGIRouter` as the ``ASGIEmitter`` HTTP fallback
-    so that deliveries to other actors are routed to their registered ASGI apps
-    instead of making real HTTP requests.
+    and registers the app with the shared :class:`_TestClientRouter` so that
+    deliveries to this actor are routed to its ``TestClient`` inbox instead of
+    making real HTTP requests (ADR-0042, OX-12-003).
 
-    The ``ASGIEmitter`` is stored on ``app.state.emitter`` during the lifespan
-    startup.  After ``TestClient.__enter__`` fires, the emitter's
-    ``_http_fallback`` is replaced with the shared ``_TestASGIRouter``.
+    The actor's ``TestClient`` is registered with *router* under *base_url*.
+    The client reference is stable, but callers MUST enter its context
+    (``with iso.client``) before any delivery is routed to it so its portal is
+    live.
 
     Args:
         base_url: Base URL for this actor (e.g. ``"http://finder.test"``).
             Actor IDs will use this as their URL prefix.
-        router: Shared :class:`_TestASGIRouter` instance that both apps
+        router: Shared :class:`_TestClientRouter` instance that all apps
             register with so cross-app deliveries are routed correctly.
 
     Returns:
@@ -199,9 +182,9 @@ def create_isolated_actor_app(
     isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
     app = create_app(docs_url=None, openapi_url=None)
     app.dependency_overrides[get_shared_dl] = lambda: isolated_dl
-    router.register(base_url, app)
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
+    router.register(base_url, client)
     return IsolatedActorApp(
         app=app, client=client, dl=isolated_dl, base_url=base_url
     )
@@ -236,7 +219,7 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.integration)
 
 
-_CASE_ACTOR_SERVICE_URL = "http://localhost:7999"
+_CASE_ACTOR_SERVICE_URL = "http://localhost:7999/api/v2"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -259,6 +242,149 @@ def configure_case_actor_url_for_demo():
     finally:
         mp.undo()
         reload_config()
+
+
+def config_snapshot() -> dict:
+    """Return the full currently-cached config as a plain dict.
+
+    Snapshotting every field rather than a hand-picked pair means a fixture
+    that leaks something other than the two #2086 URLs (e.g.
+    ``VULTRON_ACTOR__DEFAULT_CASE_ROLES``) is still detected.
+    """
+    from vultron.config import get_config
+
+    return get_config().model_dump(mode="json")
+
+
+def config_url_snapshot() -> tuple[str, str]:
+    """Return the currently cached ``(server.base_url, case_actor_service_url)``.
+
+    These are the two settings demo tests repoint at their own fake hosts, and
+    the pair whose leakage caused #2086.  Kept as a narrow, readable accessor
+    for tests that assert specifically on those URLs;
+    :func:`config_snapshot` is what the leak guard compares.
+    """
+    from vultron.config import get_config
+
+    cfg = get_config()
+    return (
+        str(cfg.server.base_url),
+        str(cfg.actor.case_actor_service_url),
+    )
+
+
+class ConfigLeakLedger:
+    """Session-wide record of config leaks the guard had to repair.
+
+    The guard repairs leaks so that one misordered teardown cannot cascade into
+    unrelated failures.  That repair also hides the leak, which would leave the
+    ``monkeypatch.undo()``-before-``reload_config()`` fixes in the demo modules
+    unenforced by any test.  Recording each detection here keeps the repair
+    while still giving :mod:`test.demo.test_config_leak_guard` something that
+    fails when a fixture teardown regresses (#2086).
+    """
+
+    def __init__(self) -> None:
+        self.leaks: list[str] = []
+
+    def record(self, before: dict, after: dict) -> None:
+        self.leaks.append(f"{_describe_drift(before, after)}")
+
+    def reset(self) -> None:
+        self.leaks.clear()
+
+
+#: Session-wide ledger; asserted on by ``test_config_leak_guard.py``.
+config_leak_ledger = ConfigLeakLedger()
+
+
+def _describe_drift(before: dict, after: dict) -> str:
+    """Summarise which config keys changed, for logs and assertion messages."""
+    drifted = sorted(
+        f"{key}: {before.get(key)!r} -> {after.get(key)!r}"
+        for key in set(before) | set(after)
+        if before.get(key) != after.get(key)
+    )
+    return "; ".join(drifted)
+
+
+def restore_config_if_leaked(before: dict) -> bool:
+    """Reload the module-level config if it drifted from the *before* snapshot.
+
+    The repair is :func:`reload_config`, which re-reads ``os.environ``.  That
+    only helps if the offending fixture also undid its env patches, so the
+    post-reload state is verified rather than assumed: a reload that fails to
+    restore *before* raises instead of reporting a success it did not achieve
+    (ARCH-15-001 — a fake success is the same bug as a silent ``None``).
+
+    Args:
+        before: Snapshot from :func:`config_snapshot` taken before the code
+            under test ran.
+
+    Returns:
+        ``True`` if a leak was detected and successfully repaired, ``False``
+        if the config never drifted.
+
+    Raises:
+        RuntimeError: if the config drifted and the reload did not restore it,
+            which means the environment itself is still polluted.
+    """
+    from vultron.config.app import reload_config
+
+    after = config_snapshot()
+    if after == before:
+        return False
+
+    drift = _describe_drift(before, after)
+    logger.warning(
+        "Demo test leaked config (%s); reloading (#2086)",
+        drift,
+    )
+    config_leak_ledger.record(before, after)
+    reload_config()
+
+    repaired = config_snapshot()
+    if repaired != before:
+        raise RuntimeError(
+            "Config leak could not be repaired by reload_config(): the "
+            "environment is still polluted. A fixture mutated the "
+            "environment without undoing it (see #2086). Residual drift: "
+            f"{_describe_drift(before, repaired)}"
+        )
+    return True
+
+
+@pytest.fixture(autouse=True)
+def restore_case_actor_url_after_each_test():
+    """Restore the session's CaseActor/server config after every demo test.
+
+    Guards against config leakage between demo tests (#2086).  Several demo
+    tests point ``VULTRON_SERVER__BASE_URL`` and
+    ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`` at their own fake hosts and then
+    call ``reload_config()``.  If such a test reloads while its env patches are
+    still applied, the polluted values are cached in the module-level config for
+    the remainder of the session.  Every later test then addresses its
+    ``Create(CaseProposal)`` to a host no ``_TestClientRouter`` knows about, the
+    delivery is silently dropped, the CaseActor never creates the canonical
+    case, and ``validate-report`` fails with "no routable recipients".
+
+    Because that depends on test *order*, it presented as CI flakiness.  This
+    fixture snapshots the config before each test and reloads after if it
+    drifted.
+
+    **Scope limitation**: this fixture is function-scoped, so it only catches
+    *function-scoped* offenders.  A module-, class-, or session-scoped fixture
+    pollutes the cache *before* this guard takes its ``before`` snapshot, so
+    the drift is invisible here and that fixture's teardown runs after this
+    one's finalizer.  Higher-scoped fixtures must therefore still order
+    ``monkeypatch.undo()`` before ``reload_config()`` themselves — the guard is
+    not a substitute.  Any repair performed here is recorded on
+    :data:`config_leak_ledger` so ``test_config_leak_guard.py`` fails rather
+    than silently masking the regression.
+    """
+    before = config_snapshot()
+    yield
+    restore_config_if_leaked(before)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -288,36 +414,52 @@ def client():
     shutdown) are triggered, which initialises the inbox dispatcher via
     :func:`vultron.adapters.driving.fastapi.inbox_handler.init_dispatcher`.
 
-    After the lifespan fires, the ``ASGIEmitter``'s HTTP fallback adapter is
-    replaced with a ``_NullDeliveryAdapter`` that silently drops deliveries.
-    Demo actors use fictional URLs
-    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
-    in the test environment.  The default ``DemoHttpDeliveryAdapter`` retries
-    3 × with exponential backoff (≈ 3.5 s per recipient), causing 17+ min
-    CI slowdowns (#527).  The no-op adapter eliminates that overhead.
+    After the lifespan fires, the module-level default emitter is replaced
+    with a ``_TestClientRouter`` that routes all actor URLs hosted on
+    ``api_app`` back to *test_client* (so cc:-to-self loopback deliveries work
+    in-process), while silently dropping deliveries to fictional external URLs
+    (e.g. ``https://vultron.example/users/...``) that are unreachable in the
+    test environment.  Without this, the ``HttpDeliveryAdapter`` on
+    ``api_app.state.emitter`` would attempt real HTTP POST requests with
+    retries, which caused the integration suite to take 17+ min in CI (#527).
 
-    .. note::
+    Both the module-level default emitter (used by trigger-endpoint
+    BackgroundTasks) *and* ``api_app.state.emitter`` (used by inbox-endpoint
+    BackgroundTasks) are replaced, so all outbox drains route through the
+    same ``_TestClientRouter``.
 
-       The lifespan-configured ``ASGIEmitter`` uses the config default
-       ``base_url`` (``http://localhost:7999``), while TestClient creates
-       actor IDs under ``http://testserver``.  This means
-       ``_is_local_recipient`` classifies test actors as non-local, so
-       their deliveries also flow through the fallback adapter.
-       Aligning the ``base_url`` would enable ASGI delivery for test
-       actors, but the demo workflow tests currently assume no
-       inter-actor delivery occurs (state changes are driven by
-       explicit trigger-endpoint calls).  Enabling ASGI delivery is
-       deferred until the test fixtures support it (#530).
-
-    See also: #530 (actors sharing a single DataLayer in tests — a separate
-    correctness bug).
+    See also: #530 (actors sharing a single DataLayer in tests).
     """
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+    )
+
     with TestClient(api_app) as test_client:
-        # Replace the HTTP fallback with a no-op adapter.  All non-local
-        # deliveries (both fictional demo hosts and testserver-based test
-        # actors) are silently dropped.  See docstring note above for why
-        # test actors are also classified as non-local.
-        emitter = get_default_emitter()
-        if isinstance(emitter, ASGIEmitter):
-            emitter._http_fallback = _NullDeliveryAdapter()  # type: ignore[assignment]
-        yield test_client
+        # Build a router that routes deliveries back to the single app and
+        # drops anything sent to external fictional URLs.
+        router = _TestClientRouter()
+        # Register both the TestClient's base_url (http://testserver) and the
+        # config's server base_url (e.g. http://localhost:7999) so that all
+        # actor IDs hosted on api_app — regardless of which base URL was used
+        # to construct them — route back to this TestClient.
+        from urllib.parse import urlparse as _urlparse
+        from vultron.config import get_config
+
+        tc_base = str(test_client.base_url).rstrip("/")
+        router.register(tc_base, test_client)
+        cfg_base_url = get_config().server.base_url
+        if cfg_base_url:
+            parsed = _urlparse(str(cfg_base_url))
+            cfg_netloc_base = f"{parsed.scheme}://{parsed.netloc}"
+            if cfg_netloc_base != tc_base:
+                router.register(cfg_netloc_base, test_client)
+
+        previous_emitter = get_default_emitter()
+        previous_app_emitter = getattr(api_app.state, "emitter", None)
+        configure_default_emitter(router)  # type: ignore[arg-type]
+        api_app.state.emitter = router  # type: ignore[assignment]
+        try:
+            yield test_client
+        finally:
+            configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+            api_app.state.emitter = previous_app_emitter

@@ -24,7 +24,7 @@ Run **full suite (unit + integration)** if PR modifies any of:
 
 ### All Tests Pass ✅
 
-Proceed to Phase 5.
+Proceed to Phase 6.
 
 ### Unit Tests Fail ❌
 
@@ -39,9 +39,13 @@ Proceed to Phase 5.
      it fails there too.
    - At least one causality check: confirm no line in the PR diff plausibly
      causes the failure.
-4. If pre-existing is proven: create/update a Bug issue with evidence via
+4. If pre-existing is proven: assess whether a fix is straightforward and
+   context is in hand. If yes, fix it now — a pre-existing failure you can
+   resolve is still a failure worth resolving. Only proceed to step 5 if the
+   fix is genuinely non-trivial or requires design work outside this PR's scope.
+5. If deferral is warranted: create/update a Bug issue with evidence via
    `manage-github-issue`; wire structured blockers; post a handoff comment.
-5. If evidence is incomplete: treat as PR-owned and continue debugging.
+6. If evidence is incomplete: treat as PR-owned and continue debugging.
 
 ### Integration Tests Fail ❌
 
@@ -52,26 +56,175 @@ Proceed to Phase 5.
 1. Display failure output (first 50 lines + last 20 for context).
 2. Perform targeted causality checks against the PR diff.
 3. Allow "unrelated/pre-existing" only with clean-base + causality evidence.
-4. If pre-existing is proven: create/update a Bug issue with evidence; wire
+4. If pre-existing is proven: assess whether a fix is straightforward and
+   context is in hand. If yes, fix it now. Only proceed to step 5 if the fix
+   is genuinely non-trivial or requires design work outside this PR's scope.
+5. If deferral is warranted: create/update a Bug issue with evidence; wire
    blockers via `manage-github-issue`; add a handoff comment.
-5. Stop only after recording blocked/unblocked status with linked evidence.
+6. Stop only after recording blocked/unblocked status with linked evidence.
 
 Integration tests can fail due to: missing environment setup, timing issues
 in demo orchestration, architectural breaking changes, or infrastructure
 problems (docker, network). All require evidence-based triage — not just
 "looks unrelated."
 
+### Flaky Test Dedup (pre-existing failures)
+
+When a test failure is confirmed pre-existing, use this fractal search before
+creating a new issue — cheapest check first:
+
+**Level 1 — Local catalog** (`notes/flaky-tests.md`):
+
+- For unit tests: exact match on pytest node ID (e.g.
+  `test/bt/test_vultrabot.py::MyTestCase::test_main`).
+- For CI/demo jobs: exact match on job name (e.g. `fvcv-extension`).
+- If match found: `gh issue view <N> --json state,title`
+  - `open` → post a comment on the issue:
+
+    ```text
+    Blocked PR #<N> on <date>. Step: <failure description>. Evidence: <log excerpt>.
+    ```
+
+    Use that issue number in `skip_reason`. **Do not create a new issue.**
+  - `closed` → evict the stale catalog entry; fall through to Level 2.
+
+**Level 2 — Exact GitHub search**:
+
+```bash
+gh issue list --label flaky-test --state open --search '"<node_id_or_job_name>"'
+```
+
+If one match: post comment as above; use that issue.
+
+**Level 3 — File-path GitHub search** (unit tests only):
+
+Strip `::Class::method`, search on the file path alone. If exactly one match:
+use it. If multiple: proceed to Level 4.
+
+**Level 4 — Agent judgment**:
+
+Read top 3 search results. If one is clearly the same failure: use it.
+**When in doubt: create a new issue** rather than incorrectly merging two
+distinct failures.
+
+**Creating a new flaky-test issue**:
+
+- Labels: `bug` + `flaky-test`
+- Title: `Flaky: <job_name or test_node_id>`
+- Body must include:
+  - The exact node ID or job name (for future exact-phrase search)
+  - A `## Blocked PRs` section with the first occurrence entry
+  - Clean-base proof and causality check summary as evidence
+- Add to Project #24: `bash .agents/skills/shared/add-to-project.sh <N>`
+- Add entry to `notes/flaky-tests.md`
+
+### xfail Ratchet
+
+After running the test suite, scan `XFAIL` lines in pytest output. For each:
+
+1. Extract `#<N>` from the `reason` string (regex `#(\d+)`).
+2. If no issue number found: this is an unmanaged xfail — file a new `bug` +
+   `flaky-test` issue, update the `reason` string in the PR to reference it,
+   record as `outcome: filed`.
+3. If issue number found: `gh issue view <N> --json state`
+   - `open` → fine, no action needed.
+   - `closed` → the fix landed without removing the marker; file a new tracking
+     issue, update the reason string, record as `outcome: filed`.
+
+The rule: **every `xfail` must point to a live open issue**. An xfail with a
+dead or missing reference is treated as unmanaged debt and triggers a
+`new-issue-no-ask` finding.
+
+> **xfail-tracking issues vs flaky-test issues**: these are distinct categories.
+> An xfail-tracking issue documents a known architectural violation or pre-existing
+> test failure that cannot yet be fixed (e.g. ARCH-12 cleanup debt). A flaky-test
+> issue tracks a test that *sometimes* fails due to timing/ordering/probabilistic
+> behavior. xfail-tracking issues should use the `bug` label (not `flaky-test`),
+> so they do not pollute the `--label flaky-test` GitHub search in Level 2 of the
+> dedup procedure above.
+
 ### When to Stop and Report
 
 Stop and surface to the user if:
 
 - Integration test failure with unclear root cause after causality checks
-- 2+ consecutive test failures after fix attempts
+- CI loop reaches 4 iterations with the same failure persisting (see Phase 5 eject condition in SKILL.md)
 - Test output suggests missing context (env vars, setup, infrastructure)
 - Error suggests architectural issue (breaking change to core logic)
+- A merge conflict whose correct resolution is genuinely unclear (see
+  § "Conflict Resolution Rules") — abort the merge, do not guess
+- `merge-state.sh` still reports `CONFLICTING` after a resolution was pushed
+- `git push` is rejected as non-fast-forward after a merge, implying someone
+  rewrote the remote branch
 
 Report the state with linked Bug issue evidence, structured blockers, and
 explicit blocked/unblocked status.
+
+---
+
+## Conflict Resolution Rules
+
+### Why sync runs late
+
+The branch is synced in Phase 5 (CI loop, Step 2) — after all fixes, before the
+test suite. Three reasons:
+
+1. **Execute's own fixes can create conflicts.** A fix touching the same lines a
+   base-branch commit touched is only conflicting once both exist.
+2. **The base branch moves during the run.** Triage's merge state is stale by the
+   time execute finishes; another PR can land mid-pipeline.
+3. **Tests must run on the merged tree.** A clean merge can still be a *semantic*
+   conflict — both sides apply, the result is broken. Only running the suite
+   post-merge catches that.
+
+### Merge, do not rewrite
+
+Once a branch is pushed and a PR is open, use `sync-with-main.sh` (merge commit),
+not `freshen-branch.sh` (cherry-pick rewrite). Rewriting a pushed branch requires
+a force-push, which orphans reviewers' line comments and breaks any `commit_ref`
+already recorded in the triage/execute artifacts. `freshen-branch.sh` belongs to
+`create-pr`, before the first push.
+
+### Resolving each path
+
+| Situation | Resolution |
+|---|---|
+| Base changed a line the PR does not care about | Take base (`--theirs` in merge terms), then re-verify the PR's intent still holds |
+| PR intentionally changed what base also changed | Combine by hand — keep the PR's semantic and base's refactor |
+| Both added entries to a list/registry/index | Keep **both** entries; this is the most common false conflict |
+| Generated or lock file (`uv.lock`, `board-ids.json`) | Take base, then regenerate from the merged sources |
+| `CHANGELOG`/history/append-only file | Keep both blocks in chronological order — see `archived_notes/append-only-file-handling.md` |
+| Conflict is in a file the PR never meant to touch | Take base wholesale, then confirm with `git diff <base_ref>...HEAD` that the file is absent from the PR diff |
+
+Rules that do not bend:
+
+- **Read both sides before resolving.** `git log --merge -p -- <path>` shows the
+  competing commits. Blind `--ours`/`--theirs` on an unread file silently reverts
+  someone's work.
+- **Never resolve by deleting the base's changes** to make the PR's diff apply.
+  That is a silent revert; it is worse than the conflict.
+- **Verify no markers remain** before pushing:
+  `git grep -nE '^(<<<<<<<|=======|>>>>>>>)'` must be empty.
+- **Re-run the full suite after resolving**, even if it passed pre-merge.
+- **Never resolve a conflict you do not understand.** Abort
+  (`sync-with-main.sh --abort`), record the merge-state finding as `skipped` with
+  the conflicted paths and why, and stop. An honest stop beats a wrong merge.
+
+### Commit message
+
+`git commit --no-edit` keeps git's generated `Merge branch 'main' into <branch>`
+message, which is what tooling expects. If the resolution required judgment,
+amend a body describing it:
+
+```text
+Merge branch 'main' into task/1234-slug
+
+Resolved conflicts in:
+- vultron/core/models/case/case.py — kept both new fields
+- uv.lock — regenerated after taking main's version
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+```
 
 ---
 
@@ -131,7 +284,16 @@ File: `.claude/pr-{number}-execute.json`
   "pr_number": 1234,
   "timestamp": "2026-01-01T00:00:00Z",
   "integration_tests_run": true,
-  "final_ci_status": "passing",
+  "final_ci_status": "passing",  // "passing" | "failing" | "timeout"
+  "merge_state": {
+    "base_ref": "main",
+    "synced": true,
+    "sync_commit_ref": "def5678",
+    "conflicts_resolved": ["vultron/core/models/case/case.py", "uv.lock"],
+    "mergeable_after_sync": "MERGEABLE",
+    "merge_state_status_after_sync": "CLEAN",
+    "undrafted": false
+  },
   "results": [
     {
       "finding_id": "phase5-missing-nonemptystring-0",
@@ -175,6 +337,22 @@ File: `.claude/pr-{number}-execute.json`
 finding must have an outcome. `pr-verify` checks this count and warns if they
 diverge (indicating execute was interrupted before completion).
 
+### `merge_state` Fields
+
+| Field | Meaning |
+|---|---|
+| `base_ref` | Branch synced against — copied from `pr_metadata.base_ref`, not assumed to be `main` |
+| `synced` | `true` if the branch contains the base tip after Phase 4 |
+| `sync_commit_ref` | Merge commit SHA, or `null` if the branch was already current |
+| `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge |
+| `mergeable_after_sync` | `merge-state.sh` result from Phase 4 step 6 |
+| `merge_state_status_after_sync` | `mergeStateStatus` from the same call |
+| `undrafted` | `true` if execute ran `gh pr ready` and dropped `needs-rebase` |
+
+`merge_state` is **required**. `pr-verify` treats a missing or `synced: false`
+block as a hard gate failure — an execute run that never checked mergeability
+cannot produce a READY-TO-MERGE verdict.
+
 ---
 
 ## Execute Comment Format
@@ -186,7 +364,19 @@ diverge (indicating execute was interrupted before completion).
 **Issues filed**: <M>
 **Deferred (awaiting your input)**: <K>
 **Tests run**: unit only / unit + integration
-**CI status after push**: ✅ passing / ❌ failing / ⏳ pending
+**CI status**: ✅ passing / ❌ failing / ⏳ timed out
+**Base sync**: ✅ merged `<base_ref>` @ `def5678` — <N> conflicts resolved / ✅ already current / ❌ conflicts unresolved
+
+---
+
+### Conflicts Resolved
+
+| Path | Resolution |
+|---|---|
+| `vultron/core/models/case/case.py` | Kept both new fields |
+| `uv.lock` | Took `main`, regenerated |
+
+_Omit this section entirely when the merge was clean._
 
 ---
 
@@ -218,5 +408,5 @@ diverge (indicating execute was interrupted before completion).
 ---
 
 *Execute artifact: `.claude/pr-<number>-execute.json`*
-*Next step: run `/pr-verify` or wait for CI, then `/pr-ship` will continue automatically.*
+*Next step: run `/pr-verify`, or `/pr-ship` will continue automatically.*
 ```

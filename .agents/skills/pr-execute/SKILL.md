@@ -2,8 +2,9 @@
 name: pr-execute
 description: >
   Execution phase of the PR review pipeline. Reads .claude/pr-{number}-triage.json,
-  applies all FAIL/IMPROVE fixes inline, remediates CI failures, files GitHub issues
-  for out-of-scope findings, resolves review thread comments, and writes
+  applies all FAIL/IMPROVE fixes inline, remediates CI failures, syncs the branch
+  with its base and resolves merge conflicts, files GitHub issues for out-of-scope
+  findings, resolves review thread comments, and writes
   .claude/pr-{number}-execute.json. Use after /pr-triage, or as the second step
   of /pr-ship.
 ---
@@ -15,6 +16,15 @@ description: >
 Execute consumes the closed finding list from `pr-triage` and processes it in
 one batch pass. No new discovery happens here. The finding set is fixed at the
 start; execute either resolves each item or records why it was skipped.
+
+Execute's exit criterion is **CI green**: it does not hand off to pr-verify until
+the branch is synced, tests pass locally, and all CI checks have completed
+successfully (or the 4-iteration cap is reached).
+
+**One exception to "no new discovery"**: the CI loop (Phase 5) re-reads CI state
+and merge state from live sources rather than trusting triage's snapshots. CI
+failures and conflicts are moving targets — execute's own fixes can create them,
+and other PRs can land on the base branch mid-run.
 
 ## Quick Start
 
@@ -44,14 +54,16 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 3. Validate `schema_version == "1.0"`. If mismatch, stop and report.
 4. Extract `pr_metadata.domains` and invoke `deepen-context` with those hints
    to load the same domain context that triage used.
-5. Check `pr_metadata.needs_integration_tests` — determines test scope in Phase 4.
+5. Check `pr_metadata.needs_integration_tests` — determines test scope in Phase 5.
+6. Note `pr_metadata.base_ref` — Phase 5 syncs against this branch, not
+   necessarily `main`.
 
 ### Phase 2 — Apply fix-now Fixes
 
 For each finding where `decision_outcome` is `fix-now` or `fix-now-expand-scope`
 and `severity` is `FAIL` or `IMPROVE`:
 
-> Note: findings with `severity: NEW-ISSUE` are handled exclusively in Phase 5,
+> Note: findings with `severity: NEW-ISSUE` are handled exclusively in Phase 3,
 > regardless of their `decision_outcome`. Do not process them here.
 
 1. Apply the fix (edit files as needed).
@@ -67,57 +79,11 @@ and `severity` is `FAIL` or `IMPROVE`:
    ```
 
 4. Record `commit_ref` (short SHA) for each finding addressed in this commit.
-5. Push the branch: `git push` — CI must see the new commits before Phase 4.
 
-### Phase 3 — CI Remediation
+**Do not push yet.** All pushes happen inside the CI loop (Phase 5) so that
+every push includes the sync commit and passes local tests first.
 
-For findings from Phase 11 (CI failures) in the triage artifact:
-
-1. Fetch current CI failure logs: `gh run list --branch <head_ref> --limit 1`
-   then `gh run view <run-id> --log-failed`.
-2. Parse failure output — identify root causes (lint, type errors, test failures).
-3. Fix lint/type/format failures directly (these are always branch-owned).
-4. For test failures: apply the branch-ownership rule from [REFERENCE.md](REFERENCE.md)
-   § "Test Failure Rules" before classifying anything as pre-existing.
-5. Run `uv run black <changed files>` before committing — mirroring Phase 2.
-6. Commit CI fixes separately from Phase 2 fixes:
-
-   ```text
-   fix(ci): resolve CI failures — <summary>
-
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
-   ```
-
-7. Push the branch: `git push`.
-8. Record `commit_ref` for each CI finding addressed.
-
-### Phase 4 — Run Test Suite
-
-Based on `pr_metadata.needs_integration_tests`:
-
-**Unit tests only** (flag is false):
-
-```bash
-uv run pytest --tb=short 2>&1 | tail -20
-```
-
-**Full suite** (flag is true):
-
-```bash
-uv run pytest --tb=short 2>&1 | tail -20
-uv run pytest integration_tests/ -v 2>&1 | tail -40
-```
-
-If tests fail: apply the rules from [REFERENCE.md](REFERENCE.md) § "Test Failure
-Rules". Fix branch-owned failures and re-run. If failure is proven pre-existing,
-file a Bug issue with evidence via `manage-github-issue`, wire structured blockers,
-and record the finding outcome as `skipped` with a `skip_reason` referencing the
-issue number.
-
-Do not proceed to Phase 5 until tests pass or all remaining failures are
-documented as pre-existing with linked Bug issues.
-
-### Phase 5 — Handle NEW-ISSUE Findings
+### Phase 3 — Handle NEW-ISSUE Findings
 
 For each finding with `severity: NEW-ISSUE`:
 
@@ -135,7 +101,7 @@ For each finding with `severity: NEW-ISSUE`:
 2. Add to Project #24.
 3. Record as `outcome: filed` with `issue_number`.
 
-### Phase 6 — Resolve Review Thread Comments
+### Phase 4 — Resolve Review Thread Comments
 
 For each unresolved review comment on the PR (fetched via
 `gh api repos/CERTCC/Vultron/pulls/<number>/comments`):
@@ -149,9 +115,144 @@ Match each comment to the finding(s) it corresponds to. Then per
 
 Do not mark a comment resolved unless the code actually addresses it.
 
-### Phase 7 — Emit Artifact and Post Comment
+### Phase 5 — CI Loop
 
-1. Build the execute artifact in memory throughout Phases 2–6; write it only now.
+This phase owns syncing, testing, pushing, and CI wait. It loops until CI is
+green or the cap is reached. **Maximum 4 iterations.** One iteration = one full
+Sync → Test → Push → Wait cycle.
+
+#### Step 1 — Apply CI fixes
+
+*Iteration 1*: apply any CI-failure findings from the triage artifact (triage
+Phase 11). Fix lint/type/format failures directly. For test failures, apply Test
+Failure Rules from [REFERENCE.md](REFERENCE.md).
+
+*Subsequent iterations*: apply fixes for failures found in the previous
+iteration's CI wait result. Fetch logs first:
+
+```bash
+gh run list --branch <head_ref> --limit 1
+gh run view <run-id> --log-failed
+```
+
+**Repeated-failure rule**: if the same CI failure appears in two consecutive
+iterations:
+
+1. Apply Test Failure Rules from [REFERENCE.md](REFERENCE.md) to determine
+   whether it is pre-existing.
+2. Before filing or deferring: assess whether a fix is straightforward and
+   context is in hand. If yes, fix it now — a pre-existing failure you can
+   resolve is still a failure worth resolving.
+3. Only file a bug issue and record `outcome: skipped` if the fix is genuinely
+   non-trivial or requires design work outside this PR's scope.
+
+Commit CI fixes separately from Phase 2 fixes:
+
+```text
+fix(ci): resolve CI failures — <summary>
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+```
+
+Record `commit_ref` for each CI finding addressed.
+
+#### Step 2 — Sync with base
+
+```bash
+bash .agents/skills/shared/sync-with-main.sh <base_ref>
+```
+
+| Exit | Meaning | Action |
+|---|---|---|
+| `0` | Already current, or merged cleanly | Continue to Step 3 |
+| `1` | Conflicts left in the worktree | Resolve them (see below) |
+| `2` | Unexpected error (dirty tree, merge in progress) | Stop and report; do not force anything |
+
+Resolve each conflicted path per [REFERENCE.md](REFERENCE.md) § "Conflict
+Resolution Rules". Read both sides before editing. Never resolve by
+wholesale `--ours`/`--theirs` on a file you have not read.
+
+```bash
+uv run black <changed files>
+git add <resolved files>
+git commit --no-edit
+```
+
+Verify no markers survived:
+
+```bash
+git grep -nE '^(<<<<<<<|>>>>>>>) ' -- . && echo "MARKERS PRESENT — do not push" || echo "clean"
+```
+
+If `sync-with-main.sh` still reports `CONFLICTING` after resolution, record
+the merge-state finding as `outcome: skipped` with the conflicted paths and stop
+— do not push.
+
+#### Step 3 — Run local tests
+
+```bash
+uv run pytest --tb=short 2>&1 | tail -20
+```
+
+If `pr_metadata.needs_integration_tests` is true, also run:
+
+```bash
+uv run pytest integration_tests/ -v 2>&1 | tail -40
+```
+
+If tests fail: fix branch-owned failures per [REFERENCE.md](REFERENCE.md)
+§ "Test Failure Rules", then **restart this iteration from Step 2** — always
+re-sync after a fix so the pushed commit includes both the fix and a clean merge.
+Do not push failing code.
+
+After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
+§ "xfail Ratchet".
+
+#### Step 4 — Push
+
+```bash
+git push
+```
+
+If git demands a force-push, stop — something rewrote history and that needs
+a human.
+
+#### Step 5 — Wait for CI
+
+```bash
+bash .agents/skills/shared/wait-for-ci.sh <number>
+```
+
+| Exit | Meaning | Action |
+|---|---|---|
+| `0` | All checks passed | CI is green — proceed to "On CI green" below |
+| `1` | One or more checks failed | Start next iteration with the failures as input |
+| `2` | Timed out (10 min) | Record `final_ci_status: "timeout"`; exit loop |
+
+**On CI green**:
+
+1. Run `merge-state.sh <number>`. If it now reports `CONFLICTING`, return to
+   Step 2 — a push can race a base-branch merge.
+
+2. If the PR is a draft with a `needs-rebase` label, undraft it:
+
+   ```bash
+   gh pr ready <number>
+
+   gh pr edit <number> --remove-label needs-rebase
+   ```
+
+3. Record `final_ci_status: "passing"`. Populate the `merge_state` block.
+4. Exit the loop.
+
+**On iteration 4 failure (eject)**:
+
+Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
+`merge-state.sh <number>` and populate the `merge_state` block. Exit the loop.
+
+### Phase 6 — Emit Artifact and Post Comment
+
+1. Build the execute artifact in memory throughout Phases 2–5; write it only now.
    Write `.claude/pr-{number}-execute.json` per the schema in [REFERENCE.md](REFERENCE.md).
 2. Render the execute summary comment (format in [REFERENCE.md](REFERENCE.md)
    § "Execute Comment Format").

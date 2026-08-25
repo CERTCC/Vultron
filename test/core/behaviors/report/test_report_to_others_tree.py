@@ -32,7 +32,7 @@ from vultron.core.behaviors.report.report_to_others_tree import (
     _WriteRolesNode,
     create_report_to_others_tree,
 )
-from vultron.demo.fuzzer.base import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.demo.fuzzer.bundles.report_to_others import (
     REPORT_TO_OTHERS_DETERMINISTIC,
     REPORT_TO_OTHERS_STOCHASTIC,
@@ -84,6 +84,7 @@ def test_write_roles_node_defaults():
     assert node.case_id == CASE_ID
 
 
+@pytest.mark.spec("BT-14-002")
 def test_write_vendor_roles_writes_blackboard():
     """WriteRolesNode writes suggested_roles_{id_segment} on tick."""
     node = _WriteRolesNode(
@@ -99,6 +100,7 @@ def test_write_vendor_roles_writes_blackboard():
     assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.VENDOR]
 
 
+@pytest.mark.spec("BT-14-002")
 def test_write_coordinator_roles_writes_blackboard():
     node = _WriteRolesNode(
         roles=[CVDRole.COORDINATOR],
@@ -111,16 +113,17 @@ def test_write_coordinator_roles_writes_blackboard():
     assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.COORDINATOR]
 
 
+@pytest.mark.spec("BT-14-002")
 def test_write_other_roles_writes_blackboard():
     node = _WriteRolesNode(
-        roles=[CVDRole.OTHER],
+        roles=[CVDRole.OBSERVER],
         case_id=CASE_ID,
         name="WriteOtherRoles",
     )
     node.setup()
     node.update()
     key = f"/suggested_roles_{CASE_ID_SEGMENT}"
-    assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.OTHER]
+    assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.OBSERVER]
 
 
 # ---------------------------------------------------------------------------
@@ -305,12 +308,13 @@ def test_sub_loop_factories_wired(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("BT-14-002")
 @pytest.mark.parametrize(
     "loop_name,write_node_name,expected_role",
     [
         ("VendorSubLoop", "WriteVendorRoles", CVDRole.VENDOR),
         ("CoordinatorSubLoop", "WriteCoordinatorRoles", CVDRole.COORDINATOR),
-        ("OtherSubLoop", "WriteOtherRoles", CVDRole.OTHER),
+        ("OtherSubLoop", "WriteOtherRoles", CVDRole.OBSERVER),
     ],
 )
 def test_write_roles_node_present_in_sub_loop(
@@ -326,6 +330,7 @@ def test_write_roles_node_present_in_sub_loop(
     assert write_node.roles == [expected_role]
 
 
+@pytest.mark.spec("BT-14-002")
 def test_vendor_write_roles_node_precedes_trigger():
     """AC-2: WriteVendorRoles is an earlier sibling of SuggestVendor in DoVendorSubLoop."""
     tree = create_report_to_others_tree(case_id=CASE_ID)
@@ -337,6 +342,7 @@ def test_vendor_write_roles_node_precedes_trigger():
     assert write_idx < suggest_idx
 
 
+@pytest.mark.spec("BT-14-002")
 def test_coordinator_write_roles_node_precedes_trigger():
     """AC-2: WriteCoordinatorRoles is an earlier sibling of SuggestCoordinator."""
     tree = create_report_to_others_tree(case_id=CASE_ID)
@@ -348,6 +354,7 @@ def test_coordinator_write_roles_node_precedes_trigger():
     assert write_idx < suggest_idx
 
 
+@pytest.mark.spec("BT-14-002")
 def test_other_write_roles_node_precedes_trigger():
     """AC-2: WriteOtherRoles is an earlier sibling of SuggestOther."""
     tree = create_report_to_others_tree(case_id=CASE_ID)
@@ -389,7 +396,7 @@ def _make_always_fail_factory(name):
             "suggest_coordinator_factory",
             CVDRole.COORDINATOR,
         ),
-        ("more_others_factory", "suggest_other_factory", CVDRole.OTHER),
+        ("more_others_factory", "suggest_other_factory", CVDRole.OBSERVER),
     ],
 )
 def test_write_roles_key_written_when_sub_loop_executes(

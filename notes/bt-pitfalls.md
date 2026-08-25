@@ -9,6 +9,7 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md
@@ -132,15 +133,15 @@ silently regress.
    that swallows it silently, status can be wrong.
 
 2. **Silent node shadowing** — a more insidious variant occurred during
-   development of `SendOfferCaseManagerRoleNode`: the class body of
-   `EmitCreateCaseActivity` was accidentally embedded *inside*
-   `SendOfferCaseManagerRoleNode` (as a duplicate `__init__`, `setup`, and
-   `update()` defined later in the same class body). Python resolves to the
-   *last* definition, so the correct `update()` was silently replaced by the
-   embedded one. The embedded `setup()` only registered `case_id`, so
-   `get("case_actor_id")` never raised — it was never even called. The node
-   returned `SUCCESS` whenever `case_id` was present, masking the real logic
-   entirely.
+   development of `SendOfferCaseManagerRoleNode` (historical; deleted in
+   issue #2429): the class body of `EmitCreateCaseActivity` was accidentally
+   embedded *inside* `SendOfferCaseManagerRoleNode` (as a duplicate `__init__`,
+   `setup`, and `update()` defined later in the same class body). Python
+   resolves to the *last* definition, so the correct `update()` was silently
+   replaced by the embedded one. The embedded `setup()` only registered
+   `case_id`, so `get("case_actor_id")` never raised — it was never even
+   called. The node returned `SUCCESS` whenever `case_id` was present, masking
+   the real logic entirely.
 
 **Rules**:
 
@@ -784,6 +785,12 @@ When auditing for compliance, grep for flat blackboard key registrations in
 tree factories called per-incoming-message and verify each inter-node handoff
 key includes the execution-scoped correlation ID segment.
 
+**Planned migration**: the imperative `register_key()` pattern is scheduled for
+replacement with py_trees typed Ports (`input_ports()` / `output_ports()`
+declarations), which enforce blackboard contracts at setup time rather than ad
+hoc. See `notes/py-trees-ports-adoption.md` for the planning analysis and the
+implementation issue sequence (#1808 → #1809).
+
 ---
 
 ## Blackboard List Mutation: Write-Back Is Redundant (But Needed for New Lists)
@@ -888,6 +895,53 @@ The `_find_equivalent_recorded_entry` idempotency check also filters on
 `disposition == "recorded"`, so repeated calls each create a new marker —
 which is fine when the BT guarantees at-most-once execution per receipt (e.g.,
 via `GuardedCommit` in `create_receive_activity_tree`).
+
+---
+
+## Idempotency Guards Must Be Silent — No Ledger Write on Duplicate
+
+(CONCERN-1754, 2026-08-05)
+
+`disposition="rejected"` is valid for **emit-side correlation markers** (see
+above).  It is **not** valid for **idempotency guard no-ops**.
+
+An idempotency guard is a `DataLayerCondition` node that detects "this event
+was already processed" and returns `Status.FAILURE` to abort the tree.
+Examples: `CheckInviteeNotAlreadyParticipantNode` (actor already a
+participant), `CheckCaseStatusIdempotencyNode` (status already appended).
+
+When a guard fires, **no ledger entry of any disposition must be written**
+(CLP-13-001).  Use only `logger.info` / `logger.debug`:
+
+```python
+self.logger.info(
+    "%s: actor '%s' already participant in case '%s' — skipping (idempotent)",
+    self.name, self.invitee_id, self.case_id,
+)
+return Status.FAILURE
+```
+
+**Why it matters**: A spurious `disposition="rejected"` entry for
+`invite_actor_to_case` appeared in the `fvcv_handoff_demo` ledger as
+"Invited an actor to the case [rejected]" with no actor name and no state
+transition.  Because the canonical ledger is replicated and contributes to
+the hash chain, any non-protocol content pollutes participants' replicas and
+misleads human readers and tooling alike (ADR-0019).
+
+**Distinction table**:
+
+| Pattern | Ledger entry? | Disposition | Use case |
+|---|---|---|---|
+| Emit-side correlation marker | ✅ yes | `"rejected"` | Dedup guard for outbound activities |
+| Received-side canonical entry | ✅ yes | `"recorded"` | CaseActor accepts a protocol assertion |
+| Idempotency guard no-op | ❌ **no** | — | Already-processed duplicate detected |
+
+**Resolved** (issue #2010, PR #2024, 2026-08-06): `SilentIdempotencyGuardMixin`
+(`vultron/core/behaviors/idempotency.py`) now exists and satisfies CLP-13-002.
+Both `CheckInviteeNotAlreadyParticipantNode` and `CheckCaseStatusIdempotencyNode`
+inherit it.  Implement all idempotency guards using this mixin — the
+`_idempotent_failure()` method returns `FAILURE` immediately after logging,
+making the "no ledger write" guarantee structural.
 
 ---
 
@@ -1009,3 +1063,245 @@ primary index path entirely untested. Code review caught the gap; a 7th test
 test per path where that path is the *sole* source of truth — all other paths
 are left empty or unpopulated. "One test exercises both paths" means neither
 path is verified independently.
+
+---
+
+## Guard Name Must Match the State-Machine Transition Precondition, Not Just the Absent Target
+
+(ISSUE-1825, 2026-07-30)
+
+When naming a guard node, derive the name from the state(s) that the guarded
+action's state-machine transition actually requires — not from the informal
+description of "not yet done" in the issue AC.
+
+**Anti-pattern**: AC says "Create `CheckCSFixNotYetDeployed` guard." Read
+literally, that name only requires the `D` bit to be unset, which is true for
+`vfd`, `Vfd`, and `VFd`. But the transition the guard protects (`vfd→VFD` via
+`TransitionCStoFixDeployed`) is only valid from `VFd`. Implementing the guard
+as "D is unset" allows an invalid `vfd → VFD` jump.
+
+**Rule**: Before implementing a guard node, look up the state-machine
+transition the guarded action performs and use that transition's domain
+precondition as the guard's correctness criterion. Name the node to reflect
+the specific state required (e.g., `CheckCSFixReadyNotDeployed` — VFd
+specifically), not the weaker absence predicate. Catching this requires reading
+`vultron/core/states/cs.py` `_vfd_transitions`, not just the AC text.
+
+<!-- Source: ISSUE-1825 -->
+
+---
+
+## `_resolve_case_manager_id` Is Duplicated in `develop_fix.py` — Do Not Canonicalise Yet
+
+(ISSUE-1812, 2026-07-29; tracked for unification in #1428)
+
+`vultron/core/behaviors/report/nodes/develop_fix.py` contains a local copy of
+`_resolve_case_manager_id` that mirrors the canonical version in
+`vultron.core.use_cases._helpers`. This duplication was deliberate: BT nodes
+in `vultron/core/behaviors/` cannot import from `vultron/core/use_cases/`
+(BTND-04-003), and no shared `core.behaviors` helper location exists yet.
+
+**Do not unify or move these helpers until #1428 is addressed.** Adding a
+shared helper module under `vultron/core/behaviors/` is a design decision
+requiring an ADR or spec entry (see the BTND-04 hierarchy rules). Until then,
+keep the inlined copy in `develop_fix.py` — it is not tech debt to fix in the
+same PR.
+
+<!-- Source: ISSUE-1812 -->
+
+---
+
+## `NoDataAvailable` Surfaces in `initialise()`, Not `setup_ports()`
+
+(ADR-0044 / BTND-03-011, 2026-07-29)
+
+`py_trees.behaviour.BehaviourWithPorts` raises `NoDataAvailable` when
+`get_input()` is called for a port whose blackboard key has no value. This
+happens in `initialise()` at the **start of the first tick** — not in
+`setup_ports()` or `setup()`. `setup_ports()` only registers key access;
+the read and the potential raise occur at the first actual `get_input()` call.
+
+**ADR-0044 and BTND-03-011 use "early error detection" to mean "at
+`initialise()`, before the main `update()` logic"** — not "before any tick."
+The practical improvement over direct attribute access (`self.blackboard.key`)
+is that a missing key raises a typed `NoDataAvailable` (not `AttributeError` or
+`KeyError`) at the tree's first tick entry point.
+
+**Test pattern for missing-required-port coverage**:
+
+```python
+# ❌ Wrong — setup_ports() does not raise; test passes vacuously
+node.setup_ports()
+# no assertion needed here; setup_ports() never raises
+
+# ✅ Correct — the raise happens in initialise()
+node.setup_ports()  # register keys; blackboard is still empty
+with pytest.raises(py_trees.blackboard.timebomb.NoDataAvailable):
+    node.initialise()  # calls get_input() → raises here
+```
+
+<!-- Source: ISSUE-1808; spec: BTND-03-011; ADR: ADR-0044 -->
+
+---
+
+## Reverted "Symptom-Only" Fix May Be Correct After Root Cause Is Removed
+
+(ISSUE-1777, 2026-07-30)
+
+When git history shows a change was **reverted as a "symptom-only fix"**, that
+label means the change was *premature* — not that the change itself was wrong.
+After the root cause is removed, the reverted change may be exactly what
+MUST-level spec requirements demand.
+
+**Pattern from ADR-0041**: `("Add", "CaseStatus")` was added to
+`_CASE_AUTHORED_SIGNATURES`, then reverted as a "symptom fix." After the
+vendor-authored back-fill was removed and the CaseActor began authoring those
+entries natively (CM-22-003), adding the signature back was required by
+CLP-12-001.
+
+**Rule**: Before inheriting a revert's conclusion, check:
+
+1. Was the revert motivated by the change being *wrong* or merely *premature*?
+2. Does a MUST-level spec require the change once the root cause is resolved?
+
+A "symptom fix" label in a commit message does not mean "do not apply ever."
+Read the revert's commit message for its actual reasoning, then check the
+governing spec.
+
+<!-- Source: ISSUE-1777 -->
+
+---
+
+## VFD/PXA Write-Boundary Validation in `CreateParticipantStatusNode`
+
+(ISSUE-1825, 2026-07-30; ISSUE-2478, 2026-08-22; see also `notes/case-state-model.md`)
+
+**Current state (PR #2503 / ISSUE-2478, 2026-08-22)**: `CreateParticipantStatusNode`
+now validates VFD and PXA transitions inline at the write boundary before any
+`dl.create()` / `dl.save()` call:
+
+- `_check_vfd_preconditions()` calls `is_valid_vfd_transition(current, target)` and
+  enforces role preconditions (CVDRole.VENDOR for `VFd`, CVDRole.DEPLOYER for `VFD`).
+  Same-state writes pass through. Invalid jumps return `Status.FAILURE` (CSB-16-001,
+  CSB-15-001/002).
+- `_check_pxa_precondition()` calls `is_valid_pxa_transition(current, target)`.
+  Invalid backward moves return `Status.FAILURE` (CSB-16-002).
+
+This closes the fragility identified in concern #1896: guard bypass or a missing
+upstream guard can no longer silently persist an illegal VFD/PXA snapshot.
+
+**Defence layers as of PR #2503:**
+
+- **Write node** (`CreateParticipantStatusNode`): fail-closed inline validation for
+  VFD adjacency, VFD role preconditions, and PXA monotonicity (primary boundary).
+- **Trigger path** (`add_participant_status_trigger_bt`): upstream
+  `ValidateTriggerTransitionsNode` raises `VultronValidationError` before the BT
+  write node is reached (added in PR #2307 / issues #2081, #1903).
+- **Received wire path** (`add_participant_status_tree`): `FilterParticipantStatusDimensionsNode`
+  - `ValidateRMTransitionNode` guard upstream (in place since `a17d7649`). Uses the weaker
+  `is_monotonic_vfd_forward` check intentionally — remote peers may advance through
+  multiple VFD steps between status messages; strict adjacency applies only to local
+  write nodes (CSB-16-001, AC-3).
+- **Architecture ratchet** (`test/architecture/test_vfd_rm_pxa_write_sites.py`): AST-audits
+  every `VfdDimension`/`RmDimension`/`PxaDimension` constructor call in `vultron/core/behaviors/`
+  and fails on any new unclassified site (added in PR #2307).
+
+**When writing or reviewing guard nodes that precede `CreateParticipantStatusNode`**:
+the write node is now a second line of defence, but upstream guards still matter —
+they surface invalid requests with richer error context (`VultronValidationError`) before
+the BT write node is reached, and they protect RM dimension writes (not validated by
+`CreateParticipantStatusNode` inline).
+
+<!-- Source: ISSUE-1825; GitHub concern #1896; PR #2307; ISSUE-2478; PR #2503 -->
+
+---
+
+## Sentinel Blackboard Writes Enable Structured Failure Context for Selector Fallbacks
+
+When a py_trees Sequence needs a fallback action on node failure, the standard
+Selector pattern only works cleanly if the failing node leaves the blackboard in
+a usable state for its sibling.
+
+**Pattern**: write sentinel values to the blackboard **before** returning
+`Status.FAILURE`. The sibling fallback node in the enclosing Selector can then
+read those sentinel values and act on structured failure context rather than
+empty keys.
+
+```python
+# Example: ReconstructChainTailNode writes sentinels before failing
+# so the sibling SendRejectLogEntryNode can compose a well-formed Reject.
+self.blackboard.tail_hash = ""    # sentinel: distinct from any valid 64-char hash
+self.blackboard.tail_index = -1   # sentinel: distinct from any non-negative index
+return Status.FAILURE
+```
+
+**Safety rule**: sentinel values MUST be semantically distinct from all valid
+data so that downstream consumers can distinguish "node failed" from "node
+succeeded with this value". Empty string vs. a 64-character hex hash and `-1`
+vs. a non-negative index are safe sentinels; `0` or `""` are not safe for fields
+where those are valid values.
+
+**When not to use this pattern**: if the failing node is not inside a Selector
+that has a fallback sibling, writing sentinel values is unnecessary overhead.
+Only add sentinels when you are composing a Selector with a specific fallback
+consumer in mind. *Source: ISSUE-1873*
+
+---
+
+## Blackboard Bridge Channel for Guard-to-Effect Communication
+
+(ISSUE-2258, 2026-08-20)
+
+When a guard node detects an anomaly and needs to communicate structured context
+to a downstream effect node — but returns `Status.FAILURE` so the Sequence
+aborts before the effect node runs — use the blackboard as an explicit channel:
+
+1. Define a module-level constant for the key (e.g.
+   `BB_RM_ANOMALY = "rm_transition_anomaly"`).
+2. The guard node writes to this key on **every** tick: `None` on normal paths,
+   a typed dict on anomaly paths, **including the FAILURE path**.
+3. The effect node reads the key. It runs only on the SUCCESS path of the
+   Sequence (normal or partial-accept); on FAILURE it never runs.
+
+**Why write on the FAILURE path?** The Sequence aborts after FAILURE, so the
+effect node never runs. The anomaly write on the guard's FAILURE path is the
+only durable record for that tick. Any node that runs before the next tick
+can read it.
+
+**Base class**: use `DataLayerAction` (not `DataLayerActionWithPorts`) for
+emission nodes that need both `self.blackboard` (standard py_trees blackboard)
+and DataLayer access. `DataLayerActionWithPorts` exposes the typed ports
+interface and does not provide `self.blackboard`; calling
+`self.blackboard.get(...)` on it raises `AttributeError`.
+
+See `vultron/core/behaviors/status/nodes/dimension_filter.py` for the reference
+implementation. *Source: ISSUE-2258*
+
+---
+
+## SHOULD-Level Emission Nodes Must Always Return SUCCESS
+
+(ADR-0067, RSH-06-004, 2026-08-20)
+
+Any BT node that emits a SHOULD-level side effect — advisory notes, audit
+records, non-critical notifications — MUST return `Status.SUCCESS` in all
+cases, including when the emission fails (no DataLayer, no factory, exception).
+
+**Why:** The note is advisory. Returning `FAILURE` would abort the enclosing
+Sequence and undo the status adoption that already succeeded — a worse outcome
+than a missing note. Protocol correctness MUST NOT depend on SHOULD-level
+emissions.
+
+**Pattern:** wrap the emission in a try/except, log a WARNING on failure, and
+always return `Status.SUCCESS`.
+
+```python
+def update(self) -> Status:
+    try:
+        self._emit_note()
+    except Exception as exc:
+        logger.warning("Could not emit note: %s", exc)
+    return Status.SUCCESS
+```
+
+<!-- Source: ISSUE-2258, ADR-0067 -->

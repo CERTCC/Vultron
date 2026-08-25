@@ -173,7 +173,7 @@ def test_each_arm_is_selector(arm_name):
 
 def test_default_prepare_nodes_are_deterministic():
     """DETERMINISTIC default: prepare nodes use AlwaysSucceed (BT-23-002)."""
-    from vultron.demo.fuzzer.base import AlwaysSucceed
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     tree = create_publication_tree(case_id=CASE_ID)
     exploit_seq = tree.children[1].children[0]
@@ -208,7 +208,7 @@ def test_stochastic_prepare_nodes_are_fuzzers():
 
 def test_default_publish_pipeline_nodes_are_deterministic():
     """DETERMINISTIC default: pipeline factories produce AlwaysSucceed per arm."""
-    from vultron.demo.fuzzer.base import AlwaysSucceed
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     tree = create_publication_tree(case_id=CASE_ID)
     for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
@@ -283,6 +283,69 @@ def test_full_tick_with_stochastic_evaluator_writes_intent_record():
     assert storage_key in py_trees.blackboard.Blackboard.storage
     decision = py_trees.blackboard.Blackboard.storage[storage_key]
     assert isinstance(decision, PublicationIntentDecision)
+
+
+def test_full_tick_with_deterministic_bundle_writes_intent_record_and_runs_fix_report_arms():
+    """DETERMINISTIC default writes the intent record and executes fix + report arms.
+
+    Regression test for the DETERMINISTIC-bundle silent-skip bug: with the
+    default ``PUBLICATION_DETERMINISTIC`` bundle, ``PrioritizePublicationIntents``
+    must write a :class:`PublicationIntentDecision` to the blackboard so the
+    ``ShouldPublish*`` gate nodes can read it.  Without this write, all three arms
+    silently take the Inverter-skip path and nothing gets published.
+
+    Uses stub factories for all prepare/publish nodes so the tree ticks to SUCCESS
+    deterministically regardless of protocol state.  Verifies:
+
+    1. The tree reaches ``Status.SUCCESS``.
+    2. A :class:`PublicationIntentDecision` is present on the blackboard after ticking.
+    3. The fix arm's ``DoFix`` Sequence reaches SUCCESS (not silently skipped).
+    4. The report arm's ``DoReport`` Sequence reaches SUCCESS (not silently skipped).
+    5. The exploit arm gracefully skips (``publish_exploit=False`` by default).
+    """
+    from vultron.core.behaviors.call_out.bundles.publication import (
+        PublicationCallOutBundle,
+    )
+
+    bundle = PublicationCallOutBundle(
+        prepare_exploit_factory=_marker_factory("PrepExploit"),  # type: ignore[arg-type]
+        prepare_fix_factory=_marker_factory("PrepFix"),  # type: ignore[arg-type]
+        prepare_report_factory=_marker_factory("PrepReport"),  # type: ignore[arg-type]
+        draft_advisory_artifact_factory=_marker_factory("Draft"),  # type: ignore[arg-type]
+        review_advisory_draft_factory=_marker_factory("Review"),  # type: ignore[arg-type]
+        revise_advisory_draft_factory=_marker_factory("Revise"),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=_marker_factory("Submit"),  # type: ignore[arg-type]
+    )
+    tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
+    tree.setup_with_descendants()
+    tree.tick_once()
+
+    # 1. Tree reaches SUCCESS.
+    assert tree.status == Status.SUCCESS
+
+    # 2. Intent record written to blackboard.
+    storage_key = f"/{INTENT_DECISION_KEY}"
+    assert storage_key in py_trees.blackboard.Blackboard.storage
+    decision = py_trees.blackboard.Blackboard.storage[storage_key]
+    assert isinstance(decision, PublicationIntentDecision)
+
+    # 3. Fix arm DoFix Sequence ran (SUCCESS), not skipped.
+    fix_arm = tree.children[2]
+    do_fix = fix_arm.children[0]
+    assert do_fix.status == Status.SUCCESS
+
+    # 4. Report arm DoReport Sequence ran (SUCCESS), not skipped.
+    report_arm = tree.children[3]
+    do_report = report_arm.children[0]
+    assert do_report.status == Status.SUCCESS
+
+    # 5. Exploit arm gracefully skipped (default publish_exploit=False).
+    exploit_arm = tree.children[1]
+    do_exploit = exploit_arm.children[0]
+    # DoExploit fails because ShouldPublishExploit returns FAILURE; arm succeeds
+    # via the Inverter skip guard.
+    assert exploit_arm.status == Status.SUCCESS
+    assert do_exploit.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------

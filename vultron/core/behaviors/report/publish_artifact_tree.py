@@ -66,13 +66,14 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import py_trees
-from py_trees.common import Access, Status
+from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.publication import (
+    from vultron.core.behaviors.call_out.bundles.publication import (
         PublicationCallOutBundle,
     )
 
@@ -120,7 +121,7 @@ class AdvisoryReviewDecision(BaseModel):
     feedback: str = ""
 
 
-class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
+class _NeedsRevisionGate(BehaviourWithPorts):
     """ProtocolInternal gate: read the review decision and check needs_revision.
 
     Reads the :class:`AdvisoryReviewDecision` written to :data:`REVIEW_DECISION_KEY`
@@ -139,11 +140,24 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            # data_type=object: accept any value; isinstance check in update()
+            # handles the type contract (avoid TypeError from get_input).
+            REVIEW_DECISION_KEY: PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
     def setup(self, **kwargs: Any) -> None:
-        """Register READ access to the shared review-decision blackboard key."""
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            key=REVIEW_DECISION_KEY, access=Access.READ
+        """Wire input port to the shared review-decision blackboard key."""
+        self.setup_ports(
+            port_remappings={REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"}
         )
 
     def update(self) -> Status:
@@ -154,7 +168,9 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
             truthy; FAILURE when it is falsy or when no decision has been
             written (i.e., the auto-approve path, which skips revision).
         """
-        if not self.blackboard.exists(REVIEW_DECISION_KEY):
+        try:
+            decision = self.get_input(REVIEW_DECISION_KEY)
+        except (KeyError, NoDataAvailable, NotImplementedError):
             self.logger.debug(
                 "%s: no %s on blackboard — skipping revision",
                 self.name,
@@ -162,7 +178,6 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
             )
             return Status.FAILURE
 
-        decision = self.blackboard.get(REVIEW_DECISION_KEY)
         if not isinstance(decision, AdvisoryReviewDecision):
             self.logger.warning(
                 "%s: %s holds %s, not an AdvisoryReviewDecision — "
@@ -190,49 +205,44 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
 def _default_draft_advisory_artifact_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    # Deferred import: demo/publication.py imports AdvisoryReviewDecision from
-    # this module at module level, creating a circular dependency.
-    from vultron.demo.fuzzer.report_management.publication import (
-        DraftAdvisoryArtifact,
-    )
+    # Core DETERMINISTIC default (ADR-0025, BT-23-002): the happy-path backend
+    # a real actor uses before a Composer agent is wired in.  The probabilistic
+    # DraftAdvisoryArtifact fuzzer node lives in the simulation layer and is
+    # injected via ``call_out=PUBLICATION_STOCHASTIC``.
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
-    return DraftAdvisoryArtifact(name)
+    return AlwaysSucceed(name)
 
 
 def _default_review_advisory_draft_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    # Deferred import: avoids circular dependency — demo/publication.py imports
-    # AdvisoryReviewDecision from this module at module level.
-    from vultron.demo.fuzzer.report_management.publication import (
-        ReviewAdvisoryDraft,
-    )
+    # Core DETERMINISTIC default (ADR-0025, BT-23-002); the auto-approve
+    # happy-path backend.  STOCHASTIC ReviewAdvisoryDraft is injected via
+    # ``call_out=PUBLICATION_STOCHASTIC``.
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
-    return ReviewAdvisoryDraft(name)
+    return AlwaysSucceed(name)
 
 
 def _default_revise_advisory_draft_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    # Deferred import: avoids circular dependency — demo/publication.py imports
-    # AdvisoryReviewDecision from this module at module level.
-    from vultron.demo.fuzzer.report_management.publication import (
-        ReviseAdvisoryDraft,
-    )
+    # Core DETERMINISTIC default (ADR-0025, BT-23-002).  STOCHASTIC
+    # ReviseAdvisoryDraft is injected via ``call_out=PUBLICATION_STOCHASTIC``.
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
-    return ReviseAdvisoryDraft(name)
+    return AlwaysSucceed(name)
 
 
 def _default_submit_advisory_artifact_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    # Deferred import: avoids circular dependency — demo/publication.py imports
-    # AdvisoryReviewDecision from this module at module level.
-    from vultron.demo.fuzzer.report_management.publication import (
-        SubmitAdvisoryArtifact,
-    )
+    # Core DETERMINISTIC default (ADR-0025, BT-23-002).  STOCHASTIC
+    # SubmitAdvisoryArtifact is injected via ``call_out=PUBLICATION_STOCHASTIC``.
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
-    return SubmitAdvisoryArtifact(name)
+    return AlwaysSucceed(name)
 
 
 def create_publish_artifact_tree(
@@ -270,18 +280,21 @@ def create_publish_artifact_tree(
             in the py_trees display tree.  Optional — defaults to empty string.
         draft_advisory_artifact_factory: Factory for the Composer call-out
             point that drafts the advisory artifact from case data.  Defaults
-            to the fuzzer backend (ADR-0025).
+            to the core DETERMINISTIC ``AlwaysSucceed`` backend (ADR-0025,
+            BT-23-002); inject ``call_out=PUBLICATION_STOCHASTIC`` for the
+            probabilistic fuzzer node.
         review_advisory_draft_factory: Factory for the Evaluator call-out
             point that reviews and approves the draft.  The default
-            auto-approve fuzzer implementation allows the pipeline to function
+            auto-approve DETERMINISTIC backend allows the pipeline to function
             before a real review agent is available (AC-3, ADR-0030).
         revise_advisory_draft_factory: Factory for the optional Composer
             call-out point that revises the draft based on review feedback.
             Runs only when the Evaluator sets ``needs_revision=True``.
-            Defaults to the fuzzer backend.
+            Defaults to the core DETERMINISTIC ``AlwaysSucceed`` backend.
         submit_advisory_artifact_factory: Factory for the Actuator call-out
             point that submits the finalized artifact to the external advisory
-            platform.  Defaults to the fuzzer backend.
+            platform.  Defaults to the core DETERMINISTIC ``AlwaysSucceed``
+            backend.
 
     Returns:
         Root Sequence node of the publish-artifact pipeline.

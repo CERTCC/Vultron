@@ -16,53 +16,71 @@
 """
 AddParticipantStatus behavior tree composition.
 
-Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
-(step 3 raw peer re-broadcast removed per DEMOMA-07-005):
+Composes the DEMOMA-07-003 workflow as a Sequence BT
+(step 3 raw peer re-broadcast removed per DEMOMA-07-005).
+
+StatusAdoptionGate of the two-seam authorization model (ADR-0046, RSH-01-001 to RSH-01-004):
+after ``AppendParticipantStatusNode`` records the raw peer update, a
+``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
+should adopt the status, then ``EmitAddCaseStatusToSelfNode`` emits a
+self-addressed ``Add(CaseStatus)`` to trigger EmbargoTeardownAuthorizationGate in
+``add_case_status_tree``.  Embargo teardown and other side-effects belong in
+EmbargoTeardownAuthorizationGate; ``add_participant_status_tree`` does not execute them directly
+(RSH-01-004).
 
     AddParticipantStatusBT (Sequence)
     ├─ VerifySenderIsParticipantNode          # Step 1: sender must be known participant
-    ├─ CheckParticipantRMNotClosedNode        # Guard: reject CLOSED→CLOSED rewrites
+    ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence("SkipIfNotCaseManager")
     │   │   └─ Inverter(CheckIsCaseManagerNode)
     │   └─ CommitCaseLedgerEntryNode
     ├─ AppendParticipantStatusNode            # Step 2: append status to participant record
-    ├─ PublicDisclosureBranchNode             # Step 4: embargo teardown on CS.P + CASE_OWNER
-    └─ AutoCloseIfCaseManager (Selector)      # Step 5: auto-close only when CASE_MANAGER
-        ├─ Sequence
-        │   ├─ CheckIsCaseManagerNode
-        │   └─ AutoCloseSequence (Sequence)   # DEMOMA-07-006 decomposed auto-close
-        │       ├─ AllParticipantsRMClosedConditionNode
-        │       ├─ CloseNotYetEmittedConditionNode
-        │       ├─ ResolveCaseManagerNode
-        │       └─ EmitCloseCaseNode
-        └─ Success (skip if not CASE_MANAGER)
+    ├─ StatusAdoptionGate (Selector)           # StatusAdoptionGate authorization (RSH-01-002)
+    │   ├─ CheckIsCaseOwnerNode               # Hard bypass: CASE_OWNER gospel (RSH-01-002)
+    │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
+    ├─ EmitAddCaseStatusToSelfNode            # StatusAdoptionGate emit → triggers EmbargoTeardownAuthorizationGate (RSH-01-003)
+    └─ EmitRMGapNoteNode                      # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
+``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
+``pxa`` independently before the commit, so an unacceptable value in one
+dimension no longer discards the accepted dimensions or aborts the Sequence
+before the StatusAdoptionGate emit (RSH-05, ISSUE-2235).  It replaces the former
+``CheckParticipantRMNotClosedNode`` guard, subsuming the terminal-``RM.CLOSED``
+check: a wholly refused assertion still returns FAILURE here, before any
+canonical ledger entry is committed.
+
+Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
+Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-05.
+Per ADR-0050: canonical RM closure is routed through Leave(VulnerabilityCase)
+receive path in receive_close_case_tree, not here.
 """
 
 import logging
 
 import py_trees
 
-from vultron.core.models.events.status import (
-    AddParticipantStatusToParticipantReceivedEvent,
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_DETERMINISTIC,
+    StatusAuthorizationCallOutBundle,
 )
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.sender.nodes.actions import ResolveCaseManagerNode
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    AllParticipantsRMClosedConditionNode,
-    CheckParticipantRMNotClosedNode,
-    CloseNotYetEmittedConditionNode,
-    EmitCloseCaseNode,
-    PublicDisclosureBranchNode,
+    EmitAddCaseStatusToSelfNode,
+    EmitRMGapNoteNode,
+    FilterParticipantStatusDimensionsNode,
     VerifySenderIsParticipantNode,
+)
+from vultron.core.models.events.status import (
+    AddParticipantStatusToParticipantReceivedEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,12 +89,13 @@ logger = logging.getLogger(__name__)
 def add_participant_status_tree(
     request: AddParticipantStatusToParticipantReceivedEvent,
     case_id: str | None = None,
+    call_out: StatusAuthorizationCallOutBundle = STATUS_AUTHORIZATION_DETERMINISTIC,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
     Handles receipt of an ``Add(ParticipantStatus, CaseParticipant)``
-    activity.  Implements the four remaining steps of DEMOMA-07-003 as BT
-    nodes in a Sequence (step 3 raw re-broadcast removed per DEMOMA-07-005).
+    activity.  Implements the DEMOMA-07-003 workflow with StatusAdoptionGate
+    authorization (ADR-0046, RSH-01-001 to RSH-01-004).
 
     When ``case_id`` is provided (or derived from the inline status object),
     a guarded-commit subtree is inserted after precondition guards so the
@@ -91,17 +110,30 @@ def add_participant_status_tree(
     is not available in the inline object, the
     ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
 
-    ``PublicDisclosureBranchNode`` uses the ``trigger_activity_factory`` that
-    the caller places on the py_trees blackboard via
-    ``BTBridge(trigger_activity=...)``.
+    After ``AppendParticipantStatusNode`` records the raw peer update, a
+    ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
+    should adopt the status:
+
+    - ``CheckIsCaseOwnerNode`` — hard bypass for CASE_OWNER gospel (RSH-01-002)
+    - ``CaseOwnerApprovesStatusUpdate`` — call-out backed by
+      ``call_out.status_adoption_gate_factory``; default is ``AlwaysSucceed``
+
+    When the gate passes, ``EmitAddCaseStatusToSelfNode`` emits a
+    self-addressed ``Add(CaseStatus)`` to the executing CaseActor, decoupling
+    EmbargoTeardownAuthorizationGate (side-effects, embargo teardown) in ``add_case_status_tree``
+    (RSH-01-003).  This tree does NOT execute embargo teardown directly
+    (RSH-01-004).
 
     Args:
         request: The parsed inbound domain event.
-    case_id: ID of the VulnerabilityCase.  When provided (or derivable
-        from the inline status object), a guarded-commit subtree is
-        inserted after precondition guards so the receiving CaseActor
-        writes a canonical ledger entry (CLP-10-005).  Pass ``None``
-        (with no derivable context) to skip the commit.
+        case_id: ID of the VulnerabilityCase.  When provided (or derivable
+            from the inline status object), a guarded-commit subtree is
+            inserted after precondition guards so the receiving CaseActor
+            writes a canonical ledger entry (CLP-10-005).  Pass ``None``
+            (with no derivable context) to skip the commit.
+        call_out: Call-out backend bundle for ``StatusAdoptionGate``.
+            Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
+            approves all non-CASE_OWNER updates (historical behavior).
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
@@ -119,30 +151,20 @@ def add_participant_status_tree(
         if context_field:
             tree_case_id = str(context_field)
 
-    auto_close_sequence = py_trees.composites.Sequence(
-        name="AutoCloseSequence",
+    # StatusAdoptionGate (RSH-01-002): CASE_OWNER gospel bypass first; all
+    # others route through the CaseOwnerApprovesStatusUpdate call-out.
+    status_adoption_gate = py_trees.composites.Selector(
+        name="StatusAdoptionGate",
         memory=False,
         children=[
-            AllParticipantsRMClosedConditionNode(case_id=tree_case_id),
-            CloseNotYetEmittedConditionNode(case_id=tree_case_id),
-            ResolveCaseManagerNode(case_id=tree_case_id or ""),
-            EmitCloseCaseNode(case_id=tree_case_id),
-        ],
-    )
-
-    auto_close_selector = py_trees.composites.Selector(
-        name="AutoCloseIfCaseManager",
-        memory=False,
-        children=[
-            py_trees.composites.Sequence(
-                name="CaseManagerAutoClose",
-                memory=False,
-                children=[
-                    CheckIsCaseManagerNode(case_id=tree_case_id),
-                    auto_close_sequence,
-                ],
+            CheckIsCaseOwnerNode(
+                sender_actor_id=actor_id,
+                case_id=tree_case_id,
+                name="CheckIsCaseOwner",
             ),
-            py_trees.behaviours.Success(name="AutoCloseSkippedNotCaseManager"),
+            call_out.status_adoption_gate_factory(
+                "CaseOwnerApprovesStatusUpdate"
+            ),
         ],
     )
 
@@ -155,9 +177,10 @@ def add_participant_status_tree(
                 sender_actor_id=actor_id,
                 case_id=tree_case_id,
             ),
-            CheckParticipantRMNotClosedNode(
+            FilterParticipantStatusDimensionsNode(
                 participant_id=participant_id,
                 status_id=status_id,
+                status_obj_fallback=status_obj,
             ),
         ],
         effect_nodes=[
@@ -165,21 +188,28 @@ def add_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,
+                validate_rm=False,
             ),
-            PublicDisclosureBranchNode(
-                status_obj=status_obj,
+            status_adoption_gate,
+            EmitAddCaseStatusToSelfNode(
+                participant_status_id=status_id,
+                case_id=tree_case_id,
+                name="EmitAddCaseStatusToSelf",
+            ),
+            EmitRMGapNoteNode(
                 sender_actor_id=actor_id,
                 case_id=tree_case_id,
+                name="EmitRMGapNote",
             ),
-            auto_close_selector,
         ],
     )
     logger.debug(
         "Created AddParticipantStatusBT for status=%s participant=%s"
-        " actor=%s case=%s",
+        " actor=%s case=%s (StatusAdoptionGate: %s)",
         status_id,
         participant_id,
         actor_id,
         tree_case_id,
+        call_out.__class__.__name__,
     )
     return root

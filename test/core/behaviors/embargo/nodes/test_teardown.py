@@ -20,11 +20,15 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import py_trees
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
+    ClearActiveEmbargoNode,
+    HasEmbargoActiveNode,
     RemoveFromProposedEmbargoesNode,
+    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
 )
 from vultron.core.states.em import EM
@@ -60,9 +64,293 @@ def _setup_blackboard_with_factory(
     bb.trigger_activity_factory = factory
 
 
+class TestHasEmbargoActiveNode:
+    """Tests for HasEmbargoActiveNode."""
+
+    def test_returns_success_when_em_active(self):
+        """Returns SUCCESS when EM state is ACTIVE."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("hea1", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = HasEmbargoActiveNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_success_when_em_revise(self):
+        """Returns SUCCESS when EM state is REVISE (also an active embargo)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("hea2", em_state=EM.REVISE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = HasEmbargoActiveNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_failure_when_em_exited(self):
+        """Returns FAILURE when EM state is EXITED (teardown already done)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("hea3", em_state=EM.EXITED)
+        case.active_embargo = None
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = HasEmbargoActiveNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+    def test_returns_failure_when_case_missing(self):
+        """Returns FAILURE when case is not found in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        setup_blackboard(dl)
+
+        node = HasEmbargoActiveNode(
+            case_id="https://example.org/cases/nonexistent"
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestClearActiveEmbargoNode:
+    """Tests for ClearActiveEmbargoNode."""
+
+    @pytest.mark.spec("EMB-07-001")
+    def test_transitions_em_active_to_exited_and_clears_pointer(self):
+        """Transitions EM.ACTIVE → EXITED and sets active_embargo = None."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen1", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
+        assert updated.active_embargo is None
+
+    def test_teardown_logged_in_narrative_form(self, caplog):
+        """EM ACTIVE → EXITED is logged at INFO (SL-04-001, AC-16)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen-narr", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl, actor_id=ACTOR_ID)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.INFO):
+            bt.tick()
+
+        narrative = [
+            r
+            for r in caplog.records
+            if "embargo ACTIVE → EXITED" in r.getMessage()
+            and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a narrative embargo-teardown line"
+        assert (
+            narrative[0].getMessage()
+            == f"Actor '{ACTOR_ID}' embargo ACTIVE → EXITED"
+            f" for case '{case.id_}'"
+        )
+
+    def test_cleared_embargo_detail_line_is_debug(self, caplog):
+        """The verbose "Cleared active embargo" detail line is DEBUG."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen-detail", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.DEBUG):
+            bt.tick()
+
+        detail = [
+            r
+            for r in caplog.records
+            if "Cleared active embargo" in r.getMessage()
+        ]
+        assert detail, "Expected the 'Cleared active embargo' detail line"
+        assert all(r.levelno == logging.DEBUG for r in detail)
+
+    @pytest.mark.spec("EMB-07-002")
+    def test_transitions_em_revise_to_exited(self):
+        """Transitions EM.REVISE → EXITED."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen2", em_state=EM.REVISE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
+
+    @pytest.mark.spec("EMB-07-003")
+    def test_idempotent_when_already_exited(self):
+        """Returns SUCCESS without modifying state when EM already EXITED."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen3", em_state=EM.EXITED)
+        case.active_embargo = None
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
+
+    def test_state_sync_override_for_unexpected_em_state(self, caplog):
+        """Logs WARNING and applies state-sync override for non-standard EM state."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen4", em_state=EM.NONE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.WARNING):
+            bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert any("state-sync override" in r.message for r in caplog.records)
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
+
+    def test_returns_failure_when_case_missing(self):
+        """Returns FAILURE when the case is not found in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        setup_blackboard(dl)
+
+        node = ClearActiveEmbargoNode(
+            case_id="https://example.org/cases/nonexistent"
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+    def test_single_save_call(self):
+        """Both em_state and active_embargo are committed in a single datalayer.save()."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen5", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        original_save = dl.save
+        save_calls = []
+
+        def recording_save(obj):
+            save_calls.append(obj)
+            return original_save(obj)
+
+        dl.save = recording_save
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert (
+            len(save_calls) == 1
+        ), f"Expected exactly 1 datalayer.save() call, got {len(save_calls)}"
+
+
+class TestResetParticipantConsentNode:
+    """Tests for ResetParticipantConsentNode."""
+
+    @pytest.mark.spec("EMB-13-001")
+    def test_resets_participant_pec_to_no_embargo(self):
+        """Resets all participant PEC states to NO_EMBARGO."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("rpcn1", em_state=EM.ACTIVE)
+        participant = as_CaseParticipant(
+            id_=f"{case.id_}/participants/p1",
+            attributed_to="https://example.org/users/finder",
+        )
+        participant.embargo_consent_state = PEC.SIGNATORY.value
+        case.case_participants.append(participant.id_)
+        dl.create(case)
+        dl.create(participant)
+
+        setup_blackboard(dl)
+        node = ResetParticipantConsentNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
+        assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
+
+    def test_returns_success_with_no_participants(self):
+        """Returns SUCCESS when case has no participants."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("rpcn2", em_state=EM.ACTIVE)
+        case.case_participants = []
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ResetParticipantConsentNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_failure_when_case_missing(self):
+        """Returns FAILURE when the case is not found in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        setup_blackboard(dl)
+
+        node = ResetParticipantConsentNode(
+            case_id="https://example.org/cases/nonexistent"
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+
 class TestApplyEmbargoTeardownNode:
     """Tests for ApplyEmbargoTeardownNode."""
 
+    @pytest.mark.spec("EMB-07-001")
     def test_transitions_em_active_to_exited(self):
         """Node transitions EM.ACTIVE → EM.EXITED and saves the case."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -80,6 +368,52 @@ class TestApplyEmbargoTeardownNode:
         assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
+    def test_teardown_logged_in_narrative_form(self, caplog):
+        """ApplyEmbargoTeardownNode logs EM ACTIVE → EXITED at INFO."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("atn-narr", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.INFO):
+            bt.tick()
+
+        narrative = [
+            r
+            for r in caplog.records
+            if "embargo ACTIVE → EXITED" in r.getMessage()
+            and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a narrative embargo-teardown line"
+        assert f"for case '{case.id_}'" in narrative[0].getMessage()
+
+    def test_teardown_applied_detail_line_is_debug(self, caplog):
+        """The verbose "Embargo teardown applied" detail line is DEBUG."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("atn-detail", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.DEBUG):
+            bt.tick()
+
+        detail = [
+            r
+            for r in caplog.records
+            if "Embargo teardown applied" in r.getMessage()
+        ]
+        assert detail, "Expected the 'Embargo teardown applied' detail line"
+        assert all(r.levelno == logging.DEBUG for r in detail)
+
+    @pytest.mark.spec("EMB-07-002")
     def test_transitions_em_revise_to_exited(self):
         """Node transitions EM.REVISE → EM.EXITED (also a valid terminate path)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -96,6 +430,7 @@ class TestApplyEmbargoTeardownNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
 
+    @pytest.mark.spec("EMB-07-003")
     def test_idempotent_when_already_exited(self):
         """Node returns SUCCESS without modifying state when already EXITED."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -132,6 +467,7 @@ class TestApplyEmbargoTeardownNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
 
+    @pytest.mark.spec("EMB-13-001")
     def test_resets_participant_embargo_consent(self):
         """Node resets participant PEC state to NO_EMBARGO."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -355,7 +691,9 @@ class TestSendAnnounceEmbargoEventNode:
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
-        patch_target = "vultron.core.behaviors.embargo.nodes.teardown.add_activity_to_outbox"
+        patch_target = (
+            "vultron.core.behaviors.embargo.nodes.emit.add_activity_to_outbox"
+        )
         with patch(patch_target, side_effect=RuntimeError("outbox error")):
             bt.tick()
 

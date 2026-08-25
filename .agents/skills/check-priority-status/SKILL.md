@@ -58,8 +58,9 @@ Run the check-priority-status skill. The skill will:
 ### Querying Project #24 by Schedule Tier
 
 ```bash
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
 gh api graphql -f query='{
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "'"$PROJECT_ID"'") {
     ... on ProjectV2 {
       items(first: 100) {
         nodes {
@@ -156,6 +157,25 @@ Open PRs awaiting merge for 7+ days.
 #### Dependencies & Blockers
 
 Issues with explicit "blocked by" relationships that are still open.
+
+#### Tier-Inversion Dependencies
+
+An open issue whose formal **blocked-by** target sits in a *strictly later*
+Schedule tier than the issue itself. Tier order is
+Focus → Now → Next → Later → Someday; a blocker must be built before the thing
+it blocks, so it must sit at the **same tier or earlier**. A Now item blocked by
+a Someday item, or a Focus item blocked by a Next item, runs backwards against
+the schedule. Report each as:
+
+```text
+#<blocked> (<tier>) ⟵ blocked by #<blocker> (<later tier>)
+```
+
+A tier inversion is a **reparenting / calving signal**, not just a scheduling
+nit — it usually means the dependent is parented on the wrong epic, or that the
+dependent and its blocker are one coherent chunk that should calve into a single
+schedulable iceberg. This skill only surfaces the inversion (see the hard stop);
+`calve-epics` decides how to resolve it.
 
 ### Triage Summary
 

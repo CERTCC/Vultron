@@ -4,64 +4,64 @@ title: review-priorities Reference
 
 # Review Priorities — Reference
 
-Technical implementation details for the combined audit-and-update workflow.
+`review-priorities` is a thin coordinator. It owns no board mechanics and no
+constants of its own — it sequences the granular board skills and helps you
+interpret the audit between them.
 
 ## Architecture
 
 ```text
 review-priorities (coordinator)
-  ├─ Phase 1: Invoke check-priority-status
+  ├─ Phase 1: Invoke check-priority-status  (read-only audit)
   │  └─ Output: Status report (by tier, per Epic, coverage, health)
-  ├─ Phase 2: Summarize significant findings for user
+  ├─ Phase 2: Summarize significant findings for the user
   ├─ Phase 3: Interactive update loop (ask_user per action)
-  │  ├─ Move item between tiers (API mutation)
-  │  ├─ Promote triage item (API mutation)
-  │  ├─ Create Epic (invoke create-epic skill)
-  │  └─ Archive Epic (invoke archive-history, close issue)
-  └─ Phase 4: Commit if notes/history files changed
+  │  ├─ Move item between tiers        → invoke update-priorities
+  │  ├─ Promote triage item            → invoke update-priorities
+  │  ├─ Add off-board issue to board   → invoke update-priorities
+  │  ├─ Reshape epic roadmap           → invoke calve-epics
+  │  └─ Archive completed Epic         → invoke update-priorities
+  └─ Phase 4: Commit iff a delegated action wrote a file
 ```
 
-## Project Board Constants
+The design mirrors `pr-ship` over `pr-triage`/`pr-execute`/`pr-verify`: the
+coordinator adds the review-and-decide layer; the granular skills remain
+independently invokable and hold the implementation.
 
-| Name | Value |
+## Where the constants and mechanics live
+
+Do **not** duplicate any of these into this skill.
+
+| What | Canonical home |
 |---|---|
-| Project node ID | `PVT_kwDOAjf0s84BZnre` |
-| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Now option ID | `1e84189c` |
-| Next option ID | `9fca00b2` |
-| Later option ID | `e2149d3e` |
-| Someday option ID | `fcffa79d` |
+| Board node/field/option/issue-type IDs | resolve by name via `.agents/skills/shared/board-id.sh` (see `shared/README.md`) |
+| Move item between tiers (GraphQL mutation) | `update-priorities` |
+| Promote triage / add to board | `update-priorities` |
+| Archive a completed Epic | `update-priorities` → `archive-history` |
+| Board audit queries | `check-priority-status` |
+| Epic roadmap shaping (route / calve / recrystallize) | `calve-epics` → `create-epic` + `manage-github-issue` |
 
-## Phase 1: Run check-priority-status
+> **Never hardcode board IDs.** They are server-generated and rotate when the
+> Schedule field's options are edited. Resolve them at runtime via
+> `board-id.sh`; a pasted literal drifts stale. This has caused a real
+> mis-scheduling bug before.
 
-Invoke the `check-priority-status` skill and capture its output. The report
-provides:
+## Phase 1: Audit
 
-- Items per tier (Now/Next/Later/Someday)
-- Per-Epic sub-issue progress
-- Coverage (issues on board vs. off board)
-- Triage count (Someday items needing scheduling)
-- Stale items (>7 days no activity)
-- Orphaned PRs
+Invoke `check-priority-status`; capture its report. It provides items per tier,
+per-Epic sub-issue progress, coverage (on-board vs. off-board), triage count,
+stale items (>7 days), and orphaned PRs. This skill adds nothing to the query
+set — if the audit is missing something, fix it in `check-priority-status`.
 
 ## Phase 2: Summarize Findings
 
-Surface significant findings via plain text before asking for action:
-
-```text
-📊 Board status:
-  Now:     3 Epics (12 open sub-issues, 2 blocked)
-  Next:    2 Epics (8 open sub-issues)
-  Later:   1 Epic  (4 open sub-issues)
-  Someday: 7 items (triage needed)
-
-⚠ 14 open issues not yet on board
-⚠ 3 stale items (>1 week inactive)
-```
+Surface significant findings in plain text before asking for any action (empty
+tiers, overcrowded Now, triage backlog, off-board issues, blocked Now items,
+stale items). Recommend, do not act.
 
 ## Phase 3: Interactive Update Loop
 
-Use `ask_user` for every choice — never ask questions in plain text.
+Use `ask_user` for every choice — never ask in plain prose.
 
 ```python
 while True:
@@ -70,74 +70,40 @@ while True:
         choices=[
             "Move item(s) between Schedule tiers (Recommended)",
             "Promote Triage items to Now/Next/Later",
-            "Create a new Epic for uncovered issues",
+            "Add an off-board issue to the board",
+            "Reshape the epic roadmap (route / calve / recrystallize)",
             "Archive a completed Epic",
             "No changes, exit",
-        ]
+        ],
     )
     if action == "No changes, exit":
         break
-    # ... delegate to sub-workflow
+    # Delegate to the owning skill — do NOT inline the mutation:
+    #   move / promote / add-to-board / archive  → update-priorities
+    #   reshape epic roadmap                     → calve-epics
 ```
 
-### Move Item Between Tiers
+### Reshape the Epic Roadmap
 
-1. Ask which issue/Epic number to move.
-2. Ask which tier (Now / Next / Later / Someday).
-3. Look up the item's project item ID via board items query.
-4. Call `updateProjectV2ItemFieldValue` with the chosen option ID.
-5. Confirm to user.
+Invoke the `calve-epics` skill — it owns the route / calve / recrystallize
+judgment and gates epic creation on human confirmation of the design-grain
+fracture line. `calve-epics` delegates the mechanics to `create-epic` (epic
+creation + sub-issue wiring + board placement) and `manage-github-issue`
+(re-parenting). Do **not** invoke `create-epic` directly from this workflow, and
+never mint an epic inline.
 
-### Promote Triage Items
-
-1. List all Someday items for user to choose from.
-2. Ask which tier to promote to.
-3. Apply the move (same mutation as above).
-
-### Create Epic
-
-1. Ask for Epic title and description.
-2. Ask which leaf issues to include.
-3. Invoke `create-epic` skill.
-4. Wire sub-issues via `manage-github-issue`.
-
-### Archive Completed Epic
-
-1. Confirm all sub-issues are closed.
-2. Invoke `archive-history` skill with type `priority`.
-3. Close the Epic: `gh issue close <N> --repo CERTCC/Vultron`.
+Each delegated skill collects its own parameters (which issue, which tier, epic
+details) and applies the change live. Loop back to the menu after each.
 
 ## Phase 4: Commit (if needed)
 
 Board changes (Schedule field updates) happen live via API — no file commit
-needed.
-
-If `archive-history` was invoked (creates a file under `plan/history/`),
-or if notes files were modified, invoke the `commit` skill.
+needed. If a delegated action wrote a file under `plan/history/` (via
+`archive-history`) or modified notes, invoke the `commit` skill.
 
 ## Error Handling
 
-### GitHub API Failure
-
-```text
-❌ Failed to fetch board items
-   Cause: No token or insufficient permissions
-   Action: Exit with guidance ("Check your GitHub token")
-```
-
-### Item Not on Board
-
-If the user references an issue not in Project #24, offer to add it first
-with `Schedule=Someday` before moving it to the desired tier.
-
-## Configuration
-
-```bash
-GITHUB_TOKEN=ghp_...   # Required for API access
-```
-
-## Rollback
-
-- Board moves: re-run the move mutation with the previous tier option ID.
-- Closed Epics: `gh issue reopen <N> --repo CERTCC/Vultron`.
-- History entries: immutable; document corrections in a new entry.
+Delegated skills own their own error handling (auth failures, item-not-on-board
+offers to add it first, etc.). This coordinator only needs to stop cleanly if
+`check-priority-status` cannot produce a report — without the audit there is
+nothing to review.

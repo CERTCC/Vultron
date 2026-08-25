@@ -190,3 +190,76 @@ class TestDynamicDiscovery:
 
         assert VOCABULARY["VulnerabilityReport"] is as_VulnerabilityReport
         assert VOCABULARY["VulnerabilityCase"] is as_VulnerabilityCase
+
+
+class TestCoreTypeMapFallback:
+    """Regression tests for ARCH-12-003 / issue #1992.
+
+    Core-layer types must NOT appear in VOCABULARY directly, but
+    find_in_vocabulary() must still locate them via the CORE_TYPE_MAP fallback.
+    """
+
+    def setup_method(self):
+        # Import the objects subpackage — its _discover_modules() imports each
+        # wire vocab module, which in turn imports the core model classes and
+        # triggers VultronObject.__init_subclass__ to populate CORE_TYPE_MAP.
+        import vultron.wire.as2.vocab.objects  # noqa: F401
+
+    _CORE_TYPE_NAMES = [
+        "CoreActor",
+        "OfferRecord",
+        "PendingCaseInbox",
+        "PendingCreateCaseActivity",
+        "ReportCaseLink",
+        "ReplicationState",
+    ]
+
+    def test_core_types_absent_from_vocabulary(self):
+        """None of the formerly-misregistered core types should be in VOCABULARY."""
+        for name in self._CORE_TYPE_NAMES:
+            assert (
+                name not in VOCABULARY
+            ), f"ARCH-12-003 violation: {name!r} must not be in wire VOCABULARY"
+
+    def test_actor_key_is_wire_type(self):
+        """VOCABULARY['Actor'] must be the wire as_Actor, not CoreActor."""
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.core.models.actor import CoreActor
+
+        assert "Actor" in VOCABULARY
+        assert VOCABULARY["Actor"] is as_Actor
+        assert VOCABULARY["Actor"] is not CoreActor
+
+    def test_core_types_findable_via_fallback(self):
+        """find_in_vocabulary must resolve each formerly-misregistered core type."""
+        for name in self._CORE_TYPE_NAMES:
+            cls = find_in_vocabulary(name)
+            assert (
+                cls is not None
+            ), f"find_in_vocabulary({name!r}) returned None"
+            assert callable(
+                cls
+            ), f"find_in_vocabulary({name!r}) is not callable"
+
+    def test_core_actor_resolves_to_core_actor_class(self):
+        """find_in_vocabulary('CoreActor') returns CoreActor."""
+        from vultron.core.models.actor import CoreActor
+
+        cls = find_in_vocabulary("CoreActor")
+        assert cls is CoreActor
+
+    def test_offer_record_resolves_correctly(self):
+        """find_in_vocabulary('OfferRecord') returns VultronOfferRecord."""
+        from vultron.core.models.offer_record import VultronOfferRecord
+
+        cls = find_in_vocabulary("OfferRecord")
+        assert cls is VultronOfferRecord
+
+    def test_replication_state_resolves_correctly(self):
+        """find_in_vocabulary('ReplicationState') returns VultronReplicationState."""
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+
+        cls = find_in_vocabulary("ReplicationState")
+        assert cls is VultronReplicationState

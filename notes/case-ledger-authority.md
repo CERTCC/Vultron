@@ -397,29 +397,66 @@ itself or from a prior invocation having been authorized.
 
 ---
 
-## Prologue Backfill Pattern (Issue #1688)
+## Native Case-Initialization Entries (ADR-0041) — replaces the prologue backfill
 
-When a `CaseActor` accepts the `CASE_MANAGER` role it must back-fill ledger
-entries for protocol events that occurred before it was appointed (report
-submission, case creation, participant status initialization). This is done by
-`WritePrologueLedgerEntriesNode` (`vultron/core/behaviors/case/nodes/prologue.py`),
-which runs as the first action in `create_offer_case_manager_role_received_tree()`
-before `StoreActivityNode`.
+*Spec: `specs/case-management.yaml` CM-22-003; `specs/case-ledger-processing.yaml`
+CLP-12.*
 
-**When it runs**: immediately after the CLP-10-006 guarded `offer_case_manager_role`
-commit, during `OfferCaseManagerRoleReceivedBT` execution.
+The CaseActor commits every case-initialization ledger entry **natively**, in
+`_CommitNativeLedgerEntriesNode` inside
+`vultron/core/behaviors/case/case_proposal_received_tree.py`, while handling the
+inbound `Create(as_CaseProposal)`.  Causal order:
 
-**Best-effort semantics**: the node returns `SUCCESS` regardless of individual
-entry failures (case not on this DataLayer, missing genesis hash, etc.) so the
-enclosing Sequence is never blocked by prologue failures.
+1. `create_case` — `Create(VulnerabilityCase)`, `actor` = CaseActor
+2. `add_report_to_case` — `Add(VulnerabilityReport)`, `actor` = CaseActor
+3. `add_participant_status_to_participant` × N — `actor` = CaseActor
+4. `add_case_status_to_case` — `Add(CaseStatus)`, `actor` = **vendor URI**
 
-**log_index ordering caveat**: prologue entries are committed in causal order
-(submit_report → create_case → add_report_to_case → per-participant statuses →
-add_case_status_to_case), but their `log_index` values are assigned at commit
-time, not at the time the original events occurred. This means prologue entries
-will have higher log_index values than any prior entries for the same case if
-the ledger already has entries. This is a known limitation: log_index is
-assignment-time-ordered, not causal-event-time-ordered, for prologue backfill.
+The `payloadSnapshot` shapes come from
+`vultron/core/behaviors/case/ledger_snapshots.py`.
+
+**Exactly one `add_participant_status` entry per participant** (CM-18-007). The
+default embargo is established *before* participant PEC state is fixed, so each
+participant's single initialization snapshot already carries its true consent
+value — no `NO_EMBARGO` placeholder followed by a correction. Because `ACCEPT` is
+valid directly from `NO_EMBARGO` (CM-18-003, ADR-0048), one transition suffices.
+Do not add a second per-participant entry here: it would shift every downstream
+`log_index`, which is what got PR #1746 reverted after it broke `fvcv-extension`
+VFD replication timing, and it would break the "`log_index` order *is* causal
+order" property below.
+
+**Fail-fast on genesis, best-effort after.** Step 1 is the root of the
+CaseActor's hash chain; if it fails the node returns FAILURE so the enclosing
+Sequence aborts before `Accept`/`Create` are emitted, rather than telling the
+vendor a case exists with no canonical ledger.  Steps 2–4 log a warning and
+continue.
+
+**Why step 4 uses the vendor URI.** The vendor is who set the genesis case
+status, so the snapshot names the vendor as `actor`.  That is a provenance
+statement, not a workaround: `("Add", "CaseStatus")` *is* in
+`_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so a CaseActor-authored
+`add_case_status_to_case` also validates — which is what makes single-actor
+deployments (vendor IS the CaseActor) work.
+
+History worth not re-litigating: adding `("Add", "CaseStatus")` to
+`_CASE_AUTHORED_SIGNATURES` on its own (commit `256ef3e1`) was rejected and
+reverted (`f6578c22`) as ADR-0041 Option 3 — a *symptom* fix that left the
+two-init-path architecture in place.  The signature entry is correct; it was
+only ever wrong as a substitute for removing the back-fill.  Both are now
+done.
+
+> **Historical:** Issue #1688 introduced `WritePrologueLedgerEntriesNode`
+> (`vultron/core/behaviors/case/nodes/prologue.py`), which back-filled these
+> entries best-effort when the CaseActor accepted an `Offer(CaseManagerRole)`.
+> ADR-0041 removed the two-init-path architecture that made the back-fill
+> necessary, and Issue #1777 deleted the node.  Its known
+> assignment-time-vs-causal-time `log_index` skew disappeared with it: the
+> native entries are committed at initialization, so `log_index` order *is*
+> causal order.  `Offer(CaseManagerRole)` was subsequently removed entirely
+> (issue #2429, ADR-0039); the delegation mechanism was replaced by
+> `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
+> context=VulnerabilityCase)`) handled by `OfferCaseParticipantRoleReceivedUseCase`.
+> See SE-08-005.
 
 ---
 
@@ -495,3 +532,48 @@ This would:
 The keypair-per-CaseActor design is tracked as a planned capability. Until
 it lands, the domain-bound UUID genesis hash defined in CLP-08-002 is the
 correct implementation.
+
+---
+
+## `invite_actor_to_case` Uses `disposition="recorded"` (Issue #1689)
+
+`EmitInviteActorToCaseNode._emit()` (in
+`vultron/core/behaviors/case/nodes/actor.py`) was changed from
+`disposition="rejected"` to `disposition="recorded"` in PR #1746.
+
+**Why this matters**: `disposition="rejected"` bypasses
+`_validate_canonical_entry`, so the payload snapshot was never validated.
+Using `disposition="recorded"` runs full validation, which requires that
+`Invite(CoreActor, VulnerabilityCase)` be recognized as a canonical payload
+signature. This is why `"CoreActor"` was added to `_ACTOR_TYPES` in
+`vultron/core/behaviors/sync/nodes/canonical_entry.py`.
+
+**Snapshot construction**: the `payloadSnapshot` is built with
+`_snapshot_with_context(raw, case_id)` to strip any bare-string inline
+object references (`object`, `object_`, `target`) that
+`_validate_canonical_entry` would otherwise reject.
+
+---
+
+## `EmitAddCaseParticipantNode` Pattern for `Add(CaseParticipant)` (Issue #1689)
+
+After `PersistInviteeParticipantNode` records the new participant in the
+DataLayer, `EmitAddCaseParticipantNode` (in
+`vultron/core/behaviors/case/nodes/accept_invite.py`) fans out
+`Add(CaseParticipant, Case)` to all existing participants and commits a
+canonical `CaseLedgerEntry(disposition="recorded")`.
+
+**Fan-out delivery**: recipients are resolved from
+`case.actor_participant_index.keys()` (HTTP actor URLs), **not** from
+`case.case_participants` (which stores bare UUID participant IDs as strings
+in the DataLayer). Using bare UUIDs as inbox delivery targets causes
+`"Request URL is missing 'http://'"` errors. The actor-participant index
+keys are always proper HTTP URIs.
+
+**Snapshot bare-ref pattern**: factory methods serialize `target=case_id`
+as a bare URI string in the stored activity. `_build_snapshot` must call
+`_snapshot_with_context(raw, case_id)` (which calls `_drop_bare_inline_refs`)
+before passing the snapshot to `create_commit_log_entry_tree`. Skipping this
+step will cause `_validate_canonical_entry` to reject the entry with
+`"bare string found"`. See also
+`notes/plan/incoming/learnings/20260727-snapshot-bare-ref-pattern.md`.

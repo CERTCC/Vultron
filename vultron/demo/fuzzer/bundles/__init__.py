@@ -32,6 +32,11 @@ from vultron.demo.fuzzer.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_STOCHASTIC,
     AcquireExploitCallOutBundle,
 )
+from vultron.demo.fuzzer.bundles.assign_cve_id import (
+    ASSIGN_CVE_ID_DETERMINISTIC,
+    ASSIGN_CVE_ID_STOCHASTIC,
+    AssignCveIdCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_DETERMINISTIC,
     ASSIGN_VUL_ID_STOCHASTIC,
@@ -46,6 +51,16 @@ from vultron.demo.fuzzer.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DEPLOY_FIX_STOCHASTIC,
     DeployFixCallOutBundle,
+)
+from vultron.demo.fuzzer.bundles.deploy_mitigation import (
+    DEPLOY_MITIGATION_DETERMINISTIC,
+    DEPLOY_MITIGATION_STOCHASTIC,
+    DeployMitigationCallOutBundle,
+)
+from vultron.demo.fuzzer.bundles.develop_fix import (
+    DEVELOP_FIX_DETERMINISTIC,
+    DEVELOP_FIX_STOCHASTIC,
+    DevelopFixCallOutBundle,
 )
 from vultron.demo.fuzzer.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
@@ -67,6 +82,11 @@ from vultron.demo.fuzzer.bundles.report_to_others import (
     REPORT_TO_OTHERS_STOCHASTIC,
     ReportToOthersCallOutBundle,
 )
+from vultron.demo.fuzzer.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_DETERMINISTIC,
+    STATUS_AUTHORIZATION_STOCHASTIC,
+    StatusAuthorizationCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.validation import (
     VALIDATION_DETERMINISTIC,
     VALIDATION_STOCHASTIC,
@@ -76,16 +96,22 @@ from vultron.demo.fuzzer.bundles.validation import (
 __all__ = [
     # Bundle classes
     "AcquireExploitCallOutBundle",
+    "AssignCveIdCallOutBundle",
+    "DevelopFixCallOutBundle",
     "AssignVulIdCallOutBundle",
     "CloseReportCallOutBundle",
     "DeployFixCallOutBundle",
+    "DeployMitigationCallOutBundle",
     "EmbargoCallOutBundle",
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
     "ReportToOthersCallOutBundle",
+    "StatusAuthorizationCallOutBundle",
     "ValidationCallOutBundle",
     # Deterministic singletons
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
+    "ASSIGN_CVE_ID_DETERMINISTIC",
+    "DEVELOP_FIX_DETERMINISTIC",
     "ASSIGN_VUL_ID_DETERMINISTIC",
     "CLOSE_REPORT_DETERMINISTIC",
     "DEPLOY_FIX_DETERMINISTIC",
@@ -93,15 +119,21 @@ __all__ = [
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
     "REPORT_TO_OTHERS_DETERMINISTIC",
+    "STATUS_AUTHORIZATION_DETERMINISTIC",
     "VALIDATION_DETERMINISTIC",
     # Stochastic singletons
     "ACQUIRE_EXPLOIT_STOCHASTIC",
+    "ASSIGN_CVE_ID_STOCHASTIC",
+    "DEVELOP_FIX_STOCHASTIC",
     "ASSIGN_VUL_ID_STOCHASTIC",
     "CLOSE_REPORT_STOCHASTIC",
     "DEPLOY_FIX_STOCHASTIC",
+    "DEPLOY_MITIGATION_DETERMINISTIC",
+    "DEPLOY_MITIGATION_STOCHASTIC",
     "EMBARGO_STOCHASTIC",
     "PRIORITIZATION_STOCHASTIC",
     "PUBLICATION_STOCHASTIC",
     "REPORT_TO_OTHERS_STOCHASTIC",
+    "STATUS_AUTHORIZATION_STOCHASTIC",
     "VALIDATION_STOCHASTIC",
 ]

@@ -112,7 +112,7 @@ def test_report_phase_status_id_different_states():
 
 
 def test_has_case_statuses_true_when_non_empty():
-    from vultron.core.models._helpers import has_case_statuses
+    from vultron.core.models.case import has_case_statuses
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_status import CaseStatus
 
@@ -124,7 +124,7 @@ def test_has_case_statuses_true_when_non_empty():
 
 
 def test_has_case_statuses_false_when_empty():
-    from vultron.core.models._helpers import has_case_statuses
+    from vultron.core.models.case import has_case_statuses
     from vultron.core.models.case import VulnerabilityCase
 
     # No attributed_to → _init_case_statuses skips seeding → stays empty
@@ -137,7 +137,7 @@ def test_has_case_statuses_false_when_empty():
 
 def test_has_case_statuses_false_when_default():
     """VulnerabilityCase without attributed_to keeps case_statuses empty."""
-    from vultron.core.models._helpers import has_case_statuses
+    from vultron.core.models.case import has_case_statuses
     from vultron.core.models.case import VulnerabilityCase
 
     case = VulnerabilityCase(id_="https://example.org/cases/x3")

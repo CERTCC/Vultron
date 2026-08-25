@@ -37,7 +37,7 @@ Key properties:
 - **Audit vs replication split**: The CaseActor MAY keep a broader local case
   audit trail including rejected assertion outcomes, but only the recorded
   canonical projection participates in replication and hash chaining.
-- **Single-node Raft framing**: The SYNC-1 through SYNC-4 phases effectively
+- **Single-node Raft framing**: The AppendOnlyLedger through PeerLedgerSync phases effectively
   implement a single-node Raft cluster. The CaseActor is permanently the
   leader (no election needed), and every append is an immediate commit. A
   single-node configuration MUST always be supported as the degenerate case
@@ -47,14 +47,14 @@ Key properties:
   multiple CaseActor instances for high-availability write authority — this
   is the scope of the Raft consensus protocol. (2) *Participant replication*
   delivers the canonical recorded log from the CaseActor cluster leader to
-  Participant Actors for state convergence — this is the scope of SYNC-1–4.
+  Participant Actors for state convergence — this is the scope of AppendOnlyLedger–PeerLedgerSync.
   Both tiers share the same `Announce(CaseLedgerEntry)` wire format, but serve
   different purposes.
 - **Forward compatibility**: The single-writer, single-node design explicitly
   preserves forward compatibility with a multi-node Raft cluster for
   high-availability failover. A future Phase 3 adds N-node CaseActor cluster
   support using standard Raft (static membership, log-completeness election,
-  no priority tiebreaker). Failover semantics are out of scope for SYNC-1–4
+  no priority tiebreaker). Failover semantics are out of scope for AppendOnlyLedger–PeerLedgerSync
   and MUST NOT be implicitly assumed by implementations in those phases.
 
 ---
@@ -85,7 +85,7 @@ synchronization state reporting because:
 ## Canonical Serialization
 
 **Critical constraint**: Before cryptographic signatures are added to log
-entries (SYNC-1 "PROD_ONLY" requirement), a **canonical serialization form**
+entries (AppendOnlyLedger "PROD_ONLY" requirement), a **canonical serialization form**
 MUST be established. Changing the serialization after entries are signed will
 invalidate existing hash chains.
 
@@ -134,15 +134,15 @@ a slightly-behind participant.
 
 | Phase  | Description                                               |
 |--------|-----------------------------------------------------------|
-| SYNC-1 | Local append-only log with hash-chain indexing            |
-| SYNC-2 | One-way replication from CaseActor to Participant Actors  |
-| SYNC-3 | Full sync loop with retry/backoff                         |
-| SYNC-4 | Multi-peer synchronization (completes single-node CaseActor participant replication) |
+| AppendOnlyLedger | Local append-only log with hash-chain indexing            |
+| LedgerFanout | One-way replication from CaseActor to Participant Actors  |
+| LedgerReconciliation | Full sync loop with retry/backoff                         |
+| PeerLedgerSync | Multi-peer synchronization (completes single-node CaseActor participant replication) |
 
-### SYNC-1 Scope
+### AppendOnlyLedger Scope
 
 The canonical `CaseLedgerEntry` model (see `notes/case-ledger-authority.md`)
-provides the foundation. SYNC-1 extended it toward a true canonical recorded
+provides the foundation. AppendOnlyLedger extended it toward a true canonical recorded
 log with hash-chain indexing; the richer long-term content model is described
 in `notes/case-ledger-authority.md`.
 
@@ -155,12 +155,12 @@ Core domain classes (transport-agnostic):
 - `CaseLedger` — append-only log; enforces immutability and hash-chain
 - `ReplicationState` — per-peer last-acknowledged hash
 
-`CaseLedgerEntry` fields for SYNC-1:
+`CaseLedgerEntry` fields for AppendOnlyLedger:
 
 - `log_index` — monotonically increasing integer scoped to the case (MUST;
-  see SYNC-01-002). Added in SYNC-1 so downstream code and wire format are
+  see SYNC-01-002). Added in AppendOnlyLedger so downstream code and wire format are
   index-aware from the start.
-- `term` — Raft term number (OPTIONAL in SYNC-1; defaults to `null` or `0`
+- `term` — Raft term number (OPTIONAL in AppendOnlyLedger; defaults to `null` or `0`
   in single-node deployments; becomes required when multi-node CaseActor
   cluster is introduced in Phase 3).
 
@@ -170,7 +170,7 @@ Adapter responsibilities:
 - Inbound handler for `Announce` (participant receiving a log entry)
 - File/database log storage
 
-### SYNC-2 Scope
+### LedgerFanout Scope
 
 One-way replication from CaseActor to each Participant Actor:
 
@@ -178,7 +178,7 @@ One-way replication from CaseActor to each Participant Actor:
   with last-accepted hash
 - Sender retries from the entry following the reported last-accepted hash
 
-Design Decision (blocks SYNC-2): Reconcile "replication leadership" with
+Design Decision (blocks LedgerFanout): Reconcile "replication leadership" with
 "Case Ownership". Case Ownership governs who controls the case lifecycle
 (e.g., closing the case, transferring ownership). Replication leadership
 governs which node currently accepts writes to the log. These are distinct:
@@ -194,7 +194,7 @@ A log entry is **committed** when it has been durably appended to the
 authoritative log and is safe to apply to the case state machine and emit
 externally.
 
-- In a **single-node** CaseActor (SYNC-1–4): every append is an immediate
+- In a **single-node** CaseActor (AppendOnlyLedger–PeerLedgerSync): every append is an immediate
   commit. There is no replication quorum to wait for.
 - In a **multi-node CaseActor cluster** (Phase 3 Raft): an entry is committed
   once the leader has received acknowledgement from a majority of cluster
@@ -222,7 +222,26 @@ invariants under normal operation and partial failure:
 3. **Idempotent replay**: Reprocessing any log prefix (including duplicates)
    MUST NOT change the resulting state.
 4. **Monotonic visibility**: Participants MUST NOT regress their acknowledged
-   log position.
+   log position. This extends to projected protocol state:
+   `ApplyParticipantStatusFromLedgerNode` will not let an entry move a
+   replica's RM state backwards on the progress scale, even though the Case
+   Actor is authoritative for *which* transition happened. A replayed,
+   reordered, or divergent entry would otherwise un-see progress the replica
+   has already observed. The local value is carried forward for `rm` only;
+   every other dimension is applied as the entry describes it, and lateral
+   moves at the same rank (`VALID` ↔ `INVALID`) are re-adjudication rather than
+   regression (RSH-05-007, ADR-0061).
+
+   The ratcheted status is saved to the DataLayer **unconditionally**. The node
+   appends the object it reads *back* from the DataLayer — a wire-typed instance
+   is required, because appending the core model to a
+   `list[WireParticipantStatus]` makes Pydantic serialize it with the declared
+   element type's defaults. So the ratchet only takes effect if the ratcheted
+   copy is what got written. A status object can already be stored locally
+   without being on the participant (an out-of-order `Announce` of the object
+   itself, or a replayed entry), and skipping the save in that case appends the
+   un-ratcheted status while the ratchet's own warning claims the local value was
+   carried forward.
 5. **Reject-on-divergence**: Entries that do not extend the current hash
    chain MUST be rejected and MUST trigger resynchronization.
 
@@ -284,10 +303,10 @@ Design approach:
 - Add a **leadership role-check port** to the BT bridge
   (`vultron/core/behaviors/bridge.py`). The port is a simple callable or
   Protocol that returns `True` if the calling node is the current leader.
-- In SYNC-1–4 (single-node): the port implementation always returns `True`.
+- In AppendOnlyLedger–PeerLedgerSync (single-node): the port implementation always returns `True`.
 - In Phase 3 (multi-node): the port queries the Raft state machine.
 
-This port SHOULD be added during SYNC-1 so that the seam already exists in
+This port SHOULD be added during AppendOnlyLedger so that the seam already exists in
 the BT bridge and Phase 3 only needs to provide a real implementation. The
 port being permanently `True` in single-node imposes zero runtime cost.
 
@@ -304,7 +323,7 @@ port being permanently `True` in single-node imposes zero runtime cost.
   MUST eventually possess a cryptographic identity. The specification must
   define how keys are generated, distributed, rotated, and revoked, and
   how trust anchors are established (e.g., pinned keys vs. PKI). This is
-  `PROD_ONLY` scope but SHOULD be designed before SYNC-3 to avoid
+  `PROD_ONLY` scope but SHOULD be designed before LedgerReconciliation to avoid
   retrofitting later.
 
 ---
@@ -450,6 +469,152 @@ from the beginning; each entry passes the `CheckLedgerEntryAlreadyStoredNode` ga
 (FAILURE — not yet stored), so `ProcessAndStore` runs and effects are applied correctly.
 
 This is tracked as issue #1446.
+
+## Genesis-Unavailable Buffer-and-Reject (SYNC-15)
+
+`Announce(CaseLedgerEntry)` can arrive at a participant replica before
+`Create(VulnerabilityCase)` has been processed (a delivery-order race under HTTP
+BackgroundTasks). When that happens, `ReconstructChainTailNode` cannot derive the
+per-case genesis hash (CLP-08-005) and returns FAILURE.
+
+**Before the fix (issue #1873)**: FAILURE from `ReconstructChainTailNode` exited
+the `ProcessAndStore` Sequence without reaching `CheckHashOrRejectOnMismatchNode`,
+so no `Reject(CaseLedgerEntry)` was sent. The CaseActor never learned about the
+failure and never replayed the entry → permanent data loss on the replica.
+
+**After the fix**: `ReconstructChainTailNode` writes sentinel values
+(`tail_hash=""`, `tail_index=-1`) before returning FAILURE. The announce tree
+wraps the node in a Selector whose fallback is `SendRejectLogEntryNode`, so the
+Reject fires even when chain reconstruction fails. The Reject carries
+`last_accepted_hash=""` (meaning "I have no entries; replay from genesis") so
+the CaseActor re-announces all entries once the case is delivered.
+
+**Implementation**: `vultron/core/behaviors/sync/nodes/chain.py`
+(`ReconstructChainTailNode.update`) and
+`vultron/core/behaviors/sync/announce_tree.py` (`ReconstructOrRejectOnMissingCase`
+Selector). Spec: SYNC-15-001, SYNC-15-002. Regression test:
+`test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase
+::test_missing_case_queues_reject_with_empty_tail_hash`.
+
+### Pre-Genesis Buffering and Drain on Case Seed (SYNC-15-004/005)
+
+The Reject backstop above is *loss* recovery — it depends on the CaseActor
+re-announcing entries once the case lands, over the same unordered transport,
+so each pre-genesis entry Rejects again and amplifies CLP-08-005 churn (#2169).
+Worse, in the `fcvcv` V1 demo the dropped `add_report_to_case` entry meant no
+`VultronOfferRecord` was ever created and the report offer 404'd (#2180). The
+forward-gap buffer (SYNC-10-004 above) does **not** catch this: its
+`log_index > tail_index + 1` test never fires when there is no chain at all, so
+a pre-genesis entry falls straight through to the reject-on-missing-case path.
+
+**Resolution (ADR-0059, #2186): buffer pre-genesis entries and drain on case
+seed.** The per-case genesis hash is deterministic from the case object alone
+(`compute_genesis_hash` runs at `VulnerabilityCase` construction when
+`attributed_to` is present, CLP-08), so seeding the case is sufficient to anchor
+the chain — no need to wait for the genesis ledger entry to be re-delivered.
+
+- `BufferPreGenesisEntryNode`
+  (`vultron/core/behaviors/sync/nodes/receive.py`) is wired as the first child
+  of the `ReconstructOrRejectOnMissingCase` fallback, wrapped in
+  `FailureIsSuccess` so the genesis `Reject` still fires as the loss backstop.
+  Unlike `BufferOutOfOrderEntryNode` it applies **no** forward-gap check — there
+  is no tail in the pre-genesis window, so every entry for the missing case is
+  held in the same `LedgerGapBuffer`.
+- The ADR-0037 drain is extracted to a module-level
+  `drain_gap_buffer(...)` (`vultron/core/use_cases/received/sync.py`) reused by
+  both the announce receive path and a new drain-on-seed hook in
+  `AnnounceVulnerabilityCaseReceivedUseCase`. In the pre-genesis case the first
+  reconstructed tail is `(genesis_hash, -1)`, so a buffered genesis entry
+  (`prev_log_hash == genesis_hash`) drains first and the rest cascade in
+  hash-chain order, reusing the exact effects-before-persist path (SYNC-12-001).
+- `ANNOUNCE_VULNERABILITY_CASE` was added to `_SYNC_PORT_SEMANTICS` so the seed
+  use case receives the `sync_port` the drain needs to send a Reject on any
+  residual mismatch.
+
+Spec: SYNC-15-004 (buffer pre-genesis), SYNC-15-005 (drain on seed).
+ADR: `docs/adr/0059-buffer-pre-genesis-ledger-entries.md`. Regression tests:
+`test/core/use_cases/received/test_sync.py::TestPreGenesisAnnounceBuffering` and
+`test/core/use_cases/received/actor/test_announce.py::TestAnnounceDrainsPreGenesisBuffer`.
+
+## Reject/Replay Amplification (SYNC-15-003)
+
+The Reject → replay backstop above is a *recovery* mechanism, and recovery paths
+that fire unconditionally can amplify. `SendMissingEntriesNode` originally
+replayed the whole missing suffix on every `Reject(CaseLedgerEntry)`, with no
+convergence check. A peer that cannot anchor its hash chain — typically a late
+joiner — Rejects *every* entry replayed to it, so each Reject triggered a
+full-ledger replay and each replayed entry triggered another Reject: a
+self-sustaining loop.
+
+Observed in the `fcvcv` demo (issue #1989): **4825** `Announce(CaseLedgerEntry)`
+activities for a single 26-entry case (~185x amplification), 4201 of them aimed at
+one late-joining actor, at a steady ~2 replays/sec of the same 25-entry ledger with
+zero progress between rounds. The event storm starved the containers until
+*unrelated* DataLayer reads failed with `ReadTimeout`, which surfaced as misleading
+`"replica matches authoritative state: timed out"` demo failures. This is also the
+mechanism behind the flakiness that rotated across `fvcv-extension` /
+`fvcv-handoff` / `fccv-extension` on unrelated branches (#1839, #1911) — the
+reject/replay path is shared code, so any scenario could trip it under CI load.
+
+Note the existing genesis guard (`AnnounceCaseOnGenesisRejectNode`, SYNC-15-002)
+did not cover this: it only handles `last_accepted_hash == ""`, and a peer stuck at
+a *non-empty* hash falls straight through it.
+
+**Resolution**: `vultron/core/behaviors/sync/nodes/replay_guard.py` bounds the
+replay *rate* per peer. `VultronReplicationState` gained
+`last_replayed_from_hash` / `last_replayed_at`, and the node asks
+`should_replay()` before replaying, then calls `record_replay()` after.
+
+Three properties are load-bearing, and each has a regression test:
+
+- **Rate limit, not suppression.** A Reject at an unchanged position is
+  rate-limited (30s), never permanently blocked — if a replayed entry is lost in
+  transit, a later Reject must still be able to trigger a fresh replay or the peer
+  never converges.
+- **Ask and record are separate steps.** The position is recorded only once at
+  least one entry has actually gone out. Recording at decision time meant a peer
+  already at the ledger tail (zero entries to send) started a cooldown anyway; when
+  the ledger then grew, that peer's next Reject — reporting the same hash, now
+  genuinely stale — was suppressed, so it waited out the cooldown having received
+  nothing. That is the very stall the guard exists to prevent, reintroduced by the
+  guard.
+- **Genesis gets a short cooldown, not an exemption.** Genesis convergence is owned
+  by SYNC-15-001/002, which seed the case and rely on the *following* replay to
+  deliver history; a full-length cooldown there starved the bootstrap (caught by
+  `fccv-handoff` in CI: 34 suppressions against a Finder stuck at genesis, ending in
+  "LedgerFanout replication did not complete"). Exempting genesis outright would re-admit
+  the storm, since a peer that cannot anchor reports genesis on every Reject — 43 of
+  51 suppressions in the fixed `fcvcv` run were at genesis. So: 2s, not 0s and not
+  30s.
+
+The guard lives in its own module rather than in `replay.py` to keep that leaf
+module under the 500-line BTND-07-004 limit.
+
+Spec: SYNC-15-003. Regression tests:
+`test/core/behaviors/sync/nodes/test_replay_guard.py` (unit) and
+`test/core/behaviors/sync/test_reject_tree.py` (through the tree — the loop
+reproduced there as 240 replays where 24 were correct). These run in-process in
+seconds rather than requiring a 20-minute demo-integration cycle (#1970).
+
+## Document Boundary: Internal Spec vs. External Companion
+
+This file and `specs/sync-ledger-replication.yaml` are the **internal**
+implementation references for the ledger replication protocol.
+
+A separate **external-facing companion document** (suitable for reviewers
+outside the project alongside the main Vultron protocol RFC) covers the same
+protocol mechanics — see `docs/reference/draft-vultron-replication-spec.md`
+(tracked in issue #2495).
+
+The external companion and the internal SYNC spec cover the same protocol but
+serve different audiences. When the SYNC spec requirements change, the companion
+document MUST be updated to stay consistent. Normative requirements always
+originate in `specs/sync-ledger-replication.yaml`; the companion document is a
+reader-friendly rendering, not an independent source of truth.
+
+The document-boundary decision — why the replication mechanics live in a
+companion document rather than the main RFC — is recorded in
+`docs/adr/0069-ledger-replication-companion-spec.md` (tracked in issue #2494).
 
 ## Related
 

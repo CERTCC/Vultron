@@ -38,14 +38,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from vultron.enums.roles import CVDRole
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
     SvcAcceptCaseOwnershipTransferUseCase,
     SvcInviteActorToCaseUseCase,
-    SvcOfferCaseManagerRoleUseCase,
     SvcOfferCaseOwnershipTransferUseCase,
+    SvcOfferCaseParticipantRoleUseCase,
+    SvcRejectCaseInviteUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.case import (
@@ -55,6 +57,7 @@ from vultron.core.use_cases.triggers.case import (
     SvcCreateCaseUseCase,
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
+    SvcLeaveCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
@@ -65,7 +68,7 @@ from vultron.core.use_cases.triggers.embargo import (
 )
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.report import (
-    SvcCloseReportUseCase,
+    SvcCloseCaseUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
     SvcSubmitReportUseCase,
@@ -84,12 +87,14 @@ from vultron.core.use_cases.triggers.requests import (
     CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
+    LeaveCaseTriggerRequest,
     InvalidateReportTriggerRequest,
     InviteActorToCaseTriggerRequest,
-    OfferCaseManagerRoleTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
+    OfferCaseParticipantRoleTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
+    RejectCaseInviteTriggerRequest,
     RejectEmbargoTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
@@ -194,19 +199,28 @@ class TriggerService:
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 
+    def close_case(
+        self,
+        actor_id: str,
+        offer_id: str,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Close a VulnerabilityCase via the RM lifecycle (Case Owner only)."""
+        req = CloseReportTriggerRequest(
+            actor_id=actor_id, offer_id=offer_id, note=note
+        )
+        return SvcCloseCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
     def close_report(
         self,
         actor_id: str,
         offer_id: str,
         note: str | None = None,
     ) -> dict[str, Any]:
-        """Close a report that has progressed through the RM lifecycle."""
-        req = CloseReportTriggerRequest(
-            actor_id=actor_id, offer_id=offer_id, note=note
-        )
-        return SvcCloseReportUseCase(
-            self._dl, req, trigger_activity=self._trigger_activity
-        ).execute()
+        """Deprecated alias for :meth:`close_case`."""
+        return self.close_case(actor_id, offer_id, note)
 
     # -----------------------------------------------------------------------
     # Case triggers
@@ -218,6 +232,7 @@ class TriggerService:
         name: str,
         content: str,
         report_id: str | None = None,
+        to: list[str] | None = None,
     ) -> dict[str, Any]:
         """Create a local VulnerabilityCase and queue it for the CaseActor."""
         req = CreateCaseTriggerRequest(
@@ -225,6 +240,7 @@ class TriggerService:
             name=name,
             content=content,
             report_id=report_id,
+            to=to,
         )
         return SvcCreateCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
@@ -249,6 +265,23 @@ class TriggerService:
         """Defer a case, transitioning RM state to DEFERRED."""
         req = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
         return SvcDeferCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def leave_case(
+        self,
+        actor_id: str,
+        case_id: str,
+    ) -> dict[str, Any]:
+        """Send Leave(VulnerabilityCase) to the Case Actor (ADR-0050).
+
+        Routes ``Leave(VulnerabilityCase)`` to the Case Actor inbox so the
+        Case Actor can commit a ``close_case`` ledger entry and broadcast it
+        to all participants.  The receiver-side role semantics (owner closes
+        all, non-owner departs only) are applied on the Case Actor replica.
+        """
+        req = LeaveCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
+        return SvcLeaveCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 
@@ -418,12 +451,18 @@ class TriggerService:
         actor_id: str,
         case_id: str,
         suggested_actor_id: str,
+        roles: list | None = None,
     ) -> dict[str, Any]:
         """Recommend another actor to a case owner."""
         req = SuggestActorToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=case_id,
             suggested_actor_id=suggested_actor_id,
+            roles=(
+                [CVDRole(r) if isinstance(r, str) else r for r in roles]
+                if roles
+                else None
+            ),
         )
         return SvcSuggestActorToCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
@@ -440,6 +479,20 @@ class TriggerService:
             invite_id=invite_id,
         )
         return SvcAcceptCaseInviteUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def reject_case_invite(
+        self,
+        actor_id: str,
+        invite_id: str,
+    ) -> dict[str, Any]:
+        """Reject a case invitation."""
+        req = RejectCaseInviteTriggerRequest(
+            actor_id=actor_id,
+            invite_id=invite_id,
+        )
+        return SvcRejectCaseInviteUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 
@@ -461,21 +514,24 @@ class TriggerService:
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 
-    def offer_case_manager_role(
+    def offer_case_participant_role(
         self,
         actor_id: str,
         case_id: str,
+        target_actor_id: str,
+        role: CVDRole = CVDRole.CASE_MANAGER,
     ) -> dict[str, Any]:
-        """Offer the CASE_MANAGER role to the Case Actor.
+        """Offer a CVDRole to a target Actor via the canonical ADR-0039 wire format.
 
-        The Case Actor must already exist in the DataLayer.  The offer is
-        sent from the Case Actor's identity (DEMOMA-08-007).
+        Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
         """
-        req = OfferCaseManagerRoleTriggerRequest(
+        req = OfferCaseParticipantRoleTriggerRequest(
             actor_id=actor_id,
             case_id=case_id,
+            target_actor_id=target_actor_id,
+            role=role,
         )
-        return SvcOfferCaseManagerRoleUseCase(
+        return SvcOfferCaseParticipantRoleUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 

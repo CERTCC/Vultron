@@ -18,10 +18,14 @@ DECLINED    – Participant explicitly declined (current invite or lapsed terms)
 Transitions
 -----------
 INVITE  : NO_EMBARGO | LAPSED | DECLINED → INVITED
-ACCEPT  : INVITED | LAPSED → SIGNATORY
-DECLINE : INVITED | LAPSED → DECLINED
+ACCEPT  : NO_EMBARGO | INVITED | LAPSED → SIGNATORY
+DECLINE : NO_EMBARGO | INVITED | LAPSED → DECLINED
 REVISE  : SIGNATORY → LAPSED
 RESET   : * → NO_EMBARGO  (embargo terminated or removed)
+
+``NO_EMBARGO`` means *no embargo is in scope* (ADR-0048), not *pre-consent*.
+``ACCEPT`` and ``DECLINE`` are therefore valid directly from ``NO_EMBARGO``
+for self-determined embargoes and implicit-consent cases (CM-14-005).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -37,14 +41,11 @@ RESET   : * → NO_EMBARGO  (embargo terminated or removed)
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import logging
 from enum import StrEnum, auto
 
-from transitions import Machine, MachineError
+from transitions import Machine
 
 from vultron.core.states.common import TransitionBase, mermaid_machine
-
-logger = logging.getLogger(__name__)
 
 
 class PEC(StrEnum):
@@ -86,14 +87,20 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.INVITE, source=PEC.DECLINED, dest=PEC.INVITED
     ).model_dump(),
-    # ACCEPT transitions
+    # ACCEPT transitions (ADR-0048: NO_EMBARGO is absence-of-embargo, not pre-consent)
+    PECTransition(
+        trigger=PEC_Trigger.ACCEPT, source=PEC.NO_EMBARGO, dest=PEC.SIGNATORY
+    ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.INVITED, dest=PEC.SIGNATORY
     ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.LAPSED, dest=PEC.SIGNATORY
     ).model_dump(),
-    # DECLINE transitions
+    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from NO_EMBARGO)
+    PECTransition(
+        trigger=PEC_Trigger.DECLINE, source=PEC.NO_EMBARGO, dest=PEC.DECLINED
+    ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.INVITED, dest=PEC.DECLINED
     ).model_dump(),
@@ -111,13 +118,6 @@ _transitions: list[dict] = [
 ]
 
 
-class PECAdapter:
-    """Adapter for applying PEC transitions to a plain ``.state`` attribute."""
-
-    def __init__(self, initial: PEC) -> None:
-        self.state = initial
-
-
 def create_pec_machine() -> Machine:
     """Create a new Participant Embargo Consent state machine instance."""
     return Machine(
@@ -127,27 +127,6 @@ def create_pec_machine() -> Machine:
         auto_transitions=False,
         name="PEC FSM",
     )
-
-
-def apply_pec_trigger(current_state: PEC, trigger: PEC_Trigger) -> PEC:
-    """Apply a PEC trigger to a state and return the resulting state.
-
-    Returns the unchanged state when the transition is not valid (logs a
-    warning instead of raising).
-    """
-    adapter = PECAdapter(current_state)
-    machine = create_pec_machine()
-    machine.add_model(adapter, initial=current_state)
-    try:
-        getattr(adapter, trigger)()
-        return PEC(adapter.state)
-    except MachineError:
-        logger.warning(
-            "Invalid PEC transition: state='%s' trigger='%s' — ignored",
-            current_state,
-            trigger,
-        )
-        return current_state
 
 
 if __name__ == "__main__":

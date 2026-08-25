@@ -38,17 +38,18 @@ from typing import Any, cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models._helpers import _as_id
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
-class EmitOfferCaseOwnershipTransferNode(DataLayerAction):
+class EmitOfferCaseOwnershipTransferNode(DataLayerActionWithPorts):
     """Emit ``Offer(VulnerabilityCase)`` (ownership transfer) to ``transferee_id``.
 
     Calls ``trigger_activity_factory.offer_case_ownership_transfer()`` with
@@ -70,17 +71,22 @@ class EmitOfferCaseOwnershipTransferNode(DataLayerAction):
         self.content = content
         self._captured = captured
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-
     def _emit(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
+        assert self.datalayer is not None
+        case = self.datalayer.read(self.case_id)
+        case_actor_id: list[str] | None = None
+        if isinstance(case, VulnerabilityCase):
+            cm_id = _resolve_case_manager_id(case, self.datalayer)
+            if cm_id:
+                case_actor_id = [cm_id]
         return self.trigger_activity_factory.offer_case_ownership_transfer(
             actor=self.actor_id,
             case_id=self.case_id,
             transferee_id=self.transferee_id,
             content=self.content,
+            to=case_actor_id,
         )
 
     def update(self) -> Status:
@@ -112,7 +118,7 @@ class EmitOfferCaseOwnershipTransferNode(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitAcceptCaseOwnershipTransferNode(DataLayerAction):
+class EmitAcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
     """Emit ``Accept(Offer(VulnerabilityCase))`` (ownership transfer) to offerer.
 
     Calls ``trigger_activity_factory.accept_case_ownership_transfer()``
@@ -123,22 +129,29 @@ class EmitAcceptCaseOwnershipTransferNode(DataLayerAction):
     def __init__(
         self,
         offer_id: str,
+        case_id: str,
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.offer_id = offer_id
+        self.case_id = case_id
         self._captured = captured
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
 
     def _emit(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
+        assert self.datalayer is not None
+        case = self.datalayer.read(self.case_id)
+        case_actor_id: list[str] | None = None
+        if isinstance(case, VulnerabilityCase):
+            cm_id = _resolve_case_manager_id(case, self.datalayer)
+            if cm_id:
+                case_actor_id = [cm_id]
         return self.trigger_activity_factory.accept_case_ownership_transfer(
             actor=self.actor_id,
             offer_id=self.offer_id,
+            to=case_actor_id,
         )
 
     def update(self) -> Status:
@@ -169,7 +182,7 @@ class EmitAcceptCaseOwnershipTransferNode(DataLayerAction):
             return Status.FAILURE
 
 
-class AcceptCaseOwnershipTransferNode(DataLayerAction):
+class AcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
     """Apply an ownership-transfer acceptance to the case record.
 
     Enforces the at-most-one CASE_OWNER invariant atomically (CM-21-001,

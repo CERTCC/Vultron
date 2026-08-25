@@ -183,7 +183,7 @@ RejectCaseProposalPattern = ActivityPattern(
 )
 
 # ---------------------------------------------------------------------------
-# Actor-suggestion and case-manager-role patterns
+# Actor-suggestion and role-offer patterns
 # ---------------------------------------------------------------------------
 
 SuggestActorToCasePattern = ActivityPattern(
@@ -227,27 +227,35 @@ RejectActorRecommendationPattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=OfferActorToCasePattern,
 )
-OfferCaseManagerRolePattern = ActivityPattern(
+OfferCaseParticipantRolePattern = ActivityPattern(
     description=(
-        "Vendor offers the CASE_MANAGER role to a Case Actor participant. "
-        "Distinct from OFFER_CASE_OWNERSHIP_TRANSFER: the offering actor "
-        "retains CASE_OWNER; only operational management authority is "
-        "delegated. Identified by target being a CASE_PARTICIPANT record. "
-        "See DEMOMA-08-002, DEMOMA-08-003."
+        "Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
+        "— the canonical role-delegation wire format introduced in ADR-0039. "
+        "Replaces the deprecated Offer(VulnerabilityCase, target=CaseParticipant) "
+        "format. Self-describing: the object type unambiguously identifies this "
+        "as a role offer. See SE-08-003."
     ),
     activity_=TAtype.OFFER,
-    object_=VOtype.VULNERABILITY_CASE,
-    target_=VOtype.CASE_PARTICIPANT,
+    object_=VOtype.CASE_PARTICIPANT_ROLE,
+    context_=VOtype.VULNERABILITY_CASE,
 )
-AcceptCaseManagerRolePattern = ActivityPattern(
-    description="Case Actor accepted the CASE_MANAGER role delegation offer.",
+AcceptCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Accept(Offer(CaseParticipantRole, ...)) — acceptance of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the offering actor "
+        "when the target actor accepts the role. See SE-08-003."
+    ),
     activity_=TAtype.ACCEPT,
-    object_=OfferCaseManagerRolePattern,
+    object_=OfferCaseParticipantRolePattern,
 )
-RejectCaseManagerRolePattern = ActivityPattern(
-    description="Case Actor rejected the CASE_MANAGER role delegation offer.",
+RejectCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Reject(Offer(CaseParticipantRole, ...)) — rejection of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the offering actor "
+        "when the target actor declines the role. See SE-08-003."
+    ),
     activity_=TAtype.REJECT,
-    object_=OfferCaseManagerRolePattern,
+    object_=OfferCaseParticipantRolePattern,
 )
 
 # ---------------------------------------------------------------------------

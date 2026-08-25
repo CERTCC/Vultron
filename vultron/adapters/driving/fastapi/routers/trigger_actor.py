@@ -34,8 +34,9 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
     InviteActorToCaseRequest,
-    OfferCaseManagerRoleRequest,
     OfferCaseOwnershipTransferRequest,
+    OfferCaseParticipantRoleRequest,
+    RejectCaseInviteRequest,
     SuggestActorToCaseRequest,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
@@ -75,6 +76,7 @@ def trigger_suggest_actor_to_case(
             actor_id=actor_id,
             case_id=body.case_id,
             suggested_actor_id=body.suggested_actor_id,
+            roles=body.roles,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
@@ -108,6 +110,41 @@ def trigger_accept_case_invite(
     """
     with domain_error_translation():
         result = svc.accept_case_invite(
+            actor_id=actor_id,
+            invite_id=body.invite_id,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/reject-case-invite",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Reject a case invitation.",
+    description=(
+        "Rejects an RmInviteToCaseActivity by emitting an "
+        "RmRejectInviteToCaseActivity queued in the actor's outbox for "
+        "delivery to the case owner."
+    ),
+    operation_id="actors_trigger_reject_case_invite",
+)
+def trigger_reject_case_invite(
+    actor_id: str,
+    body: RejectCaseInviteRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the reject-case-invite behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001
+    """
+    with domain_error_translation():
+        result = svc.reject_case_invite(
             actor_id=actor_id,
             invite_id=body.invite_id,
         )
@@ -197,47 +234,35 @@ def trigger_accept_actor_recommendation(
 
 
 @router.post(
-    "/{actor_id}/trigger/offer-case-manager-role",
+    "/{actor_id}/trigger/offer-case-participant-role",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Offer the CASE_MANAGER role to the Case Actor.",
+    summary="Offer a CVDRole to an Actor in a case (ADR-0039).",
     description=(
-        "Emits an Offer(CaseManagerRole) from the Case Actor's identity to "
-        "itself, initiating the CASE_MANAGER delegation handshake.  The Case "
-        "Actor must already exist in the DataLayer.  This is the trigger-side "
-        "path for DEMOMA-08-007; the auto-accept is handled by "
-        "OfferCaseManagerRoleReceivedUseCase on the Case Actor's inbox side."
+        "Emits Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
+        "from the requesting actor.  This is the canonical role-delegation wire "
+        "format introduced by ADR-0039, replacing the deprecated "
+        "offer-case-manager-role endpoint.  The ``role`` field defaults to "
+        "``CASE_MANAGER`` for backward-compatibility.  See SE-08-003."
     ),
-    operation_id="actors_trigger_offer_case_manager_role",
+    operation_id="actors_trigger_offer_case_participant_role",
 )
-def trigger_offer_case_manager_role(
+def trigger_offer_case_participant_role(
     actor_id: str,
-    body: OfferCaseManagerRoleRequest,
+    body: OfferCaseParticipantRoleRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
 ) -> dict:
-    """
-    Trigger the offer-case-manager-role behavior for the given actor.
-
-    The BT runs under the Case Actor's identity (PCR-08-007), so the Offer
-    activity is queued in the **Case Actor's** outbox — not the path actor's.
-    ``outbox_handler`` is therefore scheduled against the Case Actor's
-    actor-scoped DataLayer, resolved from the use-case result's
-    ``emitting_actor_id`` field.
-
-    Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001; DEMOMA-08-007
-    """
+    """Trigger Offer(CaseParticipantRole) from the requesting actor (ADR-0039)."""
     with domain_error_translation():
-        result = svc.offer_case_manager_role(
+        result = svc.offer_case_participant_role(
             actor_id=actor_id,
             case_id=body.case_id,
+            target_actor_id=body.target_actor_id,
+            role=body.role,
         )
-    emitting_actor_id = result.get("emitting_actor_id", actor_id)
-    emitting_dl = dl.clone_for_actor(emitting_actor_id)
     background_tasks.add_task(
-        outbox_handler, emitting_actor_id, emitting_dl, dl
+        outbox_handler, actor_id, dl.clone_for_actor(actor_id), dl
     )
     return result
 

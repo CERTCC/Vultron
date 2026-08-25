@@ -4,8 +4,9 @@ description: >-
   Requirements for the physical package layout of the use_cases package, registry
   synchronization, test mirroring, and documentation of the trigger-to-received-to-sync
   information flow pattern.
-version: 1.0.0
+version: 1.1.0
 scope:
+
 - prototype
 - production
 tags:
@@ -46,22 +47,28 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Any relocation or rename of a use-case class MUST update `USE_CASE_MAP` in `vultron/core/use_cases/use_case_map.py`
-      in the same commit
+      Any relocation or rename of a use-case class MUST update its
+      `SEMANTIC_REGISTRY` entry in `vultron/semantic_registry/` in the same commit.
+      The registry is the single source of the `MessageSemantics` → use-case-class
+      mapping, projected by `use_case_map()` in
+      `vultron/semantic_registry/__init__.py`
   - id: UCORG-02-002
     priority: MUST
     kind: project
     statement: >-
-      A dispatch coverage test MUST verify that every `MessageSemantics` value registered
-      in `USE_CASE_MAP` resolves to a callable class and that dispatch succeeds for a representative
-      event
+      A dispatch coverage test MUST verify that every `MessageSemantics` value
+      registered in `SEMANTIC_REGISTRY` resolves to a callable class and that
+      dispatch succeeds for a representative event
 - id: UCORG-03
   title: Test Layout
   specs:
   - id: UCORG-03-001
     priority: MUST
     kind: project
-    statement: 'Tests MUST mirror the source layout:'
+    statement: >-
+      Use-case test modules MUST mirror the structural layout of the use-case source
+      modules they test; each use-case subpackage MUST have a corresponding test
+      subpackage at the same relative path under the test root.
     relationships:
     - rel_type: refines
       spec_id: TB-04-001
@@ -75,3 +82,74 @@ groups:
     statement: >-
       The trigger → received → sync information flow pattern SHOULD be documented in `notes/`
       and summarized in a `README.md` under `vultron/core/use_cases/`
+- id: UCORG-05
+  title: Use-Case Result Protocol
+  specs:
+  - id: UCORG-05-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every use-case `execute()` method MUST declare a return type that is `UseCaseResult` or a
+      subtype (`HandlerResult`, `TriggerResult`); bare `None` or `dict` return types are
+      not permitted
+    rationale: >-
+      Makes the use-case contract explicit and machine-checkable. See ADR-0040
+      (docs/adr/0040-use-case-result-envelope.md).
+    relationships:
+    - rel_type: implements
+      spec_id: CS-11-001
+    adr:
+    - ADR-0040
+  - id: UCORG-05-002
+    priority: MUST
+    kind: project
+    statement: 'Handler (received-side) use cases MUST return `HandlerResult`.'
+    rationale: Separate subtypes allow callers to distinguish received-side vs. trigger-side results without isinstance checks on the base.
+  - id: UCORG-05-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The `UseCase` Protocol in `vultron/core/ports/use_case.py` MUST declare
+      `execute() -> UseCaseResult`; the return type MUST NOT be `Any` or `None`
+  - id: UCORG-05-004
+    priority: MUST
+    kind: project
+    statement: >-
+      An architecture ratchet test MUST verify that all concrete use-case classes in
+      `vultron/core/use_cases/` declare an `execute()` return annotation that is
+      `UseCaseResult` or a registered subtype
+    rationale: Belt-and-suspenders companion to mypy enforcement; caught at CI time without mypy strictness flags.
+  - id: UCORG-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      `TriggerResult` MUST carry `activity` and `emitting_actor_id` fields; `HandlerResult`
+      MAY carry domain-specific result fields but MUST NOT carry raw `dict` payloads
+  - id: UCORG-05-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      `TriggerService` methods and `TriggerServicePort` Protocol method signatures MUST NOT
+      declare `dict` or `dict[str, Any]` as their return type; they MUST declare
+      `TriggerResult`
+    rationale: Propagating dict past the service boundary defeats the typed contract at the router boundary.
+  - id: UCORG-05-007
+    priority: MUST
+    kind: project
+    statement: 'Trigger use cases MUST return `TriggerResult`.'
+    rationale: >-
+      A dedicated TriggerResult subtype makes trigger-side results structurally
+      distinct from handler-side results without runtime isinstance checks.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-002
+  - id: UCORG-05-008
+    priority: MUST
+    kind: project
+    statement: 'Both `HandlerResult` and `TriggerResult` MUST inherit from `UseCaseResult`.'
+    rationale: >-
+      Inheriting from the common base type ensures that all use-case return values
+      satisfy the UseCaseResult Protocol contract.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-002

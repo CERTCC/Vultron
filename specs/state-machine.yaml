@@ -63,8 +63,7 @@ groups:
   - id: SM-03-003
     priority: MUST
     kind: protocol
-    statement: 'Transitions SHOULD be exhaustive: every valid (source → dest) pair that the protocol describes MUST have a
-      corresponding transition entry'
+    statement: 'Every valid (source → dest) pair that the protocol describes MUST have a corresponding transition entry.'
 - id: SM-04
   title: Runtime State Changes
   specs:
@@ -157,9 +156,14 @@ groups:
     statement: 'The CS state machine MUST enforce two forced (ephemeral) transitions at validation time: (1) `pX → PX` — exploit-public
       forces public-aware; (2) `vP → VP` — public-aware forces vendor-aware. Any incoming CS state that contains `pX` or `vP`
       MUST be promoted to the forced form before being persisted.'
-    rationale: These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
-      public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public. Enforced
-      by `vultron/core/case_states/validations.py` `TRANSITION_RULES`.
+    rationale: 'These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
+      public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public.
+      Implementors MUST use `is_ephemeral_cs_state()` and `required_next_cs_events()` from
+      `vultron/core/states/cs_invariants.py` to enforce this rule at the persistence boundary. This requirement governs
+      the *persistence* boundary only; CSB-17-003 and CSB-17-005 cover trajectory validation, where an ephemeral state is a
+      legal prefix terminus.'
+    lint_suppress:
+    - rationale_too_long
     relationships:
     - rel_type: implements
       spec_id: VP-14-001

@@ -29,13 +29,15 @@ from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.enums.roles import CVDRole
 from vultron.core.states.em import EM
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
     as_Question,
 )
 from vultron.wire.as2.vocab.activities.case import (
-    _AcceptCaseManagerRoleActivity,
+    _AcceptCaseParticipantRoleActivity,
+    _OfferCaseParticipantRoleActivity,
     _AcceptCaseOwnershipTransferActivity,
     _AddNoteToCaseActivity,
     _AddReportToCaseActivity,
@@ -43,9 +45,8 @@ from vultron.wire.as2.vocab.activities.case import (
     _AnnounceVulnerabilityCaseActivity,
     _CreateCaseActivity,
     _CreateCaseStatusActivity,
-    _OfferCaseManagerRoleActivity,
     _OfferCaseOwnershipTransferActivity,
-    _RejectCaseManagerRoleActivity,
+    _RejectCaseParticipantRoleActivity,
     _RejectCaseOwnershipTransferActivity,
     _RmAcceptInviteToCaseActivity,
     _RmCloseCaseActivity,
@@ -70,7 +71,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant_role import (
+    as_CaseParticipantRole,
+)
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
@@ -401,72 +404,69 @@ def rm_close_case_activity(
         ) from exc
 
 
-def offer_case_manager_role_activity(
+def offer_case_participant_role_activity(
+    role: CVDRole,
+    target_actor: as_Actor,
     case: as_VulnerabilityCase,
-    target: as_CaseParticipant,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(as_VulnerabilityCase, target=as_CaseParticipant) — CASE_MANAGER delegation.
+    """Build Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase).
 
-    Distinct from :func:`offer_case_ownership_transfer_activity`: the offering
-    actor retains ``CASE_OWNER``; only operational management authority is
-    delegated to the Case Actor participant.
+    This is the canonical role-delegation wire format introduced in ADR-0039.
+    It replaces the deprecated ``offer_case_manager_role_activity`` format
+    (``Offer(VulnerabilityCase, target=CaseParticipant)``) which was structurally
+    ambiguous with ownership-transfer offers.
 
-    The case MUST be passed as an inline ``as_VulnerabilityCase`` object and the
-    ``target`` MUST be an inline ``as_CaseParticipant`` object (not a bare string
-    IRI) so that pattern matching can distinguish this activity from a
-    case-ownership transfer (see DEMOMA-08-002, DEMOMA-08-003).
+    The ``as_CaseParticipantRole`` object carries the specific ``CVDRole`` being
+    offered, making the activity self-describing.  The ``target`` is the Actor
+    receiving the role; the case is carried in ``context``.
 
     Args:
-        case: The ``as_VulnerabilityCase`` for which management is being delegated.
-        target: The ``as_CaseParticipant`` record of the Case Actor being delegated
-            the CASE_MANAGER role.  Must be an inline typed object — bare string
-            IRIs are rejected.
+        role: The ``CVDRole`` to offer.  Becomes the ``role`` field on the
+            ``as_CaseParticipantRole`` object.
+        target_actor: The ``as_Actor`` that will receive the role offer.
+        case: The ``as_VulnerabilityCase`` context.  Passed as the AS2
+            ``context`` field so the receiver can identify the case.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
     Returns:
-        An ``as_Offer`` whose ``object_`` is the case and ``target`` is the
-        Case Actor participant.
+        An ``as_Offer`` whose ``object_`` is an ``as_CaseParticipantRole``,
+        ``target`` is the target Actor, and ``context`` is the case URI/object.
 
     Raises:
-        VultronActivityConstructionError: If ``target`` is not an inline
-            ``as_CaseParticipant`` or if Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails.
     """
-    if not isinstance(target, as_CaseParticipant):
-        raise VultronActivityConstructionError(
-            "offer_case_manager_role_activity: target must be an inline"
-            " as_CaseParticipant object, not a bare string IRI or None"
-        )
     try:
-        return _OfferCaseManagerRoleActivity(
-            object_=case, target=target, **kwargs
+        role_obj = as_CaseParticipantRole(role=role)
+        return _OfferCaseParticipantRoleActivity(
+            object_=role_obj,
+            target=target_actor,
+            context=case,
+            **kwargs,
         )
     except ValidationError as exc:
         logger.warning(
-            "offer_case_manager_role_activity: invalid arguments: %s",
+            "offer_case_participant_role_activity: invalid arguments: %s",
             exc,
         )
         raise VultronActivityConstructionError(
-            "offer_case_manager_role_activity: invalid arguments"
+            "offer_case_participant_role_activity: invalid arguments"
         ) from exc
 
 
-def accept_case_manager_role_activity(
+def accept_case_participant_role_activity(
     offer: as_Offer,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(_OfferCaseManagerRoleActivity).
+    """Build an Accept(_OfferCaseParticipantRoleActivity) (ADR-0039).
 
-    The ``offer`` MUST be an ``_OfferCaseManagerRoleActivity`` (i.e., the
-    value returned by :func:`offer_case_manager_role_activity`).  A plain
-    ``as_Offer`` will fail Pydantic validation and raise
-    :exc:`VultronActivityConstructionError`.
+    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
+    value returned by :func:`offer_case_participant_role_activity`).
 
     Args:
-        offer: The ``_OfferCaseManagerRoleActivity`` being accepted.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+        offer: The ``_OfferCaseParticipantRoleActivity`` being accepted.
+        **kwargs: Optional AS2 fields (e.g. ``actor``).
 
     Returns:
         An ``as_Accept`` whose ``object_`` is the offer.
@@ -475,35 +475,32 @@ def accept_case_manager_role_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _AcceptCaseManagerRoleActivity(
-            object_=cast(_OfferCaseManagerRoleActivity, offer),
+        return _AcceptCaseParticipantRoleActivity(
+            object_=cast(_OfferCaseParticipantRoleActivity, offer),
             **kwargs,
         )
     except ValidationError as exc:
         logger.warning(
-            "accept_case_manager_role_activity: invalid arguments: %s",
+            "accept_case_participant_role_activity: invalid arguments: %s",
             exc,
         )
         raise VultronActivityConstructionError(
-            "accept_case_manager_role_activity: invalid arguments"
+            "accept_case_participant_role_activity: invalid arguments"
         ) from exc
 
 
-def reject_case_manager_role_activity(
+def reject_case_participant_role_activity(
     offer: as_Offer,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(_OfferCaseManagerRoleActivity).
+    """Build a Reject(_OfferCaseParticipantRoleActivity) (ADR-0039).
 
-    The ``offer`` MUST be an ``_OfferCaseManagerRoleActivity`` (i.e., the
-    value returned by :func:`offer_case_manager_role_activity`).  A plain
-    ``as_Offer`` will fail Pydantic validation and raise
-    :exc:`VultronActivityConstructionError`.
+    The ``offer`` MUST be an ``_OfferCaseParticipantRoleActivity`` (i.e., the
+    value returned by :func:`offer_case_participant_role_activity`).
 
     Args:
-        offer: The ``_OfferCaseManagerRoleActivity`` being rejected.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+        offer: The ``_OfferCaseParticipantRoleActivity`` being rejected.
+        **kwargs: Optional AS2 fields (e.g. ``actor``).
 
     Returns:
         An ``as_Reject`` whose ``object_`` is the offer.
@@ -512,17 +509,17 @@ def reject_case_manager_role_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _RejectCaseManagerRoleActivity(
-            object_=cast(_OfferCaseManagerRoleActivity, offer),
+        return _RejectCaseParticipantRoleActivity(
+            object_=cast(_OfferCaseParticipantRoleActivity, offer),
             **kwargs,
         )
     except ValidationError as exc:
         logger.warning(
-            "reject_case_manager_role_activity: invalid arguments: %s",
+            "reject_case_participant_role_activity: invalid arguments: %s",
             exc,
         )
         raise VultronActivityConstructionError(
-            "reject_case_manager_role_activity: invalid arguments"
+            "reject_case_participant_role_activity: invalid arguments"
         ) from exc
 
 
@@ -660,7 +657,7 @@ def rm_invite_to_case_activity(
             or a bare URI string.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended
-            participant roles so ``CreateInviteeParticipantAtAcceptedNode``
+            participant roles so ``CreateInviteeParticipantAtReceivedNode``
             can set them on the new ``VultronParticipant``.
         embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
             *target* is a ``as_VulnerabilityCase`` and ``em_state == EM.ACTIVE``

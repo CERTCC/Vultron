@@ -46,9 +46,8 @@ is completely clean.
 """
 
 import ast
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
 _VOCAB_ACTIVITIES = "vultron.wire.as2.vocab.activities"
 
@@ -75,12 +74,8 @@ ALLOWED_PREFIXES: tuple[str, ...] = (
 KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
-def _imports_from_vocab_activities(source_path: Path) -> bool:
-    """Return True if the file imports from ``vultron.wire.as2.vocab.activities``."""
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
+def _imports_from_vocab_activities(tree: ast.AST) -> bool:
+    """Return True if the tree imports from ``vultron.wire.as2.vocab.activities``."""
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -110,16 +105,16 @@ def _collect_violations() -> frozenset[str]:
     """
     violations: set[str] = set()
     for root_name in _SCAN_ROOTS:
-        scan_root = REPO_ROOT / root_name
+        scan_root = _corpus.REPO_ROOT / root_name
         if not scan_root.is_dir():
             continue
-        for py_file in scan_root.rglob("*.py"):
-            if "__pycache__" in py_file.parts:
-                continue
-            rel = py_file.relative_to(REPO_ROOT).as_posix()
+        for py_file, tree in _corpus.files_mentioning(
+            _VOCAB_ACTIVITIES, under=scan_root
+        ):
+            rel = py_file.relative_to(_corpus.REPO_ROOT).as_posix()
             if any(rel.startswith(prefix) for prefix in ALLOWED_PREFIXES):
                 continue
-            if _imports_from_vocab_activities(py_file):
+            if _imports_from_vocab_activities(tree):
                 violations.add(rel)
     return frozenset(violations)
 

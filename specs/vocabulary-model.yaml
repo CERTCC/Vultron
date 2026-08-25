@@ -28,13 +28,16 @@ groups:
     statement: New vocabulary types MUST be importable at startup without explicit registration calls in application code
   - id: VM-01-004
     priority: MUST
-    kind: protocol
-    statement: The `VOCABULARY` registry MUST be a flat `dict[str, type[as_Base]]` keyed by AS2 type name
+    kind: project
+    statement: >-
+      The `VOCABULARY` registry MUST be keyed by the AS2 `type` field value (the string
+      that appears as `"type": "..."` in wire JSON, e.g., `"VulnerabilityCase"`) and MUST
+      map each such key to its corresponding vocabulary class.
   - id: VM-01-005
     priority: MUST
     kind: project
-    statement: The `vocab/objects/__init__.py` and `vocab/activities/__init__.py` files MUST use `pkgutil.iter_modules` and
-      `importlib.import_module` to dynamically import all sibling modules at package import time
+    statement: Vocabulary type registration MUST occur automatically at package import time; no explicit per-type registration
+      call MUST be required at call sites.
     relationships:
     - rel_type: refines
       spec_id: VM-01-001
@@ -48,9 +51,12 @@ groups:
   specs:
   - id: VM-02-001
     priority: MUST
-    kind: protocol
-    statement: 'All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base` (or an intermediate class that
-      inherits from `as_Base`), which provides:'
+    kind: project
+    statement: >-
+      All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base`
+      (or an intermediate class that inherits from `as_Base`), which provides:
+      (a) a camelCase alias generator, (b) `populate_by_name=True`, and
+      (c) strict-mode validation.
   - id: VM-02-002
     priority: MUST
     kind: protocol
@@ -105,14 +111,18 @@ groups:
     priority: MUST
     kind: project
     statement: 'When adding a new Vultron-specific object type, the new class MUST: 1. Inherit from `VultronObject` (or an
-      appropriate AS2 base such as `as_Object`, `as_Activity`, etc.) 2. Define `type_` as a `Literal[str]` field matching
+      AS2 base such as `as_Object`, `as_Activity`, etc.) 2. Define `type_` as a `Literal[str]` field matching
       the wire type name (registration via `__init_subclass__` fires automatically) 3. Be placed in the vocabulary subpackage
       that matches its category (`vocab/objects/`, `vocab/activities/`) 4. Be reachable via the dynamic discovery in the subpackage
       `__init__.py` (i.e., exist as a `.py` file in the package directory)'
   - id: VM-05-002
     priority: MUST
-    kind: protocol
-    statement: 'Adding a new vocabulary type that represents a domain concept MUST be accompanied by:'
+    kind: project
+    statement: >-
+      Adding a new vocabulary type that represents a domain concept MUST be accompanied
+      by: (a) a corresponding domain-layer Pydantic model in `vultron/core/`,
+      (b) a handler use case in `vultron/core/use_cases/`, and (c) at least one
+      round-trip serialization test.
 - id: VM-06
   title: Rehydration
   specs:
@@ -137,7 +147,11 @@ groups:
   - id: VM-06-004
     priority: MUST
     kind: protocol
-    statement: 'If a URI string reference cannot be resolved (object not in DataLayer), rehydration MUST:'
+    statement: >-
+      If a URI string reference cannot be resolved (object not in DataLayer),
+      rehydration MUST: (a) leave the field as the original URI string value,
+      (b) log a WARNING identifying the unresolvable URI, and (c) continue
+      rehydrating remaining fields rather than raising an exception.
     relationships:
     - rel_type: implements
       spec_id: SE-01-003
@@ -206,3 +220,41 @@ groups:
     kind: protocol
     statement: Messages that cannot be parsed or whose semantics are unknown MAY still be forwarded to the case event log
       to create an entry for human or agent review
+- id: VM-10
+  title: Vocabulary Namespace and JSON-LD Context
+  specs:
+  - id: VM-10-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Outbound Vultron wire messages MUST declare the Vultron JSON-LD context by setting
+      `@context` to `"https://certcc.github.io/Vultron/ns/context.jsonld"`. Using only
+      the ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`) is not
+      sufficient: Vultron-specific types (`VulnerabilityCase`, `EmbargoEvent`, etc.) are
+      not defined in that namespace and cannot be resolved by receivers without the
+      Vultron context declaration.
+    rationale: >-
+      Derived from ADR-0069 (docs/adr/0069-vultron-namespace-uri.md). The Vultron vocabulary
+      extends ActivityStreams with CVD-specific types; those types must be declared in a
+      dereferenceable JSON-LD context so that external implementations can resolve them.
+      The context document at the Vultron namespace URI imports the AS2 namespace, so
+      implementations need only cite the Vultron context URI.
+    adr:
+    - ADR-0069
+    relationships:
+    - rel_type: refines
+      spec_id: VM-02-002
+  - id: VM-10-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Wire-layer classes whose `_vocab_ns` is `VocabNamespace.VULTRON` MUST default
+      `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)
+      rather than the ActivityStreams namespace URI.
+    rationale: >-
+      `VultronAS2Object` is the base class for all Vultron-specific wire types. Overriding
+      `context_` there ensures that every Vultron object serializes with the correct
+      `@context` without requiring call-site changes.
+    relationships:
+    - rel_type: implements
+      spec_id: VM-10-001

@@ -25,6 +25,8 @@ Submodules:
 - ``rm_transitions``: Report-management transition action nodes
 - ``case_creation``: Case creation and Create(Case) activity nodes
 - ``participant``: Case participant RM transition action nodes
+- ``develop_fix``: Fix-development guard/action nodes (DevelopFixBT)
+- ``deploy_fix``: Fix-deployment guard/action nodes (DeployFixBT)
 - ``emit``: Outbound report activity emission nodes
 - ``storage``: Idempotent storage nodes for inbound report objects
 """
@@ -43,6 +45,21 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateCasePriority,
     EvaluateReportCredibility,
     EvaluateReportValidity,
+)
+from vultron.core.behaviors.report.nodes.deploy_fix import (
+    CheckCSFixNotYetDeployed,
+    CheckNoNewDeploymentInfoNode,
+    CSinStateFixDeployed,
+    EmitCDActivity,
+    RMinStateDeferred,
+    TransitionCStoFixDeployed,
+)
+from vultron.core.behaviors.report.nodes.develop_fix import (
+    CheckCSFixNotYetReady,
+    CheckIsVendorRoleNode,
+    CheckRMStateAccepted,
+    EmitCFActivity,
+    TransitionCStoFixReady,
 )
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
@@ -86,6 +103,19 @@ __all__ = [
     # participant
     "TransitionParticipantRMtoAccepted",
     "TransitionParticipantRMtoDeferred",
+    # develop_fix
+    "CheckIsVendorRoleNode",
+    "CheckCSFixNotYetReady",
+    "CheckRMStateAccepted",
+    "TransitionCStoFixReady",
+    "EmitCFActivity",
+    # deploy_fix
+    "CSinStateFixDeployed",
+    "CheckCSFixNotYetDeployed",
+    "RMinStateDeferred",
+    "CheckNoNewDeploymentInfoNode",
+    "TransitionCStoFixDeployed",
+    "EmitCDActivity",
     # emit
     "EmitInvalidateReportActivity",
     "EmitCloseReportActivity",

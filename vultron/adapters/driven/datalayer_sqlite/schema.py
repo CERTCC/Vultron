@@ -48,6 +48,22 @@ class QueueEntry(SQLModel, table=True):
     activity_id: str
 
 
+class OutboxAttemptEntry(SQLModel, table=True):
+    """Persisted per-activity delivery attempt count for the outbox handler.
+
+    Keyed by (actor_id, activity_id) so counts survive drain-pass resets
+    (OX-13-001).  Cleared when an activity is dead-lettered (OX-13-002).
+    """
+
+    __tablename__ = "vultron_outbox_attempts"  # type: ignore[assignment]
+    __table_args__ = {"extend_existing": True}
+
+    id: int | None = Field(default=None, primary_key=True)
+    actor_id: str = Field(index=True)
+    activity_id: str = Field(index=True)
+    attempt_count: int = Field(default=0)
+
+
 def matches_short_id(full_id: str, short_id: str) -> bool:
     """Return True when *short_id* resolves to *full_id*.
 
@@ -61,6 +77,23 @@ def matches_short_id(full_id: str, short_id: str) -> bool:
     return strip_id_prefix(full_id) == short_id
 
 
+def _dimension_state(status: dict[str, Any], dimension: str) -> Any:
+    """Return a status dict's state for *dimension* in either persisted shape.
+
+    The canonical core shape nests the state (``{"rm": {"state": "RECEIVED"}}``,
+    ADR-0036); the wire shape carries it flat (``{"rm_state": "RECEIVED"}``),
+    optionally camelCased.  Reading only the flat spellings made this summary
+    report ``rm=None`` for every canonical row — removing the observability
+    that exists precisely to make shape migrations diagnosable (issue #2232).
+    """
+    nested = status.get(dimension)
+    if isinstance(nested, dict):
+        state = nested.get("state")
+        if state is not None:
+            return state
+    return status.get(f"{dimension}_state") or status.get(f"{dimension}State")
+
+
 def participant_status_summary(data: Any) -> str:
     """Return a short debug summary of a CaseParticipant row's status list.
 
@@ -71,9 +104,13 @@ def participant_status_summary(data: Any) -> str:
     """
     if not isinstance(data, dict):
         return ""
-    statuses = data.get("participant_statuses") or data.get(
-        "participantStatuses"
-    )
+    # Fall through on a *missing* key, not on a falsy one: an empty ladder is a
+    # participant row worth reporting as ``n_statuses=0`` (the state a re-seeded
+    # status list is about to be silently created from), and ``or`` made that
+    # branch unreachable by treating ``[]`` as "not a participant row".
+    statuses = data.get("participant_statuses")
+    if statuses is None:
+        statuses = data.get("participantStatuses")
     if not isinstance(statuses, list):
         return ""
     if not statuses:
@@ -81,8 +118,8 @@ def participant_status_summary(data: Any) -> str:
     entries = []
     for i, s in enumerate(statuses):
         if isinstance(s, dict):
-            vfd = s.get("vfd_state") or s.get("vfdState")
-            rm = s.get("rm_state") or s.get("rmState")
+            vfd = _dimension_state(s, "vfd")
+            rm = _dimension_state(s, "rm")
             pub = s.get("published")
             upd = s.get("updated")
             entries.append(

@@ -40,9 +40,9 @@ the Import-Based Ratchet".
 import ast
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
-_USE_CASES_ROOT = REPO_ROOT / "vultron" / "core" / "use_cases"
+_USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
 
 _DL_MUTATION_METHODS: frozenset[str] = frozenset(
     {"save", "create", "update", "delete"}
@@ -100,14 +100,8 @@ def _walk_own_scope(node: ast.AST):
         yield from _walk_own_scope(child)
 
 
-def _has_dl_mutation_in_execute(source_path: Path) -> bool:
-    """Return True if *source_path* contains an execute() method with a direct
-    DataLayer mutation call in its own scope (excluding inner functions).
-    """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
+def _has_dl_mutation_in_execute_tree(tree: ast.AST) -> bool:
+    """Return True if *tree* contains an execute() method with a direct DL mutation."""
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -119,14 +113,26 @@ def _has_dl_mutation_in_execute(source_path: Path) -> bool:
     return False
 
 
+def _has_dl_mutation_in_execute(source_path: Path) -> bool:
+    """Return True if *source_path* contains an execute() method with a direct
+    DataLayer mutation call in its own scope (excluding inner functions).
+    """
+    try:
+        source = source_path.read_text(encoding="utf-8")
+        tree = _corpus.parse_inline(source, filename=str(source_path))
+    except (OSError, SyntaxError):
+        return False
+    return _has_dl_mutation_in_execute_tree(tree)
+
+
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of use-case files with DL mutations in execute()."""
     violations: set[str] = set()
-    for py_file in _USE_CASES_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        if _has_dl_mutation_in_execute(py_file):
-            violations.add(py_file.relative_to(REPO_ROOT).as_posix())
+    for py_file, tree in _corpus.files_mentioning(
+        "dl.", under=_USE_CASES_ROOT
+    ):
+        if _has_dl_mutation_in_execute_tree(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
     return frozenset(violations)
 
 

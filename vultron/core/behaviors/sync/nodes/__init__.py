@@ -24,7 +24,13 @@ Submodules:
 - ``conditions``: Idempotency guard and sender verification condition nodes
 - ``receive``: Log entry delivery and validation action nodes
 - ``chain``: Chain reconstruction and log entry creation action nodes
+- ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Replay and fan-out action nodes for replication
+- ``effects``: Ledger-apply side-effect nodes (note, invite-accept, close-case)
+- ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
+  monotonic-RM ratchet (ADR-0061)
+- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``:
+  per-effect ledger-apply nodes
 """
 
 from vultron.core.behaviors.sync.nodes.chain import (
@@ -38,36 +44,64 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     CheckIsOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
-    IsAddNoteEventNode,
-    IsInviteAcceptEventNode,
-    IsParticipantStatusEventNode,
-    IsRemoveEmbargoEventNode,
     VerifySenderIsOwnIdNode,
     _find_case_actor,  # noqa: F401
     _require_case_actor_id,  # noqa: F401
     _require_log_entry,  # noqa: F401
 )
+from vultron.core.behaviors.sync.nodes.event_conditions import (
+    IsAddNoteEventNode,
+    IsCloseCaseEventNode,
+    IsInviteAcceptEventNode,
+    IsOwnershipTransferEventNode,
+    IsParticipantStatusEventNode,
+    IsRemoveEmbargoEventNode,
+    IsSubmitReportEventNode,
+)
 from vultron.core.behaviors.sync.nodes.receive import (
     BufferOutOfOrderEntryNode,
+    BufferPreGenesisEntryNode,
     CheckHashMatchesNode,
     CheckHashOrRejectOnMismatchNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     SendRejectLogEntryNode,
 )
-from vultron.core.behaviors.sync.nodes.effects import (
+from vultron.core.behaviors.sync.nodes.close_case_effect import (
+    ApplyCloseCaseFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.invite_accept_effect import (
     ApplyInviteAcceptFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
-from vultron.core.behaviors.sync.nodes.replay import (
-    CollectAndSortCaseLedgerEntriesNode,
+from vultron.core.behaviors.sync.nodes.offer_report_effect import (
+    ApplyOfferReportFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.ownership_effects import (
+    ApplyOwnershipTransferFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
+    ApplyOfferOwnershipTransferFromLedgerNode,
+    IsOfferOwnershipTransferEventNode,
+)
+from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
+    CollectNonClosedLogEntryRecipientsNode,
+    FanOutLogEntryExcludingClosedNode,
     FanOutLogEntryNode,
+    SendLogEntryToEachNode,
+)
+from vultron.core.behaviors.sync.nodes.replay import (
+    AnnounceCaseOnGenesisRejectNode,
+    CollectAndSortCaseLedgerEntriesNode,
     FindCaseActorNode,
     FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
-    SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
 
@@ -82,15 +116,26 @@ __all__ = [
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",
     "IsInviteAcceptEventNode",
+    "IsCloseCaseEventNode",
+    "IsSubmitReportEventNode",
+    "IsOwnershipTransferEventNode",
     # effects
-    "ApplyParticipantStatusFromLedgerNode",
     "ApplyNoteFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
+    "ApplyCloseCaseFromLedgerNode",
+    # participant_status_effect
+    "ApplyParticipantStatusFromLedgerNode",
+    # per-effect ledger-apply modules
+    "ApplyOfferReportFromLedgerNode",
+    "ApplyOwnershipTransferFromLedgerNode",
+    "ApplyOfferOwnershipTransferFromLedgerNode",
+    "IsOfferOwnershipTransferEventNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
     "CheckHashMatchesNode",
     "BufferOutOfOrderEntryNode",
+    "BufferPreGenesisEntryNode",
     "SendRejectLogEntryNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain
@@ -99,14 +144,17 @@ __all__ = [
     "CreateLogEntryNode",
     "PersistLogEntryNode",
     # replay
+    "AnnounceCaseOnGenesisRejectNode",
     "FindCaseActorNode",
     "CollectAndSortCaseLedgerEntriesNode",
     "FindDivergenceIndexNode",
     "SendMissingEntriesNode",
     "ReplayMissingEntriesNode",
     "CollectLogEntryRecipientsNode",
+    "CollectNonClosedLogEntryRecipientsNode",
     "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
+    "FanOutLogEntryExcludingClosedNode",
     # re-exported helper functions (backward compat)
     "_find_case_actor",
     "_require_case_actor_id",

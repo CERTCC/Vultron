@@ -15,10 +15,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime, timedelta
-from typing import Any, TypeAlias, cast
+from typing import Any, ClassVar, TypeAlias, cast
 
 import isodate  # type: ignore[import-untyped]
-from pydantic import field_serializer, field_validator, Field
+from pydantic import ConfigDict, field_serializer, field_validator, Field
 
 from vultron.core.models.base import CoreObject, VultronObject
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -35,6 +35,17 @@ class as_Object(as_Base, VultronObject):
     """Base class for all ActivityPub objects.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#object>
     """
+
+    # Explicitly opt out of validate_assignment here: the wire branch must
+    # stay lenient for inbound AS2 data (ARCH-12-002).  VultronObject now
+    # carries ValidatedAssignmentMixin, so without this override the flag
+    # propagates here via the cross-branch MRO.
+    model_config = ConfigDict(validate_assignment=False)
+
+    # Wire-branch types must NOT self-register in CORE_TYPE_MAP (issue #2416).
+    # Setting False here propagates to all as_Object subclasses via inheritance,
+    # so VultronObject.__init_subclass__ skips them entirely.
+    _is_core_branch: ClassVar[bool] = False
 
     replies: Any | None = None
     url: Any | None = None

@@ -18,6 +18,8 @@
 import logging
 from typing import Any, cast
 
+import pytest
+
 from vultron.core.behaviors.case.nodes import _create_and_attach_participant
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.enums.roles import CVDRole
@@ -69,6 +71,7 @@ class TestCreateAndAttachParticipant:
         assert result is not None
         assert participant.id_ in result.case_participants
 
+    @pytest.mark.spec("CM-19-002")
     def test_updates_actor_participant_index(
         self,
         bt_scenario: BTTestScenario,
@@ -153,3 +156,62 @@ class TestCreateAndAttachParticipant:
             logging.getLogger("test"),
         )
         assert result is None
+
+
+class TestResolveParticipantStateShapeGuard:
+    """``resolve_participant_state_from_dl`` must not substitute ``RM.START``.
+
+    Regression for #2264 (a symptom of #2232): a wire-shaped participant has
+    no ``rm`` attribute, so ``latest.rm.state if hasattr(latest, "rm") else
+    RM.START`` silently reset the participant's RM ladder to its initial state
+    instead of failing.  ARCH-15-001..004 requires the mismatch to raise.
+    """
+
+    _CONTEXT = "https://example.org/cases/case-2264"
+
+    class _FakeDl:
+        def __init__(self, obj: Any) -> None:
+            self._obj = obj
+
+        def read(self, _id: str) -> Any:
+            return self._obj
+
+    def test_returns_state_for_core_shaped_participant(self) -> None:
+        from vultron.core.behaviors.case.nodes.participant.common import (
+            resolve_participant_state_from_dl,
+        )
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.rm import RM
+
+        actor = "https://example.org/actors/alice"
+        participant = CaseParticipant(
+            attributed_to=actor, context=self._CONTEXT
+        )
+        participant.append_rm_state(
+            RM.RECEIVED, actor=actor, context=self._CONTEXT
+        )
+
+        rm_state, _vfd = resolve_participant_state_from_dl(
+            cast(Any, self._FakeDl(participant)), participant.id_
+        )
+        assert rm_state is RM.RECEIVED
+
+    def test_raises_on_wire_shaped_participant(self) -> None:
+        from vultron.core.behaviors.case.nodes.participant.common import (
+            resolve_participant_state_from_dl,
+        )
+        from vultron.errors import VultronValidationError
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        wire_participant = as_CaseParticipant(
+            attributed_to="https://example.org/actors/vendor",
+            context=self._CONTEXT,
+        )
+
+        with pytest.raises(VultronValidationError):
+            resolve_participant_state_from_dl(
+                cast(Any, self._FakeDl(wire_participant)),
+                wire_participant.id_,
+            )

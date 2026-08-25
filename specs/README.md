@@ -76,6 +76,7 @@ Load additional files only when the task touches the relevant area. See the
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
 | Lifecycle-staged domain types | `lifecycle-staged-types.yaml`, `notes/lifecycle-staged-types.md` |
 | Status dimension objects (per-machine EM/PXA/RM/VFD/PEC decomposition) | `status-dimension-objects.yaml`, `notes/status-dimension-objects.md` |
+| Received-side status authorization (StatusAdoptionGate, EmbargoTeardownAuthorizationGate, ThreatTerminationBranchNode) | `received-status-handling.yaml`, `notes/received-status-authorization.md` |
 | CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
@@ -104,7 +105,6 @@ Load additional files only when the task touches the relevant area. See the
 | History file management / append-history tool | `history-management.yaml` |
 | Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
 | Spec registry / YAML requirement files | `spec-registry.yaml` |
-| Bugfix skill / bug lifecycle | `bugfix-workflow.yaml` |
 | Spec vs. ADR delineation / when to write each | `meta-specifications.yaml`, `notes/specs-vs-adrs.md` |
 
 ---
@@ -383,10 +383,6 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   including performance testing deferral (PROTO-07) and backward-compatibility
   / change-completeness policy (PROTO-08)
 - **`agentic-readiness.yaml`** - API and CLI requirements for automated agent integration
-- **`bugfix-workflow.yaml`** - Bugfix skill requirements: root-cause depth analysis
-  (Phase 2b), user engagement, issue escalation to GitHub Bug-type issues, and bug
-  lifecycle archiving to `plan/history/`
-  (BFW-01 through BFW-04)
 - **`notes-frontmatter.yaml`** - YAML frontmatter schema for `notes/*.md` files:
   required fields (`title`, `status`), optional relationship fields, Pydantic
   loader in `vultron/metadata/notes/`, validation enforcement (pytest +
@@ -481,6 +477,7 @@ is reserved for `testability.yaml`).
 | `PROTO` | `prototype-shortcuts.yaml` |
 | `RF` | `response-format.yaml` |
 | `SE` | `semantic-extraction.yaml` |
+| `RSH` | `received-status-handling.yaml` |
 | `SDO` | `status-dimension-objects.yaml` |
 | `SM` | `state-machine.yaml` |
 | `SL` | `structured-logging.yaml` |
@@ -518,8 +515,8 @@ Some specifications consolidate requirements from multiple sources to create a s
 
 - **`actor-knowledge-model.yaml`** consolidates Actor isolation and inline-object
   requirements from `case-management.yaml` (CM-01-001) and
-  `message-validation.yaml` (MV-09-001); it is the authoritative basis for
-  both.
+  `message-validation.yaml` (MV-09-001, removed — now AKM-03-001); it is the
+  authoritative basis for both.
 - **`http-protocol.yaml`** consolidates HTTP requirements from `inbox-endpoint.yaml`,
   `message-validation.yaml`, `error-handling.yaml`, and `agentic-readiness.yaml`
 - **`structured-logging.yaml`** consolidates logging requirements from `observability.yaml`,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Regression test for BUG-26040902.
+"""Regression test for BUG-26040902 (updated for ADR-0041).
 
 Verifies that ReceiveReportCaseBT succeeds without any explicit
 VulnerabilityCase or VulnerabilityReport imports as side effects.
@@ -14,10 +14,14 @@ VOCAB-REG-1.2 fixes this by adding dynamic module discovery to the
 vocab package __init__.py files, ensuring all types are registered
 automatically when the package is imported.
 
+ADR-0041 update: ReceiveReportCaseBT no longer creates a VulnerabilityCase.
+Instead it writes a VultronReportCaseLink and enqueues Create(as_CaseProposal).
+The test now verifies the pending link is written and the outbox is non-empty.
+
 This test verifies the fix by:
   1. NOT importing VulnerabilityCase or VulnerabilityReport explicitly
   2. Running ReceiveReportCaseBT against a fresh in-memory DataLayer
-  3. Asserting Status.SUCCESS and a non-empty outbox
+  3. Asserting Status.SUCCESS and a pending VultronReportCaseLink in the DataLayer
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -36,10 +40,29 @@ This test verifies the fix by:
 import pytest
 from py_trees.common import Status
 
+_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
+
+@pytest.fixture(autouse=True)
+def configure_case_actor_url(monkeypatch):
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for the regression test."""
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    yield
+    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URL into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
+    reload_config()
+
 
 @pytest.fixture
 def _fresh_datalayer():
-    """In-memory TinyDB DataLayer with NO pre-seeded vocabulary imports."""
+    """In-memory SQLite DataLayer with NO pre-seeded vocabulary imports."""
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
     return SqliteDataLayer("sqlite:///:memory:")
@@ -65,6 +88,7 @@ def _offer_id():
     return "https://example.org/activities/offer-BUG-26040902"
 
 
+@pytest.mark.spec("CM-12-001")
 def test_receive_report_case_bt_succeeds_without_conftest_imports(
     _fresh_datalayer,
     _actor_id,
@@ -79,20 +103,19 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     the vocabulary registry will be empty and the BT will return FAILURE
     because dl.read(report_id) cannot reconstruct the VulnerabilityReport
     from its TinyDB record.
+
+    ADR-0041: tree now writes a VultronReportCaseLink and queues a proposal.
     """
     from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.case.receive_report_case_tree import (
         create_receive_report_case_tree,
     )
-    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.models.report_case_link import VultronReportCaseLink
     from vultron.core.models.vultron_types import (
         VultronCaseActor,
         VultronOffer,
         VultronReport,
     )
-    from vultron.core.states.rm import RM
-    from vultron.core.models.dimensions import RmDimension
-    from vultron.core.models._helpers import _report_phase_status_id
     from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
     dl = _fresh_datalayer
@@ -131,24 +154,6 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     )
     dl.create(offer)
 
-    reporter_status = ParticipantStatus(
-        id_=_report_phase_status_id(
-            _reporter_actor_id, _report_id, RM.ACCEPTED.value
-        ),
-        context=_report_id,
-        attributed_to=_reporter_actor_id,
-        rm=RmDimension(state=RM.ACCEPTED),
-    )
-    dl.create(reporter_status)
-
-    vendor_status = ParticipantStatus(
-        id_=_report_phase_status_id(_actor_id, _report_id, RM.RECEIVED.value),
-        context=_report_id,
-        attributed_to=_actor_id,
-        rm=RmDimension(state=RM.RECEIVED),
-    )
-    dl.create(vendor_status)
-
     # Run the BT — must succeed without conftest side-effect imports
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
@@ -157,8 +162,6 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     from vultron.core.models.events import MessageSemantics
     from vultron.core.models.events.report import SubmitReportReceivedEvent
 
-    # Build the inbound SubmitReport event that the bridge sets on the
-    # blackboard so CommitCaseLedgerEntryNode can log event_type="submit_report".
     offer_activity_snapshot = VultronActivity(
         id_=_offer_id,
         type_="Offer",
@@ -190,15 +193,18 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         "— empty vocabulary registry likely caused silent BT failure"
     )
 
-    # Verify a case was created
-    case = dl.find_case_by_report_id(_report_id)
-    assert (
-        case is not None
-    ), "BUG-26040902 regression: no VulnerabilityCase created after BT success"
+    # ADR-0041: verify a pending VultronReportCaseLink was written
+    link_id = VultronReportCaseLink.build_id(_report_id)
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink), (
+        "BUG-26040902 regression (ADR-0041): no VultronReportCaseLink written"
+        " after BT success"
+    )
+    assert link.case_id is None, "Link must be pending (case_id=None)"
 
-    # Verify outbox has the Create(Case) notification
+    # Verify outbox has the Create(as_CaseProposal) notification
     outbox_items = dl.clone_for_actor(_actor_id).outbox_list()
     assert len(outbox_items) > 0, (
         "BUG-26040902 regression: no outbox entry created — "
-        "reporter would never receive VulnerabilityCase"
+        "CaseActor would never receive the CaseProposal"
     )

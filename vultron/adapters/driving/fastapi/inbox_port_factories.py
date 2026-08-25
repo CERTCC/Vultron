@@ -26,6 +26,7 @@ to inject adapter ports into use cases at dispatch time.
 import logging
 from typing import Any, cast
 
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.models.events import MessageSemantics
@@ -111,14 +112,40 @@ def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
     return kwargs
 
 
+def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Resolve the local ``ActorConfig`` for ``CREATE_CASE_PROPOSAL``.
+
+    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
+    CaseActor grants the proposing actor its real CVD roles alongside
+    ``CVDRole.CASE_OWNER`` (CFG-07-002, CFG-07-004).  Without it the node would
+    have to guess, and labelling a coordinator as ``CVDRole.VENDOR`` makes
+    downstream VFD fix-lifecycle checks demand a fix it never produces.
+
+    Falls back to omitting ``actor_config`` when config load fails, leaving the
+    receiver with ``CVDRole.CASE_OWNER`` only.
+    """
+    del dl  # no driven ports required; only local configuration
+    kwargs: dict[str, Any] = {"wire_render_port": As2WireRenderAdapter()}
+    actor_config = _resolve_actor_config()
+    if actor_config is not None:
+        kwargs["actor_config"] = actor_config
+    return kwargs
+
+
 _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        # ANNOUNCE_VULNERABILITY_CASE seeds the local VulnerabilityCase, which
+        # anchors the per-case genesis hash and lets AnnounceVulnerabilityCase-
+        # ReceivedUseCase drain any pre-genesis Announce(CaseLedgerEntry) it
+        # parked in the gap buffer.  The drain re-runs the announce receive path,
+        # which sends a Reject on any residual mismatch, so it needs sync_port
+        # (SYNC-15-005, #2186, #2180).
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.CLOSE_CASE,
         MessageSemantics.INVITE_ACTOR_TO_CASE,
-        MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
     }
@@ -126,7 +153,10 @@ _SYNC_PORT_SEMANTICS = frozenset(
 
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
-        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
+        # ADD_CASE_STATUS_TO_CASE needs trigger_activity so that
+        # ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate) can dispatch TerminateEmbargo
+        # activities when P/X/A is set (RSH-03-001, ADR-0046).
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         MessageSemantics.OFFER_ACTOR_TO_CASE,
         MessageSemantics.OFFER_CASE_PARTICIPANT,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
@@ -148,12 +178,18 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACK_REPORT,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.OFFER_CASE_MANAGER_ROLE,
+        MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
+        MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
+        # REJECT_CASE_LEDGER_ENTRY needs trigger_activity so that
+        # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
+        # to a peer that has no case yet before replaying entries (SYNC-15-002).
+        MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
     }
 )
 
@@ -162,3 +198,8 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
 # runtime (CM-15-001, issue #1319).  Kept in a separate set so the disjoint
 # guard in make_dispatcher() does not need special-casing.
 _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
+
+# CREATE_CASE_PROPOSAL needs only the local actor's ActorConfig (no driven
+# ports) so the CaseActor can assign the proposing actor its configured CVD
+# roles (CFG-07-002, CFG-07-004).  Separate set for the same reason as above.
+_CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})

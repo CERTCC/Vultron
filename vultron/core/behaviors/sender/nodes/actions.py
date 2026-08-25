@@ -17,28 +17,33 @@
 
 from typing import Callable
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 
 
-class ResolveCaseManagerNode(DataLayerAction):
+class ResolveCaseManagerNode(DataLayerActionWithPorts):
     """Look up the CASE_MANAGER actor ID and write it to the blackboard."""
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_manager_id",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "case_manager_id": PortInformation(data_type=str, required=True)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_manager_id": "/case_manager_id"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -60,14 +65,14 @@ class ResolveCaseManagerNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.case_manager_id = case_manager_id
+        self._set_output("case_manager_id", case_manager_id)
         self.logger.debug(
             "Resolved CASE_MANAGER actor for case '%s'", self.case_id
         )
         return Status.SUCCESS
 
 
-class ConstructActivitiesNode(DataLayerAction):
+class ConstructActivitiesNode(DataLayerActionWithPorts):
     """Build outbound AS2 activities and write their IDs to the blackboard."""
 
     def __init__(
@@ -78,21 +83,34 @@ class ConstructActivitiesNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._activity_builder = activity_builder
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_manager_id",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_manager_id"] = PortInformation(
+            data_type=str, required=True
         )
-        self.blackboard.register_key(
-            key="activity_ids",
-            access=py_trees.common.Access.WRITE,
-        )
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "activity_ids": PortInformation(data_type=object, required=True)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_manager_id": "/case_manager_id",
+            "activity_ids": "/activity_ids",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_manager_id_bb: str = self.get_input("case_manager_id")
 
     def update(self) -> Status:
-        try:
-            case_manager_id: str = self.blackboard.case_manager_id
-        except KeyError:
+        case_manager_id = self.case_manager_id_bb
+        if not case_manager_id:
             self.feedback_message = "case_manager_id not in blackboard"
             return Status.FAILURE
 
@@ -103,25 +121,34 @@ class ConstructActivitiesNode(DataLayerAction):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        self.blackboard.activity_ids = activity_ids
+        self._set_output("activity_ids", activity_ids)
         self.logger.debug(
             "Constructed %d outbound activity/activities", len(activity_ids)
         )
         return Status.SUCCESS
 
 
-class QueueToOutboxNode(DataLayerAction):
+class QueueToOutboxNode(DataLayerActionWithPorts):
     """Queue each activity ID from the blackboard to the actor's outbox."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity_ids",
-            access=py_trees.common.Access.READ,
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity_ids"] = PortInformation(
+            data_type=object, required=True
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity_ids": "/activity_ids"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity_ids: list[str] = self.get_input("activity_ids")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -129,11 +156,7 @@ class QueueToOutboxNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            activity_ids: list[str] = self.blackboard.activity_ids
-        except KeyError:
-            self.feedback_message = "activity_ids not in blackboard"
-            return Status.FAILURE
+        activity_ids = self.activity_ids
 
         try:
             dl = self.datalayer

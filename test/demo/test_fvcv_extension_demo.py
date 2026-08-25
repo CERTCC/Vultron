@@ -387,3 +387,439 @@ class TestFvcvExtensionCliCommand:
         runner = CliRunner()
         result = runner.invoke(main, ["fvcv-extension", "--help"])
         assert "--coordinator-url" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Milestone assertion tests — AC-4 of ISSUE-1976
+# ---------------------------------------------------------------------------
+
+
+class TestFvcvExtensionMilestoneAssertions:
+    """Verify that _phase_* functions call the required milestone helpers."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_phase_report_submission_calls_verify_case_active(self):
+        """_phase_report_submission calls verify_case_active at M1."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        invite = MagicMock()
+        invite.id_ = "urn:test:invite"
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvcv",
+                return_value=(finder, vendor, coordinator, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[vendor_in_vendor, coordinator_in_coordinator],
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={"activity": {"id": invite.id_}},
+            ),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "verify_case_active") as mock_m1,
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = invite
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                finder_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+            )
+        mock_m1.assert_called()
+
+    def test_phase_fix_lifecycle_calls_verify_fix_ready(self):
+        """_phase_fix_lifecycle calls verify_fix_ready at M4/M5."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_fix_ready") as mock_m4,
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_fix_lifecycle(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                case=case,
+            )
+        mock_m4.assert_called()
+
+    def test_phase_publication_calls_verify_publicly_disclosed(self):
+        """_phase_publication calls verify_publicly_disclosed at M6."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_published"),
+            patch.object(demo, "wait_for_case_em_terminated"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_publicly_disclosed") as mock_m6,
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_publication(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+        mock_m6.assert_called()
+
+    def test_phase_case_closure_calls_verify_case_closed(self):
+        """_phase_case_closure calls verify_case_closed at M7."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case()
+        case.id_ = "urn:test:case"
+        vendor_client.get.return_value = {
+            "e0": {
+                "case_id": case.id_,
+                "log_index": 0,
+                "entry_hash": "h0",
+                "event_type": "close_case",
+            }
+        }
+
+        with (
+            patch.object(demo, "actor_closes_case"),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed") as mock_m7,
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+        mock_m7.assert_called()
+
+    def test_phase_case_closure_vendor1_closes_last(self):
+        """Vendor1 (case owner) must close after Vendor2, Coordinator, and Finder."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder_in_finder = self._actor("urn:test:finder")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case()
+        case.id_ = "urn:test:case"
+        vendor_client.get.return_value = {
+            "e0": {
+                "case_id": case.id_,
+                "log_index": 0,
+                "entry_hash": "h0",
+                "event_type": "close_case",
+            }
+        }
+
+        mock_close = MagicMock()
+
+        with (
+            patch.object(demo, "actor_closes_case", mock_close),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed"),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=self._actor("urn:test:vendor"),
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=self._actor("urn:test:vendor2"),
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=self._actor("urn:test:finder"),
+                finder_in_finder=finder_in_finder,
+                coordinator=self._actor("urn:test:coordinator"),
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+
+        actors_closed = [
+            call.kwargs["actor"].id_ for call in mock_close.call_args_list
+        ]
+        assert (
+            actors_closed[-1] == vendor_in_vendor.id_
+        ), "Vendor1 (case owner) must close last; got order: " + str(
+            actors_closed
+        )
+        assert actors_closed.index(finder_in_finder.id_) < actors_closed.index(
+            vendor_in_vendor.id_
+        ), "Finder must close before Vendor1"
+
+
+@pytest.mark.spec("CLP-08-005")
+class TestFinderCaseReplicaWaitBeforeVendor2Triage:
+    """CLP-08-005: Finder replica wait must precede invite-path RM triage in fvcv-extension."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_finder_client_in_signature(self):
+        import inspect
+
+        sig = inspect.signature(demo._phase_coordinator_suggests_vendor2)
+        assert "finder_client" in sig.parameters
+
+    def test_finder_wait_before_vendor2_triage(self):
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        case = self._case()
+        offer = MagicMock()
+        report = MagicMock()
+        finder = self._actor("urn:test:finder")
+
+        call_order: list[str] = []
+
+        def _wait_for_case(client, case_id, **_kw):
+            if client is finder_client:
+                call_order.append("finder_wait")
+
+        def _triage(**_kw):
+            call_order.append("triage")
+
+        with (
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=_wait_for_case,
+            ),
+            patch.object(
+                demo, "run_invite_path_rm_triage", side_effect=_triage
+            ),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={"activity": {"id": "urn:test:activity"}},
+            ),
+            patch.object(
+                demo, "find_cp_offer_for_case", return_value="urn:test:offer"
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo,
+                "demo_check",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_coordinator_suggests_vendor2(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                case=case,
+                offer=offer,
+                report=report,
+                finder=finder,
+            )
+
+        assert (
+            "finder_wait" in call_order
+        ), "wait_for_case_on_container(finder_client) never called"
+        assert "triage" in call_order, "run_invite_path_rm_triage never called"
+        finder_idx = next(
+            i for i, v in enumerate(call_order) if v == "finder_wait"
+        )
+        triage_idx = next(i for i, v in enumerate(call_order) if v == "triage")
+        assert finder_idx < triage_idx, (
+            "Finder replica wait must precede run_invite_path_rm_triage; "
+            f"got order: {call_order}"
+        )

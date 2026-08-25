@@ -92,6 +92,17 @@ class DeferCaseTriggerRequest(CaseTriggerRequest):
     pass
 
 
+class LeaveCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for an actor to send Leave(VulnerabilityCase).
+
+    Routes ``Leave(VulnerabilityCase)`` to the Case Actor inbox so the
+    Case Actor can commit a ``close_case`` ledger entry and broadcast it
+    to all participants (ADR-0050).
+    """
+
+    pass
+
+
 class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
 
@@ -152,6 +163,7 @@ class CreateCaseTriggerRequest(TriggerRequest):
     name: NonEmptyString
     content: NonEmptyString
     report_id: NonEmptyString | None = None
+    to: list[str] | None = None
 
 
 class AddObjectToCaseTriggerRequest(CaseTriggerRequest):
@@ -181,12 +193,23 @@ class SuggestActorToCaseTriggerRequest(CaseTriggerRequest):
     """
 
     suggested_actor_id: NonEmptyString
+    roles: list[CVDRole] | None = None
 
 
 class AcceptCaseInviteTriggerRequest(TriggerRequest):
     """Trigger request for an invitee to accept a case invitation.
 
     Emits an RmAcceptInviteToCaseActivity queued in the actor's outbox for
+    delivery to the Case Actor that issued the invitation.
+    """
+
+    invite_id: NonEmptyString
+
+
+class RejectCaseInviteTriggerRequest(TriggerRequest):
+    """Trigger request for an invitee to reject a case invitation.
+
+    Emits an RmRejectInviteToCaseActivity queued in the actor's outbox for
     delivery to the Case Actor that issued the invitation.
     """
 
@@ -227,13 +250,15 @@ class AddParticipantStatusTriggerRequest(CaseTriggerRequest):
     pxa_state: CS_pxa | None = None
 
 
-class OfferCaseManagerRoleTriggerRequest(CaseTriggerRequest):
-    """Trigger request to offer the CASE_MANAGER role to the Case Actor.
+class OfferCaseParticipantRoleTriggerRequest(CaseTriggerRequest):
+    """Trigger request to offer a CVDRole to a target Actor in a Case.
 
-    Emits an ``_OfferCaseManagerRoleActivity`` from the Case Actor's identity
-    to itself, initiating the CASE_MANAGER delegation handshake.  The Case
-    Actor must already exist in the DataLayer (DEMOMA-08-007).
+    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    from the requesting actor (ADR-0039).
     """
+
+    target_actor_id: UriString
+    role: CVDRole = CVDRole.CASE_MANAGER
 
 
 class OfferCaseOwnershipTransferTriggerRequest(CaseTriggerRequest):

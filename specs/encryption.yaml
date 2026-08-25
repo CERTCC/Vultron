@@ -17,7 +17,11 @@ groups:
   - id: ENC-01-001
     priority: MUST
     kind: protocol
-    statement: Each CaseActor MUST generate an asymmetric key pair at instantiation
+    statement: Each CaseActor MUST generate a unique asymmetric key pair when first created for a case.
+    rationale: The intended model is one key pair per case, bound to the CaseActor for that case's lifetime. Regenerating
+      on restart would invalidate any peer's cached public key and break encrypted communication mid-case. Open question —
+      if a single CaseActor process ever manages multiple cases, it is unresolved whether the key pair belongs to the actor
+      or to the actor/case tuple; for now the 1:1 case-actor-to-case assumption holds.
     scope:
     - production
     relationships:
@@ -46,6 +50,32 @@ groups:
       Private keys MUST be stored securely and MUST NOT be logged or included in API responses
     scope:
     - production
+  - id: ENC-01-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor's asymmetric key pair MUST be persisted and reused across process
+      restarts for the lifetime of that case.
+    rationale: >-
+      Regenerating on restart would invalidate any peer's cached public key and break
+      encrypted communication mid-case.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: ENC-01-001
+  - id: ENC-01-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: A new key pair MUST NOT be generated on process resumption for an existing case.
+    rationale: >-
+      Generating a new key pair on restart breaks any encrypted channel established
+      with the previous key, invalidating cached public keys held by case participants.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: ENC-01-001
 - id: ENC-02
   title: Message Encryption
   specs:
@@ -68,6 +98,11 @@ groups:
     statement: >-
       When sending messages to case participants, the CaseActor SHOULD encrypt each outbound
       message to the recipient's public key individually (one encrypted payload per recipient)
+    rationale: >-
+      The specific encryption scheme (e.g., ECDH key agreement + AES-256-GCM, RSA-OAEP) is
+      intentionally deferred pending a protocol-level agreement. Until a scheme is standardized,
+      the choice is implementation-defined; interoperability between independently-built
+      implementations is not yet a requirement.
     scope:
     - production
     relationships:

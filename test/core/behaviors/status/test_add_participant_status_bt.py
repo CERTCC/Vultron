@@ -15,16 +15,20 @@
 
 """Tests for AddParticipantStatus BT nodes and tree factory.
 
-Covers all four DEMOMA-07-003 steps (step 3 raw re-broadcast removed
-per DEMOMA-07-005):
+Covers the DEMOMA-07-003 steps (step 3 raw re-broadcast removed per DEMOMA-07-005)
+and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
+
   1. VerifySenderIsParticipantNode             — unknown sender is rejected
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
-  4. PublicDisclosureBranchNode               — always SUCCESS, only triggers teardown on CS.P + CASE_OWNER
-  5. AllParticipantsRMClosedConditionNode     — FAILURE when any participant not RM.CLOSED
-     CloseNotYetEmittedConditionNode          — FAILURE when Leave already in outbox
-     EmitCloseCaseNode                        — queues Leave(VulnerabilityCase)
+  StatusAdoptionGate: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
+  StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
+  StatusAdoptionGate: EmitAddCaseStatusToSelfNode         — self-addressed Add(CaseStatus) (RSH-01-003)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
+AutoCloseSequence was removed per ADR-0050: canonical RM closure is routed
+through the Leave(VulnerabilityCase) receive path in receive_close_case_tree.
+
+Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
+Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
 
 import py_trees
@@ -32,7 +36,18 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_DETERMINISTIC,
+    StatusAuthorizationCallOutBundle,
+)
+from vultron.core.behaviors.call_out.nodes import AlwaysFail
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+)
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
@@ -44,12 +59,15 @@ from vultron.core.behaviors.status.nodes import (
     AppendStatusAndSaveParticipantNode,
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
+    EmitAddCaseStatusToSelfNode,
+    EmitRMGapNoteNode,
     LoadParticipantNode,
     PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
     VerifySenderIsParticipantNode,
 )
+from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -343,6 +361,7 @@ class TestValidateRMTransitionNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("RSH-06-002")
     def test_rejects_backwards_transition(
         self, populated_dl, populated_bridge
     ):
@@ -419,6 +438,7 @@ class TestValidateRMTransitionNode:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("RSH-06-001")
     def test_accepts_forward_jump(self, populated_dl, populated_bridge):
         """Non-adjacent forward RM jump is accepted (sender authoritative)."""
         p = populated_dl.read(PARTICIPANT_ID)
@@ -675,7 +695,9 @@ class TestPublicDisclosureBranchNode:
         from vultron.core.states.cs import CS_pxa
         from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-        cs = as_CaseStatus()
+        # ``context`` is required by core CaseStatus; omitting it made the
+        # nested status unprojectable to the core shape (#2232).
+        cs = as_CaseStatus(context=CASE_ID)
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
@@ -715,7 +737,9 @@ class TestPublicDisclosureBranchNode:
         populated_dl.create(embargo)
         populated_dl.save(case)
 
-        cs = as_CaseStatus()
+        # ``context`` is required by core CaseStatus; omitting it made the
+        # nested status unprojectable to the core shape (#2232).
+        cs = as_CaseStatus(context=CASE_ID)
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
@@ -760,44 +784,53 @@ class TestAllParticipantsRMClosedConditionNode:
         self,
         populated_dl,
         participant,
+        case_manager_participant,
     ):
-        """All CVD participants RM.CLOSED → SUCCESS."""
-        closed_status = as_ParticipantStatus(
+        """All CVD participants (including CaseActor) at RM.CLOSED → SUCCESS (ADR-0051)."""
+        closed_vendor = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
         )
-        populated_dl.create(closed_status)
-        participant.participant_statuses.append(closed_status)
+        closed_cm = as_ParticipantStatus(
+            id_=f"{CM_PARTICIPANT_ID}/statuses/closed",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(closed_vendor)
+        populated_dl.create(closed_cm)
+        participant.participant_statuses.append(closed_vendor)
         populated_dl.save(participant)
+        case_manager_participant.participant_statuses.append(closed_cm)
+        populated_dl.save(case_manager_participant)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-    def test_skips_case_manager_participant(
+    def test_fails_when_case_manager_participant_not_closed(
         self,
         populated_dl,
         participant,
         case_manager_participant,
     ):
-        """CASE_MANAGER participant is excluded from the RM.CLOSED check."""
-        # Only vendor has CLOSED — case_manager_participant has no status
-        closed_status = as_ParticipantStatus(
+        """CaseActor not at RM.CLOSED → FAILURE; no CASE_MANAGER skip (ADR-0051)."""
+        # Only the vendor is CLOSED; case_manager_participant has no RM.CLOSED status
+        closed_vendor = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
         )
-        populated_dl.create(closed_status)
-        participant.participant_statuses.append(closed_status)
+        populated_dl.create(closed_vendor)
+        participant.participant_statuses.append(closed_vendor)
         populated_dl.save(participant)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        # CASE_MANAGER is skipped, so only vendor matters → SUCCESS
-        assert result.status == Status.SUCCESS
+        # CaseActor is not RM.CLOSED → FAILURE (ADR-0051 removes the old skip)
+        assert result.status == Status.FAILURE
 
     def test_fails_when_no_case_id(self, bridge):
         """No case_id → FAILURE."""
@@ -878,14 +911,39 @@ class TestCloseNotYetEmittedConditionNode:
 
 
 class TestAddParticipantStatusTree:
-    def test_full_tree_succeeds_for_known_sender(
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    @pytest.mark.spec("RSH-01-001")
+    @pytest.mark.spec("RSH-01-003")
+    def test_full_tree_succeeds_for_case_owner_sender(
         self,
         populated_dl,
         make_payload,
     ):
-        """End-to-end: known sender → all five steps succeed."""
+        """End-to-end: CASE_OWNER sender bypasses StatusAdoptionGate → status
+        appended, self-addressed Add(CaseStatus) queued (RSH-01-001 to RSH-01-003).
+
+        Uses a ParticipantStatus with an embedded CaseStatus so
+        EmitAddCaseStatusToSelfNode can construct the outbound activity.
+        Runs with actor_id=ACTOR_ID (not CASE_MANAGER) to skip the
+        guarded ledger-commit subtree.
+        """
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+
+        cs = as_CaseStatus(id_=f"{STATUS_ID}/cs", context=CASE_ID)
+        status_with_cs = as_ParticipantStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            case_status=cs,
+        )
+        populated_dl.save(status_with_cs)
+
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            status=status_with_cs,
             target=as_CaseParticipant(
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
@@ -893,8 +951,9 @@ class TestAddParticipantStatusTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        bridge = BTBridge(datalayer=populated_dl)
-        tree = add_participant_status_tree(request=event)
+        bridge = self._bridge_with_factory(populated_dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        # actor_id=ACTOR_ID → not CASE_MANAGER → ledger commit is skipped
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -902,6 +961,12 @@ class TestAddParticipantStatusTree:
         assert p is not None
         status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
         assert STATUS_ID in status_ids
+
+        # RSH-01-003: self-addressed Add(CaseStatus) must be queued in outbox
+        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        assert (
+            len(outbox) > 0
+        ), "EmitAddCaseStatusToSelfNode must queue Add(CaseStatus)"
 
     def test_full_tree_fails_for_unknown_sender(
         self,
@@ -918,8 +983,8 @@ class TestAddParticipantStatusTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        bridge = BTBridge(datalayer=populated_dl)
-        tree = add_participant_status_tree(request=event)
+        bridge = self._bridge_with_factory(populated_dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=tree, actor_id=OUTSIDER_ID)
         assert result.status == Status.FAILURE
 
@@ -928,3 +993,672 @@ class TestAddParticipantStatusTree:
         # STATUS_ID was NOT appended; only the auto-initialised default status exists
         status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
         assert STATUS_ID not in status_ids
+
+    @pytest.mark.spec("RSH-01-002")
+    def test_guard_blocks_non_owner_when_call_out_fails(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """Non-CASE_OWNER sender with AlwaysFail call-out → blocked at gate
+        (RSH-01-002): StatusAdoptionGate denied — Add(CaseStatus) NOT emitted to outbox.
+
+        Uses CASE_MANAGER_ID as the sender (not CASE_OWNER) so CheckIsCaseOwnerNode
+        returns FAILURE, routing to the AlwaysFail call-out which also fails.
+        Executes as ACTOR_ID (vendor) to skip the guarded ledger-commit subtree.
+        """
+        bridge = self._bridge_with_factory(populated_dl)
+        reject_bundle = StatusAuthorizationCallOutBundle(
+            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+        )
+        cm_status_id = f"{STATUS_ID}/cm"
+        cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
+        populated_dl.create(cm_status)
+        # CASE_MANAGER_ID is NOT CASE_OWNER — CheckIsCaseOwnerNode will return FAILURE
+        cm_activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=cm_status_id, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=CM_PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=CASE_MANAGER_ID,
+            ),
+            actor=CASE_MANAGER_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        cm_event = make_payload(cm_activity)
+        cm_tree = add_participant_status_tree(
+            request=cm_event,
+            case_id=CASE_ID,
+            call_out=reject_bundle,
+        )
+        # Execute as the vendor (ACTOR_ID) — not CASE_MANAGER → ledger commit skipped
+        result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        # Outbox must be empty: guard blocked before EmitAddCaseStatusToSelfNode
+        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        assert (
+            len(outbox) == 0
+        ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
+
+    @pytest.mark.spec("RSH-01-004")
+    @pytest.mark.spec("RSH-03-003")
+    def test_no_side_effects_execute_directly_rsh_01_004(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """add_participant_status_tree must NOT execute embargo teardown
+        directly (RSH-01-004).  After SUCCESS the tree has no PublicDisclosureBranchNode
+        in its children."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        # PublicDisclosureBranchNode must NOT appear anywhere in the tree
+        def _collect_nodes(node: py_trees.behaviour.Behaviour) -> list:
+            result_inner = [node]
+            for child in getattr(node, "children", []):
+                result_inner.extend(_collect_nodes(child))
+            return result_inner
+
+        all_nodes = _collect_nodes(tree)
+        node_types = [type(n).__name__ for n in all_nodes]
+        assert "PublicDisclosureBranchNode" not in node_types, (
+            "PublicDisclosureBranchNode must NOT be in add_participant_status_tree "
+            "(RSH-01-004: side-effects belong in add_case_status_tree)"
+        )
+
+    @pytest.mark.spec("RSH-01-001")
+    @pytest.mark.spec("RSH-01-002")
+    def test_emit_node_present_rsh_01_001(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """EmitAddCaseStatusToSelfNode and StatusAdoptionGate must be present
+        in the tree (RSH-01-001)."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        def _collect_nodes(node: py_trees.behaviour.Behaviour) -> list:
+            result_inner = [node]
+            for child in getattr(node, "children", []):
+                result_inner.extend(_collect_nodes(child))
+            return result_inner
+
+        all_nodes = _collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+
+        assert (
+            "EmitAddCaseStatusToSelf" in node_names
+        ), "EmitAddCaseStatusToSelfNode must be present (RSH-01-001)"
+        assert (
+            "StatusAdoptionGate" in node_names
+        ), "StatusAdoptionGate must be present (RSH-01-001)"
+        assert (
+            "CheckIsCaseOwner" in node_names
+        ), "CheckIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
+
+
+# ---------------------------------------------------------------------------
+# Regression: AutoCloseSequence must NOT be present (ADR-0050)
+# ---------------------------------------------------------------------------
+
+
+class TestNoAutoCloseSequenceInTree:
+    """Regression guard: AutoCloseSequence is dead code per ADR-0050.
+
+    Canonical RM closure is routed through Leave(VulnerabilityCase) receive
+    path in receive_close_case_tree.  This tree must NOT contain any
+    AutoCloseSequence, AutoCloseIfCaseManager, EmitCloseCaseNode, or
+    ResolveCaseManagerNode subtrees.
+    """
+
+    def _all_nodes(self, node: py_trees.behaviour.Behaviour) -> list:
+        result = [node]
+        for child in getattr(node, "children", []):
+            result.extend(self._all_nodes(child))
+        return result
+
+    def test_no_auto_close_sequence_node(self, make_payload):
+        """AutoCloseSequence must not appear in add_participant_status_tree."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        all_nodes = self._all_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+        assert (
+            "AutoCloseSequence" not in node_names
+        ), "AutoCloseSequence must be removed per ADR-0050"
+        assert (
+            "AutoCloseIfCaseManager" not in node_names
+        ), "AutoCloseIfCaseManager must be removed per ADR-0050"
+
+    def test_no_emit_close_case_node(self, make_payload):
+        """EmitCloseCaseNode must not appear in add_participant_status_tree."""
+        from vultron.core.behaviors.status.nodes.lifecycle import (
+            EmitCloseCaseNode,
+        )
+
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        all_nodes = self._all_nodes(tree)
+        assert not any(
+            isinstance(n, EmitCloseCaseNode) for n in all_nodes
+        ), "EmitCloseCaseNode must not be in add_participant_status_tree (ADR-0050)"
+
+
+# ---------------------------------------------------------------------------
+# StatusAdoptionGate: CheckIsCaseOwnerNode (RSH-01-002)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckIsCaseOwnerNode:
+    @pytest.mark.spec("RSH-01-002")
+    def test_case_owner_returns_success(self, populated_bridge):
+        """CASE_OWNER sender → SUCCESS (gospel bypass)."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=ACTOR_ID,  # has CASE_OWNER role in fixture
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-01-002")
+    def test_non_owner_returns_failure(self, populated_bridge):
+        """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=CASE_MANAGER_ID,  # has CASE_MANAGER role, not CASE_OWNER
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_unknown_actor_returns_failure(self, populated_bridge):
+        """Actor not in actor_participant_index → FAILURE."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=OUTSIDER_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_no_case_returns_failure(self, bridge):
+        """No case in DataLayer → FAILURE."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=ACTOR_ID,
+            case_id="https://example.org/cases/nonexistent",
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_no_case_id_returns_failure(self, bridge):
+        """No case_id at all → FAILURE."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=None,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# StatusAdoptionGate: EmitAddCaseStatusToSelfNode (RSH-01-003)
+# ---------------------------------------------------------------------------
+
+
+class TestEmitAddCaseStatusToSelfNode:
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    @pytest.mark.spec("RSH-01-003")
+    def test_emits_activity_and_queues_in_outbox(self, dl):
+        """With a factory and embedded case_status: activity queued in outbox."""
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+
+        cs = as_CaseStatus(id_=f"{STATUS_ID}/cs", context=CASE_ID)
+        status_with_cs = as_ParticipantStatus(
+            id_=f"{STATUS_ID}/with-cs",
+            context=CASE_ID,
+            case_status=cs,
+        )
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Test")
+        dl.create(case)
+        dl.create(status_with_cs)
+
+        bridge = self._bridge_with_factory(dl)
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=status_with_cs.id_,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert len(outbox) > 0, "Activity should be queued in outbox"
+
+    def test_fails_without_factory(self, populated_bridge):
+        """No TriggerActivityPort → FAILURE (BT-14-001)."""
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=STATUS_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_fails_when_participant_status_id_empty(self, populated_dl):
+        """Empty participant_status_id → FAILURE."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id="", case_id=CASE_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_fails_when_case_id_none(self, populated_dl):
+        """None case_id → FAILURE."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=STATUS_ID, case_id=None
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_success_when_status_has_no_case_status(
+        self, populated_dl
+    ):
+        """ParticipantStatus with no embedded case_status → SUCCESS (soft skip).
+
+        No canonical update to emit; the Sequence must continue to
+        AutoCloseIfCaseManager (DEMOMA-07-003 step 5), so the node returns
+        SUCCESS rather than blocking the sequence with FAILURE.
+        """
+        bridge = self._bridge_with_factory(populated_dl)
+        # STATUS_ID in the fixture has no embedded case_status
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=STATUS_ID, case_id=CASE_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# StatusAdoptionGate: StatusAuthorizationCallOutBundle (RSH-01-002)
+# ---------------------------------------------------------------------------
+
+
+class TestStatusAuthorizationCallOutBundle:
+    def test_deterministic_singleton_approves_by_default(
+        self, populated_bridge
+    ):
+        """STATUS_AUTHORIZATION_DETERMINISTIC has AlwaysSucceed factory."""
+        node = STATUS_AUTHORIZATION_DETERMINISTIC.status_adoption_gate_factory(
+            "CaseOwnerApprovesStatusUpdate"
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_custom_bundle_with_always_fail(self, populated_bridge):
+        """Custom bundle with AlwaysFail factory → call-out denies approval."""
+        bundle = StatusAuthorizationCallOutBundle(
+            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+        )
+        node = bundle.status_adoption_gate_factory(
+            "CaseOwnerApprovesStatusUpdate"
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_bundle_is_frozen(self):
+        """Bundle is immutable (frozen dataclass)."""
+        import dataclasses
+
+        assert dataclasses.is_dataclass(StatusAuthorizationCallOutBundle)
+        bundle = StatusAuthorizationCallOutBundle()
+        with pytest.raises((AttributeError, dataclasses.FrozenInstanceError)):
+            bundle.status_adoption_gate_factory = lambda name: None  # type: ignore[method-assign]
+
+
+# ---------------------------------------------------------------------------
+# Regression: CLP-10-009 / ISSUE-2254 — validators in preconditions
+# ---------------------------------------------------------------------------
+
+
+class TestRejectionValidatorBeforeCommit:
+    """CLP-10-009 / ISSUE-2254 regression.
+
+    ValidateRMTransitionNode must NOT fire after GuardedCommit in the
+    receive-side path.  Before the fix it did, causing canonical/replica
+    divergence for a participant at RM.CLOSED whose update was partially
+    accepted (vfd or other dimension advanced).
+
+    The fix is validate_rm=False in add_participant_status_tree, delegating
+    rm adjudication entirely to FilterParticipantStatusDimensionsNode
+    (precondition guard).  The _rm_was_carried_forward() workaround was
+    removed; this test proves it is not needed.
+    """
+
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_partial_accept_with_closed_rm_succeeds_and_produces_ledger_entry(
+        self, make_payload
+    ):
+        """Participant is RM.CLOSED; incoming status advances vfd but asserts
+        a backwards rm (VALID ≺ CLOSED).
+
+        FilterParticipantStatusDimensionsNode refuses rm and carries CLOSED
+        forward; vfd advance is accepted (partial accept → SUCCESS).
+        GuardedCommit fires and produces one CaseLedgerEntry.
+        ValidateRMTransitionNode is SKIPPED (validate_rm=False), so the
+        carried-forward CLOSED rm no longer causes a post-commit FAILURE.
+
+        This test FAILS on pre-fix code where ValidateRMTransitionNode ran
+        after GuardedCommit and the _rm_was_carried_forward() workaround had
+        been removed (demonstrating the latent divergence risk).
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.core.states.cs import CS_vfd
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        cm_participant = as_CaseParticipant(
+            id_=CM_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        # attributed_to seeds the per-case genesis hash (CLP-08-003)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="Fix1 Regression", attributed_to=CASE_MANAGER_ID
+        )
+        case.add_participant(cm_participant)
+
+        existing_status = as_ParticipantStatus(
+            id_=f"{STATUS_ID}/existing",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+            vfd_state=CS_vfd.vfd,
+        )
+        vendor_participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        vendor_participant.participant_statuses.append(existing_status)
+        case.add_participant(vendor_participant)
+
+        dl.create(case)
+        dl.create(cm_participant)
+        dl.create(vendor_participant)
+        dl.create(existing_status)
+
+        # Incoming status: rm=VALID (backwards from CLOSED), vfd advances to Vfd
+        incoming_status = as_ParticipantStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            rm_state=RM.VALID,
+            vfd_state=CS_vfd.Vfd,
+        )
+        dl.create(incoming_status)
+
+        activity = add_status_to_participant_activity(
+            status=incoming_status,
+            target=vendor_participant,
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Regression"),
+        )
+        event = make_payload(activity).model_copy(
+            update={"activity": activity}
+        )
+
+        bridge = self._bridge_with_factory(dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS, (
+            "Partial accept (rm refused, vfd accepted) must succeed — "
+            "ValidateRMTransitionNode must NOT abort after GuardedCommit (CLP-10-009)"
+        )
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 1, (
+            "One CaseLedgerEntry must be committed for the partial accept "
+            "(rm refused → carried forward, vfd accepted)"
+        )
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_fully_rejected_update_produces_no_ledger_entry(
+        self, make_payload
+    ):
+        """All dimensions refused by FilterParticipantStatusDimensionsNode →
+        FAILURE before GuardedCommit → zero CaseLedgerEntries (CLP-10-009).
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.core.states.cs import CS_vfd
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        cm_participant = as_CaseParticipant(
+            id_=CM_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        # attributed_to seeds the per-case genesis hash (CLP-08-003)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="Fix1 Full Reject", attributed_to=CASE_MANAGER_ID
+        )
+        case.add_participant(cm_participant)
+
+        existing_status = as_ParticipantStatus(
+            id_=f"{STATUS_ID}/existing",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+            vfd_state=CS_vfd.Vfd,
+        )
+        vendor_participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        vendor_participant.participant_statuses.append(existing_status)
+        case.add_participant(vendor_participant)
+
+        dl.create(case)
+        dl.create(cm_participant)
+        dl.create(vendor_participant)
+        dl.create(existing_status)
+
+        # Incoming status: rm backwards AND vfd backwards → all dimensions refused
+        incoming_status = as_ParticipantStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            rm_state=RM.VALID,
+            vfd_state=CS_vfd.vfd,
+        )
+        dl.create(incoming_status)
+
+        activity = add_status_to_participant_activity(
+            status=incoming_status,
+            target=vendor_participant,
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Full Reject"),
+        )
+        event = make_payload(activity)
+
+        bridge = self._bridge_with_factory(dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        )
+        assert (
+            result.status == Status.FAILURE
+        ), "A fully rejected update must fail before GuardedCommit"
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 0, (
+            "A fully rejected update must produce zero CaseLedgerEntries"
+            " (CLP-10-009)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# EmitRMGapNoteNode (RSH-06)
+# ---------------------------------------------------------------------------
+
+
+class TestEmitRMGapNoteNode:
+    """EmitRMGapNoteNode emits Add(Note,Case) on RM anomaly (RSH-06-004)."""
+
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    def _set_anomaly(self, anomaly_type: str, from_rm: RM, to_rm: RM) -> None:
+        """Write BB_RM_ANOMALY directly to blackboard storage for the test."""
+        import py_trees
+
+        py_trees.blackboard.Blackboard.storage["/" + BB_RM_ANOMALY] = {
+            "anomaly_type": anomaly_type,
+            "from_rm": from_rm,
+            "to_rm": to_rm,
+        }
+
+    def test_no_anomaly_is_noop_success(self, populated_dl):
+        """BB_RM_ANOMALY=None → SUCCESS with no outbox entry (happy path)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert len(outbox) == 0, "No anomaly → no outbox entry expected"
+
+    @pytest.mark.spec("RSH-06-004")
+    def test_gap_anomaly_emits_note(self, populated_dl):
+        """BB_RM_ANOMALY=gap → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        # Pre-populate anomaly flag as if FilterParticipantStatusDimensionsNode ran
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert (
+            len(outbox) == 1
+        ), "Gap anomaly should emit exactly one Add(Note,Case)"
+
+    @pytest.mark.spec("RSH-06-004")
+    def test_regression_anomaly_emits_note(self, populated_dl):
+        """BB_RM_ANOMALY=regression → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        self._set_anomaly("regression", RM.ACCEPTED, RM.RECEIVED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert (
+            len(outbox) == 1
+        ), "Regression anomaly should emit exactly one Add(Note,Case)"
+
+    def test_no_case_id_is_noop_success(self, populated_dl):
+        """case_id=None → SUCCESS with no outbox entry (no case context)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=None,
+        )
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert len(outbox) == 0, "No case_id → no outbox entry expected"
+
+    def test_no_factory_is_success_noop(self, populated_bridge):
+        """No TriggerActivityPort → SUCCESS (degrades gracefully — SHOULD not MUST)."""
+        node = EmitRMGapNoteNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+        # populated_bridge has no trigger_activity_factory
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS

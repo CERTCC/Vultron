@@ -7,6 +7,7 @@ from ``_extract.py`` (or the ``vultron.semantic_registry.extract_event``
 convenience wrapper) rather than calling these builders directly.
 """
 
+import logging
 from datetime import datetime
 from typing import Any, Callable
 
@@ -39,6 +40,8 @@ from vultron.core.models.vultron_types import (
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Private field-extraction helpers
@@ -113,6 +116,8 @@ def _build_activity_snapshot(
         cc=_get_id_list(getattr(activity, "cc", None)),
         summary=getattr(activity, "summary", None) or None,
         content=getattr(activity, "content", None) or None,
+        suggested_roles=getattr(activity, "suggested_roles", None) or None,
+        roles=getattr(activity, "roles", None) or None,
     )
 
 
@@ -160,6 +165,13 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
     unusable.  This preserves participant metadata — including role lists —
     across the wire→domain extraction boundary so bootstrap trust logic can
     inspect ``CVDRole.CASE_MANAGER`` on the extracted case (CBT-01-003).
+
+    Prefers the wire model's own ``to_core()`` projection, which additionally
+    carries ``participant_statuses`` across the boundary.  Hand-building the
+    domain object drops them, and a ``CaseParticipant`` with no statuses
+    validates to a default ``RM.START`` entry — so a received snapshot would
+    silently report every participant as being at the start of the RM
+    lifecycle regardless of the state it actually announced.
     """
     if isinstance(ref, str):
         return ref if ref else None
@@ -167,6 +179,21 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
     participant_id = _get_id(ref)
     if not participant_id:
         return None
+
+    to_core = getattr(ref, "to_core", None)
+    if callable(to_core):
+        try:
+            converted = to_core()
+        except Exception:
+            logger.warning(
+                "participant_ref_to_domain: to_core() failed for '%s'; "
+                "falling back to partial projection",
+                participant_id,
+                exc_info=True,
+            )
+        else:
+            if isinstance(converted, VultronParticipant):
+                return converted
 
     roles = getattr(ref, "case_roles", [])
     attributed = getattr(ref, "attributed_to", None)

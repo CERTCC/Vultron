@@ -127,6 +127,94 @@ def test_update_returns_false_for_non_existing_id(dl, record_factory):
     assert not updated
 
 
+# ---------------------------------------------------------------------------
+# Normalisation: wire-shaped StorableRecord payloads (#2283)
+# ---------------------------------------------------------------------------
+
+
+def test_create_normalises_wire_shaped_storable_record(dl):
+    """create() must normalise flat rm_state → nested rm for ParticipantStatus.
+
+    A StorableRecord with type_="ParticipantStatus" and a wire-spelled flat
+    rm_state key must be stored in the canonical core shape (nested rm
+    dimension object), not verbatim.  Before the fix the wire key survived;
+    after the fix only the core key is present.
+    """
+    from vultron.core.ports.datalayer import StorableRecord
+
+    wire_data = {
+        "id_": "urn:uuid:ps-wire-create-001",
+        "type_": "ParticipantStatus",
+        "rm_state": "RECEIVED",
+        "vfd_state": "vfd",
+        "case_engagement": True,
+        "embargo_adherence": True,
+        "context": "urn:uuid:test-case-01",
+    }
+    storable = StorableRecord(
+        id_="urn:uuid:ps-wire-create-001",
+        type_="ParticipantStatus",
+        data_=wire_data,
+    )
+
+    dl.create(storable)
+    stored = dl.get("ParticipantStatus", "urn:uuid:ps-wire-create-001")
+
+    assert stored is not None
+    assert (
+        "rm_state" not in stored["data_"]
+    ), "wire-spelled key must not survive create()"
+    assert (
+        "rm" in stored["data_"]
+    ), "core dimension key must be present after create()"
+
+
+def test_update_normalises_wire_shaped_storable_record(dl):
+    """update() must normalise flat rm_state → nested rm for ParticipantStatus.
+
+    Same class of defect as create() — the update path must also route through
+    _normalize_to_core so wire-shaped payloads do not overwrite a row's shape.
+    """
+    from vultron.core.ports.datalayer import StorableRecord
+
+    seed = Record(
+        id_="urn:uuid:ps-wire-update-001",
+        type_="ParticipantStatus",
+        data_={
+            "id_": "urn:uuid:ps-wire-update-001",
+            "context": "urn:uuid:test-case-02",
+        },
+    )
+    dl.create(seed)
+
+    wire_data = {
+        "id_": "urn:uuid:ps-wire-update-001",
+        "type_": "ParticipantStatus",
+        "rm_state": "RECEIVED",
+        "vfd_state": "vfd",
+        "case_engagement": True,
+        "embargo_adherence": True,
+        "context": "urn:uuid:test-case-02",
+    }
+    storable = StorableRecord(
+        id_="urn:uuid:ps-wire-update-001",
+        type_="ParticipantStatus",
+        data_=wire_data,
+    )
+
+    updated = dl.update("urn:uuid:ps-wire-update-001", storable)
+    assert updated
+
+    stored = dl.get("ParticipantStatus", "urn:uuid:ps-wire-update-001")
+    assert stored is not None
+    assert (
+        "rm_state" not in stored["data_"]
+    ), "wire-spelled key must not survive update()"
+    assert (
+        "rm" in stored["data_"]
+    ), "core dimension key must be present after update()"
+
+
 def test_save_inserts_new_object(dl):
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -270,3 +358,67 @@ def test_exists_returns_false_after_delete(dl, record_factory):
 
 def test_ping_returns_true(dl):
     assert dl.ping() is True
+
+
+# ---------------------------------------------------------------------------
+# Log-level contract (SL-04-007)
+# ---------------------------------------------------------------------------
+
+
+class TestPersistenceLogLevels:
+    """DataLayer store/save/update lines are persistence internals → DEBUG.
+
+    SL-04-007: these fire on every write and drown out the CVD protocol
+    story on the INFO channel.  The higher-level "Created X" messages that
+    surround them remain at INFO.
+    """
+
+    _CRUD_LOGGER = "vultron.adapters.driven.datalayer_sqlite.crud"
+
+    def _datalayer_records(self, caplog):
+        return [
+            r
+            for r in caplog.records
+            if r.getMessage().startswith("DataLayer ")
+        ]
+
+    def test_create_logs_stored_at_debug(self, caplog):
+        import logging
+
+        instance = SqliteDataLayer("sqlite:///:memory:")
+        try:
+            with caplog.at_level(logging.DEBUG, logger=self._CRUD_LOGGER):
+                instance.create(Record(id_="urn:x:1", type_="Note", data_={}))
+        finally:
+            instance.close()
+
+        records = self._datalayer_records(caplog)
+        assert records, "Expected a 'DataLayer stored' log entry"
+        assert all(r.levelno == logging.DEBUG for r in records)
+
+    def test_save_logs_saved_at_debug(self, caplog):
+        import logging
+
+        instance = SqliteDataLayer("sqlite:///:memory:")
+        try:
+            with caplog.at_level(logging.DEBUG, logger=self._CRUD_LOGGER):
+                instance.save(Record(id_="urn:x:2", type_="Note", data_={}))
+        finally:
+            instance.close()
+
+        records = self._datalayer_records(caplog)
+        assert records, "Expected a 'DataLayer saved' log entry"
+        assert all(r.levelno == logging.DEBUG for r in records)
+
+    def test_no_datalayer_lines_reach_info(self, caplog):
+        import logging
+
+        instance = SqliteDataLayer("sqlite:///:memory:")
+        try:
+            with caplog.at_level(logging.INFO, logger=self._CRUD_LOGGER):
+                instance.create(Record(id_="urn:x:3", type_="Note", data_={}))
+                instance.save(Record(id_="urn:x:3", type_="Note", data_={}))
+        finally:
+            instance.close()
+
+        assert not self._datalayer_records(caplog)

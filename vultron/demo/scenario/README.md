@@ -22,9 +22,17 @@ illustrate individual message semantics in isolation.
 
 ## Available scenario demos
 
-| Sub-command    | Script                 | What it demonstrates                                          |
-|----------------|------------------------|---------------------------------------------------------------|
-| `fv`           | `fv_demo.py`           | FV (Finder + Vendor) CVD workflow                             |
+| Sub-command       | Script                    | What it demonstrates                                                |
+|-------------------|---------------------------|---------------------------------------------------------------------|
+| `fv`              | `fv_demo.py`              | FV (Finder + Vendor) CVD workflow                                   |
+| `fvv`             | `fvv_demo.py`             | FVV (Finder + Vendor1 + Vendor2) multi-vendor workflow              |
+| `fvcv-handoff`    | `fvcv_handoff_demo.py`    | FVCV with ownership handoff from Coordinator to Vendor              |
+| `fvcv-extension`  | `fvcv_extension_demo.py`  | FVCV with embargo extension                                         |
+| `fccv-handoff`    | `fccv_handoff_demo.py`    | FCCV with case ownership handoff                                    |
+| `fccv-extension`  | `fccv_extension_demo.py`  | FCCV with embargo extension                                         |
+| `fcvcv`           | `fcvcv_demo.py`           | FCVCV (Finder + Coordinator + Vendor + Coordinator2) full lifecycle |
+| `fcv`             | `fcv_demo.py`             | FCV (Finder + Coordinator + Vendor) full VFDPxa lifecycle           |
+| `fcv-reject`      | `fcv_reject_demo.py`      | FCV with Vendor rejecting the case invitation (RM rejection)        |
 
 ## Running scenario demos
 

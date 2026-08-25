@@ -73,6 +73,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-01-001
+    adr:
+    - ADR-0009
 - id: ARCH-02
   title: SemanticIntent Enum
   specs:
@@ -101,13 +103,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `SyncActivityPort` MUST be defined as a `typing.Protocol` in `vultron/core/ports/sync_activity_port.py`
-      with two fire-and-forget methods: `send_reject_log_entry(entry, tail_hash, actor_id, to)` and
-      `send_announce_log_entry(entry, actor_id, to)`. The concrete adapter (`SyncActivityAdapter`)
-      MUST be implemented in `vultron/adapters/driven/sync_activity_adapter.py` and own the full
-      domain → wire → persist → outbox pipeline. Core use cases and BT nodes MUST call only the port
-      methods and MUST NOT import wire types (`CaseLedgerEntry`, `WireCaseLedgerEntry`) or wire factory
-      functions (`announce_log_entry_activity`, `reject_log_entry_activity`).
+      `SyncActivityPort` MUST be defined as a `typing.Protocol` in
+      `vultron/core/ports/sync_activity.py` with two fire-and-forget methods:
+      `send_reject_log_entry(entry, tail_hash, actor_id, to)` and
+      `send_announce_log_entry(entry, actor_id, to)`.
     rationale: 'The incremental fix for ARCH-01-001 violations in `received/sync.py` and `triggers/sync.py`. The "baton-pass"
       pattern: core hands domain objects to the port; the adapter handles wire conversion unidirectionally.'
     relationships:
@@ -117,6 +116,42 @@ groups:
     - rel_type: implements
       spec_id: ARCH-01-001
       note: Eliminates wire imports from core sync use cases
+  - id: ARCH-04-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The concrete adapter (`SyncActivityAdapter`) MUST be implemented in
+      `vultron/adapters/driven/sync_activity_adapter.py` and own the full
+      domain → wire → persist → outbox pipeline.
+    rationale: >-
+      Concentrating the full domain → wire → persist → outbox pipeline in the
+      adapter keeps wire concerns out of core and satisfies the baton-pass pattern.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-04-002
+  - id: ARCH-04-004
+    priority: MUST
+    kind: project
+    statement: Core use cases and BT nodes MUST call only the `SyncActivityPort` methods.
+    rationale: >-
+      Calling only port methods enforces the hexagonal boundary and enables
+      testing core logic with mock adapters.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-04-002
+  - id: ARCH-04-005
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Core use cases and BT nodes MUST NOT import wire types (`CaseLedgerEntry`,
+      `WireCaseLedgerEntry`) or wire factory functions (`announce_log_entry_activity`,
+      `reject_log_entry_activity`).
+    rationale: >-
+      Wire type imports in core violate the hexagonal boundary; all wire concerns
+      are handled exclusively by the SyncActivityAdapter.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-04-002
 - id: ARCH-05
   title: Connector Plugins
   specs:
@@ -195,20 +230,89 @@ groups:
     statement: 'The core branch MAY narrow inherited fields via Pydantic validators (e.g., `NonEmptyString | None`, required
       `datetime`). Core-branch types MUST NOT carry wire-specific concerns: `alias_generator=to_camel`, hardcoded AS2 `@context`
       namespace, or VOCABULARY registration are forbidden in core-branch types.'
-    verification: '`CoreObject` and its subclasses do not reference `to_camel` or assign to `VOCABULARY`. Confirmed by the
-      layer-boundary test in `test/architecture/test_layer_boundaries.py`.'
+    verification: 'No `CoreObject` subclass declares `alias_generator` in its `model_config`, references `to_camel`, or assigns
+      to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` and `test_all_vocabulary_are_as_base_subclasses`
+      in `test/architecture/test_hierarchy_invariants.py`, both of which MUST NOT be marked `xfail`.'
+    rationale: 'An `alias_generator` on a core type gives one `type_` two accepted key spellings, so whichever class reads a
+      row decides what the data means (issue #2232). It is also insufficient for its intended purpose: a core `model_dump(by_alias=True)`
+      cannot produce the wire shape for a type whose branches differ structurally, which is why a hand-patched `consent`→`emConsentState`
+      rewrite accumulated in core. Core→wire rendering belongs behind the ARCH-20 driven port.'
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-20-001
+      note: ARCH-20 supplies the driven port that replaces the core-side aliasing this requirement forbids.
+    adr:
+    - ADR-0063
   - id: ARCH-12-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for
+      AS2 serialization shape (field aliases, `@context`, lenient `Any | None` types).
+    rationale: >-
+      `CORE_VOCABULARY` is the DataLayer primary reconstruction path (used by `_from_row()` in `SqliteDataLayer`);
+      every entry must be a `CoreObject` subclass. `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()` in the
+      wire registry layer, catching core types that are not `CoreObject` subclasses (e.g. `VultronOfferRecord`,
+      `VultronPendingCaseInbox`). These types extend `VultronObject` directly and carry Vultron-specific domain state
+      not representable via `CoreObject`. Contaminating `CORE_TYPE_MAP` with wire types (issue #2416) would silently
+      allow wire-shaped objects to be reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary
+      path and contradicting ARCH-12-003.
+    verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
+      module class appears in `CORE_TYPE_MAP`) and `test_vultron_object_direct_types_in_core_type_map` (asserts the five
+      `VultronObject`-direct core types are reachable by class name and Literal value) in
+      `test/architecture/test_hierarchy_invariants.py`. Both MUST NOT be marked `xfail`.'
+  - id: ARCH-12-008
     priority: MUST
     kind: project
-    statement: The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for AS2 serialization
-      shape (field aliases, `@context`, lenient `Any | None` types). Wire-branch types MUST register in `VOCABULARY`; core-branch
-      types MUST register in `CORE_VOCABULARY`.
+    statement: Wire-branch types MUST register in `VOCABULARY`.
+    rationale: >-
+      The `VOCABULARY` registry is the wire layer's type-dispatch table; omitting a wire type
+      prevents correct AS2 vocabulary lookup and object reconstruction.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
+  - id: ARCH-12-009
+    priority: MUST
+    kind: project
+    statement: >-
+      `CoreObject` subclasses MUST register in `CORE_VOCABULARY` as the DataLayer primary
+      reconstruction path.
+    rationale: >-
+      `CORE_VOCABULARY` is used by `_from_row()` in `SqliteDataLayer`; every entry must be a
+      `CoreObject` subclass to guarantee correct domain-object reconstruction from stored rows.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
+  - id: ARCH-12-010
+    priority: MUST
+    kind: project
+    statement: >-
+      `VultronObject`-direct subclasses that do not extend `CoreObject` MUST register in
+      `CORE_TYPE_MAP` as the wire-layer fallback path consulted by `find_in_vocabulary()`.
+    rationale: >-
+      `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()`, catching core types (e.g.
+      `VultronOfferRecord`, `VultronPendingCaseInbox`) that extend `VultronObject` directly and
+      carry domain state not representable via `CoreObject`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
+  - id: ARCH-12-011
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Wire-branch types MUST NOT register in either core registry (`CORE_VOCABULARY` or
+      `CORE_TYPE_MAP`).
+    rationale: >-
+      Contaminating either core registry with wire types would allow wire-shaped objects to be
+      reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary path and
+      contradicting ARCH-12-003.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-004
   - id: ARCH-12-005
     priority: MUST
     kind: project
-    statement: For types where both branches share field names and compatible types, translation from a core object to its
-      wire counterpart MUST use `WireType.model_validate(core_obj.model_dump(mode="json"))`. No explicit `from_core()` / `to_core()`
-      classmethods are required.
+    statement: 'For types where both branches share field names and compatible types and no `from_core()` classmethod is defined, translation from a core object to its wire counterpart MUST use `WireType.model_validate(core_obj.model_dump(mode="json"))`. When a `from_core()` classmethod is present on the wire type, the rendering port adapter MUST use it (per ARCH-20-002) instead of the model_validate path. Explicit `from_core()` / `to_core()` classmethods are not required for structurally-compatible types.'
     rationale: Eliminating the explicit translation protocol removes per-type boilerplate and the _field_map escape hatch.
       The shared-base alignment ensures the round-trip is correct by construction.
   - id: ARCH-12-006
@@ -294,6 +398,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Extends construction-time fail-fast to runtime BT node entry points.
+    adr:
+    - ADR-0032
   - id: ARCH-15-002
     priority: MUST
     kind: project
@@ -306,6 +412,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Extends construction-time fail-fast to helper function entry points.
+    adr:
+    - ADR-0032
   - id: ARCH-15-003
     priority: MUST
     kind: project
@@ -318,6 +426,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Extends construction-time fail-fast to dispatcher routing entry points.
+    adr:
+    - ADR-0032
   - id: ARCH-15-004
     priority: MUST
     kind: architecture
@@ -331,6 +441,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Canonical-copy discipline is a prerequisite for consistent fail-fast enforcement.
+    adr:
+    - ADR-0032
 - id: ARCH-11
   title: Port Inbound/Outbound Discrimination
   specs:
@@ -438,6 +550,11 @@ groups:
       spec_id: ARCH-04-001
 - id: ARCH-17
   title: ASGIEmitter Base URL
+  description: >-
+    SUPERSEDED by ADR-0042 / outbox.yaml OX-12. The ASGIEmitter in-process delivery
+    shortcut has been retired in favour of uniform HTTP delivery for all inter-actor
+    communication. These requirements are retained for historical traceability only and
+    no longer describe the delivery architecture; do not implement against them.
   specs:
   - id: ARCH-17-001
     priority: MUST
@@ -490,12 +607,21 @@ groups:
   - id: ARCH-19-001
     priority: MUST
     kind: architecture
-    statement: 'Outbound delivery MUST be modelled as a three-stage pipeline: (1) **Emission** — the use-case or handler writes
-      the activity to the outbox; (2) **Transport delivery** — the outbox worker retrieves the activity and delivers it to
-      the recipient''s inbox endpoint; (3) **Recipient acceptance** — the recipient''s adapter processes the delivered activity.
-      Each stage has distinct error semantics and MUST NOT be conflated.'
+    statement: >-
+      Outbound delivery MUST be modelled as a three-stage pipeline consisting
+      of Emission, Transport delivery, and Recipient acceptance.
     rationale: 'Conflating stages (e.g., treating a transport timeout as a recipient rejection) leads to incorrect retry logic
       and protocol-state divergence. The three-stage model is the foundation for correct at-least-once delivery. Source: `notes/architecture-adapters.md`.'
+  - id: ARCH-19-006
+    priority: MUST_NOT
+    kind: architecture
+    statement: Each stage of the outbound delivery pipeline has distinct error semantics and MUST NOT be conflated with another stage.
+    rationale: >-
+      Treating a transport timeout (stage 2) as a recipient rejection (stage 3) leads to incorrect
+      retry logic and protocol-state divergence.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-19-001
   - id: ARCH-19-002
     priority: MUST
     kind: architecture
@@ -534,3 +660,309 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-19-001
+    adr:
+    - ADR-0019
+- id: ARCH-20
+  title: Core-to-Wire Rendering Port
+  description: Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core legitimately needs
+    a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`, which CLP-07-001 requires to be receiver-reconstitutable
+    AS2 — but producing it by setting `alias_generator=to_camel` on the core type violates ARCH-12-003 and cannot express
+    structural differences between the two branches. This group establishes a driven port as the single rendering seam.
+  rationale: 'Eight `CoreObject` subclasses carried `alias_generator=to_camel` (issue #1991) solely so that core code could
+    call `model_dump(by_alias=True)` when building ledger payload snapshots. The mechanism was both a layer violation and
+    inadequate: `ParticipantStatus` nests `consent: PecDimension` where the wire shape carries a flat `emConsentState`, so
+    core had to hand-patch the dumped dict — a partial, drifting reimplementation of `as_ParticipantStatus.from_core()`. ARCH-01-004
+    prescribes driven ports as the remediation for core→wire needs. See ADR-0063.'
+  specs:
+  - id: ARCH-20-001
+    priority: MUST
+    kind: architecture
+    statement: Core code that requires a wire-shaped representation of a **core-branch** object MUST obtain it through a driven
+      port declared in `vultron/core/ports/`. Core MUST NOT produce that shape itself, whether by declaring an `alias_generator`
+      on the core class, by calling `model_dump(by_alias=True)` on a core-branch instance, or by rewriting dumped keys into
+      wire spellings. Dumping an already-wire-shaped object that core holds (e.g. a received activity being captured verbatim
+      per CLP-07-001) is unaffected by this requirement.
+    rationale: A single rendering seam keeps every fact about wire spelling (camelCase, flat `emConsentState`, the AS2 `@context`)
+      in the wire layer, where the authoritative `from_core()` projections already live. The requirement is scoped to core-branch
+      objects because core legitimately handles wire objects on the verbatim-capture path; conflating the two would make this
+      requirement unverifiable.
+    verification: No `CoreObject` subclass declares an `alias_generator` (enforced by `test_no_core_object_has_to_camel_alias_generator`),
+      so a `by_alias=True` dump of a core-branch instance can no longer yield wire spelling. Each remaining `by_alias=True`
+      call site under `vultron/core/` is additionally reviewed to confirm its subject is a wire object, and annotated as such.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-01-004
+    adr:
+    - ADR-0063
+  - id: ARCH-20-002
+    priority: MUST
+    kind: project
+    statement: The rendering port's adapter MUST produce its output by locating the core object's wire counterpart in the wire
+      vocabulary and invoking that class's `from_core()` projection, then serialising with `by_alias=True`. The adapter MUST
+      NOT reimplement field-name translation.
+    rationale: '`from_core()` is the authoritative projection and already handles structural differences (nested `PecDimension`
+      → flat `emConsentState`). Any second translation path will drift from it, which is the defect ADR-0063 removes.'
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-003
+    priority: MUST
+    kind: project
+    statement: When no wire counterpart exists for the supplied core object, the rendering port MUST raise `VultronValidationError`.
+      It MUST NOT fall back to a core-shaped `model_dump`, return `None`, or emit a partially-rendered object.
+    rationale: A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-001) and is indistinguishable
+      from a correct one at the call site. Failing loudly is required by ARCH-15-002.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-15-002
+    adr:
+    - ADR-0063
+  - id: ARCH-20-004
+    priority: MUST
+    kind: project
+    statement: The rendering port MUST be injected into behavior-tree execution using the established mechanism — a constructor
+      parameter on `BTBridge` published to the blackboard under a named key — in the same manner as `sync_port`. BT nodes and
+      use-case helpers MUST NOT import an adapter directly or instantiate a default renderer.
+    rationale: Consistency with `SyncActivityPort` keeps one injection idiom for driven ports. An import-time default would
+      reintroduce the core→wire import the port exists to prevent (ARCH-01-001).
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-005
+    priority: MUST
+    kind: project
+    statement: Core-branch types MUST NOT declare a `to_json()`, `to_wire()`, or similarly-named method that emits wire-shaped
+      output. Rendering is the port's responsibility, not a method on the domain object.
+    rationale: '`CoreActor.to_json()` dumped with `by_alias=True` and had no callers; such a method is an always-available
+      bypass of the port seam and will be picked up by the next agent that needs camelCase.'
+    verification: No class under `vultron/core/models/` defines a method that calls `model_dump`/`model_dump_json` with `by_alias=True`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-006
+    priority: MUST
+    kind: project
+    statement: Driving adapters that serve AS2 documents over HTTP (e.g. `GET /actors/{id}`) MUST render the response from
+      the corresponding `as_*` wire class. They MUST NOT dump a core-branch class with `by_alias=True` to synthesise an AS2
+      document.
+    rationale: The actor routes relied on the core actor classes' `alias_generator` to shape their external AS2 output, which
+      is why removing that generator has an externally-visible blast radius. Routing through `as_*` classes makes the external
+      contract depend on the wire layer that defines it.
+    verification: The actor router constructs responses via wire vocabulary classes; no `by_alias=True` dump of a `CoreObject`
+      subclass appears in `vultron/adapters/driving/`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-001
+    adr:
+    - ADR-0063
+  - id: ARCH-20-007
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Core code MUST NOT normalise a wire object into its core counterpart by dumping it with
+      `by_alias=True` and revalidating through the core class ("dump-and-revalidate").
+    rationale: 'Dump-and-revalidate only works while the core class tolerates wire spellings — precisely the ARCH-12-003 violation
+      being removed. `FilterParticipantStatusDimensionsNode._to_core_status` documents this dependency explicitly ("The core
+      model''s `_migrate_flat_fields` validator accepts that shape, so a dump-and-revalidate normalises both"), so the shim
+      and this idiom must be retired together. It is also lossy in the general case: a core class that ignores an unknown key
+      silently discards it.'
+    verification: No module under `vultron/core/` constructs a core model via `CoreClass.model_validate(wire_obj.model_dump(by_alias=True, ...))`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-20-001
+    - rel_type: refines
+      spec_id: SDO-03-005
+    adr:
+    - ADR-0063
+  - id: ARCH-20-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Wire-to-core conversion MUST use the wire class's `to_core()` boundary projection when
+      one is provided.
+    rationale: >-
+      `to_core()` is the authoritative projection and handles structural differences (e.g.
+      flat `emConsentState` → nested `PecDimension`). Using it avoids the lossy dump-and-revalidate
+      path prohibited by ARCH-20-007.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-007
+    adr:
+    - ADR-0063
+  - id: ARCH-20-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When no `to_core()` boundary projection is provided, the normalised core object MUST be
+      obtained already-normalised from the DataLayer port (DL-05-001).
+    rationale: >-
+      The DataLayer port returns objects that have already passed through the normalisation
+      boundary, making dump-and-revalidate unnecessary and avoiding the prohibited idiom.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-20-007
+    adr:
+    - ADR-0063
+- id: ARCH-21
+  title: Post-Construction Mutation Safety
+  description: >-
+    Requirements governing validation of core domain objects after construction.
+    Pydantic v2 validates at construction only, so attribute assignment and
+    in-place collection mutation bypassed every type guarantee, allowing a
+    wire-shaped object to occupy a core-typed field and be silently misread as
+    absent (#2232, #2264). Codified by ADR-0064. Source: CONCERN-2261.
+  specs:
+  - id: ARCH-21-001
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every core domain model (a `pydantic.BaseModel` subclass defined under
+      `vultron/core/models/`) MUST have `validate_assignment=True` in effect,
+      whether set directly or inherited, so that attribute assignment is
+      validated to the same standard as construction.
+    rationale: >-
+      Construction-time-only validation means the same value the constructor
+      rejects is accepted by assignment. A wire-shaped object in a core-typed
+      field does not raise when read — it reads as absent, and readers substitute
+      an initial state, silently resetting a participant's ladder (#2232, #2264).
+    adr:
+    - ADR-0064
+  - id: ARCH-21-002
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      `VultronBase` MUST NOT set `validate_assignment`. It is the shared base of
+      both branches (ARCH-12-001) and `as_Base` inherits it, so the wire branch
+      MUST remain lenient (ARCH-12-002). Enforcement belongs on the core branch
+      only, applied below `VultronBase`.
+    rationale: >-
+      Setting the flag on the shared base is the one-line fix that looks correct
+      and is not: it contradicts ARCH-12-002 and produced the largest measured
+      blast radius (747 failed, 423 errors) because inbound wire data is
+      legitimately loose.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-002
+    adr:
+    - ADR-0064
+  - id: ARCH-21-003
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      No wire-layer class (under `vultron/wire/`) MUST have
+      `validate_assignment` enabled. Strictness belongs at the wire-to-core
+      projection, not on the wire types themselves.
+    rationale: >-
+      Inbound wire data is loose by contract. Enforcing strictness on the wire
+      types would reject legitimate inbound payloads instead of projecting them
+      (ADR-0062, ARCH-12-002).
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-12-002
+    adr:
+    - ADR-0064
+  - id: ARCH-21-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A `mode="after"` model validator on a core model (under `vultron/core/`)
+      MUST NOT assign to `self`. Values derived from other fields MUST be derived
+      in a `mode="before"` validator, where the derived value is itself
+      validated. Wire-layer validators are exempt, because the wire branch never
+      enables `validate_assignment` (ARCH-21-003) and therefore cannot re-enter.
+    rationale: >-
+      `validate_assignment` re-runs every `mode="after"` validator on each
+      assignment, so a validator that writes to `self` re-enters itself. Guarded
+      validators terminate at depth 2; unguarded ones recurse until the stack is
+      exhausted. Measured: enabling the flag before this rule holds aborts 400+
+      tests with `RecursionError` and nothing else, masking every real type
+      failure. Writing the field through `self.__dict__` was rejected as a remedy
+      because it leaves the derived value unvalidated.
+    adr:
+    - ADR-0064
+  - id: ARCH-21-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      An architecture test SHOULD enforce ARCH-21-001, ARCH-21-003 and
+      ARCH-21-004, and SHOULD enumerate any remaining known violations as an
+      exact set so that the set fails both when it grows and when a listed
+      violation is fixed without being removed. Each such backlog SHOULD have a
+      companion `xfail(strict=True)` goal test, so that emptying the backlog
+      fails the build and forces the marker to be deleted. The test MUST complete
+      within one second per scan.
+    rationale: >-
+      A `strict=False` xfail keeps passing after the work is done, so it never
+      signals that it should be removed, and it gives no partial-progress signal
+      — the failure mode observed on the long-dormant #1991 and #1992 markers. An
+      exact set plus a strict goal test makes both drift and completion
+      impossible to miss.
+    adr:
+    - ADR-0064
+
+- id: ARCH-22
+  title: Wire→Core Import Boundary Enforcement
+  specs:
+  - id: ARCH-22-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Wire-layer code MUST NOT introduce new direct imports of
+      `vultron.core.models.*` types beyond those enumerated in the
+      wire→core ratchet test's KNOWN_VIOLATIONS set.  Translation from a
+      core object to a wire object MUST go through an explicit translation
+      seam — for example, `as_Foo.from_core(core_obj)` class methods on
+      wire vocab objects — and not by importing the core type into arbitrary
+      wire modules.
+    rationale: >-
+      `VulnerabilityCase` and its siblings are the core domain model; direct
+      import into wire-layer code couples the wire schema to the domain model
+      in ways that bypass the ports-and-adapters boundary.  Each new
+      unmediated import is a ratchet-set expansion that increases the blast
+      radius of future domain-model refactors.  The from_core() class-method
+      seam already exists on every wire vocab object; using it keeps
+      translation localized.
+    adr:
+    - ADR-0017
+    - ADR-0032
+    - ADR-0063
+  - id: ARCH-22-002
+    priority: MUST
+    kind: project
+    statement: >-
+      An architecture test MUST exist that scans all `vultron/wire/` source
+      files for imports of `vultron.core.models`, enumerates the current
+      known violations as an exact frozen set, and fails both when the set
+      grows (new violation) and when a listed violation is resolved without
+      being removed from the set.
+    rationale: >-
+      A ratchet test with an exact set gives a two-sided signal: new
+      violations fail CI immediately, and a resolved violation that was
+      accidentally kept in the set also fails CI — forcing the known set to
+      track the true state of the codebase.  This mirrors the pattern already
+      used in `test/architecture/test_core_no_wire_imports.py` and
+      `test_core_no_adapter_imports.py`.
+    adr:
+    - ADR-0017
+  - id: ARCH-22-003
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The KNOWN_VIOLATIONS set in the wire→core ratchet test SHOULD shrink
+      toward empty over successive releases.  A companion
+      `xfail(strict=True)` goal test SHOULD be added so that fully clearing
+      the violations set fails the build and forces the xfail marker to be
+      deleted, signalling completion.
+    rationale: >-
+      Without a strict goal test the ratchet can reach zero violations
+      silently, and the xfail marker stays forever — the completion signal
+      never fires.  The same pattern is mandated for ARCH-21 violations by
+      ARCH-21-005.
+    adr:
+    - ADR-0017

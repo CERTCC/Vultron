@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Core domain model for a canonical case ledger entry (SYNC-2).
+"""Core domain model for a canonical case ledger entry (LedgerFanout).
 
 :class:`CaseLedgerEntry` is the authoritative domain representation of a
 single hash-chained log entry used for replication via
@@ -146,11 +146,17 @@ class CaseLedgerEntry(CoreObject):
         serialization_alias="reasonDetail",
     )
 
-    @model_validator(mode="after")
-    def _set_id_from_case(self) -> "CaseLedgerEntry":
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id_from_case(cls, data: Any) -> Any:
         """Compute ``id_`` from ``case_id`` and ``log_index``."""
-        self.id_ = f"{self.case_id}/log/{self.log_index}"
-        return self
+        if isinstance(data, dict):
+            case_id = data.get("case_id")
+            if case_id is not None:
+                log_index = data.get("log_index", -1)
+                data = dict(data)
+                data["id"] = f"{case_id}/log/{log_index}"
+        return data
 
 
 #: Legacy Vultron-prefixed alias; prefer :class:`CaseLedgerEntry` in new code.

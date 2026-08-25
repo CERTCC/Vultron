@@ -16,11 +16,15 @@
 """Actor-participation emit nodes for case behavior trees.
 
 Provides leaf action nodes that emit outbound activities for actor
-invitation and invite-acceptance workflows, and for applying received
-ownership-transfer decisions to the case record.
+invitation workflows, and for applying received ownership-transfer
+decisions to the case record.
 
 Also provides :class:`EvaluateDefaultRolesNode`, the ADR-0024 Evaluator
 call-out point that assigns default roles for a suggested actor (CM-16-003).
+
+Invite-response nodes (Accept / Reject) live in the sibling
+``invite_response.py`` module and are re-exported here for backwards
+compatibility (BTND-07-004: 500-line leaf-module limit).
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
@@ -28,17 +32,25 @@ the process-area root per BTND-07-003:
 
 - ``invite_actor_to_case_trigger_bt``
 - ``accept_case_invite_trigger_bt``
+- ``reject_case_invite_trigger_bt``
 - ``create_accept_ownership_transfer_tree``
 """
 
 import logging
 from typing import Any, cast
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
+    EmitAcceptCaseInviteNode,
+    EmitRejectCaseInviteNode,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
+    _drop_bare_inline_refs,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -47,7 +59,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 
 
-class EmitInviteActorToCaseNode(DataLayerAction):
+class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
     """Create Invite(Actor, Case) and queue in the Case Actor's outbox.
 
     Uses ``trigger_activity_factory.invite_actor_to_case()`` with
@@ -94,24 +106,36 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         self.attributed_to = attributed_to
         self._captured = captured
         self._injected_roles = roles
+        self._suggested_roles_bb = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="suggested_roles", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["suggested_roles"] = PortInformation(
+            data_type=list, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"suggested_roles": "/suggested_roles"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._suggested_roles_bb = None
+        try:
+            self._suggested_roles_bb = self.get_input("suggested_roles")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _read_suggested_roles(self) -> list[str] | None:
         # Use injected roles (from stored Offer via DataLayer) when available
         # (ISSUE-1745: blackboard is empty in a separate BT execution).
         if self._injected_roles is not None:
             return self._injected_roles if self._injected_roles else None
-        try:
-            roles = self.blackboard.get("suggested_roles")
-            if isinstance(roles, list):
-                return serialize_roles(roles)
-        except KeyError:
-            pass
+        roles = self._suggested_roles_bb
+        if isinstance(roles, list):
+            return serialize_roles(roles)
         return None
 
     def _emit(self, factory: Any) -> tuple[str, dict]:
@@ -137,22 +161,24 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             roles=roles,
             target=case if isinstance(case, VulnerabilityCase) else None,
         )
-        # Commit a local correlation marker first so duplicate checks work
-        # on retry even if the outbox write below fails (CM-16-009/AC-7a).
-        # disposition="rejected" bypasses canonical-payload validation since
-        # Invite(Actor, Case) is not a canonical ledger event type.
+        snapshot: dict = (
+            _drop_bare_inline_refs(activity_dict) if activity_dict else {}
+        )
+        if not snapshot.get("context"):
+            snapshot["context"] = self.case_id
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
-            object_id=self.invitee_id,
+            object_id=activity_id,
             event_type="invite_actor_to_case",
-            disposition="rejected",
+            payload_snapshot=snapshot,
+            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)
         ).execute_with_setup(tree=commit_tree, actor_id=self.actor_id)
         if result.status != Status.SUCCESS:
             raise RuntimeError(
-                f"ledger correlation commit failed for"
+                f"ledger commit failed for"
                 f" invite_actor_to_case/{self.invitee_id}"
             )
         return activity_id, activity_dict
@@ -186,58 +212,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             return Status.FAILURE
 
 
-class EmitAcceptCaseInviteNode(DataLayerAction):
-    """Create Accept(Invite) and queue in the invitee's outbox.
-
-    Uses ``trigger_activity_factory.accept_case_invite()`` — the factory
-    derives the recipient from the persisted invite object.
-    """
-
-    def __init__(
-        self,
-        invite_id: str,
-        captured: dict | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.invite_id = invite_id
-        self._captured = captured
-
-    def _emit(self) -> tuple[str, dict]:
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        return self.trigger_activity_factory.accept_case_invite(
-            invite_id=self.invite_id,
-            actor=self.actor_id,
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' accepted case invite '%s'",
-                self.actor_id,
-                self.invite_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = f"EmitAcceptCaseInvite failed: {e}"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-
-class ProposeCaseToActorNode(DataLayerAction):
+class ProposeCaseToActorNode(DataLayerActionWithPorts):
     """Send ``Create(as_CaseProposal)`` to the registered case-actor service.
 
     Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
@@ -266,37 +241,44 @@ class ProposeCaseToActorNode(DataLayerAction):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["case_actor_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        self._case_actor_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+        try:
+            self._case_actor_id_bb = self.get_input("case_actor_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _read_blackboard_ids(self) -> tuple[str, str] | None:
-        """Read case_id and case_actor_id from the blackboard.
+        """Read case_id and case_actor_id from ports.
 
         Returns ``(case_id, case_actor_id)`` on success, or ``None`` after
         setting ``feedback_message`` on any error.
         """
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str) or not case_id:
             self.feedback_message = "case_id not found in blackboard"
             return None
-        if not isinstance(case_id, str) or not case_id:
-            self.feedback_message = "case_id must be a non-empty string"
-            return None
 
-        try:
-            case_actor_id = self.blackboard.get("case_actor_id")
-        except KeyError:
-            self.feedback_message = "case_actor_id not found in blackboard"
-            return None
+        case_actor_id = self._case_actor_id_bb
         if not isinstance(case_actor_id, str) or not case_actor_id:
-            self.feedback_message = "case_actor_id must be a non-empty string"
+            self.feedback_message = "case_actor_id not found in blackboard"
             return None
 
         return case_id, case_actor_id
@@ -382,13 +364,20 @@ class ProposeCaseToActorNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
+class EvaluateDefaultRolesNode(BehaviourWithPorts):
     """Assign default CVD roles for a suggested actor (CM-16-003).
 
     ADR-0024 Evaluator shape.  Writes ``suggested_roles_{id_segment}``
     (namespaced by ``recommendation_id``, BTND-03-004) to the blackboard.
-    Prototype writes ``[CVDRole.VENDOR]``.  Subclasses may override
-    ``_compute_roles()``; an empty return produces ``FAILURE`` (AC-1).
+    When ``injected_roles`` is provided those roles are used directly;
+    otherwise falls back to ``_compute_roles()`` (default: ``[CVDRole.VENDOR]``).
+    Subclasses may override ``_compute_roles()``; an empty return produces
+    ``FAILURE`` (AC-1).
+
+    The physical blackboard key is execution-scoped (BTND-03-013): the stable
+    logical port name ``suggested_roles`` is declared in ``output_ports()`` and
+    wired to the physical key ``suggested_roles_{id_segment}`` in ``setup()``
+    using an instance-computed remapping.
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -398,6 +387,7 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         suggested_actor_id: str,
         case_id: str,
         recommendation_id: str,
+        injected_roles: list[str] | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -407,14 +397,60 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
+        self._injected_roles = self._coerce_injected_roles(injected_roles)
+        _seg = recommendation_id.split("/")[-1]
+        self._roles_key = f"suggested_roles_{_seg}"
+
+    def _coerce_injected_roles(
+        self, injected_roles: list[str] | None
+    ) -> list[CVDRole] | None:
+        """Coerce caller-supplied role strings to ``CVDRole``, keeping valid ones.
+
+        An unrecognized role string is dropped with a warning rather than
+        discarding the whole list: falling back to the hardcoded default would
+        silently substitute roles the caller did not ask for, which CM-16-003
+        forbids.  ``None`` is returned only when nothing usable remains, in
+        which case ``_compute_roles()`` legitimately owns the decision.
+        """
+        if not injected_roles:
+            return None
+        coerced: list[CVDRole] = []
+        for raw in injected_roles:
+            try:
+                coerced.append(CVDRole(raw))
+            except ValueError:
+                self.logger.warning(
+                    "%s: ignoring unrecognized injected role %r for actor"
+                    " '%s' in case '%s'",
+                    self.name,
+                    raw,
+                    self.suggested_actor_id,
+                    self.case_id,
+                )
+        if not coerced:
+            self.logger.warning(
+                "%s: no injected role in %r was recognized for actor '%s';"
+                " falling back to _compute_roles()",
+                self.name,
+                injected_roles,
+                self.suggested_actor_id,
+            )
+            return None
+        return coerced
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "suggested_roles": PortInformation(data_type=list, required=True),
+        }
 
     def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        id_segment = self.recommendation_id.split("/")[-1]
-        self.blackboard_key = f"suggested_roles_{id_segment}"
-        self.blackboard.register_key(
-            key=self.blackboard_key, access=py_trees.common.Access.WRITE
+        self.setup_ports(
+            port_remappings={"suggested_roles": f"/{self._roles_key}"}
         )
 
     def _compute_roles(self) -> list[CVDRole]:
@@ -422,7 +458,11 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         return [CVDRole.VENDOR]
 
     def update(self) -> Status:
-        roles = self._compute_roles()
+        roles = (
+            self._injected_roles
+            if self._injected_roles
+            else self._compute_roles()
+        )
         if not roles:
             self.feedback_message = (
                 f"{self.name}: _compute_roles() returned an empty list "
@@ -430,7 +470,7 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
             )
             self.logger.error(self.feedback_message)
             return Status.FAILURE
-        setattr(self.blackboard, self.blackboard_key, roles)
+        self._set_output("suggested_roles", roles)
         self.logger.debug(
             "%s: assigned roles %s for actor '%s' in case '%s'",
             self.name,

@@ -25,13 +25,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   spec-lint:
     name: Spec Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Run spec-lint
-        run: PYTHONPATH= uv run spec-lint specs/
+        # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+        # distinguishable by shellcheck, which flags the bare form as SC1007.
+        run: PYTHONPATH='' uv run spec-lint specs/

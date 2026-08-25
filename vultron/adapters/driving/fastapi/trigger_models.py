@@ -275,6 +275,7 @@ class CreateCaseRequest(BaseModel):
     name: NonEmptyString
     content: NonEmptyString
     report_id: NonEmptyString | None = None
+    to: list[str] | None = None
 
 
 class AddReportToCaseRequest(BaseModel):
@@ -301,6 +302,7 @@ class SuggestActorToCaseRequest(BaseModel):
 
     case_id: UriString
     suggested_actor_id: UriString
+    roles: list[CVDRole] | None = None
 
 
 class AcceptCaseInviteRequest(BaseModel):
@@ -308,6 +310,18 @@ class AcceptCaseInviteRequest(BaseModel):
 
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
     invite_id identifies the RmInviteToCaseActivity to accept.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    invite_id: NonEmptyString
+
+
+class RejectCaseInviteRequest(BaseModel):
+    """Request body for the reject-case-invite trigger endpoint.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    invite_id identifies the RmInviteToCaseActivity to reject.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -345,17 +359,20 @@ class InviteActorToCaseRequest(BaseModel):
     roles: list[CVDRole] | None = None
 
 
-class OfferCaseManagerRoleRequest(BaseModel):
-    """Request body for the offer-case-manager-role trigger endpoint.
+class OfferCaseParticipantRoleRequest(BaseModel):
+    """Request body for the offer-case-participant-role trigger endpoint (ADR-0039).
 
-    TB-03-001: Must include case_id identifying the target case.
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
-    The Case Actor for the case must already exist in the DataLayer.
+    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    from the requesting actor.  ``role`` defaults to ``"CASE_MANAGER"`` for
+    backward-compatibility with callers that previously used the deprecated
+    offer-case-manager-role endpoint.
     """
 
     model_config = ConfigDict(extra="ignore")
 
     case_id: UriString
+    target_actor_id: UriString
+    role: CVDRole = CVDRole.CASE_MANAGER
 
 
 class OfferCaseOwnershipTransferRequest(BaseModel):
@@ -436,6 +453,27 @@ class CloseCaseRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: UriString
+
+
+class SeedOfferRecordRequest(BaseModel):
+    """Request body for the demo seed-offer-record trigger.
+
+    Seeds a ``VultronOfferRecord`` (and a ``VulnerabilityReport`` stub if
+    needed) on an actor's DataLayer so that invited actors can call
+    ``validate-report`` using the original offer ID.
+
+    This endpoint is for demo scaffolding only (TRIG-09-001) — in a real
+    deployment the offer record is created by the adapter layer at report
+    submission time and is only present on the original receiving actor.
+
+    TB-03-002: Unknown fields are silently ignored.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    offer_id: UriString
+    report_id: UriString
+    offer_actor_id: UriString
 
 
 class SyncLogEntryRequest(BaseModel):

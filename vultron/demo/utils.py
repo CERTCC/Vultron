@@ -77,6 +77,21 @@ def assert_demo_success() -> None:
         )
 
 
+def _note_accumulated_failures(exc: BaseException) -> None:
+    """Attach any accumulated demo failures to *exc* as notes.
+
+    On the failing path the caller lets the original exception propagate
+    rather than calling ``assert_demo_success()``, which would replace the
+    real cause with a generic ``DemoFailureError``.  The accumulated soft
+    failures are still worth reporting, so they ride along as exception notes.
+    """
+    try:
+        assert_demo_success()
+    except DemoFailureError as accumulated:
+        for failure in accumulated.failures:
+            exc.add_note(failure)
+
+
 BASE_URL = os.environ.get(
     "VULTRON_API_BASE_URL", "http://localhost:7999/api/v2"
 )
@@ -96,6 +111,30 @@ def ref_id(value: object) -> str | None:
 
 
 @contextmanager
+def _demo_accumulate(
+    description: str,
+    start: str,
+    on_pass: str,
+    on_fail: str,
+    prefix: str,
+) -> Generator[None, None, None]:
+    """Shared try/except/log backbone for demo context managers.
+
+    Logs *start* on entry, *on_pass* on clean exit, *on_fail* + exc on
+    exception.  Exceptions are caught, logged, appended to
+    ``_demo_failures`` as ``"<prefix>: <description> — <exc>"``, and
+    suppressed so callers continue after the block.
+    """
+    logger.info(f"{start} {description}")
+    try:
+        yield
+        logger.info(f"{on_pass} {description}")
+    except Exception as exc:
+        logger.error(f"{on_fail} {description}: {exc}", exc_info=True)
+        _demo_failures.append(f"{prefix}: {description} — {exc}")
+
+
+@contextmanager
 def demo_step(description: str) -> Generator[None, None, None]:
     """Context manager for declaring workflow steps in demo logs.
 
@@ -105,13 +144,8 @@ def demo_step(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    logger.info(f"🚥 {description}")
-    try:
+    with _demo_accumulate(description, "🚥", "🟢", "🔴", "STEP FAILED"):
         yield
-        logger.info(f"🟢 {description}")
-    except Exception as exc:
-        logger.error(f"🔴 {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"STEP FAILED: {description} — {exc}")
 
 
 @contextmanager
@@ -124,13 +158,45 @@ def demo_check(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    logger.info(f"📋 {description}")
-    try:
+    with _demo_accumulate(description, "📋", "✅", "❌", "CHECK FAILED"):
         yield
-        logger.info(f"✅ {description}")
-    except Exception as exc:
-        logger.error(f"❌ {description}: {exc}", exc_info=True)
-        _demo_failures.append(f"CHECK FAILED: {description} — {exc}")
+
+
+@contextmanager
+def demo_gate(description: str) -> Generator[None, None, None]:
+    """Context manager for causal preconditions in demo scripts.
+
+    Place the precondition check **and the steps that depend on it** inside
+    this block.  If the precondition raises, Python immediately exits the
+    ``with`` body — the remaining dependent steps are skipped.  The failure
+    is recorded in the accumulator exactly as ``demo_check`` does
+    (DEMOCI-01-003 is preserved), and the exception is suppressed so that
+    execution continues *after* the block.
+
+    **Scoping model — nested block**:
+
+    Put the gating assertion at the top of the body, followed directly by
+    the dependent steps:
+
+    ```python
+    with demo_gate("vendor has reached RM.VALID"):
+        assert vendor_rm_state == "VALID"    # precondition: raises on fail
+        with demo_step("5. Engage case"):    # skipped when gate fails
+            engage_case(...)
+        with demo_step("6. Do next thing"):  # also skipped when gate fails
+            do_next(...)
+    # code here always runs — gate accumulates and suppresses the failure
+    ```
+
+    Use ``demo_check`` for a standalone verification assertion that should
+    *not* block subsequent steps.  Use ``demo_gate`` when continuing after a
+    failed precondition would produce meaningless secondary failures that bury
+    the real cause.
+
+    See DEMOCI-01-007, EDF-06-005, ADR-0058.
+    """
+    with _demo_accumulate(description, "🚧", "🔓", "🔒", "GATE FAILED"):
+        yield
 
 
 def logfmt(obj: object) -> str:
@@ -158,6 +224,12 @@ class DataLayerClient(BaseModel):
     """
 
     base_url: str = BASE_URL
+    #: Per-request HTTP timeout (seconds).  Generous relative to httpx's 5s
+    #: default so a single GET against a container that is busy draining its
+    #: outbox (delivery retry/backoff can add several seconds under CI load)
+    #: does not fail with a bare read timeout.  Callers may override per-call
+    #: by passing ``timeout=`` in kwargs.
+    timeout: float = 30.0
 
     def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> Any:
         """Make an HTTP request to the DataLayer API.
@@ -179,6 +251,7 @@ class DataLayerClient(BaseModel):
 
         url = f"{self.base_url}{path}"
         logger.debug(f"Calling {method.upper()} {url}")
+        kwargs.setdefault("timeout", self.timeout)
         response = httpx.request(method, url, **kwargs)
         logger.debug(f"Response status: {response.status_code}")
 
@@ -251,6 +324,16 @@ def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
     return client.delete("/datalayer/reset/", params={"init": init})
 
 
+def _log_discovered_actor(role: str, actor: as_Actor) -> None:
+    """Log a discovered demo actor: ID at INFO, full object at DEBUG.
+
+    The full ``logfmt()`` dump is DEBUG-only per SL-04-007; only the actor ID
+    carries narrative value at INFO.
+    """
+    logger.info("Found %s actor: %s", role, actor.id_ or "<unknown>")
+    logger.debug("Found %s actor: %s", role, logfmt(actor))
+
+
 def discover_actors(
     client: DataLayerClient,
 ) -> Tuple[as_Actor, as_Actor, as_Actor]:
@@ -270,13 +353,13 @@ def discover_actors(
         actor = as_Actor(**actor_json)
         if actor.name and actor.name.startswith("Finn"):
             finder = actor
-            logger.info(f"Found finder actor: {logfmt(finder)}")
+            _log_discovered_actor("finder", finder)
         elif actor.name and actor.name.startswith("Vendor"):
             vendor = actor
-            logger.info(f"Found vendor actor: {logfmt(vendor)}")
+            _log_discovered_actor("vendor", vendor)
         elif actor.name and actor.name.startswith("Coordinator"):
             coordinator = actor
-            logger.info(f"Found coordinator actor: {logfmt(coordinator)}")
+            _log_discovered_actor("coordinator", coordinator)
 
     if finder is None:
         raise ValueError("Finder actor not found.")

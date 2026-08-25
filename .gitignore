@@ -148,8 +148,8 @@ mydb.json
 /package-lock.json
 /ontology/*.properties
 catalog-*.xml
-/wip_notes/
-/wip_outputs/
+/wip_notes
+/wip_outputs
 devlogs
 .codebase-scan.txt
 /demologs/
@@ -163,6 +163,9 @@ plan/history/*/README.md
 
 # Claude Code files
 .claudeignore
+# Generated data artifacts (e.g. velocity.json from scripts/velocity.py)
+plan/data/
+.devcontainer/devcontainer.env
 .claude/settings.local.json
 .claude/.gitignore
 
@@ -183,4 +186,10 @@ plan/history/*/README.md
 ui/.vite/
 ui/node_modules/
 .claude/pr-*.json
+# Board/project node-ID cache — auto-regenerated on first run, contains volatile timestamp
+.agents/skills/shared/board-ids.json
 .idea/
+
+# graphify knowledge graph output
+graphify-out/
+.DS_Store

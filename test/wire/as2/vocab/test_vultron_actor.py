@@ -21,7 +21,11 @@ from datetime import timedelta
 
 from vultron.core.models.actor import (
     CoreActor,
+    VultronApplication as CoreVultronApplication,
+    VultronGroup as CoreVultronGroup,
+    VultronOrganization as CoreVultronOrganization,
     VultronPerson as CoreVultronPerson,
+    VultronService as CoreVultronService,
 )
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -168,7 +172,9 @@ class TestVultronActorTypePreservation(unittest.TestCase):
 
 class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
     def test_vocabulary_points_to_wire_actor_types(self):
-        self.assertIs(VOCABULARY["Actor"], CoreActor)
+        # ARCH-12-003: VOCABULARY["Actor"] must be the wire as_Actor, not CoreActor.
+        # CoreActor was removed from VOCABULARY in issue #1992.
+        self.assertIs(VOCABULARY["Actor"], as_Actor)
         self.assertIs(VOCABULARY["Person"], as_VultronPerson)
         self.assertIs(VOCABULARY["Organization"], as_VultronOrganization)
         self.assertIs(VOCABULARY["Service"], as_VultronService)
@@ -201,6 +207,75 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         )
         self.assertEqual(core_actor.endpoints, wire_actor.endpoints)
         self.assertEqual(core_actor.embargo_policy, wire_actor.embargo_policy)
+
+
+class TestVultronActorToCore(unittest.TestCase):
+    """VultronActorMixin.to_core() projects to the correct core subtype."""
+
+    def test_person_to_core_type(self):
+        wire = as_VultronPerson(
+            id_="https://example.org/actors/alice", name="Alice"
+        )
+        core = wire.to_core()
+        self.assertIsInstance(core, CoreVultronPerson)
+        self.assertEqual(wire.id_, core.id_)
+        self.assertEqual(wire.name, core.name)
+        self.assertEqual(str(wire.type_), str(core.type_))
+
+    def test_organization_to_core_type(self):
+        wire = as_VultronOrganization(id_="https://example.org/orgs/acme")
+        core = wire.to_core()
+        self.assertIsInstance(core, CoreVultronOrganization)
+        self.assertEqual(wire.id_, core.id_)
+        self.assertEqual(str(wire.type_), str(core.type_))
+
+    def test_service_to_core_type(self):
+        wire = as_VultronService(id_="https://example.org/services/bot")
+        core = wire.to_core()
+        self.assertIsInstance(core, CoreVultronService)
+        self.assertEqual(wire.id_, core.id_)
+
+    def test_application_to_core_type(self):
+        wire = as_VultronApplication(id_="https://example.org/apps/scanner")
+        core = wire.to_core()
+        self.assertIsInstance(core, CoreVultronApplication)
+        self.assertEqual(wire.id_, core.id_)
+
+    def test_group_to_core_type(self):
+        wire = as_VultronGroup(id_="https://example.org/groups/cna")
+        core = wire.to_core()
+        self.assertIsInstance(core, CoreVultronGroup)
+        self.assertEqual(wire.id_, core.id_)
+
+    def test_inbox_outbox_coerced_to_uri(self):
+        wire = as_VultronPerson(id_="https://example.org/actors/alice")
+        core = wire.to_core()
+        self.assertIsInstance(core, CoreActor)
+        if core.inbox is not None:
+            self.assertIsInstance(core.inbox, str)
+        if core.outbox is not None:
+            self.assertIsInstance(core.outbox, str)
+
+    def test_embargo_policy_preserved(self):
+        policy = _make_policy()
+        wire = as_VultronPerson(
+            id_="https://example.org/actors/alice",
+            embargo_policy=policy,
+        )
+        core = wire.to_core()
+        self.assertIsNotNone(core.embargo_policy)
+
+    def test_to_core_is_instance_of_core_actor(self):
+        for wire_cls in (
+            as_VultronPerson,
+            as_VultronOrganization,
+            as_VultronService,
+            as_VultronApplication,
+            as_VultronGroup,
+        ):
+            with self.subTest(wire_cls=wire_cls.__name__):
+                wire = wire_cls()
+                self.assertIsInstance(wire.to_core(), CoreActor)
 
 
 if __name__ == "__main__":

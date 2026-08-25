@@ -59,11 +59,23 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 - **File naming**: `snake_case.py` for modules (e.g., `bt_node.py`, `datalayer_sqlite.py`)
 - **Class naming**: `PascalCase`; wire-layer AS2 vocab classes use `as_` prefix (e.g., `as_VulnerabilityCase`, `as_Activity`)
 - **Domain abbreviation**: `vul` (not `vuln`) for vulnerability; `em` for embargo management; `rm` for report management; `cs` for case state
+- **Role enum**: `OBSERVER` (formerly `OTHER`) — the `CvdRole.OBSERVER` / alias `O` identifies monitoring participants; the rename was completed in `vultron/enums/roles.py` and `vultron/bt/roles/enums.py`
 - **Use-case naming**: `Svc` prefix + domain noun + action suffix (e.g., `SvcCloseReportUseCase`)
 - **Directory organization**: by architectural layer (`core/`, `wire/`, `adapters/`) then by CVD domain area within layers
 - **Import conventions**: absolute imports; no circular dependencies; core must not import from adapters or wire; `__init__.py` re-exports for backward compatibility
 
-### 5) Evidence
+### 5) Notable New Modules (2026-08)
+
+| Module | Purpose |
+|--------|---------|
+| `vultron/core/ports/wire_render.py` | `WireRenderPort` driven-port Protocol for wire-shaped JSON rendering |
+| `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via `VOCABULARY` registry |
+| `vultron/core/behaviors/case/nodes/case_actor_setup.py` | Case-actor-specific setup BT nodes (extracted from `case_setup.py`) |
+| `vultron/core/behaviors/embargo/nodes/terminate.py` | Embargo termination BT nodes |
+| `vultron/core/behaviors/sync/nodes/event_conditions.py` | Sync event-condition BT nodes (extracted from `conditions.py`) |
+| `vultron/core/behaviors/bridge.py` | BT bridge node |
+
+### 6) Evidence
 
 - `vultron/` directory listing
 - `pyproject.toml` `[project.scripts]`

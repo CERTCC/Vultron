@@ -27,7 +27,7 @@ AC-1 tests (``TestBootstrapSequence.test_announce_creates_case_replica`` and
 separate owner app creates a case by processing a submitted report and then
 validates it.  Validation triggers the CaseActor to emit
 ``Announce(as_VulnerabilityCase)`` via the outbox, which is routed to the
-participant app via ``_TestASGIRouter``.  This exercises the full
+participant app via ``_TestClientRouter``.  This exercises the full
 create-case → emit-Announce path, catching regressions where case creation
 no longer sends the announcement (PCR-07-006).
 
@@ -39,7 +39,7 @@ the handler's side effect (note appended to ``replica.notes``).
 
 import pytest
 
-from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -83,22 +83,27 @@ def participant_setup():
 
     The case replica is seeded directly via a hand-crafted
     ``Announce(as_VulnerabilityCase)`` (fast, sufficient for routing coverage).
-    The ``_TestASGIRouter`` is wired as the ASGI emitter fallback so that any
-    outbound deliveries from the participant stay in-process.
+    The ``_TestClientRouter`` is installed as the default emitter so that any
+    outbound deliveries from the participant stay in-process (ADR-0042).
 
     Yields:
         Tuple of (IsolatedActorApp, TestClient).
     """
-    router = _TestASGIRouter()
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+        get_default_emitter,
+    )
+
+    router = _TestClientRouter()
     participant_isolated = create_isolated_actor_app(
         base_url=_PARTICIPANT_BASE,
         router=router,
     )
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
     with participant_isolated.client as participant_tc:
-        emitter = getattr(participant_isolated.app.state, "emitter", None)
-        if hasattr(emitter, "_http_fallback"):
-            emitter._http_fallback = router  # type: ignore[assignment]
         yield participant_isolated, participant_tc
+    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
     participant_isolated.dl.close()
 
 
@@ -107,24 +112,20 @@ def two_app_setup():
     """Owner app + participant app wired for end-to-end bootstrap delivery.
 
     Uses two isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestASGIRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised.
 
     Lifecycle:
       1. Enters both TestClient contexts (triggers lifespan startup).
-      2. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
-         router so cross-app deliveries use ASGI transport instead of real
-         HTTP.
-      3. Configures the module-level ``_default_emitter`` to the shared
-         router so that trigger-endpoint ``outbox_handler`` calls (which
-         don't pass an explicit emitter) route through ASGI instead of
-         making real HTTP requests via ``DemoHttpDeliveryAdapter``.
-      4. Registers the config-default base_url with the router pointing to
-         the owner's app so that deliveries to the CaseActor (whose ID uses
-         the config base_url) are routed correctly.
-      5. Yields the two ``IsolatedActorApp`` instances and their test clients.
-      6. On teardown restores the previous default emitter and closes DLs.
+      2. Configures the module-level default emitter to the shared router so
+         all outbox_handler deliveries POST to each target TestClient inbox
+         instead of making real HTTP requests (ADR-0042).
+      3. Registers the config-default base_url with the router so that
+         deliveries to the CaseActor (whose ID uses that URL) are routed
+         correctly.
+      4. Yields the two ``IsolatedActorApp`` instances and their test clients.
+      5. On teardown restores the previous default emitter and closes DLs.
 
     Yields:
         Tuple of (owner_iso, participant_iso, owner_tc, participant_tc).
@@ -135,7 +136,7 @@ def two_app_setup():
     )
     from vultron.config import get_config
 
-    router = _TestASGIRouter()
+    router = _TestClientRouter()
     owner_iso = create_isolated_actor_app(
         base_url=_OWNER_BASE,
         router=router,
@@ -147,22 +148,18 @@ def two_app_setup():
 
     # Register the config-default base_url (e.g. http://localhost:7999) with
     # the router so that deliveries to CaseActor IDs (which use this URL)
-    # are routed to the owner's app via ASGI.
+    # are routed to the owner's TestClient inbox.
     config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.app)
+    router.register(config_base_url, owner_iso.client)
 
-    # Save and replace the module-level default emitter so outbox_handler
-    # calls from trigger endpoints use the router instead of
-    # DemoHttpDeliveryAdapter (real HTTP with retry backoff).
+    # Replace the module-level default emitter so outbox_handler calls from
+    # trigger endpoints use the router instead of HttpDeliveryAdapter (real
+    # HTTP with retry backoff).
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
 
     with owner_iso.client as owner_tc:
         with participant_iso.client as participant_tc:
-            for iso in (owner_iso, participant_iso):
-                emitter = getattr(iso.app.state, "emitter", None)
-                if hasattr(emitter, "_http_fallback"):
-                    emitter._http_fallback = router  # type: ignore[assignment]
             yield owner_iso, participant_iso, owner_tc, participant_tc
 
     # Restore previous emitter to avoid polluting other tests.
@@ -225,7 +222,7 @@ def _bootstrap_case_for_participant(
     2. Owner validates the report (``trigger/validate-report``), which
        triggers the ``create_validate_report_tree`` BT and causes the
        CaseActor to emit ``Announce(as_VulnerabilityCase)`` to participant.
-    3. The Announce is delivered via the outbox → ``_TestASGIRouter`` →
+    3. The Announce is delivered via the outbox → ``_TestClientRouter`` →
        participant inbox chain.
     4. Participant's inbox handler processes the ``Announce``.
 
@@ -275,18 +272,43 @@ def _bootstrap_case_for_participant(
     )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
-    # Verify the submit-report BT created the case.
-    all_cases = owner_iso.dl.get_all("VulnerabilityCase")
-    assert len(all_cases) >= 1, (
-        "Expected at least one as_VulnerabilityCase in owner's DataLayer "
-        "after SubmitReport inbox delivery, but none was found.  "
-        "The create_receive_report_case_tree BT may not have run."
+    # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
+    # sends Create(as_CaseProposal) to CaseActor — no VulnerabilityCase yet.
+    # Simulate the CaseActor's Create(VulnerabilityCase) response by calling
+    # trigger/create-case directly.  Pass participant as `to` so the outbound
+    # Create(VulnerabilityCase) satisfies OX-08-001.
+    resp = owner_tc.post(
+        f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/create-case",
+        json={
+            "name": "PCR-07-006 bootstrap test case",
+            "content": "Case seeded by trigger/create-case (ADR-0041).",
+            "report_id": report.id_,
+            "to": [participant_actor_id],
+        },
     )
-    case_id: str = all_cases[0]["id_"]
+    assert (
+        resp.status_code == 202
+    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+
+    # Find the case that the CaseActor created for this report.
+    # Under ADR-0041, case_proposal_received_tree creates the canonical case
+    # when Create(as_CaseProposal) is processed; trigger/create-case above
+    # may add a second case — find by report_id to avoid ambiguity.
+    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    case_id: str
+    if case_from_proposal is not None:
+        case_id = str(case_from_proposal.id_)
+    else:
+        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, (
+            "Expected at least one as_VulnerabilityCase in owner's DataLayer "
+            "after trigger/create-case, but none was found."
+        )
+        case_id = str(all_cases[0]["id_"])
 
     # Owner validates the report: this triggers the validate-report BT
     # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to
-    # participant via the outbox → _TestASGIRouter → inbox chain.
+    # participant via the outbox → _TestClientRouter → inbox chain.
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
         "/trigger/validate-report",
@@ -392,9 +414,8 @@ class TestBootstrapSequence:
 
         owner_case = owner_iso.dl.read(case_id)
         expected_name = getattr(owner_case, "name", None)
-        assert (
-            expected_name is not None
-        ), "Owner's case has no name — cannot verify field preservation."
+        # Under ADR-0041 the CaseActor creates the case without a name;
+        # field-preservation still holds (None == None is valid).
         assert getattr(replica, "name", None) == expected_name, (
             f"Case replica name mismatch: expected {expected_name!r}, "
             f"got {getattr(replica, 'name', '<missing>')!r} "

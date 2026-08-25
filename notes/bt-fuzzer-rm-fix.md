@@ -38,8 +38,8 @@ vulnerability.
 - **Automation potential**: **Low** — engineering work is human-initiated; automation is limited to triggering a bug-tracker ticket or sending a development task notification.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.develop_fix.CreateFix`
 - **Call-out point shape**: Composer
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_develop_fix_tree` (issue #1247) —
+- **Factory-fn placement**: Implemented in PR #1818 (issue #1812) —
+  `vultron.core.behaviors.report.develop_fix_tree.create_develop_fix_tree`;
   Composer action node in the `DevelopFix` Sequence; the primary work node
 
 ---
@@ -69,12 +69,17 @@ the process of deploying a developed fix or mitigation to affected systems.
   `NewDeploymentInfoSentinel` agent (see stub entry below). The external agent seam is at the
   Sentinel (event subscription or polling hook), not at this BT condition check.
   (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
-- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  ProtocolInternal condition check at the top of `Deployment` Fallback Selector.
-  Note: Phase 1 stub exists as of PR #1357 in
-  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
-  but this ProtocolInternal node is not among the 4 factory params exposed.
+- **Factory-fn placement**: Implemented in #1825 (Idea #1248) as
+  `CheckNoNewDeploymentInfoNode` in
+  `vultron.core.behaviors.report.nodes.deploy_fix` —
+  ProtocolInternal condition check in the `_ShouldStayInRmDeferred` Sequence
+  arm of the `DeployFixBT` Fallback built by
+  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`.
+  Reads the blackboard key `new_deployment_info` (`NEW_DEPLOYMENT_INFO_KEY`)
+  written by the upstream `NewDeploymentInfoSentinel` (FUZZ-08f); defaults to
+  SUCCESS when the key is absent. Not a factory param — no injection seam at
+  this node. The full tree replaced the Phase 1 stub (PR #1357), which did not
+  include this node.
 
 ### `NewDeploymentInfoSentinel` *(upstream Sentinel stub)*
 
@@ -122,12 +127,14 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **Medium** — CVSS environmental scores, EPSS, and asset criticality data are automatable inputs; final prioritization decision may require human approval, especially for production systems.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.PrioritizeDeployment`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Implemented in #1825 (Idea #1248) —
   `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
-  (`prioritize_deployment_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  Evaluator action node in the `Deployment` Sequence, setting deployment
-  priority before the mitigation/fix-deploy paths
+  (`prioritize_deployment_factory` in 4-field `DeployFixCallOutBundle`) —
+  Evaluator action node in the `_DeployFixIfReady` Sequence, before
+  `CheckCSFixNotYetDeployed` and `DeployFix`. Note: mitigation nodes removed
+  from this tree; mitigation arm tracked in separate Idea (peer to #1248).
+  Phase 1 stub (PR #1357) wired `prioritize_deployment_factory`; the full
+  tree restructured the Sequence context.
 
 ### `MitigationDeployed`
 
@@ -144,12 +151,9 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **High** — query to patch management system or case-state flag; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationDeployed`
 - **Call-out point shape**: Retriever — synchronous on-demand query to an asset/patch management system or case-state flag; returns SUCCESS if a mitigation has been deployed, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
-- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  early-exit Retriever guard in `Deployment` Selector; short-circuits when
-  mitigation is already deployed.
-  Note: Phase 1 stub exists as of PR #1357 but this Retriever is not
-  among the 4 factory params exposed.
+- **Factory-fn placement**: Scoped OUT of `create_deploy_fix_tree` (#1248) —
+  mitigation nodes belong to a distinct `create_deploy_mitigation_tree`
+  (separate Idea, peer to #1248). Not in the deploy-fix bundle.
 
 ### `MitigationAvailable`
 
@@ -166,12 +170,9 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **High** — patch or advisory feed query; fully automatable once the feed integration is in place.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationAvailable`
 - **Call-out point shape**: Retriever — synchronous on-demand query to a patch/advisory feed or internal mitigation catalog; returns SUCCESS if a mitigation is currently available, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
-- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  Retriever condition guard in the mitigation-deploy Sequence, before
-  `DeployMitigation`; queries availability before attempting deployment.
-  Note: Phase 1 stub exists as of PR #1357 but this Retriever is not
-  among the 4 factory params exposed.
+- **Factory-fn placement**: Scoped OUT of `create_deploy_fix_tree` (#1248) —
+  mitigation nodes belong to a distinct `create_deploy_mitigation_tree`
+  (separate Idea, peer to #1248). Not in the deploy-fix bundle.
 
 ### `DeployMitigation`
 
@@ -188,12 +189,11 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **Medium** — automated deployment is feasible for some environments (configuration management, cloud); human approval is typically required for production system changes.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.DeployMitigation`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
-  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
-  (`deploy_mitigation_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  Evaluator action node in the mitigation-deploy Sequence, after
-  `MitigationAvailable` succeeds
+- **Factory-fn placement**: Scoped OUT of `create_deploy_fix_tree` (#1248).
+  Phase 1 stub (PR #1357) included `deploy_mitigation_factory`; that field was
+  removed from the bundle in the full tree (#1825, 4-field bundle). Mitigation
+  deployment belongs to a distinct `create_deploy_mitigation_tree` (separate
+  Idea, peer to #1248).
 
 ### `MonitoringRequirement`
 
@@ -210,12 +210,13 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **High** — policy rule evaluation against case context (severity, asset class, environment); fully automatable as a policy engine check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitoringRequirement`
 - **Call-out point shape**: Evaluator — evaluates whether organizational policy requires post-deployment monitoring for this case by applying policy rules against case context (severity, asset class, environment); a policy judgment call, not a binary condition monitor.
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Implemented in #1825 (Idea #1248) —
   `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
-  (`monitoring_requirement_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  Evaluator condition guard in the monitoring-initiation Sequence; SUCCESS
-  proceeds to `MonitorDeployment`
+  (`monitoring_requirement_factory` in 4-field `DeployFixCallOutBundle`) —
+  Evaluator condition guard in the `_MonitorDeploymentIfDesired` Sequence arm
+  of the `DeployFixBT` Fallback; SUCCESS proceeds to `MonitorDeployment`.
+  Phase 1 stub (PR #1357) wired this param; the full tree restructured the
+  Sequence context.
 
 ### `MonitorDeployment`
 
@@ -237,13 +238,14 @@ the process of deploying a developed fix or mitigation to affected systems.
   the side effect in the external monitoring system is the seam. This is a fire-and-confirm
   action node, not a continuous monitor running outside the BT — the BT tick reaches this node
   once per `MonitoringRequirement` pass and asks the external system to begin tracking.
-- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  Actuator action node in the monitoring-initiation Sequence, after
-  `MonitoringRequirement` succeeds; fires the external monitoring registration
-  call and confirms activation.
-  Note: Phase 1 stub exists as of PR #1357 but this Actuator is not
-  among the 4 factory params exposed.
+- **Factory-fn placement**: Implemented in #1825 (Idea #1248) —
+  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
+  (`monitor_deployment_factory` in 4-field `DeployFixCallOutBundle`) —
+  Actuator action node in the `_MonitorDeploymentIfDesired` Sequence arm,
+  after `MonitoringRequirement` succeeds; fires the external monitoring
+  registration call and confirms activation.
+  Phase 1 stub (PR #1357) wired this param; the full tree restructured the
+  Sequence context.
 
 ### `DeployFix`
 
@@ -260,11 +262,91 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **Medium** — release pipeline and patch distribution can be automated (CI/CD, package repositories); human approval gate is commonly required for production releases.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.DeployFix`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Implemented in #1825 (Idea #1248) —
   `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
-  (`deploy_fix_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  Evaluator action node in the full-fix-deploy Sequence; the primary patch
-  deployment step (distinct from mitigation deployment)
+  (`deploy_fix_factory` in 4-field `DeployFixCallOutBundle`) —
+  Evaluator action node in the `_DeployFixIfReady` Sequence arm, after
+  `PrioritizeDeployment` succeeds; the primary patch deployment step
+  (distinct from mitigation deployment, which is scoped out to a peer Idea).
+  Phase 1 stub (PR #1357) wired this param; the full tree restructured the
+  Sequence context and removed `deploy_mitigation_factory` from the bundle.
+
+---
+
+## Production Collapse: Mitigation Deployment Subtree → `create_deploy_mitigation_tree`
+
+**Simulator nodes involved**: `MitigationDeployed`, `MitigationAvailable`,
+`DeployMitigation` (all in
+`vultron/demo/fuzzer/report_management/deploy_fix.py`)
+
+**Planning issue**: #1826 (peer Idea to #1248)
+
+**Spec**: `specs/behavior-tree-integration.yaml` BT-20-005
+
+### Structural difference from `create_deploy_fix_tree`
+
+The fix deployment tree persists a CS state transition (`VFD` d→D) and emits
+a `CD` protocol message (`EmitCDActivity`). The mitigation tree does **not**:
+mitigation deployment is tracked externally (CMDB, case record, or asset
+inventory) and the 29-message Vultron protocol has no dedicated
+mitigation-deployed message type. The short-circuit guard (`MitigationDeployed`)
+and the availability gate (`MitigationAvailable`) are therefore call-out
+Retrievers, not `DataLayerCondition` nodes reading a CS state bit.
+
+A follow-on Idea under epic #1935 (Protocol authority & lifecycle semantics)
+tracks the open question of whether a dedicated mitigation-deployed message
+type should be added to the protocol.
+
+### Production tree shape
+
+```text
+DeployMitigationBT (Fallback)
+├─ <MitigationDeployed>                    # Retriever call-out — short-circuit
+├─ _ShouldStayInRmDeferred (Sequence)
+│  ├─ RMinStateDeferred                    # reused from deploy_fix nodes
+│  └─ CheckNoNewDeploymentInfoNode         # reused from deploy_fix nodes
+├─ _DeployMitigationIfAvailable (Sequence)
+│  ├─ CheckDeployerRoleNode                # reused from vfd_role_guards
+│  ├─ CheckRMStateAccepted                 # reused from develop_fix nodes
+│  ├─ <MitigationAvailable>               # Retriever call-out — availability gate
+│  ├─ <PrioritizeDeployment>              # Evaluator call-out (shared seam)
+│  └─ <DeployMitigation>                  # Evaluator call-out
+└─ _MonitorDeploymentIfDesired (Sequence)
+   ├─ <MonitoringRequirement>             # Evaluator call-out (shared seam)
+   └─ <MonitorDeployment>                # Actuator call-out (shared seam)
+```
+
+No `TransitionCS` or `EmitActivity` nodes — mitigation has no CS state bit
+and no protocol message counterpart.
+
+### Bundle structure
+
+`DeploymentMonitoringBundle` (shared base,
+`vultron/core/behaviors/call_out/bundles/deploy_monitoring.py`):
+
+- `prioritize_deployment_factory` — Evaluator (p=0.90 → AlwaysSucceed)
+- `monitoring_requirement_factory` — Evaluator (p=0.70 → AlwaysSucceed)
+- `monitor_deployment_factory` — Actuator (p=1.00 → AlwaysSucceed)
+
+`DeployFixCallOutBundle(DeploymentMonitoringBundle)` — adds:
+
+- `deploy_fix_factory` — Evaluator (p=0.10 → AlwaysFail)
+
+`DeployMitigationCallOutBundle(DeploymentMonitoringBundle)` — adds:
+
+- `mitigation_deployed_factory` — Retriever (p=0.25 → AlwaysFail)
+- `mitigation_available_factory` — Retriever (p=0.70 → AlwaysSucceed)
+- `deploy_mitigation_factory` — Evaluator (p=0.75 → AlwaysSucceed)
+
+### Combinator tree
+
+`create_deploy_tree()` in `vultron/core/behaviors/report/deploy_tree.py`
+composes the overarching deployment decision:
+
+```text
+DeployOrMitigateBT (Fallback)
+├─ create_deploy_fix_tree(...)      # fix arm — preferred
+└─ create_deploy_mitigation_tree(...)  # mitigation arm — fallback
+```
 
 ---

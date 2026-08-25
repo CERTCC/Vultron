@@ -16,7 +16,7 @@
 #               services use a bind mount) to save significant startup time.
 #               Run without --no-build at least once, or after changing
 #               pyproject.toml, uv.lock, or docker/Dockerfile.
-#   SCENARIO    One of: fv (default), fvv, fcv, fvcv-extension, fvcv-handoff, fccv-handoff
+#   SCENARIO    One of: fv (default), fvv, fcv, fcv-reject, fvcv-extension, fvcv-handoff, fccv-handoff
 #
 # Environment variables:
 #   DEMO                  Alternative way to specify the scenario (overridden by
@@ -29,6 +29,7 @@
 #   CASE_ACTOR_HOST_PORT  Pin a specific host port for the case-actor service.
 #   COORDINATOR_HOST_PORT Pin a specific host port for the coordinator service.
 #   ACTOR5_HOST_PORT      Pin a specific host port for the actor5 service.
+#   ACTOR6_HOST_PORT      Pin a specific host port for the actor6 service.
 #   COMPOSE_SERVICE_COLORS
 #                         Path to a service-colors.env file that maps service
 #                         names to hex colors (default: docker/service-colors.env).
@@ -81,7 +82,7 @@ while [[ $# -gt 0 ]]; do
 done
 DEMO="${SCENARIO_ARG:-${DEMO:-fv}}"
 
-VALID_SCENARIOS="fv fvv fcv fvcv-extension fvcv-handoff fccv-handoff fccv-extension"
+VALID_SCENARIOS="fv fvv fcv fcv-reject fvcv-extension fvcv-handoff fccv-handoff fccv-extension fcvcv"
 if ! echo "${VALID_SCENARIOS}" | grep -qw "${DEMO}"; then
     echo "ERROR: unknown scenario '${DEMO}'. Valid options: ${VALID_SCENARIOS}" >&2
     exit 1

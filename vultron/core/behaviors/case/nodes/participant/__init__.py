@@ -62,6 +62,9 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
+    ValidateTriggerTransitionsNode,
+)
 
 __all__ = [
     "_create_and_attach_participant",
@@ -93,6 +96,7 @@ __all__ = [
     # composite subtrees — lazy via __getattr__
     "CreateCaseParticipantNode",
     "CreateParticipantStatusNode",
+    "ValidateTriggerTransitionsNode",
     "EnsureReporterParticipantAtAcceptedNode",
 ]
 

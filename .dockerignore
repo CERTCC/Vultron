@@ -1,7 +1,16 @@
-# Version control
-.git
-.gitignore
-.gitattributes
+# This file applies to the whole build context and therefore to EVERY stage in
+# docker/Dockerfile, including the `dev` stage that backs the devcontainer.
+#
+# Two rules keep it honest:
+#   1. Only list paths that NO stage needs at build time. Paths that runtime
+#      images should skip but the dev stage requires (.github, archived_notes,
+#      .gitignore, docker/Dockerfile, ...) belong in a per-stage
+#      `COPY --exclude=` on the runtime/test stages instead. Excluding them here
+#      silently strips them from the devcontainer and makes `git status` report
+#      them as deleted.
+#   2. Anything start-dev.sh clobber-mounts over /app at runtime should be
+#      excluded here — copying it in is waste. Safe only because every such path
+#      is gitignored, so its absence cannot surface as a phantom deletion.
 
 # Python artifacts
 __pycache__
@@ -46,21 +55,37 @@ package-lock.json
 devlogs
 diosts.log
 
-# Notes and docs not needed in runtime images
-archived_notes
-wip_notes
-
 # macOS metadata
 .DS_Store
 **/.DS_Store
 
-# Dev-environment files
-.env
-.agents
-.github
+# Local agent/assistant state — unknown contents, may hold tokens
 .copilot
-.devcontainer
-!.devcontainer/certs
 
-# Dockerfile itself is not needed inside app images; demo-entrypoint.sh is still required
-docker/Dockerfile
+# Runtime-mounted paths (rule 2 above). start-dev.sh mounts each of these over
+# /app when it creates the container, so the copied-in version is never read.
+wip_notes
+wip_outputs
+graphify-out
+
+# NOTE: .devcontainer is deliberately NOT excluded here. Its files are TRACKED,
+# so rule 1 applies: withholding them left /app/.devcontainer empty, which
+# start-dev.sh had to paper over by bind-mounting the host directory back in.
+# That made one host directory the working tree for every slot container AND the
+# host repo at once, each with its own HEAD — so whichever git wrote last decided
+# the bytes and every other repo reported phantom modifications. Only the secret
+# is withheld now (see below); the rest is baked in.
+
+# Secrets — must not be baked into any image layer, the dev stage included.
+# NOTE: .dockerignore is independent of .gitignore. A git-ignored secret is
+# still part of the build context and still lands in the image unless it is
+# listed HERE. Never rely on .gitignore to keep credentials out of a layer.
+#
+# devcontainer.env (AWS credentials, written by .devcontainer/setup.sh) is the
+# ONLY path under .devcontainer/ withheld from the build. It is gitignored, so
+# its absence cannot surface as a phantom deletion. start-dev.sh supplies it at
+# runtime via `docker run --env-file`.
+# .env.example files are intentionally NOT matched by these patterns.
+.env
+**/.env
+.devcontainer/*.env

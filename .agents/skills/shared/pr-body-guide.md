@@ -13,6 +13,7 @@ Use for `build`, `bugfix`, and any PR that modifies `.py` files.
 ```markdown
 - Closes #N
 - Closes #M   <!-- one line per issue; GitHub expands the title automatically -->
+<!-- ⚠️  THESE LINES MUST BE FIRST — before any ## header. Moving them breaks the GitHub sidebar. -->
 
 ## Summary
 
@@ -40,7 +41,9 @@ captures the full rationale.>
 ### Implementation PR rules
 
 - Closing references (`Closes #N` / `Fixes #N`) go at the **top**, one per
-  bullet line, so GitHub expands the issue title in the PR sidebar.
+  bullet line, **before any `##` section header**, so GitHub expands the issue
+  title in the PR sidebar. **This is the single most commonly missed rule —
+  every PR triage flags it when violated.**
 - **Summary**: required; 1–2 sentences, present tense.
 - **Motivation**: optional; omit when Summary is self-explanatory.
 - **Changes**: required; use backtick-wrapped file paths and concrete
@@ -58,6 +61,7 @@ or other non-Python files.
 
 ```markdown
 - Closes #N
+<!-- ⚠️  THIS LINE MUST BE FIRST — before any ## header. Moving it breaks the GitHub sidebar. -->
 
 ## Summary
 
@@ -71,6 +75,7 @@ or other non-Python files.
 
 ### Docs-only PR rules
 
+- Closing reference goes at the **top**, before any `##` header.
 - No Verification section — no Python was changed, no test suite ran.
 - Keep Changes concise; list meaningful files only (not `README.md` unless
   it was substantively updated).

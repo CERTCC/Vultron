@@ -111,7 +111,10 @@ nav:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
     - 'reference/index.md'
-    - Ubiquitous Language: 'reference/glossary.md'
+    - Protocol Architecture:
+      - Concept Taxonomy: 'reference/vultron-taxonomy.md'
+      - Ubiquitous Language: 'reference/glossary.md'
+      - Draft Protocol Specification: 'reference/draft-vultron-spec.md'
     - Terms and Definitions: 'reference/terms.md'
     - Notation: 'reference/notation.md'
     - Versioning: 'reference/versioning.md'
@@ -232,7 +235,7 @@ nav:
       - Per-Actor DataLayer Isolation: 'adr/0012-per-actor-datalayer-isolation.md'
       - Unify RM State Tracking: 'adr/0013-unify-rm-state-tracking.md'
       - Pin GitHub Actions to SHAs: 'adr/0014-sha-pin-github-actions.md'
-      - Create Case at Report Receipt: 'adr/0015-create-case-at-report-receipt.md'
+      - Create Case at Report Receipt: 'adr/archived/0015-create-case-at-report-receipt.md'
       - SQLModel/SQLite DataLayer: 'adr/0016-sqlmodel-sqlite-datalayer.md'
       - Domain/Wire Object Separation: 'adr/0017-domain-wire-object-separation.md'
       - Canonical Case History Convergence: 'adr/0018-canonical-case-history-convergence.md'
@@ -256,6 +259,39 @@ nav:
       - Per-Machine Dimension Objects for CaseStatus and ParticipantStatus: 'adr/0036-status-dimension-objects.md'
       - Buffer Out-of-Order Announce(CaseLedgerEntry) Instead of Dropping: 'adr/0037-buffer-out-of-order-ledger-entries.md'
       - Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy: 'adr/0038-four-tier-specification-taxonomy.md'
+      - Offer Case Participant Role Wire Type: 'adr/0039-offer-case-participant-role-wire-type.md'
+      - Introduce UseCaseResult Envelope: 'adr/0040-use-case-result-envelope.md'
+      - CaseActor-Authoritative Case Initialization: 'adr/0041-caseactor-authoritative-case-initialization.md'
+      - HTTP-Only Inter-Actor Delivery: 'adr/0042-http-only-inter-actor-delivery.md'
+      - ADR Status as Confidence Signal: 'adr/0043-adr-status-as-confidence-signal.md'
+      - Adopt py_trees Typed Ports: 'adr/0044-py-trees-typed-ports-adoption.md'
+      - Correct Create(VulnerabilityCase) Field Assignment: 'adr/0045-create-vulnerability-case-field-assignment.md'
+      - Two-Seam Received-Side Status Authorization: 'adr/0046-received-status-authorization.md'
+      - Report-to-Others Party Discovery Sentinel: 'adr/0047-report-to-others-sentinel-over-inline-bt.md'
+      - PEC NO_EMBARGO Is Absence Not Pre-Consent: 'adr/0048-pec-no-embargo-is-absence-not-pre-consent.md'
+      - No Core Error Message Types or Error-Followup Factory: 'adr/0049-core-does-not-model-error-message-types.md'
+      - Leave(VulnerabilityCase) Is the Canonical RM Closure Mechanism: 'adr/0050-leave-vul-case-canonical-rm-closure.md'
+      - CaseActor Has Its Own RM Lifecycle via CaseParticipant: 'adr/0051-caseactor-rm-lifecycle.md'
+      - Demo CI Job Structure — Accept Barrier and Concurrency Group: 'adr/0052-demo-ci-job-structure-barrier-accepted.md'
+      - Route Ownership-Transfer Offer and Accept Through the CaseActor: 'adr/0053-ownership-transfer-routed-via-caseactor.md'
+      - Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues: 'adr/0054-learnings-queue-as-files-not-issues.md'
+      - CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows: 'adr/0055-ci-failure-alerting-via-github-issues.md'
+      - embargo_adherence Is a Computed Property Derived from PEC State: 'adr/0056-embargo-adherence-computed-field.md'
+      - Rename CVDRole.OTHER to CVDRole.OBSERVER and Define Observer Participant Semantics: 'adr/0057-observer-participant-role.md'
+      - Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order: 'adr/0058-causal-gating-in-demo-scenarios.md'
+      - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0059-buffer-pre-genesis-ledger-entries.md'
+      - Re-express the Legacy Case-State Invariants and Keep the Hypercube as Reference: 'adr/0060-re-express-legacy-cs-invariants.md'
+      - Adjudicate Received ParticipantStatus Per Dimension, Not as a Unit: 'adr/0061-per-dimension-partial-accept.md'
+      - Normalise Wire to Core at Ingress, and Enforce It Again at the Persistence Boundary: 'adr/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md'
+      - Render Core Objects to Wire JSON Through a Driven Port: 'adr/0063-wire-rendering-port-for-core-objects.md'
+      - Enforce Post-Construction Type Safety on the Core Branch Only: 'adr/0064-core-branch-validate-assignment.md'
+      - Embargo Invite RSVP Deadline on Invite.end_time: 'adr/0065-embargo-invite-rsvp-deadline.md'
+      - 'Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store': 'adr/0066-outbox-terminal-state.md'
+      - 'Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently': 'adr/0067-rm-nonadj-accept-and-notify.md'
+      - 'Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx': 'adr/0068-inbox-refuse-misaddressed-activities.md'
+      - 'Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host': 'adr/0069-vultron-namespace-uri.md'
+      - 'Reuse validate-report for Invited Actors; Derive VultronOfferRecord from Ledger Backfill': 'adr/0070-invited-actor-rm-triage-via-ledger-backfill.md'
+      - 'CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined': 'adr/0071-cna-eligibility-reference-baseline.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -263,6 +299,7 @@ nav:
     - License: 'about/license.md'
 not_in_nav: |
   _*.md
+  adr/archived/*.md
   _*/**/*.md
   includes/*
   reference/user_stories/story_*.md
@@ -282,8 +319,9 @@ validation:
     # declared in not_in_nav above. Surfaces future un-navved pages (e.g. new
     # ADRs) and fails any --strict build (see mkdocs-build-strict.sh). #1304.
     omitted_files: warn
-exclude_docs: |
-  # Maintainer-focused docs are available in local/dev builds via mkdocs.dev.yml
+draft_docs: |
+  draft-*.md
+  !reference/draft-vultron-spec.md
   docs/developer/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
@@ -324,6 +362,9 @@ plugins:
             heading_level: 2
   - markdown-exec
   - search
+  # autorefs is declared explicitly so mkdocstrings does not auto-append it
+  # after print-site, which would trip print-site's must-be-last check.
+  - autorefs
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'

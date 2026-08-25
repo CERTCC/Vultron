@@ -37,13 +37,18 @@ unless every change in the working tree belongs to this commit.
 ```bash
 uv run git commit -m "<subject line>
 
-<body: what changed and why, as bullet points>"
+<body: what changed and why, as bullet points>
+
+Co-authored-by: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
 
 Commit message conventions:
 
 - Subject line: imperative mood, ≤72 characters, no trailing period
 - Body: bullet points describing what changed and why
+- **`Co-authored-by` trailer is required on every commit** — include it
+  verbatim as the last line of every commit message, including history
+  archive commits. `pr-triage` Phase 3 flags any commit that is missing it.
 
 ## Constraints
 

@@ -70,7 +70,9 @@ from vultron.core.behaviors.report.nodes import (
 from vultron.core.behaviors.report.nodes.emit import EmitValidateReportActivity
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.validation import ValidationCallOutBundle
+    from vultron.core.behaviors.call_out.bundles.validation import (
+        ValidationCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +132,9 @@ def create_validate_report_tree(
         >>> print(result.status)
         Status.SUCCESS
     """
-    from vultron.demo.fuzzer.bundles.validation import VALIDATION_DETERMINISTIC
+    from vultron.core.behaviors.call_out.bundles.validation import (
+        VALIDATION_DETERMINISTIC,
+    )
 
     bundle = call_out if call_out is not None else VALIDATION_DETERMINISTIC
 

@@ -682,6 +682,229 @@ def seed_containers_fcv(
     return finder, coordinator, vendor
 
 
+def seed_containers_fcvcv(
+    finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    v1_client: DataLayerClient,
+    c2_client: DataLayerClient,
+    v2_client: DataLayerClient,
+    reporter_actor_id: str | None = None,
+    c1_actor_id: str | None = None,
+    v1_actor_id: str | None = None,
+    c2_actor_id: str | None = None,
+    v2_actor_id: str | None = None,
+) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor, as_Actor]:
+    """Seed five containers for the FCVCV scenario.
+
+    Containers: Finder (Person), Coordinator1 (Organization), Vendor1
+    (Organization), Coordinator2 (Organization), VendorDeployer (Organization).
+
+    The seeding is done in two phases:
+
+    1. Create the local actor on each container independently.
+    2. Register every actor as a known peer on the other four containers
+       (N×(N-1) = 20 cross-registrations total).
+
+    This function is idempotent: re-running it returns existing actors
+    unchanged (the ``POST /actors/`` endpoint is idempotent).
+
+    Args:
+        finder_client: DataLayerClient connected to the Finder container.
+        c1_client: DataLayerClient connected to the Coordinator1 container.
+        v1_client: DataLayerClient connected to the Vendor1 container.
+        c2_client: DataLayerClient connected to the Coordinator2 container.
+        v2_client: DataLayerClient connected to the VendorDeployer container.
+        reporter_actor_id: Optional deterministic URI for the Finder actor.
+        c1_actor_id: Optional deterministic URI for the Coordinator1 actor.
+        v1_actor_id: Optional deterministic URI for the Vendor1 actor.
+        c2_actor_id: Optional deterministic URI for the Coordinator2 actor.
+        v2_actor_id: Optional deterministic URI for the VendorDeployer actor.
+
+    Returns:
+        Tuple of ``(finder, c1, v1, c2, v2)`` ``as_Actor`` objects as
+        created on their respective containers.
+    """
+    logger.info("Phase 1: creating local actors on each container...")
+    finder = seed_actor(
+        client=finder_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=reporter_actor_id,
+    )
+    logger.info("Finder actor seeded: %s", finder.id_)
+
+    c1 = seed_actor(
+        client=c1_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1_actor_id,
+    )
+    logger.info("C1 actor seeded: %s", c1.id_)
+
+    v1 = seed_actor(
+        client=v1_client,
+        name="Vendor1",
+        actor_type="Organization",
+        actor_id=v1_actor_id,
+    )
+    logger.info("V1 actor seeded: %s", v1.id_)
+
+    c2 = seed_actor(
+        client=c2_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2_actor_id,
+    )
+    logger.info("C2 actor seeded: %s", c2.id_)
+
+    v2 = seed_actor(
+        client=v2_client,
+        name="VendorDeployer",
+        actor_type="Organization",
+        actor_id=v2_actor_id,
+    )
+    logger.info("V2 actor seeded: %s", v2.id_)
+
+    logger.info("Phase 2: registering cross-container peers...")
+
+    # Register C1, V1, C2, and V2 as peers on Finder's container.
+    seed_actor(
+        client=finder_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="Vendor1",
+        actor_type="Organization",
+        actor_id=v1.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="VendorDeployer",
+        actor_type="Organization",
+        actor_id=v2.id_,
+    )
+    logger.info("C1, V1, C2, and V2 registered as peers on Finder container")
+
+    # Register Finder, V1, C2, and V2 as peers on C1's container.
+    seed_actor(
+        client=c1_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=c1_client,
+        name="Vendor1",
+        actor_type="Organization",
+        actor_id=v1.id_,
+    )
+    seed_actor(
+        client=c1_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2.id_,
+    )
+    seed_actor(
+        client=c1_client,
+        name="VendorDeployer",
+        actor_type="Organization",
+        actor_id=v2.id_,
+    )
+    logger.info("Finder, V1, C2, and V2 registered as peers on C1 container")
+
+    # Register Finder, C1, C2, and V2 as peers on V1's container.
+    seed_actor(
+        client=v1_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=v1_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1.id_,
+    )
+    seed_actor(
+        client=v1_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2.id_,
+    )
+    seed_actor(
+        client=v1_client,
+        name="VendorDeployer",
+        actor_type="Organization",
+        actor_id=v2.id_,
+    )
+    logger.info("Finder, C1, C2, and V2 registered as peers on V1 container")
+
+    # Register Finder, C1, V1, and V2 as peers on C2's container.
+    seed_actor(
+        client=c2_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=c2_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1.id_,
+    )
+    seed_actor(
+        client=c2_client,
+        name="Vendor1",
+        actor_type="Organization",
+        actor_id=v1.id_,
+    )
+    seed_actor(
+        client=c2_client,
+        name="VendorDeployer",
+        actor_type="Organization",
+        actor_id=v2.id_,
+    )
+    logger.info("Finder, C1, V1, and V2 registered as peers on C2 container")
+
+    # Register Finder, C1, V1, and C2 as peers on V2's container.
+    seed_actor(
+        client=v2_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=v2_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1.id_,
+    )
+    seed_actor(
+        client=v2_client,
+        name="Vendor1",
+        actor_type="Organization",
+        actor_id=v1.id_,
+    )
+    seed_actor(
+        client=v2_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2.id_,
+    )
+    logger.info("Finder, C1, V1, and C2 registered as peers on V2 container")
+
+    return finder, c1, v1, c2, v2
+
+
 def reset_containers(
     labeled_clients: Sequence[tuple[str, DataLayerClient]],
     reset_fn: Callable[..., Any],
@@ -710,6 +933,7 @@ def reset_containers(
 
     Spec: D5-2.
     """
+    label = client = None
     with demo_step("Resetting actor containers to a clean baseline"):
         for label, client in labeled_clients:
             result = reset_fn(client=client, init=False)
@@ -722,3 +946,203 @@ def reset_containers(
                 raise AssertionError(
                     f"{label} container was not reset cleanly: {cases}"
                 )
+
+
+def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+    from vultron.enums.roles import CVDRole
+
+    case_id = case_obj.id_
+    if vendor_actor_id in case_obj.actor_participant_index:
+        return
+    # Seed vendor at RM.RECEIVED — the minimum state needed so that the
+    # validate-report trigger can advance RECEIVED → VALID and emit the
+    # validate_report eventType to the case-actor ledger.
+    #
+    # In a multi-server deployment the CaseProposal acceptance round-trip would
+    # drive this transition automatically (SubmitReportReceivedUseCase creates
+    # the participant at RM.RECEIVED).  In single-server demo mode that
+    # round-trip is blocked, so we seed it here as the protocol would have.
+    # RM.VALID must NOT be pre-seeded — validate-report must drive that
+    # transition so the eventType appears in the case-actor ledger (issue #2273).
+    vendor_p = CaseParticipant(
+        attributed_to=vendor_actor_id,
+        context=case_id,
+        name=f"Vendor participant for {case_id}",
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
+        participant_statuses=[
+            ParticipantStatus(
+                rm=RmDimension(state=RM.RECEIVED),
+                context=case_id,
+                attributed_to=vendor_actor_id,
+            ),
+        ],
+    )
+    try:
+        dl.create(vendor_p)
+    except ValueError:
+        pass
+    case_obj.add_participant(vendor_p)
+    logger.debug(
+        "seed_case_participants_for_demo: added vendor '%s' at RM.RECEIVED",
+        vendor_actor_id,
+    )
+
+
+def _seed_reporter_participant(
+    case_obj, reporter_actor_id: str | None, dl
+) -> None:
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    case_id = case_obj.id_
+    if not reporter_actor_id:
+        return
+    if reporter_actor_id in case_obj.actor_participant_index:
+        return
+    reporter_p = CaseParticipant(
+        attributed_to=reporter_actor_id,
+        context=case_id,
+        name=f"Reporter participant for {case_id}",
+        case_roles=[CVDRole.REPORTER],
+    )
+    try:
+        dl.create(reporter_p)
+    except ValueError:
+        pass
+    case_obj.add_participant(reporter_p)
+    logger.debug(
+        "seed_case_participants_for_demo: added reporter '%s'",
+        reporter_actor_id,
+    )
+
+
+def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
+    import uuid as _uuid
+
+    from vultron.config.app import get_config
+    from vultron.core.behaviors.case.nodes.conditions import _derive_case_slug
+    from vultron.core.models.case_actor import CaseActor
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    case_id = case_obj.id_
+    cfg = get_config().actor
+    base_url = (
+        str(cfg.case_actor_service_url).rstrip("/")
+        if cfg.case_actor_service_url
+        else str(get_config().server.base_url).rstrip("/")
+    )
+    case_slug = _derive_case_slug(report_id or case_id)
+    case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
+    if case_actor_id in case_obj.actor_participant_index:
+        return
+
+    # Create the CaseActor Service object so that inbox delivery to the
+    # CaseActor succeeds in single-container test environments (the inbox
+    # endpoint resolves actors by short ID, which requires a Service row).
+    actor_obj = CaseActor(
+        id_=case_actor_id,
+        name=f"CaseActor for {case_id}",
+        attributed_to=case_actor_id,
+        context=case_id,
+    )
+    try:
+        dl.create(actor_obj)
+    except ValueError:
+        pass
+
+    # CaseParticipant needs a distinct ID from the Service object —
+    # matching production where RegisterCaseActorParticipantNode creates
+    # the participant with a separate UUID attributed to case_actor_id.
+    participant_id = (
+        f"urn:uuid:{_uuid.uuid5(_uuid.NAMESPACE_URL, case_actor_id)}"
+    )
+    manager_p = CaseParticipant(
+        id_=participant_id,
+        attributed_to=case_actor_id,
+        context=case_id,
+        name=f"CaseActor participant for {case_id}",
+        case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+    )
+    try:
+        dl.create(manager_p)
+    except ValueError:
+        pass
+    case_obj.add_participant(manager_p)
+    logger.debug(
+        "seed_case_participants_for_demo: added CaseActor '%s'",
+        case_actor_id,
+    )
+
+
+def _seed_active_embargo(case_obj, dl) -> None:
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.em import EM
+
+    case_id = case_obj.id_
+    if case_obj.active_embargo:
+        return
+    embargo = EmbargoEvent(context=case_id)
+    try:
+        dl.create(embargo)
+    except ValueError:
+        pass
+    case_obj.active_embargo = embargo.id_
+    case_obj.current_status.em = EmDimension(state=EM.ACTIVE)
+    logger.debug(
+        "seed_case_participants_for_demo: seeded active embargo for '%s'",
+        case_id,
+    )
+
+
+def seed_case_participants_for_demo(
+    case_id: str,
+    vendor_actor_id: str,
+    reporter_actor_id: str | None,
+    report_id: str | None,
+    dl=None,
+) -> None:
+    """Seed vendor, reporter, and CaseActor participants on an ADR-0041 case.
+
+    Under ADR-0041, the CaseActor normally creates participants via
+    ``case_proposal_received_tree`` when it accepts a ``CaseProposal``.
+    This helper compensates by seeding participants directly in the DataLayer
+    and setting ``EM.ACTIVE`` so the demo milestone checks pass.
+
+    It is safe to call this multiple times for the same case — idempotency
+    guards on ``actor_participant_index`` prevent duplicate records.
+
+    Args:
+        case_id: Full URI of the ``VulnerabilityCase``.
+        vendor_actor_id: Full URI of the vendor actor (seeded as CASE_OWNER + VENDOR).
+        reporter_actor_id: Full URI of the reporter actor, or ``None`` to skip.
+        report_id: Report URI used to derive the CaseActor slug; falls back to
+            ``case_id`` if ``None``.
+        dl: DataLayer instance to use.  Defaults to ``get_shared_dl()`` when
+            ``None``.  Pass an isolated DataLayer in tests that use
+            ``dependency_overrides`` (e.g. ``IsolatedActorApp.dl``) so that
+            seeding targets the correct in-memory store.
+    """
+    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.core.models.vultron_types import VulnerabilityCase
+
+    if dl is None:
+        dl = get_shared_dl()
+    case_obj = dl.read(case_id)
+    if not isinstance(case_obj, VulnerabilityCase):
+        logger.warning(
+            "seed_case_participants_for_demo: case '%s' not found", case_id
+        )
+        return
+
+    _seed_vendor_participant(case_obj, vendor_actor_id, dl)
+    _seed_reporter_participant(case_obj, reporter_actor_id, dl)
+    _seed_case_actor_participant(case_obj, report_id, dl)
+    _seed_active_embargo(case_obj, dl)
+
+    dl.save(case_obj)

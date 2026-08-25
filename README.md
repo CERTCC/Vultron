@@ -2,21 +2,23 @@
 
 [![CI](https://github.com/CERTCC/Vultron/actions/workflows/python-app.yml/badge.svg)](https://github.com/CERTCC/Vultron/actions/workflows/python-app.yml)
 
-Vultron is a research project to explore the creation of a federated, decentralized, and open source protocol for
-coordinated vulnerability disclosure (CVD). It has grown out of the CERT/CC's decades of experience in coordinating
-global response to software vulnerabilities. The goal is to create a protocol that can be used by any organization
-to coordinate the disclosure of vulnerabilities in information processing systems (software, hardware, services, etc.),
-and to build a community of interoperability across independent organizations processes and policies that can work
-together to coordinate appropriate responses to vulnerabilities.
+Vultron is a research project. It explores how to make a federated, decentralized, and open-source protocol for
+coordinated vulnerability disclosure (CVD). Vultron comes from the CERT/CC's decades of experience. The CERT/CC
+coordinates the global response to software vulnerabilities.
 
-Vultron is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
+The goal is to make one protocol for all organizations. An organization can use the protocol to coordinate the
+disclosure of vulnerabilities. These vulnerabilities occur in information processing systems, such as software,
+hardware, and services. A second goal is to build interoperability across independent organizations. Their processes
+and policies are different, but they can work together. Together, they can coordinate an applicable response to
+vulnerabilities.
+
+Vultron is a collection of ideas, models, code, and work in progress. It is not ready for production use.
 
 ## API entrypoint reference
 
-For uvicorn/ASGI deployment, use
-`vultron.adapters.driving.fastapi.main:app` as the canonical API entrypoint.
-The `app_v2` object in `vultron.adapters.driving.fastapi.app` is the mounted
-sub-application commonly used directly in local development and tests.
+For uvicorn/ASGI deployment, use `vultron.adapters.driving.fastapi.main:app` as the primary API entrypoint.
+The `app_v2` object is in `vultron.adapters.driving.fastapi.app`. This object is the mounted sub-application.
+Developers use it directly in local development and tests.
 
 ## Background and related work
 
@@ -55,39 +57,38 @@ which serves as the basis for the work contained in this repository.
 
 Vultron is:
 
-- A set of high-level processes representing the steps involved in coordinated vulnerability disclosure
-- A formal protocol describing the interactions of those processes
-- A set of behavior logic that can be implemented as either procedures for humans to follow or (in many cases) code that
-  can perform actions in response to state changes in a case with minimal human input
-- A minimal data model for what information is necessary to track participant status and the overall case status through
-  the course of handling a CVD case
+- A set of high-level processes. These processes show the steps in coordinated vulnerability disclosure.
+- A formal protocol. The protocol gives the interactions of those processes.
+- A set of behavior logic. Humans can obey this logic as procedures. In many cases, code can also do these actions when
+  the state of a case changes. This code needs only minimal human input.
+- A minimal data model. The model gives the data that is necessary to monitor each participant's status and the full
+  status of the case through the CVD case.
 
-The above were all initially described in the
-[Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) report.
+The [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198)
+report first gave all of the items above.
 
-In this repository, we are taking the first steps towards implementing the protocol and behavior logic described in that
-report.
-Currently, the work is focused on mapping the formal protocol onto the syntax and semantics of the [ActivityPub](https://www.w3.org/TR/activitypub/)
+In this repository, we make the first steps to build the protocol and behavior logic from that report.
+Currently, the work maps the formal protocol onto the syntax and semantics of the [ActivityPub](https://www.w3.org/TR/activitypub/)
 protocol.
-Examples of our first steps in that direction can be found in [doc/examples](doc/examples)
+You can find examples of these first steps in [doc/examples](doc/examples)
 
 ## What is Vultron *not*?
 
-Vultron is **not** a drop-in replacement for any particular
+Vultron is **not** a drop-in replacement for these items:
 
-- *tracking system*&mdash;e.g., [Bugzilla](https://www.bugzilla.org/), [Jira](https://www.atlassian.com/software/jira)
-- *CVD or threat coordination tool*&mdash;e.g., [VINCE](https://github.com/CERTCC/VINCE), [MISP](https://www.misp-project.org/)
-- *Vulnerability disclosure program*&mdash;e.g.,  [DC3 VDP](https://www.dc3.mil/Missions/Vulnerability-Disclosure/Vulnerability-Disclosure-Program-VDP/)
-- *Vulnerability disclosure platform or service*&mdash;e.g., [HackerOne](https://hackerone.com/), [Bugcrowd](https://www.bugcrowd.com/), [Synack](https://www.synack.com/)
+- a *tracking system*, such as [Bugzilla](https://www.bugzilla.org/) or [Jira](https://www.atlassian.com/software/jira)
+- a *CVD or threat coordination tool*, such as [VINCE](https://github.com/CERTCC/VINCE) or [MISP](https://www.misp-project.org/)
+- a *vulnerability disclosure program*, such as [DC3 VDP](https://www.dc3.mil/Missions/Vulnerability-Disclosure/Vulnerability-Disclosure-Program-VDP/)
+- a *vulnerability disclosure platform or service*, such as [HackerOne](https://hackerone.com/), [Bugcrowd](https://www.bugcrowd.com/), or [Synack](https://www.synack.com/)
 
-Instead, it is our hope that Vultron could serve as a *lingua franca* for the exchange of vulnerability case coordination information
-between those systems and services.
+As an alternative, we hope that Vultron can be a *lingua franca*. It can interchange vulnerability case coordination
+data between those systems and services.
 
-Vultron is not a vulnerability priortization tool, although it is intended to be compatible with common
-prioritization schemes like [SSVC](https://github.com/CERTCC/SSVC) and [CVSS](https://www.first.org/cvss/).
+Vultron is not a vulnerability prioritization tool. But it is compatible with common prioritization schemes, such as
+[SSVC](https://github.com/CERTCC/SSVC) and [CVSS](https://www.first.org/cvss/).
 
-Vultron is not intended to be a product, rather it's meant to be a feature set that can be implemented in a variety of
-CVD-related products and services to enable interoperability between them.
+Vultron is not a product. It is a feature set. You can build this feature set into many CVD-related products and
+services to let them interoperate.
 
 ## Other CERT CVD Resources
 
@@ -108,8 +109,8 @@ attempts to formally describe the concurrency aspects of the CVD process.
 
 ## License and Copyright
 
-We are still working out the correct licensing model for this effort, but for now, this repository is covered by the
-included [copyright statement](COPYRIGHT.md).
+This repository is licensed under the [MIT (SEI) license](LICENSE.md). See also the included
+[copyright statement](COPYRIGHT.md).
 
-If you have feedback on this topic (including whether the copyright/license is causing difficulty for you to collaborate
-with us on this project), please let us know in an [issue](https://github.com/CERTCC/Vultron/issues/new).
+Tell us if you have feedback on this topic. This includes feedback if the copyright or license makes it difficult for
+you to collaborate with us. Please tell us in an [issue](https://github.com/CERTCC/Vultron/issues/new).

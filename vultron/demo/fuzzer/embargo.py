@@ -35,6 +35,7 @@ from __future__ import annotations
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlmostCertainlyFail,
+    AlwaysFail,
     AlwaysSucceed,
     OneInOneHundred,
     OneInTwoHundred,
@@ -398,6 +399,86 @@ class OnEmbargoReject(ActuatorCallOutPoint, AlwaysSucceed):
     Automation potential: **High** — notification dispatch and logging
     actions are fully automatable via APIs.
     """
+
+
+# ---------------------------------------------------------------------------
+# Inbound embargo-response decision nodes (EMB-15)
+# ---------------------------------------------------------------------------
+
+
+class CaseOwnerApprovesEmbargoResponse(EvaluatorCallOutPoint, AlwaysSucceed):
+    """Adjudication call-out: non-owner actor requests CASE_OWNER approval.
+
+    Semantic function:
+        Condition — a non-CASE_OWNER actor (e.g. a CaseActor processing an
+        inbound overture on the owner's behalf) requests authorization from the
+        case owner before accepting or countering.  Defaults to approval in
+        simulation (owner approval assumed).
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads actor/case context from construction time)
+      Output keys: (none — pass/fail gate only)
+
+    Input category: Human approval / adjudication.
+
+    Success probability: 1.00 (``AlwaysSucceed``).
+
+    Automation potential: **Low** — final authority rests with the case owner
+    (a human or a configured policy agent).
+    """
+
+
+# ---------------------------------------------------------------------------
+# Embargo exit authorization nodes
+# ---------------------------------------------------------------------------
+
+
+class EmbargoExitPolicyGuard(EvaluatorCallOutPoint, AlwaysSucceed):
+    """Check whether site policy permits voluntary embargo termination.
+
+    Semantic function:
+        Condition — evaluate whether site policy allows the actor to proceed
+        with voluntary embargo termination after a reason has been selected
+        (e.g., no active revision negotiation, no pending approvals).
+        Modeled as always permitting (happy path) in simulation.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads policy state from caller's DataLayer)
+      Output keys: embargo_exit_policy_guard_verdict: str  (SUCCESS only)
+
+    Input category: Automated policy evaluation.
+
+    Success probability: 1.00 (``AlwaysSucceed``).
+
+    Automation potential: **High** — rule-based checks (pending revision,
+    approval status) are fully automatable via case-management API calls.
+    """
+
+    output_keys = {"embargo_exit_policy_guard_verdict": str}
+
+
+class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
+    """Actor explicitly overrides a policy veto to terminate the embargo.
+
+    Semantic function:
+        Condition — the actor accepts responsibility for overriding a
+        policy veto and produces a distinct audit-trail entry for the
+        override.  Modeled as never succeeding in simulation (override is
+        not active by default).
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — override is actor-initiated)
+      Output keys: embargo_exit_override_verdict: str  (SUCCESS only)
+
+    Input category: Explicit actor acknowledgment.
+
+    Success probability: 0.00 (``AlwaysFail``).
+
+    Automation potential: **Low** — override requires explicit actor
+    acknowledgment for accountability; should not be auto-approved.
+    """
+
+    output_keys = {"embargo_exit_override_verdict": str}
 
 
 # ---------------------------------------------------------------------------

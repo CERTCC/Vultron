@@ -30,14 +30,25 @@ whether a key event has occurred:
 | `X/x`  | Exploit is public (`X`) or not public (`x`) |
 | `A/a`  | Attacks have been observed (`A`) or not (`a`) |
 
-The state space forms a 2^6 = 64-node hypercube. Valid transitions move from
-lowercase to uppercase (events cannot be undone). This model is the
-authoritative definition of the "Case State" (CS) dimension in the
+Six binary dimensions give 2^6 = 64 combinations, but **only 32 are valid
+states**: the VFD dimension is a linear chain, not three free bits, so a fix
+cannot be ready while the vendor is unaware (`vF`) and cannot be deployed if it
+was never ready (`fD`). Valid transitions move from lowercase to uppercase
+(events cannot be undone), one dimension at a time; there are exactly **58 valid
+transitions** and **70 valid complete histories** (of 720 orderings). This model
+is the authoritative definition of the "Case State" (CS) dimension in the
 RM/EM/CS state machine triad.
 
-**Implementation**: `vultron/case_states/states.py` — enums `VendorAwareness`,
+**Implementation**: `vultron/core/states/cs.py` — enums `VendorAwareness`,
 `FixReadiness`, `FixDeployment`, `PublicAwareness`, `ExploitPublication`,
-`AttackObservation`, plus `VFDstate` and `PXAstate` named tuples.
+`AttackObservation`, plus the `VfdState` / `PxaState` named tuples and the
+`CS_vfd` (4 members), `CS_pxa` (8) and `CS` (32) enums. The 32-member `CS` enum
+is where the two impossible-combination rules live: they are unrepresentable
+rather than rejected at runtime.
+
+**Invariants**: `vultron/core/states/cs_invariants.py` — compound transition
+validity, the two ephemeral-state rules, and causal history validity. See the
+rule inventory below and CSB-17 / ADR-0060.
 
 **Reference paper**: [A State-Based Model for Multi-Party Coordinated
 Vulnerability Disclosure](https://doi.org/10.1184/R1/16416771), CMU/SEI-2021-SR-021.
@@ -46,9 +57,9 @@ Vulnerability Disclosure](https://doi.org/10.1184/R1/16416771), CMU/SEI-2021-SR-
 
 ## Hypercube Graph Implementation
 
-`vultron/case_states/hypercube.py` implements the `CVDmodel` class, which:
+`vultron/core/case_states/hypercube.py` implements the `CVDmodel` class, which:
 
-- Builds the 64-state DAG (directed acyclic graph) of all possible
+- Builds the 32-state DAG (directed acyclic graph) of all 58 valid
   transitions using NetworkX.
 - Implements random walks through the state space for simulation.
 - Provides scoring functions to measure the "quality" of a CVD case history.
@@ -63,11 +74,17 @@ The `CVDmodel` can be used to:
 
 **Dependencies**: `networkx`, `numpy`, `pandas`.
 
+**Status (ADR-0060)**: `vultron/core/case_states/` is a **reference model, not a
+protocol path**. It is the specification of record for the CS rules and the
+oracle the `cs_invariants.py` tests compare against, but new code MUST NOT
+import `case_states.validations` — use `vultron/core/states/cs_invariants.py`.
+See "Rule Inventory and Legacy Module Status" below.
+
 ---
 
 ## Potential Actions per Case State
 
-`vultron/case_states/patterns/potential_actions.py` maps 6-character state
+`vultron/core/case_states/patterns/potential_actions.py` maps 6-character state
 patterns (e.g., `"...P.."`, `"VfdpX."`) to `Actions` enum values — things a
 participant COULD do when the case is in a given state.
 
@@ -88,6 +105,61 @@ useful for:
 
 The corresponding documentation is in `docs/reference/case_states/*.md` — one
 file per case state, each listing available actions and context.
+
+---
+
+## Rule Inventory and Legacy Module Status
+
+The legacy `vultron/core/case_states/` tree encodes the CS rules as
+six-character strings and regexes. Issue #2237 assessed each rule and
+re-expressed the survivors against the current enums in
+`vultron/core/states/cs_invariants.py`. No rule was found to be *wrong*; the
+verdicts split between *still valid* and *superseded by structure*.
+
+| Legacy rule (`validations.py`) | Verdict | Current expression |
+|---|---|---|
+| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural** | `CS_vfd` has 4 members, so the combinations are unrepresentable. Ratchet test, not a runtime predicate. CSB-17-001 |
+| `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
+| `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
+| `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |
+| `TRANSITION_RULES`: `v..P.. → V..P..` | Still valid; SM-09-001 already required it at the persistence boundary, with only the legacy module implementing it | `required_next_cs_events()`, CSB-17-003 (which `refines` SM-09-001) |
+| `is_valid_history`: `V≺F≺D`, `P≺X`/`XP`, `V≺P`/`PV` | Still valid — the most valuable rule in the module | `is_valid_cs_history()`, `is_valid_cs_history_prefix()`, `replay_cs_history()`, CSB-17-004 (complete) and CSB-17-005 (prefixes) |
+| `is_valid_pattern` and the `.`-wildcard pattern language | **Superseded** | Enum membership tuples (`VFD_VENDOR_AWARE`, `PXA_EXPLOIT_PUBLIC`, …) plus the `is_*` predicates |
+| `hypercube.py` scoring, tf-idf, pagerank, `DESIDERATA` | Analytical, not normative | Stays in `hypercube.py`; no protocol path needs it |
+
+Two re-expression choices worth knowing:
+
+- **Transitions delegate to the dimension machines** rather than re-deriving
+  monotonicity, so compound-level validity cannot drift from what
+  `VfdDimension` / `PxaDimension` enforce. Only the two ephemeral rules are new
+  logic at the compound level.
+- **History validity is causal replay, not index comparison.** Replaying the
+  event sequence from `CS.vfdpxa` is provably equivalent to the legacy ordering
+  predicates (the tests assert this over all 720 permutations) but also
+  generalises to **prefixes** — which matters because real cases are usually
+  still in progress. Use `is_valid_cs_history_prefix()` for live cases;
+  `is_valid_cs_history()` requires all six events.
+
+**Ephemeral states.** Twelve of the 32 compound states are ephemeral: the six
+`vP` states (public aware, vendor unaware → next event MUST be `V`) and the six
+`pX` states (exploit public, public unaware → next event MUST be `P`). The two
+conditions are mutually exclusive, so each ephemeral state has exactly one valid
+successor.
+
+**Legacy module status: keep, demoted (ADR-0060).** `validations.py` and
+`hypercube.py` are retained as the reference model and as the test oracle that
+proves the re-expression faithful over the whole state space. Retirement is
+deliberately deferred and gated on two migrations:
+
+1. `vultron/core/states/cs.py` must stop importing
+   `case_states.validations.ensure_valid_state` (four decorated string helpers
+   need an enum-native validator).
+2. `vultron/core/use_cases/query/action_rules.py` must stop importing
+   `case_states.patterns.potential_actions` — which is also the live
+   `actors_get_action_rules` endpoint's only source.
+
+Note that `cs_invariants.py` is a **library, not an enforcement point**. Wiring
+it into the emit / BT paths is issue #2236's scope.
 
 ---
 
@@ -216,7 +288,7 @@ Not all participants have a VFD state:
 - **Non-Vendor Deployers**: Have `vfd_state` only for the `d → D` transition.
 - **Finders, Reporters, Coordinators**: Do NOT have VFD state. Use the null
   element `∅` (represented as `CS_vfd.vfd` but semantically "not applicable"
-  for non-vendors — see `vultron/case_states/states.py`).
+  for non-vendors — see `vultron/core/states/cs.py`).
 
 ### Consequence for Handler Implementation
 
@@ -501,6 +573,63 @@ from the start.
 
 **See also**: `docs/adr/0015-create-case-at-report-receipt.md`;
 `specs/case-management.yaml` CM-12; `notes/protocol-event-cascades.md`
+
+---
+
+## Invite-Path Participant RM Entry Point
+
+> **Source**: CONCERN-1756. Corrects CM-11-001 and `CreateInviteeParticipantAtAcceptedNode`.
+
+Participants who join a case via the invite-accept path enter at **RM.RECEIVED**,
+not RM.ACCEPTED. This is a protocol-correctness requirement, not merely a
+demo-visibility gap.
+
+### Why Accept(Invite) ≠ RM.ACCEPTED
+
+When an actor sends `Accept(Invite(actor, case))`, they have seen only a redacted
+or stub view of the `VulnerabilityCase` — enough to agree to join and consent to
+the embargo, but not the full vulnerability details (report, description, affected
+versions, etc.). The full case is replicated to them *after* the CaseActor
+processes their Accept. Therefore:
+
+- `Accept(Invite)` = "I am willing to join this case and accept its embargo terms."
+- It does NOT mean "I have validated the vulnerability and committed to remediation."
+
+Recording the invitee at RM.ACCEPTED on Accept is incorrect because RM.ACCEPTED
+means the participant has validated the report and chosen to engage. An actor
+cannot be in that state before seeing the report.
+
+### Correct Lifecycle for Invited Participants
+
+After the CaseActor processes `Accept(Invite)`:
+
+1. CaseActor records invitee at **RM.RECEIVED**.
+2. CaseActor replicates the full `VulnerabilityCase` to the invitee via
+   `Announce(VulnerabilityCase)` and join-time ledger backfill.
+3. Invitee reviews the full case, runs their own validation:
+   - Transitions to **RM.VALID** or **RM.INVALID** and notifies the CaseActor.
+4. If valid, invitee decides to engage or defer:
+   - Transitions to **RM.ACCEPTED** or **RM.DEFERRED** and notifies the CaseActor.
+5. CaseActor updates its representation of the invitee's RM state based on
+   the received status messages (CM-11-002).
+
+### Scope Boundary
+
+This rule applies to **post-initialization invitees** only — participants added
+to an existing case via `Invite(actor, case)`. It does not apply to the initial
+reporter and receiver participants created during case initialization (CM-12,
+CM-13), whose RM states are set as part of the case creation sequence.
+
+### Implementation
+
+- **`CreateInviteeParticipantAtReceivedNode`** (renamed from
+  `CreateInviteeParticipantAtAcceptedNode`) records only `RM.RECEIVED` for
+  the invitee in the CaseActor's DataLayer.
+- The invitee's subsequent V/A transitions are driven by received RM status
+  messages from the invitee themselves.
+
+**Normative requirements**: `specs/case-management.yaml` CM-11-001 through
+CM-11-004.
 
 ---
 

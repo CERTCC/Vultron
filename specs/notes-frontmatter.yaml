@@ -60,9 +60,7 @@ groups:
   - id: NF-01-008
     priority: MUST
     kind: process
-    statement: >-
-      The optional `relevant_packages` field, when present, MUST be a non-empty list of non-empty
-      strings naming packages relevant to the note's topic. Each entry is either:
+    statement: 'The optional `relevant_packages` field, when present, MUST be a non-empty list of non-empty strings naming packages relevant to the note''s topic. Each entry MUST be either a dot-separated Python package name (e.g., `vultron.core`) or a top-level package directory name (e.g., `vultron`).'
 - id: NF-02
   title: Pydantic Schema Module
   specs:

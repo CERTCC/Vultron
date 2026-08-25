@@ -11,47 +11,41 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for the embargo management domain (BT-23-003, BT-23-005).
+"""STOCHASTIC call-out bundle for the embargo management domain (BT-23-003, BT-23-005).
 
-Provides :class:`EmbargoCallOutBundle` plus the pre-built singletons
-:data:`EMBARGO_DETERMINISTIC` and :data:`EMBARGO_STOCHASTIC`.
+Provides the simulation-layer :data:`EMBARGO_STOCHASTIC` singleton.  The bundle
+dataclass and DETERMINISTIC default are core concerns
+(``vultron.core.behaviors.call_out.bundles.embargo``) and are re-exported here
+for backward-compatible import paths.
 
-Ceiling/floor mapping (BT-23-002):
+Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 
-- ``exit_embargo_when_deployed_factory``       — ExitEmbargoWhenDeployed       (p=0.33) → AlwaysFail
-- ``exit_embargo_when_fix_ready_factory``      — ExitEmbargoWhenFixReady       (p=0.25) → AlwaysFail
-- ``exit_embargo_for_other_reason_factory``    — ExitEmbargoForOtherReason     (p=0.005) → AlwaysFail
-- ``stop_proposing_embargo_factory``           — StopProposingEmbargo          (p=0.25) → AlwaysFail
-- ``select_embargo_offer_terms_factory``       — SelectEmbargoOfferTerms       (p=1.0) → AlwaysSucceed
-- ``want_to_propose_embargo_factory``          — WantToProposeEmbargo          (p=0.50) → AlwaysSucceed (tie-break)
-- ``willing_to_counter_factory``               — WillingToCounterEmbargoProposal (p=0.25) → AlwaysFail
-- ``reason_to_propose_when_deployed_factory``  — ReasonToProposeEmbargoWhenDeployed (p=0.07) → AlwaysFail
-- ``evaluate_embargo_proposal_factory``        — EvaluateEmbargoProposal       (p=0.75) → AlwaysSucceed
-- ``current_embargo_acceptable_factory``       — CurrentEmbargoAcceptable      (p=0.90) → AlwaysSucceed
-- ``on_embargo_exit_factory``                  — OnEmbargoExit                 (p=1.0) → AlwaysSucceed
-- ``on_embargo_accept_factory``                — OnEmbargoAccept               (p=1.0) → AlwaysSucceed
-- ``on_embargo_reject_factory``                — OnEmbargoReject               (p=1.0) → AlwaysSucceed
+- ``exit_embargo_when_deployed_factory``              — ExitEmbargoWhenDeployed             (p=0.33) → AlwaysFail
+- ``exit_embargo_when_fix_ready_factory``             — ExitEmbargoWhenFixReady             (p=0.25) → AlwaysFail
+- ``exit_embargo_for_other_reason_factory``           — ExitEmbargoForOtherReason           (p=0.005) → AlwaysFail
+- ``stop_proposing_embargo_factory``                  — StopProposingEmbargo                (p=0.25) → AlwaysFail
+- ``select_embargo_offer_terms_factory``              — SelectEmbargoOfferTerms             (p=1.0) → AlwaysSucceed
+- ``want_to_propose_embargo_factory``                 — WantToProposeEmbargo                (p=0.50) → AlwaysSucceed (tie-break)
+- ``willing_to_counter_factory``                      — WillingToCounterEmbargoProposal     (p=0.25) → AlwaysFail
+- ``reason_to_propose_when_deployed_factory``         — ReasonToProposeEmbargoWhenDeployed  (p=0.07) → AlwaysFail
+- ``evaluate_embargo_proposal_factory``               — EvaluateEmbargoProposal             (p=0.75) → AlwaysSucceed
+- ``current_embargo_acceptable_factory``              — CurrentEmbargoAcceptable            (p=0.90) → AlwaysSucceed
+- ``on_embargo_exit_factory``                         — OnEmbargoExit                       (p=1.0) → AlwaysSucceed
+- ``on_embargo_accept_factory``                       — OnEmbargoAccept                     (p=1.0) → AlwaysSucceed
+- ``on_embargo_reject_factory``                       — OnEmbargoReject                     (p=1.0) → AlwaysSucceed
+- ``case_owner_approves_embargo_response_factory``    — CaseOwnerApprovesEmbargoResponse    (p=1.0) → AlwaysSucceed
+- ``embargo_exit_policy_guard_factory``               — EmbargoExitPolicyGuard              (p=1.0) → AlwaysSucceed
+- ``embargo_exit_override_factory``                   — EmbargoExitOverride                 (p=0.0) → AlwaysFail
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysFail
-
-    return AlwaysFail(name)
+from vultron.core.behaviors.call_out.bundles.embargo import (  # noqa: F401
+    EMBARGO_DETERMINISTIC,
+    EmbargoCallOutBundle,
+)
 
 
 def _stochastic_exit_when_deployed(name: str) -> py_trees.behaviour.Behaviour:
@@ -136,57 +130,29 @@ def _stochastic_on_reject(name: str) -> py_trees.behaviour.Behaviour:
     return OnEmbargoReject(name)
 
 
-@dataclass(frozen=True)
-class EmbargoCallOutBundle:
-    """Call-out backend bundle for the embargo management domain (BT-23-003).
+def _stochastic_case_owner_approves_embargo_response(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import CaseOwnerApprovesEmbargoResponse
 
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`.
-    """
-
-    exit_embargo_when_deployed_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    exit_embargo_when_fix_ready_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    exit_embargo_for_other_reason_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    stop_proposing_embargo_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    select_embargo_offer_terms_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    want_to_propose_embargo_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    willing_to_counter_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    reason_to_propose_when_deployed_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    evaluate_embargo_proposal_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    current_embargo_acceptable_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    on_embargo_exit_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    on_embargo_accept_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    on_embargo_reject_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
+    return CaseOwnerApprovesEmbargoResponse(name)
 
 
-EMBARGO_DETERMINISTIC = EmbargoCallOutBundle()
-"""Deterministic bundle: ceiling/floor of stochastic p (BT-23-001, BT-23-002)."""
+def _stochastic_embargo_exit_policy_guard(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import EmbargoExitPolicyGuard
+
+    return EmbargoExitPolicyGuard(name)
+
+
+def _stochastic_embargo_exit_override(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import EmbargoExitOverride
+
+    return EmbargoExitOverride(name)
+
 
 EMBARGO_STOCHASTIC = EmbargoCallOutBundle(
     exit_embargo_when_deployed_factory=_stochastic_exit_when_deployed,  # type: ignore[arg-type]
@@ -202,6 +168,9 @@ EMBARGO_STOCHASTIC = EmbargoCallOutBundle(
     on_embargo_exit_factory=_stochastic_on_exit,  # type: ignore[arg-type]
     on_embargo_accept_factory=_stochastic_on_accept,  # type: ignore[arg-type]
     on_embargo_reject_factory=_stochastic_on_reject,  # type: ignore[arg-type]
+    case_owner_approves_embargo_response_factory=_stochastic_case_owner_approves_embargo_response,  # type: ignore[arg-type]
+    embargo_exit_policy_guard_factory=_stochastic_embargo_exit_policy_guard,  # type: ignore[arg-type]
+    embargo_exit_override_factory=_stochastic_embargo_exit_override,  # type: ignore[arg-type]
 )
 """Stochastic bundle: all nodes use probabilistic fuzzer classes."""
 

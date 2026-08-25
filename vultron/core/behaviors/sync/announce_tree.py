@@ -5,20 +5,30 @@ import py_trees
 
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes import (
+    ApplyCloseCaseFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
+    ApplyOfferOwnershipTransferFromLedgerNode,
+    ApplyOfferReportFromLedgerNode,
+    ApplyOwnershipTransferFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
+    BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckIsOwnCaseActorNode,
     CheckIsNotOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
     IsAddNoteEventNode,
+    IsCloseCaseEventNode,
     IsInviteAcceptEventNode,
+    IsOfferOwnershipTransferEventNode,
+    IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
+    IsSubmitReportEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
+    SendRejectLogEntryNode,
     VerifySenderIsOwnIdNode,
 )
 
@@ -136,13 +146,139 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                     ),
                 ],
             ),
+            py_trees.composites.Selector(
+                name="CloseCaseEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyCloseCaseEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsCloseCaseEventNode(name="IsCloseCaseEvent"),
+                            ApplyCloseCaseFromLedgerNode(
+                                name="ApplyCloseCaseFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotCloseCaseEvent",
+                        child=IsCloseCaseEventNode(
+                            name="CheckNotCloseCaseEvent"
+                        ),
+                    ),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="OfferReportEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyOfferReportEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsSubmitReportEventNode(
+                                name="IsSubmitReportEvent"
+                            ),
+                            ApplyOfferReportFromLedgerNode(
+                                name="ApplyOfferReportFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotSubmitReportEvent",
+                        child=IsSubmitReportEventNode(
+                            name="CheckNotSubmitReportEvent"
+                        ),
+                    ),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="OwnershipTransferEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyOwnershipTransferEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsOwnershipTransferEventNode(
+                                name="IsOwnershipTransferEvent"
+                            ),
+                            ApplyOwnershipTransferFromLedgerNode(
+                                name="ApplyOwnershipTransferFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotOwnershipTransferEvent",
+                        child=IsOwnershipTransferEventNode(
+                            name="CheckNotOwnershipTransferEvent"
+                        ),
+                    ),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="OfferOwnershipTransferEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyOfferOwnershipTransferEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsOfferOwnershipTransferEventNode(
+                                name="IsOfferOwnershipTransferEvent"
+                            ),
+                            ApplyOfferOwnershipTransferFromLedgerNode(
+                                name="ApplyOfferOwnershipTransferFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotOfferOwnershipTransferEvent",
+                        child=IsOfferOwnershipTransferEventNode(
+                            name="CheckNotOfferOwnershipTransferEvent"
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    )
+    # When the VulnerabilityCase is not yet seeded on this replica, chain tail
+    # reconstruction fails and no tail_hash is available for the mismatch check.
+    # Wrap reconstruct in a Selector so that on failure we (1) park the entry in
+    # the actor-local gap buffer so the case-seed path can drain it once the
+    # genesis anchor is known (SYNC-15-004, #2186), and (2) still send a Reject
+    # (with last_accepted_hash="" meaning "replay from genesis") as the loss
+    # backstop, exiting the Sequence without persisting the entry (SYNC-15-001,
+    # CLP-08-005).  FailureIsSuccess lets the reject fire whether or not the
+    # entry was buffered, mirroring CheckHashOrRejectOnMismatchNode's forward-gap
+    # buffer-and-reject structure.
+    reconstruct_or_reject = py_trees.composites.Selector(
+        name="ReconstructOrRejectOnMissingCase",
+        memory=False,
+        children=[
+            ReconstructChainTailNode(name="ReconstructChainTail"),
+            py_trees.composites.Sequence(
+                name="BufferAndRejectOnMissingCase",
+                memory=False,
+                children=[
+                    py_trees.decorators.FailureIsSuccess(
+                        name="BufferIfPreGenesis",
+                        child=BufferPreGenesisEntryNode(
+                            name="BufferPreGenesisEntry"
+                        ),
+                    ),
+                    # Fallback: send Reject carrying the sentinel tail_hash=""
+                    # that ReconstructChainTailNode wrote before failing.
+                    SendRejectLogEntryNode(name="RejectOnMissingCase"),
+                ],
+            ),
         ],
     )
     process_and_store = py_trees.composites.Sequence(
         name="ProcessAndStore",
         memory=False,
         children=[
-            ReconstructChainTailNode(name="ReconstructChainTail"),
+            reconstruct_or_reject,
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"
             ),

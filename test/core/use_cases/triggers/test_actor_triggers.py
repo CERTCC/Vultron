@@ -16,8 +16,8 @@
 """
 Unit tests for actor-level trigger use cases.
 Covers SvcInviteActorToCaseUseCase, SvcSuggestActorToCaseUseCase,
-SvcAcceptCaseInviteUseCase, SvcOfferCaseManagerRoleUseCase, and
-SvcAcceptActorRecommendationUseCase.
+SvcAcceptCaseInviteUseCase, SvcRejectCaseInviteUseCase,
+and SvcAcceptActorRecommendationUseCase.
 Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
@@ -34,14 +34,16 @@ from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
-    SvcOfferCaseManagerRoleUseCase,
+    SvcOfferCaseParticipantRoleUseCase,
+    SvcRejectCaseInviteUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
-    OfferCaseManagerRoleTriggerRequest,
+    OfferCaseParticipantRoleTriggerRequest,
+    RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -309,6 +311,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             embargo = as_EmbargoEvent(
                 id_=f"{case.id_}/embargo/e1",
                 content="Active embargo",
+                context=case.id_,
             )
             dl.create(embargo)
             case.active_embargo = embargo.id_
@@ -381,6 +384,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             id_=f"{case.id_}/embargo/e1",
             content="Active embargo",
             end_time=end_time,
+            context=case.id_,
         )
         dl.create(embargo)
         from vultron.core.states.em import EM
@@ -772,138 +776,89 @@ class TestSvcAcceptCaseInviteUseCase:
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID
 
 
-def _make_case_with_case_actor(
-    dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
-) -> tuple[as_VulnerabilityCase, str]:
-    """Create a as_VulnerabilityCase with a registered Case Actor service and
-    CASE_MANAGER participant.  Returns ``(case, case_actor_participant_id)``.
-    """
-    case = as_VulnerabilityCase(
-        attributed_to=owner_actor_id, name="Test Case", content="Content"
-    )
-    owner_participant = as_CaseParticipant(
-        attributed_to=owner_actor_id,
-        context=case.id_,
-        case_roles=[CVDRole.CASE_OWNER],
-    )
-    case_actor_participant = as_CaseParticipant(
-        attributed_to=case_actor_id,
-        context=case.id_,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    case.actor_participant_index[owner_actor_id] = owner_participant.id_
-    case.actor_participant_index[case_actor_id] = case_actor_participant.id_
-    case.case_participants.append(owner_participant.id_)
-    case.case_participants.append(case_actor_participant.id_)
-    dl.create(case)
-    dl.create(owner_participant)
-    dl.create(case_actor_participant)
-    return case, case_actor_participant.id_
+class TestSvcRejectCaseInviteUseCase:
+    """Tests for the reject-case-invite trigger use case."""
 
+    def test_reject_creates_activity(self):
+        inviter, dl_inviter = _make_actor_dl("Coordinator")
+        invitee, dl_invitee = _make_actor_dl("Vendor")
+        dl_inviter.create(invitee)
 
-class TestSvcOfferCaseManagerRoleUseCase:
-    """Tests for the offer-case-manager-role trigger use case."""
-
-    def test_offer_creates_activity_and_enqueues_outbox(self):
-        """Happy path: offer is created and queued in the Case Actor's outbox."""
-        actor, dl = _make_actor_dl("Vendor")
-        # Case Actor service uses a deterministic ID pattern.
-        case_actor = as_Service(
-            id_=f"{actor.id_}/case-actor",
-            name="CaseActorService",
-        )
-        dl.create(case_actor)
-        case, _ = _make_case_with_case_actor(dl, actor.id_, case_actor.id_)
-        # Wire the case_actor_id via the Service context so _find_case_actor_id
-        # resolves it.
-        case_actor_with_context = as_Service(
-            id_=case_actor.id_,
-            name="CaseActorService",
-            context=case.id_,
-        )
-        dl.save(case_actor_with_context)
-
-        request = OfferCaseManagerRoleTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-        )
-        result = SvcOfferCaseManagerRoleUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-
-        # Activity should be queued in the Case Actor's outbox.
-        case_actor_dl = dl.clone_for_actor(case_actor.id_)
-        outbox = case_actor_dl.outbox_list()
-        assert (
-            len(outbox) >= 1
-        ), "Offer activity must be in Case Actor's outbox"
-
-        # result["activity"] should be populated via _handle_result.
-        assert result.get("activity") is not None
-        activity = result["activity"]
-        assert activity["type"] == "Offer"
-        assert activity["actor"] == case_actor.id_
-
-    def test_offer_raises_when_case_actor_missing(self):
-        """VultronNotFoundError when no Case Actor Service exists for the case."""
-        actor, dl = _make_actor_dl("Vendor")
         case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="No CaseActor Case", content="..."
+            attributed_to=inviter.id_, name="Test Case", content="Content"
         )
-        dl.create(case)
+        dl_inviter.create(case)
 
-        request = OfferCaseManagerRoleTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
+            to=[invitee.id_],
         )
-        with pytest.raises(VultronNotFoundError):
-            SvcOfferCaseManagerRoleUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+        dl_invitee.create(inviter)
+        dl_invitee.create(invite)
 
-    def test_offer_raises_when_case_not_found(self):
-        """VultronNotFoundError when the case_id does not exist."""
-        actor, dl = _make_actor_dl("Vendor")
-
-        request = OfferCaseManagerRoleTriggerRequest(
-            actor_id=actor.id_,
-            case_id="https://example.org/cases/no-such-case",
+        request = RejectCaseInviteTriggerRequest(
+            actor_id=invitee.id_,
+            invite_id=invite.id_,
         )
-        with pytest.raises(Exception):
-            SvcOfferCaseManagerRoleUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
-
-    def test_offer_activity_persisted_in_datalayer(self):
-        """Offer activity is readable from the DataLayer after execution."""
-        actor, dl = _make_actor_dl("Vendor")
-        case_actor = as_Service(
-            id_=f"{actor.id_}/case-actor",
-            name="CaseActorService",
-            context="placeholder",  # will be updated below
-        )
-        dl.create(case_actor)
-        case, _ = _make_case_with_case_actor(dl, actor.id_, case_actor.id_)
-        case_actor_with_context = as_Service(
-            id_=case_actor.id_,
-            name="CaseActorService",
-            context=case.id_,
-        )
-        dl.save(case_actor_with_context)
-
-        request = OfferCaseManagerRoleTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-        )
-        result = SvcOfferCaseManagerRoleUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        result = SvcRejectCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
         ).execute()
 
-        activity_id = result.get("activity", {}).get("id")
-        assert activity_id is not None
-        stored = dl.read(activity_id)
-        assert stored is not None
-        assert getattr(stored, "type_", None) == "Offer"
+        assert "activity" in result
+        assert result["activity"]["actor"] == invitee.id_
+        assert result["activity"].get("to") == [inviter.id_]
+
+    def test_reject_raises_when_invite_missing(self):
+        _, dl = _make_actor_dl("Vendor")
+        request = RejectCaseInviteTriggerRequest(
+            actor_id=_HTTP_ACTOR_ID,
+            invite_id="https://example.org/activities/no-such-invite",
+        )
+        actor = as_Service(name="Vendor", id_=_HTTP_ACTOR_ID)
+        dl.create(actor)
+
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectCaseInviteUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_reject_normalises_short_uuid_actor_id(self):
+        """DR-09: short UUID in actor_id is resolved to full URI."""
+        inviter, dl_inviter = _make_actor_dl("Coordinator")
+        invitee, dl_invitee = _make_actor_dl_with_http_id(
+            "Vendor", _HTTP_ACTOR_ID
+        )
+        dl_inviter.create(invitee)
+
+        case = as_VulnerabilityCase(
+            attributed_to=inviter.id_, name="Test Case", content="Content"
+        )
+        dl_inviter.create(case)
+
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
+            to=[invitee.id_],
+        )
+        dl_invitee.create(inviter)
+        dl_invitee.create(invite)
+
+        request = RejectCaseInviteTriggerRequest(
+            actor_id=_UUID,
+            invite_id=invite.id_,
+        )
+        result = SvcRejectCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+        ).execute()
+
+        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
 
 
 class TestSvcAcceptActorRecommendationUseCase:
@@ -1220,4 +1175,149 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseOwnershipTransferUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_accept_raises_when_offer_has_no_case_reference(self):
+        """VultronNotFoundError raised when the Offer names no case.
+
+        ``_prepare`` accepts either shape of stored offer — the SYNC replica's
+        ``VultronOwnershipTransferOfferRecord`` (case URI in ``case_id``) or the
+        HTTP-inbox path's wire Offer activity (case in ``object_``) — and raises
+        only when neither yields an id.  Both attributes must therefore be
+        cleared on the mock; a bare ``MagicMock`` would auto-create a truthy
+        ``case_id`` and silently satisfy the guard.
+        """
+        from unittest.mock import MagicMock
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        actor_id = "https://example.org/actors/transferee-nobj"
+        offer_id = "https://example.org/activities/offer-nobj"
+
+        actor_mock = MagicMock()
+        actor_mock.id_ = actor_id
+
+        offer_mock = MagicMock()
+        offer_mock.case_id = None
+        offer_mock.object_ = None
+
+        mock_dl = MagicMock()
+        mock_dl.read.side_effect = lambda id_: (
+            actor_mock if id_ == actor_id else offer_mock
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=actor_id,
+            offer_id=offer_id,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcAcceptCaseOwnershipTransferUseCase(
+                mock_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(mock_dl),
+            ).execute()
+
+    def test_accept_to_field_is_case_actor(self):
+        """Accept activity must be addressed to the CaseActor (CM-21-006 / ADR-0053).
+
+        ``EmitAcceptCaseOwnershipTransferNode._emit()`` calls
+        ``_resolve_case_manager_id`` and sets ``to=[case_actor_id]``.
+        This test seeds a case with a CASE_MANAGER participant and verifies
+        the emitted ``to`` field carries the case actor URI.
+        """
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+
+        case_actor, _ = _make_actor_dl("CaseActor")
+        dl.create(case_actor)
+
+        # _make_case_with_case_manager seeds CASE_MANAGER participant so
+        # _resolve_case_manager_id can find case_actor.id_ from the case.
+        case = _make_case_with_case_manager(dl, owner.id_, case_actor.id_)
+        offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id=offer.id_,
+        )
+        result = SvcAcceptCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Accept"
+        # Primary invariant of ADR-0053 CM-21-006: Accept is routed to CaseActor.
+        assert case_actor.id_ in activity_data.get("to", [])
+
+
+class TestSvcOfferCaseParticipantRoleUseCase:
+    """Tests for SvcOfferCaseParticipantRoleUseCase (SE-08-003, ADR-0039)."""
+
+    def _setup(self):
+        actor, dl = _make_actor_dl("Vendor")
+        target, _ = _make_actor_dl("Coordinator")
+        dl.create(target)
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_, name="CPR Test Case", content="Content"
+        )
+        dl.create(case)
+        return actor, target, dl, case
+
+    def test_happy_path_returns_activity(self):
+        """SE-08-003: successful offer returns activity_id and activity dict."""
+        actor, target, dl, case = self._setup()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+            role=CVDRole.CASE_MANAGER,
+        )
+        result = SvcOfferCaseParticipantRoleUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert "activity_id" in result
+        assert "activity" in result
+        assert result["activity"]["type"] == "Offer"
+
+    def test_happy_path_activity_persisted(self):
+        """Emitted Offer activity is readable from the DataLayer."""
+        actor, target, dl, case = self._setup()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+            role=CVDRole.VENDOR,
+        )
+        result = SvcOfferCaseParticipantRoleUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        stored = dl.read(result["activity_id"])
+        assert stored is not None
+
+    def test_raises_when_trigger_activity_missing(self):
+        """RuntimeError when trigger_activity is None (SE-08-003 guard)."""
+        actor, target, dl, case = self._setup()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+        )
+        with pytest.raises(RuntimeError):
+            SvcOfferCaseParticipantRoleUseCase(
+                dl, request, trigger_activity=None
             ).execute()

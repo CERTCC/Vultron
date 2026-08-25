@@ -16,8 +16,9 @@ related_notes:
 
 Scenarios are named by the sequence of actor roles involved:
 
-- **F** = Finder, **V** = Vendor, **C** = Coordinator, **D** = Deployer
+- **R** = Reporter (preferred; replaces the older **F** = Finder convention for new scenarios), **V** = Vendor, **C** = Coordinator, **D** = Deployer
 - Numbers distinguish multiple actors of the same role (V1, V2, C1, C2)
+- Existing scenario names that use **F** (FV, FCV, FCVCV, etc.) are not renamed retroactively; new scenarios use **R**
 
 ## Implemented scenarios
 
@@ -49,7 +50,7 @@ be treated as working implementations.
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | — | **implemented** (#1561) — `fvcv-handoff` CLI command + CI job |
 | FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | **implemented** (#1620) — `fccv-extension` CLI command + CI job |
 | FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | — | **implemented** (#1216) — `fccv-handoff` CLI command + CI job |
-| FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | planned |
+| FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | **implemented** (#1962) — `fcvcv` CLI command + CI job |
 
 ### Fuzz simulation scenarios
 
@@ -71,13 +72,21 @@ the design decisions reached in the #1178 planning session.
 | Case split/merge | #1229 | Parent/child/sibling case relationships |
 | Multi-reporter | #1231 | Two Finders, one C consolidates into one case |
 
+### Embargo lifecycle scenarios
+
+| Scenario | Issue | Description | Status |
+|----------|-------|-------------|--------|
+| RCV-embargo | #1222 | R+C+V; post-submission negotiation (variation b) + deliberate termination (variation e); EP→EA→ET arc | planned — `rcv-embargo` CLI command + CI job (DEMOMA-20, DEMOCI-07) |
+| RCVV-embargo | #1222 | R+C+V1+V2; variations b+c+f+d; EP→EA→EV→EJ→auto-collapse via CS.P; V2 late-invite | planned — `rcvv-embargo` CLI command + CI job (DEMOMA-21, DEMOCI-07) |
+| Pre-submission negotiation | *(new Idea, child of epic #1083)* | EP before report submission (variation a); blocked by EP-04-003 protocol gap — no mechanism for reporter to include embargo proposal with/before report; see `notes/embargo-default-semantics.md` | idea-stage |
+
 ### Cross-cutting variations (composable with any scenario)
 
 | Variation | Issue | Description |
 |-----------|-------|-------------|
 | Invitation rejection | #1218 | Invited actor transitions RM:R→I→C |
 | Tentative rejection | #1221 | Invited actor transitions RM:R→I→V (reconsiders) |
-| Embargo variations | #1222 | Negotiation, collapse, deliberate delay |
+| Embargo variations | #1222 | Negotiation, collapse, deliberate delay (see embargo lifecycle scenarios above) |
 | CVD recipe injects | #1223 | Twists from the CERT Guide to CVD cvd_recipes |
 
 ### Pre-case ACK flow (`auto_create_case=False`)
@@ -96,9 +105,11 @@ demo to exercise this path:
 3. Vendor invalidates report (RM:R→I) — "tentative rejection".
 4. Vendor later validates (RM:I→V) and engages — "reconsideration".
 
-Once #1221 is implemented, `ack_report` should be wired into
-`EXPECTED_EVENT_TYPES` in `test/ci/test_case_ledger_invariants.py` (currently
-excluded; see the comment at line 413 citing #1133).
+Once #1221 is implemented, `ack_report` should be wired into the per-scenario
+`_*_EXPECTED_EVENT_TYPES` tuples under `test/ci/invariants/` (e.g.
+`_FV_EXPECTED_EVENT_TYPES` in `test/ci/invariants/test_fv_invariants.py`,
+currently excluded; see the `test_invariant_5_expected_event_types_present`
+docstring citing #1133).
 
 See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)
 

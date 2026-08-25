@@ -16,18 +16,18 @@
 
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
-| FastAPI | >=0.139.0 | HTTP API server (driving adapter) | `pyproject.toml` |
+| FastAPI | >=0.141.1 | HTTP API server (driving adapter) | `pyproject.toml` |
 | Pydantic v2 | ==2.13.4 | Data validation; domain + wire models | `pyproject.toml` |
-| pydantic-settings | >=2.14.2 | Layered settings (env, YAML, defaults) | `pyproject.toml` |
+| pydantic-settings | >=2.15.0 | Layered settings (env, YAML, defaults) | `pyproject.toml` |
 | SQLModel | >=0.0.39 | SQLite-backed data layer (ORM/schema) | `pyproject.toml` |
-| uvicorn | >=0.51.0 | ASGI server for FastAPI | `pyproject.toml` |
-| py-trees | >=2.2.0 | Behavior tree execution engine | `pyproject.toml` |
+| uvicorn | >=0.52.3 | ASGI server for FastAPI | `pyproject.toml` |
+| py-trees | >=2.5.0 | Behavior tree execution engine | `pyproject.toml` |
 | networkx | >=3.5 | Graph operations for BT and case analysis | `pyproject.toml` |
 | transitions | >=0.9.3 | State machine definitions | `pyproject.toml` |
 | PyYAML | >=6.0 | YAML config + spec file parsing | `pyproject.toml` |
 | python-frontmatter | >=1.3.0 | YAML frontmatter in Markdown notes | `pyproject.toml` |
 | rdflib + owlready2 | >=7.2.1 / >=0.51 | Semantic/ontology support | `pyproject.toml` |
-| scipy + pandas | >=1.18.0 / >=3.0.3 | Analysis and scoring | `pyproject.toml` |
+| scipy + pandas | >=1.18.0 / >=3.0.5 | Analysis and scoring | `pyproject.toml` |
 | mkdocs-material | >=9.6.20 | Documentation site generation | `pyproject.toml` |
 | click | >=8.4.2 | CLI entry points | `pyproject.toml` |
 | httpx2 | latest | HTTP client for outbound delivery | `pyproject.toml` |

@@ -80,6 +80,86 @@ When updating specs per LEARN_prompt instructions:
 - **Maintain verification criteria**: Every requirement needs a test
 - **Follow existing conventions**: Match style and structure of other specs
 
+**Do NOT add spec entries for** (route to `AGENTS.md` instead):
+
+- File paths, module locations, or package layouts (e.g., "factory functions
+  MUST live in `vultron/wire/as2/factories/`")
+- Demo scenario step ordering, file layout, or script structure
+- Agent or skill behavior instructions (e.g., "the agent MUST confirm the
+  selected bug with the user")
+- Naming conventions already enforced by `code-style.yaml`
+- Coding practices or conventions internal to this Python codebase
+
+**Gate test before adding to `specs/`**: Ask "Would a participant running a
+different implementation of the Vultron protocol notice if this requirement
+were violated?" If **no**, the requirement is an internal convention — route
+it to `AGENTS.md`, not `specs/`. This test operationalizes MS-05-004
+(declarative requirements) and the four-tier taxonomy (MS-12): if it fails
+the protocol or architecture tier tests, it belongs in `project` or `process`
+kind — and if it also fails the externally-visible test, it belongs in
+`AGENTS.md` rather than specs at all.
+
+---
+
+### Valid `kind:` Values
+
+The `kind:` field accepts exactly four values:
+
+```text
+protocol  architecture  project  process
+```
+
+`implementation` is **NOT** valid and causes spec-lint to reject the file at
+commit time. The error may look like a YAML syntax error — it is not.
+
+- Use `kind: protocol` for external protocol obligations (what a Vultron
+  participant must do on the wire).
+- Use `kind: architecture` for structural constraints on the system (layering,
+  import rules, module boundaries).
+- Use `kind: project` for internal project conventions that do not affect
+  external protocol behavior.
+- Use `kind: process` for development process rules (testing, documentation,
+  CI).
+
+Check existing entries in the same spec file for context before writing a new
+entry. *Source: ISSUE-2258*
+
+---
+
+### Valid `priority:` Values — Underscores, Not Spaces
+
+The `priority:` field enum uses **underscores**: `MUST_NOT`, `SHOULD_NOT`.
+**Not spaces.** MS-02-002 prose writes "MUST NOT" with a space, but the Pydantic
+validator enum uses underscores. Using `MUST NOT` (space) breaks spec-lint with
+a FATAL registry load error.
+
+Valid values:
+
+```text
+MUST  MUST_NOT  SHOULD  SHOULD_NOT  MAY
+```
+
+<!-- Source: ISSUE-2393 -->
+
+---
+
+### Valid `rel_type` Values in Spec Relationships
+
+When adding a `relationships:` entry to a spec requirement, `rel_type` MUST be
+one of the enumerated values validated by `SpecFile`. Using an invalid value
+causes a Pydantic `ValidationError` at `spec-dump` time.
+
+**Valid `rel_type` values:**
+
+```text
+implements, supersedes, extends, depends_on, conflicts, refines,
+derives_from, verifies, part_of, constrains, satisfies
+```
+
+`related_to` is **NOT** valid. If the intent is a loose relationship, use
+`refines` with a clarifying `note:` field, or omit the relationship entirely
+if no normative link exists.
+
 ---
 
 ### Specification Quick Links

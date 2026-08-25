@@ -26,6 +26,18 @@ between the core (domain) and wire (ActivityStreams) layers:
 
 These invariants are specified in ARCH-12-003 and ARCH-12-004.
 
+Invariants 2 and 3 are not met yet. Their known violations are **enumerated** in
+the two backlog sets below and asserted with ``==``, so the sets fail if a new
+violation appears *and* if a listed one is fixed without being ticked off. Each
+has a companion ``xfail(strict=True)`` goal test, so emptying its backlog makes
+the goal test XPASS and fail the build — forcing the marker to be deleted.
+
+Both backlogs previously sat behind bare ``strict=False`` xfails, which is a
+pattern worth naming: a non-strict xfail keeps passing forever after the work is
+done, so nobody is ever told to clean it up, and it gives no partial-progress
+signal along the way. See ``test_validate_assignment_ratchet.py``, which uses the
+same three-part shape (exact backlog + strict goal + guard-the-guard).
+
 Spec: `specs/architecture.yaml` ARCH-12-003, ARCH-12-004, ARCH-12-007
 Reference: `docs/adr/0017-domain-wire-object-separation.md`
 """
@@ -39,6 +51,29 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
 # AS2 namespace constant from wire layer
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
+
+# ---------------------------------------------------------------------------
+# Backlog: core classes inheriting alias_generator=to_camel from as_Base,
+# violating ARCH-12-004 (issue #1991). This set may only SHRINK.
+# ---------------------------------------------------------------------------
+_TO_CAMEL_BACKLOG_1991: frozenset[str] = frozenset(
+    {
+        "CaseStatus",
+        "CoreActorCollection",
+        "ParticipantStatus",
+        "VultronApplication",
+        "VultronGroup",
+        "VultronOrganization",
+        "VultronPerson",
+        "VultronService",
+    }
+)
+
+# ---------------------------------------------------------------------------
+# Backlog: core-layer classes registered in the wire VOCABULARY registry,
+# violating ARCH-12-003 (issue #1992). All violations resolved — set is empty.
+# ---------------------------------------------------------------------------
+_NON_AS_BASE_BACKLOG_1992: frozenset[str] = frozenset()
 
 
 class TestCoreVocabularyHierarchy:
@@ -74,14 +109,35 @@ class TestCoreVocabularyHierarchy:
                 cls, as_Base
             ), f"{name} inherits from as_Base (wire layer)"
 
+    def test_to_camel_backlog_is_exact(self) -> None:
+        """The #1991 violation set must match reality, in both directions.
+
+        Replaces a bare ``strict=False`` xfail. A non-strict xfail keeps passing
+        after the work is done, so it never tells anyone to remove it, and it
+        gives no signal for partial progress. An exact set does both: it fails if
+        a *new* core class inherits ``alias_generator``, and it fails if one is
+        fixed without being ticked off here.
+        """
+        has_to_camel = {
+            name
+            for name, cls in CORE_VOCABULARY.items()
+            if "alias_generator" in getattr(cls, "model_config", {})
+        }
+        assert has_to_camel == set(_TO_CAMEL_BACKLOG_1991), (
+            "the set of core classes inheriting alias_generator changed.\n"
+            f"  newly violating: {sorted(has_to_camel - _TO_CAMEL_BACKLOG_1991)}\n"
+            f"  fixed but still listed: {sorted(_TO_CAMEL_BACKLOG_1991 - has_to_camel)}\n"
+            "to_camel is an AS2 serialization concern and belongs only in the"
+            " wire layer (ARCH-12-004, #2288 / #2289)."
+        )
+
     @pytest.mark.xfail(
-        strict=False,
-        reason="Known pre-existing violation from ADR-0017 migration (issue #800). "
-        "CoreObject subclasses VultronPerson, VultronOrganization, VultronService, "
-        "VultronApplication, VultronGroup, and CoreActorCollection inherit "
-        "alias_generator=to_camel from as_Base (wire layer), but they reside in "
-        "the core branch. This test documents the violation and will pass once "
-        "these classes are refactored to remove wire-specific serialization config.",
+        strict=True,
+        reason="Goal state tracked in #2288 and #2289 (supersedes closed #1991): "
+        "no CoreObject subclass inherits alias_generator=to_camel from as_Base. "
+        "8 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
+        "When the last is fixed this test XPASSes and fails the build — "
+        "delete the marker and the backlog then.",
     )
     def test_no_core_object_has_to_camel_alias_generator(self) -> None:
         """No CoreObject subclass may use alias_generator=to_camel.
@@ -108,14 +164,30 @@ class TestCoreVocabularyHierarchy:
 class TestWireVocabularyHierarchy:
     """Tests for VOCABULARY (wire) hierarchy invariants."""
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason="Known pre-existing violation from ADR-0017 migration (issue #800). "
-        "Core-layer actor classes (CoreActor, VultronPerson, etc.) are registered "
-        "in the wire VOCABULARY registry under keys like 'Actor', 'Person', etc. "
-        "This test documents the violation and will pass once core-layer actor "
-        "vocabulary is kept separate from wire-layer vocabulary.",
-    )
+    def test_non_as_base_vocabulary_backlog_is_exact(self) -> None:
+        """The #1992 violation set must match reality, in both directions.
+
+        See ``test_to_camel_backlog_is_exact`` for why this replaces a
+        ``strict=False`` xfail.
+        """
+        if not VOCABULARY:
+            pytest.skip(
+                "VOCABULARY is empty; wire objects may not be imported yet"
+            )
+
+        non_as_base = {
+            name
+            for name, cls in VOCABULARY.items()
+            if not issubclass(cls, as_Base)
+        }
+        assert non_as_base == set(_NON_AS_BASE_BACKLOG_1992), (
+            "the set of non-as_Base entries in the wire VOCABULARY changed.\n"
+            f"  newly violating: {sorted(non_as_base - _NON_AS_BASE_BACKLOG_1992)}\n"
+            f"  fixed but still listed: {sorted(_NON_AS_BASE_BACKLOG_1992 - non_as_base)}\n"
+            "VOCABULARY must contain only wire-layer ActivityStreams classes"
+            " (ARCH-12-003, issue #1992)."
+        )
+
     def test_all_vocabulary_are_as_base_subclasses(self) -> None:
         """All VOCABULARY classes must be subclasses of as_Base.
 
@@ -159,6 +231,78 @@ class TestWireVocabularyHierarchy:
         assert (
             not non_vultron_base
         ), f"Non-VultronBase classes in VOCABULARY: {list(non_vultron_base.keys())}"
+
+
+class TestCoreTypeMapHierarchy:
+    """Tests for CORE_TYPE_MAP hierarchy invariants (ARCH-12-003, ARCH-12-004)."""
+
+    def test_no_wire_types_in_core_type_map(self) -> None:
+        """CORE_TYPE_MAP must contain only core-branch types, never wire types.
+
+        VultronObject.__init_subclass__ must guard against wire-layer types
+        self-registering via the shared root hook (issue #2416).
+
+        Spec: ARCH-12-003 — core-branch types MUST NOT carry wire-specific
+        concerns; the converse also holds: CORE_TYPE_MAP must not be
+        contaminated with wire types.
+        """
+        import vultron.wire.as2.vocab.objects  # noqa: F401
+        import vultron.wire.as2.vocab.activities  # noqa: F401
+
+        from vultron.core.models.registry import CORE_TYPE_MAP
+
+        _WIRE_MODULE_PREFIX = "vultron.wire"
+        wire_intruders = {
+            name: cls
+            for name, cls in CORE_TYPE_MAP.items()
+            if cls.__module__.startswith(_WIRE_MODULE_PREFIX)
+        }
+        assert not wire_intruders, (
+            f"Wire types found in CORE_TYPE_MAP: {sorted(wire_intruders.keys())}\n"
+            "CORE_TYPE_MAP must contain only core-branch types (issue #2416)."
+        )
+
+    def test_vultron_object_direct_types_in_core_type_map(self) -> None:
+        """VultronObject-direct core types must be reachable via CORE_TYPE_MAP.
+
+        These five types extend VultronObject but not CoreObject; they must
+        register in CORE_TYPE_MAP (not CORE_VOCABULARY) so that
+        find_in_vocabulary() can reconstruct them without VOCABULARY
+        registration (ARCH-12-003). Enforces ARCH-12-004 as updated per
+        issue #2417.
+        """
+        from vultron.core.models.offer_record import VultronOfferRecord
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+        from vultron.core.models.pending_create_case_activity import (
+            PendingCreateCaseActivity,
+        )
+        from vultron.core.models.registry import CORE_TYPE_MAP
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+
+        expected = [
+            ("OfferRecord", VultronOfferRecord),
+            ("VultronOfferRecord", VultronOfferRecord),
+            ("PendingCaseInbox", VultronPendingCaseInbox),
+            ("VultronPendingCaseInbox", VultronPendingCaseInbox),
+            ("PendingCreateCaseActivity", PendingCreateCaseActivity),
+            ("ReplicationState", VultronReplicationState),
+            ("VultronReplicationState", VultronReplicationState),
+            ("ReportCaseLink", VultronReportCaseLink),
+            ("VultronReportCaseLink", VultronReportCaseLink),
+        ]
+        missing = [
+            key for key, cls in expected if CORE_TYPE_MAP.get(key) is not cls
+        ]
+        assert not missing, (
+            f"Expected CORE_TYPE_MAP entries missing or wrong: {missing}\n"
+            "VultronObject-direct core types must register in CORE_TYPE_MAP"
+            " (ARCH-12-004, issue #2417)."
+        )
 
 
 class TestCoreObjectModelConfig:

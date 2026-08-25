@@ -2,15 +2,17 @@
 name: learn
 description: >
   Promote lessons learned from the build process into durable specifications
-  and design notes. First refreshes docs/reference/codebase/ via
-  acquire-codebase-knowledge, then reads plan/incoming/learnings/ and queries
-  GitHub for open type:Concern issues (both as input queues), analyzes
-  gaps, interviews the user with grill-me to align on scope, then writes
-  to specs/, notes/, and AGENTS.md, opens a docs-only PR with the
-  specs-notes label, and archives processed entries. Use when build
-  execution has produced insights that should be reflected in specs or
-  notes. For external ideas (GitHub Idea-type issues), use `plan-issue`
-  instead.
+  and design notes, and prune notes sections that are now stale. First
+  refreshes docs/reference/codebase/ via acquire-codebase-knowledge, then
+  reads plan/incoming/learnings/ and queries GitHub for open type:Concern
+  issues (both as input queues), analyzes gaps and staleness in existing
+  notes sections, interviews the user with grill-me to align on scope, then
+  writes to specs/, notes/, and AGENTS.md (and conditionally docs/ for small
+  in-session translations), opens a docs-only PR with the specs-notes label,
+  and archives processed entries and stale note cards to plan/history/.
+  Use when build execution has produced insights that should be reflected in
+  specs or notes, or when notes/ needs pruning after features are delivered.
+  For external ideas (GitHub Idea-type issues), use `plan-issue` instead.
 ---
 
 # Skill: Learn
@@ -21,8 +23,9 @@ has discovered (`plan/incoming/learnings/` — individual per-entry files) and
 open GitHub `type:Concern` issues tracked in the repository; the output is
 refined `specs/`, `notes/`, and `AGENTS.md`.
 
-**Constraint**: Modify **documentation files only**, including Markdown files
-and YAML spec files in `specs/`. Do not modify code or tests.
+**Constraint**: Modify **documentation files only**, including Markdown files,
+YAML spec files in `specs/`, and (conditionally for small in-session
+translations) `docs/`. Do not modify code or tests.
 
 **Trigger**: Use this skill when `plan/incoming/learnings/` has unprocessed
 entries that should be promoted into durable docs.
@@ -109,10 +112,16 @@ that the cost of a full scan is justified on every invocation.
 > in an entry **must be promoted** to `specs/` or `notes/` before being
 > archived.
 
-### Phase 2 — Analyze Gaps
+### Phase 2 — Analyze Gaps and Staleness
 
 See `.claude/skills/shared/completeness-doctrine.md` for the project standard
 on what constitutes a complete lesson — loaded by `orient-agent` in Phase 1.
+
+This phase runs in **both directions**: what is missing from durable docs
+(additions), and what in `notes/` is now stale (removals). Both feed the
+grill-me interview in Phase 3.
+
+#### Part A — Find Gaps (additions)
 
 Identify what the build process and codebase scan have surfaced that is not
 yet captured in durable docs. Consider both incoming learning files and
@@ -122,8 +131,10 @@ open GitHub Concern issues.
 frontmatter carry higher-urgency signals and MUST be addressed before general
 pattern promotion. Process in this order:
 
-1. `signal: spec-gap` — behaviour in code with no spec entry. Write the missing
-   spec requirement.
+1. `signal: spec-gap` — behaviour in code with no spec entry. Before writing,
+   ask: **Would a participant running a different implementation of the protocol
+   notice if this requirement were violated?** If no → route to AGENTS.md, not
+   specs/. If yes → write the missing spec requirement.
 2. `signal: spec-contradiction` — two requirements that conflict. Resolve the
    conflict and update both affected spec entries.
 3. `signal: spec-ambiguity` — requirement was unclear; an interpretation was made
@@ -150,6 +161,50 @@ A lesson is not complete until it has been promoted to `specs/`, `notes/`, or
 durable output is a wasted lesson. If a learning entry clearly warrants a spec
 or notes update but one cannot be written in this session, document why and
 create a Concern issue — do not silently archive the entry without promotion.
+
+#### Part B — Notes Staleness Review (removals)
+
+For each `notes/*.md` file, review its sections (cards) against the current
+codebase using the codebase knowledge refreshed in Phase 0. Assign each
+section one of three verdicts:
+
+- **Keep** — still active guidance, well-homed
+- **Archive** → `plan/history/YYMM/note/` — section is stale
+- **Promote** → `docs/` — section contains info that should be in docs/ but isn't
+
+**Archive signals** — any one is sufficient, but signal (c) requires (a) or (b) to
+also fire:
+
+- **(a) Delivered**: the section describes building something that the codebase
+  scan confirms is now implemented
+- **(b) Redundant**: the section's content is already captured in `specs/`,
+  an ADR, or `AGENTS.md` — the notes version adds nothing
+- **(c) Closed linked item**: the section references an issue/concern that is
+  now closed, AND signal (a) or (b) also fires
+- **(e) Confusion-resolved**: the section explains something confusing that the
+  current code makes obvious
+
+Age alone (signal d) is a tie-breaker only — "old" does not mean "stale."
+
+**Promote signals:**
+
+- The section contains durable conceptual or reference material that belongs
+  in `docs/` for user-facing or developer-facing audiences, but no `docs/`
+  page currently covers it.
+
+**Promote disposition** — apply the small/large heuristic:
+
+- **Small (translate now)**: an existing `docs/` target file already covers
+  the topic AND the content transfers with light editing only (tone/audience
+  adjustment, no restructuring). Write to `docs/` in Phase 5, then archive
+  the notes section.
+- **Large (defer)**: a new `docs/` page would be needed, OR significant
+  rewriting/synthesis is required. File a `type:Concern` issue capturing the
+  gap and the target location; keep the notes section active until resolved.
+- **Ambiguous**: present the choice to the user during the Phase 3 interview.
+
+Bring both the gap list (Part A) and the staleness/promote candidates (Part B)
+into the Phase 3 grill-me interview as a combined agenda.
 
 ### Phase 3 — Interview with Grill-Me
 
@@ -195,7 +250,7 @@ When both are created, cross-reference them: cite the ADR in the spec's per-requ
 `rationale` field (per MS-11-004 — not the spec-group `description`), and list the
 generated spec IDs in the ADR's "More Information" section (MS-11-004).
 
-### Phase 5 — Update Design Notes (`notes/`)
+### Phase 5 — Update Design Notes (`notes/`) and `docs/`
 
 - Promote insights, tradeoffs, and lessons from `BUILD_LEARNINGS.md` and
   resolved GitHub Concern issues into the appropriate `notes/*.md` file.
@@ -204,6 +259,41 @@ generated spec IDs in the ADR's "More Information" section (MS-11-004).
 - Update `notes/README.md` when files are added, removed, or reorganized.
 - Every `notes/*.md` (except `notes/README.md`) must have valid YAML
   frontmatter with at least `title` and `status`.
+
+**Archive stale sections** confirmed in the Phase 3 interview:
+
+For each section with an **Archive** verdict, remove the section from its
+`notes/*.md` file and archive it to `plan/history/YYMM/note/` using
+`append-history note`:
+
+```bash
+cat <<'BODY' | PYTHONPATH= uv run append-history note \
+  --title "<section heading>" \
+  --source "NOTES-<file-stem>--<section-slug>"
+**Archived:** YYYY-MM-DD
+**Reason:** <which signal fired — delivered/redundant/confusion-resolved>
+**Superseded by:** <code path, spec ID, or docs page>
+
+---
+
+<original section content verbatim>
+BODY
+```
+
+Source ID convention: `NOTES-<file-stem>--<section-slug>` where `file-stem`
+is the notes filename without extension and `section-slug` is the section
+heading kebab-cased (e.g. `NOTES-bt-pitfalls--bt-failure-reason-propagation`).
+
+If archiving a section empties the file entirely, remove the file and update
+`notes/README.md` to remove its entry.
+
+**Translate small Promote sections to `docs/`** confirmed in the Phase 3
+interview (small = existing target file + verbatim-friendly edit only):
+
+Write the translated content to the target `docs/` file, then archive the
+notes section as above. For large Promote candidates (new page needed or
+significant rewrite), file a `type:Concern` issue instead and leave the
+section active.
 
 ### Phase 6 — Update Agent Guidance (`AGENTS.md`)
 
@@ -240,7 +330,7 @@ has been fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
              + "Docs PR: <PR_URL>."  ← filled in after PR is opened
    ```
 
-2. **For resolved GitHub Concern issues**: close the issue and add a
+1. **For resolved GitHub Concern issues**: close the issue and add a
    resolution comment after the PR is open (step in Phase 9):
 
    ```bash
@@ -267,7 +357,8 @@ Do **not** reference `plan/incoming/learnings/` from durable docs.
 
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
-       plan/incoming/learnings/ docs/reference/codebase/
+       plan/incoming/learnings/ docs/reference/codebase/ \
+       plan/history/ docs/<changed-files-if-any>
    ```
 
    Commit per `commit/SKILL.md` conventions. Subject format:

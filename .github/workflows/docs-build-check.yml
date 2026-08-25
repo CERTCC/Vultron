@@ -6,7 +6,6 @@ on:
       - 'overrides/**'
       - 'references.bib'
       - 'mkdocs.yml'
-      - 'mkdocs.dev.yml'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'CONTRIBUTING.md'
@@ -47,6 +46,12 @@ jobs:
         with:
           uv-sync-args: "--dev"
 
+      - name: Check ADR index and nav are in sync
+        run: |
+          # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+          # distinguishable by shellcheck, which flags the bare form as SC1007.
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
+
       - name: Build Site
         run: |
           uv run mkdocs build --verbose --clean --config-file mkdocs.yml
@@ -56,6 +61,3 @@ jobs:
         run: |
           uv run linkchecker site/index.html
 
-      - name: Build Developer Docs Overlay
-        run: |
-          uv run mkdocs build --verbose --clean --config-file mkdocs.dev.yml

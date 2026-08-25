@@ -11,8 +11,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the CVDRole.VENDOR precondition guard in verify_fix_ready
-and verify_fix_deployed (DEMOMA-15-001).
+"""Unit tests for the precondition guards in verify_fix_ready and
+verify_fix_deployed (DEMOMA-15-001).
+
+verify_fix_ready requires CVDRole.VENDOR.
+verify_fix_deployed requires CVDRole.DEPLOYER (VENDOR-only actors do not pass).
 
 These tests exercise the guard in isolation using mocked _fetch_participant
 calls, without spinning up a FastAPI server.
@@ -34,6 +37,7 @@ from vultron.enums.roles import CVDRole
 
 _VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 _COORDINATOR_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
+_DEPLOYER_ACTOR_ID = "http://deployer:7999/api/v2/actors/deployer"
 _CASE_ID = "urn:uuid:test-case-0001"
 
 
@@ -107,6 +111,8 @@ class TestVerifyFixReadyVendorGuard:
             return_value=participant,
         ), patch(
             "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_rm_state_in"
         ):
             # Should not raise
             verify_fix_ready(
@@ -163,6 +169,8 @@ class TestVerifyFixReadyVendorGuard:
             return_value=participant,
         ), patch(
             "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_rm_state_in"
         ):
             verify_fix_ready(
                 MagicMock(),
@@ -177,10 +185,15 @@ class TestVerifyFixReadyVendorGuard:
 # ---------------------------------------------------------------------------
 
 
-class TestVerifyFixDeployedVendorGuard:
-    """DEMOMA-15-001: verify_fix_deployed raises when actor is not a VENDOR."""
+class TestVerifyFixDeployedDeployerGuard:
+    """DEMOMA-15-001: verify_fix_deployed requires CVDRole.DEPLOYER.
 
-    def test_non_vendor_actor_raises_assertionerror(self):
+    VENDOR-only actors do not pass — a VENDOR without DEPLOYER can never
+    reach VFD (CSB-15-002), so accepting VENDOR here would produce a
+    confusing state-check failure instead of a clear role-check failure.
+    """
+
+    def test_coordinator_raises_assertionerror(self):
         """Passing a Coordinator actor ID raises AssertionError."""
         participant = _make_participant_mock([CVDRole.COORDINATOR])
 
@@ -198,9 +211,9 @@ class TestVerifyFixDeployedVendorGuard:
 
         msg = str(exc_info.value)
         assert _COORDINATOR_ACTOR_ID in msg
-        assert "CVDRole.VENDOR" in msg
+        assert "CVDRole.DEPLOYER" in msg
 
-    def test_non_vendor_error_includes_actual_roles(self):
+    def test_non_deployer_error_includes_actual_roles(self):
         """AssertionError message includes the actor's actual roles."""
         participant = _make_participant_mock([CVDRole.FINDER])
 
@@ -217,31 +230,15 @@ class TestVerifyFixDeployedVendorGuard:
                 )
 
         msg = str(exc_info.value)
-        assert "CVDRole.VENDOR" in msg
+        assert "CVDRole.DEPLOYER" in msg
 
-    def test_vendor_actor_does_not_raise_guard(self):
-        """A VENDOR actor passes the guard (state check proceeds normally)."""
+    def test_vendor_only_raises_assertionerror(self):
+        """VENDOR-only actor raises AssertionError (CSB-15-002: stops at VFd)."""
         participant = _make_participant_mock([CVDRole.VENDOR])
 
         with patch(
             "vultron.demo.helpers.milestones._fetch_participant",
             return_value=participant,
-        ), patch(
-            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
-        ):
-            # Should not raise
-            verify_fix_deployed(
-                MagicMock(),
-                MagicMock(),
-                _CASE_ID,
-                _VENDOR_ACTOR_ID,
-            )
-
-    def test_missing_participant_raises(self):
-        """If the actor is not found in the case, AssertionError is raised."""
-        with patch(
-            "vultron.demo.helpers.milestones._fetch_participant",
-            return_value=None,
         ):
             with pytest.raises(AssertionError) as exc_info:
                 verify_fix_deployed(
@@ -251,10 +248,12 @@ class TestVerifyFixDeployedVendorGuard:
                     _VENDOR_ACTOR_ID,
                 )
 
-        assert _VENDOR_ACTOR_ID in str(exc_info.value)
+        msg = str(exc_info.value)
+        assert _VENDOR_ACTOR_ID in msg
+        assert "CVDRole.DEPLOYER" in msg
 
     def test_case_owner_only_raises_assertionerror(self):
-        """CASE_OWNER alone raises AssertionError (the CI regression scenario)."""
+        """CASE_OWNER alone raises AssertionError."""
         participant = _make_participant_mock([CVDRole.CASE_OWNER])
 
         with patch(
@@ -271,12 +270,45 @@ class TestVerifyFixDeployedVendorGuard:
 
         msg = str(exc_info.value)
         assert _VENDOR_ACTOR_ID in msg
-        assert "CVDRole.VENDOR" in msg
+        assert "CVDRole.DEPLOYER" in msg
 
-    def test_vendor_with_case_owner_passes_guard(self):
-        """VENDOR + CASE_OWNER (the real demo scenario after the fix) passes."""
+    def test_missing_participant_raises(self):
+        """If the actor is not found in the case, AssertionError is raised."""
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=None,
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_fix_deployed(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _DEPLOYER_ACTOR_ID,
+                )
+
+        assert _DEPLOYER_ACTOR_ID in str(exc_info.value)
+
+    def test_deployer_only_passes_guard(self):
+        """DEPLOYER-only actor passes the guard (state check proceeds normally)."""
+        participant = _make_participant_mock([CVDRole.DEPLOYER])
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ):
+            verify_fix_deployed(
+                MagicMock(),
+                MagicMock(),
+                _CASE_ID,
+                _DEPLOYER_ACTOR_ID,
+            )
+
+    def test_vendor_and_deployer_passes_guard(self):
+        """VENDOR+DEPLOYER actor passes the guard — the V2 case in FCVCV."""
         participant = _make_participant_mock(
-            [CVDRole.VENDOR, CVDRole.CASE_OWNER]
+            [CVDRole.VENDOR, CVDRole.DEPLOYER]
         )
 
         with patch(
@@ -289,5 +321,32 @@ class TestVerifyFixDeployedVendorGuard:
                 MagicMock(),
                 MagicMock(),
                 _CASE_ID,
-                _VENDOR_ACTOR_ID,
+                _DEPLOYER_ACTOR_ID,
             )
+
+
+class TestVerifyFixReadyDeployerGuard:
+    """verify_fix_ready raises for DEPLOYER-only actor (no VENDOR)."""
+
+    def test_deployer_only_raises_assertionerror(self):
+        """DEPLOYER-only actor raises AssertionError in verify_fix_ready.
+
+        verify_fix_ready uses _assert_vendor_role which requires CVDRole.VENDOR.
+        A DEPLOYER-only actor does not hold VENDOR and must be rejected.
+        """
+        participant = _make_participant_mock([CVDRole.DEPLOYER])
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_fix_ready(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _DEPLOYER_ACTOR_ID,
+                )
+
+        msg = str(exc_info.value)
+        assert "CVDRole.VENDOR" in msg

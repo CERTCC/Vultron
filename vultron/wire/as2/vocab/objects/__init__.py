@@ -45,6 +45,10 @@ from vultron.wire.as2.vocab.objects.case_participant import (  # noqa: E402
     as_CaseParticipant,
     as_CaseParticipantRef,
 )
+from vultron.wire.as2.vocab.objects.case_participant_role import (  # noqa: E402
+    as_CaseParticipantRole,
+    as_CaseParticipantRoleRef,
+)
 from vultron.wire.as2.vocab.objects.case_reference import (  # noqa: E402
     as_CaseReference,
     as_CaseReferenceRef,

@@ -25,10 +25,12 @@ from vultron.wire.as2.factories import (
     rm_engage_case_activity,
 )
 from vultron.wire.as2.factories.case import (
+    add_status_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -139,6 +141,34 @@ class _CasesMixin:
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
+    def add_case_status_to_case(
+        self,
+        status_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Add(CaseStatus, VulnerabilityCase)`` activity.
+
+        Used by ``EmitAddCaseStatusToSelfNode`` to emit a self-addressed
+        ``Add(CaseStatus)`` from the receiving actor to the CaseActor
+        (RSH-01-003).  Returns the activity ID for outbox queueing.
+        """
+        status = _to_wire(self._dl.read(status_id), as_CaseStatus)
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        activity = add_status_to_case_activity(
+            status=status, target=case, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "add_case_status_to_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_
+
     def announce_vulnerability_case(
         self,
         case_id: str,
@@ -154,8 +184,35 @@ class _CasesMixin:
 
         Per MV-10-003: the case owner sends this after an ``Accept(Invite)``
         is received and the invitee's embargo consent has been verified.
+
+        Per CBT-01-007: all nested domain objects are embedded as full inline
+        objects — bare URI string references MUST NOT be used.  Each report
+        listed in ``case.vulnerability_reports`` is read from the DataLayer
+        and embedded as a full ``as_VulnerabilityReport`` object so that
+        receiving handlers (``SeedAnnouncedCaseNode``) can store the objects
+        by iterating the embedded collection.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        embedded_reports: list[Any] = []
+        for report_ref in case.vulnerability_reports:
+            report_id = (
+                report_ref
+                if isinstance(report_ref, str)
+                else getattr(report_ref, "id_", str(report_ref))
+            )
+            report_obj = _to_wire(
+                self._dl.read(report_id), as_VulnerabilityReport
+            )
+            if report_obj is not None:
+                embedded_reports.append(report_obj)
+            else:
+                logger.warning(
+                    "announce_vulnerability_case: report '%s' not found in"
+                    " DataLayer — embedding bare ref (CBT-01-007 degraded)",
+                    report_id,
+                )
+                embedded_reports.append(report_ref)
+        case.vulnerability_reports = embedded_reports
         activity = announce_vulnerability_case_activity(
             case=case,
             actor=actor,

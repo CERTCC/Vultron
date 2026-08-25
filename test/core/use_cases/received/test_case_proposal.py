@@ -26,6 +26,7 @@ import logging
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
@@ -68,9 +69,14 @@ def _run_create_proposal(dl, proposal, make_payload):
     )
     event = make_payload(activity)
     event = event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
-    CreateCaseProposalReceivedUseCase(dl, event).execute()
+    CreateCaseProposalReceivedUseCase(
+        dl, event, wire_render_port=As2WireRenderAdapter()
+    ).execute()
 
 
+@pytest.mark.spec("CP-05-001")
+@pytest.mark.spec("CP-05-002")
+@pytest.mark.spec("CP-05-003")
 class TestCreateCaseProposalReceivedUseCase:
     """Tests for CreateCaseProposalReceivedUseCase (CP-05-001 through CP-05-004)."""
 
@@ -88,7 +94,9 @@ class TestCreateCaseProposalReceivedUseCase:
             update={"receiving_actor_id": _CASE_ACTOR_URI}
         )
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # AC-1: VulnerabilityCase was created
         cases = [
@@ -148,7 +156,9 @@ class TestCreateCaseProposalReceivedUseCase:
             update={"receiving_actor_id": _CASE_ACTOR_URI}
         )
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         case_rows = dl.list_objects("VulnerabilityCase")
         assert case_rows, "No VulnerabilityCase created"
@@ -175,7 +185,9 @@ class TestCreateCaseProposalReceivedUseCase:
         # receiving_actor_id is None by default when not set
         event = event.model_copy(update={"receiving_actor_id": None})
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         # No case should have been created
         cases = dl.list_objects("VulnerabilityCase")
@@ -183,8 +195,12 @@ class TestCreateCaseProposalReceivedUseCase:
             len(cases) == 0
         ), "No case should be created without receiving_actor_id"
 
-    def test_create_activity_context_is_accept_uri(self, make_payload):
-        """Create(VulnerabilityCase) context must point to the Accept activity (CP-05-003)."""
+    def test_create_activity_fields_adhere_to_adr_0045(self, make_payload):
+        """Create(VulnerabilityCase) must use context=case_uri, in_reply_to=accept_uri (ADR-0045 / CP-05-003).
+
+        The old assignment (context=accept_uri) caused the inbox deferral router to
+        mistake an activity URI for a case ID, deadlocking the bootstrap flow.
+        """
         dl = SqliteDataLayer("sqlite:///:memory:")
         proposal = _make_proposal()
         activity = as_Create(
@@ -197,25 +213,35 @@ class TestCreateCaseProposalReceivedUseCase:
             update={"receiving_actor_id": _CASE_ACTOR_URI}
         )
 
-        CreateCaseProposalReceivedUseCase(dl, event).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         accept_rows = dl.list_objects("Accept")
         assert accept_rows, "No Accept activity stored"
         accept_id = accept_rows[0].id_
 
+        case_rows = dl.list_objects("VulnerabilityCase")
+        assert case_rows, "No VulnerabilityCase stored"
+        case_id = case_rows[0].id_
+
         create_rows = dl.list_objects("Create")
         assert create_rows, "No Create activity stored"
         create_obj = dl.read(create_rows[0].id_)
-        # After DataLayer round-trip, the object may come back as a wire-layer
-        # _CreateCaseActivity rather than VultronCreateCaseActivity; check the
-        # context attribute directly (CP-05-003).
+        # After DataLayer round-trip the object is a wire-layer _CreateCaseActivity.
         context_val = getattr(create_obj, "context", None)
-        assert context_val == accept_id, (
-            f"Create(VulnerabilityCase).context should be Accept URI '{accept_id}'"
-            f", got '{context_val}'"
+        in_reply_to_val = getattr(create_obj, "in_reply_to", None)
+        assert context_val == case_id, (
+            f"Create(VulnerabilityCase).context MUST be the case URI '{case_id}'"
+            f" (ADR-0045); got '{context_val}'"
+        )
+        assert in_reply_to_val == accept_id, (
+            f"Create(VulnerabilityCase).in_reply_to MUST be the Accept URI '{accept_id}'"
+            f" (ADR-0045); got '{in_reply_to_val}'"
         )
 
 
+@pytest.mark.spec("CP-05-006")
 class TestCreateCaseProposalIdempotency:
     """Tests for CP-05-006 duplicate-proposal idempotency."""
 
@@ -328,6 +354,7 @@ class TestCreateCaseProposalIdempotency:
         ), "No new Create should be sent when marker is present (AC-3)"
 
 
+@pytest.mark.spec("CP-05-006")
 class TestCreateCaseProposalIdempotencyIntegration:
     """Integration tests for CP-05-006 duplicate-proposal idempotency (AC-4).
 
@@ -381,6 +408,8 @@ class TestCreateCaseProposalIdempotencyIntegration:
         dl.close()
 
 
+@pytest.mark.spec("CP-06-001")
+@pytest.mark.spec("CP-06-003")
 class TestAcceptCaseProposalReceivedUseCase:
     """Tests for AcceptCaseProposalReceivedUseCase (CP-06-001, CP-06-003)."""
 
@@ -449,6 +478,8 @@ class TestAcceptCaseProposalReceivedUseCase:
         AcceptCaseProposalReceivedUseCase(dl, event).execute()
 
 
+@pytest.mark.spec("CP-06-002")
+@pytest.mark.spec("CP-06-004")
 class TestRejectCaseProposalReceivedUseCase:
     """Tests for RejectCaseProposalReceivedUseCase (CP-06-002, CP-06-004)."""
 

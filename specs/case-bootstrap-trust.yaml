@@ -95,8 +95,8 @@ groups:
   - id: CBT-02-002
     priority: MUST_NOT
     kind: protocol
-    statement: Transport authentication or encrypted direct messaging alone MUST NOT be treated as sufficient authority to
-      trust a previously unknown CaseActor without the explicit bootstrap trust handoff.
+    statement: Transport authentication or encrypted direct messaging alone MUST NOT be treated as establishing authority to
+      trust a previously unknown CaseActor; the explicit bootstrap trust handoff is required.
     relationships:
     - rel_type: refines
       spec_id: AKM-01-002

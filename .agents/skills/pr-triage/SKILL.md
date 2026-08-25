@@ -1,8 +1,8 @@
 ---
 name: pr-triage
 description: >
-  Pure-discovery phase of the PR review pipeline. Runs all 11 inspection
-  phases (orient through CI status), produces a machine-readable finding list
+  Pure-discovery phase of the PR review pipeline. Runs all 12 inspection
+  phases (orient through merge state), produces a machine-readable finding list
   at .claude/pr-{number}-triage.json, and posts a human-readable PR comment.
   Makes NO code changes. Use as the first step of /pr-ship, or standalone
   when you want a full finding inventory before deciding whether to execute
@@ -13,9 +13,14 @@ description: >
 
 ## Purpose
 
-Triage closes the finding list before any mutation occurs. All 11 inspection
+Triage closes the finding list before any mutation occurs. All 12 inspection
 phases run to completion; then and only then is the artifact written and the
 comment posted. `pr-execute` reads the artifact — it never re-runs discovery.
+
+Merge conflicts are discovered here (Phase 12) but re-checked authoritatively in
+`pr-verify`, because conflicts can appear *after* triage runs — either from
+execute's own fixes or from another PR landing on the base branch mid-pipeline.
+Triage's merge-state finding is a heads-up, not the gate.
 
 ## Finding Severity
 
@@ -143,6 +148,10 @@ finding list before the artifact is written.
 - If any file under `demo/` or `adapters/` was changed: verify the PR body or
   CI confirms the integration test suite ran.
 - Flag any public function or use-case `execute()` path with no test.
+- **`SvcXxx` trigger-test check**: grep the diff for new classes whose names
+  match `Svc[A-Z][A-Za-z]+UseCase`. For each one found, confirm a matching
+  file exists under `test/core/use_cases/triggers/`. If absent: **IMPROVE**
+  (see `notes/triggers-test-coverage.md` for the required coverage pattern).
 
 ### Phase 11 — Linter / CI Status
 
@@ -150,7 +159,43 @@ finding list before the artifact is written.
 2. Summarize which checks fail if CI is failing.
 3. Note if CI has not yet run.
 
-### Phase 12 — Emit Artifact and Post Comment
+### Phase 12 — Merge State
+
+A PR that cannot merge is not shippable, no matter how clean its diff is.
+
+```bash
+bash .agents/skills/shared/merge-state.sh <number>
+```
+
+The script polls past GitHub's transient `UNKNOWN` mergeability. Record
+`mergeable`, `merge_state_status`, `is_draft`, and `base_ref` into
+`pr_metadata` — execute and verify both read them.
+
+Emit a finding per [REFERENCE.md](REFERENCE.md) § "Merge State Findings":
+
+| Script exit | `mergeable` | Finding |
+|---|---|---|
+| `1` | `CONFLICTING` | **FAIL**, `decision_outcome: fix-now` — id `phase12-merge-conflict-0` |
+| `2` | `UNKNOWN` | **FAIL**, `decision_outcome: fix-now` — id `phase12-merge-state-unknown-0` |
+| `0` | `MERGEABLE` | No finding; record the state in `pr_metadata` only |
+
+Also emit findings for these `merge_state_status` values even when
+`mergeable` is `MERGEABLE`:
+
+- `BEHIND` — base has advanced and the repo requires branches be up to date:
+  **IMPROVE**, `fix-now` (execute's sync resolves it)
+- `DIRTY` — treat exactly like `CONFLICTING` above, even if `mergeable`
+  disagrees; the two fields are computed separately and `DIRTY` is the stronger
+  signal
+- `DRAFT` — **IMPROVE**, `fix-now`. Note whether the PR carries the
+  `needs-rebase` label, which means `create-pr` opened it as a draft *because*
+  it could not freshen the branch. That draft is only undraftable once the
+  conflict is resolved.
+
+Never downgrade a conflict to IMPROVE or NEW-ISSUE. Resolving it is always
+in scope for the PR that has it.
+
+### Phase 13 — Emit Artifact and Post Comment
 
 This is the only phase that produces output. No mutations before this point.
 

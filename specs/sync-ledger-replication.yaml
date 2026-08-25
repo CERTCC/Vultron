@@ -4,7 +4,7 @@ description: >-
   Requirements for the append-only canonical recorded case ledger, replication transport,
   conflict handling, per-peer state tracking, and retry semantics for distributed case
   state synchronization across Participant Actors.
-version: 1.0.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -12,6 +12,60 @@ tags:
 - protocol
 - persistence
 groups:
+- id: SYNC-00
+  title: Ledger Sync Phase Concepts
+  specs:
+  - id: SYNC-00-001
+    priority: MUST
+    kind: architecture
+    statement: The AppendOnlyLedger phase MUST establish the local append-only case ledger with hash-chain indexing.
+  - id: SYNC-00-005
+    priority: MUST
+    kind: architecture
+    statement: Each entry in the AppendOnlyLedger MUST be immutable once committed.
+    rationale: Immutability is the foundation of hash-chain integrity; a mutable entry would invalidate all successor
+      entries and undermine replay determinism.
+  - id: SYNC-00-006
+    priority: MUST
+    kind: architecture
+    statement: Each entry in the AppendOnlyLedger MUST be cryptographically linked to its predecessor via a content hash,
+      providing the integrity foundation for all subsequent replication phases.
+    rationale: The hash link makes tampering detectable; any modification to an entry breaks the chain from that point
+      forward, allowing receivers to detect corruption during replication.
+  - id: SYNC-00-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The LedgerFanout phase MUST implement one-way replication from the actor holding the
+      CASE_MANAGER role to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
+      A participant replica MUST be treated as synchronized when and only when its log tail
+      hash matches the CASE_MANAGER's authoritative tail hash.
+  - id: SYNC-00-003
+    priority: MUST
+    kind: architecture
+    statement: The LedgerReconciliation phase MUST extend LedgerFanout with a full synchronisation loop, retry, and
+      backoff.
+  - id: SYNC-00-007
+    priority: MUST
+    kind: architecture
+    statement: When a participant's replica falls behind, the LedgerReconciliation mechanism MUST detect the gap.
+    rationale: Gap detection is the precondition for triggered retry; without it, a lagging replica would remain
+      silently diverged.
+  - id: SYNC-00-008
+    priority: MUST
+    kind: architecture
+    statement: When a participant's replica falls behind, the LedgerReconciliation mechanism MUST retry entry delivery
+      until the participant's tail hash converges to the CASE_MANAGER's tail hash.
+    rationale: Convergence to the authoritative tail hash is the definition of a synchronised replica; retrying until
+      convergence ensures eventual consistency.
+  - id: SYNC-00-004
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      The PeerLedgerSync phase SHOULD enable multi-peer synchronisation between actors
+      with equal standing. Where LedgerFanout assumes one actor holds CASE_MANAGER
+      authority, PeerLedgerSync SHOULD allow two or more actors to reconcile their
+      ledgers with each other to support federated and ownership-transfer scenarios.
 - id: SYNC-01
   title: Append-Only Log
   specs:
@@ -31,7 +85,7 @@ groups:
   - id: SYNC-01-004
     priority: MUST
     kind: protocol
-    statement: Canonical recorded log entries MUST be written through the CaseActor's single authoritative write path
+    statement: Canonical recorded log entries MUST be written through the CASE_MANAGER's single authoritative write path
   - id: SYNC-01-005
     priority: MUST
     kind: protocol
@@ -42,8 +96,8 @@ groups:
   - id: SYNC-02-001
     priority: MUST
     kind: protocol
-    statement: Log replication between CaseActor and Participant Actors MUST use ActivityStreams `Announce` activities as
-      the transport envelope for canonical recorded log content
+    statement: Log replication between the CASE_MANAGER and Participant Actors MUST use ActivityStreams `Announce` activities
+      as the transport envelope for canonical recorded log content
   - id: SYNC-02-002
     priority: MUST
     kind: protocol
@@ -52,8 +106,9 @@ groups:
   - id: SYNC-02-003
     priority: MUST
     kind: protocol
-    statement: Replication MUST originate from the replication leader (initially the CaseActor) and be sent to each Participant
-      Actor individually
+    statement: >-
+      Replication MUST originate from the replication leader (the actor holding the
+      CASE_MANAGER role) and be sent to each Participant Actor individually
   - id: SYNC-02-004
     priority: MUST_NOT
     kind: protocol
@@ -85,8 +140,10 @@ groups:
   - id: SYNC-03-004
     priority: SHOULD
     kind: protocol
-    statement: When a Participant Actor sends any message to the CaseActor, it SHOULD include the hash of its last accepted
-      canonical recorded log entry as a parameter in the activity's context field
+    statement: >-
+      When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
+      hash of its last accepted canonical recorded log entry as a parameter in the activity's
+      context field
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:
@@ -114,6 +171,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: Default values for retry and backoff parameters MUST be documented
+  - id: SYNC-05-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The per-recipient HTTP POST timeout MUST be a configurable parameter of the
+      delivery adapter with a documented default value. The default MUST be set high
+      enough to tolerate a recipient that is briefly busy under normal protocol load
+      (e.g. draining its own outbox); a value of 5 seconds or less is insufficient
+      under CI-representative multi-actor load.
+    rationale: >-
+      The original 5s hardcoded timeout was already rejected as too aggressive by the
+      demo DataLayerClient (timeout=30s, with comment explaining exactly this scenario).
+      A hardcoded timeout that is known to be wrong is a configurable parameter waiting
+      to be written. See CONCERN-2302 §2 and SYNC-05-002.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-05-002
+    adr:
+    - ADR-0066
 - id: SYNC-06
   title: Leadership and Ownership
   specs:
@@ -128,26 +204,36 @@ groups:
   - id: SYNC-06-003
     priority: MUST
     kind: protocol
-    statement: The SYNC-1 through SYNC-4 phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
-      of one. A single-node CaseActor is always the leader and always has write authority; no election is needed.
+    statement: >-
+      In a single-node deployment, the actor holding the CASE_MANAGER role MUST be
+      treated as the permanent replication leader with exclusive write authority for
+      its cases; no leader-election procedure is required.
+    rationale: >-
+      A single-node deployment is a degenerate Raft cluster of one: there is always a
+      quorum (1/1) and no election can occur, so the CASE_MANAGER is permanently the
+      leader without consensus overhead. This is the expected topology for the
+      prototype phase.
   - id: SYNC-06-004
     priority: SHOULD
     kind: protocol
     statement: >-
-      A future multi-node CaseActor cluster (Phase 3) provides high-availability write authority
-      via Raft consensus. This is a distinct replication tier from participant replication:
-      participant replication (SYNC-2) is pull-based fan-out via `Announce(CaseLedgerEntry)`,
-      whereas the multi-node CaseActor cluster uses Raft consensus to elect a single write
-      authority among the CaseActor nodes. The two tiers operate independently and SHOULD NOT
-      be conflated.
+      A future multi-node CASE_MANAGER cluster (Phase 3) SHOULD provide high-availability write
+      authority via Raft consensus. This is a distinct replication tier from participant
+      replication: participant replication (LedgerFanout) is pull-based fan-out via
+      `Announce(CaseLedgerEntry)`, whereas the multi-node CASE_MANAGER cluster uses Raft
+      consensus to elect a single write authority among CASE_MANAGER nodes. The two tiers
+      operate independently and SHOULD NOT be conflated.
 - id: SYNC-09
   title: Commit Discipline
   specs:
   - id: SYNC-09-001
     priority: MUST
     kind: protocol
-    statement: A log entry is **committed** when it has been durably appended to the authoritative log and is safe to apply
-      to the case state machine
+    statement: >-
+      An implementation MUST treat a log entry as committed only after it has been
+      durably written to the authoritative log and its content hash has been recorded;
+      an entry that has not met these conditions MUST NOT be applied to the case state
+      machine.
   - id: SYNC-09-002
     priority: MUST
     kind: protocol
@@ -156,8 +242,16 @@ groups:
   - id: SYNC-09-003
     priority: MUST
     kind: protocol
-    statement: The CaseActor's behavior tree execution MUST be gated on holding leadership role; in single-node this is always
-      satisfied; in multi-node this MUST be checked against the Raft leader state
+    statement: The CASE_MANAGER's behavior tree execution MUST be gated on holding the replication leadership role.
+    rationale: In single-node deployments this gate is trivially satisfied. In multi-node deployments it prevents a
+      deposed leader from continuing to write to the ledger after a new leader is elected.
+  - id: SYNC-09-004
+    priority: MUST
+    kind: protocol
+    statement: In a multi-node deployment, the CASE_MANAGER's replication leadership gate MUST be checked against the
+      Raft leader state.
+    rationale: Raft leader state is the authoritative source of leadership in a multi-node cluster; checking any other
+      mechanism risks split-brain writes.
 - id: SYNC-07
   title: Testing
   specs:
@@ -210,6 +304,8 @@ groups:
       holding area of SYNC-14 pending its predecessor, and MUST still trigger
       resynchronization (the Reject remains the backstop for genuinely lost
       entries). See ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
+    adr:
+    - ADR-0037
 - id: SYNC-10
   title: Catch-Up Gate Before New Actions
   specs:
@@ -244,7 +340,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CaseActor's
+      The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CASE_MANAGER's
       current ledger tip; lagging behind the leader tip is allowed if the actor's own
       acknowledged prefix is contiguous from genesis
 - id: SYNC-11
@@ -256,7 +352,7 @@ groups:
     statement: >-
       A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
       that records outbound assertion activities (e.g., Add(Note,Case)) emitted toward the
-      CaseActor but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
+      CASE_MANAGER but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
       the suppression window is configurable and zero disables suppression
   - id: SYNC-11-002
     priority: SHOULD
@@ -278,8 +374,8 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CaseActor MUST NOT use the pending-assertion store for its own ledger commits;
-      the CaseActor's DataLayer idempotency check already guards against duplicate commits
+      The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
+      the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits
       by the single authoritative writer
   - id: SYNC-11-005
     priority: SHOULD
@@ -340,12 +436,24 @@ groups:
   - id: SYNC-13-002
     priority: MUST_NOT
     kind: protocol
-    statement: >-
-      Adapter, wire, transport, and message-parsing code MUST NOT create, save, or otherwise
-      persist a CaseLedgerEntry to the DataLayer. Only a CaseActor may author CaseLedgerEntry
-      records for the primary case; participants obtain replica entries solely via the core
-      Announce(CaseLedgerEntry) receive behavior tree. Ingress code delivers the message; it
-      does not write the ledger.
+    statement: Adapter, wire, transport, and message-parsing code MUST NOT create, save, or otherwise persist a
+      `CaseLedgerEntry` to the DataLayer.
+    rationale: Ingress code delivers the message; it does not write the ledger. Any ingress write would bypass the
+      write-ownership guarantee that SYNC-12 depends on and silently skip effects on first delivery.
+  - id: SYNC-13-005
+    priority: MUST
+    kind: protocol
+    statement: Only the CaseActor MUST author `CaseLedgerEntry` records for the primary case; no other code path may
+      write authoritative case ledger entries.
+    rationale: The CaseActor's single authoritative write path is the enforcement mechanism for the ledger's
+      append-only integrity and the write-ownership guarantee required by SYNC-12.
+  - id: SYNC-13-006
+    priority: MUST
+    kind: protocol
+    statement: Participants MUST obtain replica `CaseLedgerEntry` records solely via the core
+      `Announce(CaseLedgerEntry)` receive behavior tree.
+    rationale: Channelling all replica writes through the receive behavior tree ensures that effects are applied in
+      the correct order and that the already-stored gate (SYNC-12-003) is the sole idempotency mechanism.
   - id: SYNC-13-003
     priority: MUST_NOT
     kind: protocol
@@ -353,7 +461,7 @@ groups:
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
       Announce(CaseLedgerEntry). The inline CaseLedgerEntry parsed from the wire envelope
-      MUST be carried forward in-memory (or via a clearly separate, non-ledger holding area)
+      MUST be carried forward in-memory (or via a dedicated, non-ledger holding area)
       so that semantic routing and effect application do not depend on pre-storing the entry.
   - id: SYNC-13-004
     priority: MUST
@@ -395,7 +503,7 @@ groups:
     statement: >-
       A forward-gap entry that is buffered MUST still trigger resynchronization (SYNC-08-005)
       — the participant MUST send Reject(CaseLedgerEntry) carrying its last accepted hash so
-      the CaseActor replays entries that are genuinely lost (never delivered) rather than
+      the CASE_MANAGER replays entries that are genuinely lost (never delivered) rather than
       merely reordered.
   - id: SYNC-14-003
     priority: MUST
@@ -408,15 +516,23 @@ groups:
   - id: SYNC-14-004
     priority: MUST
     kind: protocol
-    statement: >-
-      Draining a buffered entry MUST apply the entry's domain effects before persisting it
-      (SYNC-12-001) and MUST NOT re-apply effects for an entry already present in the local
-      ledger (SYNC-12-003); the drain path MUST be the same apply-then-persist path used for
-      in-order delivery.
+    statement: Draining a buffered entry MUST apply the entry's domain effects before persisting it (SYNC-12-001).
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-12-001
       note: The drain MUST preserve the effects-before-persist invariant per applied entry
+  - id: SYNC-14-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: The drain path MUST NOT re-apply effects for an entry already present in the local ledger (SYNC-12-003).
+    rationale: Re-applying effects for a previously committed entry would cause duplicate state transitions and violate
+      the idempotency guarantee established by SYNC-12-003.
+  - id: SYNC-14-008
+    priority: MUST
+    kind: protocol
+    statement: The drain path MUST be the same apply-then-persist path used for in-order delivery.
+    rationale: Using a separate drain path risks diverging from the in-order path over time, reintroducing the
+      ordering bugs that SYNC-12 was designed to prevent.
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: protocol
@@ -437,3 +553,186 @@ groups:
       entry farthest ahead of the current gap (highest log_index) and log a warning. Eviction
       is recoverable because SYNC-14-002 already sent a Reject, so eviction MUST NOT be relied
       upon to trigger recovery by itself.
+- id: SYNC-15
+  title: Genesis-Unavailable Buffer-and-Reject
+  description: >-
+    A participant replica receives Announce(CaseLedgerEntry) activities from the CaseActor
+    over an unordered transport.  If the CaseActor delivers a ledger entry before the
+    Create/Announce(VulnerabilityCase) activity has been processed by the participant (a
+    delivery race under HTTP BackgroundTasks), the replica cannot reconstruct the per-case
+    genesis hash (CLP-08-005) and must not silently drop the entry.  Silently dropping causes
+    the entry to be permanently lost because the CaseActor never learns that delivery failed
+    and never replays.  A pre-genesis entry is therefore held in the same non-ledger holding
+    area used for forward gaps (SYNC-14) and drained once the case seed anchors the genesis
+    hash, making convergence independent of whether the case or its ledger entries arrive
+    first (issue #2186, #2180).  A Reject is still sent as the loss backstop, triggering the
+    same replay path as the hash-mismatch case (SYNC-08-005, SYNC-14-002) for an entry that is
+    genuinely lost rather than merely early.  The forward-gap buffer of SYNC-14 alone does not
+    cover this window: it only holds entries for a case whose genesis anchor is already known,
+    so a distinct pre-genesis hold and a drain triggered by the case seed are required.
+    Rationale for the buffer-and-drain path (SYNC-15-004, SYNC-15-005): ADR-0059
+    (docs/adr/0059-buffer-pre-genesis-ledger-entries.md).
+  specs:
+  - id: SYNC-15-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct the
+      per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
+      (CLP-08-005), the participant MUST NOT silently discard the entry; it MUST send a
+      Reject(CaseLedgerEntry) with last_accepted_hash="" to the CASE_MANAGER so that the
+      CASE_MANAGER replays all entries from the beginning once the case is delivered.
+    rationale: >-
+      last_accepted_hash="" is the conventional signal for "I have no entries; replay from
+      genesis."  The CaseActor's replay path (SYNC-03-002) replays all entries after the
+      supplied hash; an empty string matches no recorded entry, so it replays the full log.
+      Without the Reject the participant is permanently stuck (issue #1873).
+    relationships:
+    - rel_type: depends_on
+      spec_id: CLP-08-005
+      note: The missing-case failure originates from the genesis-hash requirement in CLP-08-005
+    - rel_type: depends_on
+      spec_id: SYNC-08-005
+      note: Reject-on-divergence applies equally to the genesis-unavailable case
+  - id: SYNC-15-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: A participant MUST NOT persist a `CaseLedgerEntry` when the per-case genesis hash is unavailable.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-12-001
+      note: "Effects-before-persist invariant applies; an entry whose genesis is unknown cannot be safely committed"
+  - id: SYNC-15-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: A `CaseLedgerEntry` received when the per-case genesis hash is unavailable MUST NOT be treated as
+      committed.
+    rationale: Treating a pre-genesis entry as committed would populate the already-stored gate (SYNC-12-003)
+      prematurely, causing effects to be skipped when the entry is later drained after the genesis is seeded.
+  - id: SYNC-15-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: The domain effects of a `CaseLedgerEntry` received when the per-case genesis hash is unavailable MUST
+      NOT be applied (SYNC-12-001).
+    rationale: Applying effects before the genesis hash is known means the effects cannot be attributed to a
+      verified chain position; if the genesis hash later reveals the entry is a fork, already-applied effects
+      cannot be rolled back.
+  - id: SYNC-15-003
+    priority: MUST
+    kind: protocol
+    statement: The CASE_MANAGER MUST bound the rate at which it replays entries to a peer whose acknowledged
+      replication position has not advanced.
+  - id: SYNC-15-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST record, per peer, the position (the `entry_hash` a replay resumed
+      from, or `""` for genesis) of the last replay in which at least one entry was actually
+      sent, together with the time it was sent.
+    rationale: Recording the position and timestamp of the last non-empty replay is the data the cooldown check
+      needs to determine whether a subsequent Reject at the same position falls within the cooldown window.
+  - id: SYNC-15-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: A Reject reporting an unchanged replication position within the cooldown MUST NOT trigger another
+      replay.
+    rationale: >-
+      A peer that cannot anchor its hash chain Rejects every entry replayed to it, producing a self-sustaining
+      amplification loop. Suppressing replays within the cooldown window for an unchanged position prevents the
+      ~185x amplification observed in issue #1989.
+  - id: SYNC-15-010
+    priority: MUST
+    kind: protocol
+    statement: A Reject reporting an advanced replication position MUST always trigger a replay.
+    rationale: An advanced position means the peer successfully committed at least one entry since the last replay;
+      withholding replay at that point would stall convergence.
+  - id: SYNC-15-011
+    priority: MUST_NOT
+    kind: protocol
+    statement: A replay in which zero entries were sent MUST NOT update the recorded position, because no delivery
+      was attempted at that position.
+    rationale: Recording a position at which nothing was delivered would start a cooldown that suppresses the first
+      replay genuinely owed to that peer once the ledger grows.
+    rationale: >-
+      Reject-triggered replay (SYNC-08-005, SYNC-14-002) is unconditional by default, and a peer
+      that cannot anchor its hash chain Rejects every entry replayed to it.  Each Reject replays
+      the full missing suffix and each replayed entry produces another Reject — a self-sustaining
+      amplification loop, observed in CI as 4825 `Announce(CaseLedgerEntry)` activities for a
+      26-entry ledger (~185x), starving the actor until unrelated DataLayer reads timed out
+      (issue #1989).
+    note: >-
+      The bound must be a rate limit rather than permanent suppression: if a replayed entry is
+      lost in transit, a later Reject at the same position must still eventually trigger a fresh
+      replay, or the peer would never converge.  The zero-entry carve-out follows from the same
+      requirement — recording a position at which nothing was delivered would start a cooldown
+      that suppresses the first replay genuinely owed to that peer once the ledger grows.
+      Genesis (`last_accepted_hash == ""`) SHOULD use a shorter cooldown than a mid-chain stall:
+      a peer at genesis holds no entries at all and its convergence is owned by
+      SYNC-15-001/SYNC-15-002, which seed the VulnerabilityCase and then rely on the following
+      replay to deliver the history, so rate-limiting that replay as aggressively as a mid-chain
+      stall starves the bootstrap it exists to complete.  Genesis cannot be exempted outright,
+      however, because a peer that cannot anchor its chain reports genesis on every Reject.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-08-005
+      note: Bounds the replay this rule triggers; the reject-on-divergence contract itself is unchanged
+    - rel_type: depends_on
+      spec_id: SYNC-03-002
+      note: The replay-from-hash path whose rate this rule limits
+    - rel_type: refines
+      spec_id: SYNC-15-001
+      note: The genesis Reject that SYNC-15-001 mandates is the highest-volume source of no-progress replays
+  - id: SYNC-15-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant receives a valid Announce(CaseLedgerEntry) but cannot reconstruct the
+      per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
+      (CLP-08-005), the participant MUST NOT rely solely on the reject/replay round-trip; it
+      MUST retain the entry in the same non-ledger holding area used for forward gaps (SYNC-14),
+      keyed by its prev_log_hash, pending arrival of the case seed.  Unlike a forward gap
+      (SYNC-14-001) this hold applies without a tail_index comparison — no chain tail exists in
+      the pre-genesis window — so every entry for the missing case is held, including the
+      genesis entry (log_index 0) whose prev_log_hash equals the per-case genesis hash.
+    rationale: >-
+      The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
+      for the same reason forward gaps are buffered (SYNC-14): replay re-announces entries
+      individually over the same unordered transport and each pre-genesis entry Rejects again,
+      amplifying churn (issue #2169) and, for the fvcv-handoff demo, dropping the
+      add_report_to_case entry so no VultronOfferRecord is ever created (issue #2180). Holding
+      the entry lets it drain deterministically once the case is seeded.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-14-001
+      note: Reuses the same non-ledger holding area and prev_log_hash keying as the forward-gap buffer
+    - rel_type: depends_on
+      spec_id: SYNC-14-005
+      note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while buffered
+    - rel_type: refines
+      spec_id: SYNC-15-001
+      note: The Reject is retained as the loss backstop; buffering is the primary convergence path
+  - id: SYNC-15-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After a participant seeds the VulnerabilityCase (via Create or Announce(VulnerabilityCase)),
+      which anchors the deterministic per-case genesis hash (CLP-08), it MUST drain the holding
+      area for that case: it MUST locate the buffered entry (if any) whose prev_log_hash equals
+      the per-case genesis hash, apply-then-persist it via the same path as in-order delivery
+      (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no buffered entry extends
+      the current tail.
+    rationale: >-
+      The genesis hash is derivable from the case object alone (deterministic from case_id,
+      created_at, and the CaseActor id per CLP-08), so seeding the case is sufficient to anchor
+      the chain — the participant need not wait for the genesis ledger entry to be re-delivered.
+      Draining on seed is what turns the pre-genesis hold (SYNC-15-004) into convergence.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-14-003
+      note: Reuses the cascading drain defined for forward gaps
+    - rel_type: depends_on
+      spec_id: SYNC-14-004
+      note: The drained entry MUST apply effects before persisting, on the same path as in-order delivery
+    - rel_type: depends_on
+      spec_id: SYNC-15-004
+      note: Drains exactly the entries that SYNC-15-004 buffered during the pre-genesis window

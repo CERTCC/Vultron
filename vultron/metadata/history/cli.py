@@ -44,6 +44,8 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import NoReturn
@@ -344,6 +346,75 @@ def append_history_entry(
     return entry_file
 
 
+_ISSUE_NUMBER_RE = re.compile(r"^(?:ISSUE-)?(\d+)$", re.IGNORECASE)
+
+_GITHUB_COMMENT_TYPES = frozenset(
+    {HistoryEntryType.implementation, HistoryEntryType.idea}
+)
+
+
+def _resolve_issue_number(source: str) -> int | None:
+    """Return a GitHub issue number if *source* resolves to one, else None.
+
+    Accepts ``ISSUE-N`` (case-insensitive) or a bare positive integer.
+    Returns ``None`` for all other formats (HM-08-001, HM-08-003).
+    """
+    m = _ISSUE_NUMBER_RE.match(source.strip())
+    if m is None:
+        return None
+    n = int(m.group(1))
+    return n if n > 0 else None
+
+
+def _post_github_comment(
+    issue_number: int,
+    entry_type: HistoryEntryType,
+    title: str,
+    body: str,
+) -> str:
+    """Post a GitHub comment and return the comment URL.
+
+    The comment body is prefixed with a heading line per HM-08-005:
+    ``**History: <type> — <title>**``
+
+    Args:
+        issue_number: GitHub issue number.
+        entry_type: History entry type (``implementation`` or ``idea``).
+        title: Entry title from ``--title``.
+        body: Entry body text (no frontmatter).
+
+    Returns:
+        The URL of the newly created comment.
+
+    Raises:
+        RuntimeError: If the ``gh`` CLI invocation fails.
+    """
+    heading = f"**History: {entry_type.value} — {title}**"
+    comment_body = f"{heading}\n\n{body}"
+    result = subprocess.run(
+        [
+            "gh",
+            "issue",
+            "comment",
+            str(issue_number),
+            "--repo",
+            "CERTCC/Vultron",
+            "--body",
+            comment_body,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"gh issue comment failed (exit {result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
+    # ``gh issue comment`` prints the comment URL to stdout.
+    url = result.stdout.strip()
+    return url
+
+
 def _fail(message: str, *, exit_code: int = 1) -> NoReturn:
     print(f"Error: {message}", file=sys.stderr)
     sys.exit(exit_code)
@@ -460,17 +531,8 @@ def _handle_from_file_mode(source_path: Path) -> None:
     print(str(entry_file))
 
 
-def main() -> None:
-    """Entry point for ``uv run append-history``."""
-    parser = _build_parser()
-    args = parser.parse_args()
-
-    if args.from_file is not None:
-        _check_from_file_conflicts(args)
-        _handle_from_file_mode(Path(args.from_file))
-        return
-
-    # Normal mode — require entry_type, --title, --source.
+def _handle_normal_mode(args: argparse.Namespace) -> None:
+    """Execute the normal (non-from-file) append-history flow."""
     if not args.entry_type:
         _fail(
             "entry type is required when --from-file is not provided. "
@@ -485,6 +547,20 @@ def main() -> None:
     body = _read_body(args.file)
     timestamp = _parse_timestamp(args.timestamp)
     signal = _parse_signal(args.signal, entry_type)
+
+    # GitHub comment mode: implementation/idea with an ISSUE-N source (HM-08-001).
+    if (
+        entry_type in _GITHUB_COMMENT_TYPES
+        and (issue_number := _resolve_issue_number(args.source)) is not None
+    ):
+        try:
+            url = _post_github_comment(
+                issue_number, entry_type, args.title, body
+            )
+        except RuntimeError as exc:
+            _fail(str(exc))
+        print(url)
+        return
 
     try:
         content = _build_content(
@@ -505,6 +581,19 @@ def main() -> None:
         _fail(str(exc))
 
     print(str(entry_file))
+
+
+def main() -> None:
+    """Entry point for ``uv run append-history``."""
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    if args.from_file is not None:
+        _check_from_file_conflicts(args)
+        _handle_from_file_mode(Path(args.from_file))
+        return
+
+    _handle_normal_mode(args)
 
 
 if __name__ == "__main__":

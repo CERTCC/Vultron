@@ -51,10 +51,11 @@ groups:
     kind: project
     statement: Each spec entry SHOULD include a `testable` boolean field (default `true`).
   - id: SR-01-009
-    priority: SHOULD
+    priority: MUST
     kind: project
-    statement: Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of `protocol`, `architecture`,
-      `project`, `process`.
+    statement: >-
+      Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of
+      `protocol`, `architecture`, `project`, `process`.
   - id: SR-01-010
     priority: SHOULD
     kind: project
@@ -94,7 +95,7 @@ groups:
     priority: MUST
     kind: project
     statement: 'Fixed vocabularies MUST be implemented as `StrEnum` subclasses: `RFC2119Priority`, `RelationType`, `SpecKind`,
-      `Scope`, `SpecTag`.'
+      `Scope`, `SpecTag`, `AdrStatus`.'
   - id: SR-02-003
     priority: MUST
     kind: project
@@ -102,8 +103,10 @@ groups:
   - id: SR-02-004
     priority: MUST
     kind: project
-    statement: '`RelationType` MUST include at minimum: `implements`, `supersedes`, `extends`, `depends_on`, `conflicts`,
-      `refines`, `derives_from`, `verifies`, `part_of`, `constrains`.'
+    statement: >-
+      `RelationType` MUST include at minimum: `implements`, `supersedes`, `extends`,
+      `depends_on`, `conflicts`, `refines`, `derives_from`, `verifies`, `part_of`,
+      `constrains`, `satisfies`.
   - id: SR-02-005
     priority: MUST
     kind: project
@@ -115,17 +118,21 @@ groups:
   - id: SR-02-007
     priority: MUST
     kind: project
-    statement: '`SpecTag` MUST be a controlled vocabulary StrEnum; initial values are defined in `notes/spec-registry.md`.'
+    statement: '`SpecTag` MUST be a controlled vocabulary StrEnum, defined in `vultron/metadata/specs/schema.py`.'
   - id: SR-02-008
     priority: MUST
     kind: project
-    statement: A `SpecIdStr` type alias MUST enforce the ID pattern `^[A-Z]{2,8}(-\d{2}(-\d{3})?)?$` via Pydantic `StringConstraints`.
+    statement: >-
+      A `SpecIdStr` type alias MUST enforce the ID pattern
+      `^[A-Z]{2,8}(-\d{2}(-\d{3}[a-z]?)?)?$` via Pydantic `StringConstraints`.
+      The optional lowercase letter suffix (e.g., `LST-05-002b`) designates a
+      sub-requirement split from a parent spec.
   - id: SR-02-009
     priority: MUST
     kind: project
     statement: '`StatementSpec` MUST have fields: `id` (`SpecIdStr`), `priority` (`RFC2119Priority`), `kind` (`SpecKind`,
       required), `statement` (non-empty str), `rationale` (non-empty str), and optional fields: `testable`, `scope`, `tags`,
-      `relationships`, `lint_suppress`.'
+      `relationships`, `adr`, `lint_suppress`.'
   - id: SR-02-010
     priority: MUST
     kind: project
@@ -160,6 +167,54 @@ groups:
     kind: project
     statement: '`BehaviorStep` SHOULD include fields: `order` (int), `actor` (str), `action` (str), and optional `expected`
       (str).'
+  - id: SR-02-020
+    priority: SHOULD
+    kind: project
+    statement: A spec item SHOULD use the optional `adr` field (list of `AdrIdStr`, pattern `^ADR-\d{4}$`) to record structured
+      ADR provenance; the export emits each as a `derives_from` edge to the ADR ID so an amended ADR can be traced to its
+      dependent specs via the edges graph, and the linter hard-errors on a dangling target.
+    rationale: >-
+      Prose citations in `rationale` are invisible to the edges graph, so "which specs inherit this ADR's premise?" was not
+      a mechanical query. The structured field closes that gap (MS-11-004). See ADR-0043.
+    adr:
+    - ADR-0043
+  - id: SR-02-021
+    priority: MUST
+    kind: project
+    statement: >-
+      `StatementSpec` (and by inheritance `BehavioralSpec`) MUST support the following
+      optional fields in addition to the core set: `verification` (NonEmptyStr — machine-executable
+      or human-reviewable check that confirms the requirement is met), `note` (NonEmptyStr —
+      correction notice or clarifying annotation), `tracking_issue` (str — GitHub issue
+      reference(s) tracking planned implementation), `references` (list[str] — file paths or
+      URIs to supporting documents), `exceptions` (list[NonEmptyStr] — permitted exceptions
+      to the rule stated in the requirement), `trigger` (Trigger — activating event for a
+      behavioral spec item), `deprecated` (bool, default False), and `superseded_by`
+      (SpecIdStr | None — ID of the replacement requirement).
+    rationale: >-
+      These fields were found in widespread use across the spec corpus but were absent from
+      the formal schema, causing them to be silently ignored rather than validated. Formalising
+      them closes that gap and enables tooling to surface deprecation warnings, link tracking
+      issues, and verify execution steps. `deprecated`/`superseded_by` mirror the ADR
+      supersession pattern (MS-14-001) applied at the individual requirement level.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-02-009
+  - id: SR-02-022
+    priority: MUST
+    kind: project
+    statement: >-
+      Every Pydantic model in `vultron/metadata/specs/schema.py` (`Relationship`, `Trigger`,
+      `Precondition`, `BehaviorStep`, `Postcondition`, `StatementSpec`, `BehavioralSpec`,
+      `SpecGroup`, `SpecFile`) MUST declare `model_config = ConfigDict(extra="forbid")`.
+    rationale: >-
+      Without `extra="forbid"`, unrecognised YAML keys are silently ignored. This allows
+      schema drift to accumulate undetected — the `deprecated`/`superseded_by` incident
+      being the immediate trigger. Hard-failing on unknown fields converts silent data loss
+      into a validation error that forces explicit schema evolution.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-02-009
 - id: SR-03
   title: Registry Loader
   specs:
@@ -264,10 +319,26 @@ groups:
     kind: project
     statement: The pytest integration SHOULD load the registry once per session (not per test) to avoid I/O overhead.
   - id: SR-05-004
-    priority: SHOULD
+    priority: MUST
     kind: project
-    statement: Tests SHOULD use `@pytest.mark.spec` to assert which requirement they verify, enabling coverage reporting by
-      spec ID.
+    statement: >-
+      Tests that verify a protocol-tier requirement (spec items with kind equal to "protocol") MUST carry
+      `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for other requirement kinds
+      SHOULD use the marker to enable coverage reporting by spec ID.
+    rationale: >-
+      Protocol-kind requirements are conformance-critical. Without a marker, coverage for those requirements is
+      unverifiable and the CI floor ratchet (SR-05-005) cannot enforce it. The SHOULD for non-protocol kinds preserves
+      opt-in adoption for lower-stakes requirements.
+  - id: SR-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      CI MUST enforce a minimum `@pytest.mark.spec` coverage floor for protocol-tier requirements and fail the build if
+      coverage drops below the configured threshold, preventing marker adoption from drifting back toward zero.
+    rationale: >-
+      A SHOULD-only rule (the former SR-05-004) produced near-zero adoption with no enforcement signal. A CI-enforced
+      floor is the minimum mechanism that guarantees the ratchet cannot be accidentally broken by future commits that add
+      protocol requirements without linking tests.
 - id: SR-06
   title: Pre-commit Hook
   specs:
@@ -309,6 +380,14 @@ groups:
     kind: project
     statement: The JSON exporter SHOULD support filtering by `kind`, `scope`, `tags`, or `priority` to allow agents to request
       only relevant subsets.
+  - id: SR-07-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `spec-dump` CLI entry point SHOULD support a `--kind` flag accepting one or more
+      comma-separated `SpecKind` values, filtering the LLM-optimized JSON output to matching
+      requirements. An unknown kind value MUST produce a clear error message listing valid values
+      and exit with code 2.
 - id: SR-09
   title: Docs Renderer Kind Routing
   specs:

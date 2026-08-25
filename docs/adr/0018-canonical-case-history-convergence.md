@@ -37,10 +37,10 @@ round-trip delays and restart recovery.
 
 Chosen option: **C — phased convergence to canonical `CaseLogEntry`**.
 
-The project will converge on `CaseLogEntry` as the authoritative
-protocol-significant case history path, while using a temporary local
-`pending_assertions` mechanism only for duplicate-suppression during canonical
-round-trip windows.
+`CaseLogEntry` is the authoritative protocol-significant case history path,
+reached by phased convergence, while a temporary local `pending_assertions`
+mechanism is used only for duplicate-suppression during canonical round-trip
+windows.
 
 ### Consequences
 

@@ -9,14 +9,15 @@ status check.
 
 ## Project Board Constants
 
-| Name | Value |
+| Name | Resolver |
 |---|---|
-| Project node ID | `PVT_kwDOAjf0s84BZnre` |
-| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Schedule: Now | `1e84189c` |
-| Schedule: Next | `9fca00b2` |
-| Schedule: Later | `e2149d3e` |
-| Schedule: Someday | `fcffa79d` |
+| Project node ID | `bash .agents/skills/shared/board-id.sh project` |
+| Schedule field ID | `bash .agents/skills/shared/board-id.sh schedule-field` |
+| Schedule: Focus | `bash .agents/skills/shared/board-id.sh schedule Focus` |
+| Schedule: Now | `bash .agents/skills/shared/board-id.sh schedule Now` |
+| Schedule: Next | `bash .agents/skills/shared/board-id.sh schedule Next` |
+| Schedule: Later | `bash .agents/skills/shared/board-id.sh schedule Later` |
+| Schedule: Someday | `bash .agents/skills/shared/board-id.sh schedule Someday` |
 
 ## Data Model
 
@@ -58,6 +59,33 @@ For each issue with a "blocked by" relationship:
 1. Fetch the live state of the blocking issue/PR from GitHub.
 2. If the blocker is **closed**, do not report it as blocking.
 3. If the blocker is **open**, report the dependent issue as blocked.
+
+### Tier-Inversion Detection
+
+Tiers are totally ordered by how soon the work is scheduled:
+
+```text
+Focus (0) < Now (1) < Next (2) < Later (3) < Someday (4)   # unset = 5 (latest)
+```
+
+A `blocked-by` edge means the blocker must be built first, so a healthy edge
+points to the **same tier or an earlier one** (lower or equal rank). A **tier
+inversion** is an open issue `A` with an open blocker `B` where
+`rank(tier(B)) > rank(tier(A))` — the blocker is scheduled strictly later than
+the thing it gates.
+
+For each open board issue with a formal open blocked-by target:
+
+1. Resolve the Schedule tier of both `A` (dependent) and `B` (blocker) from the
+   Project #24 items query (an item off the board, or with tier unset, ranks as
+   the latest = 5).
+2. Compare ranks. If `rank(B) > rank(A)`, record a tier inversion.
+3. Report the delta (e.g., `Now ⟵ Someday` is a 3-tier inversion) so the worst
+   ones sort to the top.
+
+Report-only: the skill surfaces inversions and stops. Resolution (reparent the
+dependent onto the blocker's epic, re-tier one of them, or calve the pair into
+one iceberg) is `calve-epics`' judgment, not this skill's.
 
 ### Coverage Analysis
 
@@ -125,9 +153,12 @@ unblocked open sub-issue with no open PR.
 
 ### All items in Project #24 with Schedule tier
 
+Resolve `$PROJECT_ID` first via `bash .agents/skills/shared/board-id.sh project`,
+then substitute it into the query:
+
 ```graphql
 {
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "$PROJECT_ID") {
     ... on ProjectV2 {
       items(first: 100) {
         nodes {

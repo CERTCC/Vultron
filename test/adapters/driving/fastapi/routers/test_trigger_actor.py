@@ -32,6 +32,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dl,
     get_trigger_service,
 )
+import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -50,8 +51,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 # ---------------------------------------------------------------------------
 
 
+class _NoopEmitter:
+    async def emit(self, activity, recipients):  # noqa: ARG002
+        pass
+
+
 @pytest.fixture
 def client_triggers(dl):
+    _outbox_handler._default_emitter = _NoopEmitter()
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
     app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
@@ -62,6 +69,7 @@ def client_triggers(dl):
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
+    _outbox_handler._default_emitter = None
 
 
 @pytest.fixture
@@ -344,30 +352,132 @@ def test_trigger_accept_case_invite_unknown_invite_returns_404(
 
 
 # ===========================================================================
-# Tests for trigger/offer-case-manager-role
+# Tests for trigger/reject-case-invite
 # ===========================================================================
 
 
-def test_trigger_offer_case_manager_role_returns_202(
-    client_triggers, actor, case_obj_with_case_actor
+def test_trigger_reject_case_invite_returns_202(
+    client_triggers, other_actor, invite, dl
 ):
-    """TB-01-002: POST /actors/{id}/trigger/offer-case-manager-role returns 202."""
-    case, _ = case_obj_with_case_actor
+    """TB-01-002: POST /actors/{id}/trigger/reject-case-invite returns 202."""
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/offer-case-manager-role",
-        json={"case_id": case.id_},
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
-def test_trigger_offer_case_manager_role_response_contains_activity(
-    client_triggers, actor, case_obj_with_case_actor
+def test_trigger_reject_case_invite_response_contains_activity(
+    client_triggers, other_actor, invite, dl
 ):
     """TB-04-001: Successful trigger response body contains 'activity' key."""
-    case, _ = case_obj_with_case_actor
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/offer-case-manager-role",
-        json={"case_id": case.id_},
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_reject_case_invite_object_is_invite(
+    client_triggers, other_actor, invite, dl
+):
+    """DR-05: Reject activity object_ must be the original invite, not the case."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert data["activity"]["object"]["id"] == invite.id_
+
+
+def test_trigger_reject_case_invite_missing_invite_id_returns_422(
+    client_triggers, other_actor
+):
+    """TB-03-001: Missing invite_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_reject_case_invite_ignores_unknown_fields(
+    client_triggers, other_actor, invite, dl
+):
+    """TB-03-002: Unknown fields are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_, "extra": "ignored"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_case_invite_unknown_actor_returns_404(
+    client_triggers,
+):
+    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/reject-case-invite",
+        json={"invite_id": "urn:uuid:any-invite"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_reject_case_invite_unknown_invite_returns_404(
+    client_triggers, other_actor
+):
+    """TB-01-003: Unknown invite_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": "urn:uuid:nonexistent-invite"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ===========================================================================
+# Tests for trigger/offer-case-participant-role
+# ===========================================================================
+
+
+@pytest.fixture
+def target_actor(dl):
+    """A second actor to receive the role offer."""
+    target = as_Service(name="Target Actor")
+    dl.create(target)
+    return target
+
+
+def test_trigger_offer_case_participant_role_returns_202(
+    client_triggers, actor, case_obj, target_actor
+):
+    """POST /actors/{id}/trigger/offer-case-participant-role returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/offer-case-participant-role",
+        json={
+            "case_id": case_obj.id_,
+            "target_actor_id": target_actor.id_,
+            "role": "case_manager",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_offer_case_participant_role_response_contains_activity(
+    client_triggers, actor, case_obj, target_actor
+):
+    """Successful trigger response body contains 'activity' key with Offer type."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/offer-case-participant-role",
+        json={
+            "case_id": case_obj.id_,
+            "target_actor_id": target_actor.id_,
+        },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     data = resp.json()
@@ -376,64 +486,31 @@ def test_trigger_offer_case_manager_role_response_contains_activity(
     assert data["activity"]["type"] == "Offer"
 
 
-def test_trigger_offer_case_manager_role_activity_actor_is_case_actor(
-    client_triggers, actor, case_obj_with_case_actor
-):
-    """Offer activity must be emitted from the Case Actor's identity (PCR-08-007)."""
-    case, case_actor = case_obj_with_case_actor
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/offer-case-manager-role",
-        json={"case_id": case.id_},
-    )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-    data = resp.json()
-    assert data["activity"]["actor"] == case_actor.id_
-
-
-def test_trigger_offer_case_manager_role_missing_case_id_returns_422(
+def test_trigger_offer_case_participant_role_missing_required_fields_returns_422(
     client_triggers, actor
 ):
-    """TB-03-001: Missing case_id returns HTTP 422."""
+    """Missing case_id or target_actor_id returns HTTP 422."""
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/offer-case-manager-role",
-        json={},
+        f"/actors/{actor.id_}/trigger/offer-case-participant-role",
+        json={"role": "CASE_MANAGER"},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
-def test_trigger_offer_case_manager_role_unknown_actor_returns_404(
+def test_trigger_offer_case_participant_role_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
-        "/actors/nonexistent-actor/trigger/offer-case-manager-role",
-        json={"case_id": "urn:uuid:any-case"},
+        "/actors/nonexistent-actor/trigger/offer-case-participant-role",
+        json={
+            "case_id": "urn:uuid:any-case",
+            "target_actor_id": "urn:uuid:any-actor",
+        },
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     data = resp.json()
     assert data["detail"]["error"] == "NotFound"
-
-
-def test_trigger_offer_case_manager_role_unknown_case_returns_404(
-    client_triggers, actor
-):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/offer-case-manager-role",
-        json={"case_id": "urn:uuid:nonexistent-case"},
-    )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
-
-
-def test_trigger_offer_case_manager_role_no_case_actor_returns_404(
-    client_triggers, actor, case_obj
-):
-    """TB-01-003: No Case Actor for the case returns HTTP 404."""
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/offer-case-manager-role",
-        json={"case_id": case_obj.id_},
-    )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ===========================================================================

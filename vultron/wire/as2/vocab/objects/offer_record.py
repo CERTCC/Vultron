@@ -17,8 +17,5 @@
 from vultron.core.models.offer_record import (  # noqa: F401
     VultronOfferRecord,
 )
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
-
-VOCABULARY["OfferRecord"] = VultronOfferRecord
 
 __all__ = ["VultronOfferRecord"]

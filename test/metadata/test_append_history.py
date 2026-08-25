@@ -3,7 +3,8 @@
 Covers: HM-03-001 through HM-03-006 (entry creation, README regeneration,
 type validation, stdin mode, --file mode), HM-06-001 through HM-06-005
 (timestamp field, future-date rejection), HM-07-001 through HM-07-003
-(--title, --source CLI params).
+(--title, --source CLI params), HM-08-001 through HM-08-005 (GitHub comment
+output mode).
 """
 
 from __future__ import annotations
@@ -745,3 +746,196 @@ class TestSignalFlag:
         assert result.returncode == 0
         content = Path(result.stdout.strip()).read_text()
         assert "signal: spec-gap" in content
+
+
+class TestResolveIssueNumber:
+    """Unit tests for _resolve_issue_number (HM-08-001, HM-08-003)."""
+
+    def test_issue_prefix_resolves(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("ISSUE-2159") == 2159
+
+    def test_issue_prefix_case_insensitive(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("issue-42") == 42
+
+    def test_bare_integer_resolves(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("123") == 123
+
+    def test_idea_source_returns_none(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("IDEA-26042702") is None
+
+    def test_task_source_returns_none(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("TASK-BTND5") is None
+
+    def test_zero_returns_none(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("0") is None
+
+    def test_negative_returns_none(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("-1") is None
+
+    def test_empty_string_returns_none(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("") is None
+
+    def test_alphanumeric_source_returns_none(self) -> None:
+        from vultron.metadata.history.cli import _resolve_issue_number
+
+        assert _resolve_issue_number("CONCERN-507") is None
+
+
+class TestGitHubCommentMode:
+    """HM-08-001 through HM-08-005: GitHub comment output mode."""
+
+    def _run_with_mock_gh(
+        self,
+        entry_type: str,
+        source: str,
+        body: str = "Entry body.\n",
+        title: str = "Test Title",
+        gh_returncode: int = 0,
+        gh_stdout: str = "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999",
+        gh_stderr: str = "",
+    ) -> _RunResult:
+        """Run append-history with a mocked ``gh`` subprocess call."""
+        from unittest.mock import MagicMock
+
+        mock_result = MagicMock()
+        mock_result.returncode = gh_returncode
+        mock_result.stdout = gh_stdout
+        mock_result.stderr = gh_stderr
+
+        with patch(
+            "vultron.metadata.history.cli.subprocess.run",
+            return_value=mock_result,
+        ):
+            return _run_append(
+                entry_type, body=body, title=title, source=source
+            )
+
+    def test_implementation_issue_source_posts_comment(
+        self, fake_repo: Path
+    ) -> None:
+        """implementation + ISSUE-N source posts a comment (HM-08-001)."""
+        result = self._run_with_mock_gh("implementation", "ISSUE-2159")
+        assert result.returncode == 0
+
+    def test_idea_issue_source_posts_comment(self, fake_repo: Path) -> None:
+        """idea + ISSUE-N source posts a comment (HM-08-001)."""
+        result = self._run_with_mock_gh("idea", "ISSUE-42")
+        assert result.returncode == 0
+
+    def test_prints_comment_url_to_stdout(self, fake_repo: Path) -> None:
+        """Comment URL is printed to stdout (HM-08-002)."""
+        url = "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
+        result = self._run_with_mock_gh(
+            "implementation", "ISSUE-2159", gh_stdout=url
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == url
+
+    def test_bare_integer_source_posts_comment(self, fake_repo: Path) -> None:
+        """Bare integer source is treated as an issue number (HM-08-001)."""
+        result = self._run_with_mock_gh("implementation", "2159")
+        assert result.returncode == 0
+
+    def test_non_issue_source_writes_file(self, fake_repo: Path) -> None:
+        """Non-ISSUE-N source falls back to file mode (HM-08-003)."""
+        result = _run_append(
+            "implementation",
+            body=_IMPL_BODY,
+            title=_IMPL_TITLE,
+            source="TASK-BTND5",
+        )
+        assert result.returncode == 0
+        written = Path(result.stdout.strip())
+        assert written.exists()
+        assert written.suffix == ".md"
+
+    def test_idea_non_issue_source_writes_file(self, fake_repo: Path) -> None:
+        """idea + non-ISSUE source falls back to file mode (HM-08-003)."""
+        result = _run_append(
+            "idea",
+            body=_IDEA_BODY,
+            title=_DEFAULT_TITLE,
+            source="IDEA-26042702",
+        )
+        assert result.returncode == 0
+        assert Path(result.stdout.strip()).exists()
+
+    def test_learning_issue_source_writes_file(self, fake_repo: Path) -> None:
+        """learning type always writes a file regardless of source (HM-08-001)."""
+        result = _run_append(
+            "learning",
+            body=_IDEA_BODY,
+            title="Learning entry",
+            source="ISSUE-123",
+        )
+        assert result.returncode == 0
+        written = Path(result.stdout.strip())
+        assert written.exists()
+        assert written.suffix == ".md"
+
+    def test_comment_body_has_heading(self, fake_repo: Path) -> None:
+        """Comment body is prefixed with **History: <type> — <title>** (HM-08-005)."""
+        from unittest.mock import MagicMock
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = (
+            "https://github.com/CERTCC/Vultron/issues/2159#issuecomment-9999"
+        )
+        mock_result.stderr = ""
+
+        with patch(
+            "vultron.metadata.history.cli.subprocess.run",
+            return_value=mock_result,
+        ) as mock_run:
+            _run_append(
+                "implementation",
+                body="My implementation summary.\n",
+                title="Fix demo config cache leak",
+                source="ISSUE-2159",
+            )
+
+        assert mock_run.called
+        _, kwargs = mock_run.call_args
+        args_passed = mock_run.call_args[0][0]
+        body_idx = args_passed.index("--body") + 1
+        posted_body = args_passed[body_idx]
+        assert posted_body.startswith(
+            "**History: implementation — Fix demo config cache leak**"
+        )
+        assert "My implementation summary." in posted_body
+
+    def test_gh_failure_exits_nonzero(self, fake_repo: Path) -> None:
+        """A non-zero exit from gh causes append-history to exit non-zero."""
+        result = self._run_with_mock_gh(
+            "implementation",
+            "ISSUE-2159",
+            gh_returncode=1,
+            gh_stderr="authentication required",
+        )
+        assert result.returncode != 0
+
+    def test_no_file_written_on_comment_mode(self, fake_repo: Path) -> None:
+        """GitHub comment mode must NOT write a file under plan/history/."""
+        self._run_with_mock_gh("implementation", "ISSUE-2159")
+        history_dir = fake_repo / "plan" / "history"
+        md_files = (
+            list(history_dir.rglob("*.md")) if history_dir.exists() else []
+        )
+        assert not md_files, "No files should be written in comment mode"

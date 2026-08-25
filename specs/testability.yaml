@@ -195,7 +195,11 @@ groups:
   - id: TB-09-001
     priority: MUST
     kind: project
-    statement: Tests MUST be kept simple and readable
+    statement: >-
+      Each test function MUST exercise a single scenario. Test bodies MUST NOT contain
+      conditional branching logic (if/else). Exception-assertion patterns using
+      pytest.raises as a context manager are permitted; bare try/except blocks that
+      catch and suppress unexpected errors are not.
   - id: TB-09-002
     priority: SHOULD
     kind: project
@@ -241,7 +245,7 @@ groups:
     priority: SHOULD
     kind: process
     statement: >-
-      Once the `core` and `wire` packages are fully separated (see `specs/architecture.md`
+      Once the `core` and `wire` packages are fully separated (see `specs/architecture.yaml`
       and `archived_notes/architecture-review.md`), architecture boundary tests SHOULD be
       added to enforce layer separation rules
     rationale: >-
@@ -294,11 +298,7 @@ groups:
   - id: TB-12-003
     priority: MUST
     kind: project
-    statement: >-
-      BT integration tests MUST complete within 5 seconds per test case. Tests that
-      exceed this limit MUST be redesigned (e.g., reducing dataset size, mocking
-      external I/O) rather than raising the timeout. The `pytest-timeout` `timeout = 5`
-      configuration MUST apply to all BT tests.
+    statement: BT integration tests MUST complete within 5 seconds per test case.
     relationships:
     - rel_type: refines
       spec_id: TB-12-001
@@ -313,3 +313,144 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TB-12-001
+  - id: TB-12-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Tests that exceed the 5-second limit MUST be redesigned (e.g., reducing dataset
+      size, mocking external I/O) rather than raising the timeout.
+    rationale: >-
+      Raising the timeout papers over performance regressions rather than fixing them;
+      redesigning the test preserves the 5-second budget.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-12-003
+  - id: TB-12-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The `pytest-timeout` `timeout = 5` configuration MUST apply to all BT tests.
+    rationale: >-
+      A blanket timeout prevents runaway tests from blocking CI without requiring
+      per-test annotation.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-12-003
+- id: TB-13
+  title: Architecture Ratchet Corpus
+  specs:
+  - id: TB-13-001
+    priority: MUST
+    kind: project
+    lint_suppress:
+    - phantom_path_ref
+    statement: >-
+      All architecture ratchet tests in `test/architecture/` that scan the source tree
+      MUST obtain file paths and source text from a shared module-level corpus helper
+      (`test/architecture/_corpus.py`) rather than calling `pathlib.Path.rglob` or
+      reading files directly.
+    rationale: >-
+      Scanning 1 179 Python files at module-import time (exempt from the 5 s per-test
+      timeout) costs ~1 s for source reads and populates an 18 MB string cache. All
+      subsequent ratchets share those bytes for free. Direct `rglob` calls inside test
+      functions compete for disk I/O inside the timeout window and accumulate as more
+      ratchets are added. Source: CONCERN-2020.
+  - id: TB-13-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Architecture ratchet tests MUST apply a substring prefilter before calling
+      `ast.parse()`.
+    rationale: >-
+      `ast.parse()` is the dominant per-file cost (~1 ms each). A plain `in` substring
+      check is ~1 µs. For import-boundary ratchets the prefilter string is the module
+      path being guarded (e.g., `"vultron.wire.as2.vocab.activities"`); for
+      attribute-name ratchets it is the attribute string (e.g., `"ASGITransport"`).
+      Measured reduction: `test_vocab_activities_boundary` 3.8 s → 0.04 s.
+      Source: CONCERN-2020.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-001
+  - id: TB-13-003
+    priority: MUST
+    kind: project
+    lint_suppress:
+    - phantom_path_ref
+    statement: >-
+      No file in `test/architecture/` MAY call `ast.parse()` or `pathlib.Path.rglob`
+      directly. A meta-ratchet in `test/architecture/test_ratchet_hygiene.py` MUST
+      fail when any sibling file contains a bare `ast.parse(` or `.rglob(` call
+      outside of `_corpus.py`.
+    rationale: >-
+      The meta-ratchet makes the shared-corpus pattern self-enforcing. Without it, the
+      next ratchet author can inadvertently reintroduce the pattern the corpus was
+      designed to eliminate, and the problem silently recurs with each new ratchet.
+      The hygiene check itself MUST use plain substring scanning on source strings
+      (via `_corpus.py`) rather than calling `ast.parse()` directly — otherwise it
+      would violate the rule it enforces.
+      Source: CONCERN-2020.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-001
+  - id: TB-13-004
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The full pytest suite (all markers, `uv run pytest -m ""`) SHOULD complete in
+      under 90 seconds on the reference CI runner. Individual architecture ratchet
+      tests SHOULD each complete in under 0.5 seconds.
+    rationale: >-
+      The full-suite wall-clock is the metric that matters for developer feedback
+      loops and CI cost. Per-test timeouts are a safety net, not a performance budget.
+      The 90 s target is aspirational — well below the current ~170 s baseline and
+      achievable only after the shared corpus + xdist parallelisation work lands. It
+      leaves headroom for future test additions above any fully-optimised baseline.
+      Source: CONCERN-2020.
+  - id: TB-13-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The test suite SHOULD be validated for `pytest-xdist` (`-n auto`) compatibility
+      before parallel execution is enabled in CI.
+    rationale: >-
+      `pytest-xdist` is already a declared dependency. Enabling `-n auto` on a
+      fully compatible suite can reduce full-suite wall-clock by 50–70% on multi-core
+      runners.
+      Source: CONCERN-2020.
+  - id: TB-13-006
+    priority: MUST
+    kind: project
+    statement: >-
+      Tests that rely on shared global state (e.g., `py_trees` blackboard,
+      module-level singletons) MUST be identified and either isolated or marked
+      `xdist`-unsafe before `pytest-xdist` parallel execution is enabled in CI.
+    rationale: >-
+      Unguarded shared state causes non-deterministic failures under xdist.
+      Source: CONCERN-2020.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-005
+  - id: TB-13-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A file that does not contain the target fragment string as a plain substring
+      MUST be skipped entirely by architecture ratchet tests.
+    rationale: >-
+      Skipping files without a matching substring avoids the ~1 ms per-file
+      `ast.parse()` cost for files that cannot match the ratchet pattern.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-002
+  - id: TB-13-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Architecture ratchet tests MUST NOT call `ast.parse()` on files that do not
+      contain the target fragment string as a plain substring.
+    rationale: >-
+      `ast.parse()` is the dominant per-file cost (~1 ms each); calling it on
+      non-matching files wastes CI time proportional to corpus size.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-13-002

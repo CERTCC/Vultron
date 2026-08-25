@@ -17,12 +17,14 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+)
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases._helpers import (
@@ -31,8 +33,38 @@ from vultron.core.use_cases._helpers import (
 )
 
 
+def _current_report_phase_rm_state(dl, actor_id: str, report_id: str) -> RM:
+    """Return the current report-phase RM state for actor/report.
+
+    Checks the DataLayer for existing report-phase ParticipantStatus records in
+    descending-progress order (CLOSED first) and returns the highest-progress
+    state found.  Returns ``RM.RECEIVED`` as the implicit default when no
+    records exist — consistent with ``CheckRMStateReceivedOrInvalid`` semantics
+    (absence of a status record means the report was received but not yet
+    processed).
+
+    Per BTND-10-001: callers use this to establish the *current_state* side of
+    the (current_state → target_state) validity check before writing a new
+    report-phase ParticipantStatus.
+    """
+    for rm_state in (
+        RM.CLOSED,
+        RM.ACCEPTED,
+        RM.DEFERRED,
+        RM.VALID,
+        RM.INVALID,
+        RM.RECEIVED,
+    ):
+        status_id = _report_phase_status_id(
+            actor_id, report_id, rm_state.value
+        )
+        if dl.read(status_id) is not None:
+            return rm_state
+    return RM.RECEIVED
+
+
 def _transition_case_participant_rm(
-    node: "DataLayerAction",
+    node: "DataLayerActionWithPorts",
     report_id: str | None,
     new_rm_state: RM,
 ) -> "Status":
@@ -96,14 +128,19 @@ def _transition_case_participant_rm(
     return Status.SUCCESS
 
 
-class TransitionRMtoValid(DataLayerAction):
-    """
-    Transition report to RM.VALID and offer to ACCEPTED.
+class TransitionRMtoValid(DataLayerActionWithPorts):
+    """Transition report to RM.VALID and offer to ACCEPTED.
 
-    Updates both report status (RM.VALID) and offer status (ACCEPTED) in the
-    status layer. Logs state transitions at INFO level.
+    Updates both report status (RM.VALID) and the CaseParticipant RM state.
+    Logs state transitions at INFO level.
 
-    This node implements the core state transition from the validate_report handler.
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+        trigger_activity_factory (object, optional): remapped to
+            /trigger_activity_factory.
+
+    Per BTND-03-009: typed port declarations replace register_key().
     """
 
     def __init__(
@@ -113,17 +150,16 @@ class TransitionRMtoValid(DataLayerAction):
         sender_actor_id: str | None = None,
         name: str | None = None,
     ):
-        """
-        Initialize TransitionRMtoValid node.
+        """Initialize TransitionRMtoValid node.
 
         Args:
-            report_id: ID of VulnerabilityReport to update
-            offer_id: ID of Offer to update
+            report_id: ID of VulnerabilityReport to update.
+            offer_id: ID of Offer to update.
             sender_actor_id: Explicit actor ID to use instead of the blackboard
                 ``actor_id``.  Thread this in when the tree runs under
                 ``receiving_actor_id`` but the RM transition must target the
                 message sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name)
+            name: Optional custom node name (defaults to class name).
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
@@ -163,6 +199,18 @@ class TransitionRMtoValid(DataLayerAction):
                 else self.report_id
             )
 
+            current_rm = _current_report_phase_rm_state(
+                self.datalayer, actor_id, self.report_id
+            )
+            if current_rm != RM.VALID and not is_valid_rm_transition(
+                current_rm, RM.VALID
+            ):
+                self.feedback_message = (
+                    f"Invalid RM transition {current_rm!r} → {RM.VALID!r}"
+                )
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     actor_id, self.report_id, RM.VALID.value
@@ -200,7 +248,7 @@ class TransitionRMtoValid(DataLayerAction):
             return Status.FAILURE
 
 
-class TransitionRMtoInvalid(DataLayerAction):
+class TransitionRMtoInvalid(DataLayerActionWithPorts):
     """
     Transition report to RM.INVALID.
 
@@ -244,6 +292,18 @@ class TransitionRMtoInvalid(DataLayerAction):
                 else self.report_id
             )
 
+            current_rm = _current_report_phase_rm_state(
+                self.datalayer, self.actor_id, self.report_id
+            )
+            if current_rm != RM.INVALID and not is_valid_rm_transition(
+                current_rm, RM.INVALID
+            ):
+                self.feedback_message = (
+                    f"Invalid RM transition {current_rm!r} → {RM.INVALID!r}"
+                )
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.INVALID.value
@@ -276,7 +336,7 @@ class TransitionRMtoInvalid(DataLayerAction):
             return Status.FAILURE
 
 
-class TransitionRMtoClosed(DataLayerAction):
+class TransitionRMtoClosed(DataLayerActionWithPorts):
     """
     Transition report to RM.CLOSED (report-phase ParticipantStatus).
 
@@ -320,6 +380,18 @@ class TransitionRMtoClosed(DataLayerAction):
                 else self.report_id
             )
 
+            current_rm = _current_report_phase_rm_state(
+                self.datalayer, self.actor_id, self.report_id
+            )
+            if current_rm != RM.CLOSED and not is_valid_rm_transition(
+                current_rm, RM.CLOSED
+            ):
+                self.feedback_message = (
+                    f"Invalid RM transition {current_rm!r} → {RM.CLOSED!r}"
+                )
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.CLOSED.value
@@ -351,7 +423,7 @@ class TransitionRMtoClosed(DataLayerAction):
             return Status.FAILURE
 
 
-class TransitionCaseParticipantRMtoClosed(DataLayerAction):
+class TransitionCaseParticipantRMtoClosed(DataLayerActionWithPorts):
     """Transition the actor's RM state to CLOSED in the case for a report.
 
     Looks up the VulnerabilityCase by ``report_id`` and advances the actor's
@@ -387,7 +459,7 @@ class TransitionCaseParticipantRMtoClosed(DataLayerAction):
         return _transition_case_participant_rm(self, self.report_id, RM.CLOSED)
 
 
-class TransitionCaseParticipantRMtoInvalid(DataLayerAction):
+class TransitionCaseParticipantRMtoInvalid(DataLayerActionWithPorts):
     """Transition the actor's RM state to INVALID in the case for a report.
 
     Looks up the VulnerabilityCase by ``report_id`` and advances the actor's

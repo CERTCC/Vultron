@@ -223,7 +223,7 @@ of sync with the stricter typed subclasses.
   `VultronAS2Activity.from_core()` should reject objectless transitive domain
   activities rather than silently materializing invalid wire objects.
 - A backlog bug may already be fixed; close it with concrete code-search and
-  regression-test evidence (see also `notes/bugfix-workflow.md`).
+  regression-test evidence (see also `.claude/skills/bugfix/SKILL.md` § Phase 2a prior-fix check).
 
 ---
 
@@ -393,37 +393,44 @@ tracking issue for ADR update).
 
 ## Target-Field Discriminators: Wire Ambiguity Between Offer Semantics
 
-(CONCERN-1674, 2026-07-27)
+(CONCERN-1674, 2026-07-27; amended CONCERN-2322, 2026-08-20)
 
-`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both serialize as
-`Offer(VulnerabilityCase)` on the wire. They are disambiguated solely by the
+**Resolution summary**: The `OFFER_CASE_MANAGER_ROLE` wire format and all
+supporting infrastructure have been removed (CONCERN-2322). The canonical
+format is `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole,
+target=Actor, context=VulnerabilityCase)`). The historical context below is
+preserved for understanding ADR-0039 and the strictness fix.
+
+---
+
+`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both serialized
+as `Offer(VulnerabilityCase)` on the wire, disambiguated solely by the
 presence or absence of `target=CaseParticipant`:
 
 | Semantic | Pattern |
 |---|---|
-| `OFFER_CASE_MANAGER_ROLE` | `Offer(VulnerabilityCase, target=CaseParticipant)` |
+| `OFFER_CASE_MANAGER_ROLE` (removed) | `Offer(VulnerabilityCase, target=CaseParticipant)` |
 | `OFFER_CASE_OWNERSHIP_TRANSFER` | `Offer(VulnerabilityCase)` (no target) |
 
-**Current protections** (both required while the wire format migration is pending):
+**Structural gap (CONCERN-2322)**: `ActivityPattern._match_activity_field`
+always treated `target_` as permissive (`strict=False`), meaning a bare URI
+string in `target` would match any typed target constraint. Registry ordering
+was therefore the *sole* protection against misrouting when `_rehydrate_fields`
+had not yet resolved the target.
 
-1. **Registry ordering** — `OFFER_CASE_MANAGER_ROLE` appears before
-   `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
-   `_validate_registry_order()` at import time; raises `RegistryOrderError` on
-   violation). See SE-08-001.
-2. **Required target field** — `_OfferCaseManagerRoleActivity.target` is
-   `as_CaseParticipant` (required, not optional). A sender omitting it gets a
-   `ValidationError` at construction time. See SE-08-002.
+**Fix**: When `ActivityPattern.strict=True`, the `target_` field is now also
+matched strictly — bare URI strings do NOT match a typed target constraint.
+Patterns that discriminate by target should set `strict=True`. See SE-08-004.
 
-**Root cause and planned fix** — target-field discrimination is semantically
-odd (the conceptual target is the Actor, not the CaseParticipant wrapper) and
-leaves a latent misrouting risk for buggy or minimally-conformant external
-senders. ADR-0039 records the decision to introduce a dedicated
-`as_CaseParticipantRole` wire object type with
-`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` as the
-general-purpose role-delegation wire format. The implementation is tracked as
-a GitHub Task issue (blocked by CONCERN-1674). See SE-08-003.
+**Full resolution (ADR-0039 + CONCERN-2322)**: The `OFFER_CASE_MANAGER_ROLE`
+format was never emitted by any supported actor; retaining it as a registry
+entry was a source of ordering fragility. It has been removed entirely.
+The canonical `OFFER_CASE_PARTICIPANT_ROLE` format uses a dedicated object
+type (`as_CaseParticipantRole`) that is self-describing without any registry
+ordering dependency. See SE-08-003, SE-08-005.
 
-**Rule for new patterns sharing `Offer(VulnerabilityCase)`** — if a new
-semantic requires `Offer(VulnerabilityCase)`, it MUST either (a) use a distinct
-object type, or (b) add a more-specific discriminator field AND be placed before
-the existing less-specific entries in `SEMANTIC_REGISTRY`.
+**Rule for new patterns that share a verb+object pair** — if a new semantic
+requires the same `(activity_, object_)` pair as an existing pattern, it MUST
+either (a) use a distinct object type (preferred — SE-08-003), or (b) add a
+more-specific discriminator field with `strict=True` AND appear before the
+less-specific entry in `SEMANTIC_REGISTRY` (SE-08-001, SE-08-004).

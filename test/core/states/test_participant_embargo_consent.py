@@ -2,15 +2,17 @@
 
 import pytest
 
+from vultron.core.models.dimensions import PecDimension
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
-    apply_pec_trigger,
     create_pec_machine,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 
 
 class TestPECEnum:
+    @pytest.mark.spec("SM-08-001")
     def test_values_are_strings(self) -> None:
         for member in PEC:
             assert isinstance(member, str)
@@ -40,73 +42,107 @@ class TestPECMachineCreation:
         assert isinstance(machine, Machine)
 
 
-class TestApplyPecTrigger:
+class TestPecDimensionTransition:
     # --- INVITE transitions ---
+    @pytest.mark.spec("SDO-02-001")
     def test_invite_from_no_embargo(self) -> None:
-        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.INVITE)
-        assert result == PEC.INVITED
+        result = PecDimension(state=PEC.NO_EMBARGO).transition(
+            PEC_Trigger.INVITE
+        )
+        assert result.state == PEC.INVITED
 
+    @pytest.mark.spec("SDO-02-001")
     def test_invite_from_lapsed(self) -> None:
-        result = apply_pec_trigger(PEC.LAPSED, PEC_Trigger.INVITE)
-        assert result == PEC.INVITED
+        result = PecDimension(state=PEC.LAPSED).transition(PEC_Trigger.INVITE)
+        assert result.state == PEC.INVITED
 
+    @pytest.mark.spec("SDO-02-001")
     def test_invite_from_declined(self) -> None:
-        result = apply_pec_trigger(PEC.DECLINED, PEC_Trigger.INVITE)
-        assert result == PEC.INVITED
+        result = PecDimension(state=PEC.DECLINED).transition(
+            PEC_Trigger.INVITE
+        )
+        assert result.state == PEC.INVITED
 
     # --- ACCEPT transitions ---
+    @pytest.mark.spec("SDO-02-001")
     def test_accept_from_invited(self) -> None:
-        result = apply_pec_trigger(PEC.INVITED, PEC_Trigger.ACCEPT)
-        assert result == PEC.SIGNATORY
+        result = PecDimension(state=PEC.INVITED).transition(PEC_Trigger.ACCEPT)
+        assert result.state == PEC.SIGNATORY
 
+    @pytest.mark.spec("SDO-02-001")
     def test_accept_from_lapsed(self) -> None:
-        result = apply_pec_trigger(PEC.LAPSED, PEC_Trigger.ACCEPT)
-        assert result == PEC.SIGNATORY
+        result = PecDimension(state=PEC.LAPSED).transition(PEC_Trigger.ACCEPT)
+        assert result.state == PEC.SIGNATORY
 
     # --- DECLINE transitions ---
+    @pytest.mark.spec("SDO-02-001")
     def test_decline_from_invited(self) -> None:
-        result = apply_pec_trigger(PEC.INVITED, PEC_Trigger.DECLINE)
-        assert result == PEC.DECLINED
+        result = PecDimension(state=PEC.INVITED).transition(
+            PEC_Trigger.DECLINE
+        )
+        assert result.state == PEC.DECLINED
 
+    @pytest.mark.spec("SDO-02-001")
     def test_decline_from_lapsed(self) -> None:
-        result = apply_pec_trigger(PEC.LAPSED, PEC_Trigger.DECLINE)
-        assert result == PEC.DECLINED
+        result = PecDimension(state=PEC.LAPSED).transition(PEC_Trigger.DECLINE)
+        assert result.state == PEC.DECLINED
 
     # --- REVISE transition ---
+    @pytest.mark.spec("SDO-02-001")
     def test_revise_from_signatory(self) -> None:
-        result = apply_pec_trigger(PEC.SIGNATORY, PEC_Trigger.REVISE)
-        assert result == PEC.LAPSED
+        result = PecDimension(state=PEC.SIGNATORY).transition(
+            PEC_Trigger.REVISE
+        )
+        assert result.state == PEC.LAPSED
 
     # --- RESET transitions (wildcard) ---
+    @pytest.mark.spec("SDO-02-001")
     @pytest.mark.parametrize(
         "state",
         [PEC.NO_EMBARGO, PEC.INVITED, PEC.SIGNATORY, PEC.DECLINED, PEC.LAPSED],
     )
     def test_reset_from_any_state(self, state: PEC) -> None:
-        result = apply_pec_trigger(state, PEC_Trigger.RESET)
-        assert result == PEC.NO_EMBARGO
+        result = PecDimension(state=state).transition(PEC_Trigger.RESET)
+        assert result.state == PEC.NO_EMBARGO
 
-    # --- Invalid transitions return current state (no raise) ---
-    def test_invite_from_signatory_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.SIGNATORY, PEC_Trigger.INVITE)
-        assert result == PEC.SIGNATORY  # unchanged
+    # --- ADR-0048: ACCEPT and DECLINE directly from NO_EMBARGO ---
+    @pytest.mark.spec("SDO-02-001")
+    def test_accept_from_no_embargo(self) -> None:
+        result = PecDimension(state=PEC.NO_EMBARGO).transition(
+            PEC_Trigger.ACCEPT
+        )
+        assert result.state == PEC.SIGNATORY
 
-    def test_accept_from_no_embargo_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.ACCEPT)
-        assert result == PEC.NO_EMBARGO  # unchanged
+    @pytest.mark.spec("SDO-02-001")
+    def test_decline_from_no_embargo(self) -> None:
+        result = PecDimension(state=PEC.NO_EMBARGO).transition(
+            PEC_Trigger.DECLINE
+        )
+        assert result.state == PEC.DECLINED
 
-    def test_accept_from_declined_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.DECLINED, PEC_Trigger.ACCEPT)
-        assert result == PEC.DECLINED  # unchanged
+    # --- CM-18-004: SIGNATORY → INVITED must remain invalid ---
+    @pytest.mark.spec("SDO-02-002")
+    def test_invite_from_signatory_raises(self) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=PEC.SIGNATORY).transition(PEC_Trigger.INVITE)
 
-    def test_decline_from_no_embargo_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.DECLINE)
-        assert result == PEC.NO_EMBARGO  # unchanged
+    # --- Other invalid transitions raise VultronInvalidStateTransitionError ---
+    @pytest.mark.spec("SDO-02-002")
+    def test_accept_from_declined_raises(self) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=PEC.DECLINED).transition(PEC_Trigger.ACCEPT)
 
-    def test_revise_from_invited_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.INVITED, PEC_Trigger.REVISE)
-        assert result == PEC.INVITED  # unchanged
+    @pytest.mark.spec("SDO-02-002")
+    def test_decline_from_declined_raises(self) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=PEC.DECLINED).transition(PEC_Trigger.DECLINE)
 
-    def test_revise_from_no_embargo_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.REVISE)
-        assert result == PEC.NO_EMBARGO  # unchanged
+    @pytest.mark.spec("SDO-02-002")
+    def test_revise_from_invited_raises(self) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=PEC.INVITED).transition(PEC_Trigger.REVISE)
+
+    @pytest.mark.spec("SDO-02-002")
+    def test_revise_from_no_embargo_raises(self) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=PEC.NO_EMBARGO).transition(PEC_Trigger.REVISE)

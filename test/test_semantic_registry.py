@@ -20,15 +20,19 @@ from vultron.wire.as2.extractor import ActivityPattern
 from vultron.core.models.enums import VultronObjectType as VOtype
 
 
+@pytest.mark.spec("SE-03-001")
+@pytest.mark.spec("VAM-01-001")
 def test_registry_covers_all_semantics():
     registered = {e.semantics for e in SEMANTIC_REGISTRY}
     assert registered == set(MessageSemantics)
 
 
+@pytest.mark.spec("VAM-09-002")
 def test_registry_unknown_is_last():
     assert SEMANTIC_REGISTRY[-1].semantics == MessageSemantics.UNKNOWN
 
 
+@pytest.mark.spec("SE-04-002")
 def test_registry_unresolvable_object_is_second_to_last():
     assert (
         SEMANTIC_REGISTRY[-2].semantics
@@ -36,6 +40,8 @@ def test_registry_unresolvable_object_is_second_to_last():
     )
 
 
+@pytest.mark.spec("SE-03-001")
+@pytest.mark.spec("SE-05-001")
 def test_non_unknown_entries_have_patterns():
     _no_pattern_sentinels = {
         MessageSemantics.UNKNOWN,
@@ -58,6 +64,7 @@ def test_non_unknown_entries_have_event_class():
     assert not missing, f"Missing event_class: {missing}"
 
 
+@pytest.mark.spec("SE-05-002")
 def test_non_unknown_entries_have_use_case_class():
     missing = [
         e.semantics
@@ -67,6 +74,7 @@ def test_non_unknown_entries_have_use_case_class():
     assert not missing, f"Missing use_case_class: {missing}"
 
 
+@pytest.mark.spec("SE-05-002")
 def test_use_case_map_keys_match_semantics():
     ucm = use_case_map()
     registered = set(ucm.keys())
@@ -74,24 +82,28 @@ def test_use_case_map_keys_match_semantics():
     assert registered == expected
 
 
+@pytest.mark.spec("SE-02-001")
 def test_lookup_entry_returns_correct_entry():
     entry = lookup_entry(MessageSemantics.CREATE_REPORT)
     assert entry is not None
     assert entry.semantics == MessageSemantics.CREATE_REPORT
 
 
+@pytest.mark.spec("SE-02-003")
 def test_lookup_entry_unknown_returns_unknown():
     entry = lookup_entry(MessageSemantics.UNKNOWN)
     assert entry is not None
     assert entry.semantics == MessageSemantics.UNKNOWN
 
 
+@pytest.mark.spec("VAM-01-001")
 def test_semantics_to_activity_class_excludes_none_wire_class():
     mapping = semantics_to_activity_class()
     for semantics, cls in mapping.items():
         assert cls is not None, f"{semantics} mapped to None"
 
 
+@pytest.mark.spec("VAM-01-001")
 def test_no_duplicate_semantics():
     seen = set()
     for entry in SEMANTIC_REGISTRY:
@@ -124,6 +136,8 @@ def _make_entry(
     )
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_validate_registry_order_valid_ordering_passes():
     """Specific-before-general ordering must not raise."""
     # specific: Create + VulnerabilityReport object
@@ -143,6 +157,8 @@ def test_validate_registry_order_valid_ordering_passes():
     _validate_registry_order([specific, general])
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_validate_registry_order_reversed_pair_raises():
     """General-before-specific ordering must raise RegistryOrderError."""
     specific = _make_entry(
@@ -161,6 +177,7 @@ def test_validate_registry_order_reversed_pair_raises():
         _validate_registry_order([general, specific])
 
 
+@pytest.mark.spec("SE-03-002")
 def test_validate_registry_order_same_specificity_passes():
     """Entries with identical pattern dumps must not raise.
 
@@ -184,6 +201,8 @@ def test_validate_registry_order_same_specificity_passes():
     _validate_registry_order([pattern_a, pattern_b])
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_live_registry_import_guard_passes():
     """Reload semantic_registry to exercise the import-time order guard.
 
@@ -221,3 +240,79 @@ def test_phrase_format_map_with_defaults_returns_non_empty(entry):
     assert (
         result
     ), f"{entry.semantics.name} phrase produced empty string after format_map"
+
+
+def test_create_case_proposal_phrase_has_no_target_slot():
+    """CREATE_CASE_PROPOSAL must not reference a ``{target}`` slot (#1787).
+
+    ``create_case_proposal_activity`` builds a ``Create(as_CaseProposal)`` with
+    no ``target`` field, so a ``{target}`` slot can never be filled at render
+    time and always resolves to the em-dash fallback — producing a dangling
+    ``"proposed a case to —"``.  The two SE-07 tests above do not catch this:
+    they fill every slot from a ``defaultdict``, so an unfillable slot still
+    renders non-empty.  Pin the phrase to a form that carries no ``{target}``.
+    """
+    entry = lookup_entry(MessageSemantics.CREATE_CASE_PROPOSAL)
+    assert "{target}" not in entry.phrase, (
+        "CREATE_CASE_PROPOSAL phrase references {target}, but the factory "
+        "sets no target; the slot renders as a dangling em-dash. See #1787."
+    )
+
+
+# SE-07-005 — structural slot-allowlist test (CONCERN-1898)
+_RUNTIME_POPULATED_SLOTS = frozenset({"actor", "object", "target"})
+_RESERVED_UNPOPULATED_SLOTS = frozenset({"context", "origin", "inner_object"})
+
+
+def test_no_phrase_uses_unpopulated_slots():
+    """No phrase may reference a slot the render pipeline never fills (SE-07-005).
+
+    The runtime render pipeline (``CaseTimelineEvent.summary``,
+    ``event_phrase()``) only populates ``{actor}``, ``{object}``, and
+    ``{target}``.  A phrase referencing ``{context}``, ``{origin}``, or
+    ``{inner_object}`` passes ``test_phrase_format_map_with_defaults_returns_non_empty``
+    (which uses a ``defaultdict`` that fills every slot) but produces a dangling
+    ``"—"`` in production because those slots are never set at render time.
+    This test makes unfillable-slot bugs a CI failure (CONCERN-1898).
+    """
+    import re
+
+    slot_re = re.compile(r"\{(\w+)\}")
+    violations: list[str] = []
+    for entry in SEMANTIC_REGISTRY:
+        slots = set(slot_re.findall(entry.phrase))
+        bad = slots & _RESERVED_UNPOPULATED_SLOTS
+        if bad:
+            violations.append(
+                f"{entry.semantics.name}: phrase={entry.phrase!r} uses "
+                f"unpopulated slot(s) {sorted(bad)}"
+            )
+    assert not violations, (
+        "The following phrases reference slots the render pipeline never fills:\n"
+        + "\n".join(violations)
+        + "\nUse only {actor}, {object}, {target}. "
+        "If the pipeline is extended to populate a new slot, update "
+        "_RUNTIME_POPULATED_SLOTS in this test."
+    )
+
+
+@pytest.mark.parametrize(
+    "entry", SEMANTIC_REGISTRY, ids=lambda e: e.semantics.name
+)
+def test_no_phrase_uses_unknown_slots(entry):
+    """Every slot name in a phrase must be a known identifier (SE-07-002).
+
+    Catches typos like ``{actr}`` or new slot names introduced without
+    updating the allowlist.  Valid slot names are the runtime-populated set
+    plus the reserved-for-future set documented in SE-07-002.
+    """
+    import re
+
+    all_known = _RUNTIME_POPULATED_SLOTS | _RESERVED_UNPOPULATED_SLOTS
+    slot_re = re.compile(r"\{(\w+)\}")
+    slots = set(slot_re.findall(entry.phrase))
+    unknown = slots - all_known
+    assert not unknown, (
+        f"{entry.semantics.name}: phrase={entry.phrase!r} uses unknown "
+        f"slot(s) {sorted(unknown)}. Valid names: {sorted(all_known)}"
+    )

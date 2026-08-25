@@ -5,8 +5,9 @@ Unlike `plan/BUILD_LEARNINGS.md` (which is ephemeral), files here are
 committed to version control and MUST be kept up to date as the
 implementation evolves.
 
-Archived historical notes (fully superseded or completed task logs) are in
-`archived_notes/` — see its README for what is there and why.
+Archived notes sections (fully superseded or completed task logs) are in
+`plan/history/YYMM/note/` — archived via `append-history note` with source ID
+`NOTES-<file-stem>--<section-slug>`.
 
 ## How to navigate
 
@@ -24,6 +25,19 @@ constraints/invariants, and review checklist. Includes the
 validate-at-edge / promote-to-core rule (ADR-0032).
 **Load when**: orienting to architecture boundaries, reviewing layering
 violations, or validating core/wire separation.
+
+**`core-wire-rendering-port.md`**
+Why core legitimately needs wire-shaped JSON (only for
+`CaseLedgerEntry.payloadSnapshot`), why `alias_generator=to_camel` on core types
+was both an ARCH-12-003 violation and structurally insufficient, and the
+`WireRenderPort` driven seam that replaces it. Lists the five consumers of the
+old core-side aliasing, the reject-guard that MUST accompany deletion of any
+flat-field shim (SDO-03-005), and why persisted rows are unaffected.
+Normative requirements: `specs/architecture.yaml` ARCH-20,
+`specs/case-ledger-processing.yaml` CLP-07-009/010.
+**Load when**: touching `alias_generator`/`by_alias` anywhere, building or
+reviewing payload snapshots, removing a flat-field migration shim, or adding a
+core→wire projection.
 
 **`domain-validation.md`**
 Strict vs. loose domain object boundary contract: where objects transition from
@@ -49,9 +63,10 @@ boundaries and auto-rehydration.
 
 **`architecture-adapters.md`**
 Adapter-focused architecture guidance: adapter category discipline, outbound
-delivery invariants, ASGI emitter patterns, driven-port baton-pass pattern,
-long-term BT flow direction, remaining ARCH-01-001 violation context, future
-delivery stubs, boundary ratchet tests, and DataLayer scope boundaries.
+delivery invariants, the uniform-HTTP inter-actor delivery model (ADR-0042),
+driven-port baton-pass pattern, long-term BT flow direction, remaining
+ARCH-01-001 violation context, future delivery stubs, boundary ratchet tests,
+and DataLayer scope boundaries.
 **Load when**: implementing adapters, debugging delivery behavior, or auditing
 adapter/core boundary compliance.
 
@@ -96,6 +111,14 @@ and testing patterns for the factory-function layer. Operating rules are in
 the full factory inventory, or understanding the `VultronActivityConstructionError`
 wrapping pattern.
 
+**`outbox-delivery-reliability.md`**
+Implementation guidance for the outbox delivery reliability hardening (CONCERN-2302 /
+ADR-0066): per-activity abort scope fix, 4xx terminal classification, timeout/jitter/pool
+configuration, and per-activity attempt counter with dead-letter store.
+**Load when**: implementing Tasks for #2302 (abort scope, 4xx classification,
+timeout/jitter/limits, attempt counter, dead letter), or adding new delivery paths that
+must satisfy OX-13-001 through OX-13-006.
+
 **`outbox.md`**
 Outbox addressing requirements: `to:` field enforcement, `VultronOutboxToFieldMissingError`
 exception design, `cc`/`bto`/`bcc` warning policy, and implementation details
@@ -112,6 +135,16 @@ AKM-08).
 **Load when**: implementing actor knowledge queries, designing inter-actor
 trust or awareness logic, or working on AKM spec requirements.
 
+**`structured-logging.md`**
+Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
+and per-module guidance for keeping actor INFO logs readable as a CVD protocol
+story. Documents the approved verb–template inventory (`Actor '<id>' RM: A → B
+for case '<id>'`), the ~10 infrastructure patterns that MUST be at DEBUG, and
+the ~8 missing INFO messages required by SL-04-001. Source: CONCERN-1968.
+**Load when**: adding a new BT node that writes RM/CS/EM state (must add INFO
+log), auditing logging levels in actor container output, or implementing
+CONCERN-1968 logging remediation.
+
 **`configuration.md`**
 Design decisions for YAML-backed Pydantic configuration loading in Vultron:
 `ActorConfig` neutral model, `LocalActorConfig` composition, default embargo
@@ -125,6 +158,16 @@ Covers proposed module layout, protocol activity-to-use-case mapping, the
 standardized `UseCase` protocol, and `SEMANTICS_HANDLERS` migration to core.
 **Load when**: adding a new message type end-to-end, restructuring the
 dispatcher or use-case layer, or deciding whether a use case needs a BT.
+
+**`use-case-protocol.md`**
+Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
+`TriggerResult`), the two semantically distinct request paths (`VultronEvent`
+vs `TriggerRequest`), why `UseCaseRequest` was not introduced, how
+`TriggerService` and `TriggerServicePort` were migrated from `dict` to
+`TriggerResult`, and the ratchet test design. ADR: `docs/adr/0040-use-case-result-envelope.md`.
+**Load when**: implementing a new use case, reviewing the `execute()` contract,
+working on `UseCase` Protocol or `TriggerServicePort` signatures, or debugging
+return-type ratchet failures.
 
 **`inbox-orchestration.md`**
 Design decisions for the core BT-backed inbox orchestration module: why
@@ -231,6 +274,17 @@ composability, and open architecture questions.
 whether a new use case needs a BT, or implementing a BT-backed use case
 from scratch.
 
+**`py-trees-ports-adoption.md`** *(archived — migration complete)*
+Completed reference for the py_trees 2.5.0 typed-Ports migration
+(`vultron/core/behaviors/`): the eight finalized conventions (Type A–D node
+shapes, execution-scoped keys, read-modify-write dual-alias, `_InboxNodeWithPorts`
+base, `NotImplementedError` on explicit `None`), the composite and
+constructor-parameterized gate exemptions, and the planned XML-as-spec spike.
+**Load when**: writing a new BT node that uses typed Ports and need the
+canonical patterns reference (finalized conventions sections 1–8).
+**Do not load when**: looking for live migration tasks — the migration
+(`#1809` chain, parts 1–5) is complete.
+
 **`bt-canonical-reference.md`**
 Canonical CVD Protocol Behavior Tree structural reference: trunk-removed
 branches model, node symbol legend, top-level structure, subtree map
@@ -281,6 +335,17 @@ bundles. Derived from #1631 planning; implemented by #1152.
 demo scenarios or tests; designing the bundle/singleton layout in
 `vultron/demo/fuzzer/bundles/`; understanding the three-mode backend model.
 
+**`received-status-authorization.md`**
+Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
+(in `add_participant_status_tree`) for status adoption authorization,
+EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
+for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, self-addressed
+Add(CaseStatus) threading pattern, and migration from PublicDisclosureBranchNode.
+Derived from IDEA-1836 / ADR-0046.
+**Load when**: implementing #1836 or any changes to received-side status handling,
+StatusAdoptionGate, EmbargoTeardownAuthorizationGate, or ThreatTerminationBranchNode;
+understanding the sentinel actor integration pattern.
+
 **`bt-fuzzer-nodes.md`**
 Index and background for the fuzzer node catalog. Fuzzer nodes are stub
 implementations in the legacy BT simulation (`vultron/bt/`) that stand in for
@@ -290,7 +355,7 @@ needs external input (data, a decision, or content). This file explains the
 entry format, automation potential categories, and the fuzzer base-type
 probability table, then indexes the per-domain sub-files.
 **Load when**: understanding what fuzzer nodes are and why they exist; mapping
-fuzzer nodes to coordination agent types; jump directly to a sub-file for the
+fuzzer nodes to capability shapes; jump directly to a sub-file for the
 actual catalog entries.
 
 **`bt-fuzzer-nodes-vul-discovery.md`**
@@ -376,9 +441,11 @@ for idiom conformance, or learning the canonical BT construction style.
 **`embargo-default-semantics.md`**
 Design decisions for `specs/embargo-policy.yaml` EP-04: default embargo state
 (MUST produce `EM.ACTIVE`, not `EM.PROPOSED`), atomic PROPOSE+ACCEPT sequence,
-and default embargo duration semantics.
-**Load when**: implementing or debugging `InitializeDefaultEmbargoNode`, or
-working on EP-04-001/EP-04-002 requirements (TASK-EMDEFAULT).
+default embargo duration semantics, and the published-default / tacit-acceptance
+model explaining why no EP/EA exchange appears on the happy path.
+**Load when**: implementing or debugging `InitializeDefaultEmbargoNode`,
+working on EP-04-001/EP-04-002 requirements, or distinguishing the default
+embargo path from the negotiated path in demos or protocol traces.
 
 **`do-work-behaviors.md`**
 Scope analysis of "do work" BT behaviors: out-of-scope, not-implementable, and
@@ -443,32 +510,44 @@ vs replicated canonical chain, and rejection handling.
 multi-actor case state synchronization, or evaluating the CaseActor assertion
 model.
 
+**`case-ledger-parsing.md`**
+Tolerant parsing patterns for case-ledger JSONL consumers: the three nesting
+shapes for RM/EM/VFD/PXA state (ADR-0036 dimension objects, legacy flat wire
+spellings, nested-under-Add), robust extraction helpers, malformed-field
+coercion, and multi-case partitioning (DRPT-02-006).
+**Load when**: writing any consumer of case-ledger JSONL (report tools,
+invariant checks, dashboards), debugging state extraction from devlogs, or
+implementing `payloadSnapshot` parsers.
+
 **`sync-ledger-replication.md`**
 Log-centric architecture overview: hash-chain design rationale, log position
-in activity `context`, implementation phases (SYNC-1–4), system invariants,
+in activity `context`, implementation phases (AppendOnlyLedger–PeerLedgerSync), system invariants,
 open questions for the replicated case event log, SYNC-13 ledger write-ownership
 boundary, and pre-SYNC-13 upgrade path.
 **Load when**: designing multi-actor case synchronization, evaluating the
-hash-chain log approach, scoping the SYNC-1–4 implementation phases, or
+hash-chain log approach, scoping the AppendOnlyLedger–PeerLedgerSync implementation phases, or
 investigating the SYNC-12/SYNC-13 effects-before-persist and write-ownership
 invariants.
 
 **`participant-case-replica.md`**
 Design notes for participant case replicas: per-actor case copies, the
 synchronisation model between `CaseActor` and participant actors, and the
-relationship to SYNC-1/SYNC-2 implementation phases.
+relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 **Load when**: implementing participant-side case replica handling, working on
 `specs/participant-case-replica.yaml` (PCR) requirements, or designing the
 `Announce(CaseLedgerEntry)` inbound handler.
 
 **`participant-embargo-consent.md`**
 Design decisions for per-participant embargo acceptance tracking: a 5-state
-consent machine (`NO_EMBARGO → INVITED → SIGNATORY / DECLINED / LAPSED`),
+consent machine (`NO_EMBARGO`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`),
 embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
-`Accept(Invite(case))` → implicit consent rule. Not yet implemented.
+`Accept(Invite(case))` → implicit consent rule. Records why `NO_EMBARGO` means
+*absence of embargo* rather than pre-consent (ADR-0048), so `ACCEPT`/`DECLINE`
+are valid directly from it, and the direct-assignment pitfall that silently
+desyncs `ParticipantStatus.consent` from the emitted ledger snapshot.
 **Load when**: implementing per-participant EM state tracking, working on the
-embargo consent state machine in `vultron/core/states/`, or debugging
-`embargo_adherence` field semantics.
+embargo consent state machine in `vultron/core/states/`, writing any PEC state
+change, or debugging `embargo_adherence` / `emConsentState` semantics.
 
 **`embargo-lifecycle.md`**
 Target architecture for EM state management: the inline-`EMAdapter`
@@ -503,6 +582,15 @@ scenario, and the spec-test sync rule.
 adding or changing a scenario's expected event types, or debugging a silent
 invariant harness failure in CI.
 
+**`demo-ci-scenario-coverage.md`**
+Coverage matrix mapping all 8 demo scenarios to the distinct protocol
+`event_type` values each exercises, plus the minimum-PR-validation-set
+analysis (DEMOCI-06): which 3 scenarios cover all 7 event types, rationale
+for the minimum set, and workflow implementation notes.
+**Load when**: evaluating which demo scenarios to include in the PR gate,
+adding a new scenario and determining whether it changes the minimum set, or
+auditing `full_suite_only` assignments in `demo-integration.yml`.
+
 **`codebase-structure-fastapi-patterns.md`**
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern
@@ -535,6 +623,23 @@ sync-log-entry context field, and testing patterns.
 the resolved design rationale for the trigger architecture, or auditing trigger
 classification (demo-only vs general-purpose).
 
+**`architecture-ratchet-corpus.md`**
+Design decisions and measurements for the shared corpus pattern in
+`test/architecture/`: why a module-level source cache beats a session fixture
+(timeout-window constraints), the prefilter approach, memory budget comparison,
+xdist compatibility notes, and alternatives considered.
+**Load when**: implementing or reviewing `test/architecture/_corpus.py`, adding
+a new architecture ratchet test, auditing full-suite performance, or evaluating
+xdist compatibility.
+
+**`flaky-tests.md`**
+Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
+Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
+this file is a speed hint. Maintained by `pr-execute` (add) and `bugfix`/`build`
+(remove on issue close).
+**Load when**: triaging a pre-existing test failure in `pr-execute`, or auditing
+the current set of known-flaky tests.
+
 **`docker-build.md`**
 Project-specific Docker build observations: dependency layer caching, image
 content scoping, health check coordination between services, and a general
@@ -555,6 +660,16 @@ Three-Actor (Finder + Vendor + Coordinator), MultiParty (ownership transfer).
 Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
 beyond the current FV scenario.
+
+**`cvd-recipe-injects.md`**
+Classification of all 21 CERT Guide to CVD problem-solving recipes as Vultron
+scenario injects. Each recipe is mapped to RM/EM/CS protocol constructs and
+assigned to a tier: A (implementable now), B (needs protocol/infra work), or
+C (out of scope). Tier A recipes each have a Task issue under epic #1160;
+Tier B recipes each have an Idea issue. Source: IDEA-1223.
+**Load when**: designing new failure-path or abnormal-flow demo scenarios,
+selecting which CVD recipes to implement as inject variations, or checking
+whether a recipe has already been classified and tracked.
 
 **`vultron/core/use_cases/triggers/AGENTS.md`**
 Trigger classification guidance: demo-specific vs general-purpose
@@ -585,33 +700,26 @@ the migration from monolithic `plan/*HISTORY.md` files.
 **Load when**: using or modifying the `append-history` tool, adding a new
 `HistoryEntryType`, or understanding the `plan/history/` directory structure.
 
-**`plan-history-management.md`** *(archived — see `archived_notes/`)*
+**`plan-history-management.md`** *(archived — see `plan/history/`)*
 Superseded by `specs/history-management.yaml` and the `append-history` tool.
 The IMPLEMENTATION_PLAN.md management rules it described are no longer relevant.
 
-**`plan-organization.md`** *(archived — see `archived_notes/`)*
+**`plan-organization.md`** *(archived — see `plan/history/`)*
 Superseded — described the now-retired `TASK-FOO` naming scheme for
 `plan/IMPLEMENTATION_PLAN.md`. All work is tracked as GitHub Issues.
 See `notes/parallel-development.md` for the current model.
 
-**`work-granularity.md`** *(archived — see `archived_notes/`)*
+**`work-granularity.md`** *(archived — see `plan/history/`)*
 Superseded — described the three-tier model (GitHub Issue → TASK-FOO →
 checklist items). IMPLEMENTATION_PLAN.md has been removed; see
 `specs/project-documentation.yaml` PD-09 for current guidance.
 
-**`append-only-file-handling.md`** *(archived — see `archived_notes/`)*
+**`append-only-file-handling.md`** *(archived — see `plan/history/`)*
 Superseded by `specs/history-management.yaml` and the `append-history` tool
 (2026-04-28). The manual `cat >>` append procedure it describes is no longer
 used.
 **Load when**: investigating the pre-2026-04-28 history file procedure for
 historical context only.
-
-**`bugfix-workflow.md`**
-Design decisions and implementation patterns for the test-first bugfix
-workflow: the structured interview → failing-test → fix → verify cycle.
-Operationalises `specs/bugfix-workflow.yaml` (BFW).
-**Load when**: following the BUGFIX skill workflow, implementing bugfix
-tooling, or working on BFW spec requirements.
 
 **`agentic-workflow.md`**
 The four-skill agentic development pipeline: `ingest-idea`, `learn`,
@@ -622,16 +730,26 @@ flowchart and future BT automation notes.
 **Load when**: understanding or evolving the agent skill pipeline, automating
 the development loop, or deciding which skill to run next.
 
+**`ownership-transfer.md`**
+Implementation guidance for the ownership-transfer routing model (ADR-0053):
+Offer and Accept MUST route through the CaseActor; correct flow for
+`EmitOfferCaseOwnershipTransferNode`, `EmitAcceptCaseOwnershipTransferNode`,
+`OfferCaseOwnershipTransferReceivedUseCase`, and the cascade wiring in
+`ownership_transfer_tree.py`. Includes the demo workaround removal checklist.
+**Load when**: implementing ownership-transfer routing fixes (CM-21-005,
+CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
+why the CaseActor must be the intermediary for ownership transfers.
+
 **`coordination-agents.md`**
-Design guidance for coordination agents — external capabilities (human, skill,
-or LLM agent) that answer Vultron call-out points. Covers the two-surface
-integration model (trigger endpoints = call-in; call-out points = call-out),
-the four agent type patterns (Sentinel, Evaluator, Retriever, Composer), the
-trust/execution-authority axis, composite agent design, and the fuzzer-node
-discovery methodology.
-**Load when**: designing a new coordination agent or call-out point integration,
-working on the fuzzer-to-agent replacement roadmap, or explaining the
-coordination agent concept to new contributors.
+Design guidance for capability shapes — the five abstract interface contracts
+(Sentinel, Evaluator, Retriever, Composer, Actuator) that answer Vultron
+call-out points. Covers the two-surface integration model (trigger endpoints =
+call-in; call-out points = call-out), the three-level taxonomy (shape /
+capability / capability implementation), the trust/execution-authority axis,
+composite capability design, and the fuzzer-node discovery methodology.
+**Load when**: designing a new capability or call-out point integration,
+working on the fuzzer-to-capability replacement roadmap, or explaining the
+capability shape concept to new contributors.
 
 **`agents-md-structure.md`**
 Routing policy for `AGENTS.md` content: the decision tree for whether new
@@ -666,13 +784,13 @@ Pydantic model, loader, pre-commit hook, and migration checklist.
 **Load when**: adding frontmatter to a new notes file, modifying the frontmatter
 schema, or debugging `validate-notes-frontmatter` pre-commit failures.
 
-**`spec-registry.md`** *(archived — see `archived_notes/`)*
+**`spec-registry.md`** *(archived — `plan/history/2607/note/NOTES-spec-registry.md`)*
 Implemented — `specs/*.md` fully migrated to YAML; `vultron/metadata/specs/` is in place.
 
-**`demo-ci.md`** *(archived — see `archived_notes/`)*
+**`demo-ci.md`** *(archived — `plan/history/2607/note/NOTES-demo-ci.md`)*
 Implemented — `demo-integration.yml` workflow exists in `.github/workflows/`.
 
-**`docs-build-workflow.md`** *(archived — see `archived_notes/`)*
+**`docs-build-workflow.md`** *(archived — `plan/history/2607/note/NOTES-docs-build-workflow.md`)*
 Implemented — `docs-build-check.yml` workflow exists in `.github/workflows/`.
 
 ---

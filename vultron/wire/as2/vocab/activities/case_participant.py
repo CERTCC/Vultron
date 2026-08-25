@@ -15,8 +15,10 @@
 Provides Vultron ActivityStreams Activities related to CaseParticipants
 """
 
-# TODO: remove Literals because parent classes already define them
-# TODO: use pydantic's typing more effectively
+# Prior TODOs (now removed):
+# "remove Literals" — no redundant Literal annotations exist in current code.
+# "use pydantic typing more effectively" — Field aliases and model_validator are
+# idiomatic pydantic v2; no further improvement identified.
 
 from pydantic import Field, model_validator
 

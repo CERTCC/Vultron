@@ -19,10 +19,15 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal, cast
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
+from vultron.core.behaviors.sync.nodes.canonical_entry import (
+    _validate_canonical_entry,
+)
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -30,57 +35,10 @@ from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _reconstruct_tail_hash
-from vultron.errors import VultronCanonicalEntryError
 from vultron.errors import VultronError
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
-
-_CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
-    ("Create", "VulnerabilityCase"),
-    ("Offer", "VulnerabilityReport"),
-    ("Offer", "VulnerabilityCase"),
-    ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
-    ("TentativeReject", "Offer"),  # invalidate_report (RI)
-    ("Reject", "Offer"),  # close_report (RC)
-    ("Read", "Offer"),  # ack_report (RK, ADR-0021)
-    ("Add", "Note"),
-    ("Add", "VulnerabilityReport"),  # add_report_to_case
-    ("Add", "CaseStatus"),  # add_case_status_to_case
-    ("Add", "ParticipantStatus"),
-    ("Add", "EmbargoEvent"),
-    ("Remove", "EmbargoEvent"),
-    ("Offer", "EmbargoEvent"),
-    ("Invite", "EmbargoEvent"),
-    ("Accept", "EmbargoEvent"),
-    ("Reject", "EmbargoEvent"),
-    ("Join", "VulnerabilityCase"),
-    ("Ignore", "VulnerabilityCase"),
-    ("Leave", "VulnerabilityCase"),
-    ("Invite", "VulnerabilityCase"),
-    ("Accept", "Invite"),
-    ("Reject", "Invite"),
-    ("Announce", "VulnerabilityCase"),
-    ("Offer", "CaseParticipant"),
-)
-_CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
-    {
-        ("Announce", "VulnerabilityCase"),
-        ("Add", "EmbargoEvent"),
-        ("Remove", "EmbargoEvent"),
-        ("Invite", "EmbargoEvent"),
-        ("Offer", "CaseParticipant"),
-        ("Invite", "VulnerabilityCase"),
-        ("Offer", "VulnerabilityCase"),
-        # Leave(VulnerabilityCase): case-actor's AutoCloseBranchNode when all reach RM.CLOSED.
-        ("Leave", "VulnerabilityCase"),
-        # Accept(Offer): case-actor accepts CaseManagerRole delegation offer.
-        ("Accept", "Offer"),
-    }
-)
-_INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
-    {"object", "object_", "target"}
-)
 
 
 def _require_log_entry(
@@ -129,139 +87,43 @@ def _to_persistable_entry(
     )
 
 
-def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
-    activity_type = snapshot.get("type") or snapshot.get("type_")
-    return (
-        activity_type
-        if isinstance(activity_type, str) and activity_type
-        else None
-    )
-
-
-_ACTOR_TYPES: frozenset[str] = frozenset(
-    {"Actor", "Application", "Group", "Organization", "Person", "Service"}
-)
-
-
-def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
-    # Invite(Actor, target=Case): object_ is the actor; use target.type so the
-    # signature resolves to ('Invite','VulnerabilityCase') not ('Invite','Org').
-    obj = snapshot.get("object") or snapshot.get("object_")
-    if not isinstance(obj, dict):
-        return None
-    object_type = obj.get("type") or obj.get("type_")
-    if not isinstance(object_type, str) or not object_type:
-        return None
-    if object_type in _ACTOR_TYPES:
-        target = snapshot.get("target")
-        if isinstance(target, dict):
-            target_type = target.get("type") or target.get("type_")
-            if isinstance(target_type, str) and target_type:
-                return target_type
-    return object_type
-
-
-def _bare_inline_object_path(
-    value: Any, path: str = "payloadSnapshot"
-) -> str | None:
-    if isinstance(value, dict):
-        for key, child in value.items():
-            child_path = f"{path}.{key}"
-            if key in _INLINE_OBJECT_KEYS and isinstance(child, str):
-                return child_path
-            nested_path = _bare_inline_object_path(child, child_path)
-            if nested_path is not None:
-                return nested_path
-        return None
-    if isinstance(value, list):
-        for index, item in enumerate(value):
-            nested_path = _bare_inline_object_path(item, f"{path}[{index}]")
-            if nested_path is not None:
-                return nested_path
-    return None
-
-
-def _validate_canonical_entry(
-    *,
-    case_id: str,
-    actor_id: str | None,
-    case_actor_id: str | None = None,
-    disposition: str,
-    payload_snapshot: dict[str, Any],
-    event_type: str,
-) -> None:
-    # Runs before idempotency check so malformed entries never reach the
-    # equivalence lookup (CLP-07). Relaxed for non-recorded dispositions.
-    if disposition != "recorded":
-        return
-    if not payload_snapshot:
-        raise VultronCanonicalEntryError(
-            f"{event_type}: recorded canonical entries require a non-empty "
-            "payloadSnapshot"
-        )
-
-    snapshot_actor = payload_snapshot.get("actor")
-    if not isinstance(snapshot_actor, str) or not snapshot_actor:
-        raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot.actor must be a non-empty URI"
-        )
-
-    activity_type = _snapshot_type(payload_snapshot)
-    object_type = _snapshot_object_type(payload_snapshot)
-    signature = (activity_type or "", object_type or "")
-
-    bare_reference_path = _bare_inline_object_path(payload_snapshot)
-    if bare_reference_path is not None:
-        raise VultronCanonicalEntryError(
-            f"{event_type}: {bare_reference_path} must be an inline object, "
-            "not a bare ID string"
-        )
-
-    if signature not in _CANONICAL_PAYLOAD_SIGNATURES:
-        raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot type/object pair {signature!r} "
-            "is not canonical"
-        )
-
-    # CLP-07-003: only CaseActor-authored activities may have the CaseActor as
-    # snapshot actor; all participant-originated activities must have a
-    # participant (non-CaseActor) actor.
-    if (
-        case_actor_id
-        and snapshot_actor == case_actor_id
-        and signature not in _CASE_AUTHORED_SIGNATURES
-    ):
-        raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot.actor must not be the CaseActor"
-            f" for non-case-authored entries (signature={signature!r})"
-        )
-
-    context = payload_snapshot.get("context")
-    if context != case_id:
-        raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot.context must equal the case URI"
-        )
-
-
-class ReconstructChainTailNode(DataLayerAction):
+class ReconstructChainTailNode(DataLayerActionWithPorts):
     def __init__(
         self, case_id: str | None = None, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="tail_hash", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="tail_index", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=False)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "tail_hash": PortInformation(data_type=object, required=True),
+            "tail_index": PortInformation(data_type=object, required=True),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "tail_hash": "/tail_hash",
+            "tail_index": "/tail_index",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
         if self._case_id is None:
-            self.blackboard.register_key(
-                key="activity", access=py_trees.common.Access.READ
-            )
+            try:
+                self.activity = self.get_input("activity")
+            except Exception:
+                self.activity = None
+        else:
+            self.activity = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -270,24 +132,42 @@ class ReconstructChainTailNode(DataLayerAction):
         if self._case_id is not None:
             case_id = self._case_id
         else:
-            case_id = _require_case_id_from_activity(
-                self.blackboard.activity, self.name
-            )
+            case_id = _require_case_id_from_activity(self.activity, self.name)
 
         try:
             tail_hash, tail_index = _reconstruct_tail_hash(
                 case_id, self.datalayer
             )
         except VultronValidationError as exc:
-            self.logger.error(
-                "%s: cannot reconstruct tail hash for case '%s': %s",
+            # _reconstruct_tail_hash raises here for exactly one condition:
+            # an empty local ledger with no per-case genesis hash yet — the
+            # pre-genesis bootstrap window where an Announce(CaseLedgerEntry)
+            # arrived before the Create(VulnerabilityCase) that seeds genesis.
+            # This is an expected, self-healing situation, NOT a fault: the
+            # downstream ReconstructOrRejectOnMissingCase selector fires a
+            # Reject(CaseLedgerEntry) carrying the empty tail_hash sentinel,
+            # prompting the CaseActor to replay from genesis (SYNC-15-001,
+            # CLP-08-005).  Log at WARNING so this designed recovery does not
+            # surface as spurious ERROR noise on replica containers (#2169).
+            # (Genuine chain corruption — hash mismatch, index gaps — is
+            # handled separately by CheckHashOrRejectOnMismatchNode and never
+            # reaches this branch.)
+            self.logger.warning(
+                "%s: pre-genesis window for case '%s' — sending Reject to "
+                "replay from genesis (CLP-08-005): %s",
                 self.name,
                 case_id,
                 exc,
             )
+            # Write sentinel values so the downstream reject node can fire even
+            # though the tree would normally stop at this FAILURE.  An empty
+            # tail_hash signals "replay from genesis" to the CaseActor
+            # (SYNC-15-001, CLP-08-005).
+            self._set_output("tail_hash", "")
+            self._set_output("tail_index", -1)
             return Status.FAILURE
-        self.blackboard.tail_hash = tail_hash
-        self.blackboard.tail_index = tail_index
+        self._set_output("tail_hash", tail_hash)
+        self._set_output("tail_index", tail_index)
         self.logger.debug(
             "%s: reconstructed case '%s' tail hash %.16s… at index %d",
             self.name,
@@ -298,18 +178,26 @@ class ReconstructChainTailNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class UpdateReplicationStateNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class UpdateReplicationStateNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        activity = self.blackboard.activity
+        activity = self.activity
         entry = getattr(activity, "rejected_entry", None)
         if entry is None:
             entry = getattr(activity, "object_", None)
@@ -347,7 +235,7 @@ class UpdateReplicationStateNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CreateLogEntryNode(DataLayerAction):
+class CreateLogEntryNode(DataLayerActionWithPorts):
     def __init__(
         self,
         case_id: str,
@@ -371,20 +259,35 @@ class CreateLogEntryNode(DataLayerAction):
         self.reason_detail = reason_detail
         self.disposition: Literal["recorded", "rejected"] = disposition
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="tail_hash", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="tail_index", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="log_entry", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="log_entry_preexisting", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["tail_hash"] = PortInformation(data_type=object, required=True)
+        ports["tail_index"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "log_entry": PortInformation(data_type=object, required=True),
+            "log_entry_preexisting": PortInformation(
+                data_type=object, required=True
+            ),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "tail_hash": "/tail_hash",
+            "tail_index": "/tail_index",
+            "log_entry": "/log_entry",
+            "log_entry_preexisting": "/log_entry_preexisting",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.tail_hash = self.get_input("tail_hash")
+        self.tail_index = self.get_input("tail_index")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -417,8 +320,8 @@ class CreateLogEntryNode(DataLayerAction):
                 entry = VultronCaseLedgerEntry.model_validate(
                     existing.model_dump(mode="json")
                 )
-            self.blackboard.log_entry = entry
-            self.blackboard.log_entry_preexisting = True
+            self._set_output("log_entry", entry)
+            self._set_output("log_entry_preexisting", True)
             self.logger.info(
                 "%s: reusing existing log entry case_id=%s event_type=%s "
                 "log_index=%d",
@@ -429,8 +332,8 @@ class CreateLogEntryNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        tail_hash = self.blackboard.tail_hash
-        tail_index = self.blackboard.tail_index
+        tail_hash = self.tail_hash
+        tail_index = self.tail_index
         chain_entry = HashChainLedgerRecord(
             case_id=self.case_id,
             log_index=tail_index + 1,
@@ -443,19 +346,33 @@ class CreateLogEntryNode(DataLayerAction):
             reason_code=self.reason_code,
             reason_detail=self.reason_detail,
         )
-        self.blackboard.log_entry = _to_persistable_entry(chain_entry)
-        self.blackboard.log_entry_preexisting = False
+        self._set_output("log_entry", _to_persistable_entry(chain_entry))
+        self._set_output("log_entry_preexisting", False)
         return Status.SUCCESS
 
 
-class PersistLogEntryNode(DataLayerAction):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="log_entry", access=py_trees.common.Access.READ
+class PersistLogEntryNode(DataLayerActionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["log_entry_preexisting"] = PortInformation(
+            data_type=bool, required=False
         )
-        self.blackboard.register_key(
-            key="log_entry_preexisting", access=py_trees.common.Access.READ
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "log_entry": "/log_entry",
+            "log_entry_preexisting": "/log_entry_preexisting",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.log_entry = self.get_input("log_entry")
+        self.log_entry_preexisting: bool = self.get_input(
+            "log_entry_preexisting", default=False
         )
 
     def update(self) -> Status:
@@ -463,11 +380,8 @@ class PersistLogEntryNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
-        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
-        try:
-            preexisting = bool(self.blackboard.log_entry_preexisting)
-        except KeyError:
-            preexisting = False
+        entry = cast(VultronCaseLedgerEntry, self.log_entry)
+        preexisting = bool(self.log_entry_preexisting)
         if preexisting:
             self.logger.info(
                 "%s: log entry already exists for case_id=%s event_type=%s "

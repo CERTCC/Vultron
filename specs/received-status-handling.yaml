@@ -1,0 +1,523 @@
+id: RSH
+title: Received-Side Status Authorization
+description: >
+  Requirements for the two-gate authorization model governing how a CaseActor
+  adopts an inbound participant's reported CaseStatus as canonical (StatusAdoptionGate)
+  and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
+  Derived from ADR-0046 and IDEA-1836 planning session.
+version: 0.1.0
+scope:
+- prototype
+- production
+tags:
+- behavior-tree
+- protocol
+- state-machine
+groups:
+- id: RSH-01
+  title: StatusAdoptionGate
+  description: >
+    Controls whether a participant's reported CaseStatus is adopted as
+    canonical by the CaseActor.
+  specs:
+  - id: RSH-01-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      `add_participant_status_tree` MUST include a StatusAdoptionGate node
+      positioned after `AppendParticipantStatusNode` and before any
+      canonicalization step.
+    rationale: >
+      StatusAdoptionGate of ADR-0046 — separates the "record the claim" step from the
+      "adopt the claim as canonical" decision.
+  - id: RSH-01-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      StatusAdoptionGate MUST be implemented as a Fallback with two children:
+      (1) `CheckIsCaseOwnerNode` as a hard bypass and (2) a
+      `CaseOwnerApprovesStatusUpdate` Evaluator call-out point.
+    rationale: >
+      CASE_OWNER reports are authoritative by definition (gospel bypass).
+      Non-owner reports pass through a configurable approval gate per ADR-0046.
+  - id: RSH-01-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      When StatusAdoptionGate passes, `add_participant_status_tree` MUST emit
+      a self-addressed `Add(CaseStatus, VulnerabilityCase)` activity to the
+      CaseActor acting as CASE_MANAGER.
+    rationale: >
+      The self-addressed Add(CaseStatus) threads the two gates together without
+      coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
+    note: >
+      Implementation pattern for obtaining the `CaseStatus` ID: read the
+      `ParticipantStatus` record by `participant_status_id`, extract the
+      embedded `.case_status` field (a `CaseStatus` object), persist it
+      idempotently via `datalayer.create()` (catching `ValueError` on
+      duplicate), then pass the resulting `case_status.id_` to the factory.
+      If `.case_status` is absent on the `ParticipantStatus`, the node MUST
+      return FAILURE (ISSUE-1841).
+  - id: RSH-01-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      `add_participant_status_tree` MUST NOT directly execute embargo teardown
+      or other canonical-state side-effects; these MUST occur only via the
+      `add_case_status_tree` pipeline triggered by the self-addressed message.
+    rationale: >
+      Side-effects must run after the canonical write, which lives in
+      `add_case_status_tree`. Running teardown in `add_participant_status_tree`
+      would violate write-before-side-effect ordering.
+
+- id: RSH-02
+  title: EmbargoTeardownAuthorizationGate
+  description: >
+    Controls whether embargo teardown or other side-effects execute after a
+    canonical CaseStatus write.
+  specs:
+  - id: RSH-02-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      `add_case_status_tree` MUST include a `EmbargoTeardownAuthorizationGate` Evaluator
+      call-out node positioned after `AppendCaseStatusToCaseNode` and before
+      `ThreatTerminationBranchNode`.
+    rationale: >
+      EmbargoTeardownAuthorizationGate of ADR-0046 — provides a hook to gate side-effect execution
+      independently of the canonical write authorization.
+  - id: RSH-02-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      The default backend for `EmbargoTeardownAuthorizationGate` MUST be `AlwaysSucceed`,
+      preserving existing behavior until a real policy engine is wired in.
+    rationale: >
+      Prototype-stage default per ADR-0025 ceiling/floor rule. Changing the
+      default would alter existing demo behavior.
+
+- id: RSH-03
+  title: ThreatTerminationBranchNode
+  description: >
+    Node that triggers embargo teardown on any of the three threat-signal
+    CaseStatus flags.
+  specs:
+  - id: RSH-03-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      `ThreatTerminationBranchNode` MUST trigger embargo teardown when the
+      canonical CaseStatus carries CS.P (public awareness), CS.X (exploit
+      public), or CS.A (attacks observed).
+    rationale: >
+      All three flags signal a breach of the conditions that justify an active
+      embargo. Covering only CS.P (as the prior `PublicDisclosureBranchNode`
+      did) leaves exploit and attack signals without a teardown trigger.
+  - id: RSH-03-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      `ThreatTerminationBranchNode` MUST NOT gate teardown on sender role
+      (e.g., CASE_OWNER). Authorization is the responsibility of StatusAdoptionGate;
+      by the time this node runs, the canonical write is already authorized.
+    rationale: >
+      Duplicating a CASE_OWNER gate here would prevent teardown when the
+      self-addressed `Add(CaseStatus)` arrives from the CaseActor itself
+      (sender = CASE_MANAGER, not CASE_OWNER).
+  - id: RSH-03-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      `PublicDisclosureBranchNode` MUST be removed from
+      `add_participant_status_tree` and replaced by `ThreatTerminationBranchNode`
+      in `add_case_status_tree`.
+    rationale: >
+      The node belongs in the tree that writes canonical state. Its presence
+      in `add_participant_status_tree` predates the two-seam design and must
+      be migrated as part of implementing RSH-01 and RSH-02.
+
+- id: RSH-04
+  title: CaseStatus Emission Authority and Outbound Emit Invariant
+  description: >
+    Specifies which actors may emit Add(CaseStatus) directly and mandates that
+    every CaseActor-side EM or PXA state mutation is followed by a canonical
+    CaseStatus ledger write. CaseStatus is the only protocol channel for
+    communicating EM and PXA state changes across actors; omitting the emit
+    leaves all participant replicas stale until the next round-trip.
+  specs:
+  - id: RSH-04-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      Only the CaseActor (acting as CASE_MANAGER) MUST emit `Add(CaseStatus)`
+      directly. All other participants MUST embed a suggested `CaseStatus`
+      inside `Add(ParticipantStatus)` rather than sending `Add(CaseStatus)`
+      independently.
+    rationale: >
+      CaseStatus encodes shared EM and PXA state for the entire case. Only the
+      CaseActor holds the CASE_MANAGER role and is the authoritative writer of
+      canonical case state (ADR-0046, CLP-09). Allowing participants to emit
+      Add(CaseStatus) directly would bypass the two-seam authorization model.
+  - id: RSH-04-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      Every BT node or tree that mutates EM state (Propose, Accept, Reject,
+      Terminate, and all cascade variants) MUST immediately follow the
+      state-mutation step with a write of the updated `CaseStatus` to the
+      canonical case ledger.
+    rationale: >
+      EM state changes are only observable to remote actors via `CaseStatus`
+      entries in `Announce(CaseLedgerEntry)` messages. A mutation without a
+      subsequent ledger write leaves participant replicas with a stale EM state
+      (observed in fv/fcv/fvv CI scenarios — see CONCERN-1667).
+  - id: RSH-04-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      Every BT node or tree that mutates PXA state (public awareness, exploit
+      public, attacks observed) MUST immediately follow the state-mutation step
+      with a write of the updated `CaseStatus` to the canonical case ledger.
+    rationale: >
+      PXA state is participant-agnostic and shared across the case. The
+      rationale mirrors RSH-04-002: omitting the ledger write leaves replicas
+      stale and breaks the Avoid Surprise principle.
+  - id: RSH-04-004
+    priority: MUST
+    kind: protocol
+    statement: >
+      The CaseStatus ledger write described in RSH-04-002 and RSH-04-003 MUST
+      be implemented as a shared BT node (`EmitCaseStatusUpdateNode`) that
+      writes the new `CaseStatus` directly to `case.case_statuses` and commits
+      a canonical `CaseLedgerEntry`, then emits `Announce(CaseLedgerEntry)` for
+      participant replica sync. It MUST NOT route through the inbox
+      authorization seam (`add_case_status_tree`) — the CaseActor is always the
+      authority for its own outbound state changes.
+    rationale: >
+      The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating external
+      participant suggestions. The CaseActor writing its own EM/PXA transition
+      is not a suggestion — it is an authoritative state change. Routing through
+      the inbox loopback (as `EmitAddCaseStatusToSelfNode` does) inverts
+      causality: the ledger write should precede the announce, not be triggered
+      by a self-addressed inbox message. DRY: one shared node, not N inline
+      patches per BT tree factory.
+    note: >
+      Implementation tracked in ISSUE-2175 (implement EmitCaseStatusUpdateNode,
+      size:M). A follow-on refactor of `EmitAddCaseStatusToSelfNode` is tracked
+      in ISSUE-2176 (size:S, blocked-by ISSUE-2175).
+      The `EmitAddCaseStatusToSelfNode` kludge (inbound path) is acknowledged
+      as a parallel refactor target: once `EmitCaseStatusUpdateNode` is in
+      place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
+      ledger writes as well. That refactor is blocked-by the impl issue.
+
+- id: RSH-05
+  title: Per-Dimension Partial Accept (liberal accept)
+  description: >
+    An inbound `Add(ParticipantStatus, CaseParticipant)` carries a snapshot of
+    several independent state machines (`rm`, `vfd`, `em`, `pxa`, `consent`).
+    These requirements govern adjudicating each dimension on its own rather
+    than accepting or discarding the snapshot as a unit.
+    Derived from ISSUE-2235 and epic ISSUE-2229 (Postel's maxim / liberal
+    accept).
+  specs:
+  - id: RSH-05-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` MUST
+      adjudicate each state dimension of the reported status independently. An
+      unacceptable value in one dimension MUST NOT cause the values reported in
+      the other dimensions to be discarded.
+    rationale: >
+      RM, VFD, EM, PXA and PEC are independent state machines. A value that is
+      unacceptable in one dimension carries no information about the others, so
+      discarding the whole snapshot destroys state the receiver has no grounds
+      to refuse. Liberal accept (ISSUE-2229): accept everything acceptable.
+    note: >
+      Implemented by `FilterParticipantStatusDimensionsNode` in
+      `vultron/core/behaviors/status/nodes/dimension_filter.py`, wired as a
+      precondition guard of `add_participant_status_tree`. It supersedes
+      `CheckParticipantRMNotClosedNode`, whose all-or-nothing RM refusal was
+      the defect reported in ISSUE-2235.
+  - id: RSH-05-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      When a dimension is refused, the receiver MUST record the participant's
+      current value for that dimension alongside the accepted values from the
+      other dimensions, as a single `ParticipantStatus`.
+    rationale: >
+      The recorded status must remain a coherent snapshot of the receiver's
+      view of the participant. Omitting the refused dimension would leave it
+      undefined; recording the asserted value would adopt a claim the receiver
+      just refused.
+  - id: RSH-05-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      A refused dimension MUST NOT prevent the StatusAdoptionGate emit (RSH-01-003) from
+      running. The self-addressed `Add(CaseStatus)` MUST still be emitted
+      whenever any dimension of the update was accepted.
+    rationale: >
+      EmbargoTeardownAuthorizationGate owns embargo teardown (RSH-01-004). Aborting the StatusAdoptionGate sequence
+      on a refused dimension silently skipped teardown — the concrete failure
+      reported in ISSUE-2235.
+  - id: RSH-05-004
+    priority: MUST
+    kind: protocol
+    statement: >
+      The canonical `CaseLedgerEntry` committed for a partially accepted status
+      MUST snapshot the accepted portion, not the raw assertion.
+    rationale: >
+      The canonical projection is replicated to every participant and bound
+      into the hash chain. Snapshotting the raw assertion would fan out a value
+      the receiver refused, and each replica would apply it. Recording the
+      accepted portion is also what makes the refusal visible: the canonical
+      entry differs from what the sender asserted.
+    note: >
+      Implemented via the `ledger_payload_object_override` blackboard contract
+      read by `CommitCaseLedgerEntryNode`. The guard runs before
+      `GuardedCommit` per CLP-10-006, so the adjudication is available at
+      commit time. The guard is read-only with respect to the DataLayer.
+
+      The override is a *patch* — `{"object_id": ..., "fields": {...}}` keyed by
+      wire alias — merged onto the snapshot's existing `object`, not a
+      replacement object. See RSH-05-009 for why.
+  - id: RSH-05-005
+    priority: MUST
+    kind: protocol
+    statement: >
+      A status update in which every refused dimension leaves the resulting
+      snapshot indistinguishable from the participant's current state MUST be
+      refused in full: nothing is appended and no canonical ledger entry is
+      committed.
+    rationale: >
+      Such an assertion carries no acceptable information. Appending it would
+      grow the participant's status history and the hash chain without
+      recording any state change.
+  - id: RSH-05-006
+    priority: MUST
+    kind: protocol
+    statement: >
+      `RM.CLOSED` MUST be treated as terminal for the `rm` dimension only. A
+      participant at `RM.CLOSED` MUST still have accepted values in other
+      dimensions recorded.
+    rationale: >
+      A vendor that has closed its report management workflow may still deploy
+      a fix (VFD) or observe public disclosure (PXA). Freezing the whole
+      snapshot at RM closure discards real protocol state.
+  - id: RSH-05-007
+    priority: MUST
+    kind: protocol
+    statement: >
+      A participant applying an `Announce(CaseLedgerEntry)` for an
+      `add_participant_status_to_participant` event MUST NOT let it move a
+      replica's RM state backwards on the RM progress scale. The local value
+      MUST be carried forward for that dimension; all other dimensions are
+      applied as the entry describes them.
+    rationale: >
+      Monotonic visibility (see notes/sync-ledger-replication.md). The Case
+      Actor is authoritative for which transition happened, but a replayed,
+      reordered, or divergent entry would otherwise un-see progress the replica
+      has already observed. Lateral moves at the same rank
+      (`VALID` <-> `INVALID`) are re-adjudication, not regression, and are
+      applied unchanged.
+  - id: RSH-05-008
+    priority: SHOULD
+    kind: protocol
+    statement: >
+      The `em` dimension SHOULD NOT be adjudicated at StatusAdoptionGate; embargo state
+      belongs to EmbargoTeardownAuthorizationGate (`add_case_status_tree`).
+    rationale: >
+      EM is per-case rather than per-participant and its authorization gate is
+      the EmbargoTeardownAuthorizationGate (RSH-02-001). Adjudicating it in the StatusAdoptionGate guard
+      would duplicate — and could contradict — EmbargoTeardownAuthorizationGate's decision.
+    note: >
+      EmbargoTeardownAuthorizationGate EM adjudication is tracked in ISSUE-2256.
+  - id: RSH-05-009
+    priority: MUST
+    kind: protocol
+    statement: >
+      Adjudicating a received status MUST NOT change the shape of the
+      `payload_snapshot.object` it records: the entry MUST carry the same wire
+      fields an unadjudicated entry for the same activity would carry, with only
+      the adjudicated dimension values rewritten.
+    rationale: >
+      Every replica and the case-ledger invariant harness read the snapshot's
+      flat wire aliases (`rmState`, `vfdState`, `emConsentState`, `cvdRole`) and
+      its nested `caseStatus` (CLP-07-001, CM-18-006). A whole-object
+      replacement built in `vultron.core` would emit core dimension objects
+      (`rm: {state}`) and silently drop every field the guard never adjudicated,
+      because core MUST NOT import `vultron.wire` to convert (ADR-0009,
+      ADR-0017). Publishing a field patch instead makes shape preservation
+      structural rather than a property the guard has to remember to maintain.
+    note: >
+      The merge is one level deep, so a patched `caseStatus.pxaState` keeps the
+      nested object's own `id` and remaining fields. A patched alias also drops
+      any stale snake_case twin of the same field, so a consumer that prefers
+      the snake_case spelling cannot read the value the receiver refused.
+  - id: RSH-05-010
+    priority: MUST
+    kind: protocol
+    statement: >
+      A producer of `ledger_payload_object_override` MUST write `None` to the
+      key unconditionally at the start of every tick — before any early return
+      — so that a stale value from a previous execution cannot bleed into the
+      current one.
+    rationale: >
+      The py_trees blackboard is process-global. `BTBridge.execute_with_setup`
+      does not reset application-level keys between runs, so a producer that
+      only writes on its active path leaves the key at its previous value on
+      every no-op tick. `CommitCaseLedgerEntryNode` would then apply that stale
+      patch to a different payload snapshot. BT-17-003.
+    note: >
+      Pattern: call the unconditional clear (e.g. `self._publish((), None)`) as
+      the first statement in `update()`, before any conditional branch. Once
+      the producer node is migrated to the typed-Ports base class (ISSUE-1808),
+      the base class SHOULD auto-clear declared output ports in `initialise()`,
+      making this obligation structural.
+  - id: RSH-05-011
+    priority: MUST
+    kind: protocol
+    statement: >
+      A producer of `ledger_payload_object_override` MUST include a
+      `producer_type` field in the override dict. The required shape is
+      `{"object_id": <id>, "producer_type": <str>, "fields": {<wire alias>: <value>}}`.
+    rationale: >
+      Multiple producers are anticipated (ISSUE-2256 adds EM adjudication in
+      `EmbargoTeardownAuthorizationGate` as a second producer). Naming the
+      source node in the dict enables targeted audit logging and per-producer
+      diagnostics without out-of-band context. RSH-05-014 uses `producer_type`
+      to emit a warning on unrecognized producers without failing the commit.
+  - id: RSH-05-012
+    priority: MUST
+    kind: protocol
+    statement: >
+      The `fields` value of `ledger_payload_object_override` MUST contain only
+      wire alias keys recognized by `CommitCaseLedgerEntryNode`. Publishing an
+      unrecognized key is a protocol error.
+    rationale: >
+      The consumer hard-fails on any unrecognized alias (RSH-05-013). An unknown
+      alias applied to the canonical snapshot would abort the commit, blocking
+      the receive-side BT. Declaring this as a producer obligation means callers
+      can validate at construction time rather than catching a runtime failure.
+    note: >
+      The recognized aliases are those defined in `_SNAKE_TWINS` in
+      `vultron/core/behaviors/case/nodes/lifecycle.py` — the module-level dict
+      that maps each camelCase wire alias to its snake_case twin for
+      `CommitCaseLedgerEntryNode`.
+  - id: RSH-05-013
+    priority: MUST
+    kind: protocol
+    statement: >
+      `CommitCaseLedgerEntryNode` MUST raise a hard failure — not a warning —
+      if the `fields` dict of `ledger_payload_object_override` contains a key
+      that is not a recognized wire alias for the snapshot object type.
+    rationale: >
+      An unrecognized alias applied to the canonical snapshot would silently add
+      unexpected content to the hash-chained ledger entry, which every replica
+      and the invariant harness would then apply. Data integrity requires a hard
+      stop; the correct response is to fix the producer (RSH-05-012), not to log
+      and continue.
+  - id: RSH-05-014
+    priority: SHOULD
+    kind: protocol
+    statement: >
+      `CommitCaseLedgerEntryNode` SHOULD emit a WARNING when
+      `ledger_payload_object_override` carries an unrecognized `producer_type`
+      value, and MUST NOT fail the commit on that basis alone.
+    rationale: >
+      An unrecognized `producer_type` may indicate a newer node type operating
+      against an older consumer. Logging preserves auditability without
+      blocking a structurally valid override. Field-name validation (RSH-05-013)
+      is the data-integrity guard; `producer_type` is an audit hint only.
+
+- id: RSH-06
+  title: RM Anomaly Notification Policy (non-adjacent jumps and backward regressions)
+  description: >
+    When the receiver detects an RM transition anomaly — either a non-adjacent
+    forward jump (sender skipped intermediate states) or a backward regression
+    (sender reports a state earlier on the RM progress scale than the receiver
+    has already observed) — it must act correctly *and* non-silently.  Because
+    CVD is inherently asynchronous, anomalies are detected at receipt time
+    (t₁ > t₀ when the event occurred), and silence at that point breaks
+    observability for both parties.
+    Derived from ISSUE-2258 and ADR-0067.
+  specs:
+  - id: RSH-06-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      carries a non-adjacent forward RM jump (i.e. `is_monotonic_rm_forward` is
+      True but `is_valid_rm_transition` is False) MUST accept the reported `rm`
+      state.
+    rationale: >
+      The sender is authoritative about its own RM progress. Refusing a
+      non-adjacent forward jump would leave the receiver's replica permanently
+      wrong, because the sender will not resend intermediate transitions it
+      never reported. Liberal accept (ISSUE-2229): accept everything acceptable.
+    note: >
+      Implemented by `FilterParticipantStatusDimensionsNode._rm_is_acceptable()`
+      in the production path and by `ValidateRMTransitionNode` in the standalone
+      path. Both paths MUST accept with the same policy.
+  - id: RSH-06-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      carries a backward RM regression (i.e. the reported `rm` state is earlier
+      on the RM progress scale than the receiver's current value) MUST refuse
+      the `rm` dimension and carry the current value forward (RSH-05-002).
+    rationale: >
+      RM is monotonic: a sender cannot un-validate, un-accept, or un-close a
+      report. A backward assertion indicates either a protocol error or a
+      divergent replica state; neither should update the receiver's record.
+    note: >
+      The refusal is per-dimension only (RSH-05-001). Other dimensions of the
+      same status snapshot are still adjudicated and accepted if valid.
+  - id: RSH-06-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      Neither a non-adjacent forward jump acceptance nor a backward regression
+      refusal MUST be silent. In both cases the receiver MUST log a WARNING
+      that names the sender, the observed `rm` state before and after, and
+      identifies the anomaly type (gap or regression).
+    rationale: >
+      Because CVD is inherently asynchronous, protocol anomalies are detected
+      at receipt time (t₁ > t₀ when the event occurred). Silent handling makes
+      diagnosis impossible for both parties and breaks protocol observability.
+  - id: RSH-06-004
+    priority: SHOULD
+    kind: protocol
+    statement: >
+      On the production `add_participant_status_tree` path (where a case context
+      is available), the receiver SHOULD emit `Add(Note, VulnerabilityCase)`
+      when an RM anomaly is detected, requesting the sender to clarify the
+      path it took between the two observed states.
+    rationale: >
+      The original BT protocol design included an `RE` (Report Management Error)
+      message type for exactly this scenario. Until `RE` is formalised in
+      `MessageSemantics` (ADR-0049), `Add(Note, VulnerabilityCase)` is the
+      pragmatic substitute. The note makes the anomaly visible at the protocol
+      level, not just in local logs.
+    note: >
+      Implemented by `EmitRMGapNoteNode` in `effect_nodes` of
+      `add_participant_status_tree`. The standalone `append_participant_status_tree`
+      path (test-only, no production callers) has no case context; it MUST log
+      (RSH-06-003) but MUST NOT attempt to emit a note.
+  - id: RSH-06-005
+    priority: MUST
+    kind: protocol
+    statement: >
+      The `Add(Note, VulnerabilityCase)` emitted under RSH-06-004 MUST include:
+      the sending actor's identifier, the `rm` state before the anomaly, the
+      `rm` state after the anomaly, and a human-readable description identifying
+      whether the anomaly was a non-adjacent forward jump or a backward
+      regression.
+    rationale: >
+      Without these fields the note cannot be acted on by a human or an
+      automated remediation process. The request for clarification is only
+      meaningful if the recipient can identify what they are being asked to
+      clarify.

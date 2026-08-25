@@ -164,9 +164,11 @@ sub-module layout):
 | `PublicationCallOutBundle` | Publication pipeline | `create_publication_tree`, `create_publish_artifact_tree` |
 | `ReportToOthersCallOutBundle` | Reporting to others | `create_report_to_others_tree` |
 | `DeployFixCallOutBundle` | Fix deployment | `create_deploy_fix_tree` |
+| `DeployMitigationCallOutBundle` | Mitigation deployment | `create_deploy_mitigation_tree` |
 | `AcquireExploitCallOutBundle` | Exploit acquisition | `create_acquire_exploit_tree`, `create_acquire_exploit_strategy_tree` |
 | `AssignVulIdCallOutBundle` | Vulnerability ID assignment | `create_assign_vul_id_tree` |
 | `CloseReportCallOutBundle` | Report closure | `create_close_report_tree` |
+| `StatusAuthorizationCallOutBundle` | Received-side status authorization | `add_participant_status_tree`, `add_case_status_tree` |
 
 ### PrioritizationCallOutBundle fields
 
@@ -183,22 +185,50 @@ mode it resolves `AlwaysSucceed` so all cases are engaged. In STOCHASTIC mode it
 `EvaluateCasePriority` fuzzer node. A real SSVC evaluator would implement
 `CallOutBackendFactory` and be passed here — no other code change required.
 
-### Module layout
+### Module layout (corrected 2026-07-29, issue #1793)
+
+The bundle **dataclasses**, the `CallOutBackendFactory` Protocol, the
+deterministic `AlwaysSucceed`/`AlwaysFail` nodes, and the
+`<DOMAIN>_DETERMINISTIC` singletons are **core-owned**. Only the probabilistic
+`WeightedBehavior` fuzzer nodes and the `<DOMAIN>_STOCHASTIC` singletons are
+simulation artifacts. Core tree builders default to the core DETERMINISTIC
+singleton and never import from `vultron/demo/` (enforced by
+`test/architecture/test_core_no_demo_imports.py`).
 
 ```text
-vultron/demo/fuzzer/
+vultron/core/behaviors/call_out/     ← core-owned seam
+  __init__.py       ← re-exports CallOutBackendFactory, AlwaysSucceed, AlwaysFail
+  protocol.py       ← CallOutBackendFactory Protocol (canonical home)
+  nodes.py          ← deterministic AlwaysSucceed / AlwaysFail
   bundles/
-    __init__.py     ← re-exports all bundle classes and singletons
-    validation.py   ← ValidationCallOutBundle + singletons
+    __init__.py     ← re-exports all bundle classes + <DOMAIN>_DETERMINISTIC
+    validation.py   ← ValidationCallOutBundle + VALIDATION_DETERMINISTIC
     prioritization.py
     embargo.py
     publication.py
     report_to_others.py
-    deploy_fix.py
+    deploy_monitoring.py  ← DeploymentMonitoringBundle (shared base)
+    deploy_fix.py         ← DeployFixCallOutBundle + DEPLOY_FIX_DETERMINISTIC
+    deploy_mitigation.py  ← DeployMitigationCallOutBundle + DEPLOY_MITIGATION_DETERMINISTIC
     acquire_exploit.py
     assign_vul_id.py
     close_report.py
+    status_authorization.py   ← StatusAuthorizationCallOutBundle + STATUS_AUTHORIZATION_DETERMINISTIC
+
+vultron/demo/fuzzer/                  ← simulation-only
+  base.py           ← WeightedBehavior family (incl. its own AlwaysSucceed/Fail)
+  bundles/
+    __init__.py     ← re-exports bundle classes + both DETERMINISTIC/STOCHASTIC
+    validation.py   ← VALIDATION_STOCHASTIC (+ re-exports core dataclass/default)
+    ...             ← one per domain, STOCHASTIC singletons only
 ```
+
+> **History**: the original 2026-07-23 design placed the dataclasses and
+> `<DOMAIN>_DETERMINISTIC` singletons under `vultron/demo/fuzzer/bundles/` and
+> had core tree builders import them — a core→demo inversion that violated
+> BT-16-001. Issue #1793 moved the core-owned pieces into
+> `vultron/core/behaviors/call_out/` and added the boundary ratchet. `vultron.core.behaviors.call_out_point` remains as a
+> backward-compatible re-export shim of the Protocol.
 
 ---
 
@@ -290,6 +320,42 @@ Personality/bias bundles are tracked as a separate design question in
 issue #1646 (type:Idea). The bundle
 dataclass structure defined here is sufficient to support personality variants
 without modification; no new mechanism is needed.
+
+---
+
+## Production-Only Domains: STOCHASTIC Bundle Without Fuzzer Nodes
+
+(ISSUE-1843, 2026-07-30)
+
+Some call-out domains are **production-only patterns** with no legacy simulator
+counterpart — the call-out seams did not exist in the old `vultron/bt/`
+simulation and no named probabilistic fuzzer classes were written for them.
+`StatusAuthorizationCallOutBundle` (ADR-0046, #1843) is the first such domain.
+
+**How to build the STOCHASTIC singleton for a production-only domain**:
+
+Use the **generic `WeightedBehavior` subclass whose success rate equals the
+`p` implied by the DETERMINISTIC ceiling**:
+
+- DETERMINISTIC ceiling is `AlwaysSucceed` (p → 1.0): use `AlmostAlwaysSucceed`
+  (p = 0.90) for the STOCHASTIC singleton.
+- DETERMINISTIC ceiling is `AlwaysFail` (p → 0.0): use `AlmostAlwaysFail` for
+  the STOCHASTIC singleton.
+
+**Rationale**: `AlmostAlwaysSucceed` (p = 0.90) matches the p = 0.90
+convention used by other Evaluator call-outs (e.g., report credibility/validity)
+and aligns with the ceiling/floor rule already established for all other
+domains. It still occasionally exercises the reject/block path during fuzz
+runs — which a literal mirror of DETERMINISTIC (both `AlwaysSucceed`) would
+not.
+
+**Contrast with domains that have fuzzer node counterparts**: For domains with
+existing named simulator nodes (e.g., `EvaluateReportCredibility`), the
+STOCHASTIC singleton wires those named classes directly. Only for production-
+only domains does the generic `AlmostAlwaysSucceed`/`AlmostAlwaysFail`
+fallback apply.
+
+<!-- Source: ISSUE-1843; user confirmed the AlmostAlwaysSucceed choice -->
 
 ---
 

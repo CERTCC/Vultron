@@ -188,6 +188,7 @@ class TestInboxOutcomeModel:
 
 
 class TestProcessPayloadRejectsInvalidInput:
+    @pytest.mark.spec("MV-01-001")
     def test_none_parse_result_returns_rejected(self, report_activity):
         """When IngressAdapter.parse returns None, outcome is rejected."""
         ingress = _StubIngressAdapter(activity=None, fail_parse=True)
@@ -199,6 +200,7 @@ class TestProcessPayloadRejectsInvalidInput:
         assert outcome.status == "rejected"
         assert outcome.failure_reason is not None
 
+    @pytest.mark.spec("MV-01-007")
     def test_dispatch_failure_returns_rejected(self, report_activity):
         """When dispatch raises, outcome is rejected; no exception propagates."""
         ingress = _StubIngressAdapter(activity=report_activity)
@@ -359,3 +361,49 @@ class TestProcessPayloadThreadSafety:
         assert not errors
         assert all(o.status == "processed" for o in results)
         assert len(results) == 4
+
+
+# ---------------------------------------------------------------------------
+# Log-level contract (SL-04-007)
+# ---------------------------------------------------------------------------
+
+
+class TestProcessPayloadLogLevels:
+    """The `process_payload: outcome status=...` echo is DEBUG (SL-04-007).
+
+    It restates the outcome the caller already has; the meaningful protocol
+    lines are emitted by the use cases the dispatcher invokes.
+    """
+
+    _LOGGER = "vultron.core.behaviors.inbox._process_payload"
+
+    def _outcome_records(self, caplog):
+        return [
+            r
+            for r in caplog.records
+            if "process_payload: outcome" in r.getMessage()
+        ]
+
+    def test_outcome_echo_is_debug(self, report_activity, caplog):
+        import logging
+
+        ingress = _StubIngressAdapter(activity=report_activity)
+        dispatch = _StubDispatchAdapter()
+
+        with caplog.at_level(logging.DEBUG, logger=self._LOGGER):
+            process_payload({}, ingress, dispatch)
+
+        records = self._outcome_records(caplog)
+        assert records, "Expected the process_payload outcome log entry"
+        assert all(r.levelno == logging.DEBUG for r in records)
+
+    def test_outcome_echo_not_emitted_at_info(self, report_activity, caplog):
+        import logging
+
+        ingress = _StubIngressAdapter(activity=report_activity)
+        dispatch = _StubDispatchAdapter()
+
+        with caplog.at_level(logging.INFO, logger=self._LOGGER):
+            process_payload({}, ingress, dispatch)
+
+        assert not self._outcome_records(caplog)

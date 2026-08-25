@@ -32,7 +32,10 @@ from fastapi.testclient import TestClient
 import vultron.demo.scenario.fvv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.demo.cli import main
-from vultron.demo.helpers.polling import wait_for_contiguous_ledger_coverage
+from vultron.demo.helpers.polling import (
+    wait_for_contiguous_ledger_coverage,
+    wait_for_event_type_in_ledger,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -64,6 +67,7 @@ def patch_datalayer_call(client: TestClient, base: str):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("VP-08-004")
 class TestSeedContainersFvv:
     """Test that seeding creates actors on all three containers."""
 
@@ -331,3 +335,593 @@ class TestWaitForContiguousLedgerCoverage:
                 timeout_seconds=0.1,
                 poll_interval=0.05,
             )
+
+    def test_default_timeout_is_sufficient_for_ci_load(self):
+        """Default timeout must be >= 30s to survive CI scheduling latency.
+
+        The fv Demo Integration job intermittently failed with 2 cascading
+        demo_check failures when wait_for_contiguous_ledger_coverage timed out
+        after 15s in _phase_sync_verification under CI load (issue #1911).
+        The second failure (verify_finder_replica_state) cascades because it
+        runs immediately after and finds an empty replica.
+
+        Regression: ensure the default is at least 30s so the inter-container
+        Announce(CaseLedgerEntry) fan-out has time to complete under load.
+        """
+        import inspect
+
+        sig = inspect.signature(wait_for_contiguous_ledger_coverage)
+        default_timeout = sig.parameters["timeout_seconds"].default
+        assert default_timeout >= 30.0, (
+            f"wait_for_contiguous_ledger_coverage default timeout is "
+            f"{default_timeout}s — must be >= 30s to tolerate CI load "
+            f"(issue #1911)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: Bug A — coverage-wait timeout must not crash demo
+# (issue #1772, #1802)
+# ---------------------------------------------------------------------------
+
+
+class TestCoverageWaitInsideDemoCheck:
+    """Regression: bare wait_for_contiguous_ledger_coverage outside demo_check
+    crashes demo with exit code 1 when it times out.
+
+    After the fix, a timeout should accumulate to _demo_failures and allow
+    _phase_dump_case_ledgers to run (exit 0 with a failure summary).
+    """
+
+    def test_coverage_wait_timeout_accumulates_to_demo_failures_not_raises(
+        self,
+    ):
+        """A timed-out coverage wait inside _phase_case_closure must NOT raise.
+
+        Bug A: the bare wait_for_contiguous_ledger_coverage call propagated
+        AssertionError through _phase_case_closure, crashing the demo runner.
+        After the fix, every coverage wait is inside a demo_check context,
+        so the timeout is recorded in _demo_failures and the phase returns
+        normally.
+
+        We verify this by patching wait_for_contiguous_ledger_coverage to
+        always raise AssertionError and confirming _phase_case_closure does
+        not propagate the exception.
+        """
+        import vultron.demo.utils as utils_module  # noqa: PLC0415
+
+        utils_module.reset_demo_failures()
+
+        case_id = "https://example.org/cases/bug-a-regression"
+
+        # Build minimal mocks that satisfy _phase_case_closure's early calls
+        # (actor_closes_case, wait_for_all_participants_rm_closed, verify_case_closed,
+        # _get_log_entries_for_case) without triggering real HTTP.
+        client = MagicMock()
+        actor = MagicMock()
+        actor.id_ = "https://example.org/actors/test-actor"
+
+        case = MagicMock()
+        case.id_ = case_id
+
+        # _get_log_entries_for_case reads from /datalayer/CaseLedgerEntrys/
+        # Return a single entry so the tail-read branch is taken.
+        client.get.return_value = {
+            "e0": {
+                "case_id": case_id,
+                "log_index": 0,
+                "entry_hash": "hash0000",
+                "event_type": "close_case",
+            }
+        }
+
+        initial_failures = len(utils_module._demo_failures)
+
+        with (
+            patch("vultron.demo.scenario.fvv_demo.actor_closes_case"),
+            patch(
+                "vultron.demo.scenario.fvv_demo.wait_for_all_participants_rm_closed"
+            ),
+            patch("vultron.demo.scenario.fvv_demo.verify_case_closed"),
+            patch(
+                "vultron.demo.scenario.fvv_demo.wait_for_event_type_in_ledger"
+            ),
+            patch(
+                "vultron.demo.scenario.fvv_demo.wait_for_contiguous_ledger_coverage",
+                side_effect=AssertionError(
+                    "contiguous ledger coverage timeout"
+                ),
+            ),
+        ):
+            try:
+                demo._phase_case_closure(
+                    finder_client=client,
+                    vendor_client=client,
+                    vendor2_client=client,
+                    vendor=actor,
+                    vendor_in_vendor=actor,
+                    vendor2=actor,
+                    vendor2_in_vendor2=actor,
+                    finder=actor,
+                    finder_in_finder=actor,
+                    case=case,
+                )
+            except AssertionError as exc:
+                pytest.fail(
+                    f"Bug A regression: AssertionError propagated out of "
+                    f"_phase_case_closure: {exc}"
+                )
+
+        # The failure must be accumulated, not raised.
+        assert (
+            len(utils_module._demo_failures) > initial_failures
+        ), "Expected the coverage-wait timeout to be recorded in _demo_failures"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: Bug B — wait_for_event_type_in_ledger helper
+# (issue #1772)
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForEventTypeInLedger:
+    """Regression: the close phase must wait for close_case to appear on the
+    authoritative actor before reading the tail index for replica coverage.
+
+    Without this wait, the tail excludes close_case (committed asynchronously
+    after the last RM.CLOSED); coverage 'succeeds' for the wrong tail; the
+    dump runs before close_case replicates; invariant harness fails.
+    """
+
+    def _make_entries(self, case_id: str, event_types: list[str]) -> dict:
+        return {
+            f"e{i}": {
+                "case_id": case_id,
+                "log_index": i,
+                "entry_hash": f"hash{i:04d}",
+                "event_type": et,
+            }
+            for i, et in enumerate(event_types)
+        }
+
+    def test_returns_when_event_type_present(self):
+        """Returns immediately when the target event_type is already in the log."""
+        case_id = "https://example.org/cases/bug-b-present"
+        client = MagicMock()
+        client.get.return_value = self._make_entries(
+            case_id, ["validate_report", "close_case"]
+        )
+
+        wait_for_event_type_in_ledger(
+            client=client,
+            case_id=case_id,
+            event_type="close_case",
+            timeout_seconds=1.0,
+        )
+        assert client.get.call_count >= 1
+
+    def test_raises_when_event_type_absent(self):
+        """Raises AssertionError when target event_type never appears."""
+        case_id = "https://example.org/cases/bug-b-absent"
+        client = MagicMock()
+        client.get.return_value = self._make_entries(
+            case_id,
+            ["validate_report", "add_participant_status_to_participant"],
+        )
+
+        with pytest.raises(AssertionError, match="close_case"):
+            wait_for_event_type_in_ledger(
+                client=client,
+                case_id=case_id,
+                event_type="close_case",
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_ignores_entries_from_other_cases(self):
+        """Does not count close_case entries from other cases."""
+        case_id = "https://example.org/cases/bug-b-target"
+        other_case_id = "https://example.org/cases/bug-b-other"
+        client = MagicMock()
+        entries = self._make_entries(case_id, ["validate_report"])
+        other_entries = {
+            "other-e0": {
+                "case_id": other_case_id,
+                "log_index": 0,
+                "entry_hash": "hashOther",
+                "event_type": "close_case",
+            }
+        }
+        client.get.return_value = {**entries, **other_entries}
+
+        with pytest.raises(AssertionError, match="close_case"):
+            wait_for_event_type_in_ledger(
+                client=client,
+                case_id=case_id,
+                event_type="close_case",
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_eventually_returns_when_event_arrives(self):
+        """Returns once the event_type appears after a few polls."""
+        case_id = "https://example.org/cases/bug-b-eventual"
+        call_count = 0
+        no_close_entries = {
+            "e0": {
+                "case_id": case_id,
+                "log_index": 0,
+                "entry_hash": "hash0000",
+                "event_type": "validate_report",
+            }
+        }
+        with_close_entries = {
+            **no_close_entries,
+            "e1": {
+                "case_id": case_id,
+                "log_index": 1,
+                "entry_hash": "hash0001",
+                "event_type": "close_case",
+            },
+        }
+
+        def _get_side_effect(path: str):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                return no_close_entries
+            return with_close_entries
+
+        client = MagicMock()
+        client.get.side_effect = _get_side_effect
+
+        wait_for_event_type_in_ledger(
+            client=client,
+            case_id=case_id,
+            event_type="close_case",
+            timeout_seconds=5.0,
+            poll_interval=0.05,
+        )
+        assert call_count >= 3
+
+
+# ---------------------------------------------------------------------------
+# Milestone assertion tests — AC-4 of ISSUE-1976
+# ---------------------------------------------------------------------------
+
+
+class TestFvvMilestoneAssertions:
+    """Verify that _phase_* functions call the required milestone helpers.
+
+    All network/DataLayer calls are patched so no real HTTP is performed.
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    @pytest.mark.spec("CM-12-001")
+    @pytest.mark.spec("VP-02-015")
+    def test_phase_report_submission_calls_verify_case_active(self):
+        """_phase_report_submission calls verify_case_active at M1."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        invite = MagicMock()
+        invite.id_ = "urn:test:invite"
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvv",
+                return_value=(finder, vendor, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[vendor_in_vendor, vendor2_in_vendor2],
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_finder_case"),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={"activity": {"id": invite.id_}},
+            ),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "verify_case_active") as mock_m1,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = invite
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                finder_id=None,
+                vendor_id=None,
+                vendor2_id=None,
+            )
+        mock_m1.assert_called()
+
+    def test_phase_fix_lifecycle_calls_verify_fix_ready(self):
+        """_phase_fix_lifecycle calls verify_fix_ready at M4/M5."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_fix_ready") as mock_m4,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_fix_lifecycle(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                case=case,
+            )
+        mock_m4.assert_called()
+
+    def test_phase_publication_calls_verify_publicly_disclosed(self):
+        """_phase_publication calls verify_publicly_disclosed at M6."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_published"),
+            patch.object(demo, "wait_for_case_em_terminated"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_publicly_disclosed") as mock_m6,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_publication(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                case=case,
+            )
+        mock_m6.assert_called()
+
+    def test_phase_case_closure_calls_verify_case_closed(self):
+        """_phase_case_closure calls verify_case_closed at M7."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        case = self._case()
+        case.id_ = "urn:test:case"
+        vendor_client.get.return_value = {
+            "e0": {
+                "case_id": case.id_,
+                "log_index": 0,
+                "entry_hash": "h0",
+                "event_type": "close_case",
+            }
+        }
+
+        with (
+            patch.object(demo, "actor_closes_case"),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed") as mock_m7,
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                case=case,
+            )
+        mock_m7.assert_called()
+
+
+@pytest.mark.spec("CLP-08-005")
+class TestFinderCaseReplicaWaitBeforeVendor2Triage:
+    """CLP-08-005: Finder replica wait must precede invite-path RM triage in fvv."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_finder_wait_before_vendor2_triage(self):
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        invite = MagicMock()
+        invite.id_ = "urn:test:invite"
+        case = self._case()
+
+        call_order: list[str] = []
+
+        def _wait_for_case(client, case_id, **_kw):
+            if client is finder_client:
+                call_order.append("finder_wait")
+
+        def _triage(**_kw):
+            call_order.append("triage")
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvv",
+                return_value=(finder, vendor, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[vendor_in_vendor, vendor2_in_vendor2],
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_finder_case"),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={"activity": {"id": invite.id_}},
+            ),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=_wait_for_case,
+            ),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo, "run_invite_path_rm_triage", side_effect=_triage
+            ),
+            patch.object(demo, "verify_case_active"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = invite
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                finder_id=None,
+                vendor_id=None,
+                vendor2_id=None,
+            )
+
+        assert (
+            "finder_wait" in call_order
+        ), "wait_for_case_on_container(finder_client) never called"
+        assert "triage" in call_order, "run_invite_path_rm_triage never called"
+        finder_idx = next(
+            i for i, v in enumerate(call_order) if v == "finder_wait"
+        )
+        triage_idx = next(i for i, v in enumerate(call_order) if v == "triage")
+        assert finder_idx < triage_idx, (
+            "Finder replica wait must precede run_invite_path_rm_triage; "
+            f"got order: {call_order}"
+        )

@@ -96,6 +96,8 @@ class CloseCaseReceivedUseCase:
             case_id=case_id,
             activity_id=request.activity_id,
             activity_obj=request.activity,
+            sender_actor_id=request.actor_id,
+            receiving_actor_id=receiving_actor_id,
         )
         result = BTBridge(datalayer=self._dl).execute_with_setup(
             tree=tree,

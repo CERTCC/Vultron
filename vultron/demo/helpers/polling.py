@@ -22,6 +22,7 @@ import logging
 import time
 from typing import Callable
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.utils import DataLayerClient, logfmt
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -78,7 +79,7 @@ def _poll_until(
 def wait_for_case_on_container(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll *client*'s DataLayer until *case_id* appears.
@@ -117,7 +118,7 @@ def wait_for_case_on_container(
 def wait_for_finder_case(
     finder_client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Backward-compatible alias for :func:`wait_for_case_on_container`.
@@ -137,7 +138,8 @@ def wait_for_case_participants(
     vendor_client: DataLayerClient,
     case_id: str,
     expected_count: int,
-    timeout_seconds: float = 5.0,
+    # 15 s: conservative cross-container delivery budget (temporal per EDF-06-006).
+    timeout_seconds: float = 15.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until the case on *vendor_client* reflects *expected_count* participants.
@@ -157,7 +159,7 @@ def wait_for_case_participants(
     def _check() -> bool:
         case_data = vendor_client.get(f"/datalayer/{case_id}")
         case = as_VulnerabilityCase(**case_data)
-        return len(case.case_participants) >= expected_count
+        return len(case.actor_participant_index) >= expected_count
 
     _poll_until(
         _check,
@@ -173,7 +175,7 @@ def wait_for_note_in_case(
     client: DataLayerClient,
     case_id: str,
     note_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll until *note_id* appears in the ``notes`` list of the case.
@@ -222,7 +224,7 @@ def wait_for_finder_log_entry(
 
     Proves that the vendor's ``Announce(CaseLedgerEntry)`` outbox activity was
     delivered to the finder's inbox and processed by
-    ``AnnounceLedgerEntryReceivedUseCase`` (SYNC-2 receive side).
+    ``AnnounceLedgerEntryReceivedUseCase`` (LedgerFanout receive side).
 
     Args:
         finder_client: DataLayerClient connected to the Finder container.
@@ -265,11 +267,67 @@ def wait_for_finder_log_entry(
     )
 
 
+def wait_for_event_type_in_ledger(
+    client: DataLayerClient,
+    case_id: str,
+    event_type: str,
+    timeout_seconds: float = 20.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *event_type* appears.
+
+    Use this before reading the authoritative tail index in close phases to
+    ensure the ``close_case`` entry (committed asynchronously by the CaseActor's
+    auto-close BT after the last RM.CLOSED) is present before we snapshot the
+    tail.  Without this wait, the tail index may exclude ``close_case``, causing
+    a coverage-wait 'success' for the wrong tail and a gapped ledger dump
+    (issue #1772 Bug B).
+
+    Args:
+        client: DataLayerClient connected to the authoritative container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        event_type: The ``event_type`` value to wait for (e.g. ``"close_case"``).
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If no entry with *event_type* appears within
+            *timeout_seconds*.
+    """
+
+    def _check() -> bool:
+        raw = client.get("/datalayer/CaseLedgerEntrys/")
+        if not isinstance(raw, dict):
+            return False
+        for v in raw.values():
+            if (
+                isinstance(v, dict)
+                and v.get("case_id") == case_id
+                and v.get("event_type") == event_type
+            ):
+                logger.info(
+                    "Event type %r found in ledger for case %s",
+                    event_type,
+                    case_id,
+                )
+                return True
+        return False
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for event_type={event_type!r} to appear in ledger "
+        f"for case {case_id!r} — auto-close replication may not have completed",
+        swallow_exceptions=True,
+    )
+
+
 def wait_for_contiguous_ledger_coverage(
     client: DataLayerClient,
     case_id: str,
     expected_tail_index: int,
-    timeout_seconds: float = 15.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
@@ -341,6 +399,59 @@ def wait_for_contiguous_ledger_coverage(
 
 
 # ---------------------------------------------------------------------------
+# Generic DataLayer scan helper
+# ---------------------------------------------------------------------------
+
+
+def _poll_datalayer_for(
+    client: DataLayerClient,
+    discriminator_fn: Callable[[dict], bool],
+    timeout_seconds: float,
+    poll_interval: float,
+    log_msg: str,
+    error_msg: str,
+) -> str:
+    """Poll ``GET /datalayer/`` until *discriminator_fn* matches an object.
+
+    Scans the full DataLayer dict on each tick and calls *discriminator_fn*
+    on every ``dict``-typed value.  Returns the matching object's raw ID
+    string on the first match.
+
+    Args:
+        client: DataLayerClient to poll.
+        discriminator_fn: Callable receiving a single ``dict`` and returning
+            ``True`` when the target object is found.
+        timeout_seconds: Maximum seconds to wait before raising.
+        poll_interval: Seconds between successive GET calls.
+        log_msg: ``%``-style format string with a single ``%s`` placeholder
+            for the matched object ID; logged at INFO on a successful find.
+        error_msg: Message for the ``AssertionError`` raised on timeout.
+
+    Returns:
+        The raw ID string of the first matching object.
+
+    Raises:
+        AssertionError: If no matching object is found within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            all_objects = client.get("/datalayer/")
+            if isinstance(all_objects, dict):
+                for raw_id, obj_data in all_objects.items():
+                    if not isinstance(obj_data, dict):
+                        continue
+                    if discriminator_fn(obj_data):
+                        obj_id = str(raw_id)
+                        logger.info(log_msg, obj_id)
+                        return obj_id
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+    raise AssertionError(error_msg)
+
+
+# ---------------------------------------------------------------------------
 # Invite polling helpers
 # ---------------------------------------------------------------------------
 
@@ -388,31 +499,191 @@ def find_case_invite_for_actor(
     Raises:
         AssertionError: If no matching Invite is found within *timeout_seconds*.
     """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            all_objects = client.get("/datalayer/")
-            if isinstance(all_objects, dict):
-                for raw_id, obj_data in all_objects.items():
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if _is_case_invite_for(obj_data, case_id, invitee_id):
-                        obj_id = str(raw_id)
-                        logger.info(
-                            "Found Invite for actor %s on case %s: %s",
-                            invitee_id,
-                            case_id,
-                            obj_id,
-                        )
-                        return obj_id
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
-        f" case {case_id!r} to appear in DataLayer at {client.base_url}"
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_case_invite_for(
+            obj, case_id, invitee_id
+        ),
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=f"Found Invite for actor {invitee_id} on case {case_id}: %s",
+        error_msg=(
+            f"Timed out waiting for CaseActor Invite for actor {invitee_id!r}"
+            f" on case {case_id!r} to appear in DataLayer at {client.base_url}"
+        ),
     )
+
+
+def _is_ownership_transfer_offer_for(
+    obj_data: dict, case_id: str, transferee_id: str
+) -> bool:
+    """Return True if *obj_data* is a forwarded Offer(VulnerabilityCase) for *transferee_id*.
+
+    The CaseActor creates a NEW Offer when forwarding an ownership-transfer Offer
+    to the transferee (CM-21-005).  The forwarded Offer has::
+
+        type   = "Offer"
+        target = transferee_id      # the actor being offered ownership
+        object = case_id            # the VulnerabilityCase being transferred
+
+    The original Vendor Offer (addressed to the CaseActor, target=case_actor_id)
+    does NOT match this discriminator, so polling for the forwarded Offer on
+    Coordinator's DataLayer correctly skips the original.
+    """
+    if obj_data.get("type") != "Offer":
+        return False
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != transferee_id:
+        return False
+    inner = obj_data.get("object")
+    inner_id = inner.get("id") if isinstance(inner, dict) else inner
+    return inner_id == case_id
+
+
+def find_ownership_transfer_offer_for_actor(
+    client: DataLayerClient,
+    case_id: str,
+    transferee_id: str,
+    timeout_seconds: float = 90.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CaseActor's forwarded Offer(VulnerabilityCase) for *transferee_id* arrives.
+
+    In the ADR-0053 ownership-transfer flow, Vendor1's Offer is addressed to the
+    CaseActor (``to=[case_actor_id]``).  ``OfferCaseOwnershipTransferReceivedUseCase``
+    then creates a NEW forwarded Offer with a different ID and delivers it to the
+    transferee's inbox.  Polling for the *original* offer ID with
+    ``wait_for_object_stored`` will never succeed on the transferee's container
+    because the original Offer is only stored in the CaseActor's DataLayer.
+
+    This helper scans *client*'s DataLayer for any
+    ``Offer(target=transferee_id, object=case_id)`` and returns its ID so the
+    demo can drive the ``accept-case-ownership-transfer`` trigger with the correct
+    (forwarded) offer ID.
+
+    Args:
+        client: DataLayerClient connected to the transferee's container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        transferee_id: Full URI of the actor being offered case ownership.
+        timeout_seconds: Maximum time to wait before raising (default: 90 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The forwarded offer activity ID string.
+
+    Raises:
+        AssertionError: If no matching Offer is found within *timeout_seconds*.
+
+    Spec: CM-21-005.
+    """
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_ownership_transfer_offer_for(
+            obj, case_id, transferee_id
+        ),
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=(
+            f"Found forwarded Offer(VulnerabilityCase) for"
+            f" transferee {transferee_id} on case {case_id}: %s"
+        ),
+        error_msg=(
+            f"Timed out waiting for forwarded Offer(VulnerabilityCase) for"
+            f" transferee {transferee_id!r} on case {case_id!r} to appear in"
+            f" DataLayer at {client.base_url} — CaseActor outbox delivery may"
+            " not have completed (CM-21-005)"
+        ),
+    )
+
+
+def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
+    """Return True if *obj_data* looks like an Offer(CaseParticipant) for *case_id*."""
+    if obj_data.get("type") != "Offer":
+        return False
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != case_id:
+        return False
+    inner = obj_data.get("object")
+    if not isinstance(inner, dict):
+        return False
+    return bool(
+        inner.get("type") in ("CaseParticipant", "as_CaseParticipant")
+        or inner.get("case_roles")
+    )
+
+
+def find_cp_offer_for_case(
+    client: DataLayerClient,
+    case_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until an Offer(CaseParticipant) for *case_id* appears in DataLayer.
+
+    After a Coordinator sends suggest-actor-to-case, the CaseActor processes the
+    Offer(Actor, Case) and forwards an Offer(CaseParticipant) to the Case
+    Owner's inbox (ADR-0026).  This helper polls the Case Owner's DataLayer for
+    any Offer whose ``target`` matches *case_id* and whose ``object`` resembles
+    a CaseParticipant, so the demo can drive the approve step.
+
+    Args:
+        client: DataLayerClient connected to the Case Owner's container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The offer activity ID string.
+
+    Raises:
+        AssertionError: If no such offer is found within *timeout_seconds*.
+    """
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_cp_offer_for_case(obj, case_id),
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=f"Found Offer(CaseParticipant) for case {case_id}: %s",
+        error_msg=(
+            f"Timed out waiting for Offer(CaseParticipant) for case"
+            f" {case_id!r} to appear in DataLayer at {client.base_url}"
+        ),
+    )
+
+
+def find_case_actor_participant_id(
+    client: DataLayerClient,
+    case_id: str,
+) -> str | None:
+    """Return the CaseActor participant URI for *case_id* from *client*'s replica.
+
+    Scans ``actor_participant_index`` for an actor ID whose bare segment starts
+    with ``"case-actor"``.  A single read, not a poll: callers use it to resolve
+    the CaseActor's URI once the case replica is already known to be present.
+
+    Args:
+        client: DataLayerClient connected to any container holding the case.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+
+    Returns:
+        The CaseActor participant URI, or ``None`` when the case is unreadable
+        or has no CaseActor participant.
+    """
+    try:
+        case_data = client.get(f"/datalayer/{case_id}")
+        case = as_VulnerabilityCase.model_validate(case_data)
+        for actor_id in case.actor_participant_index:
+            if strip_id_prefix(actor_id).startswith("case-actor"):
+                return actor_id
+    except Exception:  # noqa: BLE001
+        pass
+    return None
 
 
 def wait_for_object_stored(
@@ -468,23 +739,28 @@ def wait_for_object_stored(
 # ---------------------------------------------------------------------------
 
 
-def wait_for_participant_vfd_state(
+def _wait_for_participant_status_field(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
+    field_name: str,
     expected_states: "set",
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
 ) -> None:
-    """Poll until *actor_id*'s latest participant ``vfd_state`` is in
-    *expected_states*.
+    """Poll until *actor_id*'s latest participant status field is in *expected_states*.
+
+    Private shared implementation for :func:`wait_for_participant_vfd_state`
+    and :func:`wait_for_participant_rm_state`.
 
     Args:
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
-        expected_states: Set of ``CS_vfd`` values that satisfy the condition.
-        timeout_seconds: Maximum time to wait (default: 10 s).
+        field_name: Attribute name on the participant status object to check
+            (e.g. ``"vfd_state"`` or ``"rm_state"``).
+        expected_states: Set of state values that satisfy the condition.
+        timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
 
     Raises:
@@ -503,26 +779,27 @@ def wait_for_participant_vfd_state(
         if participant is not None:
             latest = participant.participant_status
             n_statuses = len(participant.participant_statuses or [])
-            latest_vfd = latest.vfd_state if latest is not None else None
-            latest_rm = latest.rm_state if latest is not None else None
+            current_val = (
+                getattr(latest, field_name) if latest is not None else None
+            )
             logger.debug(
-                "wait_for_participant_vfd_state poll #%d: "
+                "_wait_for_participant_status_field poll #%d: "
                 "actor=%r case=%r participant=%r "
-                "n_statuses=%d latest_vfd=%r latest_rm=%r expected=%r",
+                "n_statuses=%d field=%r current=%r expected=%r",
                 poll_count,
                 actor_id,
                 case_id,
                 participant.id_,
                 n_statuses,
-                latest_vfd,
-                latest_rm,
+                field_name,
+                current_val,
                 expected_states,
             )
-            if latest is not None and latest.vfd_state in expected_states:
+            if latest is not None and current_val in expected_states:
                 return
         else:
             logger.debug(
-                "wait_for_participant_vfd_state poll #%d: "
+                "_wait_for_participant_status_field poll #%d: "
                 "actor=%r case=%r participant=<not found>",
                 poll_count,
                 actor_id,
@@ -534,28 +811,63 @@ def wait_for_participant_vfd_state(
     latest = (
         participant.participant_status if participant is not None else None
     )
-    current = latest.vfd_state if latest is not None else "unknown"
-    rm_state = latest.rm_state if latest is not None else "unknown"
+    current_val = (
+        getattr(latest, field_name) if latest is not None else "unknown"
+    )
     logger.debug(
-        "wait_for_participant_vfd_state timed out after %.1f s: "
-        "actor=%r case=%r vfd_state=%r rm_state=%r expected=%r",
+        "_wait_for_participant_status_field timed out after %.1f s: "
+        "actor=%r case=%r field=%r current=%r expected=%r",
         timeout_seconds,
         actor_id,
         case_id,
-        current,
-        rm_state,
+        field_name,
+        current_val,
         expected_states,
     )
     raise AssertionError(
-        f"Timed out waiting for actor '{actor_id}' vfd_state to be in "
-        f"{expected_states!r}; current={current!r}"
+        f"Timed out waiting for actor '{actor_id}' {field_name} to be in "
+        f"{expected_states!r}; current={current_val!r}"
+        f" (polled {client.base_url})"
+    )
+
+
+def wait_for_participant_vfd_state(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set",
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until *actor_id*'s latest participant ``vfd_state`` is in
+    *expected_states*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of ``CS_vfd`` values that satisfy the condition.
+        timeout_seconds: Maximum time to wait (default: 30 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the state is not reached within *timeout_seconds*.
+    """
+    _wait_for_participant_status_field(
+        client,
+        case_id,
+        actor_id,
+        "vfd_state",
+        expected_states,
+        timeout_seconds,
+        poll_interval,
     )
 
 
 def wait_for_case_em_terminated(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until the case EM state is ``EM.EXITED``.
@@ -590,10 +902,43 @@ def wait_for_case_em_terminated(
     )
 
 
+def wait_for_participant_rm_state(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set",
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until *actor_id*'s latest participant ``rm_state`` is in
+    *expected_states*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of ``RM`` values that satisfy the condition.
+        timeout_seconds: Maximum time to wait (default: 30 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the state is not reached within *timeout_seconds*.
+    """
+    _wait_for_participant_status_field(
+        client,
+        case_id,
+        actor_id,
+        "rm_state",
+        expected_states,
+        timeout_seconds,
+        poll_interval,
+    )
+
+
 def wait_for_all_participants_rm_closed(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until all participants in *case_id* have ``RM.CLOSED`` as their
@@ -625,4 +970,81 @@ def wait_for_all_participants_rm_closed(
         f"Timed out waiting for all participants in case '{case_id}' "
         "to reach RM.CLOSED",
         swallow_exceptions=True,
+    )
+
+
+def wait_for_participant_pxa_state(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set | None" = None,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until *actor_id*'s participant status shows a public-aware pxa_state.
+
+    ``pxa_state`` is nested at ``participant.participant_status.case_status
+    .pxa_state`` and cannot be reached by the generic
+    :func:`_wait_for_participant_status_field` (which handles only top-level
+    fields on ``as_ParticipantStatus``).  This helper handles the two-level
+    attribute access explicitly.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of ``CS_pxa`` values that satisfy the condition.
+            Defaults to all public-aware states: ``{Pxa, PxA, PXa, PXA}``.
+        timeout_seconds: Maximum time to wait (default: 30 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the expected pxa_state is not reached within
+            *timeout_seconds*.
+
+    Spec: DEMOMA-06-002.
+    """
+    from vultron.core.states.cs import CS_pxa  # noqa: PLC0415
+    from vultron.demo.helpers.verification import (  # noqa: PLC0415
+        _fetch_participant,
+    )
+
+    if expected_states is None:
+        expected_states = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
+
+    deadline = time.monotonic() + timeout_seconds
+    poll_count = 0
+    while time.monotonic() < deadline:
+        poll_count += 1
+        participant = _fetch_participant(client, case_id, actor_id)
+        if participant is not None:
+            latest = participant.participant_status
+            if latest is not None:
+                cs = getattr(latest, "case_status", None)
+                pxa = (
+                    getattr(cs, "pxa_state", None) if cs is not None else None
+                )
+                logger.debug(
+                    "wait_for_participant_pxa_state poll #%d: "
+                    "actor=%r case=%r pxa=%r expected=%r",
+                    poll_count,
+                    actor_id,
+                    case_id,
+                    pxa,
+                    expected_states,
+                )
+                if pxa in expected_states:
+                    return
+        time.sleep(poll_interval)
+
+    participant = _fetch_participant(client, case_id, actor_id)
+    latest = (
+        participant.participant_status if participant is not None else None
+    )
+    cs = getattr(latest, "case_status", None) if latest is not None else None
+    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    raise AssertionError(
+        f"Timed out waiting for actor '{actor_id}' pxa_state to be in "
+        f"{expected_states!r}; current={pxa!r}"
+        f" (polled {client.base_url})"
     )

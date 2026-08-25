@@ -146,6 +146,10 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         if offer_id:
             stored_offer = self._dl.read(offer_id)
             stored_participant = getattr(stored_offer, "object_", None)
+            # MV-09-001: dehydration stores object_ as a bare ID string;
+            # follow the reference to retrieve the full as_CaseParticipant.
+            if isinstance(stored_participant, str):
+                stored_participant = self._dl.read(stored_participant)
             raw_roles = getattr(stored_participant, "roles", None)
             if isinstance(raw_roles, list) and raw_roles:
                 offer_roles = serialize_roles(raw_roles)

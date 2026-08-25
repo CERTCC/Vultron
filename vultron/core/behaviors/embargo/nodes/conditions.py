@@ -15,17 +15,18 @@
 
 """Condition nodes for case, embargo, and participant validation."""
 
-import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models._helpers import has_case_statuses
-from vultron.core.models.case import VulnerabilityCase
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
+from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.errors import VultronInvalidStateTransitionError
 
 
-class ValidateCaseExistsNode(DataLayerCondition):
+class ValidateCaseExistsNode(DataLayerConditionWithPorts):
     """Check that the target case exists in the DataLayer.
 
     Returns SUCCESS if the case is found and is a ``VulnerabilityCase``.
@@ -54,7 +55,7 @@ class ValidateCaseExistsNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class IsActiveEmbargoNode(DataLayerCondition):
+class IsActiveEmbargoNode(DataLayerConditionWithPorts):
     """Check that the given embargo is the active embargo on the case.
 
     Returns SUCCESS if ``case.active_embargo`` resolves to ``embargo_id``.
@@ -91,7 +92,7 @@ class IsActiveEmbargoNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class LookupParticipantNode(DataLayerCondition):
+class LookupParticipantNode(DataLayerConditionWithPorts):
     """Resolve participant from case and actor_id.
 
     Looks up the actor in case.actor_participant_index and reads the
@@ -109,11 +110,15 @@ class LookupParticipantNode(DataLayerCondition):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="participant", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "participant": PortInformation(data_type=object, required=True)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"participant": "/participant"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -149,7 +154,7 @@ class LookupParticipantNode(DataLayerCondition):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        self.blackboard.participant = participant
+        self._set_output("participant", participant)
         self.feedback_message = (
             f"Resolved participant '{participant_id}' for actor"
             f" '{actor_id}' on case '{self.case_id}'"
@@ -158,7 +163,7 @@ class LookupParticipantNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class OptionalLookupParticipantNode(DataLayerCondition):
+class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
     """Optionally resolve participant from case and actor_id.
 
     Lenient variant of LookupParticipantNode: returns SUCCESS even when the case
@@ -191,11 +196,15 @@ class OptionalLookupParticipantNode(DataLayerCondition):
         self.case_id = case_id
         self.target_actor_id = target_actor_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="participant", access=py_trees.common.Access.WRITE
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "participant": PortInformation(data_type=object, required=False)
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"participant": "/participant"}
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -236,7 +245,7 @@ class OptionalLookupParticipantNode(DataLayerCondition):
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        self.blackboard.participant = participant
+        self._set_output("participant", participant)
         self.feedback_message = (
             f"Resolved participant '{participant_id}' for actor"
             f" '{actor_id}' on case '{self.case_id}'"
@@ -245,7 +254,7 @@ class OptionalLookupParticipantNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class HasActiveEmbargoNode(DataLayerCondition):
+class HasActiveEmbargoNode(DataLayerConditionWithPorts):
     """Guard that the case has an active embargo set.
 
     Returns SUCCESS when ``case.active_embargo`` is non-None.
@@ -294,7 +303,50 @@ class HasActiveEmbargoNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class HasCaseStatusesNode(DataLayerCondition):
+class IsProposedEmbargoNode(DataLayerConditionWithPorts):
+    """Check that the case EM state is PROPOSED.
+
+    Returns SUCCESS when ``case.current_status.em.state == EM.PROPOSED``.
+    Returns FAILURE for any other EM state (including ACTIVE, REVISE, NONE,
+    EXITED), halting the parent Sequence so the proposed-embargo arm is skipped.
+
+    Analogous to :class:`IsActiveEmbargoNode` but for the PROPOSED state.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            return Status.FAILURE
+
+        try:
+            em_state = case.current_status.em.state
+        except (ValueError, AttributeError):
+            self.feedback_message = (
+                f"Case '{self.case_id}' has no materialized CaseStatus"
+            )
+            return Status.FAILURE
+
+        from vultron.core.states.em import EM
+
+        if em_state != EM.PROPOSED:
+            self.feedback_message = (
+                f"Case '{self.case_id}' EM state is '{em_state}', not PROPOSED"
+            )
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class HasCaseStatusesNode(DataLayerConditionWithPorts):
     """Guard that the case has at least one CaseStatus entry.
 
     Returns SUCCESS when ``case.case_statuses`` is non-empty.

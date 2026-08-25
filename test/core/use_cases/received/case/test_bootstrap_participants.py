@@ -155,6 +155,29 @@ class TestBootstrapParticipantStorage:
             "DataLayer record after bootstrap so BT nodes can look it up by ID"
         )
 
+    def test_stored_participant_line_is_debug(self, dl, create_event, caplog):
+        """Per-participant storage chatter is DEBUG, not INFO (SL-04-007).
+
+        This fires once per participant on every case announcement, so it
+        drowns out the protocol story on the INFO channel.
+        """
+        import logging
+
+        link = _build_link()
+        dl.save(link)
+
+        with caplog.at_level(logging.DEBUG):
+            CreateCaseReceivedUseCase(dl, create_event).execute()
+
+        stored_records = [
+            r
+            for r in caplog.records
+            if "store_embedded_participants: stored participant"
+            in r.getMessage()
+        ]
+        assert stored_records, "Expected the stored-participant log entry"
+        assert all(r.levelno == logging.DEBUG for r in stored_records)
+
     def test_participant_stored_when_case_already_existed(
         self, dl, create_event, case_with_two_participants
     ):

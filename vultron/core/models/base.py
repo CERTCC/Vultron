@@ -19,7 +19,7 @@ import re
 import types as _types
 import typing as _typing
 from datetime import datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, ClassVar
 
 from pydantic import (
     AfterValidator,
@@ -30,7 +30,21 @@ from pydantic import (
 )
 
 from vultron.core.models._helpers import _new_urn, _now_utc
-from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+
+
+class ValidatedAssignmentMixin(BaseModel):
+    """Mixin that enables Pydantic post-construction field validation on core models.
+
+    Apply to core-branch roots only (ARCH-21-001). ``VultronBase`` is permanently
+    excluded because it is the shared base of both branches and ``as_Base``
+    inherits it (ARCH-12-001, ARCH-12-002). Composes correctly with
+    ``VultronBase.model_config`` (``populate_by_name=True``) across the MRO:
+    Pydantic v2 merges ``model_config`` from all BaseModel ancestors, so the
+    result carries both ``validate_assignment=True`` and ``populate_by_name=True``.
+    """
+
+    model_config = ConfigDict(validate_assignment=True)
 
 
 def _non_empty(v: str) -> str:
@@ -70,7 +84,7 @@ class VultronBase(BaseModel):
     media_type: NonEmptyString | None = None
 
 
-class VultronObject(VultronBase):
+class VultronObject(ValidatedAssignmentMixin, VultronBase):
     """Base class for core domain object models.
 
     Captures the common ``id_``, ``type_``, and ``name`` fields shared by
@@ -79,12 +93,63 @@ class VultronObject(VultronBase):
     this base rather than directly from ``BaseModel``.
     """
 
+    # Sentinel: True on the core branch (default), overridden to False on
+    # as_Object so wire-branch types never self-register in CORE_TYPE_MAP
+    # (issue #2416).  CoreObject subclasses inherit True and are guarded by
+    # CoreObject.__init_subclass__ instead.
+    _is_core_branch: ClassVar[bool] = True
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
+        # Wire-branch types inherit _is_core_branch=False from as_Object and
+        # must not self-register in CORE_TYPE_MAP (issue #2416).
+        if not cls._is_core_branch:
+            return
+        # Register every concrete VultronObject subclass in CORE_TYPE_MAP so
+        # that find_in_vocabulary() can locate them without placing them in the
+        # wire VOCABULARY dict (ARCH-12-003). Only subclasses that declare
+        # their own concrete type_ annotation are registered; abstract bases
+        # that inherit or omit type_ are skipped (same guard as CoreObject).
+        own_annotations = cls.__dict__.get("__annotations__", {})
+        if "type_" not in own_annotations:
+            return
+        try:
+            hints = _typing.get_type_hints(cls)
+        except Exception:
+            return
+        annotation = hints.get("type_")
+        if isinstance(annotation, _types.UnionType):
+            return
+        if _typing.get_origin(annotation) is _typing.Union:
+            return
+        try:
+            # Register by class name (covers classes where _set_type_from_class_name
+            # sets type_ = cls.__name__, e.g. CoreActor stored as "CoreActor").
+            CORE_TYPE_MAP[cls.__name__] = cls
+            # Also register by the Literal value itself when it differs from the
+            # class name (e.g. VultronOfferRecord → "OfferRecord"). Extract from
+            # the annotation directly; model_fields is not yet populated at
+            # __init_subclass__ time.
+            literal_args = _typing.get_args(annotation)
+            if (
+                literal_args
+                and len(literal_args) == 1
+                and isinstance(literal_args[0], str)
+            ):
+                CORE_TYPE_MAP[literal_args[0]] = cls
+        except Exception:
+            pass
+
     replies: Any | None = None
     url: NonEmptyString | None = None
     generator: Any | None = None
     context: Any | None = None
     tag: Any | None = None
-    in_reply_to: Any | None = None
+    in_reply_to: Any | None = Field(
+        default=None,
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
+    )
 
     duration: timedelta | None = None
     start_time: datetime | None = None
@@ -158,7 +223,16 @@ class CoreObject(VultronObject):
         # would silently fall through and register abstract bases.
         own_annotations = cls.__dict__.get("__annotations__", {})
         if "type_" not in own_annotations:
-            return  # No type_ override → abstract base, skip
+            # No explicit type_ annotation: _set_type_from_class_name will set
+            # type_ = cls.__name__ at construction time, so register by class
+            # name so that find_in_vocabulary can reconstruct from DB storage.
+            # This fires for abstract intermediate subclasses too — any
+            # CoreObject subclass that never overrides type_ registers here,
+            # making find_in_vocabulary('ClassName') succeed even for abstract
+            # bases.  Intentional: _set_type_from_class_name runs on all such
+            # subclasses, so every registered name is a valid stored type_.
+            CORE_TYPE_MAP[cls.__name__] = cls
+            return  # Skip CORE_VOCABULARY — not a concrete vocab entry
         try:
             hints = _typing.get_type_hints(cls)
         except Exception:
@@ -175,8 +249,13 @@ class CoreObject(VultronObject):
             return
         CORE_VOCABULARY[cls.__name__] = cls
 
-    @model_validator(mode="after")
-    def _set_type_from_class_name(self) -> "CoreObject":
-        if self.type_ is None:
-            self.type_ = self.__class__.__name__
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_type_from_class_name(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("type") and not data.get("type_"):
+                field_info = cls.model_fields.get("type_")
+                if field_info is not None and field_info.default is None:
+                    data = dict(data)
+                    data["type"] = cls.__name__
+        return data

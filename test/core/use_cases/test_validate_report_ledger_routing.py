@@ -80,21 +80,16 @@ def _make_case_at_received(
     finder_id: str,
     report_id: str,
 ) -> tuple[VulnerabilityCase, as_Offer]:
-    """Create a case at RM.RECEIVED via the receive-report BT.
+    """Create a case at RM.RECEIVED, simulating what CaseActor provides.
 
-    Mirrors the real production path: Offer(Report) arrives → BT creates a
-    case and the CaseActor Service at RM.RECEIVED (ADR-0015).  The returned
-    case already has a CASE_MANAGER entry in ``actor_participant_index``
-    populated by ``CreateCaseActorNode``.
+    ADR-0041: the vendor tree no longer creates a VulnerabilityCase.  This
+    helper creates one directly with an active embargo and a CASE_MANAGER
+    Service, reproducing the state the CaseActor would establish after
+    accepting a CaseProposal.
 
     Returns:
         (case, offer) — both persisted in *dl*.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.receive_report_case_tree import (
-        create_receive_report_case_tree,
-    )
-
     report_obj = as_VulnerabilityReport(id_=report_id, name="Test Vul Report")
     dl.save(report_obj)
     offer = as_Offer(
@@ -111,23 +106,32 @@ def _make_case_at_received(
     )
     dl.create(offer_record)
 
-    bridge = BTBridge(
-        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+    embargo_id = f"{vendor_id}/embargoes/test-embargo"
+    case_id = f"{vendor_id}/cases/test-case-received"
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="Test Case at Received",
+        attributed_to=vendor_id,
+        vulnerability_reports=[report_id],
+        active_embargo=embargo_id,
     )
-    tree = create_receive_report_case_tree(
-        report_id=report_id,
-        offer_id=offer.id_,
-        reporter_actor_id=finder_id,
-    )
-    bridge.execute_with_setup(tree, actor_id=vendor_id)
+    dl.create(case)
 
-    case = dl.find_case_by_report_id(report_id)
-    assert (
-        case is not None
-    ), "receive_report BT must create a as_VulnerabilityCase"
-    assert isinstance(
-        case, VulnerabilityCase
-    ), f"Expected VulnerabilityCase, got {type(case)}"
+    case_actor = as_Service(
+        name="Case Actor Service",
+        context=case_id,
+    )
+    dl.create(case_actor)
+    case_manager_participant = as_CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(case_manager_participant)
+    case.actor_participant_index[case_actor.id_] = case_manager_participant.id_
+    case.case_participants.append(case_manager_participant.id_)
+    dl.save(case)
+
     return case, offer
 
 
@@ -156,6 +160,10 @@ def _configure_case_actor_url(monkeypatch):
 
     reload_config()
     yield
+    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URL into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
     reload_config()
 
 

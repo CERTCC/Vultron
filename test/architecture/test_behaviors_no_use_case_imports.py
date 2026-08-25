@@ -39,26 +39,21 @@ When the set is empty the boundary is completely clean.
 """
 
 import ast
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
 _USE_CASES_MODULE = "vultron.core.use_cases"
 
-_BEHAVIORS_ROOT = REPO_ROOT / "vultron" / "core" / "behaviors"
+_BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
 
-def _imports_from_use_cases(source_path: Path) -> bool:
-    """Return True if *source_path* contains any import from vultron.core.use_cases.
+def _imports_from_use_cases(tree: ast.AST) -> bool:
+    """Return True if *tree* contains any import from vultron.core.use_cases.
 
     Detects both top-level and deferred (local) imports, catching violations
     like the former ``from vultron.core.use_cases.received.case._helpers import
     _ensure_reporter_participant`` placed inside ``update()`` method bodies.
     """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -78,11 +73,11 @@ def _imports_from_use_cases(source_path: Path) -> bool:
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of behaviors files that import from use_cases."""
     violations: set[str] = set()
-    for py_file in _BEHAVIORS_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        if _imports_from_use_cases(py_file):
-            violations.add(py_file.relative_to(REPO_ROOT).as_posix())
+    for py_file, tree in _corpus.files_mentioning(
+        _USE_CASES_MODULE, under=_BEHAVIORS_ROOT
+    ):
+        if _imports_from_use_cases(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
     return frozenset(violations)
 
 
@@ -99,8 +94,9 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/core/behaviors/case/nodes/announce.py",
         "vultron/core/behaviors/case/nodes/conditions.py",
         "vultron/core/behaviors/case/nodes/lifecycle.py",
+        "vultron/core/behaviors/case/nodes/ownership_transfer.py",
         "vultron/core/behaviors/case/nodes/participant/owner.py",
-        "vultron/core/behaviors/embargo/nodes/lifecycle.py",
+        "vultron/core/behaviors/embargo/nodes/emit.py",
         "vultron/core/behaviors/embargo/nodes/proposal.py",
         "vultron/core/behaviors/embargo/nodes/teardown.py",
         "vultron/core/behaviors/report/nodes/emit.py",
@@ -109,7 +105,7 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/core/behaviors/report/nodes/storage.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
         "vultron/core/behaviors/sync/nodes/chain.py",
-        "vultron/core/behaviors/sync/nodes/replay.py",
+        "vultron/core/behaviors/sync/nodes/fanout.py",
     ]
 )
 

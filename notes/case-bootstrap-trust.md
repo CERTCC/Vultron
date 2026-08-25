@@ -133,26 +133,45 @@ bootstrap `Create(VulnerabilityCase)` for this report/case relationship."
 
 ---
 
+## ADR-0041 Update: Receiver Holds No Interim VulnerabilityCase
+
+Per ADR-0041 (`docs/adr/0041-caseactor-authoritative-case-initialization.md`),
+the receiver (vendor) does **not** create a `VulnerabilityCase` before the
+CaseActor responds. The bootstrap flow for the original report-submission path
+is now:
+
+```text
+Receiver: Offer(VulnerabilityReport) received
+  → store report
+  → write VultronReportCaseLink(status=PENDING_PROPOSAL)
+  → send Create(as_CaseProposal) to CaseActor
+
+CaseActor: Create(VulnerabilityCase, actor=CaseActor, inline participants)
+  → Receiver seeds local replica via CreateCaseReceivedUseCase
+  → trust anchors recorded in VultronReportCaseLink
+```
+
+The `Create(VulnerabilityCase)` from the CaseActor IS the bootstrap. The
+sender is the CaseActor (not the report receiver), so the trust anchor the
+receiver validates is `trusted_case_actor_id` from the `Accept(CaseProposal)`
+recorded earlier in `accept_case_proposal_received_tree.py`.
+
+The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
+so `_store_embedded_participants` can seed them on the receiver's replica.
+
 ## Migration Guidance
 
-This design supersedes the non-owner bootstrap assumptions currently written in
-`notes/participant-case-replica.md` and the corresponding PCR bootstrap rules:
+Per ADR-0041, the following call sites change:
 
-- Original participants do **not** start with `Announce(VulnerabilityCase)`
-  from the CaseActor.
-- `Create(VulnerabilityCase)` is no longer forbidden as a snapshot vehicle in
-  all cases; it is allowed exactly once for creator-signed bootstrap on the
-  original report path.
-- Late joiners still converge on CaseActor-authored `Announce` after their
-  invite-based trust handoff.
-
-When implementation work begins, update these call sites consistently:
-
-1. Case creation at report receipt
-2. Outbound bootstrap activity construction
-3. Participant-side bootstrap validation and trust persistence
-4. Unknown-context / pre-bootstrap queueing and replay request behavior
-5. Invite-to-case handling for late-joiner trust establishment
+1. **Case creation at report receipt** — receiver no longer creates
+   `VulnerabilityCase`; replaced by `VultronReportCaseLink(status=PENDING_PROPOSAL)`
+2. **CaseActor bootstrap payload** — `Create(VulnerabilityCase)` must embed
+   inline participants (not bare IDs)
+3. **Participant-side bootstrap validation and trust persistence** — already
+   implemented in `CreateCaseReceivedUseCase`; no change needed
+4. **Unknown-context / pre-bootstrap queueing** — existing queueing logic
+   applies unchanged
+5. **Invite-to-case handling for late-joiner trust establishment** — unchanged
 
 ---
 

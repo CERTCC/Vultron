@@ -445,13 +445,14 @@ def test_get_failure_reason_finds_first_failing_child():
 # Log-level tests
 
 
-def test_final_bt_state_logged_at_info_on_success(
-    bridge, test_actor_id, caplog
+@pytest.mark.parametrize("tree_factory", [AlwaysSucceed, AlwaysFail])
+def test_final_bt_state_logged_at_debug(
+    bridge, test_actor_id, caplog, tree_factory
 ):
-    """Final BT state tree visualization is logged at INFO on SUCCESS."""
+    """Final BT state tree dump is DEBUG-only scaffolding (SL-04-007)."""
     import logging
 
-    tree = AlwaysSucceed()
+    tree = tree_factory()
     bt = bridge.setup_tree(tree=tree, actor_id=test_actor_id)
 
     with caplog.at_level(logging.DEBUG):
@@ -462,26 +463,174 @@ def test_final_bt_state_logged_at_info_on_success(
     ]
     assert final_state_records, "Expected 'Final BT state' log entry"
     assert all(
-        r.levelno == logging.INFO for r in final_state_records
-    ), f"Expected INFO but got {final_state_records[0].levelname}"
+        r.levelno == logging.DEBUG for r in final_state_records
+    ), f"Expected DEBUG but got {final_state_records[0].levelname}"
 
 
-def test_final_bt_state_logged_at_info_on_failure(
-    bridge, test_actor_id, caplog
-):
-    """Final BT state tree visualization is logged at INFO on FAILURE."""
+def test_bt_structure_logged_at_debug(bridge, test_actor_id, caplog):
+    """The pre-execution BT structure dump is DEBUG-only (SL-04-007)."""
     import logging
 
-    tree = AlwaysFail()
-    bt = bridge.setup_tree(tree=tree, actor_id=test_actor_id)
-
     with caplog.at_level(logging.DEBUG):
-        bridge.execute_tree(bt)
+        bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
 
-    final_state_records = [
-        r for r in caplog.records if "Final BT state" in r.message
+    structure_records = [
+        r for r in caplog.records if "BT structure" in r.message
     ]
-    assert final_state_records, "Expected 'Final BT state' log entry"
-    assert all(
-        r.levelno == logging.INFO for r in final_state_records
-    ), f"Expected INFO but got {final_state_records[0].levelname}"
+    assert structure_records, "Expected 'BT structure' log entry"
+    assert all(r.levelno == logging.DEBUG for r in structure_records)
+
+
+def test_bt_structure_not_emitted_at_info(bridge, test_actor_id, caplog):
+    """No 'BT structure' record reaches an INFO-only handler (SL-04-007)."""
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
+
+    assert not [r for r in caplog.records if "BT structure" in r.message]
+
+
+def _completion_records(caplog):
+    import logging
+
+    return [
+        r
+        for r in caplog.records
+        if "BT execution completed" in r.getMessage()
+        and r.levelno == logging.INFO
+    ]
+
+
+def test_failure_reason_folded_into_completion_line(
+    bridge, test_actor_id, caplog
+):
+    """AC-18: the FAILURE completion line carries a reason, not a bare status.
+
+    ``AlwaysFail`` sets ``feedback_message``, so that is the reason reported.
+    """
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        result = bridge.execute_with_setup(
+            tree=AlwaysFail(), actor_id=test_actor_id
+        )
+
+    assert result.status == Status.FAILURE
+    records = _completion_records(caplog)
+    assert records, "Expected a BT completion line at INFO"
+    assert "Failure" in records[0].getMessage()
+
+
+def test_failure_reason_recovered_when_root_has_no_feedback(
+    bridge, test_actor_id, caplog
+):
+    """A silent root reports the failing leaf's identity, not an empty tail.
+
+    Without the ``get_failure_reason()`` fallback this line read
+    ``... Status.FAILURE after 1 ticks - `` with nothing after the dash — the
+    exact symptom CONCERN-1968 flagged.
+    """
+    import logging
+
+    root = py_trees.composites.Sequence(name="SilentRoot", memory=False)
+    root.add_child(AlwaysFail(name="InnerFail"))
+
+    with caplog.at_level(logging.INFO):
+        bridge.execute_with_setup(tree=root, actor_id=test_actor_id)
+
+    records = _completion_records(caplog)
+    assert records, "Expected a BT completion line at INFO"
+    message = records[0].getMessage()
+    assert not message.rstrip().endswith("-"), (
+        "FAILURE completion line must not end with a bare dash;"
+        f" got {message!r}"
+    )
+    assert "Failure" in message
+
+
+def test_only_one_completion_record_per_failure(bridge, test_actor_id, caplog):
+    """The reason is folded in, not added as a second INFO record.
+
+    Many callers treat FAILURE as an expected idempotent skip and log their
+    own explanation at DEBUG; a second INFO line would triple-log a benign
+    no-op.
+    """
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        bridge.execute_with_setup(tree=AlwaysFail(), actor_id=test_actor_id)
+
+    assert len(_completion_records(caplog)) == 1
+
+
+# ---------------------------------------------------------------------------
+# wire_render_port injection tests (AC-4)
+# ---------------------------------------------------------------------------
+
+
+class _StubWireRenderPort:
+    """Minimal stub that satisfies the WireRenderPort Protocol."""
+
+    def render(self, obj):
+        return {"type": "stub"}
+
+
+class CheckWireRenderPort(py_trees.behaviour.Behaviour):
+    """BT node that verifies wire_render_port is on the blackboard."""
+
+    def setup(self, **kwargs) -> None:
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key(
+            key="wire_render_port", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        try:
+            port = self.blackboard.wire_render_port
+            if port is None:
+                self.feedback_message = "wire_render_port is None"
+                return Status.FAILURE
+            self.feedback_message = "wire_render_port present"
+            return Status.SUCCESS
+        except KeyError as e:
+            self.feedback_message = f"Missing key: {e}"
+            return Status.FAILURE
+
+
+def test_bridge_wire_render_port_published_to_blackboard(
+    datalayer, test_actor_id
+):
+    """AC-4: wire_render_port is placed on the blackboard when provided."""
+    stub = _StubWireRenderPort()
+    bridge = BTBridge(datalayer=datalayer, wire_render_port=stub)
+
+    tree = CheckWireRenderPort(name="CheckWireRenderPort")
+    result = bridge.execute_with_setup(tree=tree, actor_id=test_actor_id)
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+
+
+def test_bridge_wire_render_port_not_on_blackboard_when_absent(
+    bridge, test_actor_id
+):
+    """AC-4: wire_render_port key is absent from the blackboard when not provided."""
+    storage = py_trees.blackboard.Blackboard.storage
+    # Run without wire_render_port
+    bridge.execute_with_setup(tree=AlwaysSucceed(), actor_id=test_actor_id)
+    assert "/wire_render_port" not in storage
+
+
+def test_bridge_wire_render_port_is_correct_object(datalayer, test_actor_id):
+    """The blackboard receives the exact port object passed to BTBridge."""
+    stub = _StubWireRenderPort()
+    bridge = BTBridge(datalayer=datalayer, wire_render_port=stub)
+
+    bt = bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
+    bt.setup()
+
+    blackboard = py_trees.blackboard.Client(name="test-wire-render")
+    blackboard.register_key(
+        key="wire_render_port", access=py_trees.common.Access.READ
+    )
+    assert blackboard.wire_render_port is stub

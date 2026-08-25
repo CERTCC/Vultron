@@ -95,6 +95,10 @@ def test_bundle_fields_satisfy_protocol():
         ),
         ("vultron.demo.fuzzer.bundles.deploy_fix", "DeployFixCallOutBundle"),
         (
+            "vultron.demo.fuzzer.bundles.deploy_mitigation",
+            "DeployMitigationCallOutBundle",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.acquire_exploit",
             "AcquireExploitCallOutBundle",
         ),
@@ -103,8 +107,16 @@ def test_bundle_fields_satisfy_protocol():
             "AssignVulIdCallOutBundle",
         ),
         (
+            "vultron.demo.fuzzer.bundles.assign_cve_id",
+            "AssignCveIdCallOutBundle",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.close_report",
             "CloseReportCallOutBundle",
+        ),
+        (
+            "vultron.demo.fuzzer.bundles.status_authorization",
+            "StatusAuthorizationCallOutBundle",
         ),
     ],
 )
@@ -168,6 +180,11 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
             "DEPLOY_FIX_STOCHASTIC",
         ),
         (
+            "vultron.demo.fuzzer.bundles.deploy_mitigation",
+            "DEPLOY_MITIGATION_DETERMINISTIC",
+            "DEPLOY_MITIGATION_STOCHASTIC",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.acquire_exploit",
             "ACQUIRE_EXPLOIT_DETERMINISTIC",
             "ACQUIRE_EXPLOIT_STOCHASTIC",
@@ -178,9 +195,19 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
             "ASSIGN_VUL_ID_STOCHASTIC",
         ),
         (
+            "vultron.demo.fuzzer.bundles.assign_cve_id",
+            "ASSIGN_CVE_ID_DETERMINISTIC",
+            "ASSIGN_CVE_ID_STOCHASTIC",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.close_report",
             "CLOSE_REPORT_DETERMINISTIC",
             "CLOSE_REPORT_STOCHASTIC",
+        ),
+        (
+            "vultron.demo.fuzzer.bundles.status_authorization",
+            "STATUS_AUTHORIZATION_DETERMINISTIC",
+            "STATUS_AUTHORIZATION_STOCHASTIC",
         ),
     ],
 )
@@ -201,7 +228,7 @@ def test_singletons_are_immutable(module_path, det_name, sto_name):
 
 
 def test_bundles_init_re_exports_all_classes_and_singletons():
-    """vultron.demo.fuzzer.bundles re-exports all 9 bundle classes and 18 singletons."""
+    """vultron.demo.fuzzer.bundles re-exports all bundle classes and singletons."""
     import vultron.demo.fuzzer.bundles as bundles_pkg
 
     expected_classes = [
@@ -211,9 +238,12 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "PublicationCallOutBundle",
         "ReportToOthersCallOutBundle",
         "DeployFixCallOutBundle",
+        "DeployMitigationCallOutBundle",
         "AcquireExploitCallOutBundle",
+        "AssignCveIdCallOutBundle",
         "AssignVulIdCallOutBundle",
         "CloseReportCallOutBundle",
+        "StatusAuthorizationCallOutBundle",
     ]
     expected_singletons = [
         "VALIDATION_DETERMINISTIC",
@@ -228,12 +258,18 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "REPORT_TO_OTHERS_STOCHASTIC",
         "DEPLOY_FIX_DETERMINISTIC",
         "DEPLOY_FIX_STOCHASTIC",
+        "DEPLOY_MITIGATION_DETERMINISTIC",
+        "DEPLOY_MITIGATION_STOCHASTIC",
         "ACQUIRE_EXPLOIT_DETERMINISTIC",
         "ACQUIRE_EXPLOIT_STOCHASTIC",
+        "ASSIGN_CVE_ID_DETERMINISTIC",
+        "ASSIGN_CVE_ID_STOCHASTIC",
         "ASSIGN_VUL_ID_DETERMINISTIC",
         "ASSIGN_VUL_ID_STOCHASTIC",
         "CLOSE_REPORT_DETERMINISTIC",
         "CLOSE_REPORT_STOCHASTIC",
+        "STATUS_AUTHORIZATION_DETERMINISTIC",
+        "STATUS_AUTHORIZATION_STOCHASTIC",
     ]
     for name in expected_classes + expected_singletons:
         assert hasattr(

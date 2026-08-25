@@ -50,6 +50,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,7 @@ class BTBridge:
         is_leader: Callable[[], bool] = _default_is_leader,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.
@@ -119,18 +121,24 @@ class BTBridge:
                 placed on the py_trees blackboard under the key
                 ``trigger_activity_factory`` so that BT nodes can call it
                 without importing from the wire layer.
-            sync_port: Optional port for SYNC-2 replication fan-out
+            sync_port: Optional port for LedgerFanout replication fan-out
                 (SYNC-02-002).  When provided it is placed on the py_trees
                 blackboard under the key ``sync_port`` so that
                 ``CommitCaseLedgerEntryNode`` can fan out
                 ``Announce(CaseLedgerEntry)`` activities to participants.
                 Without this, ledger entries committed inside BTs are
                 persisted locally but not replicated.
+            wire_render_port: Optional port for rendering core domain objects
+                to wire-shaped (camelCase) JSON (ARCH-20-001).  When provided
+                it is placed on the py_trees blackboard under the key
+                ``wire_render_port`` so that BT nodes can call it without
+                importing from the wire layer (ARCH-01-001, ARCH-01-004).
         """
         self.datalayer = datalayer
         self.is_leader = is_leader
         self.trigger_activity = trigger_activity
         self.sync_port = sync_port
+        self.wire_render_port = wire_render_port
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}"
         )
@@ -189,6 +197,13 @@ class BTBridge:
             )
             blackboard.sync_port = self.sync_port
 
+        if self.wire_render_port is not None:
+            blackboard.register_key(
+                key="wire_render_port",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.wire_render_port = self.wire_render_port
+
         if activity is not None:
             blackboard.register_key(
                 key="activity", access=py_trees.common.Access.WRITE
@@ -204,9 +219,10 @@ class BTBridge:
 
         self.logger.info(f"BT setup complete for actor {actor_id}")
 
-        # Log tree structure for visibility (INFO level) — shows behavioral decisions
-        tree_repr = unicode_tree(tree, show_status=True)
-        self.logger.info(f"BT structure:\n{tree_repr}")
+        # BT scaffolding, not protocol story — DEBUG only (SL-04-007).
+        if self.logger.isEnabledFor(logging.DEBUG):
+            tree_repr = unicode_tree(tree, show_status=True)
+            self.logger.debug(f"BT structure:\n{tree_repr}")
 
         return bt
 
@@ -248,11 +264,28 @@ class BTBridge:
                 if root_status in (Status.SUCCESS, Status.FAILURE):
                     feedback = bt.root.feedback_message
 
+                    # SL-04-001/AC-18: a bare "Status.FAILURE" is not a story.
+                    # Fold the failing leaf's reason into the line that was
+                    # already emitted, rather than adding a second record —
+                    # many callers treat FAILURE as an expected idempotent
+                    # skip and log their own explanation at DEBUG.
+                    detail = feedback
+                    if root_status == Status.FAILURE:
+                        detail = (
+                            detail
+                            or self.get_failure_reason(bt.root)
+                            or "<no reason reported>"
+                        )
                     self.logger.info(
-                        f"BT execution completed: {root_status} after {iteration} ticks - {feedback}"
+                        "BT execution completed: %s after %d ticks - %s",
+                        root_status,
+                        iteration,
+                        detail,
                     )
-                    tree_repr = unicode_tree(bt.root, show_status=True)
-                    self.logger.info(f"Final BT state:\n{tree_repr}")
+                    # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        tree_repr = unicode_tree(bt.root, show_status=True)
+                        self.logger.debug(f"Final BT state:\n{tree_repr}")
 
                     return BTExecutionResult(
                         status=root_status,

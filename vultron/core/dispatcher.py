@@ -147,6 +147,14 @@ class DispatcherBase:
         state = dl.read(state_id)
         if not isinstance(state, VultronReplicationState):
             return
+        # A completed join-backfill means the peer holds the full canonical
+        # prefix — or never needed one (genesis participants whose replication
+        # state was created by the Reject(CaseLedgerEntry) sync path, which
+        # leaves the join_backfill_* fields at their -1/True defaults).  Only
+        # peers with an *incomplete* backfill are gated; otherwise a settled
+        # genesis participant is wrongly rejected as "backfill not started".
+        if state.join_backfill_complete:
+            return
         if state.join_backfill_last_sent_index < 0:
             raise VultronValidationError(
                 f"Actor '{sender_id}' has no contiguous canonical ledger "

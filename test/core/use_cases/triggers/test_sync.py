@@ -14,6 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Unit tests for SYNC trigger helpers."""
 
+import pytest
 from typing import Any
 
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
@@ -31,10 +32,13 @@ class _FakeWireActivity:
         return dict(self._payload)
 
 
+@pytest.mark.spec("CLP-07-011")
 def test_extract_activity_snapshot_returns_empty_without_activity() -> None:
     assert build_activity_payload_snapshot(None) == {}
 
 
+@pytest.mark.spec("CLP-07-006")
+@pytest.mark.spec("CLP-07-011")
 def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
     embargo = as_EmbargoEvent(context="https://example.org/cases/case-001")
     report = as_VulnerabilityReport(
@@ -72,6 +76,8 @@ def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
     assert status_obj["vulnerabilityReports"][0]["id"] == report.id_
 
 
+@pytest.mark.spec("CLP-07-006")
+@pytest.mark.spec("CLP-07-007")
 def test_extract_activity_snapshot_does_not_inline_cross_context_refs(
     datalayer,
 ):

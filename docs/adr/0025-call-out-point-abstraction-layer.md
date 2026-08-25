@@ -10,11 +10,11 @@ deciders: [adh]
 
 Vultron's Behavior Trees contain **call-out points** — nodes where the
 protocol cannot proceed autonomously and must request input from an external
-party (see ADR-0024 for the taxonomy of agent shapes). After FUZZ-01 through
+party (see ADR-0024 for the taxonomy of capability shapes). After FUZZ-01 through
 FUZZ-07 (#860–#866), each call-out point has a probabilistic fuzzer node as
 its stand-in. The fuzzer is not a permanent implementation: it is an adapter
 that will be replaced over time by real data lookups, policy evaluations, or
-coordination agents.
+capability implementations.
 
 Before those replacements can happen, the call-out points must be expressed
 as proper injection seams: the BT tree must be built so that the fuzzer is
@@ -27,15 +27,6 @@ The design question is: **What mechanism makes each call-out point backend
 swappable while remaining consistent with the existing py_trees Behaviour
 pattern, factory-function conventions, and blackboard contract model?**
 
-> **Design status — formed in sand, not concrete**: This ADR captures the
-> forward-looking intent after one planning session. The design will be
-> exercised in #1151 (one exemplar per agent shape) and is expected to
-> converge after two or three concrete implementations across different
-> domain areas. Implementers working on the shape-based follow-on issues
-> (FUZZ-08d through FUZZ-08g) SHOULD refine this ADR if the pattern proves
-> incorrect or incomplete. The ADR status will advance from `proposed` to
-> `accepted` once the exemplars validate the approach.
-
 ## Decision Drivers
 
 - Must be consistent with the existing BT factory-function pattern
@@ -46,9 +37,9 @@ pattern, factory-function conventions, and blackboard contract model?**
   or a real implementation — downstream nodes must be unaffected by the swap
 - Must keep simulation artifacts (`vultron/demo/fuzzer/`) out of
   `vultron/core/behaviors/` (BT-16-001)
-- Must be compatible with the four agent shapes from ADR-0024 (Sentinel,
-  Evaluator, Retriever, Composer), each of which has different input/output
-  semantics
+- Must be compatible with the five capability shapes from ADR-0024 (Sentinel,
+  Evaluator, Retriever, Composer, Actuator), each of which has different
+  input/output semantics
 - Must support partial replacement: a scenario can use real implementations
   for some call-out points and fuzzer backends for others in the same run
 
@@ -104,8 +95,8 @@ The concrete form:
    (or a mapping of factories) as a parameter with the fuzzer factory as
    the default. This is the canonical swap mechanism.
 
-5. The four agent shapes (Evaluator, Retriever, Sentinel, Composer from
-   ADR-0024) each define a **lifecycle pattern** — how the node reads
+5. The five capability shapes (Evaluator, Retriever, Sentinel, Composer, Actuator
+   from ADR-0024) each define a **lifecycle pattern** — how the node reads
    input from the blackboard, dispatches to the backend, and writes output
    back. Concrete call-out point nodes subclass the appropriate shape base
    class and declare their specific I/O keys and types. The shape base
@@ -121,7 +112,7 @@ The concrete form:
 - Good, because fuzzer backends maintain the same blackboard contract as
   real backends, making swap transparent to downstream nodes
 - Good, because the shape base classes document the lifecycle pattern for
-  each agent shape, making the code self-explanatory
+  each capability shape, making the code self-explanatory
 - Neutral, because tree builders gain new parameters (one per call-out
   point or a single registry mapping); this is a small API surface increase
 - Bad/uncertain, because the exact factory signature (positional args,
@@ -178,7 +169,7 @@ The concrete form:
 
 ## Validation
 
-- #1151 implemented one exemplar per agent shape (PR closed).  The factory
+- #1151 implemented one exemplar per capability shape (PR closed).  The factory
   injection pattern, shape mixin classes, and blackboard contract approach
   proved sound across all five ADR-0024 shapes.  ADR status advanced from
   `proposed` to `accepted`.
@@ -189,11 +180,26 @@ The concrete form:
 - `specs/behavior-tree-integration.yaml` BT-18 captures the blackboard
   contract requirements that every call-out point implementation must satisfy.
 
-## Bundle Selection Mechanism (2026-07-23 amendment)
+## Bundle Selection Mechanism (2026-07-23 amendment, corrected 2026-07-29)
 
 The original ADR left open the question of **how running code chooses which
 factory to inject**. Issue #1631 (planning session 2026-07-23) resolved this
 design gap. The resulting mechanism is implemented by #1152 (FUZZ-08c).
+
+> **Correction (2026-07-29, issue #1793)**: The 2026-07-23 amendment as first
+> written located the bundle **dataclasses** and the `<DOMAIN>_DETERMINISTIC`
+> **singletons** in `vultron/demo/fuzzer/bundles/`, then had ~11 core tree
+> builders import them as their no-arg defaults. That **inverted the core→demo
+> dependency** and directly violated this ADR's own decision driver "keep
+> simulation artifacts (`vultron/demo/fuzzer/`) out of
+> `vultron/core/behaviors/` (BT-16-001)". The corrected design below moves the
+> dataclasses, the `CallOutBackendFactory` Protocol, the deterministic
+> `AlwaysSucceed`/`AlwaysFail` nodes, and the `<DOMAIN>_DETERMINISTIC`
+> singletons into `vultron/core/behaviors/call_out/`. Only the probabilistic
+> `WeightedBehavior` node family and the `<DOMAIN>_STOCHASTIC` singletons remain
+> in `vultron/demo/fuzzer/`. A ratchet
+> (`test/architecture/test_core_no_demo_imports.py`) now enforces the boundary.
+> The strikethrough/updated text below reflects the corrected locations.
 
 ### Three-mode model
 
@@ -216,18 +222,40 @@ a `frozen @dataclass` that holds all `CallOutBackendFactory` fields for a
 domain area. Two pre-built module-level singletons exist per domain:
 `<DOMAIN>_DETERMINISTIC` and `<DOMAIN>_STOCHASTIC`.
 
+**Layer split (corrected 2026-07-29):** the dataclass and the
+`<DOMAIN>_DETERMINISTIC` singleton live in
+`vultron/core/behaviors/call_out/bundles/<domain>.py` — they are core concerns
+(the DETERMINISTIC bundle is the production-usable happy-path default). The
+`<DOMAIN>_STOCHASTIC` singleton lives in
+`vultron/demo/fuzzer/bundles/<domain>.py` and wires in the probabilistic
+`WeightedBehavior` fuzzer nodes; that module re-exports the core dataclass and
+DETERMINISTIC singleton for backward-compatible import paths. Core tree builders
+default `call_out` to the core DETERMINISTIC singleton and never import from
+`vultron/demo/`.
+
 ```python
+# vultron/core/behaviors/call_out/bundles/validation.py  (core)
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
+
 @dataclass(frozen=True)
 class ValidationCallOutBundle:
-    credibility_factory: CallOutBackendFactory = AlwaysSucceed
-    validity_factory: CallOutBackendFactory = AlwaysSucceed
-    gather_info_factory: CallOutBackendFactory = AlwaysSucceed
+    credibility_factory: CallOutBackendFactory = lambda n: AlwaysSucceed(n)
+    validity_factory: CallOutBackendFactory = lambda n: AlwaysSucceed(n)
+    gather_info_factory: CallOutBackendFactory = lambda n: AlwaysSucceed(n)
 
 VALIDATION_DETERMINISTIC = ValidationCallOutBundle()
+
+# vultron/demo/fuzzer/bundles/validation.py  (simulation)
+from vultron.core.behaviors.call_out.bundles.validation import (
+    VALIDATION_DETERMINISTIC,   # re-exported for back-compat
+    ValidationCallOutBundle,
+)
+
 VALIDATION_STOCHASTIC = ValidationCallOutBundle(
-    credibility_factory=EvaluateReportCredibility,
-    validity_factory=EvaluateReportValidity,
-    gather_info_factory=GatherValidationInfo,
+    credibility_factory=lambda n: EvaluateReportCredibility(n),
+    validity_factory=lambda n: EvaluateReportValidity(n),
+    gather_info_factory=lambda n: GatherValidationInfo(n),
 )
 ```
 
@@ -262,13 +290,13 @@ design question tracked as a separate type:Idea issue.
 
 ## More Information
 
-- ADR-0024: Coordination Agent Taxonomy (call-out point concept and the four
-  agent shapes)
-- `notes/coordination-agents.md`: design notes for coordination agents
+- ADR-0024: Capability Shape Taxonomy (call-out point concept and the five
+  capability shapes; three-level taxonomy: shape / capability / capability implementation)
+- `notes/coordination-agents.md`: design notes for the capability shapes model
   including the two integration surfaces (call-in vs. call-out)
 - `notes/call-out-configuration.md`: bundle/mode design decisions (2026-07-23)
 - `notes/bt-fuzzer-nodes.md` and sub-files: per-node catalog with automation
-  potential ratings and agent-shape classifications (completed by #1150)
+  potential ratings and capability-shape classifications (completed by #1150)
 - Implementation chain: #1150 (catalog update) → #1151 (exemplars) →
   #1152 (demo scenario wiring) → FUZZ-08d–08g (shape rollout)
 

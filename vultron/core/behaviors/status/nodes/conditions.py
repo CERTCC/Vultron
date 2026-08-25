@@ -27,16 +27,14 @@ from typing import Any, cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerCondition,
+    DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +111,18 @@ class VerifySenderIsParticipantNode(FindParticipantByActorIdNode):
         return Status.SUCCESS
 
 
-class AllParticipantsRMClosedConditionNode(DataLayerCondition):
+class AllParticipantsRMClosedConditionNode(DataLayerConditionWithPorts):
     """Precondition: all CVD participants in the case have RM.CLOSED.
 
-    Iterates ``case.actor_participant_index``, skips any participant whose
-    ``roles`` include ``CVDRole.CASE_MANAGER`` (the Case Actor), and returns
-    ``FAILURE`` if any remaining participant's latest status ``rm_state`` is
-    not ``RM.CLOSED``.  Returns ``SUCCESS`` when every non-CASE_MANAGER
-    participant is at ``RM.CLOSED``.
+    Iterates ``case.actor_participant_index`` and returns ``FAILURE`` if any
+    participant's latest status ``rm_state`` is not ``RM.CLOSED``.  Returns
+    ``SUCCESS`` when every participant (including the Case Actor) is at
+    ``RM.CLOSED``.
+
+    The Case Actor now has a full RM lifecycle (ADR-0051, CM-23-005), so the
+    former ``CVDRole.CASE_MANAGER`` skip is no longer needed.  Including the
+    Case Actor's RM.CLOSED in this check ensures that owner-Leave processing
+    (CM-23-002) has completed before the auto-close Selector fires.
 
     Per DEMOMA-07-006(a)(b)(c).
     """
@@ -141,9 +143,6 @@ class AllParticipantsRMClosedConditionNode(DataLayerCondition):
             p = self.datalayer.read(p_id)
             if p is None:
                 return False
-            roles = p.roles if isinstance(p, CaseParticipant) else []
-            if CVDRole.CASE_MANAGER in roles:
-                continue
             statuses = getattr(p, "participant_statuses", [])
             if not statuses:
                 return False
@@ -191,7 +190,7 @@ class AllParticipantsRMClosedConditionNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class CloseNotYetEmittedConditionNode(DataLayerCondition):
+class CloseNotYetEmittedConditionNode(DataLayerConditionWithPorts):
     """Idempotency guard: no ``Leave(VulnerabilityCase)`` in the outbox yet.
 
     Queries the actor's outbox for existing activities and checks whether any

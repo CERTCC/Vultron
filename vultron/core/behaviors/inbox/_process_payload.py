@@ -210,7 +210,7 @@ def process_payload(
         finally:
             _restore_inbox_keys(storage, saved)
 
-    logger.info(
+    logger.debug(
         "process_payload: outcome status=%s context_id=%s",
         outcome.status,
         outcome.context_id,

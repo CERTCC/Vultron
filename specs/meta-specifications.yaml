@@ -2,7 +2,7 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -232,12 +232,46 @@ groups:
     tags:
     - documentation
   - id: MS-10-003
-    priority: SHOULD
+    priority: MUST
     kind: process
-    statement: Spec files SHOULD be testable with verifiable acceptance criteria per requirement.
-    rationale: Untestable specs cannot be reliably implemented.
+    statement: >-
+      Spec files MUST be testable with verifiable acceptance criteria per
+      requirement; every `priority: MUST` requirement MUST include a
+      `verification:` field.
+    rationale: >-
+      Untestable specs cannot be reliably implemented; a MUST requirement with no
+      verification field provides no contract for reviewers or agents. Upgraded
+      from SHOULD to MUST (CONCERN-2382) to align with MS-05-003 and enable
+      progressive linter enforcement. See MS-10-005 for the current enforcement
+      mechanism.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-05-003
     tags:
     - documentation
+    - tooling
+  - id: MS-10-005
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST emit an advisory warning ([WARN]) for any `priority: MUST`
+      requirement whose `verification:` field is null or absent, until that
+      requirement has been backfilled.
+    rationale: >-
+      MS-05-003 and MS-10-003 require MUST requirements to carry measurable
+      acceptance criteria. The linter cannot impose a hard error on the existing
+      backlog immediately, but a visible advisory signal (a) prevents the
+      backlog from growing, (b) makes the gap visible in CI output without
+      blocking merges, and (c) provides the foundation for a future hard-error
+      upgrade once the backlog is addressed. Tracked by CONCERN-2382.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-05-003
+    - rel_type: implements
+      spec_id: MS-10-003
+    tags:
+    - documentation
+    - tooling
   - id: MS-10-004
     priority: SHOULD
     kind: process
@@ -408,5 +442,227 @@ groups:
       verify ECA structure without parsing prose. This requirement is enforced by
       spec-lint (SR-04-003); a group with only StatementSpec items causes a hard
       error. See CONCERN-1650 for the regression that prompted this rule.
+    tags:
+    - documentation
+- id: MS-14
+  title: ADR Status as Confidence Signal
+  specs:
+  - id: MS-14-001
+    priority: MUST
+    kind: process
+    statement: >-
+      Every ADR under docs/adr/ (excluding the template and index) MUST declare
+      a non-empty status field whose value is a member of the AdrStatus StrEnum
+      (proposed, accepted, accepted-provisional, deprecated, rejected,
+      superseded); the inline MADR form "superseded by <link>" is accepted and
+      normalised to superseded.
+    rationale: >-
+      The status field is the primary confidence signal that reaches coding
+      agents (deepen-context weights ADR trust by it). A blank or non-standard
+      status leaves agents to treat an unvalidated decision as settled fact.
+      ADR-0024 shipped with a blank status; this rule prevents recurrence.
+      AdrStatus is the fixed vocabulary (SR-02-002) the linter typechecks
+      against. Enforced by spec-lint. See ADR-0043 and notes/specs-vs-adrs.md.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-11-004
+      note: extends ADR/spec cross-referencing with a status-confidence rule
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0024
+  - id: MS-14-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      An ADR's status value SHOULD agree with its prose. An ADR whose body
+      contains provisional markers (e.g. "formed in sand", "not concrete",
+      "provisional", "forward-looking", "will converge", "SHOULD refine this
+      ADR", "status will advance") SHOULD NOT declare status: accepted; it
+      SHOULD use accepted-provisional or proposed.
+    rationale: >-
+      A status/prose contradiction is a landmine: the agent trusts status:
+      accepted while the body admits the design is unvalidated. ADR-0025 was the
+      motivating case. spec-lint emits an advisory warning (not a hard error)
+      because the substring scan can false-positive on ADRs that merely discuss
+      provisional-ness; flagged ADRs are decision-audit candidates for human
+      adjudication. An ADR that legitimately discusses provisional-ness (e.g.
+      ADR-0043, which defines the vocabulary) MAY opt out with frontmatter
+      'lint_suppress: [status_prose_contradiction]', mirroring the spec-level
+      lint_suppress mechanism (SR-02-011).
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0025
+    - ADR-0043
+  - id: MS-14-003
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR's placement in docs/adr/index.md (Accepted / Proposed / Rejected /
+      Superseded-Archived sections) MUST agree with its own status field, and a
+      retired ADR (status deprecated or superseded) MUST be listed under the
+      Superseded / Archived section with a forward link to its replacement, not
+      under Accepted.
+    rationale: >-
+      Index-vs-frontmatter drift (ADR-0027 was listed provisional in the index
+      while its file said accepted) misleads both humans and the agents that
+      read the index.
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0027
+  - id: MS-14-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A newly-retired ADR (status deprecated or superseded) SHOULD be moved to
+      docs/adr/archived/ so it stays out of the default docs/adr/ context sweep;
+      ADRs retired before this convention MAY remain in place until next touched.
+    rationale: >-
+      Archiving retired ADRs keeps outdated decisions out of the default
+      docs/adr/ sweep so agents must deliberately seek them. Applied forward
+      (SHOULD, not a retroactive MUST) to avoid churn on already-superseded
+      ADRs that are still referenced by path. See ADR-0043.
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0043
+  - id: MS-14-005
+    priority: MUST
+    kind: project
+    statement: >-
+      ADR frontmatter MUST validate against the AdrFrontmatter Pydantic model
+      (vultron/metadata/adr/schema.py), and a retired ADR MUST carry a
+      superseded_by pointer that resolves to a real ADR file. Enforced by the
+      loader (vultron/metadata/adr/loader.py) via pytest and pre-commit,
+      mirroring the notes frontmatter registry (NF-03, NF-04).
+    rationale: >-
+      ADRs are the confidence signal agents trust as ground truth, yet were the
+      only structured-metadata artifact without a schema — validated only by
+      regex bolt-ons in spec-lint. A Pydantic model makes status typechecking,
+      the superseded_by-when-retired rule, and dangling-target detection real
+      validation rather than string-scraping. See ADR-0043.
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-006
+    priority: MUST
+    kind: project
+    statement: >-
+      docs/adr/index.md MUST be generated from ADR frontmatter (uv run
+      adr-index --write) and every non-archived ADR MUST be referenced in the
+      mkdocs nav; CI (uv run adr-index --check) fails on drift.
+    rationale: >-
+      Both the index and the nav are hand-maintained lists that rot: ADR-0027
+      was filed under the wrong index section and several ADRs were missing
+      from nav, breaking mkdocs --strict. Generating the index and checking nav
+      completeness makes the drift mechanically impossible to merge. See
+      ADR-0043 and MS-14-003.
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0027
+- id: MS-15
+  title: Spec Statements Must Not Reference Phantom Paths
+  specs:
+  - id: MS-15-001
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A spec item's `statement`, `verification`, `behavioral step`, `precondition`,
+      and `postcondition` fields MUST NOT reference a file path or directory path
+      that does not exist.
+    rationale: >-
+      A normative statement naming non-existent infrastructure is a stale-premise
+      landmine: the agent invents something inconsistent with the codebase or
+      silently ignores a MUST. DEMOMA-19-008 named a `conftest.py` registry that
+      had never existed; an audit found 18 phantom-path clauses. Behavioral step,
+      precondition, and postcondition fields are scanned in addition to statement
+      and verification because they are equally normative. `rationale` legitimately
+      cites gone paths and is excluded.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-04-001
+      note: extends spec-authoring rules with a path-existence guarantee
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-002
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A spec item's `statement` and `verification` fields MUST NOT use an absolute
+      path or a `..` segment.
+    rationale: >-
+      Absolute paths and parent-traversal segments are deployment-specific and will
+      not resolve correctly in the repo-relative context used by spec-lint.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-003
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec-first requirement that deliberately names a file yet to be created MUST
+      either use a placeholder form (e.g. `test_XXX_invariants.py`) or opt out with
+      `lint_suppress: [phantom_path_ref]`.
+    rationale: >-
+      The placeholder or lint_suppress mechanism makes the spec-first intent explicit
+      rather than silently passing a phantom-path check by accident.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+
+- id: MS-16
+  title: Long-Lived Docs Must Not State Ephemeral Counts
+  specs:
+  - id: MS-16-001
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec statement, notes file, or AGENTS.md entry MUST NOT restate a
+      count that will drift independently of the authoritative source.
+      When cross-referencing another spec item, omit the count and cite the
+      source by ID: write "the universal types (DEMOMA-16-001)" not "the five
+      universal types (DEMOMA-16-001)". Counts in enumerations that are the
+      authoritative source (e.g. DEMOMA-16-001 itself listing its own members)
+      are not subject to this rule.
+    rationale: >-
+      Counts restated in cross-references drift silently: when the authoritative
+      requirement is updated, its sibling references and cross-file citations
+      are not. The linter validates that a referenced spec ID resolves; it
+      has no opinion about the prose next to it. A reader who encounters the
+      stale count first gets a false picture of the system. The count adds no
+      normative force — "the universal types (DEMOMA-16-001)" is equally
+      specific because the ID is the authoritative pointer. This class of
+      drift required 12 coordinated edits when `engage_case` was promoted
+      to a fifth universal event type in ISSUE-2266 (CONCERN-2277).
+      The same principle extends beyond spec cross-references to any
+      long-lived document: notes files, AGENTS.md pitfall entries, and
+      architecture docs MUST NOT state counts such as "there are 4
+      unimplemented nodes" or "15 xfails" — these are snapshots guaranteed
+      to be wrong when read in the future.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-04-001
+      note: extends spec-authoring rules with a count-drift prohibition
     tags:
     - documentation

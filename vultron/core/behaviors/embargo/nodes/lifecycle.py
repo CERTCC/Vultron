@@ -17,14 +17,25 @@
 
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.em_state import (
     ReadEmStateNode,
     WriteEmStateNode,
 )
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.embargo.nodes.reject_proposed import (  # noqa: F401
+    ReadProposedEmbargoIdNode,
+    RejectProposedEmbargoLifecycleNode,
+    SendRejectEmbargoActivityNode,
+)
+from vultron.core.behaviors.embargo.nodes.terminate import (  # noqa: F401
+    SendTerminateEmbargoActivityNode,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
+from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle import (
@@ -38,14 +49,13 @@ from vultron.core.states.em import (
     is_valid_em_transition,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
 )
 
 
-class ValidateEmbargoRevisionStateNode(DataLayerAction):
+class ValidateEmbargoRevisionStateNode(DataLayerActionWithPorts):
     """Guard that the case EM state permits a revision proposal.
 
     Returns SUCCESS when EM state is ACTIVE or REVISE.  Returns FAILURE
@@ -95,7 +105,7 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _EmbargoLifecycleNode(DataLayerAction):
+class _EmbargoLifecycleNode(DataLayerActionWithPorts):
     """Base node for EmbargoLifecycle strict-mode transitions.
 
     Orchestrates the em_state read/compute/write cycle via named BT nodes
@@ -295,7 +305,7 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
         )
 
 
-class ReadEmbargoIdNode(DataLayerAction):
+class ReadEmbargoIdNode(DataLayerActionWithPorts):
     """Read the active embargo ID from the case and write it to the blackboard.
 
     Returns FAILURE when the case is not found, has no active embargo, or
@@ -307,12 +317,13 @@ class ReadEmbargoIdNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="embargo_id",
-            access=py_trees.common.Access.WRITE,
-        )
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"embargo_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"embargo_id": "/embargo_id"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -331,80 +342,11 @@ class ReadEmbargoIdNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.embargo_id = embargo_id
+        self._set_output("embargo_id", embargo_id)
         return Status.SUCCESS
 
 
-class SendTerminateEmbargoActivityNode(DataLayerAction):
-    """Build and queue a ``Terminate(EmbargoEvent)`` activity.
-
-    Reads ``embargo_id`` and ``case_manager_id`` from the blackboard and
-    constructs the outbound activity via ``trigger_activity_factory``.
-
-    Returns FAILURE (BT-14-001) when the factory is unavailable, a required
-    blackboard key is missing, or dispatch raises an exception.
-    Returns SUCCESS when the activity is created and queued.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="embargo_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="case_manager_id",
-            access=py_trees.common.Access.READ,
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_factory()) is not None:
-            self.feedback_message = (
-                "trigger_activity_factory not available"
-                " — broadcast FAILURE (BT-14-001)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return f
-        assert self.trigger_activity_factory is not None
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        try:
-            embargo_id: str = self.blackboard.embargo_id
-            case_manager_id: str = self.blackboard.case_manager_id
-        except KeyError as exc:
-            self.feedback_message = f"Required blackboard key missing: {exc}"
-            return Status.FAILURE
-
-        try:
-            announce_id, _ = self.trigger_activity_factory.terminate_embargo(
-                embargo_id=embargo_id,
-                case_id=self._case_id,
-                actor=self.actor_id,
-                to=[case_manager_id],
-            )
-            add_activity_to_outbox(
-                self.actor_id,
-                announce_id,
-                self.datalayer,  # type: ignore[arg-type]
-            )
-        except Exception as exc:
-            self.feedback_message = (
-                f"activity dispatch failed for case '{self._case_id}': {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        return Status.SUCCESS
-
-
-class SetEmbargoActiveNode(DataLayerAction):
+class SetEmbargoActiveNode(DataLayerActionWithPorts):
     """Set embargo active on case and transition EM → ACTIVE.
 
     Handles idempotency and state-sync override for non-standard EM
@@ -431,9 +373,8 @@ class SetEmbargoActiveNode(DataLayerAction):
             return None
         return case
 
-    def _apply_transition(self, case: Any) -> None:
+    def _apply_transition(self, case: Any, current_em: EM) -> None:
         """Apply EM → ACTIVE transition and persist; warn on non-standard path."""
-        current_em = case.current_status.em.state
         if not is_valid_em_transition(current_em, EM.ACTIVE):
             self.logger.warning(
                 "%s: EM transition %s → ACTIVE is not a standard machine"
@@ -450,7 +391,15 @@ class SetEmbargoActiveNode(DataLayerAction):
             f"Activated embargo '{self.embargo_id}' on case"
             f" '{self.case_id}' (EM {current_em} → ACTIVE)"
         )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        # SL-04-001/SL-04-006: embargo activation is a protocol milestone.
+        log_em_transition(
+            self.logger,
+            self.actor_id or "<unknown>",
+            self.case_id,
+            current_em,
+            EM.ACTIVE,
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -470,5 +419,17 @@ class SetEmbargoActiveNode(DataLayerAction):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        self._apply_transition(case)
+        result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(
+            case_id=self.case_id, result_out=result_out
+        )
+        read_node.datalayer = self.datalayer
+        read_status = read_node.update()
+        if read_status != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+        current_em = result_out["em_before"]
+        assert isinstance(current_em, EM)
+
+        self._apply_transition(case, current_em)
         return Status.SUCCESS

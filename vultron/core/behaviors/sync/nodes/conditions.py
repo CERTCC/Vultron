@@ -19,10 +19,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
@@ -74,22 +77,34 @@ def _require_case_actor_id(case_actor: object, node_name: str) -> str:
     raise VultronError(f"{node_name}: resolved CaseActor had no id_")
 
 
-class CheckIsOwnCaseActorNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.WRITE
-        )
+class CheckIsOwnCaseActorNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"case_actor_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "activity": "/activity",
+            "case_actor_id": "/case_actor_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         case_actor = _find_case_actor(
             self.datalayer, entry.case_id, self.actor_id
         )
@@ -97,7 +112,7 @@ class CheckIsOwnCaseActorNode(DataLayerCondition):
             return Status.FAILURE
 
         case_actor_id = _require_case_actor_id(case_actor, self.name)
-        self.blackboard.case_actor_id = case_actor_id
+        self._set_output("case_actor_id", case_actor_id)
         self.logger.debug(
             "%s: actor '%s' owns CaseActor '%s' for case '%s'",
             self.name,
@@ -108,12 +123,20 @@ class CheckIsOwnCaseActorNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class CheckIsNotOwnCaseActorNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class CheckIsNotOwnCaseActorNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -121,7 +144,7 @@ class CheckIsNotOwnCaseActorNode(DataLayerCondition):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         case_actor = _find_case_actor(
             self.datalayer, entry.case_id, self.actor_id
         )
@@ -130,19 +153,26 @@ class CheckIsNotOwnCaseActorNode(DataLayerCondition):
         return Status.FAILURE
 
 
-class VerifySenderIsOwnIdNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
+class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        ports["case_actor_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity", "case_actor_id": "/case_actor_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+        self.case_actor_id = self.get_input("case_actor_id")
 
     def update(self) -> Status:
-        sender_id = getattr(self.blackboard.activity, "actor_id", None)
-        case_actor_id = self.blackboard.case_actor_id
+        sender_id = getattr(self.activity, "actor_id", None)
+        case_actor_id = self.case_actor_id
         if sender_id == case_actor_id:
             return Status.SUCCESS
 
@@ -155,19 +185,27 @@ class VerifySenderIsOwnIdNode(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if self.datalayer.read(entry.id_) is None:
             return Status.FAILURE
 
@@ -177,145 +215,7 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-_REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
-_ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
-_ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
-_ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
-
-
-class IsRemoveEmbargoEventNode(DataLayerCondition):
-    """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
-
-    Used as the precondition in the ``EmbargoEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
-
-        Selector(EmbargoEffects)
-          Sequence
-            IsRemoveEmbargoEventNode   ← SUCCESS iff event_type matches
-            ApplyEmbargoTeardownNode
-          Inverter(IsRemoveEmbargoEventNode)  ← SUCCESS iff wrong event type
-
-    The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
-    ApplyEmbargoTeardownNode fails, both branches of the Selector fail and
-    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
-
-    Per BTND-08-001, BTND-08-002, BT-06-001, SYNC-12-001.
-    """
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type == _REMOVE_EMBARGO_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
-class IsParticipantStatusEventNode(DataLayerCondition):
-    """Precondition: return SUCCESS when this log entry IS a participant-status event.
-
-    Used as the precondition in the ``ParticipantStatusEffects`` Selector's
-    inner Sequence in ``AnnounceLogEntryReceivedBT``::
-
-        Selector(ParticipantStatusEffects)
-          Sequence
-            IsParticipantStatusEventNode   ← SUCCESS iff event_type matches
-            ApplyParticipantStatusFromLedgerNode
-          Inverter(IsParticipantStatusEventNode)  ← SUCCESS iff wrong event type
-
-    The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
-    ApplyParticipantStatusFromLedgerNode fails, both branches of the Selector
-    fail and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
-
-    Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3, SYNC-12-001.
-    """
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type == _ADD_PARTICIPANT_STATUS_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
-class IsAddNoteEventNode(DataLayerCondition):
-    """Precondition: return SUCCESS when this log entry IS an add-note event.
-
-    Used as the precondition in the ``NoteEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
-
-        Selector(NoteEffects)
-          Sequence
-            IsAddNoteEventNode   ← SUCCESS iff event_type matches
-            ApplyNoteFromLedgerNode
-          Inverter(IsAddNoteEventNode)  ← SUCCESS iff wrong event type
-
-    The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
-    ApplyNoteFromLedgerNode fails, both branches of the Selector fail and
-    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
-
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
-    """
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type == _ADD_NOTE_TO_CASE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
-class IsInviteAcceptEventNode(DataLayerCondition):
-    """Precondition: return SUCCESS when this log entry IS an accept-invite event.
-
-    Used as the precondition in the ``InviteAcceptEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
-
-        Selector(InviteAcceptEffects)
-          Sequence
-            IsInviteAcceptEventNode   ← SUCCESS iff event_type matches
-            ApplyInviteAcceptFromLedgerNode
-          Inverter(IsInviteAcceptEventNode)  ← SUCCESS iff wrong event type
-
-    The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
-    ApplyInviteAcceptFromLedgerNode fails, both branches of the Selector fail
-    and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
-
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003, SYNC-12-001.
-    """
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type == _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
-class CheckLedgerFreshnessNode(DataLayerCondition):
+class CheckLedgerFreshnessNode(DataLayerConditionWithPorts):
     """Gate: return SUCCESS only when the local ledger for *case_id* is fresh.
 
     "Fresh" means the actor's local ledger entries for the case form a
@@ -346,24 +246,36 @@ class CheckLedgerFreshnessNode(DataLayerCondition):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb: str | None = None
         if self._case_id is None:
-            self.blackboard.register_key(
-                key="case_id", access=py_trees.common.Access.READ
-            )
+            try:
+                self._case_id_bb = self.get_input("case_id")
+            except (NoDataAvailable, NotImplementedError):
+                self._case_id_bb = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
+        case_id: str | None
         if self._case_id is not None:
             case_id = self._case_id
         else:
-            try:
-                case_id = self.blackboard.case_id
-            except KeyError:
+            case_id = self._case_id_bb
+            if case_id is None:
                 self.logger.error(
                     "%s: case_id not on blackboard and not provided at "
                     "construction",

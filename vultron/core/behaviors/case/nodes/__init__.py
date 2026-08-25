@@ -23,11 +23,13 @@ continue to work without modification.
 Submodules:
 - ``actor``: Actor-participation invite/accept emit nodes
 - ``conditions``: Idempotency guard condition nodes
-- ``case_setup``: Case persistence and actor setup leaf action nodes
+- ``case_setup``: Case persistence leaf action nodes
+- ``case_actor_setup``: CaseActor identity resolution and registration nodes (BTND-07-004 split from case_setup)
 - ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
 - ``lifecycle``: Case log entry commit action node
+- ``proposal``: CaseProposal send nodes (ADR-0041 vendor-side slimmed tree)
 - ``suggest_actor``: Suggest-actor workflow emit and duplicate-detection nodes
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
@@ -39,7 +41,7 @@ They are re-exported here for backward compatibility via module
   → ``vultron.core.behaviors.case.case_setup_tree``
 - ``CreateCaseOwnerParticipant``, ``CreateCaseParticipantNode``
   → ``vultron.core.behaviors.case.participant_tree``
-- ``EmitCreateCaseActivity``, ``SendOfferCaseManagerRoleNode``
+- ``EmitCreateCaseActivity``
   → ``vultron.core.behaviors.case.communication_tree``
 - ``InitializeDefaultEmbargoNode``
   → ``vultron.core.behaviors.case.embargo_tree``
@@ -49,10 +51,22 @@ import importlib
 from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
     ProposeCaseToActorNode,
+)
+from vultron.core.behaviors.case.nodes.invite_response import (
+    EmitAcceptCaseInviteNode,
+    EmitRejectCaseInviteNode,
+)
+from vultron.core.behaviors.case.nodes.proposal import (
+    ProposeReportCaseToActorNode,
+)
+from vultron.core.behaviors.case.nodes.case_actor_setup import (
+    CreateCaseActorServiceNode,
+    RegisterCaseActorParticipantNode,
+    ResolveCaseActorUrlsNode,
+    ReuseExistingCaseActorParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
     PersistCase,
@@ -65,16 +79,16 @@ from vultron.core.behaviors.case.nodes.communication import (
     CreateAndPersistCaseActivityNode,
 )
 from vultron.core.behaviors.case.nodes.delegation import (
-    AutoAcceptCaseManagerRoleNode,
-    CreateOfferCaseManagerActivityNode,
-    EmitRejectCaseManagerRoleNode,
-    ResolveCaseManagerOfferContextNode,
+    AutoAcceptCaseParticipantRoleNode,
+    EmitRejectCaseParticipantRoleNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
     CheckIsCaseManagerNode,
+    CheckPendingProposalExistsForReport,
+    WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
@@ -87,9 +101,6 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
     create_guarded_commit_case_ledger_entry_tree,
     create_receive_activity_tree,
-)
-from vultron.core.behaviors.case.nodes.prologue import (
-    WritePrologueLedgerEntriesNode,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
@@ -111,6 +122,12 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
     EmitOfferCaseOwnershipTransferNode,
 )
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckDeployerRoleNode,
+    CheckIsCaseOwnerNode,
+    CheckNotSoleObserverVfdNode,
+    CheckVendorRoleNode,
+)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -125,11 +142,20 @@ __all__ = [
     "EmitAcceptCaseInviteNode",
     "EvaluateDefaultRolesNode",
     "ProposeCaseToActorNode",
+    "ProposeReportCaseToActorNode",
     # conditions
     "CheckAutoCaseCreationEnabledNode",
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
+    "CheckIsCaseOwnerNode",
+    "CheckPendingProposalExistsForReport",
+    "WritePendingReportCaseLinkNode",
+    # case_actor_setup (leaf nodes)
+    "ResolveCaseActorUrlsNode",
+    "ReuseExistingCaseActorParticipantNode",
+    "CreateCaseActorServiceNode",
+    "RegisterCaseActorParticipantNode",
     # case_setup (leaf nodes)
     "PersistCase",
     "SetCaseAttributedTo",
@@ -154,22 +180,18 @@ __all__ = [
     "SeedOwnerAsSignatoryNode",
     # embargo_tree (composite subtree — lazy via __getattr__)
     "InitializeDefaultEmbargoNode",
+    # delegation (leaf nodes)
+    "AutoAcceptCaseParticipantRoleNode",
+    "EmitRejectCaseParticipantRoleNode",
     # communication (leaf nodes)
-    "AutoAcceptCaseManagerRoleNode",
     "CollectCaseAddresseesNode",
     "CreateAndPersistCaseActivityNode",
-    "CreateOfferCaseManagerActivityNode",
-    "EmitRejectCaseManagerRoleNode",
-    "ResolveCaseManagerOfferContextNode",
     # communication_tree (composite subtrees — lazy via __getattr__)
     "EmitCreateCaseActivity",
-    "SendOfferCaseManagerRoleNode",
     # lifecycle
     "CommitCaseLedgerEntryNode",
     "create_guarded_commit_case_ledger_entry_tree",
     "create_receive_activity_tree",
-    # prologue
-    "WritePrologueLedgerEntriesNode",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",
@@ -178,6 +200,10 @@ __all__ = [
     # ownership_transfer (leaf nodes)
     "EmitOfferCaseOwnershipTransferNode",
     "EmitAcceptCaseOwnershipTransferNode",
+    # vfd_role_guards (condition nodes)
+    "CheckVendorRoleNode",
+    "CheckDeployerRoleNode",
+    "CheckNotSoleObserverVfdNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",
@@ -200,7 +226,6 @@ if TYPE_CHECKING:
     )
     from vultron.core.behaviors.case.communication_tree import (  # noqa: F401
         EmitCreateCaseActivity,
-        SendOfferCaseManagerRoleNode,
     )
     from vultron.core.behaviors.case.embargo_tree import (  # noqa: F401
         InitializeDefaultEmbargoNode,
@@ -221,7 +246,6 @@ _COMPOSITE_COMPAT: dict[str, str] = {
     "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
     "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",
     "EmitCreateCaseActivity": "vultron.core.behaviors.case.communication_tree",
-    "SendOfferCaseManagerRoleNode": "vultron.core.behaviors.case.communication_tree",
     "InitializeDefaultEmbargoNode": "vultron.core.behaviors.case.embargo_tree",
 }
 

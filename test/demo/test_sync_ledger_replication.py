@@ -22,7 +22,6 @@ from typing import cast
 import anyio
 import pytest
 
-from vultron.adapters.driven.asgi_emitter import ASGIEmitter
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
@@ -36,7 +35,7 @@ from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.semantic_registry import extract_event
-from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
     inbox_handler,
@@ -99,8 +98,8 @@ def _make_log_entry(
 
 @pytest.fixture
 def two_app_setup() -> Iterator[tuple]:
-    """Create two isolated actor apps connected by ``_TestASGIRouter``."""
-    router = _TestASGIRouter()
+    """Create two isolated actor apps connected by ``_TestClientRouter``."""
+    router = _TestClientRouter()
     case_actor_iso = create_isolated_actor_app(
         base_url=_CASE_ACTOR_BASE, router=router
     )
@@ -111,10 +110,6 @@ def two_app_setup() -> Iterator[tuple]:
 
     with case_actor_iso.client as case_actor_tc:
         with peer_iso.client as peer_tc:
-            for iso in (case_actor_iso, peer_iso):
-                emitter = getattr(iso.app.state, "emitter", None)
-                if isinstance(emitter, ASGIEmitter):
-                    emitter._http_fallback = router  # type: ignore[assignment]
             yield case_actor_iso, peer_iso, case_actor_tc, peer_tc
 
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
@@ -306,14 +301,14 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             case_actor_id,
             case_actor_dl,
             case_actor_iso.dl,
-            case_actor_iso.app.state.emitter,
+            getattr(case_actor_iso.app.state, "emitter", None),
         )
         anyio.run(
             inbox_handler,
             peer_actor_id,
             peer_iso.dl,
             peer_actor_dl,
-            peer_iso.app.state.emitter,
+            getattr(peer_iso.app.state, "emitter", None),
             peer_iso.app.state.dispatcher,
         )
     finally:

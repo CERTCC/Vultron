@@ -32,6 +32,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Protocol
 
+from vultron.enums.roles import CVDRole
+
 
 class TriggerServicePort(Protocol):
     """Inbound port for all actor-initiated trigger operations.
@@ -77,6 +79,13 @@ class TriggerServicePort(Protocol):
         note: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def close_case(
+        self,
+        actor_id: str,
+        offer_id: str,
+        note: str | None = None,
+    ) -> dict[str, Any]: ...
+
     def close_report(
         self,
         actor_id: str,
@@ -94,6 +103,7 @@ class TriggerServicePort(Protocol):
         name: str,
         content: str,
         report_id: str | None = None,
+        to: list[str] | None = None,
     ) -> dict[str, Any]: ...
 
     def engage_case(
@@ -103,6 +113,12 @@ class TriggerServicePort(Protocol):
     ) -> dict[str, Any]: ...
 
     def defer_case(
+        self,
+        actor_id: str,
+        case_id: str,
+    ) -> dict[str, Any]: ...
+
+    def leave_case(
         self,
         actor_id: str,
         case_id: str,
@@ -189,9 +205,16 @@ class TriggerServicePort(Protocol):
         actor_id: str,
         case_id: str,
         suggested_actor_id: str,
+        roles: list | None = None,
     ) -> dict[str, Any]: ...
 
     def accept_case_invite(
+        self,
+        actor_id: str,
+        invite_id: str,
+    ) -> dict[str, Any]: ...
+
+    def reject_case_invite(
         self,
         actor_id: str,
         invite_id: str,
@@ -212,10 +235,12 @@ class TriggerServicePort(Protocol):
         roles: list | None = None,
     ) -> dict[str, Any]: ...
 
-    def offer_case_manager_role(
+    def offer_case_participant_role(
         self,
         actor_id: str,
         case_id: str,
+        target_actor_id: str,
+        role: CVDRole = CVDRole.CASE_MANAGER,
     ) -> dict[str, Any]: ...
 
     def offer_case_ownership_transfer(

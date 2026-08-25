@@ -20,10 +20,20 @@ groups:
     statement: Every `MessageSemantics` enum value except `UNKNOWN` MUST have exactly one entry in `SEMANTICS_ACTIVITY_PATTERNS`
       that defines its AS2 wire representation
   - id: VAM-01-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The AS2 activity patterns defined in this document MUST be implemented as
+      `ActivityPattern` objects in `vultron/wire/as2/extractor/_instances.py`.
+  - id: VAM-01-002b
     priority: MUST_NOT
     kind: project
-    statement: The AS2 activity patterns defined in this document MUST be implemented in `vultron/wire/as2/extractor.py` as
-      `ActivityPattern` objects and MUST NOT be duplicated in any other module
+    statement: >-
+      AS2 activity pattern objects MUST NOT be defined in any module other than
+      `vultron/wire/as2/extractor/_instances.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: VAM-01-002
   - id: VAM-01-003
     priority: MUST
     kind: protocol

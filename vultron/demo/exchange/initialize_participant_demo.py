@@ -14,21 +14,18 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Demonstrates the workflow for initializing a as_CaseParticipant via the Vultron API.
+Demonstrates the workflow for initializing a CaseParticipant via the Vultron API.
 
 This demo script showcases the standalone participant initialization process:
 
-1. Setup: Create a case with vendor as owner/participant (precondition)
+1. Setup: Submit and validate a vulnerability report; the report-validation BT
+   triggers ProposeReportCaseToActorNode, which causes the CaseActor to create
+   the canonical VulnerabilityCase with vendor (CASE_OWNER), finder (reporter),
+   and CaseActor (CASE_MANAGER) as initial participants.
 2. Create Coordinator Participant: vendor creates a CoordinatorParticipant
 3. Add Coordinator to Case: vendor adds the coordinator participant to the case
-4. Create Finder Participant: vendor creates a FinderReporterParticipant
-5. Add Finder to Case: vendor adds the finder participant to the case
-6. Show case participant list before and after each addition
 
-This corresponds to the workflow documented in:
-    docs/howto/activitypub/activities/initialize_participant.md
-
-This workflow is standalone — it does not require a prior Invite.
+This is standalone — it does not require a prior Invite.
 Compare with invite_actor_demo.py, which demonstrates the invite-based path.
 
 When run as a script, this module will:
@@ -70,8 +67,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
-    add_report_to_case_activity,
-    create_case_activity,
     create_participant_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
@@ -82,20 +77,48 @@ from vultron.demo.helpers.runner import run_exchange_demos
 logger = logging.getLogger(__name__)
 
 
+def _find_canonical_case(client: DataLayerClient) -> as_VulnerabilityCase:
+    """Discover the canonical VulnerabilityCase created by the CaseActor.
+
+    After ProposeReportCaseToActorNode runs during report validation, the
+    CaseActor creates the canonical case in the DataLayer with the vendor,
+    reporter, and CaseActor as initial participants.  This helper discovers
+    it by listing all VulnerabilityCase objects and returning the first one
+    that has participants.
+
+    Raises:
+        ValueError: If no initialized VulnerabilityCase is found.
+    """
+    cases_by_id: dict = client.get("/datalayer/VulnerabilityCases/")
+    for case_raw in cases_by_id.values():
+        try:
+            case = as_VulnerabilityCase(**case_raw)
+            if case.case_participants:
+                return case
+        except Exception:
+            continue
+    raise ValueError(
+        "No initialized VulnerabilityCase found in DataLayer after"
+        " report validation"
+    )
+
+
 def setup_case_precondition(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> Tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
-    """
-    Sets up the precondition for the demo: a case owned by the vendor with
-    a validated report and vendor as the only participant.
+) -> as_VulnerabilityCase:
+    """Set up the precondition for the demo.
 
-    The vendor participant is created automatically by the create_case BT
-    (CM-02-008), so no explicit VendorParticipant creation is needed here.
+    Submits a vulnerability report from finder to vendor and validates it.
+    The validation BT triggers ``ProposeReportCaseToActorNode``, which sends a
+    ``Create(CaseProposal)`` to the CaseActor.  The CaseActor creates the
+    canonical ``VulnerabilityCase`` and registers vendor (CASE_OWNER),
+    finder/reporter, and itself (CASE_MANAGER) as initial participants
+    (ADR-0041, CP-01-004).
 
     Returns:
-        Tuple of (report, case) for use in the demo workflow.
+        The canonical VulnerabilityCase created by the CaseActor.
     """
     logger.info("Setting up case precondition...")
 
@@ -117,21 +140,9 @@ def setup_case_precondition(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="Integer Overflow Case — Network Stack",
-        content="Tracking the integer overflow vulnerability in the network stack.",
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
+    case = _find_canonical_case(client)
     logger.info("Case precondition setup complete.")
-    return report, case
+    return case
 
 
 def demo_initialize_participant(
@@ -140,20 +151,18 @@ def demo_initialize_participant(
     vendor: as_Actor,
     coordinator: as_Actor,
 ):
-    """
-    Demonstrates the standalone as_CaseParticipant initialization workflow.
+    """Demonstrate the standalone CaseParticipant initialization workflow.
 
-    Precondition: An existing as_VulnerabilityCase with vendor as the owner and
-    sole participant is set up before the demo begins.
+    Precondition: A canonical VulnerabilityCase exists with vendor
+    (CASE_OWNER), finder (reporter), and the CaseActor (CASE_MANAGER) as
+    initial participants.  This is set up automatically by the report
+    validation → ProposeReportCaseToActorNode → CaseActor flow (ADR-0041).
 
     Steps:
-    1. Show case participant list (vendor only)
+    1. Show initial case participant list
     2. Vendor creates a CoordinatorParticipant (standalone, no prior invite)
     3. Vendor adds the coordinator participant to the case
-    4. Show updated participant list
-    5. Vendor creates a FinderReporterParticipant (standalone)
-    6. Vendor adds the finder participant to the case
-    7. Show final participant list
+    4. Verify final participant count
 
     This follows the workflow in:
         docs/howto/activitypub/activities/initialize_participant.md
@@ -162,9 +171,10 @@ def demo_initialize_participant(
     logger.info("DEMO: Initialize Case Participant")
     logger.info("=" * 80)
 
-    report, case = setup_case_precondition(client, finder, vendor)
+    case = setup_case_precondition(client, finder, vendor)
 
-    with demo_check("Initial case state: vendor is sole participant"):
+    initial_case = None
+    with demo_check("Initial case state"):
         initial_case = log_case_state(client, case.id_, "initial")
         if initial_case is None:
             raise ValueError("Could not fetch initial case state")
@@ -172,6 +182,9 @@ def demo_initialize_participant(
             f"Initial participant count: {len(initial_case.case_participants)}"
         )
 
+    initial_count = len(initial_case.case_participants) if initial_case else 0
+
+    coordinator_participant = None
     with demo_step(
         "Step 1: Vendor creates coordinator participant (standalone)"
     ):
@@ -212,61 +225,24 @@ def demo_initialize_participant(
                 )
         logger.info("Coordinator added as participant to case")
 
-    with demo_step(
-        "Step 3: Vendor creates finder/reporter participant (standalone)"
-    ):
-        finder_participant = as_CaseParticipant(
-            case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-            attributed_to=finder.id_,
-            context=case.id_,
-        )
-        logger.info(
-            f"Created finder participant: {logfmt(finder_participant)}"
-        )
-        create_finder_participant = create_participant_activity(
-            finder_participant, actor=vendor.id_, context=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_finder_participant)
-        with demo_check("Finder participant stored in data layer"):
-            verify_object_stored(client, finder_participant.id_)
-
-    with demo_step("Step 4: Vendor adds finder participant to case"):
-        add_finder_participant = add_participant_to_case_activity(
-            finder_participant, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, add_finder_participant)
-        with demo_check("Finder participant added to case"):
-            final_case = log_case_state(
-                client, case.id_, "after finder AddParticipantToCaseActivity"
-            )
-            if final_case and finder_participant.id_ not in [
-                (ref_id(p) or str(p)) for p in final_case.case_participants
-            ]:
-                raise ValueError(
-                    f"Finder participant '{finder_participant.id_}' not found"
-                    " in case after AddParticipantToCaseActivity"
-                )
-        logger.info("Finder added as participant to case")
-
-    with demo_check("Final case has three participants"):
+    expected_count = initial_count + 1
+    with demo_check(f"Final case has {expected_count} participants"):
         final_case = log_case_state(client, case.id_, "final")
         if final_case is None:
             raise ValueError("Could not fetch final case state")
         participant_count = len(final_case.case_participants)
-        if participant_count != 3:
+        if participant_count != expected_count:
             raise ValueError(
-                f"Expected 3 participants (vendor, coordinator, finder),"
+                f"Expected {expected_count} participants"
+                f" (initial {initial_count} + coordinator),"
                 f" got {participant_count}"
             )
         logger.info(
             f"Final participant count: {participant_count} ✓"
-            " (vendor + coordinator + finder)"
+            f" (initial {initial_count} + coordinator)"
         )
 
-    logger.info(
-        "✅ DEMO COMPLETE: Case initialized with vendor, coordinator,"
-        " and finder participants."
-    )
+    logger.info("✅ DEMO COMPLETE: Coordinator added as participant to case.")
 
 
 _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [

@@ -851,6 +851,34 @@ def test_record_participant_consent_actor_not_in_case(
     assert result.case_changed is False
 
 
+def test_record_participant_consent_illegal_trigger_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """AC-5: illegal trigger raises VultronInvalidStateTransitionError.
+
+    ACCEPT from SIGNATORY is not a valid PEC transition.
+    apply_pec_transition() is fail-closed and raises; this test pins that
+    behavior and confirms record_participant_consent propagates it.
+    """
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
+    owner_p.embargo_consent_state = PEC.SIGNATORY
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.record_participant_consent(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            pec_trigger=PEC_Trigger.ACCEPT,  # illegal from SIGNATORY
+        )
+
+
 # ---------------------------------------------------------------------------
 # Tests: P/X/A embargo-eligibility guards (#1454)
 # ---------------------------------------------------------------------------

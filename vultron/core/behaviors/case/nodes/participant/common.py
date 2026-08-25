@@ -28,6 +28,8 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
+    participant_status_rm_state,
+    participant_status_vfd_state,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -41,7 +43,10 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM, is_rm_at_least
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _as_id, _report_phase_status_id
+from vultron.core.models._helpers import (
+    _as_id,
+    _report_phase_status_id,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -193,7 +198,19 @@ def resolve_participant_state_from_dl(
     dl: CasePersistence,
     participant_id: str,
 ) -> tuple[RM, CS_vfd]:
-    """Return (current_rm, current_vfd) from the participant's latest status."""
+    """Return (current_rm, current_vfd) from the participant's latest status.
+
+    ``(RM.START, CS_vfd.vfd)`` is returned only when the participant genuinely
+    has no recorded status — never as a fallback for a status that could not be
+    read.  Substituting an initial state on an unreadable status silently reset
+    a participant's ladder (#2264, a symptom of #2232); a shape mismatch now
+    raises instead (ARCH-15-001, ARCH-15-002).  Both dimensions go through
+    their canonical reader: leaving VFD on the old ``hasattr``/``isinstance``
+    degrade would have kept the identical defect alive one dimension over.
+
+    Raises:
+        VultronValidationError: when the latest status is not core-shaped.
+    """
     participant_obj = dl.read(participant_id)
     if participant_obj is not None and hasattr(
         participant_obj, "participant_statuses"
@@ -201,14 +218,51 @@ def resolve_participant_state_from_dl(
         statuses = getattr(participant_obj, "participant_statuses")
         if statuses:
             latest = statuses[-1]
-            raw_rm = latest.rm.state if hasattr(latest, "rm") else RM.START
-            raw_vfd = (
-                latest.vfd.state if hasattr(latest, "vfd") else CS_vfd.vfd
+            return (
+                participant_status_rm_state(latest),
+                participant_status_vfd_state(latest),
             )
-            rm_state = raw_rm if isinstance(raw_rm, RM) else RM.START
-            vfd_state = raw_vfd if isinstance(raw_vfd, CS_vfd) else CS_vfd.vfd
-            return rm_state, vfd_state
     return RM.START, CS_vfd.vfd
+
+
+def resolve_case_manager_id(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+) -> str | None:
+    """Return the actor ID of the CASE_MANAGER participant, or None.
+
+    Checks ``actor_participant_index`` first (fast path), then falls back to
+    iterating ``case_participants`` for bootstrap-phase inline objects.
+
+    Behaviors-layer twin of
+    ``vultron.core.use_cases._helpers._resolve_case_manager_id``; kept here so
+    BT nodes (e.g. ``EmitCFActivity``, ``EmitCDActivity``) resolve the Case
+    Actor without a behaviors→use_cases import (BTND-04-003).
+    """
+    for p_id in case.actor_participant_index.values():
+        p = dl.read(p_id)
+        if not isinstance(p, CaseParticipant):
+            continue
+        if CVDRole.CASE_MANAGER in p.roles:
+            return _as_id(getattr(p, "attributed_to", None))
+
+    indexed_ids = set(case.actor_participant_index.values())
+    for p_ref in case.case_participants:
+        if not isinstance(p_ref, str):
+            if (
+                isinstance(p_ref, CaseParticipant)
+                and CVDRole.CASE_MANAGER in p_ref.roles
+            ):
+                return _as_id(getattr(p_ref, "attributed_to", None))
+            continue
+        if p_ref in indexed_ids:
+            continue
+        p = dl.read(p_ref)
+        if not isinstance(p, CaseParticipant):
+            continue
+        if CVDRole.CASE_MANAGER in p.roles:
+            return _as_id(getattr(p, "attributed_to", None))
+    return None
 
 
 def _queue_participant_add_notification(
@@ -388,9 +442,8 @@ def _upgrade_participant_to_accepted(
     """Upgrade an existing participant record from below RM.ACCEPTED to RM.ACCEPTED.
 
     Saves the new status as an independent DataLayer record, then reads it back
-    via the vocabulary registry so the serialised type matches what the
-    participant container expects.  This avoids wire/domain type mismatches when
-    appending to ``CaseParticipant.participant_statuses``.
+    via the DataLayer so the stored canonical record is used (ADR-0034:
+    dl.read() returns core-typed objects for ParticipantStatus).
     """
     logger = logging.getLogger(__name__)
     _coerced_consent = coerce_em_consent_state(
@@ -412,10 +465,11 @@ def _upgrade_participant_to_accepted(
     except ValueError:
         dl.save(upgrade_status)
     wire_status = dl.read(upgrade_status.id_)
-    participant_statuses = getattr(existing, "participant_statuses", None)
-    if participant_statuses is not None:
-        participant_statuses.append(
-            wire_status if wire_status is not None else upgrade_status
+    if isinstance(existing, CaseParticipant):
+        existing.add_participant_status(
+            wire_status
+            if isinstance(wire_status, ParticipantStatus)
+            else upgrade_status
         )
     dl.save(existing)
     logger.info(

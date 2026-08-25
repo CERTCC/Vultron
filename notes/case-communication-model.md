@@ -246,6 +246,56 @@ add_activity_to_outbox(case_actor_id, activity_id, dl)   # ← Case Actor outbox
 
 ---
 
+## Delegated-Message Pattern
+
+Some case-scoped Activities are logically initiated by a participant but MUST
+be sent under the CaseActor's identity — because the protocol requires the
+CaseActor to be the recognised sender.  This is the **delegated-message
+pattern** (CM-24-001 through CM-24-005):
+
+```text
+Requesting actor calls trigger: <trigger-name>
+  → Trigger use case _prepare():
+      self._actor_id     = case_actor_id      ← CaseActor sends (CM-24-001)
+      self._attributed_to = requesting_actor_id  ← attribution preserved (CM-24-002)
+      # When no CaseActor: self._actor_id = requesting_actor_id,
+      #                     self._attributed_to = None (CM-24-003)
+  → BT runs under CaseActor identity → activity queued in CaseActor outbox (CM-24-004)
+
+Recipient receives Activity:
+  actor        = case_actor_id       ← recognisable CaseActor sender
+  attributed_to = requesting_actor_id  ← who initiated the action
+```
+
+### Reference Implementation
+
+`SvcInviteActorToCaseUseCase._prepare()` (`triggers/actor.py:146–166`) is the
+canonical reference:
+
+```python
+case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
+self._actor_id = case_actor_id if case_actor_id else owner_id   # CM-24-001/003
+self._case_actor_id = case_actor_id
+self._attributed_to = owner_id if case_actor_id else None        # CM-24-002/003
+```
+
+### Delegated Flows (Exhaustive)
+
+| Trigger use case | Notes |
+|---|---|
+| `SvcInviteActorToCaseUseCase` | ✅ reference — correct |
+| `SvcOfferCaseOwnershipTransferUseCase` | ❌ as of CONCERN-2170 — tracked in #2173 |
+| Other delegated-emit trigger use cases | audit scope of the CM-24 impl issue |
+
+### Shared-Helper Requirement (CM-24-005)
+
+All delegated-message trigger use cases MUST use a shared helper to enforce
+the pattern.  No callsite may independently reconstruct `actor/attributed_to`
+assignment.  See `specs/case-management.yaml` CM-24-005 for the normative
+requirement.
+
+---
+
 ## Antipattern: Identity Spoofing in Received-Side Use Cases
 
 A received-side use case runs in one actor's DataLayer context. It MUST NOT

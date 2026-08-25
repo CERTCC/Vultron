@@ -44,6 +44,7 @@ See also:
 from typing import Any, Protocol
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.enums.roles import CVDRole
 
 
 class TriggerActivityPort(Protocol):
@@ -232,6 +233,23 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def add_case_status_to_case(
+        self,
+        status_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Add(CaseStatus, VulnerabilityCase)`` activity.
+
+        Used by ``EmitAddCaseStatusToSelfNode`` to route a self-addressed
+        ``Add(CaseStatus)`` from the receiving actor to the CaseActor
+        (RSH-01-003).
+
+        Returns the activity ID (callers only need the ID for outbox queueing).
+        """
+        ...
+
     def create_case_proposal(
         self,
         actor: str,
@@ -294,6 +312,17 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def reject_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Reject(Invite)`` activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def accept_case_participant_offer(
         self,
         cp_offer_id: str,
@@ -315,10 +344,13 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        roles: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity.
 
         ``id_`` allows callers to supply a deterministic ID for idempotency.
+        ``roles`` carries serialized CVD role strings into the wire object so
+        the CaseActor can use them in place of the hardcoded VENDOR default.
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -431,60 +463,60 @@ class TriggerActivityPort(Protocol):
     # Case Actor / CASE_MANAGER delegation
     # -----------------------------------------------------------------------
 
-    def offer_case_manager_role(
+    def offer_case_participant_role(
         self,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Offer(VulnerabilityCase, target=CaseParticipant)``
-        CASE_MANAGER delegation activity.
+        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
 
-        ``participant_id`` must refer to an existing ``CaseParticipant`` with
-        ``CASE_MANAGER`` role (the Case Actor participant).
+        Canonical role-delegation wire format (ADR-0039).  ``role`` is the
+        :class:`CVDRole` being offered; ``target_actor_id`` is the Actor URI
+        receiving the offer; ``case_id`` supplies the VulnerabilityCase context.
 
         Returns ``(activity_id, activity_dict)``.
         """
         ...
 
-    def accept_case_manager_role(
+    def accept_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
+        """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
         Ephemerally reconstructs the original Offer (using ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id``) before building
-        the Accept so that ``Accept.object_`` is a typed
-        ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
+        ``case_id``, ``role``, ``target_actor_id``, and ``vendor_id``)
+        before building the Accept so that ``Accept.object_`` is a typed
+        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
 
-        Returns ``(activity_id, activity_dict)`` where ``activity_dict`` is
-        the full inline serialization of the Accept (with nested Offer
-        inlined), suitable for use as a canonical payload snapshot.
+        Returns ``(activity_id, activity_dict)``.
         """
         ...
 
-    def reject_case_manager_role(
+    def reject_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+        """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
-        Ephemerally reconstructs the original Offer (using ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id``) before building
-        the Reject so that ``Reject.object_`` is a typed
-        ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
+        Ephemerally reconstructs the original Offer before building the
+        Reject so that ``Reject.object_`` is a typed
+        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
 
         Returns the activity ID.
         """
@@ -567,6 +599,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         content: str | None = None,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 

@@ -55,6 +55,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
+    SeedOfferRecordRequest,
     SyncLogEntryRequest,
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
@@ -152,6 +153,14 @@ def demo_notify_fix_ready(
     from vultron.core.states.cs import CS_vfd
 
     with domain_error_translation():
+        # VFD hypercube: vfd → Vfd is the only valid first hop from the
+        # initial state; Vfd → VFd is the second hop. Both must be emitted
+        # in order so ValidateTriggerTransitionsNode passes each step.
+        svc.add_participant_status(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            vfd_state=CS_vfd.Vfd,
+        )
         result = svc.add_participant_status(
             actor_id=actor_id,
             case_id=body.case_id,
@@ -223,13 +232,12 @@ def demo_notify_published(
 
     Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
     """
-    from vultron.core.states.cs import CS_pxa, CS_vfd
+    from vultron.core.states.cs import CS_pxa
 
     with domain_error_translation():
         result = svc.add_participant_status(
             actor_id=actor_id,
             case_id=body.case_id,
-            vfd_state=CS_vfd.VFD,
             pxa_state=CS_pxa.Pxa,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
@@ -239,11 +247,11 @@ def demo_notify_published(
 @router.post(
     "/{actor_id}/demo/close-case",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="[Demo] Report that the actor is closing the case (RM.CLOSED).",
+    summary="[Demo] Actor sends Leave(VulnerabilityCase) to close the case.",
     description=(
         "Demo-only scaffold. "
-        "Self-reports RM state CLOSED "
-        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "Triggers Leave(VulnerabilityCase) via the canonical RM closure path "
+        "(ADR-0050). "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),
@@ -257,20 +265,73 @@ def demo_close_case(
     dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
-    """Report that the actor is closing the case (demo scaffold).
+    """Trigger Leave(VulnerabilityCase) for the given actor and case.
+
+    Implements the canonical RM case closure path (ADR-0050): emits
+    Leave(VulnerabilityCase) to the Case Actor inbox, which commits a
+    ``close_case`` CaseLedgerEntry and fans it out to all participants.
 
     Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
     """
-    from vultron.core.states.rm import RM
-
     with domain_error_translation():
-        result = svc.add_participant_status(
+        result = svc.leave_case(
             actor_id=actor_id,
             case_id=body.case_id,
-            rm_state=RM.CLOSED,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
+
+
+@router.post(
+    "/{actor_id}/demo/seed-offer-record",
+    status_code=status.HTTP_201_CREATED,
+    summary="[Demo] Seed a VultronOfferRecord on this actor's DataLayer.",
+    description=(
+        "Demo-only scaffold. "
+        "Seeds a ``VultronOfferRecord`` (and a ``VulnerabilityReport`` stub "
+        "if one does not already exist) on this actor's DataLayer so that "
+        "invited actors can call ``validate-report`` using the original "
+        "offer ID (CM-11-002 triage cycle). "
+        "In a real deployment the offer record is created by the adapter "
+        "layer at report submission time and is only available on the "
+        "original receiving actor. "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: TRIG-09-001."
+    ),
+    operation_id="actors_demo_seed_offer_record",
+)
+def demo_seed_offer_record(
+    actor_id: str,  # noqa: ARG001
+    body: SeedOfferRecordRequest,
+    dl: DataLayer = Depends(get_trigger_dl),
+) -> dict[str, Any]:
+    """Seed a VultronOfferRecord (+ VulnerabilityReport stub) for invited actors.
+
+    Implements: TRIG-09-001, CM-11-002.
+    """
+    from vultron.core.models.offer_record import VultronOfferRecord
+    from vultron.core.models.report import VulnerabilityReport
+
+    with domain_error_translation():
+        offer_record = VultronOfferRecord(
+            offer_id=body.offer_id,
+            report_id=body.report_id,
+            offer_actor_id=body.offer_actor_id,
+        )
+        existing = dl.read(offer_record.id_)
+        if existing is None:
+            dl.save(offer_record)
+
+        report_existing = dl.read(body.report_id)
+        if report_existing is None:
+            report_stub = VulnerabilityReport(id_=body.report_id)
+            dl.save(report_stub)
+
+    return {
+        "offer_record_id": offer_record.id_,
+        "report_id": body.report_id,
+        "seeded": existing is None,
+    }
 
 
 @router.post(

@@ -38,7 +38,58 @@ groups:
   - id: HTTP-03-001
     priority: MUST
     kind: architecture
-    statement: API MUST use standard HTTP status codes with consistent semantics per table below
+    statement: The API MUST return 200 OK for successful reads.
+    rationale: Standard HTTP success code for GET and other read operations.
+  - id: HTTP-03-002
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 201 Created for successful resource creation.
+    rationale: Standard HTTP success code for POST operations that create a new resource.
+  - id: HTTP-03-003
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 202 Accepted for queued processing.
+    rationale: Indicates the request was accepted but processing is deferred to a background job.
+  - id: HTTP-03-004
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 400 Bad Request for malformed input.
+    rationale: Signals that the client submitted a syntactically invalid request that cannot be parsed.
+  - id: HTTP-03-005
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 404 Not Found for missing resources.
+    rationale: Indicates the requested resource does not exist in the system.
+  - id: HTTP-03-006
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 405 Method Not Allowed for unsupported methods.
+    rationale: Informs the client that the HTTP method used is not supported on this endpoint.
+  - id: HTTP-03-007
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 413 Content Too Large for oversized payloads.
+    rationale: Rejects requests exceeding the configured payload size limit (see HTTP-02-001).
+  - id: HTTP-03-008
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 415 Unsupported Media Type for invalid Content-Type.
+    rationale: Rejects requests whose Content-Type header is not an accepted media type (see HTTP-01-003).
+  - id: HTTP-03-009
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 422 Unprocessable Entity for schema validation failures.
+    rationale: Indicates the request was well-formed but failed semantic or schema validation.
+  - id: HTTP-03-010
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 429 Too Many Requests for rate-limit violations.
+    rationale: Signals that the client has exceeded the permitted request rate and must back off.
+  - id: HTTP-03-011
+    priority: MUST
+    kind: architecture
+    statement: The API MUST return 503 Service Unavailable for transient errors.
+    rationale: Indicates a temporary server-side failure; the client should retry after the Retry-After interval.
 - id: HTTP-04
   title: Response Headers
   specs:

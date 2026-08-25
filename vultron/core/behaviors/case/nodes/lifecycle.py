@@ -28,7 +28,9 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerAction
+from py_trees.ports import NoDataAvailable, PortInformation
+
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -37,8 +39,23 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+#: Blackboard key by which a preceding read-only guard in any receive tree may
+#: patch the ``object`` entry of the canonical ledger ``payload_snapshot`` read
+#: by :class:`CommitCaseLedgerEntryNode`.  The value is a mapping
+#: ``{"object_id": <id the patch applies to>, "fields": <wire-alias patch>}``,
+#: or ``None`` when no adjudication applies.
+#:
+#: ``fields`` is a *patch*, not a replacement object: the guard names only the
+#: fields it adjudicated, keyed by their wire aliases, and they are merged onto
+#: whatever the snapshot already holds.  That keeps the recorded shape identical
+#: to an unadjudicated entry's (RSH-05-009).
+#:
+#: Producers: :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`.
+BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
 
 
 def _extract_payload_snapshot(
@@ -51,12 +68,84 @@ def _extract_payload_snapshot(
             dict[str, Any],
             build_activity_payload_snapshot(event_activity, dl=dl),
         )
-    return cast(
+    snapshot = cast(
         dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
     )
+    # Domain events serialize actor_id, not the wire-format actor URI.
+    # Patch it in so the ledger schema's non-empty-URI check passes.
+    if not snapshot.get("actor"):
+        actor_id = getattr(activity, "actor_id", None)
+        if actor_id:
+            snapshot = dict(snapshot)
+            snapshot["actor"] = actor_id
+    return snapshot
 
 
-class CommitCaseLedgerEntryNode(DataLayerAction):
+#: snake_case spellings of the patchable flat status fields.  A snapshot is
+#: normally serialized ``by_alias`` (camelCase), but a stale snake_case twin
+#: left alongside a patched alias would let a consumer that prefers the
+#: snake_case spelling read the value the receiver just refused.
+_SNAKE_TWINS: dict[str, str] = {
+    "rmState": "rm_state",
+    "vfdState": "vfd_state",
+    "emState": "em_state",
+    "pxaState": "pxa_state",
+    "emConsentState": "em_consent_state",
+    "caseStatus": "case_status",
+}
+
+#: Producer class names recognized by the override consumer.  An override with
+#: an unrecognized ``producer_type`` still applies (RSH-05-014 is a warning,
+#: not a block); this set is an audit allowlist, not a security gate.
+_RECOGNIZED_OVERRIDE_PRODUCERS: frozenset[str] = frozenset(
+    {"FilterParticipantStatusDimensionsNode"}
+)
+
+
+def _merge_snapshot_object_fields(
+    current: dict[str, Any], fields: dict[str, Any]
+) -> dict[str, Any]:
+    """Merge an adjudication patch onto a snapshot ``object``.
+
+    One level of nesting is merged rather than replaced so that patching
+    ``caseStatus.pxaState`` keeps the snapshot's ``caseStatus`` id and its other
+    fields.  A ``caseStatus`` that is still a bare reference string is left
+    alone — there is nothing to merge into, and clobbering it would drop the
+    reference.
+
+    ``name`` is dropped: it is a derived state summary and the sender's label
+    describes the value that was just refused.
+    """
+    merged = dict(current)
+    for key, value in fields.items():
+        existing = merged.get(key)
+        if isinstance(value, dict):
+            if not isinstance(existing, dict):
+                # Bare reference (or absent) — nothing to patch into.
+                continue
+            nested = dict(existing)
+            for nested_key, nested_value in value.items():
+                nested[nested_key] = nested_value
+                nested.pop(_SNAKE_TWINS.get(nested_key, ""), None)
+            merged[key] = nested
+            continue
+        merged[key] = value
+        merged.pop(_SNAKE_TWINS.get(key, ""), None)
+    merged.pop("name", None)
+    return merged
+
+
+def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
+    """Return the ID of a payload snapshot's ``object``, inlined or not."""
+    value = payload_snapshot.get("object")
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, dict):
+        return value.get("id") or value.get("id_") or None
+    return None
+
+
+class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     """
     Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
 
@@ -86,46 +175,113 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         case_id: str | None = None,
         name: str | None = None,
     ):
-        """
-        Args:
-            case_id: ID of the ``VulnerabilityCase`` to log against.  When
-                ``None`` the node reads ``case_id`` from the blackboard.
-            name: Optional display name for the node.
-        """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._sync_port: Any = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["activity"] = PortInformation(data_type=object, required=False)
+        ports["sync_port"] = PortInformation(data_type=object, required=False)
+        ports["ledger_payload_object_override"] = PortInformation(
+            data_type=object, required=False
         )
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="sync_port", access=py_trees.common.Access.READ
-        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "activity": "/activity",
+            "sync_port": "/sync_port",
+            "ledger_payload_object_override": f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
+        }
 
     def initialise(self) -> None:
         super().initialise()
         try:
-            self._sync_port = self.blackboard.sync_port
-        except (AttributeError, KeyError):
+            self._case_id_bb: str | None = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = None
+        try:
+            self._activity: Any = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self._activity = None
+        try:
+            self._sync_port = self.get_input("sync_port")
+        except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
+        try:
+            self._ledger_payload_object_override: Any = self.get_input(
+                "ledger_payload_object_override"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self._ledger_payload_object_override = None
 
     def _resolve_case_id(self) -> str | None:
-        try:
-            return self._case_id or self.blackboard.get("case_id")
-        except KeyError:
-            return self._case_id
+        return self._case_id or self._case_id_bb
 
     def _resolve_activity(self) -> Any | None:
-        try:
-            return self.blackboard.get("activity")
-        except KeyError:
+        return self._activity
+
+    def _resolve_payload_object_override(
+        self, payload_snapshot: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Return a substitute ``object`` entry for the payload snapshot.
+
+        A preceding read-only guard may have adjudicated the inbound assertion
+        and published the portion the receiver actually accepts (RSH-05).  The
+        canonical entry must record *that*, not the raw claim, otherwise the
+        refused value is hash-chained and replicated to every participant.
+
+        The override is a **patch**, not a replacement object: the guard names
+        only the fields it adjudicated and they are merged onto the snapshot's
+        existing ``object``.  That keeps the snapshot in the same wire shape the
+        un-adjudicated path produces — flat ``rmState``/``vfdState``, nested
+        ``caseStatus``, ``@context``, ``emConsentState``, ``cvdRole`` — which
+        every replica and the invariant harness rely on (RSH-05-009,
+        CLP-07-001, CM-18-006).  A whole-object replacement built in core would
+        instead emit core dimension objects, since core must not import the wire
+        layer to convert (ADR-0009, ADR-0017).
+
+        The override names the object ID it applies to and is honoured only
+        when the snapshot's ``object`` refers to the same ID: the py_trees
+        blackboard is process-global and not cleared between executions, so an
+        unmatched override is a leftover from an earlier run and is ignored.
+        """
+        override = self._ledger_payload_object_override
+        if not isinstance(override, dict):
             return None
+        fields = override.get("fields")
+        if not isinstance(fields, dict) or not fields:
+            return None
+        # RSH-05-014: warn when producer_type is present but unrecognized.
+        producer_type = override.get("producer_type")
+        if (
+            producer_type is not None
+            and producer_type not in _RECOGNIZED_OVERRIDE_PRODUCERS
+        ):
+            self.logger.warning(
+                "%s: ledger_payload_object_override from unrecognized"
+                " producer '%s' — applying override (RSH-05-014)",
+                self.name,
+                producer_type,
+            )
+        # RSH-05-013: hard-fail on any unrecognized wire alias in fields.
+        unknown = set(fields) - set(_SNAKE_TWINS)
+        if unknown:
+            raise VultronValidationError(
+                f"ledger_payload_object_override contains unrecognized wire"
+                f" alias(es) {unknown!r} — fix the producer (RSH-05-013)"
+            )
+        current = payload_snapshot.get("object")
+        if not isinstance(current, dict):
+            return None
+        if _snapshot_object_id(payload_snapshot) != override.get("object_id"):
+            return None
+        return _merge_snapshot_object_fields(current, fields)
 
     def _activity_metadata(
         self, activity: Any | None, case_id: str
@@ -178,6 +334,33 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         if payload_snapshot and payload_snapshot.get("context") != case_id:
             payload_snapshot = dict(payload_snapshot)
             payload_snapshot["context"] = case_id
+
+        # Record the portion of the assertion the receiver accepts, when a
+        # preceding guard adjudicated it (RSH-05).
+        if payload_snapshot:
+            try:
+                replacement = self._resolve_payload_object_override(
+                    payload_snapshot
+                )
+            except VultronValidationError as exc:
+                self.logger.error(
+                    "%s: refusing ledger commit for case '%s':"
+                    " override validation failed: %s",
+                    self.name,
+                    case_id,
+                    exc,
+                )
+                return Status.FAILURE
+            if replacement is not None:
+                payload_snapshot = dict(payload_snapshot)
+                payload_snapshot["object"] = replacement
+                self.logger.info(
+                    "%s: snapshotting the accepted portion of object '%s'"
+                    " for case '%s' (RSH-05)",
+                    self.name,
+                    _snapshot_object_id(payload_snapshot),
+                    case_id,
+                )
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
@@ -288,19 +471,6 @@ def create_receive_activity_tree(
     preserving behaviour for trees that receive no explicit case context.
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006.
-
-    Args:
-        name: Display name for the root Sequence node.
-        case_id: ID of the ``VulnerabilityCase`` to ledger against.  Pass
-            ``None`` to skip the commit step (no ledger entry written).
-        precondition_guards: Zero or more read-only condition nodes placed
-            before the commit.  These nodes MUST NOT write to the DataLayer.
-        effect_nodes: Zero or more action nodes placed after the commit.
-            These may perform any state mutation.
-
-    Returns:
-        Root ``Sequence`` node ready for execution via
-        :class:`~vultron.core.behaviors.bridge.BTBridge`.
     """
     children: list[py_trees.behaviour.Behaviour] = list(precondition_guards)
     if case_id is not None:

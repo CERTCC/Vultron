@@ -45,23 +45,19 @@ Spec: CLP-10-005. Decision record: ADR-0022.
 import ast
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parents[2]  # test/architecture/ → test/ → repo root
+from test.architecture import _corpus
 
 _GUARDED_COMMIT_FACTORY = "create_guarded_commit_case_ledger_entry_tree"
 
-_USE_CASES_ROOT = REPO_ROOT / "vultron" / "core" / "use_cases"
+_USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
 
 
-def _imports_guarded_commit_factory(source_path: Path) -> bool:
-    """Return True if *source_path* imports the guarded-commit factory.
+def _imports_guarded_commit_factory(tree: ast.AST) -> bool:
+    """Return True if *tree* imports the guarded-commit factory.
 
     Detects both top-level and deferred (local) ``from ... import`` of
     ``create_guarded_commit_case_ledger_entry_tree``.
     """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return False
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             for alias in node.names:
@@ -73,11 +69,11 @@ def _imports_guarded_commit_factory(source_path: Path) -> bool:
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of use-case files importing the factory."""
     violations: set[str] = set()
-    for py_file in _USE_CASES_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        if _imports_guarded_commit_factory(py_file):
-            violations.add(py_file.relative_to(REPO_ROOT).as_posix())
+    for py_file, tree in _corpus.files_mentioning(
+        _GUARDED_COMMIT_FACTORY, under=_USE_CASES_ROOT
+    ):
+        if _imports_guarded_commit_factory(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
     return frozenset(violations)
 
 
@@ -151,20 +147,17 @@ def _walk_own_scope(node: ast.AST):
         yield from _walk_own_scope(child)
 
 
-def _count_multi_execute_violations(source_path: Path) -> dict[str, int]:
+def _count_multi_execute_violations_in_tree(
+    tree: ast.AST, label: str
+) -> dict[str, int]:
     """Return ``'file:lineno' → call_count`` for every execute() method that
     calls execute_with_setup() more than once in its own scope.
 
     Only direct calls inside the ``execute()`` body are counted; calls inside
     nested helper functions defined within ``execute()`` are excluded.
 
-    Returns an empty dict when no violations are found or on SyntaxError.
+    Returns an empty dict when no violations are found.
     """
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return {}
-
     results: dict[str, int] = {}
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -177,13 +170,27 @@ def _count_multi_execute_violations(source_path: Path) -> dict[str, int]:
             if _is_execute_with_setup_call(child)
         )
         if count > 1:
-            try:
-                label = source_path.relative_to(REPO_ROOT).as_posix()
-            except ValueError:
-                label = str(source_path)
             results[f"{label}:{node.lineno}"] = count
 
     return results
+
+
+def _count_multi_execute_violations(source_path: Path) -> dict[str, int]:
+    """Parse *source_path* and delegate to ``_count_multi_execute_violations_in_tree``.
+
+    Used by the synthetic-violation detector test, which writes files to
+    ``tmp_path`` that are not in the corpus.
+    """
+    try:
+        source = source_path.read_text(encoding="utf-8")
+        tree = _corpus.parse_inline(source, filename=str(source_path))
+    except (OSError, SyntaxError):
+        return {}
+    try:
+        label = source_path.relative_to(_corpus.REPO_ROOT).as_posix()
+    except ValueError:
+        label = str(source_path)
+    return _count_multi_execute_violations_in_tree(tree, label)
 
 
 def test_no_execute_method_calls_execute_with_setup_more_than_once():
@@ -196,10 +203,11 @@ def test_no_execute_method_calls_execute_with_setup_more_than_once():
     Spec: CLP-10-005. Decision record: ADR-0022.
     """
     violations: dict[str, int] = {}
-    for py_file in _USE_CASES_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
-            continue
-        violations.update(_count_multi_execute_violations(py_file))
+    for py_file, tree in _corpus.files_mentioning(
+        "execute_with_setup", under=_USE_CASES_ROOT
+    ):
+        label = py_file.relative_to(_corpus.REPO_ROOT).as_posix()
+        violations.update(_count_multi_execute_violations_in_tree(tree, label))
 
     assert not violations, (
         "execute() methods calling execute_with_setup() more than once"

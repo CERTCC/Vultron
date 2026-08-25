@@ -26,15 +26,21 @@ import logging
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import is_em_embargo_active, is_em_exited
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
+from vultron.demo.helpers.polling import (
+    wait_for_case_on_container,
+    wait_for_participant_pxa_state,
+)
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
+    _assert_participant_pxa_only,
     _assert_participant_vfd_pxa,
+    _check_participant_rm_state_in,
     _check_participant_vfd_state_in,
     _fetch_participant,
     _fetch_participant_data,
 )
 from vultron.demo.utils import DataLayerClient
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -98,7 +104,12 @@ def verify_case_active(
         " reporter) + case-actor present, EM.ACTIVE, embargo present"
     )
 
-    # Reporter side: replica must exist with matching participant index and embargo
+    # Reporter side: replica must exist with matching participant index and
+    # embargo.  The replica arrives via the receiver's outbox, which runs as a
+    # background task, so poll rather than reading once — the coordinator-side
+    # participant count can reach its target a few tens of milliseconds before
+    # the reporter's Create(VulnerabilityCase) has been processed.
+    wait_for_case_on_container(reporter_client, case_id)
     reporter_case_data = reporter_client.get(f"/datalayer/{case_id}")
     if not reporter_case_data:
         raise AssertionError(
@@ -118,8 +129,7 @@ def verify_case_active(
             f" != coordinator active_embargo {receiver_embargo_id!r}"
         )
     logger.info(
-        "✓ case active (reporter): case replica present, matching participant"
-        " index and active embargo"
+        "✓ case active (reporter): case replica present, active embargo present"
     )
 
 
@@ -187,12 +197,22 @@ def verify_fix_ready(
         receiver_client, case_id, receiver_actor_id, "verify_fix_ready"
     )
     fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
+    # CS.F entails RM in {ACCEPTED, DEFERRED, CLOSED}: a participant that has
+    # a fix-ready CS state must also have engaged with the report at the RM level.
+    rm_engaged_states = {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
     _check_participant_vfd_state_in(
         receiver_client,
         case_id,
         receiver_actor_id,
         fix_ready_states,
         "verify_fix_ready coordinator",
+    )
+    _check_participant_rm_state_in(
+        receiver_client,
+        case_id,
+        receiver_actor_id,
+        rm_engaged_states,
+        "verify_fix_ready coordinator RM",
     )
     _check_participant_vfd_state_in(
         reporter_client,
@@ -201,7 +221,52 @@ def verify_fix_ready(
         fix_ready_states,
         "verify_fix_ready reporter replica",
     )
+    _check_participant_rm_state_in(
+        reporter_client,
+        case_id,
+        receiver_actor_id,
+        rm_engaged_states,
+        "verify_fix_ready reporter replica RM",
+    )
     logger.info("✓ fix ready: both replicas show CS includes F (fix ready)")
+
+
+def _assert_deployer_role(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    label: str,
+) -> None:
+    """Assert that *actor_id* holds ``CVDRole.DEPLOYER`` in the case.
+
+    The d→D (fix-deployed) transition is gated on ``CVDRole.DEPLOYER`` by
+    ``CheckDeployerRoleNode`` (CSB-15-002).  A VENDOR-only actor cannot reach
+    VFD regardless, so accepting VENDOR here would only produce a confusing
+    VFD-state-check failure downstream instead of a clear role-check failure.
+
+    Spec: DEMOMA-15-001.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        label: Human-readable label for the ``AssertionError`` message.
+
+    Raises:
+        AssertionError: If the participant is not found or does not hold
+            ``CVDRole.DEPLOYER``.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} not found as a participant in case"
+            f" {case_id!r}"
+        )
+    if CVDRole.DEPLOYER not in (participant.case_roles or []):
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} does not hold CVDRole.DEPLOYER;"
+            f" actual roles: {participant.case_roles!r}"
+        )
 
 
 def verify_fix_deployed(
@@ -213,9 +278,10 @@ def verify_fix_deployed(
     """Verify that both replicas show CS includes D (fix deployed).
 
     The ``receiver_actor_id`` MUST be the full URI of an actor holding
-    ``CVDRole.VENDOR`` in the case.  Passing any other actor (e.g. a
-    Coordinator) is a caller error and will raise ``AssertionError`` before
-    the state check runs.
+    ``CVDRole.DEPLOYER`` in the case.  The d→D transition is gated on
+    ``CVDRole.DEPLOYER`` by ``CheckDeployerRoleNode`` (CSB-15-002); a
+    VENDOR-only actor cannot advance beyond VFd regardless, so passing one
+    here is a caller error that will raise ``AssertionError`` immediately.
 
     Specs: DEMOMA-06-002, DEMOMA-15-001.
 
@@ -228,10 +294,10 @@ def verify_fix_deployed(
 
     Raises:
         AssertionError: If ``receiver_actor_id`` does not hold
-            ``CVDRole.VENDOR``, or if either replica does not reflect
+            ``CVDRole.DEPLOYER``, or if either replica does not reflect
             fix-deployed state.
     """
-    _assert_vendor_role(
+    _assert_deployer_role(
         receiver_client, case_id, receiver_actor_id, "verify_fix_deployed"
     )
     deployed_state = {CS_vfd.VFD}
@@ -294,8 +360,19 @@ def verify_publicly_disclosed(
             )
         logger.info("✓ publicly disclosed %s: EM.EXITED", label)
 
-    # Verify receiver participant's latest status is VFD + public-aware pxa
+    # Gate: poll reporter replica until receiver_actor_id's pxa_state is
+    # public-aware.  actor_notifies_published returns HTTP 202 before the
+    # CaseActor's Add(CaseStatus) broadcast reaches the reporter's DataLayer,
+    # so an instant assertion races the async commit (ADR-0058).
+    wait_for_participant_pxa_state(
+        client=reporter_client,
+        case_id=case_id,
+        actor_id=receiver_actor_id,
+    )
+
+    # Verify receiver participant's pxa state (and VFD only for vendor/deployer)
     # on both the coordinator's and reporter's DataLayer replicas.
+    vfd_roles = {CVDRole.VENDOR, CVDRole.DEPLOYER}
     for label, c in [
         ("receiver", receiver_client),
         ("reporter", reporter_client),
@@ -306,7 +383,11 @@ def verify_publicly_disclosed(
                 f"verify_publicly_disclosed {label}: receiver participant"
                 f" {receiver_actor_id!r} not found"
             )
-        _assert_participant_vfd_pxa(p, label, receiver_actor_id)
+        receiver_roles = set(p.case_roles or [])
+        if receiver_roles & vfd_roles:
+            _assert_participant_vfd_pxa(p, label, receiver_actor_id)
+        else:
+            _assert_participant_pxa_only(p, label, receiver_actor_id)
     logger.info("✓ publicly disclosed: both replicas CS.VFDPxa and EM.EXITED")
 
 

@@ -155,6 +155,7 @@ def demo_validate_report(
     logger.info("DEMO 1: Validate Report and Create Case")
     logger.info("=" * 80)
 
+    report = report_offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,
@@ -236,6 +237,7 @@ def demo_invalidate_report(
     logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
     logger.info("=" * 80)
 
+    report = report_offer = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,
@@ -318,6 +320,7 @@ def demo_invalidate_and_close_report(
     logger.info("DEMO 3: Invalidate and Close Report")
     logger.info("=" * 80)
 
+    report_offer = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,

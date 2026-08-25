@@ -62,6 +62,7 @@ from vultron.wire.as2.vocab.base.objects.collections import (
 )
 
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    _activity_addressed_to,
     _activity_already_received,
     _get_body,
     _record_inbox_receipt,
@@ -361,8 +362,19 @@ def post_actor_inbox(
     actor = _resolve_actor_or_404(actor_id, dl)
     canonical_actor_id = actor.id_
 
+    if not _activity_addressed_to(activity, canonical_actor_id, dl=dl):
+        logger.warning(
+            "Activity %s is not addressed to actor %s; refusing (IE-11-001).",
+            activity.id_,
+            canonical_actor_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Activity is not addressed to actor {canonical_actor_id}.",
+        )
+
     if _activity_already_received(actor, activity.id_):
-        logger.info(
+        logger.debug(
             "Activity %s already received by %s; ignoring duplicate submission.",
             activity.id_,
             canonical_actor_id,

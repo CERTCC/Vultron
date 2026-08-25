@@ -132,28 +132,23 @@ def offer(dl, report, actor, reporter):
 
 
 @pytest.fixture
-def received_report(dl, actor, reporter, report, offer):
-    """Pre-create a as_VulnerabilityCase for the report at RM.RECEIVED.
+def received_report(dl, actor, report):
+    """Pre-create a VulnerabilityCase with embargo for the report at RM.RECEIVED.
 
-    Per ADR-0015, the case is created at report receipt.  The validate_report
-    BT's EnsureEmbargoExists node requires a case to exist.
+    ADR-0041: vendor tree no longer creates VulnerabilityCase.  Create one
+    directly to satisfy EnsureEmbargoExists in the validate_report BT.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.receive_report_case_tree import (
-        create_receive_report_case_tree,
-    )
-
-    bridge = BTBridge(datalayer=dl)
-    tree = create_receive_report_case_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-        reporter_actor_id=reporter.id_,
-    )
-    bridge.execute_with_setup(tree, actor_id=actor.id_)
     from vultron.core.models.case import VulnerabilityCase
 
-    case_obj = dl.find_case_by_report_id(report.id_)
-    assert isinstance(case_obj, VulnerabilityCase)
+    embargo_id = f"{actor.id_}/embargoes/test-embargo"
+    case_obj = VulnerabilityCase(
+        id_=f"{actor.id_}/cases/test-case-received",
+        name="Test Case at Received",
+        attributed_to=actor.id_,
+        vulnerability_reports=[report.id_],
+        active_embargo=embargo_id,
+    )
+    dl.create(case_obj)
     case_actor = as_Service(name=f"Case Actor for {case_obj.name}")
     dl.create(case_actor)
     case_manager_participant = as_CaseParticipant(
@@ -171,20 +166,60 @@ def received_report(dl, actor, reporter, report, offer):
 
 
 @pytest.fixture
-def invalid_report(report):
-    """Put the report into RM.RECEIVED state (for invalidate/reject triggers)."""
+def invalid_report(dl, report, actor):
+    """Pre-seed RM.INVALID for reject triggers (INVALID→CLOSED is valid per BTND-10-001)."""
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.INVALID),
+    )
+    dl.create(status)
     return report
 
 
+def _seed_owner_case(dl, actor_id, report_id):
+    """Seed a VulnerabilityCase where *actor_id* is CASE_OWNER with a CASE_MANAGER for routing."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=actor_id,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    manager_actor = as_Service(name="Case Manager")
+    manager_p = CaseParticipant(
+        attributed_to=manager_actor.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case = VulnerabilityCase(name="Owner Case for Close")
+    case.vulnerability_reports.append(report_id)
+    case.actor_participant_index[actor_id] = owner_p.id_
+    case.actor_participant_index[manager_actor.id_] = manager_p.id_
+    dl.create(manager_actor)
+    dl.create(owner_p)
+    dl.create(manager_p)
+    dl.create(case)
+
+
 @pytest.fixture
-def accepted_report(report):
-    """Report in an acceptable state for close-report (no CLOSED record)."""
+def accepted_report(dl, report, actor):
+    """Report ready for close: actor is CASE_OWNER and RM.ACCEPTED is seeded (BTND-10-001)."""
+    _seed_owner_case(dl, actor.id_, report.id_)
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
+        rm=RmDimension(state=RM.ACCEPTED),
+    )
+    dl.create(status)
     return report
 
 
 @pytest.fixture
 def closed_report(dl, report, actor):
-    """Put the report into RM.CLOSED state (triggers 409 on close-report)."""
+    """Put the report into RM.CLOSED state (triggers 409 on close-report); actor is CASE_OWNER."""
+    _seed_owner_case(dl, actor.id_, report.id_)
     status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,

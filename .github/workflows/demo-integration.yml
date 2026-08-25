@@ -1,27 +1,76 @@
-# Demo Integration — build and run the two-actor Vultron demo on PRs.
+# Demo Integration — build and run the Vultron multi-actor demo on PRs and pushes.
 #
 # Kept separate from python-app.yml so that the Docker-compose build time
 # does not block the unit-test and lint pipeline; both workflows run
 # concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-001.
 #
-# Triggers: PRs to main (path-filtered) and workflow_dispatch.
+# Triggers:
+#   pull_request  — minimum PR validation set (4 scenarios, DEMOCI-06-002);
+#                   targets `main`
+#   push to main — full 9-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
+#   workflow_dispatch — full 9-scenario suite; accepts optional `ref` input
+#                       so the suite can be run against any branch without
+#                       opening a PR to `main`
+#
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
 #
-# Job structure per matrix entry (DEMOCI-04-001 through DEMOCI-04-003):
+# Concurrency: all runs cancel in-progress superseded runs. On main a 60-second
+# debounce (debounce-main-push action) means burst merges cancel each other
+# before doing real work; only the last commit in a batch runs the full suite.
+# Per-commit granularity on main is not required — a time-range bisect is
+# sufficient to identify regressions across a typical 4–6 PR batch.
+#
+# Job structure (DEMOCI-04-001 through DEMOCI-04-003):
+#   scenarios      — selects the matrix for this event; emits it as JSON
 #   demo           — builds images, runs docker-compose, uploads JSONL artifacts
 #   invariant-harness  — downloads JSONL, runs pytest; needs: demo, if: always()
 #
 # This gives each scenario two independent pass/fail statuses on the PR so
 # invariant failures are visible even when the demo job itself fails.
+#
+# Minimum PR set (DEMOCI-06-002): fv, fvcv-handoff, fcvcv, fcv-reject
+#   - fv covers the 4 universal event types (2-actor baseline)
+#   - fvcv-handoff adds invite_actor_to_case + accept_invite_actor_to_case
+#     + ownership-transfer protocol path
+#   - fcvcv adds offer_case_participant and ≥3-actor invite/accept chains
+#   - fcv-reject adds reject_invite_actor_to_case (RM invitation rejection)
+# Full set adds: fvv, fvcv-extension, fccv-extension, fccv-handoff, fcv
+#
+# Scenario selection (DEMOCI-06-002, DEMOCI-06-003): the scenario list lives in
+# .github/demo-scenarios.json, one entry per scenario carrying a boolean
+# `full_suite_only` field. The `scenarios` job filters that list — dropping
+# full_suite_only entries on pull_request events — and both downstream jobs
+# expand `fromJSON()` of its output as their matrix.
+#
+# The filter MUST NOT be expressed as a job-level `if:` on the matrix field
+# (e.g. `matrix.full_suite_only != true`). Job `if:` is evaluated before matrix
+# expansion, so the `matrix` context is unavailable there; GitHub rejects the
+# whole file with a startup failure that reports zero jobs and no logs. That
+# bug silently broke this workflow for 116 consecutive runs (#2118).
+# See DEMOCI-06-004.
 
 name: Demo Integration
+
+# Path filter for both pull_request and push triggers (DEMOCI-02-003).
+# Covers all files whose changes can affect demo container behaviour or the
+# invariant assertions that validate it. Excludes paths that cannot affect
+# demo behaviour at runtime:
+#   - vultron/metadata/** — pure tooling (spec/ADR/notes loaders, CLI entry
+#     points); never imported by actor services or the demo runner container.
+#   - vultron/bt/** — legacy simulation layer; vultron/demo/ is architecturally
+#     prohibited from importing it (test/architecture/test_demo_no_bt_imports.py).
+#   - docs/** — documentation only.
+# The push and pull_request filters MUST match so any change validated
+# pre-merge is also validated post-merge on main (DEMOCI-02-003).
 
 on:
   pull_request:
     branches: ["main"]
     paths:
       - "vultron/**"
+      - "!vultron/metadata/**"
+      - "!vultron/bt/**"
       - "docker/**"
       - "integration_tests/**"
       # Invariant harness / CI test changes must re-run the demos that feed
@@ -29,56 +78,107 @@ on:
       - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
+      # Workflow and action changes must re-validate CI itself.
+      - ".github/workflows/demo-integration.yml"
+      - ".github/actions/build-demo-images/**"
+      # The scenario matrix itself gates which demos run.
+      - ".github/demo-scenarios.json"
+  push:
+    branches: ["main"]
+    paths:
+      - "vultron/**"
+      - "!vultron/metadata/**"
+      - "!vultron/bt/**"
+      - "docker/**"
+      - "integration_tests/**"
+      - "test/ci/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/demo-integration.yml"
+      - ".github/actions/build-demo-images/**"
+      - ".github/demo-scenarios.json"
   workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        description: >-
+          Branch, tag, or SHA to check out and run the full demo suite against.
+          Defaults to the branch the workflow is dispatched from. Use this to
+          manually validate an integration branch before merging it to main.
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  actions: write  # needed for docker buildx bake cache-to: type=gha
+  actions: write  # needed for cancel-in-progress (concurrency group)
 
 jobs:
+  # DEMOCI-06-002, DEMOCI-06-003: resolve the scenario matrix for this event.
+  # On pull_request, full_suite_only entries are dropped, leaving the
+  # 4-scenario minimum PR validation set. On push-to-main and
+  # workflow_dispatch, all 9 scenarios run.
+  #
+  # DEMOCI-02-004: the Dependabot guard lives here, on a job with no matrix, so
+  # a Dependabot PR resolves to an empty matrix and every downstream job is
+  # skipped rather than failing (see also DEMOCI-04-005).
+  # DEMOCI-05-004: github.head_ref is empty on push events, so the guard is a
+  # no-op there and the on-main run is never inadvertently skipped.
+  scenarios:
+    name: Select scenarios
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.head_ref, 'dependabot/')"
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: ./.github/actions/debounce-main-push
+
+      - name: Select scenario matrix
+        id: select
+        env:
+          # true on pull_request events → drop full_suite_only scenarios.
+          PR_SET_ONLY: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          if [ "$PR_SET_ONLY" = "true" ]; then
+            FILTER='[.[] | select(.full_suite_only == false)]'
+          else
+            FILTER='.'
+          fi
+          MATRIX="$(jq -c "$FILTER" .github/demo-scenarios.json)"
+          COUNT="$(jq -r 'length' <<<"$MATRIX")"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::Scenario matrix is empty — refusing to report success." >&2
+            exit 1
+          fi
+          echo "Selected $COUNT scenario(s):"
+          jq -r '.[] | "  - \(.demo)"' <<<"$MATRIX"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
   demo:
     name: "${{ matrix.demo }} Demo Integration"
     runs-on: ubuntu-latest
     # DEMOCI-02-009: 15-minute cap to prevent indefinite hangs.
     timeout-minutes: 15
-    # DEMOCI-02-004: skip Dependabot PRs; python-app.yml guards broken deps.
-    if: "!startsWith(github.head_ref, 'dependabot/')"
-    # DEMOCI-03-003, DEMOCI-03-004, DEMOCI-03-005: matrix over scenarios so
-    # failures are independently reported and each entry declares its test_file.
+    needs: scenarios
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - demo: fv
-            test_file: test/ci/invariants/test_fv_invariants.py
-          - demo: fvv
-            test_file: test/ci/invariants/test_fvv_invariants.py
-          - demo: fvcv-extension
-            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
-          - demo: fvcv-handoff
-            test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
-          - demo: fccv-extension
-            test_file: test/ci/invariants/test_fccv_extension_invariants.py
-          - demo: fccv-handoff
-            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
-          - demo: fcv
-            test_file: test/ci/invariants/test_fcv_invariants.py
+        include: ${{ fromJSON(needs.scenarios.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
-      # DEMOCI-02-007: Docker layer caching via Buildx GHA cache.
-      # This workflow only triggers on pull_request, so a cache it writes
-      # (scope=demo-integration) is only visible to that same PR branch —
-      # GitHub Actions cache entries from a branch aren't visible to other
-      # branches. cache-from-extra-scope reads the cache written by
-      # demo-image-cache-warm.yml on pushes to main, so a brand-new PR
-      # branch still gets a warm cache instead of starting fully cold.
       - name: Build Docker images
         uses: ./.github/actions/build-demo-images
-        with:
-          cache-scope: demo-integration
-          cache-from-extra-scope: demo-integration-main
 
       # DEMOCI-02-005, DEMOCI-02-006: run demo; detect failure via
       # exit code of the demo-runner container.
@@ -86,6 +186,18 @@ jobs:
       # emit full tracebacks and state-machine detail.
       - name: Create devlogs directory
         run: mkdir -p devlogs
+
+      # DEMOCI-10-006: write a sentinel before the demo-runner starts so the
+      # artifact is non-empty even on a pre-harness failure (health-check gate,
+      # import error, Docker startup failure).  Uses plain python3 with no uv
+      # setup so it runs regardless of whether the vultron package is available.
+      # The real harness overwrites this sentinel when it runs; if the runner
+      # exits early the sentinel survives and load_devlogs() reports a failure.
+      - name: Write pre-run sentinel manifest
+        env:
+          DEMO: ${{ matrix.demo }}
+        run: |
+          python3 -c "import json,os,pathlib; d=os.environ['DEMO']; p=pathlib.Path('devlogs')/d; p.mkdir(parents=True,exist_ok=True); (p/'dump-manifest.json').write_text(json.dumps({'demoName':d,'caseId':None,'ledgerFileCount':0,'targetCount':0,'reason':'Pre-run sentinel: demo-runner had not yet started.','actors':[]},indent=2)+'\n',encoding='utf-8')"
 
       - name: Run ${{ matrix.demo }} demo
         env:
@@ -103,21 +215,22 @@ jobs:
           path: devlogs/
           retention-days: 30
 
-      # DEMOCI-02-008: collect combined stream and per-service logs on failure.
+      # DEMOCI-02-008: collect combined stream and per-service logs on failure
+      # or cancellation (a cancelled job ends up undiagnosable without logs).
       - name: Collect container logs
-        if: failure()
+        if: failure() || cancelled()
         run: |
           COMPOSE_FILE=docker/docker-compose-multi-actor.yml
           mkdir -p /tmp/demo-logs
           docker compose -f "$COMPOSE_FILE" logs \
             > /tmp/demo-logs/combined.log 2>&1
-          for svc in finder vendor coordinator case-actor actor5 demo-runner; do
+          for svc in finder vendor coordinator case-actor actor5 actor6 demo-runner; do
             docker compose -f "$COMPOSE_FILE" logs "$svc" \
               > "/tmp/demo-logs/${svc}.log" 2>&1 || true
           done
 
       - name: Upload container logs
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ matrix.demo }}-container-logs
@@ -125,10 +238,12 @@ jobs:
           retention-days: 7
 
       # DEMOCI-02-010: always tear down containers and volumes.
+      # --timeout 30 caps the per-container stop grace period so a wedged
+      # container cannot consume the remaining job time budget (#2245).
       - name: Tear down containers and volumes
         if: always()
         run: |
-          docker compose -f docker/docker-compose-multi-actor.yml down -v
+          docker compose -f docker/docker-compose-multi-actor.yml down -v --timeout 30
 
   # DEMOCI-04-001, DEMOCI-04-002, DEMOCI-04-003: separate invariant-harness job
   # so invariant failures produce an independent pass/fail status on the PR even
@@ -137,30 +252,26 @@ jobs:
     name: "${{ matrix.demo }} Invariant Harness"
     runs-on: ubuntu-latest
     # DEMOCI-04-002: always run after the demo job, even on demo failure.
-    # DEMOCI-02-004: skip Dependabot PRs (demo is skipped, no artifact exists).
-    needs: demo
-    if: always() && !startsWith(github.head_ref, 'dependabot/')
+    # DEMOCI-04-005, DEMOCI-02-004: the Dependabot guard is enforced upstream on
+    # the `scenarios` job; `always()` must not resurrect this job when that job
+    # was skipped or failed, so the condition tests the scenarios job directly
+    # rather than using a bare always().
+    needs: [scenarios, demo]
+    if: >-
+      always() &&
+      needs.scenarios.result == 'success'
     strategy:
       fail-fast: false
+      # Intentionally identical to the `demo` job matrix: both jobs must fan
+      # out over the same scenario set.  GitHub Actions does not support YAML
+      # anchors, so the `include:` stanza cannot be deduplicated further.
       matrix:
-        include:
-          - demo: fv
-            test_file: test/ci/invariants/test_fv_invariants.py
-          - demo: fvv
-            test_file: test/ci/invariants/test_fvv_invariants.py
-          - demo: fvcv-extension
-            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
-          - demo: fvcv-handoff
-            test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
-          - demo: fccv-extension
-            test_file: test/ci/invariants/test_fccv_extension_invariants.py
-          - demo: fccv-handoff
-            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
-          - demo: fcv
-            test_file: test/ci/invariants/test_fcv_invariants.py
+        include: ${{ fromJSON(needs.scenarios.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       # DEMOCI-04-003: download the JSONL artifact produced by the demo job.
       - name: Download case log JSONL files
@@ -170,9 +281,8 @@ jobs:
           path: devlogs/
 
       # AC-925-1: run canonical-log invariant harness against JSONL artifacts.
-      # Invariants not yet passing are marked xfail so the build stays green;
-      # unexpected passes appear as XPASS (visible but not failing).
-      # See test/ci/README-case-log-ratchet.md for the ratchet workflow.
+      # All invariants are currently passing; no xfail markers are in use.
+      # See test/ci/README-case-log-ratchet.md for the invariant inventory.
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
 
@@ -180,7 +290,3 @@ jobs:
         env:
           TEST_FILE: ${{ matrix.test_file }}
         run: uv run pytest "$TEST_FILE" -v --tb=short
-
-# Future scenarios to add when stable:
-#   - three-actor  (multi-coordinator; add as matrix entry per DEMOCI-03-003)
-#   - multi-vendor (add as matrix entry per DEMOCI-03-003)

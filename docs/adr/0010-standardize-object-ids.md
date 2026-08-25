@@ -33,8 +33,8 @@ interoperability problems once federation is implemented.
   segment or UUID suffix as the key avoids hierarchical key-parsing issues
   (OID-03-001).
 - **DataLayer compatibility**: The DataLayer uses `as_id` as the primary
-  lookup key. Changing the default ID format is a forward-looking migration;
-  any existing bare-UUID records are a prototype artifact.
+  lookup key. Changing the default ID format is a migration applied going
+  forward; any existing bare-UUID records are a prototype artifact.
 
 ## Considered Options
 

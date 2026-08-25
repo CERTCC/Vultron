@@ -33,6 +33,10 @@ from pathlib import Path
 import pytest
 
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.demo.helpers.ledger_dump import (
+    DUMP_MANIFEST_FILENAME,
+    default_devlogs_root,
+)
 from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
@@ -40,8 +44,11 @@ from vultron.enums.roles import CVDRole
 # ---------------------------------------------------------------------------
 
 _SHA256_HEX_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-_REPO_ROOT: Path = Path(__file__).resolve().parents[3]
-_DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
+
+#: Where the harness looks for the ledgers the demo dumped. Resolved by the same
+#: helper the dump writes through, so pointing ``DEVLOGS_DIR`` somewhere else
+#: cannot silently turn this harness into a no-op skip (DEMOMA-17-001).
+_DEVLOGS_DIR: Path = default_devlogs_root()
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +122,77 @@ def participant_status_identity_and_rm(
 # ---------------------------------------------------------------------------
 
 
+def _read_dump_manifests(search_root: Path) -> list[dict]:
+    """Return every readable ``dump-manifest.json`` under *search_root*.
+
+    A manifest is the scenario's own record that its case-ledger dump ran —
+    see ``vultron.demo.helpers.ledger_dump``.  Its presence is what lets this
+    module tell "the demo never ran" apart from "the demo ran and produced no
+    ledger entries" (DEMOCI-10-001).
+
+    Raises:
+        Failed: When a manifest exists but cannot be parsed, since a corrupt
+            manifest is itself evidence that something went wrong.
+    """
+    manifests: list[dict] = []
+    candidates = [
+        search_root / DUMP_MANIFEST_FILENAME,
+        *sorted(search_root.glob(f"**/{DUMP_MANIFEST_FILENAME}")),
+    ]
+    for path in dict.fromkeys(candidates):
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            pytest.fail(
+                f"{path} is unreadable ({type(exc).__name__}: {exc}) — the "
+                "demo dumped a manifest but it cannot be parsed, so the "
+                "invariant result cannot be trusted"
+            )
+        if not isinstance(data, dict):
+            pytest.fail(
+                f"{path} parsed as {type(data).__name__}, not an object — the "
+                "demo dumped a manifest but it cannot be interpreted, so the "
+                "invariant result cannot be trusted"
+            )
+        manifests.append(data)
+    return manifests
+
+
+def _fail_no_ledgers_despite_dump(
+    search_root: Path,
+    manifests: list[dict],
+) -> None:
+    """Fail with the manifests' account of why no ledger files were captured."""
+    lines = [
+        f"No case-ledger files under {search_root}, but "
+        f"{len(manifests)} dump manifest(s) show the demo ran and dumped. "
+        "This is a real invariant failure, not missing test data."
+    ]
+    for manifest in manifests:
+        lines.append(
+            f"- demo {manifest.get('demoName', '?')!r}: "
+            f"case={manifest.get('caseId')!r} "
+            f"captured={manifest.get('ledgerFileCount', 0)}"
+            f"/{manifest.get('targetCount', 0)} actors"
+        )
+        reason = manifest.get("reason")
+        if reason:
+            lines.append(f"    reason: {reason}")
+        actors = manifest.get("actors")
+        if isinstance(actors, list):
+            for actor in actors:
+                if not isinstance(actor, dict) or actor.get("captured"):
+                    continue
+                lines.append(
+                    f"    missing {actor.get('actorName', '?')!r} "
+                    f"(route {actor.get('routeKey', '?')!r}): "
+                    f"{actor.get('reason') or 'no reason recorded'}"
+                )
+    pytest.fail("\n".join(lines))
+
+
 def load_devlogs(
     demo_name: str | None = None,
 ) -> dict[str, list[dict]]:
@@ -125,8 +203,14 @@ def load_devlogs(
     Groups entries by the containing actor directory name and sorts each
     actor's entries by ``log_index`` ascending.
 
-    Calls ``pytest.skip`` when ``devlogs/`` is absent, empty, or (when
-    ``demo_name`` is given) the scenario sub-directory is absent or empty.
+    Calls ``pytest.skip`` when there is no evidence the demo ever ran:
+    ``devlogs/`` absent, the scenario sub-directory absent, or no ledger files
+    *and* no ``dump-manifest.json``.
+
+    Calls ``pytest.fail`` when a ``dump-manifest.json`` is present but no
+    ledger files are: the scenario ran, dumped, and still produced no ledger
+    entries, which is a real invariant failure that must not be skipped over
+    (DEMOCI-10-001, ISSUE-2239).
 
     Returns:
         ``{actor_name: [sorted entry dicts, ...]}``.
@@ -149,15 +233,41 @@ def load_devlogs(
         actor_name = jsonl_file.parent.name
         replicas.setdefault(actor_name, []).extend(load_jsonl(jsonl_file))
 
+    # Read the manifests unconditionally: DEMOCI-10-003 fails on a manifest that
+    # is present but unparseable whatever else the dump produced, so this check
+    # cannot live inside the `not replicas` branch below.
+    manifests = _read_dump_manifests(search_root)
+
     if not replicas:
+        if manifests:
+            _fail_no_ledgers_despite_dump(search_root, manifests)
         skip_hint = f"devlogs/{demo_name}/" if demo_name else "devlogs/"
-        pytest.skip(
-            f"No *-case-ledger.jsonl files found under {skip_hint} — "
-            "run the demo first (see test/ci/README-case-log-ratchet.md)"
+        msg = (
+            f"No *-case-ledger.jsonl files found under {skip_hint} and no "
+            f"{DUMP_MANIFEST_FILENAME} — run the demo first "
+            "(see test/ci/README-case-log-ratchet.md)"
         )
+        if demo_name:
+            # The scenario directory exists but contains neither ledger files
+            # nor a dump manifest — the dump never ran at all.  This is a
+            # real failure (crashed before any output was written), not a
+            # "demo has not been run yet" skip (ISSUE-2411 Gap 2).
+            pytest.fail(msg)
+        pytest.skip(msg)
 
     for actor in replicas:
         replicas[actor] = sorted(replicas[actor], key=log_index)
+
+    # Filter to the most recent run's case when the manifest provides a caseId.
+    # Without this, accumulated JSONL files from prior local runs chain entries
+    # from different cases together and break the hash-chain invariant (issue #2273).
+    manifest_case_ids = {m.get("caseId") for m in manifests if m.get("caseId")}
+    if len(manifest_case_ids) == 1:
+        (filter_id,) = manifest_case_ids
+        for actor in replicas:
+            replicas[actor] = [
+                e for e in replicas[actor] if case_id(e) == filter_id
+            ]
 
     return replicas
 
@@ -357,19 +467,38 @@ def check_no_rm_state_oscillation(
 def check_rm_closed_termination(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """The log terminates with every participant in RM=CLOSED (Invariant 7)."""
+    """The log terminates with every participant in RM=CLOSED (Invariant 7).
+
+    Recognises two event types as RM-state carriers:
+
+    - ``add_participant_status_to_participant``: explicit RM state for the
+      participant in the ``payloadSnapshot`` (pre-ADR-0050 CS transitions).
+    - ``close_case``: signals ``RM=CLOSED`` for the departing actor whose ID
+      is in ``payloadSnapshot.actor`` (ADR-0050 canonical closure path via
+      ``Leave(VulnerabilityCase)``).
+    """
     auth = auth_entries(replicas)
     latest_rm: dict[str, str] = {}
     for e in auth:
-        if event_type(e) != "add_participant_status_to_participant":
-            continue
-        p_id, rm_state = participant_status_identity_and_rm(payload(e))
-        if p_id and rm_state:
-            latest_rm[p_id] = rm_state
+        et = event_type(e)
+        snap = payload(e)
+        if et == "add_participant_status_to_participant":
+            p_id, rm_state = participant_status_identity_and_rm(snap)
+            if p_id and rm_state:
+                latest_rm[p_id] = rm_state
+        elif et == "close_case":
+            # close_case entries record the departing actor in payloadSnapshot.actor
+            # (ADR-0050: Leave(VulnerabilityCase) is the canonical RM closure path).
+            actor_val = snap.get("actor")
+            if isinstance(actor_val, dict):
+                actor_val = actor_val.get("id")
+            if isinstance(actor_val, str) and actor_val:
+                latest_rm[actor_val] = "CLOSED"
 
     if not latest_rm:
         return [
-            "No add_participant_status_to_participant entries found in case-actor log"
+            "No add_participant_status_to_participant or close_case entries"
+            " found in case-actor log"
         ]
 
     return [
@@ -591,11 +720,20 @@ def cs_observations_from_snap(snap: dict) -> tuple[bool, bool, bool]:
 
 def check_cs_state_transitions_observed(
     replicas: dict[str, list[dict]],
+    *,
+    check_fix_ready: bool = True,
 ) -> list[str]:
-    """All three key CS transitions observed in the authoritative log (Invariant 15).
+    """Key CS transitions observed in the authoritative log (Invariant 15).
 
-    Checks vfd_state == "VFd" (fix ready), "VFD" (fix deployed), and
-    pxa_state starting with "P" (public aware).
+    Checks pxa_state starting with "P" (public aware) for all scenarios.
+    When ``check_fix_ready=True`` (default), also checks vfd_state == "VFd"
+    (fix ready).  Set ``check_fix_ready=False`` for scenarios where no Vendor
+    ever becomes a case participant and therefore no actor advances the VFD
+    state machine (e.g. fcv-reject: Vendor rejects the invitation).
+
+    VFD (fix deployed) is NOT checked here because demo scenarios use
+    vendor-only actors (CVDRole.VENDOR, no CVDRole.DEPLOYER); per CSB-15-002
+    those actors stop at VFd and never reach VFD.
     """
     auth = auth_entries(replicas)
     status_entries = [
@@ -609,22 +747,90 @@ def check_cs_state_transitions_observed(
             "cannot check CS-transition invariant"
         ]
 
-    saw_fix_ready = saw_fix_deployed = saw_published = False
+    saw_fix_ready = saw_published = False
     for e in status_entries:
-        fix_ready, fix_deployed, published = cs_observations_from_snap(
-            payload(e)
-        )
+        fix_ready, _, published = cs_observations_from_snap(payload(e))
         saw_fix_ready |= fix_ready
-        saw_fix_deployed |= fix_deployed
         saw_published |= published
 
     missing: list[str] = []
-    if not saw_fix_ready:
+    if check_fix_ready and not saw_fix_ready:
         missing.append("vfd_state == 'VFd' (fix_ready) never observed")
-    if not saw_fix_deployed:
-        missing.append("vfd_state == 'VFD' (fix_deployed) never observed")
     if not saw_published:
         missing.append(
             "pxa_state starting with 'P' (published/public-aware) never observed"
         )
     return missing
+
+
+def check_no_rejected_invite_entries(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No invite_actor_to_case entries with disposition=rejected exist (CLP-13-001).
+
+    Idempotency guards MUST NOT write any CaseLedgerEntry.  A spurious
+    ``disposition="rejected"`` entry on an ``invite_actor_to_case`` event type
+    indicates an idempotency guard incorrectly wrote to the ledger.
+
+    Returns one violation string per offending entry.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        for e in entries:
+            if (
+                event_type(e) == "invite_actor_to_case"
+                and e.get("disposition") == "rejected"
+            ):
+                violations.append(
+                    f"Actor {actor!r} logIndex={log_index(e)}: spurious"
+                    f" rejected invite_actor_to_case entry (CLP-13-001 violation)"
+                )
+    return violations
+
+
+def check_per_actor_replica_divergence(
+    replicas: dict[str, list[dict]],
+    *,
+    check_fix_ready: bool = True,
+) -> list[str]:
+    """Each non-case-actor replica satisfies the same state invariants as the authoritative log.
+
+    Runs RM-state and CS-transition invariants against every replica that is
+    not ``case-actor``.  The ``{actor: entries}`` single-actor dict causes
+    ``auth_entries()`` to fall back to the actor's own entries, reusing the
+    existing canonical check logic without modification (ISSUE-2411 Gap 1).
+
+    Actors whose replica contains no ``add_participant_status_to_participant``
+    entries are skipped for the three status-dependent checks; they have no
+    state-machine observations to verify.
+
+    Args:
+        replicas: All loaded replicas for the scenario.
+        check_fix_ready: Passed through to ``check_cs_state_transitions_observed``.
+            Set ``False`` for scenarios where no Vendor ever becomes a participant
+            (e.g. fcv-reject), matching the canonical invariant's behaviour.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        if actor == "case-actor":
+            continue
+        actor_dict = {actor: entries}
+        prefix = f"Actor {actor!r}"
+        for msg in check_no_rm_state_oscillation(actor_dict):
+            violations.append(f"{prefix}: {msg}")
+        has_status_entries = any(
+            event_type(e) == "add_participant_status_to_participant"
+            for e in entries
+        )
+        if has_status_entries:
+            for msg in check_rm_closed_termination(actor_dict):
+                violations.append(f"{prefix}: {msg}")
+            for msg in check_participant_status_schema_completeness(
+                actor_dict
+            ):
+                violations.append(f"{prefix}: {msg}")
+            for msg in check_cs_state_transitions_observed(
+                actor_dict, check_fix_ready=check_fix_ready
+            ):
+                violations.append(f"{prefix}: {msg}")
+    return violations

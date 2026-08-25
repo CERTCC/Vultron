@@ -1,9 +1,12 @@
 id: HM
 title: History File Management
-description: Defines the structure, location, entry format, and tooling for managing project history files using per-entry
-  write-once files organized by month and type, managed by the `append-history` CLI tool.
-version: 1.3.0
+description: Defines the structure, location, entry format, and tooling for managing project history entries. For
+  `implementation` and `idea` types whose `--source` resolves to a GitHub issue number, `append-history` posts the
+  entry body as a comment on the corresponding GitHub issue rather than writing a file. `learning` and `priority`
+  types continue to write per-entry write-once files under `plan/history/`, managed by the `append-history` CLI tool.
+version: 1.4.0
 scope:
+
 - prototype
 - production
 tags:
@@ -12,12 +15,13 @@ tags:
 groups:
 - id: HM-01
   title: History File Location and Structure
-  kind: process
   specs:
   - id: HM-01-001
     priority: MUST
     kind: process
-    statement: All project history files MUST reside under `plan/history/`.
+    statement: >-
+      History entries for `learning` and `priority` types MUST reside under
+      `plan/history/` as per-entry write-once files.
   - id: HM-01-006
     priority: MUST_NOT
     kind: process
@@ -25,9 +29,11 @@ groups:
   - id: HM-01-002
     priority: MUST
     kind: process
-    statement: Each history entry MUST be stored as an individual write-once file at the path `plan/history/YYMM/<type>/<entry-id>.md`,
-      where `YYMM` is the two-digit year and two-digit month when the entry was created, `<type>` is the entry type (see HM-02-002),
-      and `<entry-id>` is the originating task or idea identifier (e.g., `IDEA-26042702`, `TASK-BTND5`).
+    statement: Each `learning` or `priority` history entry MUST be stored as an individual write-once file at the path
+      `plan/history/YYMM/<type>/<entry-id>.md`, where `YYMM` is the two-digit year and two-digit month when the entry
+      was created, `<type>` is the entry type (see HM-02-002), and `<entry-id>` is the originating task or idea identifier
+      (e.g., `TASK-BTND5`). `implementation` and `idea` entries whose `--source` resolves to a GitHub issue number use
+      the GitHub comment output mode (HM-08) instead.
   - id: HM-01-003
     priority: MUST
     kind: process
@@ -39,12 +45,36 @@ groups:
     kind: process
     statement: Once written, a history entry file MUST NOT be modified. History entries are immutable records. The `plan/history/YYMM/README.md`
       index may be regenerated locally but is gitignored.
-    notes: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing entries to replace the legacy
+    note: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing entries to replace the legacy
       `date:` field with a tz-aware `timestamp:` field. That migration is the only authorised exception to this rule; future
       changes to entry files are prohibited.'
+  - id: HM-01-007
+    priority: MUST
+    kind: process
+    statement: >-
+      History entries for `implementation` and `idea` types whose `--source` resolves
+      to a GitHub issue number MUST be posted as a comment on the corresponding GitHub
+      issue (see HM-08).
+    rationale: >-
+      GitHub comment mode keeps implementation and idea records co-located with the
+      issue they describe, avoiding file churn in plan/history/.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-01-001
+  - id: HM-01-008
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      History entries for `implementation` and `idea` types whose `--source` resolves
+      to a GitHub issue number MUST NOT be written as files under `plan/history/`.
+    rationale: >-
+      Writing these entries as files would duplicate content already posted as GitHub
+      comments and pollute the plan/history/ directory with redundant records.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-01-001
 - id: HM-02
   title: Entry File Format
-  kind: protocol
   specs:
   - id: HM-02-001
     priority: MUST
@@ -80,7 +110,6 @@ groups:
       monthly directory. The file is gitignored and serves only as a local convenience cache.
 - id: HM-03
   title: append-history CLI Tool
-  kind: project
   specs:
   - id: HM-03-001
     priority: MUST
@@ -107,10 +136,9 @@ groups:
   - id: HM-03-004
     priority: MUST
     kind: project
-    statement: The tool MUST determine the target month directory using the current system clock (`datetime.date.today()`)
-      during normal operation. A backfill-only date override MAY exist for migration tooling so legacy entries can be written
-      into historical `YYMM` directories, but normal skill and agent guidance MUST continue to use the default current-date
-      flow and MUST NOT require agents to choose a target month manually.
+    statement: >-
+      The tool MUST determine the target month directory using the current system
+      clock (`datetime.date.today()`) during normal operation.
   - id: HM-03-005
     priority: MUST
     kind: project
@@ -122,7 +150,7 @@ groups:
     statement: After writing a new entry file, the tool MUST regenerate `plan/history/YYMM/README.md` by scanning the known-type
       subdirectories (`idea/`, `implementation/`, `learning/`, `priority/`), reading each entry file's frontmatter, and writing
       a summary table sorted by timestamp descending.
-    notes: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
+    note: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
       subdirs (e.g. report/). The gitignore constraint is specified in HM-01-003.
   - id: HM-03-007
     priority: MUST
@@ -138,10 +166,43 @@ groups:
   - id: HM-03-008
     priority: MUST
     kind: project
-    statement: The tool MUST be registered in `pyproject.toml` under `[project.scripts]` as `append-history = "vultron.metadata.history.cli:main"`.
+    statement: >-
+      The tool MUST be registered in `pyproject.toml` under `[project.scripts]` as
+      `append-history = "vultron.metadata.history.cli:main"`.
+  - id: HM-03-011
+    priority: MAY
+    kind: project
+    statement: >-
+      A backfill-only date override MAY exist for migration tooling so legacy entries
+      can be written into historical `YYMM` directories.
+    rationale: >-
+      Migration tooling requires placing entries into historical month directories;
+      this override is available only for that purpose.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-03-004
+  - id: HM-03-012
+    priority: MUST
+    kind: process
+    statement: Normal skill and agent guidance MUST use the default current-date flow.
+    rationale: >-
+      Agents must not diverge from the standard flow by choosing a target month
+      manually; the tool determines the directory from the system clock.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-03-004
+  - id: HM-03-013
+    priority: MUST_NOT
+    kind: process
+    statement: Normal skill and agent guidance MUST NOT require agents to choose a target month manually.
+    rationale: >-
+      Manual month selection is an error-prone step that the tool eliminates by
+      deriving the directory from the current system clock.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-03-004
 - id: HM-04
   title: Agent Context Boundaries
-  kind: process
   specs:
   - id: HM-04-001
     priority: MUST_NOT
@@ -160,7 +221,6 @@ groups:
       but NOT `plan/history/`. Agents following this skill MUST NOT recursively read `plan/history/` during orientation.
 - id: HM-05
   title: Skill and AGENTS.md Integration
-  kind: process
   specs:
   - id: HM-05-001
     priority: MUST
@@ -174,15 +234,9 @@ groups:
     priority: MUST
     kind: process
     statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
-      skill MUST invoke `study-project-docs` and let that skill mediate which plan files are appropriate to load.
-  - id: HM-05-004
-    priority: MUST
-    kind: process
-    statement: '`AGENTS.md` MUST be updated to reflect the new `plan/history/` structure: the "Key Files Map" and any quick-reference
-      sections that list `plan/*HISTORY.md` paths MUST be updated to reference `plan/history/` and the `append-history` tool.'
+      skill MUST invoke `study-project-docs` and let that skill mediate which plan files are relevant to load.
 - id: HM-06
   title: Timestamp Field and Future-Date Rejection
-  kind: protocol
   specs:
   - id: HM-06-001
     priority: MUST
@@ -233,7 +287,6 @@ groups:
       and a `Time (UTC)` column (HH:MM extracted from `timestamp`). Entries MUST be sorted by `timestamp` in descending order.
 - id: HM-07
   title: CLI Interface for Frontmatter Construction
-  kind: project
   specs:
   - id: HM-07-001
     priority: MUST
@@ -281,3 +334,39 @@ groups:
     kind: project
     statement: Skill documentation (`ingest-idea`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
       interface for `append-history`. The frontmatter-in-stdin pattern MUST NOT be used.
+- id: HM-08
+  title: GitHub Comment Output Mode
+  specs:
+  - id: HM-08-001
+    priority: MUST
+    kind: project
+    statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` is a value that resolves
+      to a GitHub issue number (i.e., the string `ISSUE-N` for any positive integer N, or a bare positive integer), the tool
+      MUST post the entry body as a comment on issue N in the CERTCC/Vultron repository using `gh issue comment`, rather than
+      writing a file under `plan/history/`.
+  - id: HM-08-002
+    priority: MUST
+    kind: project
+    statement: When `append-history` falls through to GitHub comment mode (HM-08-001), it MUST print the URL of the newly
+      created comment to stdout so callers can record it.
+  - id: HM-08-003
+    priority: MUST
+    kind: project
+    statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` does NOT resolve to a
+      GitHub issue number (e.g., source is `IDEA-26042702`, `TASK-BTND5`, or any other non-numeric format), the tool MUST
+      fall back to writing a file under `plan/history/` as in the pre-HM-08 behaviour.
+  - id: HM-08-004
+    priority: MUST_NOT
+    kind: project
+    statement: The `archive-history` skill MUST NOT call `git add plan/history/` or commit any file when the entry was posted
+      as a GitHub comment (HM-08-001). The `git add` and commit steps are only needed for file-mode entries.
+  - id: HM-08-005
+    priority: MUST
+    kind: project
+    statement: The comment body posted to GitHub MUST contain the full entry body text (same content that would have been
+      the Markdown body in the file-based format), prefixed with a one-line heading showing the entry type and title.
+  - id: HM-08-006
+    priority: SHOULD
+    kind: project
+    statement: The `archive-history` skill documentation SHOULD be updated to reflect that when `append-history` outputs a
+      GitHub comment URL (rather than a file path), the commit/push steps are skipped for that entry.

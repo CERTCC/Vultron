@@ -17,12 +17,12 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import update_participant_rm_state
 
 
-class TransitionParticipantRMtoAccepted(DataLayerAction):
+class TransitionParticipantRMtoAccepted(DataLayerActionWithPorts):
     """
     Transition actor's RM state to ACCEPTED in the specified case.
 
@@ -45,7 +45,10 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
         """
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self.actor_id = actor_id
+        # Store in a private attribute so DataLayerAction.setup() cannot
+        # overwrite it with the blackboard actor_id (which is the receiving
+        # actor, not the engaging actor, after the #2300 fix).
+        self._target_actor_id = actor_id
 
     def update(self) -> Status:
         """
@@ -58,11 +61,14 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
             return f
         assert self.datalayer is not None
         try:
-            if self.actor_id is None:
+            if self._target_actor_id is None:
                 self.logger.error(f"{self.name}: actor_id not available")
                 return Status.FAILURE
             result = update_participant_rm_state(
-                self.case_id, self.actor_id, RM.ACCEPTED, self.datalayer
+                self.case_id,
+                self._target_actor_id,
+                RM.ACCEPTED,
+                self.datalayer,
             )
             return Status.SUCCESS if result else Status.FAILURE
         except Exception as e:
@@ -70,7 +76,7 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
             return Status.FAILURE
 
 
-class TransitionParticipantRMtoDeferred(DataLayerAction):
+class TransitionParticipantRMtoDeferred(DataLayerActionWithPorts):
     """
     Transition actor's RM state to DEFERRED in the specified case.
 
@@ -93,7 +99,10 @@ class TransitionParticipantRMtoDeferred(DataLayerAction):
         """
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self.actor_id = actor_id
+        # Store in a private attribute so DataLayerAction.setup() cannot
+        # overwrite it with the blackboard actor_id (which is the receiving
+        # actor, not the deferring actor, after the #2300 fix).
+        self._target_actor_id = actor_id
 
     def update(self) -> Status:
         """
@@ -106,11 +115,14 @@ class TransitionParticipantRMtoDeferred(DataLayerAction):
             return f
         assert self.datalayer is not None
         try:
-            if self.actor_id is None:
+            if self._target_actor_id is None:
                 self.logger.error(f"{self.name}: actor_id not available")
                 return Status.FAILURE
             result = update_participant_rm_state(
-                self.case_id, self.actor_id, RM.DEFERRED, self.datalayer
+                self.case_id,
+                self._target_actor_id,
+                RM.DEFERRED,
+                self.datalayer,
             )
             return Status.SUCCESS if result else Status.FAILURE
         except Exception as e:

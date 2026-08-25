@@ -27,25 +27,28 @@ model validators:
 - :class:`VendorParticipant`
 - :class:`DeployerParticipant`
 - :class:`CoordinatorParticipant`
-- :class:`OtherParticipant`
+- :class:`ObserverParticipant`
 - :class:`CaseActorParticipant`
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
+from vultron.core.models._helpers import _new_urn
+from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.errors import VultronValidationError
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
@@ -79,6 +82,48 @@ class CaseParticipant(CoreObject):
     embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
     participant_case_name: NonEmptyString | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_wire_spelled_keys(cls, data: Any) -> Any:
+        """Raise on camelCase keys that Pydantic would silently discard.
+
+        This class declares no ``alias_generator``, so a wire-spelled key such
+        as ``participantStatuses`` is an *unknown* key.  Pydantic v2 ignores
+        unknown keys by default, so it was silently dropped and
+        ``_init_participant_status_if_empty`` then re-seeded a single status at
+        ``RM.START``: a whole RM ladder vanished without a trace (issue #2232).
+        The same drop applied to every other snake-only field on this model
+        (``case_roles``, ``accepted_embargo_ids``, ``embargo_consent_state``,
+        ``participant_case_name``), so roles could be lost the same way.
+
+        Wire→core conversion belongs at the boundary
+        (``as_CaseParticipant.to_core()``, which emits snake_case), not here.
+        This validator makes the mismatch loud instead of lossy
+        (ARCH-15-001, ARCH-15-002).
+
+        Fields that declare an explicit camelCase ``validation_alias`` (e.g.
+        ``in_reply_to``/``inReplyTo``) are sanctioned spellings and are
+        accepted unchanged.
+
+        **This guard is one level deep, by design and not by accident.** The
+        nested :class:`ParticipantStatus` *does* set
+        ``alias_generator=to_camel`` and accepts flat wire spellings
+        (``rmState``) through its own migration shim, so
+        ``{"participant_statuses": [{"rmState": "CLOSED"}]}`` is accepted here
+        and yields ``rm.state == RM.CLOSED``.  That asymmetry is a known
+        deviation from ARCH-12-003 tracked in #1991 — the child's shim is what
+        makes this parent guard survivable in the first place — and it is not
+        a hole in the #2232 fix: an aliased child cannot *lose* the ladder, it
+        only spells it differently.  The remaining ARCH-12-003 deviation
+        (``alias_generator`` on ``ParticipantStatus``) is tracked in #1991.
+
+        Raises:
+            VultronValidationError: when a wire-spelled key is present.
+        """
+        return reject_wire_spelled_keys(
+            cls, data, "as_CaseParticipant.to_core()"
+        )
+
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
         return serialize_roles(value)
@@ -88,35 +133,47 @@ class CaseParticipant(CoreObject):
     def _validate_case_roles(cls, value: object) -> list[CVDRole]:
         return validate_roles(value)
 
-    @model_validator(mode="after")
-    def _set_name_if_empty(self) -> CaseParticipant:
+    @model_validator(mode="before")
+    @classmethod
+    def _set_name_if_empty(cls, data: Any) -> Any:
         """If ``name`` is unset, derive it from ``attributed_to``."""
-        if self.name is not None:
-            return self
-        if self.attributed_to is None:
-            return self
-        self.name = self.attributed_to
-        return self
+        if not isinstance(data, dict):
+            return data
+        name = data.get("name")
+        attributed_to = data.get("attributed_to")
+        if name is None and attributed_to is not None:
+            data = dict(data)
+            data["name"] = attributed_to
+        return data
 
-    @model_validator(mode="after")
-    def _init_participant_status_if_empty(self) -> CaseParticipant:
+    @model_validator(mode="before")
+    @classmethod
+    def _init_participant_status_if_empty(cls, data: Any) -> Any:
         """Seed ``participant_statuses`` with a default entry when empty."""
-        if self.participant_statuses:
-            return self
-        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
-        self.participant_statuses = [
+        if not isinstance(data, dict):
+            return data
+        if data.get("participant_statuses"):
+            return data
+        data = dict(data)
+        if not data.get("id") and not data.get("id_"):
+            data["id"] = _new_urn()
+        id_val = data.get("id") or data.get("id_")
+        _consent_state = coerce_em_consent_state(
+            data.get("embargo_consent_state", PEC.NO_EMBARGO)
+        )
+        data["participant_statuses"] = [
             ParticipantStatus(
-                context=self.context or self.id_,
-                attributed_to=self.attributed_to,
+                context=data.get("context") or id_val,
+                attributed_to=data.get("attributed_to"),
                 consent=(
                     PecDimension(state=_consent_state)
                     if _consent_state is not None
                     else None
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
+                cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
             ),
         ]
-        return self
+        return data
 
     def _sync_latest_status_metadata(self) -> None:
         if not self.participant_statuses:
@@ -129,6 +186,25 @@ class CaseParticipant(CoreObject):
             if _consent_state is not None
             else None
         )
+
+    def apply_pec_transition(self, trigger: PEC_Trigger) -> None:
+        """Apply *trigger* to the PEC state machine and sync ParticipantStatus.
+
+        Uses ``PecDimension.transition()`` for fail-closed FSM validation
+        (raises ``VultronInvalidStateTransitionError`` on an illegal trigger),
+        then updates ``embargo_consent_state`` and syncs the latest
+        ``ParticipantStatus.consent`` via ``_sync_latest_status_metadata()``.
+
+        This is the single authoritative consent-write path (CM-18-005,
+        CM-18-006, ADR-0048).  All sites that record a PEC change MUST call
+        this method instead of assigning ``embargo_consent_state`` directly.
+        """
+        current_pec = coerce_em_consent_state(self.embargo_consent_state)
+        if current_pec is None:
+            current_pec = PEC.NO_EMBARGO
+        new_dim = PecDimension(state=current_pec).transition(trigger)
+        self.embargo_consent_state = new_dim.state
+        self._sync_latest_status_metadata()
 
     @property
     def participant_status(self) -> ParticipantStatus | None:
@@ -183,6 +259,28 @@ class CaseParticipant(CoreObject):
             )
         )
         return True
+
+    def add_participant_status(self, status: ParticipantStatus) -> None:
+        """Append a ParticipantStatus to this participant's history.
+
+        Validates the appended item's shape and raises
+        :exc:`~vultron.errors.VultronValidationError` when a non-core
+        (wire-shaped) input is passed, closing the ``append`` door for
+        ``participant_statuses`` (PRM-03-003, ADR-0064).
+
+        Args:
+            status: A core :class:`ParticipantStatus` object.
+
+        Raises:
+            VultronValidationError: when *status* is not a
+                :class:`ParticipantStatus` instance.
+        """
+        if not isinstance(status, ParticipantStatus):
+            raise VultronValidationError(
+                f"add_participant_status expects a ParticipantStatus; "
+                f"got {type(status).__name__}"
+            )
+        self.participant_statuses.append(status)
 
     def add_role(
         self, role: CVDRole, raise_when_present: bool = False
@@ -268,11 +366,20 @@ class CaseParticipant(CoreObject):
 class FinderParticipant(CaseParticipant):
     """A CaseParticipant that holds the FINDER role."""
 
-    @model_validator(mode="after")
-    def _set_role(self) -> FinderParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.FINDER)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_role(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.FINDER]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
 
 class ReporterParticipant(CaseParticipant):
@@ -282,29 +389,47 @@ class ReporterParticipant(CaseParticipant):
     reporter has by definition accepted the report.
     """
 
-    @model_validator(mode="after")
-    def _set_role(self) -> ReporterParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.REPORTER)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_role(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.REPORTER]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
-    @model_validator(mode="after")
-    def _set_accepted_status(self) -> ReporterParticipant:
-        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
-        self.participant_statuses = [
+    @model_validator(mode="before")
+    @classmethod
+    def _set_accepted_status(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if not data.get("id") and not data.get("id_"):
+            data["id"] = _new_urn()
+        id_val = data.get("id") or data.get("id_")
+        _consent_state = coerce_em_consent_state(
+            data.get("embargo_consent_state", PEC.NO_EMBARGO)
+        )
+        data["participant_statuses"] = [
             ParticipantStatus(
-                context=self.context or self.id_,
-                attributed_to=self.attributed_to,
+                context=data.get("context") or id_val,
+                attributed_to=data.get("attributed_to"),
                 rm=RmDimension(state=RM.ACCEPTED),
                 consent=(
                     PecDimension(state=_consent_state)
                     if _consent_state is not None
                     else None
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
+                cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
             )
         ]
-        return self
+        return data
 
 
 class FinderReporterParticipant(CaseParticipant):
@@ -313,70 +438,123 @@ class FinderReporterParticipant(CaseParticipant):
     Also initialises ``participant_statuses`` to ``[ACCEPTED]``.
     """
 
-    @model_validator(mode="after")
-    def _set_roles(self) -> FinderReporterParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.FINDER)
-        self.add_role(CVDRole.REPORTER)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_roles(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
-    @model_validator(mode="after")
-    def _set_accepted_status(self) -> FinderReporterParticipant:
-        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
-        self.participant_statuses = [
+    @model_validator(mode="before")
+    @classmethod
+    def _set_accepted_status(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if not data.get("id") and not data.get("id_"):
+            data["id"] = _new_urn()
+        id_val = data.get("id") or data.get("id_")
+        _consent_state = coerce_em_consent_state(
+            data.get("embargo_consent_state", PEC.NO_EMBARGO)
+        )
+        data["participant_statuses"] = [
             ParticipantStatus(
-                context=self.context or self.id_,
-                attributed_to=self.attributed_to,
+                context=data.get("context") or id_val,
+                attributed_to=data.get("attributed_to"),
                 rm=RmDimension(state=RM.ACCEPTED),
                 consent=(
                     PecDimension(state=_consent_state)
                     if _consent_state is not None
                     else None
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
+                cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
             )
         ]
-        return self
+        return data
 
 
 class VendorParticipant(CaseParticipant):
     """A CaseParticipant that holds the VENDOR role."""
 
-    @model_validator(mode="after")
-    def _set_role(self) -> VendorParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.VENDOR)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_role(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.VENDOR]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
 
 class DeployerParticipant(CaseParticipant):
     """A CaseParticipant that holds the DEPLOYER role."""
 
-    @model_validator(mode="after")
-    def _set_role(self) -> DeployerParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.DEPLOYER)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_role(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.DEPLOYER]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
 
 class CoordinatorParticipant(CaseParticipant):
     """A CaseParticipant that holds the COORDINATOR role."""
 
-    @model_validator(mode="after")
-    def _set_role(self) -> CoordinatorParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.COORDINATOR)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_role(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.COORDINATOR]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
 
-class OtherParticipant(CaseParticipant):
-    """A CaseParticipant that holds the OTHER role."""
+class ObserverParticipant(CaseParticipant):
+    """A CaseParticipant that holds the OBSERVER role (ADR-0057)."""
 
-    @model_validator(mode="after")
-    def _set_role(self) -> OtherParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.OTHER)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_role(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.OBSERVER]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
 
 class CaseActorParticipant(CaseParticipant):
@@ -389,12 +567,20 @@ class CaseActorParticipant(CaseParticipant):
     identity during bootstrap.
     """
 
-    @model_validator(mode="after")
-    def _set_role(self) -> CaseActorParticipant:
-        self.case_roles = []
-        self.add_role(CVDRole.COORDINATOR)
-        self.add_role(CVDRole.CASE_MANAGER)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_role(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        roles = [CVDRole.COORDINATOR, CVDRole.CASE_MANAGER]
+        data["case_roles"] = roles
+        ps_list = data.get("participant_statuses")
+        if ps_list:
+            latest = ps_list[-1]
+            if isinstance(latest, ParticipantStatus):
+                latest.cvd_role = coerce_cvd_roles(roles)
+        return data
 
 
 # ---------------------------------------------------------------------------

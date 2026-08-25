@@ -22,7 +22,31 @@ groups:
   - id: MV-01-005
     priority: MUST
     kind: protocol
-    statement: 'Pattern-matching implementation MUST be defensive:'
+    statement: >-
+      The activity-type dispatch implementation MUST handle missing or null fields
+      without raising unhandled exceptions.
+  - id: MV-01-006
+    priority: MUST
+    kind: protocol
+    statement: 'The activity-type dispatch implementation MUST treat unrecognized activity types as dispatching to `UNKNOWN`.'
+    rationale: >-
+      Mapping unknown types to UNKNOWN rather than failing allows the system to log
+      and route unrecognised activities without crashing the dispatch pipeline.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-01-005
+  - id: MV-01-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The activity-type dispatch implementation MUST NOT propagate internal dispatch
+      errors to callers.
+    rationale: >-
+      Propagating internal errors exposes implementation details to senders and can
+      cause the inbox handler to return unexpected error responses.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-01-005
 - id: MV-02
   title: Schema Validation
   specs:
@@ -80,13 +104,6 @@ groups:
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
-  - id: MV-09-001
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
-      Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object
-      — bare string URIs and `as_Link` references are NOT permitted in outbound activities.
   - id: MV-09-002
     priority: MUST
     kind: protocol
@@ -115,7 +132,7 @@ groups:
   - id: MV-10-002
     priority: MUST
     kind: protocol
-    statement: 'Stub objects are ONLY permitted in the following field positions:'
+    statement: 'Stub objects are ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
   - id: MV-10-003
     priority: MUST_NOT
     kind: protocol
@@ -132,10 +149,25 @@ groups:
     kind: protocol
     statement: >-
       A participant MUST satisfy BOTH of the following conditions before the case owner delivers
-      full case details to them: 1. `ParticipantStatus.rm_state == ACCEPTED` (participant
-      accepted the case invitation) 2. `ParticipantStatus.embargo_adherence == True` (participant
-      is a signatory to the active embargo), OR there is no active embargo (`CaseStatus.em_state
-      == NONE`)
+      full case details to them: 1. `ParticipantStatus.rm_state` is at least `RECEIVED` (the
+      participant has accepted the case invitation and been admitted to the case) 2.
+      `ParticipantStatus.embargo_adherence == True` (participant is a signatory to the active
+      embargo), OR there is no active embargo (`CaseStatus.em_state == NONE`)
+    note: >-
+      Condition 1 previously read `rm_state == ACCEPTED`. That was incorrect and mutually
+      unsatisfiable with the rest of the invitation lifecycle: CM-11-001 records an invitee at
+      `RM.RECEIVED` on `Accept(Invite)`, and CM-11-002 has them reaching `ACCEPTED` only AFTER
+      receiving the full case replica and running triage. Requiring `ACCEPTED` before delivery
+      meant a participant could never obtain the full case they need in order to reach `ACCEPTED`.
+      The condition's own parenthetical ("participant accepted the case invitation") describes
+      `RM.RECEIVED`, confirming the intent was "is admitted to the case", not "has completed triage".
+      The embargo condition (2) is the substantive gate on case content, per MV-10-006 and CM-18.
+      The implementation follows this ordering: `accept_invite_tree` creates the invitee at
+      `RM.RECEIVED`, auto-signs embargo consent when `EM.ACTIVE`, and only then emits
+      `Announce(VulnerabilityCase)` with the full snapshot.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-10-006
   - id: MV-10-006
     priority: MUST
     kind: protocol
@@ -146,13 +178,3 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
-- id: MV-08
-  title: Duplicate Detection
-  specs:
-  - id: MV-08-001
-    priority: SHOULD
-    kind: protocol
-    statement: The system SHOULD detect duplicate activity submissions during validation
-    relationships:
-    - rel_type: depends_on
-      spec_id: ID-02-001

@@ -34,9 +34,10 @@ HTTP POST /inbox  (wire: AS2 JSON)
 | Layer or module | Owns | Must not own | Evidence |
 |-----------------|------|--------------|----------|
 | `vultron/core/` | Domain models, ports (Protocols), use cases, state enums, behavior trees, scoring | FastAPI, SQLModel, AS2 types | `notes/architecture-hexagonal.md`, `test/architecture/` |
+| `vultron/core/ports/wire_render.py` | `WireRenderPort` — driven port contract for rendering core objects to wire-shaped JSON | Core-to-wire import | `vultron/core/ports/wire_render.py` |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic), parser, semantic extractor, activity factories | Core domain logic, FastAPI | `vultron/wire/as2/AGENTS.md` |
 | `vultron/adapters/driving/` | HTTP routers, CLI, MCP server; triggers use cases | Business logic, persistence | `vultron/adapters/driving/fastapi/` |
-| `vultron/adapters/driven/` | SQLite data layer (CRUD + queues), outbound HTTP delivery, sync adapter | Core domain rules | `vultron/adapters/driven/datalayer_sqlite/` |
+| `vultron/adapters/driven/` | SQLite data layer (CRUD + queues), outbound HTTP delivery, sync adapter, wire render adapter | Core domain rules | `vultron/adapters/driven/datalayer_sqlite/`, `vultron/adapters/driven/wire_render/` |
 | `vultron/adapters/connectors/` | Third-party tracker translations (Jira example, VINCE example) | Direct protocol handling | `vultron/adapters/connectors/` |
 | `vultron/config/` | Settings models, YAML + env loading, `get_config()` | Adapter or core imports | `vultron/config/app.py`, `vultron/config/actor.py` |
 | `vultron/bt/` | Behavior tree node library for CVD sub-protocols (EM, RM, CS, messaging) | Adapter imports | `vultron/bt/` |
@@ -53,6 +54,8 @@ HTTP POST /inbox  (wire: AS2 JSON)
 | Semantic pattern registry | `vultron/semantic_registry/` | Match incoming AS2 activities to `MessageSemantics` via ordered pattern list |
 | Backward-compat shim (`datalayer_sqlite.py`) | `vultron/adapters/driven/datalayer_sqlite.py` | Re-export from split subpackage; callers do not update imports when internals split |
 | `pydantic-settings` layered config | `vultron/config/app.py` | Merge YAML file + env vars + defaults in a single `AppConfig` object |
+| Typed ports on BT DataLayer nodes | `vultron/core/behaviors/` (nodes using `WithPorts` variants) | Declare blackboard key dependencies as typed class attributes instead of calling `register_key()` at runtime; enforced by `test/architecture/test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009) |
+| `WireRenderPort` driven port | `vultron/core/ports/wire_render.py` + `vultron/adapters/driven/wire_render/as2.py` | Allows core behaviors to obtain wire-shaped (AS2 camelCase) JSON from a domain object without importing from `vultron/wire/`; adapter translates via `VOCABULARY` registry |
 
 ### 5) Known Architectural Risks
 
@@ -65,8 +68,12 @@ HTTP POST /inbox  (wire: AS2 JSON)
 
 - `notes/architecture-hexagonal.md`
 - `AGENTS.md`
+- `specs/architecture.yaml` (ARCH spec group)
 - `vultron/adapters/driving/fastapi/main.py`
 - `vultron/core/ports/datalayer.py`
 - `vultron/core/ports/use_case.py`
+- `vultron/core/ports/wire_render.py`
+- `vultron/adapters/driven/wire_render/as2.py`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_core_no_wire_imports.py`
+- `test/architecture/test_no_bare_register_key_datalayer_nodes.py`

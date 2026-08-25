@@ -77,6 +77,61 @@ or guard node BEFORE any state-mutation or emit node. See BT-19-001, BT-19-002.
 
 ---
 
+## `Blackboard.get()` Raises `KeyError` on Unset READ Keys
+
+`py_trees.Blackboard.get(key)` raises `KeyError` (not returns `None`) when a
+key has been registered with `READ` access but has not yet been written by any
+node. `update()` methods that call `blackboard.get()` MUST wrap the call in
+`try/except KeyError` or check for prior writes.
+
+**Pattern:**
+
+```python
+try:
+    value = self.blackboard.get("key")
+except KeyError:
+    self.feedback_message = "key not yet on blackboard"
+    return Status.SUCCESS  # or FAILURE depending on best-effort vs fail-fast
+```
+
+Any `DataLayerAction.setup()` that registers `READ` keys and whose `update()`
+calls `blackboard.get()` is at risk. Audit `register_key(..., access=Access.READ)`
+sites in `behaviors/` when adding new BT nodes.
+
+See `notes/bt-pitfalls.md` for related blackboard pitfalls.
+
+---
+
+## PEC Consent Writes — Never Direct-Assign `embargo_consent_state`
+
+**Pitfall** (CM-18-005, CM-18-006; CONCERN-1970):
+
+```python
+# WRONG — bypasses state machine and does not sync ParticipantStatus
+participant.embargo_consent_state = PEC.SIGNATORY
+```
+
+This is a plain Pydantic field write. It skips the PEC state machine validation
+**and** `_sync_latest_status_metadata()`, so the canonical ledger snapshot
+retains the stale `emConsentState` while `embargoAdherence` reports the new
+value — a self-contradicting record.
+
+**Always use `apply_pec_transition()` and persist the resulting
+`ParticipantStatus`:**
+
+```python
+# CORRECT
+participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+dl.save(participant)
+```
+
+`apply_pec_transition()` validates the trigger, advances the machine, and syncs
+`_latest_status_metadata`. Both steps are required: the machine write alone is
+not sufficient without the persist. See `notes/participant-embargo-consent.md`
+§ "Pitfall: Never Set `embargo_consent_state` by Direct Assignment".
+
+---
+
 ## See Also
 
 - `notes/bt-integration.md` — architecture decisions, actor isolation,

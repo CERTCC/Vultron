@@ -43,10 +43,102 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 
 ### Per-Test Timeout Guardrail
 
-Default 5-second timeout (`pytest-timeout`, `pyproject.toml`). When a test
-trips it: mock slow deps, avoid `time.sleep()`, restructure integration tests.
+Timeouts are **two-tier** (`pytest-timeout`):
+
+| Tier | Ceiling | Set in |
+|---|---|---|
+| Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
+| `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
+
+`test/conftest.py::apply_integration_timeout` widens the ceiling for
+integration-marked tests at collection time. An explicit
+`@pytest.mark.timeout(N)` on a test always wins over the tier default.
+
+**Why these numbers** (#2270): `timeout_method = "thread"` kills the *whole
+pytest process*, not the one slow test, so a trip produces **no summary line**.
+A too-tight ceiling therefore does not surface a slow test — it converts the run
+into an uninformative abort. Both tiers used to be 5s, which was thin enough
+that honest work tripped it under load:
+
+- integration tests doing 3.5-4.3s of real HTTP work, and
+- AST-walking architecture ratchets at ~3.4s in isolation.
+
+Four separate sessions re-diagnosed the result as flakiness (ISSUE-1925,
+ISSUE-1988, ISSUE-2086, ISSUE-2237) before the ceiling itself was fixed. Raising
+it costs nothing on a genuine hang — that test was never going to finish — and
+the suite stays fast because total runtime is bounded by the tests, not by this
+ceiling.
+
+Both tiers are sized from measurement: the slowest unit test is ~3.1s idle and
+the slowest integration test ~4.3s. The headroom is deliberately large because
+contention (a CI runner, or a background graphify rebuild) inflates these well
+beyond their idle cost — an intermediate unit value of 20s was tried and still
+tripped once under exactly that.
+
+When a test trips its tier: mock slow deps, avoid `time.sleep()`, or move it
+behind the `integration` marker if it really does exercise the full stack.
 `@pytest.mark.timeout(N)` is a last resort and MUST have a comment explaining
 why. Do not use it to paper over slow tests.
+
+A timeout ceiling is a diagnostic tool, not a correctness invariant — if a tier
+is firing on honest work rather than catching hangs, change the tier rather
+than contorting the tests around it. Do not add a row to
+`notes/flaky-tests.md` for a test that is merely near its ceiling.
+
+---
+
+### `monkeypatch.undo()` MUST Precede `reload_config()` in Fixture Teardown
+
+`vultron/config/app.py` keeps a process-global `_config_cache`.
+`reload_config()` clears it and re-reads the environment. Pytest undoes
+`monkeypatch` env changes **after** the requesting fixture's teardown body
+runs, so this order pins the patched value into the cache for the rest of the
+session:
+
+```python
+# WRONG — re-caches the still-patched env
+yield
+reload_config()
+
+# RIGHT — undo first, then reload from the clean env
+yield
+monkeypatch.undo()
+reload_config()
+```
+
+Any fixture that both patches a `VULTRON_*` env var and calls
+`reload_config()` in teardown is affected, not just `test/demo/`. Clearing the
+cache without reloading (`_cfg_module._config_cache = None`, as in
+`test/adapters/driven/test_get_datalayer.py`) is an equally valid fix.
+
+`test/demo/conftest.py` has an autouse guard that detects and repairs such
+leaks, and records them on `config_leak_ledger` so
+`test_config_leak_guard.py::TestNoFixtureLeakedConfig` fails rather than
+silently masking the regression. That guard is **function-scoped only** — a
+module-, class-, or session-scoped fixture pollutes the cache before the guard
+snapshots it, so higher-scoped fixtures must get the order right themselves.
+Nothing outside `test/demo/` is guarded at all.
+
+Source: #2086 / PR #2126.
+
+---
+
+### A Test That Needs `VULTRON_*` Config MUST Set It Itself
+
+The flip side of the rule above: fixing a leak removes config that downstream
+tests may have been silently borrowing. `test_create_tree.py` and
+`nodes/test_communication.py` both run `ResolveCaseActorUrlsNode` (via
+`CreateCaseActorNode` / `CreateCaseBT`), which returns FAILURE when
+`case_actor_service_url` is None (CP-08-002/003) — yet neither module set it.
+They passed only because another module leaked the value into the process-global
+cache first, and failed in isolation or in a subset run (#1897).
+
+Each module that depends on a `VULTRON_*` setting needs its own autouse fixture
+setting it, using the `monkeypatch.undo()`-then-`reload_config()` teardown order
+above. Verify with a targeted run, not just the full suite — a module that only
+passes in a full-suite run is order-dependent, not passing.
+
+Source: #1897 / PR #2126.
 
 ---
 
@@ -76,6 +168,28 @@ as real. Clear `py_trees.blackboard.Blackboard.storage` in BT-using fixtures.
 
 ---
 
+## `test/demo/` Tests Are Auto-Marked `integration` by a Directory Hook
+
+`test/demo/conftest.py` has a `pytest_collection_modifyitems` hook that
+unconditionally adds `pytest.mark.integration` to **every** test collected from
+`test/demo/`, regardless of whether the test actually starts a FastAPI
+`TestClient`. Because the default `pyproject.toml` `addopts` is
+`-m 'not integration'`, a pure-unit test placed in `test/demo/` will be
+**silently deselected** by a bare `uv run pytest test/demo/test_something.py` —
+the run reports "N deselected" and 0 passed, which looks like a collection error
+but is not.
+
+**To run or confirm tests under `test/demo/`, always pass `-m ""`:**
+
+```bash
+uv run pytest test/demo/test_something.py -m ""
+```
+
+This is the same reason `AGENTS.md` requires the full suite
+(`uv run pytest -m ""`) whenever `vultron/demo/` or `test/demo/` is touched.
+
+---
+
 ## Demo Integration Test Isolation
 
 Each actor MUST use a **distinct `DataLayer` instance**; mark tests
@@ -94,8 +208,11 @@ CI failures: see [`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.m
 
 ### Happy-Path (SYNC-901)
 
-Use two isolated `create_isolated_actor_app` instances + shared `_TestASGIRouter`
-as emitter fallback. Each app has its own actor-scoped `DataLayer`. Use
+Use two isolated `create_isolated_actor_app` instances + shared
+`_TestClientRouter` as emitter fallback. The router POSTs cross-actor
+deliveries to each target app's `TestClient` inbox (the only sanctioned
+in-process transport per ADR-0042 / OX-12-003 — no hand-rolled
+`httpx.ASGITransport`). Each app has its own actor-scoped `DataLayer`. Use
 `post_actor_inbox` for inbound activities.
 
 ### Predecessor-Mismatch (SYNC-902)
@@ -254,7 +371,7 @@ CI job** from the demo run. When adding or modifying a scenario test file:
 
 **Per-scenario expected-event-types**: each `_XXX_EXPECTED_EVENT_TYPES` list
 must be comprehensive for its scenario (see `notes/demo-ci-invariants.md` and
-DEMOMA-16-001 through DEMOMA-16-008). When adding a new scenario phase that
+DEMOMA-16-001 through DEMOMA-16-011). When adding a new scenario phase that
 produces a new `event_type`, update both the spec requirement and the test
 constant in the same PR.
 

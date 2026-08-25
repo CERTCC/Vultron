@@ -1,0 +1,118 @@
+# Workflow linter — validates the GitHub Actions workflow files themselves.
+#
+# Kept separate from python-app.yml because that workflow's path filter is
+# scoped to vultron/ and test/, so workflow-only changes would never trigger
+# it. This workflow's filter is scoped to .github/ for the same reason.
+#
+# actionlint catches errors that YAML parsing cannot: invalid context
+# references, malformed `if:` expressions, unknown action inputs, and shell
+# problems in `run:` blocks (via shellcheck).
+#
+# Motivating regression (#2118, DEMOCI-06-004): demo-integration.yml carried a job-level
+# `if:` referencing the `matrix` context. That is valid YAML — yaml.safe_load
+# accepts it — but the `matrix` context does not exist until after matrix
+# expansion, so GitHub rejected the file with a startup failure: zero jobs,
+# no logs, no annotation, and a bare red X. It went unnoticed for 116
+# consecutive runs across every branch. actionlint flags it in one line.
+
+name: Actions Lint
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/demo-scenarios.json"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/demo-scenarios.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: Lint (actionlint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
+
+      # Pinned by version + SHA256 so a compromised or retagged release cannot
+      # silently change what runs in CI.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+          ACTIONLINT_SHA256: "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+        run: |
+          set -euo pipefail
+          TARBALL="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${TARBALL}" \
+            -o "$TARBALL"
+          echo "${ACTIONLINT_SHA256}  ${TARBALL}" | sha256sum --check --strict
+          tar xzf "$TARBALL" actionlint
+          install -m 0755 actionlint /usr/local/bin/actionlint
+          actionlint -version
+
+      # Default discovery walks .github/workflows/. shellcheck is preinstalled
+      # on ubuntu-latest runners, so `run:` blocks are linted too.
+      #
+      # Composite actions under .github/actions/ are NOT linted: actionlint
+      # parses any file it is handed as a workflow, so passing an action.yml
+      # yields spurious "on section is missing" errors. The push/pull_request
+      # path filters still include .github/actions/** so that a change there
+      # re-lints the workflows that consume those actions (input names and
+      # `uses:` references are validated from the workflow side).
+      - name: Run actionlint
+        run: actionlint -color
+
+      - name: Validate demo scenario matrix
+        run: |
+          set -euo pipefail
+          FILE=.github/demo-scenarios.json
+          jq -e 'type == "array" and length > 0' "$FILE" > /dev/null
+
+          # Every entry needs all three fields with the right types, or the
+          # matrix expands into jobs with empty `demo`/`test_file` values.
+          jq -e 'all(
+                   (.demo | type == "string" and length > 0) and
+                   (.test_file | type == "string" and length > 0) and
+                   (.full_suite_only | type == "boolean")
+                 )' "$FILE" > /dev/null
+
+          # Duplicate scenario names would collide on artifact names.
+          DUPES="$(jq -r '[.[].demo] | group_by(.) | map(select(length > 1) | .[0]) | .[]' "$FILE")"
+          if [ -n "$DUPES" ]; then
+            echo "::error::Duplicate scenario names in $FILE: $DUPES"
+            exit 1
+          fi
+
+          # The PR validation set must be non-empty, else pull_request runs
+          # would resolve to an empty matrix and report a vacuous success.
+          PR_COUNT="$(jq -r '[.[] | select(.full_suite_only == false)] | length' "$FILE")"
+          if [ "$PR_COUNT" -eq 0 ]; then
+            echo "::error::No scenarios with full_suite_only=false; PR runs would be vacuous."
+            exit 1
+          fi
+
+          # Referenced invariant test files must exist (DEMOCI-04-003).
+          MISSING=0
+          while read -r f; do
+            if [ ! -f "$f" ]; then
+              echo "::error file=$FILE::Referenced test file does not exist: $f"
+              MISSING=1
+            fi
+          done < <(jq -r '.[].test_file' "$FILE")
+          [ "$MISSING" -eq 0 ]
+
+          echo "Scenario matrix OK: $(jq -r length "$FILE") total, ${PR_COUNT} in PR set."

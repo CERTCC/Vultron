@@ -216,16 +216,19 @@ from the existing CASE_OWNER transfer:
 | Mechanism | Activity type | Effect |
 |-----------|--------------|--------|
 | `OFFER_CASE_OWNERSHIP_TRANSFER` (existing) | Transfers CASE_OWNER role from one actor to another | The offering actor loses CASE_OWNER |
-| `OFFER_CASE_MANAGER_ROLE` (new) | Delegates CASE_MANAGER operational authority to Case Actor | The offering actor (Vendor) retains CASE_OWNER permanently |
+| `OFFER_CASE_PARTICIPANT_ROLE` (ADR-0039) | Delegates a CVDRole to a target Actor within a VulnerabilityCase | The offering actor (Vendor) retains CASE_OWNER permanently |
 
-New `MessageSemantics` values required:
+**Note**: `OFFER_CASE_MANAGER_ROLE` was removed in issue #2429 (ADR-0039,
+SE-08-005). The canonical replacement is `OFFER_CASE_PARTICIPANT_ROLE` —
+`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` — handled
+by `OfferCaseParticipantRoleReceivedUseCase` and the
+`offer_case_participant_role_received_tree`.
 
-- `OFFER_CASE_MANAGER_ROLE`
-- `ACCEPT_CASE_MANAGER_ROLE`
-- `REJECT_CASE_MANAGER_ROLE` (optional; for completeness)
+`MessageSemantics` values in use:
 
-These must be added to `vultron/core/models/events/base.py`,
-`vultron/wire/as2/extractor.py` (patterns), and the use-case map.
+- `OFFER_CASE_PARTICIPANT_ROLE`
+- `ACCEPT_CASE_PARTICIPANT_ROLE`
+- `REJECT_CASE_PARTICIPANT_ROLE`
 
 ---
 
@@ -261,20 +264,20 @@ ActivityStreams verb `Announce`. The underlying activity is
 
 ---
 
-## Milestone Verification Rules
+## Protocol Checkpoint Verification Rules
 
-All milestone checks MUST verify **both** the Vendor DataLayer and the
+All checkpoint verifications MUST check **both** the Vendor DataLayer and the
 Reporter (Finder) DataLayer. Direct DataLayer reads are acceptable in demo
 scripts for verification — they are read-only assertions, not puppeteering.
 
-| Milestone | What to verify |
+| Checkpoint | What to verify |
 |-----------|---------------|
-| M1 | Vendor: case exists, 3 participants, EM.ACTIVE, embargo present. Reporter: has case replica, matching `actor_participant_index`, matching `active_embargo`. |
-| M2 | Reporter DataLayer has case ID. Both sides: matching participant index, matching embargo, matching log tail hash (SYNC-2). |
-| M4 | Both replicas: participant status includes CS.F. |
-| M5 | Both replicas: participant status includes CS.D. |
-| M6 | Both replicas: CS.VFDPxa; EM state terminated/exited. |
-| M7 | Both replicas: all participants RM.CLOSED; case status closed. |
+| Case creation (EM.ACTIVE) | Vendor: case exists, 3 participants, EM.ACTIVE, embargo present. Reporter: has case replica, matching `actor_participant_index`, matching `active_embargo`. |
+| Replica sync (EM.ACTIVE) | Reporter DataLayer has case ID. Both sides: matching participant index, matching embargo, matching log tail hash (LedgerFanout). |
+| Fix ready (CS.VFd) | Both replicas: participant status includes CS.F. |
+| Fix deployed (CS.VFD) | Both replicas: participant status includes CS.D. |
+| Publicly disclosed (CS.VFDPxa) | Both replicas: CS.VFDPxa; EM state terminated/exited. |
+| Case closed (RM.CLOSED) | Both replicas: all participants RM.CLOSED; case status closed. |
 
 ---
 

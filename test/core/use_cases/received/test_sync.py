@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for SYNC-2/SYNC-3 received use cases."""
+"""Tests for LedgerFanout/LedgerReconciliation received use cases."""
 
 import pytest
 from unittest.mock import MagicMock
@@ -28,6 +28,7 @@ from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
+    drain_gap_buffer,
     _reconstruct_tail_hash,
 )
 from typing import cast
@@ -113,6 +114,7 @@ def _make_case(case_id: str = CASE_URI) -> VulnerabilityCase:
 
 
 class TestReconstructTailHash:
+    @pytest.mark.spec("CLP-08-004")
     def test_empty_log_returns_genesis(self, dl):
         case = _make_case()
         dl.save(case)
@@ -121,6 +123,7 @@ class TestReconstructTailHash:
         assert len(tail_hash) == 64
         assert tail_index == -1
 
+    @pytest.mark.spec("CLP-08-005")
     def test_empty_log_no_case_raises(self, dl):
         """Without a case in DataLayer, empty ledger raises VultronValidationError.
 
@@ -133,12 +136,14 @@ class TestReconstructTailHash:
         with pytest.raises(VultronValidationError, match="genesis hash"):
             _reconstruct_tail_hash(CASE_URI, dl)
 
+    @pytest.mark.spec("SYNC-01-002")
     def test_one_entry_returns_its_hash(self, dl, first_entry):
         dl.save(first_entry)
         tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == first_entry.entry_hash
         assert tail_index == 0
 
+    @pytest.mark.spec("SYNC-01-002")
     def test_two_entries_returns_last_hash(self, dl, first_entry):
         dl.save(first_entry)
         second = _make_entry(CASE_URI, 1, first_entry.entry_hash)
@@ -147,6 +152,7 @@ class TestReconstructTailHash:
         assert tail_hash == second.entry_hash
         assert tail_index == 1
 
+    @pytest.mark.spec("SYNC-01-002")
     def test_ignores_other_case_entries(self, dl, first_entry):
         dl.save(first_entry)
         other = _make_entry("https://example.org/cases/other", 0, _ZERO_HASH)
@@ -173,6 +179,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         # outbox (matching send_announce_log_entry's explicit-actor queueing).
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
+    @pytest.mark.spec("CLP-02-002")
+    @pytest.mark.spec("SYNC-02-004")
     def test_inline_case_ledger_entry_round_trip(self, first_entry):
         """parse_activity must preserve inline as_CaseLedgerEntry fields (BUG-26041501).
 
@@ -194,6 +202,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI
 
+    @pytest.mark.spec("SYNC-01-001")
+    @pytest.mark.spec("SYNC-01-002")
     def test_accepts_valid_first_entry(self, dl, genesis_entry):
         event = self._make_event(genesis_entry)
         assert (
@@ -206,6 +216,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         stored = dl.read(genesis_entry.id_)
         assert stored is not None
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_rejects_entry_with_wrong_prev_hash(self, dl, first_entry):
         """Entry whose prev_log_hash does not match local tail is rejected."""
         bad_entry = _make_entry(CASE_URI, 0, "deadbeef" * 8)
@@ -216,6 +227,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         # Entry not stored
         assert dl.read(bad_entry.id_) is None
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_mismatch_queues_reject_activity(self, dl, first_entry):
         """Hash mismatch causes a RejectLogEntryActivity to be queued (SYNC-03-001)."""
         # Pre-seed a good entry so tail_hash != the genesis hash
@@ -244,6 +256,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             == as_TransitiveActivityType.REJECT
         )
 
+    @pytest.mark.spec("SYNC-03-001")
+    @pytest.mark.spec("SYNC-03-004")
     def test_mismatch_reject_carries_tail_hash(self, dl, first_entry):
         """The queued Reject carries the local tail hash as context (SYNC-03-001)."""
         dl.save(first_entry)
@@ -258,6 +272,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         reject_obj = dl.read(queued[0])
         assert getattr(reject_obj, "context", None) == first_entry.entry_hash
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_mismatch_reject_addressed_to_sender(self, dl, first_entry):
         """The queued Reject is addressed to the CaseActor who sent the Announce."""
         dl.save(first_entry)
@@ -273,6 +288,46 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         to_field = getattr(reject_obj, "to", None) or []
         assert ACTOR_URI in to_field
 
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("SYNC-15-002")
+    @pytest.mark.spec("CLP-08-005")
+    def test_missing_case_queues_reject_with_empty_tail_hash(self, dl):
+        """Announce before VulnerabilityCase is seeded MUST send Reject (SYNC-15-001).
+
+        When no VulnerabilityCase exists in the DataLayer, ReconstructChainTailNode
+        cannot derive the per-case genesis hash (CLP-08-005) and the entry cannot
+        be accepted.  A Reject with last_accepted_hash="" MUST be sent so the
+        CaseActor replays all entries from the beginning once the case is delivered.
+        Without this Reject the dropped entry is permanently lost (issue #1873).
+        """
+        entry = _make_entry(CASE_URI, 0, "any_hash" * 8)
+        event = self._make_event(entry)
+        event = event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
+        sync_port = SyncActivityAdapter(dl)
+        AnnounceLedgerEntryReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        # Entry must NOT be stored (no case → cannot validate genesis)
+        assert dl.read(entry.id_) is None
+
+        # A Reject MUST be queued so CaseActor retries delivery (SYNC-15-001)
+        queued = dl.outbox_list_for_actor(RECEIVER_URI)
+        assert len(queued) == 1, (
+            "Expected a Reject activity — missing case silently dropped the entry "
+            "(regression for issue #1873)"
+        )
+        reject_obj = dl.read(queued[0])
+        from vultron.wire.as2.enums import as_TransitiveActivityType
+
+        assert (
+            getattr(reject_obj, "type_", None)
+            == as_TransitiveActivityType.REJECT
+        )
+        # context field carries last_accepted_hash="" (replay from genesis)
+        assert getattr(reject_obj, "context", None) == ""
+
+    @pytest.mark.spec("SYNC-03-003")
     def test_idempotent_second_accept(self, dl, first_entry):
         """Calling execute twice with the same entry stores it only once."""
         dl.save(first_entry)  # pre-store
@@ -287,6 +342,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         ]
         assert len(case_entries) == 1
 
+    @pytest.mark.spec("SYNC-01-002")
+    @pytest.mark.spec("SYNC-01-003")
     def test_sequential_chain(self, dl, genesis_entry):
         """Accept two sequential entries; chain is maintained."""
         event0 = self._make_event(genesis_entry)
@@ -299,6 +356,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert dl.read(genesis_entry.id_) is not None
         assert dl.read(second.id_) is not None
 
+    @pytest.mark.spec("SYNC-13-004")
     def test_semantic_type_is_correct(self, dl, first_entry):
         event = self._make_event(first_entry)
         assert (
@@ -347,6 +405,8 @@ class TestOutOfOrderAnnounceBuffering:
             and isinstance(obj, VultronCaseLedgerEntry)
         }
 
+    @pytest.mark.spec("SYNC-14-001")
+    @pytest.mark.spec("SYNC-14-003")
     def test_reversed_delivery_converges_to_contiguous_prefix(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -367,6 +427,8 @@ class TestOutOfOrderAnnounceBuffering:
 
         assert self._present_indices(dl) == {0, 1, 2}
 
+    @pytest.mark.spec("SYNC-14-001")
+    @pytest.mark.spec("SYNC-14-003")
     def test_single_gap_then_predecessor_clicks_into_place(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -396,6 +458,7 @@ class TestOutOfOrderAnnounceBuffering:
         assert self._present_indices(dl) == {0, 1}
         assert gap_buffer.depth(CASE_URI) == 0
 
+    @pytest.mark.spec("SYNC-14-003")
     def test_multi_gap_cascade_drains_all_successors(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -440,6 +503,8 @@ class TestOutOfOrderAnnounceBuffering:
         assert self._present_indices(dl) == {0, 1, 2, 3, 4, 5, 6}
         assert gap_buffer.depth(CASE_URI) == 0
 
+    @pytest.mark.spec("SYNC-14-003")
+    @pytest.mark.spec("SYNC-03-002")
     def test_replayed_entries_out_of_order_still_converge(
         self, dl, case_with_genesis, gap_buffer
     ):
@@ -471,4 +536,121 @@ class TestOutOfOrderAnnounceBuffering:
             ).execute()
 
         assert self._present_indices(dl) == {0, 1, 2, 3, 4}
+
+
+class TestPreGenesisAnnounceBuffering:
+    """A pre-genesis ``Announce(CaseLedgerEntry)`` — one that arrives before the
+    ``VulnerabilityCase`` is seeded, so the per-case genesis hash is unavailable
+    (CLP-08-005) — MUST be buffered rather than permanently dropped, and MUST
+    drain into the local ledger once the case is seeded (issue #2186, #2180,
+    SYNC-15-004, SYNC-15-005).
+
+    This closes the pre-genesis race without relying on the reject/replay
+    round-trip: the forward-gap buffer (SYNC-14) only covers entries for a case
+    whose genesis anchor is already known, so a distinct pre-genesis hold is
+    required.
+    """
+
+    @pytest.fixture
+    def gap_buffer(self) -> LedgerGapBuffer:
+        return LedgerGapBuffer()
+
+    def _make_event(
+        self, entry: VultronCaseLedgerEntry
+    ) -> AnnounceLogEntryReceivedEvent:
+        wire_entry = WireCaseLedgerEntry.model_validate(
+            entry.model_dump(mode="json")
+        )
+        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
+
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("SYNC-15-004")
+    def test_pre_genesis_entry_is_buffered_not_dropped(self, dl, gap_buffer):
+        """With no case seeded, the entry is held in the buffer (not dropped)
+        and a Reject is still sent as the loss backstop (SYNC-15-001)."""
+        case = _make_case()  # deliberately NOT saved — pre-genesis window
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+        sync_port = SyncActivityAdapter(dl)
+
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(entry),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+
+        # Not stored — cannot validate genesis (SYNC-15-002).
+        assert dl.read(entry.id_) is None
+        # Buffered, not dropped — the #2186 fix.
+        assert gap_buffer.depth(CASE_URI) == 1
+        # Reject still queued as the backstop (SYNC-15-001).
+        assert len(dl.outbox_list_for_actor(RECEIVER_URI)) == 1
+
+    @pytest.mark.spec("SYNC-15-004")
+    @pytest.mark.spec("SYNC-15-005")
+    def test_buffered_pre_genesis_entry_drains_when_case_seeded(
+        self, dl, gap_buffer
+    ):
+        """Once the case is seeded, the buffered genesis entry applies via the
+        same effects-before-persist path (SYNC-15-005, SYNC-14-004)."""
+        case = _make_case()
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+        sync_port = SyncActivityAdapter(dl)
+
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(entry),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+        assert dl.read(entry.id_) is None
+        assert gap_buffer.depth(CASE_URI) == 1
+
+        # Seed the case — genesis anchor is now derivable (deterministic from
+        # attributed_to), so the buffered entry can drain.
+        dl.save(case)
+        drain_gap_buffer(
+            dl,
+            CASE_URI,
+            RECEIVER_URI,
+            gap_buffer,
+            sync_port,
+        )
+
+        assert dl.read(entry.id_) is not None
+        assert gap_buffer.depth(CASE_URI) == 0
+
+    @pytest.mark.spec("SYNC-15-004")
+    @pytest.mark.spec("SYNC-15-005")
+    def test_pre_genesis_cascade_drains_full_chain_on_seed(
+        self, dl, gap_buffer
+    ):
+        """Several entries arriving pre-genesis all buffer, then cascade-drain
+        in hash-chain order the moment the case is seeded."""
+        case = _make_case()
+        prev = case.genesis_hash
+        entries: list[VultronCaseLedgerEntry] = []
+        for i in range(3):
+            e = _make_entry(CASE_URI, i, prev)
+            entries.append(e)
+            prev = e.entry_hash
+        sync_port = SyncActivityAdapter(dl)
+
+        # All three arrive before the case is seeded.
+        for e in entries:
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(e),
+                sync_port=sync_port,
+                gap_buffer=gap_buffer,
+            ).execute()
+        assert gap_buffer.depth(CASE_URI) == 3
+        assert dl.read(entries[0].id_) is None
+
+        dl.save(case)
+        drain_gap_buffer(dl, CASE_URI, RECEIVER_URI, gap_buffer, sync_port)
+
+        assert all(dl.read(e.id_) is not None for e in entries)
         assert gap_buffer.depth(CASE_URI) == 0

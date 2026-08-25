@@ -15,10 +15,8 @@ from vultron.core.models.case import VultronCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.models.events.actor import (
-    AcceptCaseManagerRoleReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
-    RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
 )
@@ -223,18 +221,6 @@ _CASES = [
     ),
     # ── actor.py ──────────────────────────────────────────────────────────────
     (
-        AcceptCaseManagerRoleReceivedEvent,
-        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
-        {"inner_object": _case},
-        [("case_id", "inner_object_id"), ("case", "inner_object")],
-    ),
-    (
-        RejectCaseManagerRoleReceivedEvent,
-        MessageSemantics.REJECT_CASE_MANAGER_ROLE,
-        {"object_": _activity},
-        [("offer_id", "object_id"), ("offer", "object_")],
-    ),
-    (
         AcceptCaseOwnershipTransferReceivedEvent,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         {"inner_object": _case},
@@ -260,8 +246,12 @@ _CASES = [
     (
         RejectInviteActorToCaseReceivedEvent,
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-        {"object_": _activity},
-        [("invite_id", "object_id"), ("invite", "object_")],
+        {"object_": _activity, "activity": _activity, "inner_target": _case},
+        [
+            ("invite_id", "object_id"),
+            ("invite", "object_"),
+            ("case_id", "inner_target_id"),
+        ],
     ),
     # ── case_participant.py ───────────────────────────────────────────────────
     (

@@ -24,6 +24,9 @@ from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.ownership_transfer_offer_record import (
+    VultronOwnershipTransferOfferRecord,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -38,12 +41,14 @@ from vultron.wire.as2.factories import (
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.case import (
-    accept_case_manager_role_activity,
+    accept_case_participant_role_activity,
     accept_case_ownership_transfer_activity,
-    offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
-    reject_case_manager_role_activity,
+    offer_case_participant_role_activity,
+    reject_case_participant_role_activity,
+    rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -159,6 +164,37 @@ class _ActorsMixin:
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
+    def reject_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Reject(Invite)`` activity.
+
+        The ``to:`` field is derived from ``invite.actor`` (the original
+        sender of the invitation) so that the Reject is routable via the
+        outbox handler.  Mirrors ``accept_case_invite`` but uses
+        ``rm_reject_invite_to_case_activity``.
+        """
+        invite = cast(Any, self._dl.read(invite_id))
+        invite_actor_id = _as_id(getattr(invite, "actor", None))
+        if not invite_actor_id:
+            raise VultronValidationError(
+                f"reject_case_invite: invite '{invite_id}' has no routable"
+                " actor field; cannot derive Reject recipient"
+            )
+        activity = rm_reject_invite_to_case_activity(
+            invite=invite, actor=actor, to=[invite_actor_id]
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "reject_case_invite: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
     def accept_case_participant_offer(
         self,
         cp_offer_id: str,
@@ -201,6 +237,7 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        roles: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity."""
         extra: dict[str, Any] = {"actor": actor, "to": to}
@@ -210,6 +247,7 @@ class _ActorsMixin:
         activity = recommend_actor_activity(
             recommended=CoreActor(id_=recommended_id),
             target=case_id,
+            suggested_roles=roles,
             **extra,
         )
         try:
@@ -443,65 +481,67 @@ class _ActorsMixin:
             )
         return activity.id_
 
-    def offer_case_manager_role(
+    def offer_case_participant_role(
         self,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict]:
-        """Create and persist an ``Offer(as_VulnerabilityCase, target=as_CaseParticipant)``
-        CASE_MANAGER delegation activity.
+        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+
+        The canonical role-delegation wire format introduced by ADR-0039.
+        Replaces the deprecated :meth:`offer_case_manager_role` for new senders.
 
         Returns ``(activity_id, activity_dict)``.
         """
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
-        activity = offer_case_manager_role_activity(
-            case=case, target=participant, actor=actor, to=to
+        target = as_Actor(id_=target_actor_id)
+        activity = offer_case_participant_role_activity(
+            role=role,
+            target_actor=target,
+            case=case,
+            actor=actor,
+            to=to,
         )
         try:
             self._dl.create(activity)
         except ValueError:
             logger.warning(
-                "offer_case_manager_role: activity '%s' already exists"
+                "offer_case_participant_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
-    def accept_case_manager_role(
+    def accept_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
+        """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor,
+        )  # noqa: PLC0415
 
-        Ephemerally reconstructs the original Offer from ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id`` so that
-        ``Accept.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
-
-        Returns ``(activity_id, activity_dict)`` where ``activity_dict`` is
-        the full inline serialization captured before the activity is stored,
-        suitable for use as a canonical payload snapshot.
-        """
+        target = as_Actor(id_=target_actor_id)
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
-        offer = offer_case_manager_role_activity(
+        offer = offer_case_participant_role_activity(
+            role=role,
+            target_actor=target,
             case=case,
-            target=participant,
             id_=offer_id,
             actor=vendor_id,
         )
-        activity = accept_case_manager_role_activity(
+        activity = accept_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
         activity_dict = activity.model_dump(**_DUMP_KWARGS)
@@ -509,45 +549,44 @@ class _ActorsMixin:
             self._dl.create(activity)
         except ValueError:
             logger.warning(
-                "accept_case_manager_role: activity '%s' already exists"
+                "accept_case_participant_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )
         return activity.id_, activity_dict
 
-    def reject_case_manager_role(
+    def reject_case_participant_role(
         self,
         offer_id: str,
         case_id: str,
-        participant_id: str,
+        role: CVDRole,
+        target_actor_id: str,
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+        """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor,
+        )  # noqa: PLC0415
 
-        Ephemerally reconstructs the original Offer from ``offer_id``,
-        ``case_id``, ``participant_id``, and ``vendor_id`` so that
-        ``Reject.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
-        """
+        target = as_Actor(id_=target_actor_id)
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
-        offer = offer_case_manager_role_activity(
+        offer = offer_case_participant_role_activity(
+            role=role,
+            target_actor=target,
             case=case,
-            target=participant,
             id_=offer_id,
             actor=vendor_id,
         )
-        activity = reject_case_manager_role_activity(
+        activity = reject_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
         try:
             self._dl.create(activity)
         except ValueError:
             logger.warning(
-                "reject_case_manager_role: activity '%s' already exists"
+                "reject_case_participant_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )
@@ -560,6 +599,7 @@ class _ActorsMixin:
         actor: str,
         content: str | None = None,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
@@ -574,6 +614,8 @@ class _ActorsMixin:
         }
         if content is not None:
             extra["content"] = content
+        if attributed_to is not None:
+            extra["attributed_to"] = attributed_to
         activity = offer_case_ownership_transfer_activity(
             case=case,
             target=transferee_id,
@@ -600,6 +642,14 @@ class _ActorsMixin:
         Reads the stored offer from the DataLayer, derives the ``to:`` field
         from the offer's ``actor`` when not supplied, and persists the Accept
         (TRIG-11-002).
+
+        On a replica whose only source for the Offer was the replicated
+        ``offer_case_ownership_transfer`` ledger entry, what is stored at
+        ``offer_id`` is a core ``VultronOwnershipTransferOfferRecord`` rather
+        than the wire activity — the SYNC path cannot construct wire objects
+        (ARCH-03-001).  Rebuild the wire Offer from that record here, where wire
+        imports are allowed, so both delivery paths converge on the same Accept
+        (#2225, ADR-0035 DL-06-002).
         """
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
             as_Offer,
@@ -608,6 +658,8 @@ class _ActorsMixin:
         raw = self._dl.read(offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
+        if isinstance(raw, VultronOwnershipTransferOfferRecord):
+            raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)
         if to is None:
             offer_actor_id = _as_id(getattr(offer, "actor", None))
@@ -625,3 +677,38 @@ class _ActorsMixin:
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def _offer_from_core_record(
+        self, record: "VultronOwnershipTransferOfferRecord"
+    ) -> Any:
+        """Rebuild the wire ownership-transfer Offer from its core record.
+
+        ``_OfferCaseOwnershipTransferActivity.object_`` MUST be an inline
+        ``as_VulnerabilityCase`` — a bare URI is rejected at construction and
+        would also make the activity indistinguishable from a SUBMIT_REPORT
+        Offer during semantic dispatch.  The case itself is already on the
+        replica (the SYNC path seeds it before the offer entry is applied), so
+        read it and project it to its wire form.
+        """
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: PLC0415
+            as_VulnerabilityCase,
+        )
+
+        case = self._dl.read(record.case_id)
+        if case is None:
+            raise VultronNotFoundError("VulnerabilityCase", record.case_id)
+        wire_case = (
+            case
+            if isinstance(case, as_VulnerabilityCase)
+            else as_VulnerabilityCase.from_core(cast(Any, case))
+        )
+        # Reuse the same factory the offering side calls, so the rebuilt Offer
+        # is constructed exactly the way the wire path would have built it
+        # (test/architecture/test_activity_factory_imports.py forbids adapters
+        # from reaching into vultron.wire.as2.vocab.activities directly).
+        return offer_case_ownership_transfer_activity(
+            case=wire_case,
+            target=record.target_id,
+            id_=record.offer_id,
+            actor=record.actor_id,
+        )

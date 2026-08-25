@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
 def recommend_actor_activity(
     recommended: CoreActor | as_Actor,
     target: as_VulnerabilityCaseRef | None = None,
+    suggested_roles: list[str] | None = None,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(Actor, target=VulnerabilityCase) — actor recommendation.
@@ -79,7 +80,10 @@ def recommend_actor_activity(
     """
     try:
         return _RecommendActorActivity(
-            object_=recommended, target=target, **kwargs
+            object_=recommended,
+            target=target,
+            suggested_roles=suggested_roles,
+            **kwargs,
         )
     except ValidationError as exc:
         logger.warning("recommend_actor_activity: invalid arguments: %s", exc)

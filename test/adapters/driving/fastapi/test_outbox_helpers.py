@@ -28,6 +28,8 @@ Spec coverage:
 
 from types import SimpleNamespace
 
+import pytest
+
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 
 # ---------------------------------------------------------------------------
@@ -120,6 +122,7 @@ def test_format_object_handles_object_without_id():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("MV-10-001")
 def test_dehydrate_references_preserves_vulnerability_case_stub():
     """_dehydrate_references preserves VulnerabilityCase stub dicts (MV-10-001).
 
@@ -208,6 +211,7 @@ def test_dehydrate_references_leaves_none_fields_unchanged():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("MV-10-001")
 def test_is_stub_object_dict_true_for_minimal_case_stub():
     """_is_stub_object_dict identifies the selective-disclosure case stub."""
     stub: dict[object, object] = {
@@ -217,6 +221,7 @@ def test_is_stub_object_dict_true_for_minimal_case_stub():
     assert oh._is_stub_object_dict(stub) is True
 
 
+@pytest.mark.spec("MV-10-001")
 def test_coerce_reference_value_preserves_case_stub_dict():
     """_coerce_reference_value keeps intentional case stubs inline."""
     stub = {
@@ -238,3 +243,84 @@ def test_coerce_reference_value_collapses_href_then_id():
         oh._coerce_reference_value({"id": "https://example.org/obj/2"})
         == "https://example.org/obj/2"
     )
+
+
+# ---------------------------------------------------------------------------
+# _load_outbound_activity role preservation (CM-16-003 / CM-17-003)
+# ---------------------------------------------------------------------------
+
+
+def test_load_outbound_activity_preserves_suggested_roles():
+    """``suggestedRoles`` MUST survive the wire→VultronActivity conversion.
+
+    ``_load_outbound_activity`` converts a stored wire activity into a
+    ``VultronActivity`` before delivery.  The wire dump is camelCase
+    (``suggestedRoles``), so ``VultronActivity`` needs a matching validation
+    alias — otherwise the field silently validates to ``None`` and vanishes
+    from the delivered payload.
+
+    Regression guard: the DEPLOYER role was dropped here, so a suggested actor
+    joined a case with ``[VENDOR]`` only and CSB-15-002 then blocked its
+    d→D (VFD) transition.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driving.fastapi.outbox_delivery import (
+        _load_outbound_activity,
+    )
+    from vultron.wire.as2.factories.actor import recommend_actor_activity
+    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    suggested = as_Actor(
+        id_="https://example.org/actors/v2", name="V2", type_="Organization"
+    )
+    activity = recommend_actor_activity(
+        recommended=suggested,
+        target="https://example.org/cases/c1",
+        suggested_roles=["vendor", "deployer"],
+        actor="https://example.org/actors/c2",
+        to=["https://example.org/actors/case-actor"],
+    )
+    dl.create(activity)
+
+    outbound = _load_outbound_activity(
+        "https://example.org/actors/c2", activity.id_, dl
+    )
+
+    assert outbound is not None
+    assert outbound.suggested_roles == ["vendor", "deployer"]
+
+
+def test_load_outbound_activity_preserves_roles():
+    """``roles`` MUST survive the wire→VultronActivity conversion.
+
+    Same failure mode as ``suggestedRoles`` on the Invite hop: the invitee's
+    roles are carried in the Invite's ``roles`` field, and losing them means
+    the participant record is created with default roles only (CM-17-003).
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driving.fastapi.outbox_delivery import (
+        _load_outbound_activity,
+    )
+    from vultron.wire.as2.factories.case import rm_invite_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    invitee = as_Actor(
+        id_="https://example.org/actors/v2", name="V2", type_="Organization"
+    )
+    activity = rm_invite_to_case_activity(
+        invitee=invitee,
+        target="https://example.org/cases/c1",
+        roles=["vendor", "deployer"],
+        actor="https://example.org/actors/case-actor",
+        to=["https://example.org/actors/v2"],
+    )
+    dl.create(activity)
+
+    outbound = _load_outbound_activity(
+        "https://example.org/actors/case-actor", activity.id_, dl
+    )
+
+    assert outbound is not None
+    assert outbound.roles == ["vendor", "deployer"]

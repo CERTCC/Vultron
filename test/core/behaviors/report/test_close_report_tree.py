@@ -23,7 +23,7 @@ import py_trees
 from vultron.core.behaviors.report.close_report_tree import (
     create_close_report_tree,
 )
-from vultron.demo.fuzzer.base import AlwaysFail
+from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.demo.fuzzer.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CLOSE_REPORT_STOCHASTIC,
@@ -82,7 +82,7 @@ def test_custom_factory_used():
 
 
 def test_pre_close_action_factory_accepted():
-    """pre_close_action_factory is accepted (Phase 2 reserved, BT-18-004)."""
+    """pre_close_action_factory field exists on bundle; PreCloseAction belongs in trigger tree (IDEA-1253 T1)."""
     tree = create_close_report_tree(case_id=CASE_ID)
     assert tree is not None
 

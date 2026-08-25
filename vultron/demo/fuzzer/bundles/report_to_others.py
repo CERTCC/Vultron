@@ -11,12 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for the report-to-others domain (BT-23-003, BT-23-005).
+"""STOCHASTIC call-out bundle for the report-to-others domain (BT-23-003, BT-23-005).
 
-Provides :class:`ReportToOthersCallOutBundle` plus the pre-built singletons
-:data:`REPORT_TO_OTHERS_DETERMINISTIC` and :data:`REPORT_TO_OTHERS_STOCHASTIC`.
+Provides the simulation-layer :data:`REPORT_TO_OTHERS_STOCHASTIC` singleton.  The
+bundle dataclass and DETERMINISTIC default are core concerns
+(``vultron.core.behaviors.call_out.bundles.report_to_others``) and are re-exported
+here for backward-compatible import paths.
 
-Ceiling/floor mapping (BT-23-002):
+Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 
 - ``all_parties_known_factory``       — AllPartiesKnown       (p=0.50) → AlwaysSucceed (tie-break)
 - ``total_effort_limit_factory``      — TotalEffortLimitMet   (p=0.10) → AlwaysFail
@@ -30,23 +32,12 @@ Ceiling/floor mapping (BT-23-002):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysFail
-
-    return AlwaysFail(name)
+from vultron.core.behaviors.call_out.bundles.report_to_others import (  # noqa: F401
+    REPORT_TO_OTHERS_DETERMINISTIC,
+    ReportToOthersCallOutBundle,
+)
 
 
 def _stochastic_all_parties_known(name: str) -> py_trees.behaviour.Behaviour:
@@ -112,43 +103,6 @@ def _stochastic_suggest_other(name: str) -> py_trees.behaviour.Behaviour:
 
     return InjectOther(name)
 
-
-@dataclass(frozen=True)
-class ReportToOthersCallOutBundle:
-    """Call-out backend bundle for the report-to-others domain (BT-23-003).
-
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.report.report_to_others_tree.create_report_to_others_tree`.
-    """
-
-    all_parties_known_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    total_effort_limit_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    more_vendors_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    more_coordinators_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    more_others_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    suggest_vendor_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    suggest_coordinator_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    suggest_other_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-
-
-REPORT_TO_OTHERS_DETERMINISTIC = ReportToOthersCallOutBundle()
-"""Deterministic bundle: ceiling/floor of stochastic p (BT-23-001, BT-23-002)."""
 
 REPORT_TO_OTHERS_STOCHASTIC = ReportToOthersCallOutBundle(
     all_parties_known_factory=_stochastic_all_parties_known,  # type: ignore[arg-type]

@@ -196,8 +196,7 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST transition
-      their local CS to Public Aware, MUST transition EM to None (q^em P → N),
-      and MUST emit CK to acknowledge receipt.
+      their local CS to Public Aware.
     rationale: >-
       Public awareness terminates a pending embargo proposal per VP-09-001 and
       VP-11-002. The embargo cannot be negotiated once the information is public.
@@ -236,8 +235,7 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
-      transition their local CS to Public Aware, MUST initiate embargo termination
-      by emitting ET, and MUST emit CK to acknowledge receipt.
+      transition their local CS to Public Aware.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when public
       awareness occurs. The ordering — CS transition recorded before embargo
@@ -310,6 +308,52 @@ groups:
       spec_id: MSM-03-004
       note: 'CP shorthand wire-type mapping'
 
+  - id: CSB-04-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST transition
+      EM to None (q^em P → N).
+    rationale: >-
+      Public awareness makes further embargo negotiation moot; the pending
+      proposal is abandoned per VP-09-001.
+    testable: true
+
+  - id: CSB-04-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST emit CK to
+      acknowledge receipt.
+    rationale: >-
+      All C* messages warrant acknowledgment per VP-12 messaging norms.
+    testable: true
+
+  - id: CSB-04-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
+      initiate embargo termination by emitting ET.
+    rationale: >-
+      VP-09-001 and VP-11-002 require immediate embargo termination when public
+      awareness occurs.
+    testable: true
+
+  - id: CSB-04-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
+      emit CK to acknowledge receipt.
+    rationale: >-
+      All C* messages warrant acknowledgment per VP-12 messaging norms.
+    testable: true
+
 - id: CSB-05
   title: Receive CX (Exploit Public)
   description: Behaviors triggered when a participant receives a CX (Exploit Public) message, recording public availability of an exploit and initiating embargo teardown if an active embargo exists.
@@ -359,8 +403,7 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
-      (q^em ∈ P) receiving CX MUST transition their local CS to ···PX·, MUST
-      transition EM to None (q^em P → N), and MUST emit CK to acknowledge.
+      (q^em ∈ P) receiving CX MUST transition their local CS to ···PX·.
     rationale: >-
       Exploit publication terminates a pending embargo proposal per VP-09-001.
       The pX→PX invariant applies (constraint C-15).
@@ -399,10 +442,7 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CX MUST transition their local CS to ···PX·,
-      MUST initiate embargo termination by emitting ET, and MUST emit CK.
-      The CS transition MUST be recorded before embargo teardown is initiated
-      (constraint C-14).
+      (q^em ∈ {A, R}) receiving CX MUST transition their local CS to ···PX·.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when exploit
       publication occurs. The pX→PX invariant applies. C-14 ordering: record
@@ -497,6 +537,66 @@ groups:
       spec_id: MSM-03-005
       note: 'CX shorthand wire-type mapping'
 
+  - id: CSB-05-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
+      (q^em ∈ P) receiving CX MUST transition EM to None (q^em P → N).
+    rationale: >-
+      Exploit publication makes further embargo negotiation moot; the pending
+      proposal is abandoned per VP-09-001.
+    testable: true
+
+  - id: CSB-05-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
+      (q^em ∈ P) receiving CX MUST emit CK to acknowledge receipt.
+    rationale: >-
+      All C* messages warrant acknowledgment per VP-12 messaging norms.
+    testable: true
+
+  - id: CSB-05-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CX MUST initiate embargo termination by emitting
+      ET.
+    rationale: >-
+      VP-09-001 and VP-11-002 require immediate embargo termination when exploit
+      publication occurs.
+    testable: true
+
+  - id: CSB-05-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CX MUST emit CK to acknowledge receipt.
+    rationale: >-
+      All C* messages warrant acknowledgment per VP-12 messaging norms.
+    testable: true
+
+  - id: CSB-05-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CX MUST record the CS transition to ···PX·
+      before embargo teardown is initiated (constraint C-14).
+    rationale: >-
+      C-14 ordering requires the CS state change to be recorded first so that
+      the canonical ledger correctly reflects cause before effect.
+    testable: true
+
 - id: CSB-06
   title: Receive CA (Attacks Observed)
   description: Behaviors triggered when a participant receives a CA (Attacks Observed) message, recording active exploitation of the vulnerability and initiating embargo teardown if an active embargo exists.
@@ -546,8 +646,7 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
-      (q^em ∈ P) receiving CA MUST transition their local CS to ···P·A, MUST
-      transition EM to None (q^em P → N), and MUST emit CK.
+      (q^em ∈ P) receiving CA MUST transition their local CS to ···P·A.
     rationale: >-
       Attacks observed alongside previously non-public CS triggers CS→P, which
       terminates a pending embargo proposal. Constraint C-16 applies.
@@ -587,10 +686,7 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CA MUST transition their local CS to ···P·A,
-      MUST initiate embargo termination by emitting ET, and MUST emit CK.
-      The CS transition MUST be recorded before embargo teardown is initiated
-      (constraint C-14).
+      (q^em ∈ {A, R}) receiving CA MUST transition their local CS to ···P·A.
     rationale: >-
       Attacks observed without prior public awareness triggers CS→P (constraint
       C-16) which in turn requires embargo termination per VP-09-001. The C-14
@@ -687,6 +783,66 @@ groups:
       spec_id: MSM-03-006
       note: 'CA shorthand wire-type mapping'
 
+  - id: CSB-06-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
+      (q^em ∈ P) receiving CA MUST transition EM to None (q^em P → N).
+    rationale: >-
+      The CS→P transition triggered by attacks observation makes further embargo
+      negotiation moot; the pending proposal is abandoned per VP-09-001.
+    testable: true
+
+  - id: CSB-06-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
+      (q^em ∈ P) receiving CA MUST emit CK to acknowledge receipt.
+    rationale: >-
+      All C* messages warrant acknowledgment per VP-12 messaging norms.
+    testable: true
+
+  - id: CSB-06-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CA MUST initiate embargo termination by emitting
+      ET.
+    rationale: >-
+      VP-09-001 requires immediate embargo termination when public awareness
+      occurs; constraint C-16 triggers CS→P on attacks observation.
+    testable: true
+
+  - id: CSB-06-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CA MUST emit CK to acknowledge receipt.
+    rationale: >-
+      All C* messages warrant acknowledgment per VP-12 messaging norms.
+    testable: true
+
+  - id: CSB-06-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CA MUST record the CS transition to ···P·A
+      before embargo teardown is initiated (constraint C-14).
+    rationale: >-
+      C-14 ordering requires the CS state change to be recorded first so that
+      the canonical ledger correctly reflects cause before effect.
+    testable: true
+
 - id: CSB-07
   title: Receive CE (CS Error)
   description: Behaviors triggered when a participant receives a CE (CVD Case State Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
@@ -750,7 +906,6 @@ groups:
     testable: false
     lint_suppress:
     - testable_without_steps
-    preconditions: []
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-008
@@ -1368,3 +1523,496 @@ groups:
       note: >-
         P event trigger must not imply D event; separates participant-agnostic
         public awareness from participant-specific fix deployment
+
+- id: CSB-16
+  title: CS Write-Boundary Transition Validation
+  description: >-
+    Requirements for CS state write paths (VFD and PXA) to validate
+    source→target transition validity before persisting a ParticipantStatus
+    snapshot. Complements CSB-15 (trigger-side role preconditions) and
+    SDO-02-002 (dimension object transition contract) by requiring that
+    the BT write node itself is fail-closed regardless of upstream guard
+    coverage.
+  specs:
+  - id: CSB-16-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A BT node or helper that writes a VFD state (CS_vfd) to a ParticipantStatus
+      snapshot MUST validate that the (current_vfd_state → target_vfd_state)
+      transition is permitted by the VFD state machine before persisting.
+      A same-state write is permitted (status confirmation). A backward move or
+      illegal jump (e.g. vfd → VFD skipping Vfd) MUST cause the node to return
+      Status.FAILURE without writing to the DataLayer.
+    rationale: >-
+      Upstream BT guards (e.g. CheckCSFixNotYetDeployed) are necessary but
+      insufficient: a guard that is too weak, missing, or bypassed allows an
+      invalid VFD state jump to reach the write node unchecked. Validating at
+      the write boundary makes illegal VFD transitions fail-closed regardless
+      of guard coverage. Source: concern #1896, which surfaced when the
+      CheckCSFixNotYetDeployed guard was too weak in issue #1825.
+      Scope: applies to local write nodes only. The received-wire path
+      (add_participant_status_tree) uses a weaker monotonic-forward check
+      intentionally — remote peers may advance through multiple VFD steps
+      between status messages; strict adjacency applies only to local writes.
+    testable: true
+    preconditions:
+    - description: A non-None CS_vfd target state is passed to a ParticipantStatus write node
+    steps:
+    - order: 1
+      actor: write_node
+      action: Read the participant's current VFD state from the DataLayer
+      expected: Current CS_vfd state available
+    - order: 2
+      actor: write_node
+      action: >-
+        If target == current, proceed. If is_valid_vfd_transition(current, target)
+        is True, proceed. Otherwise return Status.FAILURE.
+      expected: Only valid transitions or same-state writes reach the DataLayer
+    postconditions:
+    - description: No ParticipantStatus with an illegal VFD jump is persisted
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-02-004
+    - rel_type: refines
+      spec_id: BTND-10-001
+
+  - id: CSB-16-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A BT node or helper that writes a PXA state (CS_pxa) to a CaseStatus or
+      ParticipantStatus snapshot MUST validate that the (current_pxa_state →
+      target_pxa_state) transition is permitted by the PXA state machine before
+      persisting. A same-state write is permitted. A backward move MUST cause
+      the node to return Status.FAILURE without writing to the DataLayer.
+    rationale: >-
+      PXA state transitions are forward-only (p→P, x→X, a→A). An invalid
+      backward PXA write would produce a misleading public-disclosure regression
+      in the case record. The same fail-closed boundary that protects VFD applies
+      equally to PXA. Source: concern #1896.
+    testable: true
+    preconditions:
+    - description: A non-None CS_pxa target state is passed to a ParticipantStatus write node
+    steps:
+    - order: 1
+      actor: write_node
+      action: Read the participant's current PXA state
+      expected: Current CS_pxa state available
+    - order: 2
+      actor: write_node
+      action: >-
+        If target == current, proceed. If is_valid_pxa_transition(current, target)
+        is True, proceed. Otherwise return Status.FAILURE.
+      expected: Only valid transitions or same-state writes reach the DataLayer
+    postconditions:
+    - description: No ParticipantStatus with an illegal PXA regression is persisted
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-02-004
+    - rel_type: refines
+      spec_id: BTND-10-001
+
+- id: CSB-17
+  title: CS Compound State and History Validity
+  description: >-
+    CS-internal validity invariants over the compound (VFD x PXA) case state
+    and over whole case histories. Where CSB-16 validates a single write at
+    the persistence boundary, CSB-17 defines which compound states exist,
+    which single-event transitions between them are causally possible, and
+    which orderings of the six CS events a real case could have produced.
+    Mined from the legacy `vultron.core.case_states` hypercube model and
+    re-expressed against the current CS enums; see ADR-0060.
+  specs:
+  - id: CSB-17-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An implementation MUST treat exactly 32 compound CS states as valid: the
+      cross product of the 4 valid VFD states (vfd, Vfd, VFd, VFD) and the 8
+      PXA states.
+    rationale: >-
+      The VFD dimension is a linear chain, not a free product of three bits:
+      readiness presupposes awareness and deployment presupposes readiness.
+      Enumerating only the reachable combinations makes the two impossible
+      combinations unrepresentable rather than merely rejected at runtime,
+      which is why `CS_vfd` has four members and not eight.
+    testable: true
+    postconditions:
+    - description: The CS enum has exactly 32 members, one per valid compound state
+    relationships:
+    - rel_type: refines
+      spec_id: SM-09-002
+      note: >-
+        SM-09-002 states the vF/fD prohibition as a rejection rule; this
+        refines it to a structural guarantee by enumerating only the 32
+        reachable combinations, so the impossible ones are unrepresentable.
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CS transition MUST change exactly one of the six CS dimensions, and
+      MUST change it from the not-yet-happened value to the happened value.
+    rationale: >-
+      CS events are irreversible and are observed one at a time; a compound
+      state change of Hamming distance greater than one conflates two distinct
+      events and loses their ordering, which is exactly the information history
+      validity depends on. These two conditions alone admit 72 transitions;
+      applying the ephemeral-state rule of CSB-17-003 leaves exactly 58 valid
+      CS transitions.
+    testable: true
+    preconditions:
+    - description: A (source, destination) pair of compound CS states
+    steps:
+    - order: 1
+      actor: validator
+      action: >-
+        Identify the single dimension that differs between source and
+        destination; reject if more than one differs. If none differs, the
+        write is a same-state re-assertion, which CSB-16-001 and CSB-16-002
+        permit as a status confirmation: accept it only when the caller has
+        opted in (the allow_null parameter), and reject it otherwise, because a
+        transition validator's default answer for "no change" must be "that is
+        not a transition".
+      expected: A single CS event accounts for the change, or the caller has
+        explicitly asked for same-state writes to pass
+    - order: 2
+      actor: validator
+      action: >-
+        Delegate to the changed dimension's own transition table
+        (is_valid_vfd_transition or is_valid_pxa_transition).
+      expected: Monotonicity and VFD prerequisite ordering are enforced
+    - order: 3
+      actor: validator
+      action: >-
+        Apply the ephemeral-state rule of CSB-17-003 to the source state.
+      expected: A transition out of a vP or pX state fires only the event that
+        state requires
+    postconditions:
+    - description: Only Hamming-distance-1 monotone transitions are accepted
+    relationships:
+    - rel_type: constrains
+      spec_id: CSB-16-001
+      note: >-
+        Adds the one-dimension-at-a-time and monotonicity constraints that a
+        per-dimension write validator cannot see. The same-state write CSB-16
+        permits is preserved via the opt-in described in step 1.
+    - rel_type: constrains
+      spec_id: CSB-16-002
+    - rel_type: depends_on
+      spec_id: CSB-17-003
+      note: The 58-transition count holds only with the ephemeral rule applied.
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An implementation MUST treat the compound states vP (public aware while
+      the vendor is unaware) and pX (exploit public while the public is
+      unaware) as ephemeral.
+    rationale: >-
+      Neither condition can persist in reality: public awareness reaches the
+      vendor, and a published exploit makes the public aware. Modelling these
+      as ephemeral rather than invalid preserves the causal ordering of the
+      events while forbidding the case from progressing in any other direction
+      first. The pX ephemeral rule is the pX to PX invariant of CSB-13-001
+      generalised from the entry cascade to every successor of a pX state.
+    testable: true
+    preconditions:
+    - description: The case is in one of the 12 ephemeral compound CS states
+    postconditions:
+    - description: Each ephemeral state has exactly one valid successor state
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-13-001
+    - rel_type: refines
+      spec_id: SM-09-001
+      note: >-
+        SM-09-001 governs the persistence boundary: an incoming status write
+        carrying vP or pX MUST be promoted to the forced form before it is
+        stored. CSB-17-003 governs trajectory validation, where the same two
+        conditions are modelled as ephemeral states with exactly one legal
+        successor. The two are consistent because they apply at different
+        boundaries: no vP or pX state is ever persisted, but such a state is
+        still a legal intermediate point in a replayed history, and CSB-17-004
+        therefore permits a history prefix to end in one.
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A consumer validating a reported CS history SHOULD validate it causally
+      by replaying the event sequence through CSB-17-002 and CSB-17-003 from
+      the initial state vfdpxa, rather than checking states point-in-time or
+      comparing wall-clock timestamps. A complete history contains all six CS
+      events exactly once; there are exactly 70 valid complete histories out of
+      720 orderings.
+    rationale: >-
+      Validity of a case trajectory is a property of the whole ordered
+      sequence, not of any single state: VFDPXA and VFDXAP visit only valid
+      states, but only the first is a possible case history. Wall-clock
+      timestamps cannot substitute, because they may be missing, skewed, or
+      recorded by different participants. SHOULD rather than MUST because a
+      consumer holding only a current state, with no event log to replay,
+      cannot do better.
+    testable: true
+    preconditions:
+    - description: An ordered sequence of CS events, possibly incomplete
+    steps:
+    - order: 1
+      actor: validator
+      action: Reject any event that occurs more than once in the sequence
+      expected: Each CS event happens at most once
+    - order: 2
+      actor: validator
+      action: >-
+        Replay the sequence from vfdpxa, requiring each step to satisfy
+        CSB-17-002 and CSB-17-003 given every event that preceded it.
+      expected: Causally impossible orderings are rejected
+    postconditions:
+    - description: A complete valid history terminates in VFDPXA
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An incomplete CS history MUST be validated as a prefix.
+    rationale: >-
+      Real cases are usually still in progress, so requiring six events would
+      reject every live case. Ending in an ephemeral state is unavoidable at the
+      prefix level: CSB-17-003's forced successor has not happened yet when the
+      prefix is cut, which is different from persisting an ephemeral state —
+      SM-09-001 still forbids that. Pinning acceptance to CSB-17-004's prefix
+      closure keeps both directions honest: a validator that merely never
+      rejects a genuine prefix could still accept dead ends.
+    testable: true
+    preconditions:
+    - description: An ordered sequence of CS events with fewer than six entries
+    steps:
+    - order: 1
+      actor: validator
+      action: >-
+        Apply CSB-17-004's replay to the sequence without requiring that it
+        terminate in VFDPXA.
+      expected: >-
+        The prefix is accepted iff it is a prefix of at least one valid
+        complete history
+    postconditions:
+    - description: >-
+        A prefix ending in an ephemeral state is accepted, and its forced
+        successor per CSB-17-003 is the only legal continuation
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-17-004
+    - rel_type: depends_on
+      spec_id: CSB-17-003
+    adr:
+    - ADR-0060
+
+  - id: CSB-17-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An implementation MUST NOT allow a fix to be ready while the vendor is
+      unaware (the vF compound state is impossible).
+    rationale: >-
+      Fix readiness presupposes vendor awareness; the vF combination is
+      structurally excluded from the 32 valid compound CS states.
+    testable: true
+
+  - id: CSB-17-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An implementation MUST NOT allow a fix to be deployed that was never
+      ready (the fD compound state is impossible).
+    rationale: >-
+      Fix deployment presupposes fix readiness; the fD combination is
+      structurally excluded from the 32 valid compound CS states.
+    testable: true
+
+  - id: CSB-17-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CS transition that changes two or more dimensions at once, that
+      reverses a dimension, or that skips a VFD prerequisite MUST be rejected.
+    rationale: >-
+      Each of the three prohibited forms conflates or reorders distinct causal
+      events; rejecting them enforces the one-event-at-a-time and monotonicity
+      invariants.
+    testable: true
+
+  - id: CSB-17-009
+    priority: MUST
+    kind: protocol
+    statement: From a vP state the next CS event MUST be V.
+    rationale: >-
+      The forced-successor rule is the operational consequence of CSB-17-003's
+      ephemeral classification: each ephemeral state has exactly one valid
+      continuation, enforcing the vP→VP invariant.
+    testable: true
+
+  - id: CSB-17-012
+    priority: MUST
+    kind: protocol
+    statement: From a pX state the next CS event MUST be P.
+    rationale: >-
+      The forced-successor rule for pX states enforces the pX→PX invariant;
+      pX is ephemeral and P is the only valid continuation.
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-17-003
+
+  - id: CSB-17-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Any CS event other than the forced successor MUST be rejected when the
+      current state is ephemeral (vP or pX).
+    rationale: >-
+      Accepting any other event would break the vP→VP and pX→PX invariants
+      that the forced-successor rule exists to enforce.
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-17-003
+
+  - id: CSB-17-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Prefix validation MUST NOT require all six CS events to be present; a
+      prefix MAY end in an ephemeral state.
+    rationale: >-
+      Real cases are still in progress at validation time; requiring all six
+      events would reject every live case, and an ephemeral-ending prefix is
+      valid as long as its forced successor has not yet been observed.
+    testable: true
+
+  - id: CSB-17-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every accepted incomplete CS history prefix MUST have at least one valid
+      completion among the 70 valid complete histories of CSB-17-004.
+    rationale: >-
+      Pinning acceptance to the prefix closure of CSB-17-004 prevents a
+      validator from accepting dead-end prefixes that cannot lead to any valid
+      complete history.
+    testable: true
+
+- id: CSB-18
+  title: Cross-Machine State Entailments
+  description: >-
+    Invariants that span two state machines simultaneously. These are
+    causal entailments, not local transition constraints: they capture states
+    that are logically contradictory given the sequence of events that
+    produced them. Violations are detected and reported by
+    vultron/core/states/cross_machine_invariants.py but are NOT enforced at
+    emit time — they are diagnosed post-hoc.
+  specs:
+  - id: CSB-18-001
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant's composite state MUST NOT have the VFD F-bit set (q^cs ∈
+      VFd··· or VFD···) while the participant's RM state is outside
+      {ACCEPTED, DEFERRED, CLOSED}. A fix cannot be ready before the
+      vulnerability has been accepted for action.
+    rationale: >-
+      The F-bit records that a vendor-fix is available. A vendor can only have
+      a fix ready if they have accepted the report for action (RM ∈ {ACCEPTED,
+      DEFERRED, CLOSED}). RM states RECEIVED/INVALID/VALID precede acceptance,
+      so F-bit + pre-acceptance RM is a causal impossibility.
+      Implemented in violation_rm_vfd_entailment() (cross_machine_invariants.py).
+      Source: ISSUE-2372.
+    testable: true
+    preconditions:
+    - description: Any participant state snapshot is available for inspection
+    verification: >-
+      Call violation_rm_vfd_entailment(rm, vfd) for each participant; assert
+      None is returned for all valid combined states.
+    relationships:
+    - rel_type: constrains
+      spec_id: CSB-16-001
+  - id: CSB-18-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant's composite state MUST NOT have the PXA P-bit set
+      (q^cs ∈ ···P··) while an active embargo exists (q^em ∈ {ACTIVE,
+      REVISE}). Public awareness of a vulnerability while an embargo is
+      active is causally impossible in a well-functioning coordination — the
+      P event causes embargo termination, so EM cannot remain ACTIVE once P
+      has occurred.
+    rationale: >-
+      The P event (public disclosure) causes embargo termination per the
+      protocol state machine. An embargo that persists after P has been
+      recorded is a causal contradiction: the P event entails embargo
+      termination, not mere transition ambiguity. This is a causal
+      entailment, not a timing race — it is NOT enforced at emit time
+      because the sequence of events is what makes it contradictory.
+      Implemented in violation_pxa_em_entailment() (cross_machine_invariants.py).
+      Source: ISSUE-2372.
+    testable: true
+    preconditions:
+    - description: A PXA state and an EM state are both available for the same case
+    verification: >-
+      Call violation_pxa_em_entailment(pxa, em) for each participant; assert
+      None is returned for all valid combined states.
+  - id: CSB-18-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant's composite state MUST NOT have the PXA X-bit set
+      (q^cs ∈ ···X·) while an active embargo exists (q^em ∈ {ACTIVE,
+      REVISE}). Public exploit availability while an embargo is active is
+      causally impossible — the X event entails embargo termination.
+    rationale: >-
+      Same causal logic as CSB-18-002. The X event (exploit public) triggers
+      embargo termination; EM cannot remain ACTIVE after X has been recorded.
+      This is a causal entailment diagnosed post-hoc, not enforced at emit.
+      Implemented in violation_pxa_em_entailment() (cross_machine_invariants.py).
+    testable: true
+    preconditions:
+    - description: A PXA state and an EM state are both available for the same case
+    verification: >-
+      Call violation_pxa_em_entailment(pxa, em) for each participant; assert
+      None is returned for all valid combined states.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-18-002
+  - id: CSB-18-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant's composite state MUST NOT have the PXA A-bit set
+      (q^cs ∈ ···A) while an active embargo exists (q^em ∈ {ACTIVE,
+      REVISE}). Observed attacks while an embargo is active is causally
+      impossible — the A event entails embargo termination.
+    rationale: >-
+      Same causal logic as CSB-18-002 and CSB-18-003. The A event (attacks
+      observed) triggers embargo termination; EM cannot remain ACTIVE after A
+      has been recorded. This is a causal entailment diagnosed post-hoc, not
+      enforced at emit.
+      Implemented in violation_pxa_em_entailment() (cross_machine_invariants.py).
+    testable: true
+    preconditions:
+    - description: A PXA state and an EM state are both available for the same case
+    verification: >-
+      Call violation_pxa_em_entailment(pxa, em) for each participant; assert
+      None is returned for all valid combined states.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-18-002

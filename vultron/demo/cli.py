@@ -47,12 +47,15 @@ import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.scenario.fccv_extension_demo as fccv_extension_demo
 import vultron.demo.scenario.fccv_handoff_demo as fccv_handoff_demo
 import vultron.demo.scenario.fcv_demo as fcv_demo
+import vultron.demo.scenario.fcv_reject_demo as fcv_reject_demo
+import vultron.demo.scenario.fcvcv_demo as fcvcv_demo
 import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
 import vultron.demo.scenario.fvcv_handoff_demo as fvcv_handoff_demo
 import vultron.demo.scenario.fvv_demo as fvv_demo
 import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.exchange.trigger_demo as trigger_demo
 import vultron.demo.scenario.fv_demo as fv_demo
+from vultron.logging_setup import suppress_third_party_info_noise
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
@@ -104,6 +107,7 @@ def main(ctx: click.Context, debug: bool, log_file: str | None) -> None:
         handlers=handlers,
         force=True,
     )
+    suppress_third_party_info_noise(level)
     ctx.ensure_object(dict)
     ctx.obj["debug"] = debug
 
@@ -420,7 +424,7 @@ def fvv(
       2. Finder submits a vulnerability report to Vendor1's inbox.
       3. Vendor1 validates the report and engages the case.
       4. Vendor1 invites Vendor2; Vendor2 accepts.
-      5. Verify SYNC-2 replication on Finder and Vendor2.
+      5. Verify LedgerFanout replication on Finder and Vendor2.
       6. Both vendors independently advance through fix-ready → fix-deployed.
       7. All participants report publication; embargo terminates.
       8. All participants close the case.
@@ -528,7 +532,7 @@ def fvcv_extension(
       5. Coordinator accepts; Coordinator suggests Vendor2 (ADR-0026).
       6. Vendor1 approves the actor recommendation.
       7. CaseActor invites Vendor2; Vendor2 accepts.
-      8. Verify SYNC-2 replication on all replicas.
+      8. Verify LedgerFanout replication on all replicas.
       9. Both vendors independently advance through fix-ready → fix-deployed.
      10. All participants report publication; embargo terminates.
      11. All participants close the case.
@@ -653,7 +657,7 @@ def fvcv_handoff(
       6. Coordinator accepts the ownership transfer (TRIG-11-002).
       7. Verify case attributed_to updated to Coordinator.
       8. Coordinator invites Vendor2; Vendor2 accepts and Accept routed to CaseActor.
-      9. Verify SYNC-2 replication on all replicas.
+      9. Verify LedgerFanout replication on all replicas.
      10. Both vendors independently advance through fix-ready → fix-deployed.
      11. All participants report publication; embargo terminates.
      12. All participants close the case.
@@ -764,7 +768,7 @@ def fccv_extension(
       4. C2 accepts; C2 suggests Vendor (ADR-0026 suggest-actor flow).
       5. C1 approves the actor recommendation.
       6. CaseActor invites Vendor; Vendor accepts.
-      7. Verify SYNC-2 replication on all replicas.
+      7. Verify LedgerFanout replication on all replicas.
       8. Vendor advances through fix-ready → fix-deployed.
       9. C1 (CASE_OWNER) triggers publication; embargo terminates.
      10. All participants report publication; all participants close the case.
@@ -889,7 +893,7 @@ def fccv_handoff(
       6. C2 accepts the ownership transfer (TRIG-11-002).
       7. Verify case attributed_to updated to C2 on both C1 and C2 replicas.
       8. C2 invites Vendor; Vendor accepts and Accept routed to CaseActor.
-      9. Verify SYNC-2 replication on all replicas.
+      9. Verify LedgerFanout replication on all replicas.
      10. Vendor advances through fix-ready → fix-deployed.
      11. All participants report publication; embargo terminates.
      12. All participants close the case.
@@ -906,6 +910,130 @@ def fccv_handoff(
         c2_id=c2_id,
         case_actor_id=case_actor_id,
         vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCVCV sub-command — Finder + C1(CASE_OWNER) + V1(VENDOR) + C2(COORDINATOR) + V2(VENDOR+DEPLOYER)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fcvcv")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fcvcv_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL for the Finder actor container.",
+)
+@click.option(
+    "--c1-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fcvcv_demo.C1_BASE_URL,
+    show_default=True,
+    help="Base URL for the C1 (Coordinator1/CASE_OWNER) actor container.",
+)
+@click.option(
+    "--v1-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fcvcv_demo.V1_BASE_URL,
+    show_default=True,
+    help="Base URL for the V1 (Vendor1) actor container.",
+)
+@click.option(
+    "--c2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fcvcv_demo.C2_BASE_URL,
+    show_default=True,
+    help="Base URL for the C2 (Coordinator2) actor container.",
+)
+@click.option(
+    "--v2-url",
+    envvar="VULTRON_VENDOR_DEPLOYER_BASE_URL",
+    default=fcvcv_demo.V2_BASE_URL,
+    show_default=True,
+    help="Base URL for the V2 (VendorDeployer) actor container.",
+)
+@click.option(
+    "--finder-id",
+    envvar="VULTRON_FINDER_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the Finder actor.",
+)
+@click.option(
+    "--c1-id",
+    envvar="VULTRON_COORDINATOR_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the C1 actor.",
+)
+@click.option(
+    "--v1-id",
+    envvar="VULTRON_VENDOR_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the V1 actor.",
+)
+@click.option(
+    "--c2-id",
+    envvar="VULTRON_VENDOR2_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the C2 actor.",
+)
+@click.option(
+    "--v2-id",
+    envvar="VULTRON_VENDOR_DEPLOYER_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the V2 (VendorDeployer) actor.",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip server availability checks at startup.",
+)
+def fcvcv(
+    finder_url: str,
+    c1_url: str,
+    v1_url: str,
+    c2_url: str,
+    v2_url: str,
+    finder_id: str | None,
+    c1_id: str | None,
+    v1_id: str | None,
+    c2_id: str | None,
+    v2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCVCV 5-party CVD demo (DEMOMA-19).
+
+    Five actors coordinate a full CVD lifecycle:
+    Finder + C1 (CASE_OWNER) + V1 (VENDOR) + C2 (COORDINATOR) + V2
+    (VENDOR+DEPLOYER).
+
+    \b
+    Workflow:
+      1. Reset and seed all five containers.
+      2. Finder submits a report to C1; C1 validates and engages.
+      3. C1 invites V1 (VENDOR) and C2 (COORDINATOR).
+      4. C2 suggests V2 via ADR-0026; C1 approves; V2 joins via CaseActor.
+      5. Verify LedgerFanout replication across all six participants.
+      6. All five actors exchange notes.
+      7. Fix lifecycle: V1 → VFd (no deploy); V2 → VFD (fix-deployed).
+      8. Publication: V1 publishes first → embargo terminates; all publish.
+      9. All actors close the case.
+     10. Export case ledger JSONL for each actor (devlogs).
+    """
+    fcvcv_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        c1_url=c1_url,
+        v1_url=v1_url,
+        c2_url=c2_url,
+        v2_url=v2_url,
+        finder_id=finder_id,
+        c1_id=c1_id,
+        v1_id=v1_id,
+        c2_id=c2_id,
+        v2_id=v2_id,
     )
 
 
@@ -983,7 +1111,7 @@ def fcv(
     Coordinator receives the Finder's report, creates the authoritative case
     (holding CASE_OWNER), and the CaseActor service manages the case ledger.
     Coordinator invites Finder, then directly invites Vendor.  Vendor accepts
-    as a late joiner and receives the full ledger backfill (SYNC-2).  All
+    as a late joiner and receives the full ledger backfill (LedgerFanout).  All
     participants advance through the full VFDPxa fix lifecycle to closure.
 
     \b
@@ -992,7 +1120,7 @@ def fcv(
       2. Finder submits a vulnerability report to Coordinator's inbox.
       3. Coordinator validates the report and engages the case (CASE_OWNER).
       4. Coordinator invites Vendor directly (invite-actor-to-case).
-      5. Vendor accepts the case invitation; case replica seeded (SYNC-2).
+      5. Vendor accepts the case invitation; case replica seeded (LedgerFanout).
       6. Verify all replica ledgers synchronized.
       7. Three-way notes exchange among all participants.
       8. Vendor advances: VF (fix ready) → VFD (fix deployed).
@@ -1000,6 +1128,107 @@ def fcv(
      10. All participants close the case (RM.CLOSED on all replicas).
     """
     fcv_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        coordinator_url=coordinator_url,
+        vendor_url=vendor_url,
+        case_actor_url=case_actor_url,
+        finder_id=finder_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCV-Reject sub-command — FCV with Vendor rejecting the invitation
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fcv-reject")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fcv_reject_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fcv_reject_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fcv_reject_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fcv_reject_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fcv_reject(
+    finder_url: str,
+    coordinator_url: str,
+    vendor_url: str,
+    case_actor_url: str,
+    finder_id: str | None,
+    coordinator_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCV-Reject (Finder + Coordinator + Vendor rejection) CVD demo (#2047).
+
+    Coordinator receives the Finder's report, creates the authoritative case
+    (CASE_OWNER), and the CaseActor service manages the case ledger.  Coordinator
+    invites Vendor, but Vendor rejects the invitation via ``reject-case-invite``.
+    Vendor is NOT added as a case participant.  Finder and Coordinator proceed to
+    publication and closure.
+
+    \b
+    Workflow:
+      1. Seed Finder, Coordinator, and Vendor containers.
+      2. Finder submits a vulnerability report to Coordinator's inbox.
+      3. Coordinator validates the report and engages the case (CASE_OWNER).
+      4. Coordinator invites Vendor directly (invite-actor-to-case).
+      5. Vendor rejects the case invitation (reject-case-invite).
+      6. Verify participant count stable at 3 (Vendor not added).
+      7. Two-way notes exchange between Finder and Coordinator.
+      8. Coordinator and Finder publish; embargo terminates (EM.EXITED).
+      9. Coordinator and Finder close the case (RM.CLOSED on all replicas).
+    """
+    fcv_reject_demo.main(
         skip_health_check=skip_health_check,
         finder_url=finder_url,
         coordinator_url=coordinator_url,

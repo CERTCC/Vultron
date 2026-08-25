@@ -34,10 +34,16 @@ names (including those used by ``monkeypatch.setattr``) via this module's
 namespace.
 """
 
+import asyncio
 import logging
+import random
 from typing import cast
 
-from vultron.adapters.driven.demo_http_delivery import DemoHttpDeliveryAdapter
+from vultron.adapters.driven.http_delivery import (
+    DeliveryError,
+    HttpDeliveryAdapter,
+)
+from vultron.adapters.outbox_dead_letter import OutboxRetryStore
 
 # ---------------------------------------------------------------------------
 # Re-exports from outbox_addressing (keep in this namespace for compat)
@@ -73,29 +79,34 @@ from vultron.core.ports.emitter import ActivityEmitter
 
 logger = logging.getLogger(__name__)
 
+#: Maximum cumulative delivery attempts across all drain passes before an
+#: activity is moved to the dead-letter store (OX-13-002).  Chosen as
+#: (DEFAULT_MAX_RETRIES + 1) × ~3 drain passes — survives transient failures
+#: without running indefinitely.  See ADR-0066.
+MAX_TOTAL_ATTEMPTS: int = 12
+
 # ---------------------------------------------------------------------------
 # Default emitter singleton
 # ---------------------------------------------------------------------------
-# Set via ``configure_default_emitter()`` during app startup so all
-# ``outbox_handler`` calls use local ASGI delivery for co-located actors.
-# Falls back to ``DemoHttpDeliveryAdapter`` (HTTP-only) when not configured.
+# Set via ``configure_default_emitter()`` during app startup so the
+# HttpDeliveryAdapter is the module-level default for all outbox drains.
+# Falls back to a fresh ``HttpDeliveryAdapter`` when not configured.
 _default_emitter: ActivityEmitter | None = None
 
 
 def configure_default_emitter(emitter: ActivityEmitter) -> None:
     """Set the default ``ActivityEmitter`` for ``outbox_handler``.
 
-    Called once during app lifespan to install the ``ASGIEmitter`` so
-    co-located actors (e.g. Case Actor) receive messages through the
-    normal inbox pipeline rather than failing silently on HTTP delivery.
+    Called once during app lifespan to install the ``HttpDeliveryAdapter``
+    (ADR-0042) so all inter-actor deliveries use the uniform HTTP path.
     """
     global _default_emitter  # noqa: PLW0603
     _default_emitter = emitter
 
 
 def get_default_emitter() -> ActivityEmitter:
-    """Return the configured default emitter, or ``DemoHttpDeliveryAdapter``."""
-    return _default_emitter or DemoHttpDeliveryAdapter()
+    """Return the configured default emitter, or a fresh ``HttpDeliveryAdapter``."""
+    return _default_emitter or HttpDeliveryAdapter()
 
 
 def _prepare_activity_object_for_delivery(
@@ -205,7 +216,7 @@ async def outbox_handler(
     ``ActivityEmitter`` port (OX-03-001).
 
     Delivery is performed by the emitter (HTTP POST for
-    ``DemoHttpDeliveryAdapter``) and does not block the HTTP response because
+    ``HttpDeliveryAdapter``) and does not block the HTTP response because
     this coroutine is scheduled as a FastAPI BackgroundTask (OX-03-003).
 
     OX-1.3 idempotency is enforced at the receiving inbox endpoint, not
@@ -219,8 +230,8 @@ async def outbox_handler(
             the ``POST /outbox`` case where activities are stored in the
             actor's own DL).
         emitter: The ActivityEmitter port to use for delivery. Defaults to
-            the configured emitter (``ASGIEmitter`` when available, otherwise
-            ``DemoHttpDeliveryAdapter``).
+            the configured emitter (``HttpDeliveryAdapter`` by default,
+            ADR-0042).
     """
     _emitter = cast(
         ActivityEmitter,
@@ -238,8 +249,12 @@ async def outbox_handler(
         logger.warning("Actor %s not found in outbox_handler.", actor_id)
         return
 
-    logger.info("Processing outbox for actor %s", actor_id)
-    err_count = 0
+    logger.debug("Processing outbox for actor %s", actor_id)
+    # dl satisfies OutboxRetryStore structurally (SqliteDataLayer implements
+    # both); cast lets mypy/pyright see the delivery-infrastructure methods
+    # without polluting the core ActorScopedDataLayer port with adapter concerns.
+    _retry: OutboxRetryStore = cast(OutboxRetryStore, dl)
+    activity_err_counts: dict[str, int] = {}
     while dl.outbox_list():
         activity_id = dl.outbox_pop()
         if activity_id is None:
@@ -248,15 +263,57 @@ async def outbox_handler(
         try:
             await handle_outbox_item(actor_id, activity_id, _read_dl, _emitter)
         except Exception as e:
-            logger.error(
-                "Error processing outbox item for actor %s: %s", actor_id, e
+            failed_recipients: list[str] = (
+                list(e.failed_recipients)
+                if isinstance(e, DeliveryError)
+                else []
             )
-            dl.outbox_append(activity_id)
-            err_count += 1
-            if err_count > 3:
-                logger.error(
-                    "Too many errors processing outbox for actor %s,"
-                    " aborting.",
-                    actor_id,
+            total = _retry.get_outbox_attempt_count(activity_id) + 1
+            if total >= MAX_TOTAL_ATTEMPTS:
+                # Budget exhausted — dead-letter the activity (OX-13-002).
+                _retry.dead_letter_append(
+                    activity_id,
+                    reason="max_attempts_exhausted",
+                    total_attempts=total,
+                    failed_recipients=failed_recipients,
                 )
-                break
+                _retry.clear_outbox_attempt_count(activity_id)
+                logger.error(
+                    "Activity '%s' exhausted %d delivery attempts for actor"
+                    " '%s'; moved to dead letter (OX-13-002)."
+                    " Failed recipients: %s",
+                    activity_id,
+                    total,
+                    actor_id,
+                    failed_recipients,
+                )
+                # Do NOT re-queue — activity is permanently dead-lettered.
+            else:
+                _retry.set_outbox_attempt_count(activity_id, total)
+                logger.error(
+                    "Error processing outbox item '%s' (attempt %d): %s",
+                    activity_id,
+                    total,
+                    e,
+                )
+                dl.outbox_append(activity_id)
+                activity_err_counts[activity_id] = (
+                    activity_err_counts.get(activity_id, 0) + 1
+                )
+                per_err = activity_err_counts[activity_id]
+                if per_err > 3:
+                    logger.error(
+                        "Too many errors for outbox item '%s',"
+                        " skipping for this pass (OX-13-006).",
+                        activity_id,
+                    )
+                    # Stop when every remaining item has also hit its cap.
+                    if all(
+                        activity_err_counts.get(i, 0) > 3
+                        for i in dl.outbox_list()
+                    ):
+                        break
+                    continue
+                # Back off before retrying to avoid hammering a busy recipient.
+                backoff = (2 ** (per_err - 1)) + random.uniform(0, 0.5)
+                await asyncio.sleep(backoff)

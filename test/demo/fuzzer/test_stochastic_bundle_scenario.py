@@ -137,16 +137,48 @@ def test_assign_vul_id_stochastic_bundle_end_to_end():
 
 
 # ---------------------------------------------------------------------------
+# Assign CVE-ID domain (full 16-node tree, issue #1817)
+# ---------------------------------------------------------------------------
+
+
+def test_assign_cve_id_stochastic_bundle_end_to_end():
+    """STOCHASTIC bundle wires all 14 call-out points to fuzzer nodes."""
+    from vultron.core.behaviors.report.assign_cve_id_tree import (
+        create_assign_cve_id_tree,
+    )
+    from vultron.demo.fuzzer.bundles.assign_cve_id import (
+        ASSIGN_CVE_ID_STOCHASTIC,
+    )
+    from vultron.demo.fuzzer.report_management.assign_vul_id import (
+        IdAssigned,
+        InScope,
+    )
+
+    case_id = "https://example.org/cases/demo-cve-001"
+    tree = create_assign_cve_id_tree(
+        case_id=case_id, call_out=ASSIGN_CVE_ID_STOCHASTIC
+    )
+    # Root Fallback: first child is IdAssigned (Retriever early-exit)
+    assert isinstance(tree.children[0], IdAssigned)
+    # Second child is _AssignIdIfInScope Sequence; its first child is InScope
+    assert isinstance(tree.children[1].children[0], InScope)
+
+    logger.info(
+        "STOCHASTIC assign-CVE-ID tree:\n%s", py_trees.display.ascii_tree(tree)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Mode comparison: DETERMINISTIC vs STOCHASTIC vs CUSTOM
 # ---------------------------------------------------------------------------
 
 
 def test_three_mode_comparison():
     """Demonstrate all three modes for the deploy-fix domain side-by-side."""
+    from vultron.core.behaviors.call_out.nodes import AlwaysFail
     from vultron.core.behaviors.report.deploy_fix_tree import (
         create_deploy_fix_tree,
     )
-    from vultron.demo.fuzzer.base import AlwaysFail
     from vultron.demo.fuzzer.bundles.deploy_fix import (
         DEPLOY_FIX_DETERMINISTIC,
         DEPLOY_FIX_STOCHASTIC,
@@ -155,22 +187,30 @@ def test_three_mode_comparison():
     from vultron.demo.fuzzer.report_management.deploy_fix import DeployFix
 
     case_id = "https://example.org/cases/demo-001"
+    actor_id = "https://example.org/actors/deployer-001"
+
+    # DeployFix is the 5th child (index 4) of the _DeployFixIfReady Sequence,
+    # which is the 3rd top-level arm (index 2) of the DeployFixBT Fallback.
+    def _deploy_fix_node(tree):
+        return tree.children[2].children[4]
 
     # DETERMINISTIC mode (ceiling/floor defaults)
-    det_tree = create_deploy_fix_tree(case_id=case_id)
-    assert isinstance(det_tree.children[3], AlwaysFail)  # DeployFix p=0.10
+    det_tree = create_deploy_fix_tree(case_id=case_id, actor_id=actor_id)
+    assert isinstance(
+        _deploy_fix_node(det_tree), AlwaysFail
+    )  # DeployFix p=0.10
 
     # Explicit DETERMINISTIC singleton — same result
     det_tree2 = create_deploy_fix_tree(
-        case_id=case_id, call_out=DEPLOY_FIX_DETERMINISTIC
+        case_id=case_id, actor_id=actor_id, call_out=DEPLOY_FIX_DETERMINISTIC
     )
-    assert isinstance(det_tree2.children[3], AlwaysFail)
+    assert isinstance(_deploy_fix_node(det_tree2), AlwaysFail)
 
     # STOCHASTIC mode — probabilistic fuzzer nodes
     sto_tree = create_deploy_fix_tree(
-        case_id=case_id, call_out=DEPLOY_FIX_STOCHASTIC
+        case_id=case_id, actor_id=actor_id, call_out=DEPLOY_FIX_STOCHASTIC
     )
-    assert isinstance(sto_tree.children[3], DeployFix)
+    assert isinstance(_deploy_fix_node(sto_tree), DeployFix)
 
     # CUSTOM mode — per-field override
     def _custom_deploy_fix(name):
@@ -183,7 +223,9 @@ def test_three_mode_comparison():
     custom_bundle = DeployFixCallOutBundle(
         deploy_fix_factory=_custom_deploy_fix  # type: ignore[arg-type]
     )
-    cust_tree = create_deploy_fix_tree(case_id=case_id, call_out=custom_bundle)
-    assert cust_tree.children[3].name == "CustomDeployFix"
+    cust_tree = create_deploy_fix_tree(
+        case_id=case_id, actor_id=actor_id, call_out=custom_bundle
+    )
+    assert _deploy_fix_node(cust_tree).name == "CustomDeployFix"
 
     logger.info("Three-mode comparison complete for deploy-fix domain.")
