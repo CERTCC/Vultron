@@ -39,7 +39,7 @@ Tree structure per artifact::
     PublishArtifactBT (Sequence)
     ├── DraftAdvisoryArtifact (Composer)       — writes draft_advisory_artifact key
     ├── ReviewAdvisoryDraft   (Evaluator)      — writes advisory_review_decision key
-    ├── RevisionArm           (Selector)       — optional revision; graceful no-op
+    ├── RevisionArm           (Selector)       — optional; no-op when no revision needed
     │   ├── Sequence(NeedsRevision, ReviseAdvisoryDraft)
     │   └── Inverter(NeedsRevision)
     └── SubmitAdvisoryArtifact (Actuator)      — submits to advisory platform
@@ -98,25 +98,21 @@ class AdvisoryReviewDecision(BaseModel):
     path), the revision arm is a graceful no-op and the pipeline proceeds
     directly to submission.
 
-    The ``approved`` field is metadata for the ``ReviewAdvisoryDraft``
-    backend to record its decision.  The pipeline does not gate submission on
-    it — a backend that needs to block submission without requesting edits
-    (e.g. a legal hold) MUST return ``Status.FAILURE`` from ``update()`` so
-    the Sequence fails.  Gating submission on ``approved=False`` is tracked
-    as a follow-on design question (see AC-4 in issue #1312).
+    To block submission for any reason (legal hold, compliance failure,
+    editorial rejection) the backend MUST return ``Status.FAILURE`` from
+    ``update()`` — that is the universal BT blocking idiom (BT-18-007).
+    There is no separate approval flag: FAILURE is both necessary and
+    sufficient to stop the pipeline.
 
-    The default instance (``approved=True``, ``needs_revision=False``) encodes
-    the auto-approve path used when no real review agent is available (AC-3).
+    The default instance (``needs_revision=False``) encodes the auto-approve
+    path used when no real review agent is available (AC-3, ADR-0030).
 
     Attributes:
-        approved: Informational flag indicating the Evaluator's approval
-            decision.  Not read by the pipeline tree.
         needs_revision: Whether the draft requires revision before submission.
             When ``True``, the optional ``ReviseAdvisoryDraft`` Composer runs.
         feedback: Human-readable or machine-generated review feedback.
     """
 
-    approved: bool = True
     needs_revision: bool = False
     feedback: str = ""
 
@@ -265,7 +261,7 @@ def create_publish_artifact_tree(
         PublishArtifactBT (Sequence)
         ├── DraftAdvisoryArtifact (Composer)
         ├── ReviewAdvisoryDraft   (Evaluator)
-        ├── RevisionArm           (Selector — optional; no-op when approved)
+        ├── RevisionArm           (Selector — optional; no-op when no revision needed)
         │   ├── Sequence(NeedsRevision, ReviseAdvisoryDraft)
         │   └── Inverter(NeedsRevision)
         └── SubmitAdvisoryArtifact (Actuator)
@@ -320,7 +316,7 @@ def create_publish_artifact_tree(
         ],
     )
     needs_revision_skip = py_trees.decorators.Inverter(
-        name=f"SkipRevisionIfApproved{suffix}",
+        name=f"SkipRevisionArm{suffix}",
         child=_NeedsRevisionGate(name=f"NeedsRevisionSkip{suffix}"),
     )
     revision_arm = py_trees.composites.Selector(
