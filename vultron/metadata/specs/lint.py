@@ -168,10 +168,16 @@ _REPO_TOP_LEVEL_DIRS = frozenset(
 #: Regex for bare spec ID tokens (e.g. ``HTTP-03-005``, ``CBT-05-007``) in
 #: Python source files.  Matched with ``\b`` word boundaries so that version
 #: strings like ``1.2.3`` or ``ADR-0001`` are not mistaken for spec IDs.
+#: The pattern is intentionally specific to Vultron spec ID conventions
+#: (2–8 uppercase letters, two-digit group, three-digit index) and does not
+#: match ISO standard numbers, semantic version strings, or similar patterns
+#: seen in the vultron/ and test/ trees.
 _SPEC_ID_RE = re.compile(r"\b([A-Z]{2,8}-\d{2}-\d{3})\b")
 
 #: Directories (relative to repo root) whose Python files legitimately cite
 #: synthetic fixture IDs and are therefore excluded from the phantom-ID scan.
+#: Use a trailing ``/`` to match the directory exactly and avoid silently
+#: exempting a sibling directory that shares the same prefix.
 _PHANTOM_ID_ALLOWLIST_DIRS = frozenset(["test/metadata/specs"])
 
 #: Directories skipped when resolving a package-relative path suffix — build
@@ -678,7 +684,9 @@ def _check_phantom_spec_id_citations(
             except ValueError:
                 continue
             rel_str = str(rel).replace("\\", "/")
-            if any(rel_str.startswith(d) for d in _PHANTOM_ID_ALLOWLIST_DIRS):
+            if any(
+                rel_str.startswith(d + "/") for d in _PHANTOM_ID_ALLOWLIST_DIRS
+            ):
                 continue
 
             text = py_file.read_text(encoding="utf-8", errors="replace")
