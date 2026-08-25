@@ -124,8 +124,21 @@ cannot be ready to merge no matter what those checks find.
    `UNVERIFIED-CI-FAILING` and set overall verdict to `GAPS-FOUND` — the code
    changes may be correct but CI must be green before the PR can be considered
    ready.
-4. If CI is pending: note it; proceed with spot-checks but mark overall verdict
-   as `PENDING-CI`.
+4. If CI is pending: wait for completion before proceeding:
+
+   ```bash
+   bash .agents/skills/shared/wait-for-ci.sh <number>
+   ```
+
+   | Exit | Meaning | Action |
+   |---|---|---|
+   | `0` | All checks passed | Proceed with CI green |
+   | `1` | One or more checks failed | Mark all findings `UNVERIFIED-CI-FAILING`; set verdict to `GAPS-FOUND` |
+   | `2` | Timed out (10 min) | Note it; proceed with spot-checks; set overall verdict to `PENDING-CI` |
+
+   A `PENDING-CI` verdict here is a fallback for a genuine race condition (CI
+   re-triggered after execute finished, or unusually slow CI). Under normal
+   operation execute already waited for CI, so this path should be rare.
 
 ### Phase 4 — Spot-Verify FAIL Findings
 
@@ -186,11 +199,10 @@ See [REFERENCE.md](REFERENCE.md) § "Verify Comment Format" for the template.
 
 ### Phase 7 — Cleanup
 
-Only runs if overall verdict is `READY-TO-MERGE` or `PENDING-CI` (i.e., no
-gaps that require re-running execute).
+Only runs if overall verdict is `READY-TO-MERGE`.
 
-Do **not** clean up on `CONFLICTS-FOUND` or `PENDING-MERGE-CHECK` — both need
-another execute pass, which needs the triage artifact.
+Do **not** clean up on `PENDING-CI`, `CONFLICTS-FOUND`, or `PENDING-MERGE-CHECK`
+— all three may need a follow-up pass, which needs the artifacts.
 
 1. Delete `.claude/pr-{number}-triage.json`
 2. Delete `.claude/pr-{number}-execute.json`
@@ -198,11 +210,12 @@ another execute pass, which needs the triage artifact.
 
    ```text
    Artifacts cleaned up.
-   PR #N is READY-TO-MERGE / PENDING-CI.
+   PR #N is READY-TO-MERGE.
    ```
 
-If verdict is `GAPS-FOUND`, `CONFLICTS-FOUND`, or `PENDING-MERGE-CHECK`: do NOT
-delete artifacts. The user or a retry of `/pr-execute` will need them.
+If verdict is `PENDING-CI`, `GAPS-FOUND`, `CONFLICTS-FOUND`, or
+`PENDING-MERGE-CHECK`: do NOT delete artifacts. The user or a retry of
+`/pr-verify` or `/pr-execute` will need them.
 
 ## This Skill Does Not Fix
 
