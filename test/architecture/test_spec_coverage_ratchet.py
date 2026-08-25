@@ -22,11 +22,10 @@ are added; never raise it.
 Spec: SR-05-005.
 """
 
-import re
-
 import pytest
 
 from test.architecture import _corpus
+from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 
 # ---------------------------------------------------------------------------
 # Maximum uncovered protocol-kind spec requirements allowed by the ratchet.
@@ -35,8 +34,6 @@ from test.architecture import _corpus
 # never raise it.
 # ---------------------------------------------------------------------------
 MAX_UNCOVERED_PROTOCOL_SPECS = 947
-
-_SPEC_MARKER_RE = re.compile(r'@pytest\.mark\.spec\(["\']([^"\']+)["\']\)')
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
@@ -51,7 +48,7 @@ def _collect_marked_ids() -> frozenset[str]:
     for _, source in _corpus.sources_mentioning(
         "pytest.mark.spec", under=_TEST_ROOT
     ):
-        for m in _SPEC_MARKER_RE.finditer(source):
+        for m in SPEC_MARKER_RE.finditer(source):
             ids.add(m.group(1))
     return frozenset(ids)
 

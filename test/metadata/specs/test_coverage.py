@@ -1,5 +1,7 @@
 """Tests for vultron.metadata.specs.coverage (SR-05-004, SR-05-005)."""
 
+import sys
+
 import pytest
 import yaml
 
@@ -7,6 +9,7 @@ from vultron.metadata.specs.coverage import (
     ProtocolCoverageReport,
     collect_marked_ids,
     compute_protocol_coverage,
+    main,
 )
 from vultron.metadata.specs.registry import load_registry
 
@@ -226,12 +229,73 @@ def test_compute_uncovered_is_sorted(
 @pytest.mark.spec("SR-05-005")
 def test_compute_real_registry_has_nonzero_coverage():
     """Smoke test: real registry + real test suite have at least one covered spec."""
-    from vultron.metadata.specs.registry import _find_repo_root
+    from vultron.metadata.specs.registry import find_repo_root
 
-    repo_root = _find_repo_root()
+    repo_root = find_repo_root()
     registry = load_registry(repo_root / "specs")
     report = compute_protocol_coverage(registry, repo_root / "test")
     assert report.covered_count > 0, (
         "No protocol-kind specs are covered — @pytest.mark.spec markers may "
         "have been stripped from the test suite."
     )
+
+
+# ---------------------------------------------------------------------------
+# main() CLI entry point
+# ---------------------------------------------------------------------------
+
+
+def test_main_prints_coverage_summary(
+    spec_dir_with_protocol, test_dir_with_markers, monkeypatch, capsys
+):
+    """main() prints the coverage summary line for explicit spec_dir + test_dir."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "spec-coverage",
+            str(spec_dir_with_protocol),
+            str(test_dir_with_markers),
+        ],
+    )
+    main()
+    out = capsys.readouterr().out
+    assert "Protocol-kind spec coverage:" in out
+    assert "/2" in out  # 2 protocol specs total
+
+
+def test_main_lists_uncovered_ids(
+    spec_dir_with_protocol, test_dir_with_markers, monkeypatch, capsys
+):
+    """main() lists uncovered IDs when coverage is partial."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "spec-coverage",
+            str(spec_dir_with_protocol),
+            str(test_dir_with_markers),
+        ],
+    )
+    main()
+    out = capsys.readouterr().out
+    assert "CVG-01-002" in out  # the uncovered ID
+
+
+def test_main_no_uncovered_section_when_fully_covered(
+    spec_dir_with_protocol, test_dir_full_coverage, monkeypatch, capsys
+):
+    """main() omits the uncovered section when all specs are covered."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "spec-coverage",
+            str(spec_dir_with_protocol),
+            str(test_dir_full_coverage),
+        ],
+    )
+    main()
+    out = capsys.readouterr().out
+    assert "Protocol-kind spec coverage:" in out
+    assert "Uncovered" not in out

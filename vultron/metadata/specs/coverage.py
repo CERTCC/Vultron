@@ -31,12 +31,12 @@ from pathlib import Path
 
 from vultron.metadata.specs.registry import (
     SpecRegistry,
-    _find_repo_root,
+    find_repo_root,
     load_registry,
 )
 from vultron.metadata.specs.schema import SpecKind
 
-_SPEC_MARKER_RE = re.compile(r'@pytest\.mark\.spec\(["\']([^"\']+)["\']\)')
+SPEC_MARKER_RE = re.compile(r'@pytest\.mark\.spec\(["\']([^"\']+)["\']\)')
 
 
 @dataclass
@@ -75,7 +75,7 @@ def collect_marked_ids(test_root: Path) -> frozenset[str]:
             source = py_file.read_text(encoding="utf-8")
         except OSError:
             continue
-        for m in _SPEC_MARKER_RE.finditer(source):
+        for m in SPEC_MARKER_RE.finditer(source):
             ids.add(m.group(1))
     return frozenset(ids)
 
@@ -138,7 +138,7 @@ def main() -> None:
     if args.test_dir:
         test_root = Path(args.test_dir)
     else:
-        test_root = _find_repo_root() / "test"
+        test_root = find_repo_root() / "test"
 
     report = compute_protocol_coverage(registry, test_root)
     pct = report.covered_pct
