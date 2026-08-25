@@ -33,7 +33,7 @@ def _load_workflow(path: Path) -> dict[str, Any]:
 def _is_qualifying(wf_data: dict[str, Any]) -> bool:
     """Return True when the workflow triggers on push-to-main or schedule."""
     # PyYAML 1.1 parses the bare `on:` key as Python True, not the string "on".
-    on = wf_data.get(True, wf_data.get("on", {}))
+    on = wf_data.get(True, wf_data.get("on", {}))  # type: ignore[call-overload]
     if not isinstance(on, dict):
         return False
     if "schedule" in on:
