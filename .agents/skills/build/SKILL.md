@@ -152,6 +152,39 @@ on what "done" means — loaded by `orient-agent` in Phase 1.
 3. Add or update tests for every new or changed behavior. A behavior with no
    test is not done.
 4. Reuse existing helpers and keep the implementation DRY.
+
+   **If this task creates or modifies a BT node (required — BTC-01-001,
+   BTND-07-005):**
+
+   a. **Node inventory**: grep `vultron/core/behaviors/` for existing node
+      classes whose protocol state, domain, or semantic action overlaps with
+      what you are about to implement. Search for the target state value, the
+      action name, and the affected domain (e.g. `"RM.CLOSED"`,
+      `"EM.EXITED"`, `"active_embargo = None"`, `"add_participant_status"`).
+      If a matching node exists, compose or delegate from it — do not
+      re-implement.
+
+   b. **Base-class check (BTND-07-009, BTND-07-010)**: for any emit, send,
+      or state-transition node, check `vultron/core/behaviors/` for an
+      existing base class whose `update()` frame covers the same
+      guard+emit+outbox or guard+transition+log pattern. Consult the domain
+      base-class table in
+      [`vultron/core/behaviors/AGENTS.md`](../../vultron/core/behaviors/AGENTS.md).
+      If a matching base exists, subclass it. If none exists for your domain,
+      create it first, then write the concrete node.
+
+   c. **Sibling-domain scan**: check peer trees in sibling modules for the
+      same trigger condition appearing more than once. A shared trigger (e.g.
+      `IsRemoveEmbargoEvent` appearing in two trees) signals a shared behavior
+      need that should be a single composed subtree, not two parallel
+      implementations.
+
+   d. **AC-1 compliance gate**: any node that reads EM/RM/CS state MUST do
+      so through the appropriate `Read*StateNode`. Any node that writes
+      EM/RM/CS state MUST do so through `Write*StateNode`. Inline reads
+      (e.g. `case.current_status.em.state`) and inline writes are AC-1
+      violations regardless of context and must be caught before review.
+
 5. Sub-agents may help, but main-agent validation is mandatory.
 6. **Pattern-change checklist** — run this before opening the PR:
    - If this PR retires a method or establishes a new pattern, grep

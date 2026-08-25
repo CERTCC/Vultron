@@ -102,6 +102,18 @@ text. Do not grep blindly when `graphify query` will orient you first.
 If no graph exists, fall back to searching `vultron/` and `test/` directly.
 Do not assert missing functionality without evidence from code search.
 
+**BT integration focus hint — pre-coding gate (BTC-01-001, BTND-07-005):**
+When the task creates or modifies a BT node, the codebase scan is a
+**blocking pre-coding step**, not background reading. Before reading the
+target file, enumerate `vultron/core/behaviors/<domain>/nodes/` for classes
+whose names or docstrings overlap with the feature you are about to
+implement. The `notes/bt-composability.md` decision table row "Simulator
+lookup mandatory? → Yes — MUST check before implementing" means an active
+check is required: find the simulator counterpart in `vultron/bt/`, confirm
+the current behavior, and verify that no existing core-behaviors node already
+implements the same semantics before writing new code. Reading the note
+without doing the inventory does not satisfy BTC-01-001.
+
 ## Notes
 
 - Focus hints come from the calling skill after it has selected and read
