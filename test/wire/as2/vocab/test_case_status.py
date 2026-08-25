@@ -27,6 +27,7 @@ from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
@@ -114,6 +115,17 @@ class TestFromCorePreservesPublished(unittest.TestCase):
         )
         wire = as_ParticipantStatus.from_core(core)
         self.assertEqual(self._FIXED_TIME, wire.published)
+
+    def test_as_participant_status_from_core_preserves_cvd_role(self):
+        """model_dump() produces cvd_role (snake_case); verify it round-trips."""
+        expected_roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        core = CoreParticipantStatus(
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            cvd_role=expected_roles,
+        )
+        wire = as_ParticipantStatus.from_core(core)
+        self.assertEqual(expected_roles, wire.cvd_role)
 
 
 if __name__ == "__main__":
