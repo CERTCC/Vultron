@@ -409,6 +409,7 @@ class TestEmitCloseCaseNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("CM-23-001")
     def test_happy_path_emits_leave_and_records_outbox(self, populated_dl):
         """With factory + case_manager_id on blackboard → queues Leave, SUCCESS."""
         activity_id = "https://example.org/activities/leave-01"

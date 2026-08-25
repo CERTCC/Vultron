@@ -102,6 +102,7 @@ class _FakeAcceptActivity:
         (TRANSFEREE_ID, False),
     ],
 )
+@pytest.mark.spec("CM-21-007")
 def test_accept_ownership_transfer_commit_is_role_gated(
     bt_scenario: BTTestScenario,
     actor_id: str,
@@ -135,6 +136,7 @@ def test_accept_ownership_transfer_commit_is_role_gated(
         mock_commit.assert_not_called()
 
 
+@pytest.mark.spec("CM-21-007")
 def test_accept_ownership_transfer_no_double_commit(
     bt_scenario: BTTestScenario,
 ) -> None:

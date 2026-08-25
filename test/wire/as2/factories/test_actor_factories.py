@@ -61,6 +61,7 @@ def sample_recommendation(sample_actor) -> as_Offer:
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-04-001")
 def test_recommend_actor_returns_offer(sample_actor):
     result = recommend_actor_activity(
         recommended=sample_actor, actor=_ACTOR_URI
@@ -97,6 +98,7 @@ def test_recommend_actor_invalid_raises():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-04-002")
 def test_accept_actor_recommendation_returns_accept(sample_recommendation):
     result = accept_actor_recommendation_activity(
         offer=sample_recommendation, actor=_ACTOR_URI
@@ -135,6 +137,7 @@ def test_accept_actor_recommendation_plain_offer_raises(sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-04-003")
 def test_reject_actor_recommendation_returns_reject(sample_recommendation):
     result = reject_actor_recommendation_activity(
         offer=sample_recommendation, actor=_ACTOR_URI

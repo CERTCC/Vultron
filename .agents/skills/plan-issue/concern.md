@@ -1,17 +1,41 @@
 # Plan Issue — Concern path
 
-## Grill-Me Interview (additional questions beyond shared base)
+## Grill-Me Interview
 
-After resolving the shared base questions (scope, AC clusters, ADR
-determination), also cover:
+**Opening brief** — Before asking anything, synthesize what Phase 3
+research reveals about this concern. Present:
 
-1. **Root cause** — What is actually broken, risky, or missing?
-2. **Impact** — What fails or degrades if left unaddressed?
-3. **Options** — 2–3 ways to address this concern.
-4. **Recommended approach** — Which option and why.
-5. **Spec/notes gaps** — Does this concern reveal missing requirements or
-   design decisions? Which file(s) should be added or changed?
-6. **AGENTS.md gap** — Is there a recurring implementation pitfall to capture?
+- What the issue says
+- Whether the concern still applies as written, has narrowed/shifted, or
+  appears to have already been addressed by subsequent work
+- Your read on what is actually broken, risky, or missing right now
+- 2–3 plausible directions for addressing (or recharacterizing) it
+
+**"Nothing there" path** — If the concern appears stale or already
+resolved, say so explicitly rather than running the full ceremony: "I'm
+not finding an actionable problem here because [reason]. However, I
+noticed [X] nearby that could be recharacterized as [narrower/different
+concern]." Offer: (a) close as resolved, (b) recharacterize and continue,
+(c) override and proceed anyway. Confirm before abandoning work.
+
+**Conversation** — Walk through the concern bottom-up. Ask clarifying
+questions as understanding builds. The following topics should emerge
+naturally from the discussion — do not ask them as sequential structured
+questions:
+
+- The actual root cause and what is broken, risky, or missing
+- Impact if left unaddressed
+- Options to address it and which is recommended
+- Whether this reveals missing specs, notes, or design decisions
+- Whether a recurring agent pitfall belongs in `AGENTS.md`
+- Scope, acceptance criteria, and ADR applicability
+
+Signal the transition with "I think we're almost there — here's what I
+have so far. Got more?" rather than declaring done unilaterally.
+
+**Confirm conclusions** — After the conversation closes, propose the full
+plan: what to implement, which docs to update, whether an ADR is warranted.
+These are proposals to confirm, not new questions.
 
 ## Docs Output
 

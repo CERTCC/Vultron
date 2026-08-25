@@ -3,6 +3,8 @@
 from datetime import datetime, timezone
 from typing import Any, cast
 
+import pytest
+
 from vultron.core.models.events import MessageSemantics
 from vultron.wire.as2.extractor import (
     ActivityPattern,
@@ -14,6 +16,8 @@ from vultron.semantic_registry import (
 )
 
 
+@pytest.mark.spec("SE-02-003")
+@pytest.mark.spec("VAM-01-007")
 def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
@@ -31,6 +35,9 @@ def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
     assert result == MessageSemantics.UNKNOWN
 
 
+@pytest.mark.spec("SE-02-001")
+@pytest.mark.spec("SE-02-002")
+@pytest.mark.spec("VAM-02-001")
 def test_find_matching_semantics_returns_correct_semantics_for_create_report():
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
@@ -48,6 +55,7 @@ def test_find_matching_semantics_returns_correct_semantics_for_create_report():
     assert result == MessageSemantics.CREATE_REPORT
 
 
+@pytest.mark.spec("SE-03-001")
 def test_all_message_semantics_except_unknown_have_patterns():
     _no_pattern_sentinels = {
         MessageSemantics.UNKNOWN,
@@ -61,6 +69,7 @@ def test_all_message_semantics_except_unknown_have_patterns():
     assert not missing, f"Missing patterns for: {missing}"
 
 
+@pytest.mark.spec("SE-01-001")
 def test_activity_pattern_match_returns_false_for_wrong_activity_type():
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
@@ -81,6 +90,8 @@ def test_activity_pattern_match_returns_false_for_wrong_activity_type():
 # --- wire-to-domain round-trip tests for new fields ---
 
 
+@pytest.mark.spec("VAM-02-001")
+@pytest.mark.spec("SE-01-002")
 def test_extract_intent_report_pass_through_fields():
     """New VultronReport fields (summary, url, media_type, published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -114,6 +125,7 @@ def test_extract_intent_report_pass_through_fields():
     assert r.updated == now
 
 
+@pytest.mark.spec("VAM-03-001")
 def test_extract_intent_case_pass_through_fields():
     """New VultronCase fields (published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -139,6 +151,7 @@ def test_extract_intent_case_pass_through_fields():
     assert c.updated == now
 
 
+@pytest.mark.spec("VAM-05-001")
 def test_extract_intent_embargo_pass_through_fields():
     """New VultronEmbargoEvent fields (published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -166,6 +179,7 @@ def test_extract_intent_embargo_pass_through_fields():
     assert e.updated == now
 
 
+@pytest.mark.spec("VAM-07-001")
 def test_extract_intent_note_pass_through_fields():
     """New VultronNote fields (summary, url) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -190,6 +204,7 @@ def test_extract_intent_note_pass_through_fields():
     assert n.url == "https://example.org/notes/1"
 
 
+@pytest.mark.spec("SE-01-002")
 def test_extract_intent_activity_origin_field():
     """New VultronActivity.origin field is populated from the wire activity."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -211,6 +226,7 @@ def test_extract_intent_activity_origin_field():
     assert event.activity.origin == "https://example.org/cases/original"
 
 
+@pytest.mark.spec("VAM-06-001")
 def test_extract_intent_participant_case_roles():
     """VultronParticipant.case_roles is populated from the wire as_CaseParticipant."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -239,6 +255,7 @@ def test_extract_intent_participant_case_roles():
     assert CVDRole.VENDOR in p.case_roles
 
 
+@pytest.mark.spec("VAM-08-001")
 def test_extract_intent_case_status_name():
     """as_CaseStatus.name is populated from the wire as_CaseStatus."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -260,6 +277,7 @@ def test_extract_intent_case_status_name():
     assert s.name == cs.name
 
 
+@pytest.mark.spec("VAM-08-003")
 def test_extract_intent_participant_status_vfd_state():
     """as_ParticipantStatus.vfd_state is populated from the wire as_ParticipantStatus."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (

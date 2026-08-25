@@ -84,6 +84,7 @@ def test_write_roles_node_defaults():
     assert node.case_id == CASE_ID
 
 
+@pytest.mark.spec("BT-14-002")
 def test_write_vendor_roles_writes_blackboard():
     """WriteRolesNode writes suggested_roles_{id_segment} on tick."""
     node = _WriteRolesNode(
@@ -99,6 +100,7 @@ def test_write_vendor_roles_writes_blackboard():
     assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.VENDOR]
 
 
+@pytest.mark.spec("BT-14-002")
 def test_write_coordinator_roles_writes_blackboard():
     node = _WriteRolesNode(
         roles=[CVDRole.COORDINATOR],
@@ -111,6 +113,7 @@ def test_write_coordinator_roles_writes_blackboard():
     assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.COORDINATOR]
 
 
+@pytest.mark.spec("BT-14-002")
 def test_write_other_roles_writes_blackboard():
     node = _WriteRolesNode(
         roles=[CVDRole.OBSERVER],
@@ -305,6 +308,7 @@ def test_sub_loop_factories_wired(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("BT-14-002")
 @pytest.mark.parametrize(
     "loop_name,write_node_name,expected_role",
     [
@@ -326,6 +330,7 @@ def test_write_roles_node_present_in_sub_loop(
     assert write_node.roles == [expected_role]
 
 
+@pytest.mark.spec("BT-14-002")
 def test_vendor_write_roles_node_precedes_trigger():
     """AC-2: WriteVendorRoles is an earlier sibling of SuggestVendor in DoVendorSubLoop."""
     tree = create_report_to_others_tree(case_id=CASE_ID)
@@ -337,6 +342,7 @@ def test_vendor_write_roles_node_precedes_trigger():
     assert write_idx < suggest_idx
 
 
+@pytest.mark.spec("BT-14-002")
 def test_coordinator_write_roles_node_precedes_trigger():
     """AC-2: WriteCoordinatorRoles is an earlier sibling of SuggestCoordinator."""
     tree = create_report_to_others_tree(case_id=CASE_ID)
@@ -348,6 +354,7 @@ def test_coordinator_write_roles_node_precedes_trigger():
     assert write_idx < suggest_idx
 
 
+@pytest.mark.spec("BT-14-002")
 def test_other_write_roles_node_precedes_trigger():
     """AC-2: WriteOtherRoles is an earlier sibling of SuggestOther."""
     tree = create_report_to_others_tree(case_id=CASE_ID)

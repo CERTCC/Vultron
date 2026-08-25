@@ -88,6 +88,7 @@ def _offer_id():
     return "https://example.org/activities/offer-BUG-26040902"
 
 
+@pytest.mark.spec("CM-12-001")
 def test_receive_report_case_bt_succeeds_without_conftest_imports(
     _fresh_datalayer,
     _actor_id,

@@ -323,6 +323,7 @@ class TestCaseProposalRoundTrip:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CP-07-003")
 class TestCaseProposalDemo:
     """AC-4: demo layer exercises the CaseProposal round-trip.
 
