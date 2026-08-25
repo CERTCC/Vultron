@@ -21,6 +21,11 @@ groups:
     verification: Integration tests in `test/demo/` confirm that response activities produced by handlers are valid AS2
       objects, and unit tests in `test/wire/as2/vocab/test_actvitities/test_activities.py` confirm they inherit from the
       AS2 base hierarchy.
+    stories:
+    - story_2022_017
+    - story_2022_039
+    - story_2022_058
+    - story_2022_060
 - id: RF-02
   title: Accept Response
   specs:
@@ -33,6 +38,14 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
+    stories:
+    - story_2022_016
+    - story_2022_047
+    - story_2022_048
+    - story_2022_050
+    - story_2022_051
+    - story_2022_054
+    - story_2022_059
   - id: RF-02-002
     priority: MUST
     kind: protocol
@@ -41,6 +54,8 @@ groups:
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       constructing an `Accept` response without an `object` field raises a Pydantic validation error at construction
       time.
+    lint_suppress:
+    - missing_story_reference
   - id: RF-02-003
     priority: MUST
     kind: protocol
@@ -49,6 +64,8 @@ groups:
       of the Accept response
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `Accept` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    lint_suppress:
+    - missing_story_reference
   - id: RF-02-004
     priority: MUST
     kind: protocol
@@ -60,6 +77,8 @@ groups:
       bare string ID — bare string IDs are rejected at construction time
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       passing a bare string ID as the `object` of an `Accept` activity raises a validation error at construction time.
+    lint_suppress:
+    - missing_story_reference
   - id: RF-02-005
     priority: MUST
     kind: protocol
@@ -73,6 +92,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RF-02-002
+    lint_suppress:
+    - missing_story_reference
 - id: RF-03
   title: Reject Response
   specs:
@@ -85,6 +106,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
+    stories:
+    - story_2022_048
+    - story_2022_054
   - id: RF-03-002
     priority: SHOULD
     kind: protocol
@@ -97,6 +121,8 @@ groups:
       of the Reject response
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `Reject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    lint_suppress:
+    - missing_story_reference
   - id: RF-03-004
     priority: MUST
     kind: protocol
@@ -107,6 +133,8 @@ groups:
       are rejected at construction time
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       passing a bare string ID as the `object` of a `Reject` activity raises a validation error at construction time.
+    lint_suppress:
+    - missing_story_reference
 - id: RF-04
   title: TentativeReject Response
   specs:
@@ -119,6 +147,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
+    stories:
+    - story_2022_014
   - id: RF-04-002
     priority: SHOULD
     kind: protocol
@@ -131,6 +161,8 @@ groups:
       `object` field of the TentativeReject response
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `TentativeReject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    lint_suppress:
+    - missing_story_reference
   - id: RF-04-004
     priority: MUST
     kind: protocol
@@ -142,6 +174,8 @@ groups:
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       passing a bare string ID as the `object` of a `TentativeReject` activity raises a validation error at construction
       time.
+    lint_suppress:
+    - missing_story_reference
 - id: RF-05
   title: Error Response
   specs:
@@ -165,6 +199,9 @@ groups:
     statement: Response activities MUST be delivered to the relevant actors' inboxes
     verification: Integration tests in `test/demo/` confirm that response activities (Accept, Reject, etc.) appear in the
       intended recipients' inboxes after processing the original inbound activity.
+    stories:
+    - story_2022_039
+    - story_2022_040
   - id: RF-06-002
     priority: MUST
     kind: protocol
@@ -176,6 +213,8 @@ groups:
       their model of the case state
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that response activities are
       addressed to and delivered at the initiating actor's inbox, not the inbox that received the original activity.
+    stories:
+    - story_2022_040
 - id: RF-07
   title: Response Timing
   specs:
@@ -200,6 +239,9 @@ groups:
       spec_id: VP-11-004
     - rel_type: implements
       spec_id: VP-11-005
+    stories:
+    - story_2022_016
+    - story_2022_059
   - id: RF-08-002
     priority: MUST
     kind: protocol
@@ -219,6 +261,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RF-08-001
+    lint_suppress:
+    - missing_story_reference
 - id: RF-09
   title: Idempotent Responses
   specs:
@@ -232,3 +276,5 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ID-02-001
+    lint_suppress:
+    - missing_story_reference

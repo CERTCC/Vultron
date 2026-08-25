@@ -84,6 +84,8 @@ groups:
     statement: The `MessageSemantics` enum (`SemanticIntent`) MUST be defined in the domain layer, not in the wire layer
     verification: Inspection of `vultron/core/` confirms `MessageSemantics` (or `SemanticIntent`) is defined there,
       and no definition of this enum exists under `vultron/wire/`.
+    lint_suppress:
+    - missing_story_reference
 - id: ARCH-03
   title: Semantic Extractor
   specs:
@@ -94,6 +96,8 @@ groups:
     rationale: Isolates the single seam where wire format changes are absorbed
     verification: Inspection of `vultron/wire/` confirms that AS2-to-domain vocabulary mapping logic appears only in
       the semantic extractor module and in no other location.
+    lint_suppress:
+    - missing_story_reference
 - id: ARCH-04
   title: Driven Adapter Injection
   specs:

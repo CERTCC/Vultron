@@ -21,6 +21,13 @@ groups:
     statement: >-
       An Actor profile MAY include a `embargo_policy` field containing a structured embargo
       policy record
+    stories:
+    - story_2022_001
+    - story_2022_003
+    - story_2022_009
+    - story_2022_011
+    - story_2022_076
+    - story_2022_095
   - id: EP-01-002
     priority: MUST
     kind: protocol
@@ -39,6 +46,12 @@ groups:
     - rel_type: depends_on
       spec_id: DUR-01-001
       note: ISO 8601 duration format
+    stories:
+    - story_2022_004
+    - story_2022_010
+    - story_2022_021
+    - story_2022_022
+    - story_2022_072
   - id: EP-01-003
     priority: SHOULD
     kind: protocol
@@ -54,6 +67,10 @@ groups:
     - rel_type: depends_on
       spec_id: DUR-01-001
       note: ISO 8601 duration format
+    stories:
+    - story_2022_004
+    - story_2022_021
+    - story_2022_073
   - id: EP-01-004
     priority: MUST
     kind: protocol
@@ -64,6 +81,8 @@ groups:
       A unit test confirms that an `EmbargoPolicy` instance round-trips through
       Pydantic serialization and that the DataLayer `save()` and `get()` operations
       accept and return the model without data loss.
+    stories:
+    - story_2022_004
   - id: EP-01-005
     priority: MUST
     kind: protocol
@@ -74,6 +93,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OID-01-001
+    stories:
+    - story_2022_034
+    - story_2022_035
   - id: EP-01-006
     priority: SHOULD
     kind: protocol
@@ -108,6 +130,9 @@ groups:
       Each Actor SHOULD expose its embargo policy at `GET /actors/{actor_id}/embargo-policy`
     scope:
     - production
+    stories:
+    - story_2022_003
+    - story_2022_009
   - id: EP-02-002
     priority: MUST
     kind: protocol
@@ -120,6 +145,10 @@ groups:
       `vultron:embargoPolicy` key whose value is the embargo-policy endpoint URL.
     scope:
     - production
+    stories:
+    - story_2022_003
+    - story_2022_004
+    - story_2022_009
 - id: EP-03
   title: Policy Compatibility Evaluation
   specs:
@@ -139,6 +168,8 @@ groups:
       spec_id: VP-07-006
     - rel_type: implements
       spec_id: VP-07-007
+    stories:
+    - story_2022_005
   - id: EP-03-002
     priority: MUST
     kind: protocol
@@ -162,6 +193,8 @@ groups:
       spec_id: DUR-01-001
     - rel_type: depends_on
       spec_id: DUR-04-001
+    stories:
+    - story_2022_005
 - id: EP-04
   title: Default Embargo Semantics
   specs:
@@ -180,6 +213,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DUR-07-003
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EP-04-002
     priority: MUST_NOT
     kind: protocol
@@ -206,6 +242,9 @@ groups:
       A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
       `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
       when both parties carry a proposal at case creation.
+    stories:
+    - story_2022_014
+    - story_2022_079
   - id: EP-04-004
     priority: MUST
     kind: protocol
@@ -216,6 +255,8 @@ groups:
       Inspection of `InitializeDefaultEmbargoNode` in `vultron/core/behaviors/` confirms
       that only the no-sender-proposal code path is implemented; no sender-proposal
       branch exists.
+    lint_suppress:
+    - missing_story_reference
 - id: EP-05
   title: Counter-Revision PEC Cascade Rule
   specs:
@@ -237,6 +278,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-05-002
     priority: MUST_NOT
     kind: protocol
@@ -300,6 +344,9 @@ groups:
       spec_id: CM-28-002
     adr:
     - ADR-0065
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-07-002
     priority: MUST
     kind: protocol
@@ -318,6 +365,9 @@ groups:
       minimum window.
     adr:
     - ADR-0065
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-07-003
     priority: MUST
     kind: protocol
@@ -344,6 +394,9 @@ groups:
       spec_id: EP-07-002
     adr:
     - ADR-0065
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-07-004
     priority: MUST_NOT
     kind: protocol
@@ -377,3 +430,5 @@ groups:
       spec_id: EP-07-003
     adr:
     - ADR-0065
+    stories:
+    - story_2022_074

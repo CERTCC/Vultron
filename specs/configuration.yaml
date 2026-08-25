@@ -230,6 +230,10 @@ groups:
       representing the CVD roles the local actor assumes when creating or owning a `VulnerabilityCase`.'
     verification: 'Inspection of `ActorConfig` confirms a `default_case_roles: list[CVDRoles]` field is declared with
       `Field(default_factory=list)` or an equivalent empty-list default.'
+    stories:
+    - story_2022_006
+    - story_2022_012
+    - story_2022_046
   - id: CFG-07-003
     priority: SHOULD
     kind: project

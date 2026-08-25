@@ -55,6 +55,8 @@ groups:
       with the updated state without mutating the original object.
     adr:
     - ADR-0036
+    stories:
+    - story_2022_088
   - id: SDO-02-002
     priority: MUST
     kind: protocol
@@ -68,6 +70,8 @@ groups:
       spec_id: ARCH-15-001
     adr:
     - ADR-0032
+    stories:
+    - story_2022_088
   - id: SDO-02-003
     priority: MUST_NOT
     kind: protocol
@@ -96,6 +100,8 @@ groups:
       note: Extends the transition() contract to direct-construction call sites
     - rel_type: refines
       spec_id: BTND-10-001
+    stories:
+    - story_2022_088
   - id: SDO-02-005
     priority: MUST
     kind: project
@@ -120,6 +126,9 @@ groups:
       PxaDimension` fields with no residual flat `em_state` or `pxa_state` fields.'
     adr:
     - ADR-0036
+    stories:
+    - story_2022_088
+    - story_2022_062
   - id: SDO-03-002
     priority: MUST
     kind: protocol
@@ -130,6 +139,9 @@ groups:
       VfdDimension`, and `consent: PecDimension | None` with no residual flat enum fields.'
     adr:
     - ADR-0036
+    stories:
+    - story_2022_088
+    - story_2022_107
   - id: SDO-03-003
     priority: MUST_NOT
     kind: protocol
@@ -188,6 +200,9 @@ groups:
       correctly project the new dimension-object field shape without accessing flat enum fields.
     adr:
     - ADR-0036
+    stories:
+    - story_2022_062
+    - story_2022_088
   - id: SDO-04-002
     priority: MUST
     kind: project
