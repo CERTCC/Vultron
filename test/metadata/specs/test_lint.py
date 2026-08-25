@@ -205,6 +205,63 @@ def test_lint_suppress_missing_tags(tmp_path, capsys):
     assert "no tags" not in captured.out
 
 
+def test_lint_must_without_verification_warns(tmp_path, capsys):
+    """MUST requirement with no verification: field emits advisory warning."""
+    data = _minimal_spec(priority="MUST")
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[WARN]" in captured.out
+    assert "must_without_verification" in captured.out
+
+
+def test_lint_must_with_verification_no_warn(tmp_path, capsys):
+    """MUST requirement that has a verification: field does not warn."""
+    data = _minimal_spec(
+        priority="MUST",
+        extra={"verification": "Run the unit tests; assert no hard errors."},
+    )
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
+def test_lint_should_without_verification_no_warn(tmp_path, capsys):
+    """SHOULD requirement with no verification: field does not trigger the MUST warning."""
+    data = _minimal_spec(priority="SHOULD")
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
+def test_lint_suppress_must_without_verification(tmp_path, capsys):
+    """lint_suppress: [must_without_verification] silences the advisory."""
+    data = _minimal_spec(
+        priority="MUST",
+        extra={"lint_suppress": ["must_without_verification"]},
+    )
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
+def test_lint_must_not_without_verification_no_warn(tmp_path, capsys):
+    """MUST_NOT requirement does not trigger the MUST verification warning."""
+    data = _minimal_spec(priority="MUST_NOT")
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "must_without_verification" not in captured.out
+
+
 # ---------------------------------------------------------------------------
 # Spec ID vs group prefix check (MS-04-004)
 # ---------------------------------------------------------------------------

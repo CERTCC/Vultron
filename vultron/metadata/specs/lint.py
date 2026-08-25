@@ -25,6 +25,7 @@ from vultron.metadata.specs.schema import (
     AdrStatus,
     BehavioralSpec,
     LintWarningCode,
+    RFC2119Priority,
     StatementSpec,
     TriggerType,
 )
@@ -551,6 +552,57 @@ def _check_scenario_start_groups(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
+    """Collect per-spec advisory warnings (SR-04-002).
+
+    Covers: testable_without_steps, rationale_too_long, missing_tags, and
+    must_without_verification.  All are suppressible via ``lint_suppress``.
+    """
+    warnings: list[str] = []
+    for spec_id, spec in registry.all_specs.items():
+        suppressed = set(spec.lint_suppress or [])
+
+        is_behavioral = isinstance(spec, BehavioralSpec) and bool(spec.steps)
+
+        if (
+            not spec.testable
+            and not is_behavioral
+            and LintWarningCode.TESTABLE_WITHOUT_STEPS not in suppressed
+        ):
+            warnings.append(
+                f"[WARN] {spec_id}: testable=false but no behavioral steps "
+                f"(suppress with lint_suppress: [testable_without_steps])"
+            )
+
+        if (
+            spec.rationale
+            and len(spec.rationale) > _RATIONALE_WARN_CHARS
+            and LintWarningCode.RATIONALE_TOO_LONG not in suppressed
+        ):
+            warnings.append(
+                f"[WARN] {spec_id}: rationale exceeds "
+                f"{_RATIONALE_WARN_CHARS} characters"
+            )
+
+        tags = registry.get_effective_tags(spec_id)
+        if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
+            warnings.append(f"[WARN] {spec_id}: no tags defined")
+
+        if (
+            spec.priority == RFC2119Priority.MUST
+            and not spec.verification
+            and LintWarningCode.MUST_WITHOUT_VERIFICATION not in suppressed
+        ):
+            warnings.append(
+                f"[WARN] {spec_id}: priority is MUST but has no "
+                f"verification: field (MS-05-003); add a verification: "
+                f"criterion, or suppress with "
+                f"lint_suppress: [must_without_verification]"
+            )
+
+    return warnings
+
+
 def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -586,34 +638,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors.extend(_check_scenario_start_groups(registry))
     hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
 
-    for spec_id, spec in registry.all_specs.items():
-        suppressed = set(spec.lint_suppress or [])
-
-        is_behavioral = isinstance(spec, BehavioralSpec) and bool(spec.steps)
-
-        if (
-            not spec.testable
-            and not is_behavioral
-            and LintWarningCode.TESTABLE_WITHOUT_STEPS not in suppressed
-        ):
-            warnings.append(
-                f"[WARN] {spec_id}: testable=false but no behavioral steps "
-                f"(suppress with lint_suppress: [testable_without_steps])"
-            )
-
-        if (
-            spec.rationale
-            and len(spec.rationale) > _RATIONALE_WARN_CHARS
-            and LintWarningCode.RATIONALE_TOO_LONG not in suppressed
-        ):
-            warnings.append(
-                f"[WARN] {spec_id}: rationale exceeds "
-                f"{_RATIONALE_WARN_CHARS} characters"
-            )
-
-        tags = registry.get_effective_tags(spec_id)
-        if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
-            warnings.append(f"[WARN] {spec_id}: no tags defined")
+    warnings.extend(_check_per_spec_advisory_warnings(registry))
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)
