@@ -191,15 +191,14 @@ def _find_equivalent_recorded_entry(
     duplicate canonical entries for the same logical assertion.
     """
     matches: list[CaseLedgerEntry] = [
-        entry
+        obj
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
-        for entry in [obj]
-        if entry.case_id == case_id
-        and entry.disposition == "recorded"
-        and entry.log_object_id == object_id
-        and entry.event_type == event_type
-        and entry.payload_snapshot == payload_snapshot
+        and obj.case_id == case_id
+        and obj.disposition == "recorded"
+        and obj.log_object_id == object_id
+        and obj.event_type == event_type
+        and obj.payload_snapshot == payload_snapshot
     ]
     if not matches:
         return None
