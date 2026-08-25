@@ -55,4 +55,4 @@ substantially complete:
 explicitly out of scope for this concern's resolution.
 
 **Resolved**: 2026-08-25 — implementation tracked in #2577.
-Docs PR: PENDING.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2579>.
