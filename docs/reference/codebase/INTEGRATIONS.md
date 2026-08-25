@@ -42,6 +42,8 @@
 - `vultron/adapters/driven/datalayer_sqlite/`
 - `vultron/adapters/driven/http_delivery.py`
 - `vultron/adapters/driven/prod_http_delivery.py` (stub — not yet implemented)
+- `vultron/adapters/driven/wire_render/as2.py` (new 2026-08: AS2 wire render adapter)
+- `vultron/core/ports/wire_render.py` (new 2026-08: `WireRenderPort` Protocol)
 - `vultron/adapters/driving/fastapi/inbox_handler.py`
 - `vultron/adapters/driving/mcp_server.py`
 - `vultron/adapters/connectors/example/`

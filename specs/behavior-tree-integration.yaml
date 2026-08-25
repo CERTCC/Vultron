@@ -235,6 +235,23 @@ groups:
       source of valid transition sequences. Hand-rolled transition logic for these state dimensions MUST NOT be introduced.
     rationale: Ensures the `transitions` machines remain the normative definition of valid VFD/PXA state progressions as new
       features are added, preventing divergence between the machines and the implementation.
+  - id: BT-12-002
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A high-level BT node that writes a target VFD state SHOULD advance
+      through all required intermediate states automatically when the actor
+      starts below the required entry point. Callers MUST NOT be required to
+      pre-advance through intermediate states before invoking such a node.
+    rationale: >-
+      TransitionCStoFixReady (DevelopFixBT) writes VFd (fix ready). The VFD
+      state machine requires passing through Vfd (vendor aware) first.
+      A vendor who reports a fix ready for a new case has implicitly been
+      vendor-aware since engagement; requiring callers to pre-advance to Vfd
+      is a leaky abstraction. The node checks whether the actor is still at
+      vfd and, if so, writes Vfd first (implicit V event) then VFd. This
+      produces two ParticipantStatus records and two CS INFO log lines when
+      called from the vfd starting state. Source: ISSUE-2478.
 - id: BT-11
   title: Concurrency
   specs:

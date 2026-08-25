@@ -101,6 +101,48 @@ kind — and if it also fails the externally-visible test, it belongs in
 
 ---
 
+### Valid `kind:` Values
+
+The `kind:` field accepts exactly four values:
+
+```text
+protocol  architecture  project  process
+```
+
+`implementation` is **NOT** valid and causes spec-lint to reject the file at
+commit time. The error may look like a YAML syntax error — it is not.
+
+- Use `kind: protocol` for external protocol obligations (what a Vultron
+  participant must do on the wire).
+- Use `kind: architecture` for structural constraints on the system (layering,
+  import rules, module boundaries).
+- Use `kind: project` for internal project conventions that do not affect
+  external protocol behavior.
+- Use `kind: process` for development process rules (testing, documentation,
+  CI).
+
+Check existing entries in the same spec file for context before writing a new
+entry. *Source: ISSUE-2258*
+
+---
+
+### Valid `priority:` Values — Underscores, Not Spaces
+
+The `priority:` field enum uses **underscores**: `MUST_NOT`, `SHOULD_NOT`.
+**Not spaces.** MS-02-002 prose writes "MUST NOT" with a space, but the Pydantic
+validator enum uses underscores. Using `MUST NOT` (space) breaks spec-lint with
+a FATAL registry load error.
+
+Valid values:
+
+```text
+MUST  MUST_NOT  SHOULD  SHOULD_NOT  MAY
+```
+
+<!-- Source: ISSUE-2393 -->
+
+---
+
 ### Valid `rel_type` Values in Spec Relationships
 
 When adding a `relationships:` entry to a spec requirement, `rel_type` MUST be
