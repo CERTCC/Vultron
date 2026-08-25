@@ -539,3 +539,70 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SR-10-001
+- id: SR-11
+  title: Story Traceability
+  specs:
+  - id: SR-11-001
+    priority: MUST
+    kind: project
+    statement: >-
+      `StatementSpec` MUST support an optional `stories` field containing a non-empty
+      list of `StoryIdStr` values (pattern `^story_\d{4}_\d{3}$`), identifying the
+      user stories that motivated the requirement. The field MUST be subject to the
+      `_nonempty_if_present` validator.
+    rationale: >-
+      Bidirectional traceability between requirements and stakeholder user stories is a
+      NASA systems engineering criterion. Without back-references in spec files, tracing
+      "which stakeholder need does this requirement serve?" requires consulting the
+      manually-maintained `docs/reference/user_stories/traceability.md` matrix, which
+      drifts as specs evolve. Embedding story references in the spec files makes the
+      spec the authoritative source and enables automated change-impact analysis.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-11-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Story ID strings used in `stories:` fields MUST conform to the pattern
+      `^story_\d{4}_\d{3}$` (e.g. `story_2022_001`). The `StoryIdStr` type in
+      `vultron/metadata/specs/schema.py` MUST enforce this constraint via Pydantic
+      `StringConstraints`.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-11-001
+    tags:
+    - documentation
+    - tooling
+  - id: SR-11-003
+    priority: MUST
+    kind: process
+    statement: >-
+      The spec linter MUST flag as a hard error any `kind: protocol` spec with
+      `priority: MUST` that has no `stories:` entry. This check MUST be suppressible
+      per-spec via `lint_suppress: [missing_story_reference]`.
+    rationale: >-
+      Protocol-level MUST requirements represent the strongest normative obligations
+      in the spec corpus. Making story coverage a hard-error gate for this tier ensures
+      every binding protocol requirement can be traced back to at least one stakeholder
+      need. Suppressibility preserves an escape hatch for implementation-detail MUSTs
+      with no direct story antecedent.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-11-001
+    tags:
+    - documentation
+    - tooling
+  - id: SR-11-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The spec linter SHOULD emit an advisory warning for any `kind: protocol` spec
+      with `priority: SHOULD` or `priority: MAY` that has no `stories:` entry. This
+      check SHOULD be suppressible per-spec via `lint_suppress: [missing_story_reference]`.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-11-003
+    tags:
+    - documentation
+    - tooling
