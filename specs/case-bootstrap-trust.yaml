@@ -27,6 +27,8 @@ groups:
       spec_id: CM-12-001
     - rel_type: refines
       spec_id: PCR-02-005
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-01-002
     priority: MUST
     kind: protocol
@@ -38,6 +40,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-01-003
     priority: MUST
     kind: protocol
@@ -51,6 +55,8 @@ groups:
       spec_id: CM-02-001
     - rel_type: refines
       spec_id: CM-02-010
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-01-004
     priority: MUST
     kind: protocol
@@ -59,6 +65,8 @@ groups:
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that the original report
       submitter appears as an inline participant in `case_participants` of the bootstrap `Create(VulnerabilityCase)` when
       ongoing case updates are expected from the start.
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-01-005
     priority: MUST
     kind: protocol
@@ -72,6 +80,8 @@ groups:
       spec_id: PCR-05-001
     - rel_type: refines
       spec_id: AKM-02-001
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-01-006
     priority: MUST
     kind: protocol
@@ -83,6 +93,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-01-007
     priority: MUST
     kind: protocol
@@ -101,6 +113,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CBT-01-002
+    lint_suppress:
+    - missing_story_reference
 - id: CBT-02
   title: Post-Bootstrap Update Authority
   specs:
@@ -117,6 +131,8 @@ groups:
       spec_id: PCR-02-001
     - rel_type: refines
       spec_id: PCR-03-001
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-02-002
     priority: MUST_NOT
     kind: protocol
@@ -136,6 +152,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-010
+    lint_suppress:
+    - missing_story_reference
 - id: CBT-03
   title: Out-of-Order Handling and Replay Requests
   specs:
@@ -163,6 +181,8 @@ groups:
       the receiver MUST drop the queued message, log a warning, and require a resend after bootstrap.'
     verification: A unit test confirms that when the pre-bootstrap queue timeout (`AppConfig.pre_bootstrap_queue_timeout_seconds`)
       elapses, the queued message is discarded, a warning is logged, and the activity is not applied to local case state.
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-03-004
     priority: SHOULD
     kind: project
@@ -183,6 +203,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-11-001
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-04-002
     priority: MUST
     kind: protocol
@@ -191,6 +213,8 @@ groups:
     verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the `InviteActorToCase` payload
       includes both the case identifier and the CaseActor that will subsequently send `Announce(VulnerabilityCase)`
       updates.
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-04-003
     priority: MUST
     kind: protocol
@@ -202,6 +226,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-07-007
+    lint_suppress:
+    - missing_story_reference
 - id: CBT-05
   title: Verification
   specs:
@@ -213,6 +239,8 @@ groups:
     verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that an `Announce(VulnerabilityCase)`
       from the CaseActor is accepted by the report submitter only after a valid `Create(VulnerabilityCase)` bootstrap has
       established trust.
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-05-002
     priority: MUST
     kind: protocol
@@ -221,6 +249,8 @@ groups:
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
       `Create(VulnerabilityCase)` is rejected when its sender mismatches the actor that received the report or when it
       does not reference the known submitted report.
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-05-003
     priority: MUST
     kind: protocol
@@ -229,6 +259,8 @@ groups:
     verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that pre-bootstrap CaseActor messages
       remain unapplied, that the pre-bootstrap queue expiry is handled safely, and that expiry triggers a replay request
       to the case creator.
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-05-004
     priority: MUST
     kind: protocol
@@ -237,11 +269,14 @@ groups:
     verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that late joiners establish trust
       through `InviteActorToCase` and subsequently accept `Announce(VulnerabilityCase)` updates without a
       `Create(VulnerabilityCase)` bootstrap.
+    lint_suppress:
+    - missing_story_reference
   - id: CBT-05-005
     priority: MUST
     kind: protocol
     lint_suppress:
     - must_without_verification
+    - missing_story_reference
     statement: >-
       Tests MUST verify that a valid bootstrap `Create(VulnerabilityCase)` causes the
       reporter's participant status record to be stored as an embedded participant in the
@@ -251,6 +286,7 @@ groups:
     kind: protocol
     lint_suppress:
     - must_without_verification
+    - missing_story_reference
     statement: >-
       Tests MUST verify that `AddParticipantStatusBT` executes successfully on the
       reporter's replica after bootstrap, confirming the reporter appears in the
@@ -260,6 +296,7 @@ groups:
     kind: protocol
     lint_suppress:
     - must_without_verification
+    - missing_story_reference
     statement: >-
       Tests MUST verify that the reporter's RM state is advanced from `RM.START` to
       `RM.ACCEPTED` as part of the bootstrap sequence, confirming full case-management

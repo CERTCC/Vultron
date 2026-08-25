@@ -20,12 +20,16 @@ groups:
       work
     verification: Inspection of all handler `execute()` methods confirms they update local state machine records from
       the received `VultronEvent` payload and issue no imperative outbound commands in direct response to receipt.
+    stories:
+    - story_2022_002
   - id: HP-00-002
     priority: MUST
     kind: protocol
     statement: Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by the received activity
     verification: Integration tests in `test/demo/` confirm that each inbound activity type results in the expected
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
+    lint_suppress:
+    - missing_story_reference
 - id: HP-01
   title: Handler Signature
   specs:
@@ -181,6 +185,8 @@ groups:
       only
     verification: Inspect the `SubmitReportReceivedUseCase` (or equivalent Offer handler) to confirm eligibility logic
       branches only on the `to` field; `cc` and `target` fields are not consulted for eligibility determination.
+    lint_suppress:
+    - missing_story_reference
   - id: HP-09-002
     priority: MUST_NOT
     kind: protocol
@@ -204,3 +210,5 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-09-001
+    lint_suppress:
+    - missing_story_reference

@@ -28,6 +28,7 @@ from vultron.metadata.specs.schema import (
     SpecKind,
     SpecTag,
     StatementSpec,
+    StoryIdStr,
     Trigger,
     TriggerType,
 )
@@ -200,6 +201,7 @@ def test_statement_spec_rationale_omitted_allowed():
         "exceptions",
         "relationships",
         "lint_suppress",
+        "stories",
     ],
 )
 def test_empty_list_rejected(field: str) -> None:
@@ -1098,3 +1100,129 @@ def test_statement_spec_adr_field_empty_list_rejected():
             statement="TST-01-001 MUST do the thing",
             adr=[],
         )
+
+
+# ---------------------------------------------------------------------------
+# StoryIdStr pattern (SR-11-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "story_id",
+    ["story_2022_001", "story_2022_042", "story_2022_999", "story_9999_000"],
+)
+def test_story_id_str_valid(story_id):
+    spec = StatementSpec(
+        id="TST-01-001",
+        priority=RFC2119Priority.MUST,
+        kind=SpecKind.PROTOCOL,
+        statement="TST-01-001 MUST do the thing",
+        stories=[story_id],
+    )
+    assert spec.stories == [story_id]
+
+
+@pytest.mark.parametrize(
+    "story_id",
+    [
+        "story_22_001",  # year only 2 digits
+        "story_2022_01",  # seq only 2 digits
+        "story_2022_0001",  # seq 4 digits
+        "STORY_2022_001",  # uppercase prefix
+        "story-2022-001",  # dashes instead of underscores
+        "2022_001",  # missing 'story_' prefix
+        "",  # empty
+    ],
+)
+def test_story_id_str_invalid(story_id):
+    with pytest.raises(ValidationError):
+        StatementSpec(
+            id="TST-01-001",
+            priority=RFC2119Priority.MUST,
+            kind=SpecKind.PROTOCOL,
+            statement="TST-01-001 MUST do the thing",
+            stories=[story_id],
+        )
+
+
+# ---------------------------------------------------------------------------
+# stories: field on StatementSpec (SR-11-001)
+# ---------------------------------------------------------------------------
+
+
+def test_statement_spec_stories_defaults_to_none():
+    spec = StatementSpec(
+        id="TST-01-001",
+        priority=RFC2119Priority.MUST,
+        kind=SpecKind.PROTOCOL,
+        statement="TST-01-001 MUST do the thing",
+    )
+    assert spec.stories is None
+
+
+def test_statement_spec_stories_round_trip():
+    spec = StatementSpec(
+        id="TST-01-001",
+        priority=RFC2119Priority.MUST,
+        kind=SpecKind.PROTOCOL,
+        statement="TST-01-001 MUST do the thing",
+        stories=["story_2022_001", "story_2022_042"],
+    )
+    assert spec.stories == ["story_2022_001", "story_2022_042"]
+
+
+def test_statement_spec_stories_empty_list_rejected():
+    with pytest.raises(ValidationError, match="non-empty"):
+        StatementSpec(
+            id="TST-01-001",
+            priority=RFC2119Priority.MUST,
+            kind=SpecKind.PROTOCOL,
+            statement="TST-01-001 MUST do the thing",
+            stories=[],
+        )
+
+
+def test_statement_spec_stories_none_allowed():
+    spec = StatementSpec(
+        id="TST-01-001",
+        priority=RFC2119Priority.MUST,
+        kind=SpecKind.PROTOCOL,
+        statement="TST-01-001 MUST do the thing",
+        stories=None,
+    )
+    assert spec.stories is None
+
+
+def test_statement_spec_stories_yaml_round_trip(tmp_path):
+    """stories: field round-trips through YAML load_registry."""
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "kind": "protocol",
+                        "statement": "TST-01-001 MUST do the thing",
+                        "stories": ["story_2022_001", "story_2022_042"],
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    spec = registry.get("TST-01-001")
+    assert spec.stories == ["story_2022_001", "story_2022_042"]
+
+
+def test_story_id_str_type_is_exported():
+    """StoryIdStr is importable from schema (SR-11-002)."""
+    assert StoryIdStr is not None

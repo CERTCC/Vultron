@@ -109,11 +109,15 @@ groups:
       actor discovery and federation
     verification: 'Integration tests confirm that `GET /actors/{actor_id}/profile` returns an ActivityStreams actor profile
       with `Content-Type: application/activity+json`.'
+    lint_suppress:
+    - missing_story_reference
   - id: AR-10-002
     priority: MUST
     kind: protocol
     statement: The profile endpoint MUST return HTTP 404 when the actor is not found
     verification: Integration tests confirm that `GET /actors/{unknown_id}/profile` returns HTTP 404.
+    lint_suppress:
+    - missing_story_reference
   - id: AR-10-003
     priority: MUST
     kind: protocol
@@ -121,6 +125,8 @@ groups:
       path parameter
     verification: Integration tests confirm that both a short actor ID (e.g., `vendorco`) and a full actor URI resolve
       to the same actor profile document via `GET /actors/{actor_id}/profile`.
+    lint_suppress:
+    - missing_story_reference
 - id: AR-07
   title: CVD Action Rules API
   specs:
@@ -139,6 +145,8 @@ groups:
       unavailable action, the reason it is disallowed.
     verification: Integration tests confirm that the action rules endpoint returns a JSON object containing the current
       case state, the participant's CVD role, available action identifiers, and per-unavailable-action reason strings.
+    lint_suppress:
+    - missing_story_reference
   - id: AR-07-003
     priority: MUST
     kind: protocol
@@ -154,6 +162,8 @@ groups:
       spec_id: CM-07-002
     - rel_type: depends_on
       spec_id: CM-07-003
+    lint_suppress:
+    - missing_story_reference
 - id: AR-08
   title: CLI Interface
   specs:

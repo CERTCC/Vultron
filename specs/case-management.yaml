@@ -20,12 +20,16 @@ groups:
     statement: Each actor MUST have an isolated protocol state domain
     verification: Integration tests in `test/demo/` confirm that each actor maintains its own
       isolated RM/EM/CS state domain without cross-actor interference.
+    stories:
+    - story_2022_088
   - id: CM-01-002
     priority: MUST
     kind: protocol
     statement: Each actor's RM state MUST be maintained independently per case
     verification: Integration tests in `test/demo/` confirm that each actor's RM state for a
       case is tracked independently in its own `ParticipantStatus` records.
+    stories:
+    - story_2022_088
 - id: CM-02
   title: CaseActor Lifecycle
   specs:
@@ -35,24 +39,36 @@ groups:
     statement: Each VulnerabilityCase MUST have exactly one associated CaseActor
     verification: Inspection of `vultron/core/` confirms that each `VulnerabilityCase` is
       associated with exactly one `CaseActor` instance.
+    stories:
+    - story_2022_029
+    - story_2022_031
   - id: CM-02-002
     priority: MUST
     kind: protocol
     statement: CaseActor MUST be the authoritative source of truth for case state
     verification: Integration tests in `test/demo/` confirm that participants fetch canonical
       state from the CaseActor rather than from each other.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-02-003
     priority: MUST
     kind: protocol
     statement: CaseActor MUST persist until the associated VulnerabilityCase is closed
     verification: Inspection of `vultron/core/` confirms that the `CaseActor` is not torn down
       until the associated `VulnerabilityCase` is closed.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-02-004
     priority: MUST
     kind: protocol
     statement: CaseActor MUST know the case owner
     verification: Inspection of `vultron/core/models/case.py` confirms that
       `VulnerabilityCase.attributed_to` records the case owner and is readable by the CaseActor.
+    stories:
+    - story_2022_046
+    - story_2022_047
+    - story_2022_050
+    - story_2022_051
   - id: CM-02-005
     priority: MUST
     kind: protocol
@@ -66,6 +82,9 @@ groups:
       by the case owner.
     scope:
     - production
+    stories:
+    - story_2022_048
+    - story_2022_050
   - id: CM-02-006
     priority: MUST
     kind: protocol
@@ -74,6 +93,8 @@ groups:
       actor authorization before applying the mutation.
     scope:
     - production
+    stories:
+    - story_2022_036
   - id: CM-02-007
     priority: MUST
     kind: protocol
@@ -81,6 +102,8 @@ groups:
       `AddNoteToCase` activities'
     verification: 'Inspection of `vultron/core/models/case.py` confirms that `VulnerabilityCase`
       declares a `notes: list[as_NoteRef]` field.'
+    stories:
+    - story_2022_083
   - id: CM-02-008
     priority: MUST
     kind: protocol
@@ -89,6 +112,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the vendor actor is recorded as
       the initial primary participant when a `VulnerabilityCase` is created from an
       `Offer(Report)`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-02-009
     priority: MUST
     kind: protocol
@@ -102,6 +127,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-02-002
+    lint_suppress:
+    - missing_story_reference
   - id: CM-02-010
     priority: MUST
     kind: protocol
@@ -118,6 +145,8 @@ groups:
       spec_id: CM-01-001
     - rel_type: depends_on
       spec_id: CM-02-001
+    lint_suppress:
+    - missing_story_reference
 - id: CM-03
   title: Case State Model
   specs:
@@ -135,6 +164,8 @@ groups:
       spec_id: VP-13-001
     - rel_type: implements
       spec_id: VP-14-001
+    stories:
+    - story_2022_107
   - id: CM-03-002
     priority: MUST
     kind: protocol
@@ -149,6 +180,8 @@ groups:
       spec_id: VP-02-002
     - rel_type: implements
       spec_id: VP-03-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-03-003
     priority: MUST
     kind: protocol
@@ -163,6 +196,8 @@ groups:
       spec_id: VP-13-009
     - rel_type: implements
       spec_id: VP-14-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-03-008
     priority: MUST
     kind: protocol
@@ -173,24 +208,32 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-04-002
+    lint_suppress:
+    - missing_story_reference
   - id: CM-03-004
     priority: MUST
     kind: protocol
     statement: CS (PXA sub-state) MUST be participant-agnostic (shared per case)
     verification: Inspection of `vultron/core/models/case.py` confirms that
       `CaseStatus.pxa_state` is a case-level field shared across all participants.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-03-005
     priority: MUST
     kind: protocol
     statement: VFD (Vendor Fix Deployment) state MUST be participant-specific
     verification: Inspection of `vultron/core/` confirms that VFD state is stored on a
       per-participant `ParticipantStatus.vfd_state` field.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-03-006
     priority: MUST
     kind: protocol
     statement: Collection fields that hold status histories MUST be pluralized and documented as history collections
     verification: Inspection of `vultron/core/models/` confirms that history collection fields
       (e.g., `case_statuses`, `participant_statuses`) are pluralized list fields.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-03-007
     priority: MUST
     kind: protocol
@@ -203,6 +246,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-02-004
+    lint_suppress:
+    - missing_story_reference
 - id: CM-04
   title: State Transition Correctness
   specs:
@@ -221,6 +266,8 @@ groups:
       spec_id: VP-03-001
     - rel_type: implements
       spec_id: VP-13-005
+    stories:
+    - story_2022_107
   - id: CM-04-002
     priority: MUST
     kind: protocol
@@ -228,6 +275,8 @@ groups:
       CaseParticipant
     verification: Integration tests in `test/demo/` confirm that processing a VFD status message
       updates the sender's `ParticipantStatus.vfd_state`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-04-003
     priority: MUST
     kind: protocol
@@ -251,6 +300,8 @@ groups:
       spec_id: VP-14-002
     - rel_type: depends_on
       spec_id: CM-03-008
+    lint_suppress:
+    - missing_story_reference
   - id: CM-04-004
     priority: MUST
     kind: protocol
@@ -266,6 +317,8 @@ groups:
       spec_id: VP-14-003
     - rel_type: implements
       spec_id: VP-14-004
+    lint_suppress:
+    - missing_story_reference
   - id: CM-04-005
     priority: MUST
     kind: protocol
@@ -273,6 +326,8 @@ groups:
       current state before persisting it
     verification: Inspection of `vultron/core/` confirms that VFD and PXA transition handlers
       call the state machine's transition validator before persisting any state change.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-04-006
     priority: MUST_NOT
     kind: protocol
@@ -292,6 +347,8 @@ groups:
       state changes.
     verification: A unit test confirms that a `RM.CLOSED -> RM.CLOSED` duplicate close attempt
       is handled as a terminal no-op without appending a new `ParticipantStatus` record.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-04-008
     priority: MUST
     kind: protocol
@@ -305,6 +362,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that an embargo-accept from a
       non-owner participant updates only that participant's
       `ParticipantStatus.embargo_adherence`, not `CaseStatus.em_state`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-04-009
     priority: MUST
     kind: protocol
@@ -319,6 +378,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that a single embargo-accept event
       updates either `CaseStatus.em_state` or `ParticipantStatus.embargo_adherence` but never
       both unconditionally.
+    lint_suppress:
+    - missing_story_reference
 - id: CM-05
   title: Object Model Relationships
   specs:
@@ -334,6 +395,8 @@ groups:
       `VulnerabilityCase`, `VulnerabilityRecord`, `CaseReference`, `CaseActor`,
       `CaseParticipant`, and `ParticipantStatus` are declared as distinct non-interchangeable
       types.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-05-002
     priority: MUST_NOT
     kind: protocol
@@ -344,6 +407,8 @@ groups:
       spec_id: VP-02-015
     - rel_type: implements
       spec_id: VP-02-020
+    stories:
+    - story_2022_102
   - id: CM-05-003
     priority: SHOULD
     kind: protocol
@@ -359,11 +424,17 @@ groups:
     statement: '`CaseReference` objects MUST include at minimum a `url` field.'
     verification: Inspection of `vultron/core/models/case.py` confirms that the `CaseReference`
       model declares a required `url` field.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-05-006
     priority: MAY
     kind: protocol
     statement: One report MAY describe multiple vulnerabilities; one case MAY group multiple reports (e.g., when overlapping
       participants are involved)
+    stories:
+    - story_2022_104
+    - story_2022_105
+    - story_2022_111
   - id: CM-05-007
     priority: MAY
     kind: protocol
@@ -389,6 +460,8 @@ groups:
       JSON schema (<https://github.com/CVEProject/cve-schema>)
     verification: Inspection of `vultron/core/` confirms that `CVERecord` (or the equivalent
       CVE-typed `VulnerabilityRecord`) validates its data against the CVE JSON schema.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-05-011
     priority: SHOULD
     kind: protocol
@@ -421,6 +494,9 @@ groups:
       spec_id: VP-03-012
     - rel_type: implements
       spec_id: VP-08-001
+    stories:
+    - story_2022_043
+    - story_2022_098
   - id: CM-06-002
     priority: MUST
     kind: protocol
@@ -431,6 +507,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-02-002
+    lint_suppress:
+    - missing_story_reference
   - id: CM-06-003
     priority: MUST
     kind: protocol
@@ -440,6 +518,8 @@ groups:
       include the CaseActor URL so recipients can fetch current state.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
   - id: CM-06-004
     priority: MUST
     kind: protocol
@@ -449,6 +529,8 @@ groups:
       update.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
   - id: CM-06-005
     priority: MUST
     kind: protocol
@@ -461,6 +543,8 @@ groups:
       spec_id: OX-03-001
     - rel_type: depends_on
       spec_id: CM-02-001
+    lint_suppress:
+    - missing_story_reference
 - id: CM-07
   title: CVD Action Rules API
   specs:
@@ -474,6 +558,9 @@ groups:
       spec_id: AR-07-001
     - rel_type: refines
       spec_id: AR-07-002
+    stories:
+    - story_2022_031
+    - story_2022_088
   - id: CM-07-002
     priority: MUST
     kind: protocol
@@ -481,6 +568,8 @@ groups:
       to that participant
     verification: Integration tests in `test/demo/` confirm that the action rules endpoint
       returns the participant's role and current RM, EM, CS, and VFD states.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-07-003
     priority: MUST
     kind: protocol
@@ -488,6 +577,8 @@ groups:
       any required parameters
     verification: Integration tests in `test/demo/` confirm that the action rules endpoint lists
       valid next actions as structured objects containing at minimum the action name.
+    lint_suppress:
+    - missing_story_reference
 - id: CM-08
   title: Domain Model Architecture
   specs:
@@ -522,6 +613,8 @@ groups:
       generation does not derive from or encode the full `VulnerabilityCase` ID.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
   - id: CM-09-003
     priority: MUST
     kind: protocol
@@ -532,6 +625,8 @@ groups:
       invitee's redacted case ID.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
   - id: CM-09-004
     priority: MAY
     kind: protocol
@@ -549,6 +644,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-10-002
     priority: MUST
     kind: protocol
@@ -563,6 +660,8 @@ groups:
       spec_id: CM-02-002
     - rel_type: implements
       spec_id: CM-02-009
+    lint_suppress:
+    - missing_story_reference
   - id: CM-10-003
     priority: SHOULD
     kind: protocol
@@ -575,6 +674,8 @@ groups:
       current active embargo
     verification: Integration tests in `test/demo/` confirm that a participant without an active
       embargo acceptance is excluded from case update fan-outs.
+    lint_suppress:
+    - missing_story_reference
 - id: CM-11
   title: Invitation Acceptance Lifecycle
   specs:
@@ -611,6 +712,8 @@ groups:
       spec_id: VP-03-012
     - rel_type: depends_on
       spec_id: CM-03-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-11-002
     priority: SHOULD
     kind: protocol
@@ -646,6 +749,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-11-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-11-003
     priority: MUST
     kind: protocol
@@ -667,6 +772,8 @@ groups:
       `inner_target`. There is no top-level `target` on the Reject itself.
     verification: A unit test confirms that `RejectInviteActorToCaseReceivedUseCase.execute()`
       reads `case_id` from `inner_target_id` rather than from the top-level Reject `target`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-11-005
     priority: MUST
     kind: architecture
@@ -721,6 +828,8 @@ groups:
     - rel_type: supersedes
       spec_id: CM-22-001
       note: CM-22-001 (ADR-0041) is the authoritative replacement for multi-actor deployments
+    lint_suppress:
+    - missing_story_reference
   - id: CM-12-002
     priority: MUST
     kind: protocol
@@ -734,6 +843,8 @@ groups:
       spec_id: CM-02-008
     - rel_type: part_of
       spec_id: CM-14-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-12-003
     priority: MUST
     kind: protocol
@@ -744,6 +855,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OX-02-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-12-004
     priority: MUST
     kind: protocol
@@ -757,6 +870,8 @@ groups:
       note: which now applies at case receipt
     - rel_type: part_of
       spec_id: CM-14-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-12-005
     priority: MUST
     kind: protocol
@@ -768,6 +883,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
+    lint_suppress:
+    - missing_story_reference
 - id: CM-13
   title: Embargo Acceptance Ownership
   specs:
@@ -781,12 +898,16 @@ groups:
       update only their own consent state.
     verification: Integration tests in `test/demo/` confirm that the embargo-accept handler
       checks `VulnerabilityCase.attributed_to == actor_id` before applying state transitions.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-13-002
     priority: MUST
     kind: protocol
     statement: If the accepting actor is the case owner, the handler MUST transition the shared `CaseStatus.em_state` to `ACTIVE`
     verification: Integration tests in `test/demo/` confirm that an embargo-accept from the case
       owner advances `CaseStatus.em_state` to `ACTIVE`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-13-003
     priority: MUST
     kind: protocol
@@ -798,6 +919,8 @@ groups:
       non-owner participant updates only that participant's
       `ParticipantStatus.embargo_adherence` to `SIGNATORY` without touching
       `CaseStatus.em_state`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-13-004
     priority: MUST
     kind: protocol
@@ -808,6 +931,8 @@ groups:
     verification: A unit test confirms that when `VulnerabilityCase.attributed_to` is `None`,
       the embargo-accept handler treats the triggering actor as the case owner for EM state
       transitions.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-13-005
     priority: MUST
     kind: protocol
@@ -817,6 +942,8 @@ groups:
     verification: A unit test confirms that a repeated embargo accept on an already-`SIGNATORY`
       participant returns success without re-running state machine transitions or emitting
       invalid-transition warnings.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-13-006
     priority: MUST
     kind: project
@@ -840,6 +967,8 @@ groups:
       DataLayer existence produces false idempotency.
     verification: A unit test confirms that note idempotency is checked by testing `note.id_` in
       `VulnerabilityCase.notes`, not by querying the DataLayer for the note object's existence.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-13-008
     priority: MUST
     kind: protocol
@@ -849,6 +978,8 @@ groups:
     verification: A unit test confirms that when an embargo accept retry reuses an existing
       `ParticipantStatus`, a pre-existing non-null consent value is preserved and not
       overwritten with `NO_EMBARGO`.
+    lint_suppress:
+    - missing_story_reference
 - id: CM-14
   title: Case Initialization Sequence
   description: Defines the canonical ordered sequence of initialization steps that MUST occur when a VulnerabilityCase is
@@ -883,6 +1014,8 @@ groups:
     - rel_type: supersedes
       spec_id: CM-22-001
       note: CM-22-001 (ADR-0041) replaces the attributed_to=receiving_actor semantics for multi-actor deployments
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-002
     priority: MUST
     kind: protocol
@@ -896,6 +1029,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-003
     priority: MUST
     kind: protocol
@@ -911,6 +1046,8 @@ groups:
       spec_id: CM-14-001
     - rel_type: refines
       spec_id: CM-13-006
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-004
     priority: MUST
     kind: protocol
@@ -927,6 +1064,8 @@ groups:
       spec_id: CM-14-001
     - rel_type: depends_on
       spec_id: CM-12-003
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-005
     priority: MUST
     kind: protocol
@@ -942,6 +1081,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-006
     priority: SHOULD
     kind: protocol
@@ -969,6 +1110,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-008
     priority: MUST
     kind: protocol
@@ -979,6 +1122,8 @@ groups:
       initialization steps (participants, embargo, ledger) are attached.
     verification: Integration tests in `test/demo/` confirm that step 1 of case initialization
       creates the `VulnerabilityCase` with `attributed_to` set to the receiving actor.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-009
     priority: MUST
     kind: protocol
@@ -989,6 +1134,8 @@ groups:
       initialized, so that the embargo is always associated with an existing participant.
     verification: Integration tests in `test/demo/` confirm that step 2 creates the case-owner
       `VultronParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-010
     priority: MUST
     kind: protocol
@@ -1002,6 +1149,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that step 3 sets the default embargo
       to `EM.ACTIVE` and seeds the case owner as `SIGNATORY` when a default policy is
       configured.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-011
     priority: MUST
     kind: protocol
@@ -1012,6 +1161,8 @@ groups:
       Announce(CaseLedgerEntry) fan-out that references it.
     verification: Integration tests in `test/demo/` confirm that step 4 queues `Create(Case)`
       addressed to the reporter and flushes the outbox.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-012
     priority: MUST
     kind: protocol
@@ -1025,6 +1176,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that step 5 adds the reporter as a
       `VultronParticipant` with `RM.ACCEPTED` and seeds them as `SIGNATORY` on any active
       embargo.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-14-013
     priority: MUST
     kind: protocol
@@ -1035,6 +1188,8 @@ groups:
       protocol-significant event and notifies all participants atomically.
     verification: Integration tests in `test/demo/` confirm that step 6 commits a case ledger
       entry that triggers `Announce(CaseLedgerEntry)` fan-out to all participants.
+    lint_suppress:
+    - missing_story_reference
 - id: CM-15
   title: Case Creation Policy
   description: Requirements for the configurable auto_create_case policy on ActorConfig, which controls whether a VulnerabilityCase
@@ -1055,6 +1210,8 @@ groups:
     adr:
     - ADR-0015
     - ADR-0041
+    lint_suppress:
+    - missing_story_reference
   - id: CM-15-002
     priority: MUST
     kind: protocol
@@ -1068,6 +1225,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that when `auto_create_case` is
       `False`, processing an `Offer(Report)` persists the report and offer in the DataLayer
       without creating a `VulnerabilityCase`.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-15-003
     priority: MUST_NOT
     kind: protocol
@@ -1087,6 +1246,8 @@ groups:
       (e.g., Create(Case) to the reporter); the observable outcome is no outbound messages.
     verification: Integration tests in `test/demo/` confirm that when `auto_create_case` is
       `False`, processing an `Offer(Report)` leaves the actor's outbox empty.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-15-005
     priority: MAY
     kind: protocol
@@ -1117,6 +1278,8 @@ groups:
       spec_id: PCR-08-001
     adr:
     - ADR-0021
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-002
     priority: MUST
     kind: protocol
@@ -1130,6 +1293,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CLP-10-006
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-003
     priority: MUST
     kind: project
@@ -1176,6 +1341,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that the CaseActor sends a
       transformed `Offer(object=CaseParticipant, target=Case)` to the Case Owner with `origin`
       set to the recommender's Offer ID.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-005
     priority: MAY
     kind: protocol
@@ -1195,6 +1362,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-17-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-007
     priority: MUST
     kind: protocol
@@ -1204,6 +1373,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that after the Case Owner rejects a
       participant recommendation, the CaseActor commits a ledger entry, fans it out, and sends
       `RejectActorRecommendation` to the recommender.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-008
     priority: MUST
     kind: protocol
@@ -1213,6 +1384,8 @@ groups:
       MUST record the duplicate recommendation in the ledger.
     verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
       Case)` arriving while a prior decision is pending is recorded in the case ledger.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-009
     priority: MUST
     kind: protocol
@@ -1223,6 +1396,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that when Actor X is already invited
       or a participant, a second `Offer(Actor X)` is recorded, `AcceptActorRecommendation` is
       sent to the second recommender, and no duplicate Invite is sent.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-010
     priority: MUST
     kind: protocol
@@ -1233,6 +1408,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that ledger entries in the actor
       suggestion flow are committed only after the corresponding message has been sent or
       received, never before.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-014
     priority: MUST
     kind: project
@@ -1264,6 +1441,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
       Case)` with a pending decision causes the CaseActor to send a `Note` to the Case Owner
       naming the second recommender.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-16-017
     priority: MUST_NOT
     kind: protocol
@@ -1283,6 +1462,8 @@ groups:
       case stub containing at minimum the case ID and type. This requirement is extended by CM-17-002 and CM-17-003.
     verification: Integration tests in `test/demo/` confirm that the `Invite` activity emitted
       by the CaseActor contains a case stub object with at minimum the case ID and type.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-17-002
     priority: MUST
     kind: protocol
@@ -1297,6 +1478,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: MV-10-006
+    lint_suppress:
+    - missing_story_reference
   - id: CM-17-003
     priority: MUST
     kind: project
@@ -1335,6 +1518,8 @@ groups:
       spec_id: CM-10-001
     - rel_type: implements
       spec_id: PCR-08-010
+    lint_suppress:
+    - missing_story_reference
   - id: CM-17-005
     priority: MUST_NOT
     kind: protocol
@@ -1354,6 +1539,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CLP-10-006
+    lint_suppress:
+    - missing_story_reference
   - id: CM-17-007
     priority: MUST
     kind: project
@@ -1409,6 +1596,8 @@ groups:
       `SIGNATORY`, `LAPSED`, and `DECLINED`.'
     adr:
     - ADR-0048
+    lint_suppress:
+    - missing_story_reference
   - id: CM-18-002
     priority: MUST
     kind: protocol
@@ -1429,6 +1618,8 @@ groups:
     verification: Inspection of `vultron/core/` confirms that the PEC state machine implements
       timer-driven `INVITED->DECLINED` and `LAPSED->DECLINED` transitions with a configurable
       policy window.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-18-003
     priority: MUST
     kind: project
@@ -1670,6 +1861,8 @@ groups:
     verification: Inspection of `vultron/core/models/case.py` confirms that `case_participants`
       is the persisted authority and `actor_participant_index` is declared as a derived cache,
       with any divergence treated as a hard error.
+    lint_suppress:
+    - missing_story_reference
   - id: CM-19-002
     priority: MUST
     kind: protocol
@@ -1681,6 +1874,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-19-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-19-003
     priority: MUST
     kind: protocol
@@ -1693,6 +1888,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-19-001
+    lint_suppress:
+    - missing_story_reference
 - id: CM-20
   title: Coordinator-as-Participant Role Constraints
   specs:
@@ -1712,6 +1909,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CBT-01-003
+    lint_suppress:
+    - missing_story_reference
   - id: CM-20-002
     priority: MUST
     kind: protocol
@@ -1730,6 +1929,8 @@ groups:
       spec_id: CM-20-001
     - rel_type: refines
       spec_id: CM-16-004
+    lint_suppress:
+    - missing_story_reference
   - id: CM-20-003
     priority: MUST
     kind: protocol
@@ -1750,6 +1951,8 @@ groups:
       spec_id: CM-20-001
     adr:
     - ADR-0026
+    lint_suppress:
+    - missing_story_reference
   - id: CM-20-004
     priority: MUST_NOT
     kind: protocol
@@ -1799,6 +2002,8 @@ groups:
       spec_id: CM-02-004
     - rel_type: refines
       spec_id: CM-02-005
+    lint_suppress:
+    - missing_story_reference
   - id: CM-21-002
     priority: MUST
     kind: protocol
@@ -1827,6 +2032,8 @@ groups:
       spec_id: CM-21-001
     - rel_type: refines
       spec_id: TRIG-11-002
+    lint_suppress:
+    - missing_story_reference
   - id: CM-21-003
     priority: MUST
     kind: protocol
@@ -1848,6 +2055,8 @@ groups:
       spec_id: CM-21-001
     - rel_type: refines
       spec_id: TRIG-11-002
+    lint_suppress:
+    - missing_story_reference
   - id: CM-21-004
     priority: MUST
     kind: project
@@ -1899,6 +2108,8 @@ groups:
       spec_id: CM-21-001
     adr:
     - ADR-0053
+    lint_suppress:
+    - missing_story_reference
   - id: CM-21-006
     priority: MUST
     kind: protocol
@@ -1922,6 +2133,8 @@ groups:
       spec_id: CM-21-005
     adr:
     - ADR-0053
+    lint_suppress:
+    - missing_story_reference
   - id: CM-21-007
     priority: MUST
     kind: protocol
@@ -1948,6 +2161,8 @@ groups:
       spec_id: CM-21-006
     adr:
     - ADR-0053
+    lint_suppress:
+    - missing_story_reference
   - id: CM-21-008
     priority: MUST
     kind: protocol
@@ -1965,6 +2180,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-21-003
+    lint_suppress:
+    - missing_story_reference
   - id: CM-21-009
     priority: MUST
     kind: protocol
@@ -1980,6 +2197,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-21-003
+    lint_suppress:
+    - missing_story_reference
 - id: CM-22
   title: CaseActor-Authoritative Case Creation
   description: >-
@@ -2010,6 +2229,7 @@ groups:
     - ADR-0041
     lint_suppress:
     - dangling_adr_ref
+    - missing_story_reference
   - id: CM-22-002
     priority: MUST
     kind: protocol
@@ -2032,6 +2252,8 @@ groups:
       spec_id: CM-22-001
     - rel_type: implements
       spec_id: CP-09-002
+    lint_suppress:
+    - missing_story_reference
   - id: CM-22-003
     priority: MUST
     kind: protocol
@@ -2053,6 +2275,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-22-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-22-004
     priority: MUST
     kind: protocol
@@ -2075,6 +2299,8 @@ groups:
     adr:
     - ADR-0041
 
+    lint_suppress:
+    - missing_story_reference
 - id: CM-23
   title: RM Case Closure via Leave(VulnerabilityCase)
   description: >-
@@ -2103,6 +2329,8 @@ groups:
       `Add(ParticipantStatus, rm_state=RM.CLOSED)` is not used as a closure trigger.
     adr:
     - ADR-0050
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-002
     priority: MUST
     kind: protocol
@@ -2129,6 +2357,8 @@ groups:
     adr:
     - ADR-0050
     - ADR-0051
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-003
     priority: MUST
     kind: protocol
@@ -2150,6 +2380,8 @@ groups:
       spec_id: CM-23-001
     adr:
     - ADR-0050
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-004
     priority: MUST
     kind: protocol
@@ -2166,6 +2398,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-005
     priority: MUST
     kind: protocol
@@ -2187,6 +2421,8 @@ groups:
       spec_id: CM-23-002
     adr:
     - ADR-0051
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-006
     priority: MUST
     kind: protocol
@@ -2204,6 +2440,8 @@ groups:
       spec_id: CM-23-005
     adr:
     - ADR-0051
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-007
     priority: MUST
     kind: protocol
@@ -2230,6 +2468,8 @@ groups:
       spec_id: CM-02-009
     adr:
     - ADR-0051
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-008
     priority: MUST
     kind: protocol
@@ -2249,6 +2489,8 @@ groups:
       spec_id: CM-23-006
     adr:
     - ADR-0051
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-009
     priority: MUST
     kind: protocol
@@ -2267,6 +2509,8 @@ groups:
       spec_id: CM-23-006
     adr:
     - ADR-0051
+    lint_suppress:
+    - missing_story_reference
   - id: CM-23-010
     priority: MUST
     kind: protocol
@@ -2285,6 +2529,8 @@ groups:
     adr:
     - ADR-0051
 
+    lint_suppress:
+    - missing_story_reference
 - id: CM-24
   title: CaseActor-Delegated Activity Authorship Contract
   description: >-
@@ -2314,6 +2560,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-009
+    lint_suppress:
+    - missing_story_reference
   - id: CM-24-002
     priority: MUST
     kind: protocol
@@ -2330,6 +2578,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-24-003
     priority: MUST
     kind: protocol
@@ -2349,6 +2599,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
+    lint_suppress:
+    - missing_story_reference
   - id: CM-24-004
     priority: MUST
     kind: architecture
@@ -2416,6 +2668,8 @@ groups:
       embargo-consent gate before receiving case content.
     adr:
     - ADR-0057
+    lint_suppress:
+    - missing_story_reference
   - id: CM-25-002
     priority: MUST
     kind: protocol
@@ -2436,6 +2690,8 @@ groups:
       spec_id: CM-16-003
     adr:
     - ADR-0057
+    lint_suppress:
+    - missing_story_reference
   - id: CM-25-003
     priority: MUST
     kind: protocol
@@ -2461,6 +2717,8 @@ groups:
       spec_id: MV-10-006
     adr:
     - ADR-0057
+    lint_suppress:
+    - missing_story_reference
   - id: CM-25-004
     priority: SHOULD
     kind: protocol
@@ -2522,6 +2780,8 @@ groups:
       spec_id: CM-25-002
     adr:
     - ADR-0057
+    lint_suppress:
+    - missing_story_reference
   - id: CM-25-007
     priority: MUST_NOT
     kind: protocol
@@ -2574,6 +2834,8 @@ groups:
       spec_id: CM-25-005
     adr:
     - ADR-0057
+    lint_suppress:
+    - missing_story_reference
 - id: CM-28
   title: Embargo Invite RSVP Deadlines
   description: >-
@@ -2612,6 +2874,8 @@ groups:
       expiry.
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-002
     priority: MUST
     kind: protocol
@@ -2634,6 +2898,8 @@ groups:
       spec_id: CM-18-002
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-003
     priority: MUST
     kind: protocol
@@ -2653,6 +2919,8 @@ groups:
       embargo invitation lapses.
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-004
     priority: MUST
     kind: protocol
@@ -2675,6 +2943,8 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-005
     priority: MUST
     kind: protocol
@@ -2690,6 +2960,8 @@ groups:
       refusals.
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-006
     priority: MUST
     kind: protocol
@@ -2716,6 +2988,8 @@ groups:
       spec_id: CS-13-001
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-007
     priority: MUST
     kind: protocol
@@ -2734,6 +3008,8 @@ groups:
       spec_id: CM-28-003
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-008
     priority: MUST_NOT
     kind: protocol
@@ -2768,6 +3044,8 @@ groups:
       spec_id: CM-28-005
     adr:
     - ADR-0065
+    lint_suppress:
+    - missing_story_reference
   - id: CM-28-010
     priority: MUST_NOT
     kind: protocol
@@ -2835,6 +3113,8 @@ groups:
       spec_id: CM-27-001
     adr:
     - ADR-0064
+    lint_suppress:
+    - missing_story_reference
   - id: CM-27-003
     priority: MUST
     kind: project

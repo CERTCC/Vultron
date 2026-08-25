@@ -131,6 +131,8 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Trigger endpoint implementations SHOULD reuse existing BT trees rather than duplicating behavior logic
+    stories:
+    - story_2022_086
   - id: TRIG-05-002
     priority: SHOULD
     kind: project
@@ -153,6 +155,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-01-001
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-06-002
     priority: MUST
     kind: protocol
@@ -165,6 +169,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-01-001
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-07
   title: Outbox Activity
   specs:
@@ -178,6 +184,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OX-02-001
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-08
   title: Trigger Classification
   specs:
@@ -197,6 +205,8 @@ groups:
       external-stimulus or operator-decision use cases are registered under
       `/trigger/` and that triggers existing solely to puppeteer demo flows are
       registered under `/demo/`.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-08-003
     priority: MUST
     kind: protocol
@@ -206,6 +216,8 @@ groups:
       Inspection of `vultron/adapters/driving/fastapi/` confirms that all
       general-purpose trigger handlers are mounted under the
       `/actors/{actor_id}/trigger/` path prefix.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-08-004
     priority: MUST
     kind: protocol
@@ -214,6 +226,8 @@ groups:
       Inspection of `vultron/adapters/driving/fastapi/` confirms that all
       demo-only trigger handlers are mounted under the
       `/actors/{actor_id}/demo/` path prefix.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-08-005
     priority: MUST
     kind: protocol
@@ -224,6 +238,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CFG-04-001
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-09
   title: Demo Trigger Endpoints
   specs:
@@ -235,6 +251,8 @@ groups:
       Inspection of `vultron/adapters/driving/fastapi/` confirms that the demo
       router registers all demo-only endpoints under the
       `POST /actors/{actor_id}/demo/{behavior-name}` path pattern.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-09-002
     priority: MUST
     kind: project
@@ -251,6 +269,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: TRIG-09-002
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-09-004
     priority: MUST
     kind: protocol
@@ -260,6 +280,8 @@ groups:
       Inspection of `vultron/adapters/driving/fastapi/` confirms that demo trigger
       endpoint handlers receive their DataLayer instance via the same FastAPI
       dependency as general-purpose triggers.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-09-005
     priority: MUST
     kind: protocol
@@ -269,6 +291,8 @@ groups:
       Inspection of the FastAPI application's OpenAPI schema confirms that demo
       trigger endpoints carry a distinct tag (e.g., "Demo Triggers") separate
       from the tag used by general-purpose endpoints.
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-10
   title: Generalized Object Triggers and Type-Specific Wrappers
   specs:
@@ -283,6 +307,8 @@ groups:
       Integration tests in `test/demo/` confirm that a POST to
       `/actors/{actor_id}/trigger/add-object-to-case` with a non-Note AS2 object
       type succeeds and produces an outgoing activity.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-10-002
     priority: MUST
     kind: protocol
@@ -292,6 +318,8 @@ groups:
       Inspection of `vultron/adapters/driving/fastapi/` confirms that type-specific
       trigger handlers call the `add-object-to-case` general trigger after
       performing type-specific input validation.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-10-003
     priority: MUST_NOT
     kind: protocol
@@ -332,6 +360,8 @@ groups:
       spec_id: TRIG-01-001
     - rel_type: refines
       spec_id: TRIG-02-004
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-11-002
     priority: MUST
     kind: protocol
@@ -349,6 +379,8 @@ groups:
       spec_id: TRIG-01-001
     - rel_type: refines
       spec_id: TRIG-02-004
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-11-003
     priority: SHOULD
     kind: protocol
@@ -371,3 +403,5 @@ groups:
       spec_id: TRIG-11-001
     - rel_type: refines
       spec_id: TRIG-11-002
+    lint_suppress:
+    - missing_story_reference

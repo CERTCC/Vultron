@@ -26,6 +26,7 @@ from vultron.metadata.specs.schema import (
     BehavioralSpec,
     LintWarningCode,
     RFC2119Priority,
+    SpecKind,
     StatementSpec,
     TriggerType,
 )
@@ -561,11 +562,40 @@ def _check_scenario_start_groups(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
+    """Hard error when a ``kind: protocol`` MUST spec has no ``stories:`` (SR-11-003).
+
+    Protocol MUST specs define wire-level compliance invariants.  A MUST with no
+    user-story back-reference breaks the bidirectional traceability graph and is
+    treated as a hard gate (exit 1).  Suppressible via
+    ``lint_suppress: [missing_story_reference]`` for specs that are genuinely
+    not traceable to any story.
+    """
+    errors: list[str] = []
+    for spec_id, spec in registry.all_specs.items():
+        if spec.kind != SpecKind.PROTOCOL:
+            continue
+        if spec.priority != RFC2119Priority.MUST:
+            continue
+        if spec.stories:
+            continue
+        suppressed = set(spec.lint_suppress or [])
+        if LintWarningCode.MISSING_STORY_REFERENCE in suppressed:
+            continue
+        errors.append(
+            f"{spec_id}: kind=protocol, priority=MUST but has no stories: "
+            f"field (SR-11-003); add user-story back-references, or suppress "
+            f"with lint_suppress: [missing_story_reference]"
+        )
+    return errors
+
+
 def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
     """Collect per-spec advisory warnings (SR-04-002).
 
-    Covers: testable_without_steps, rationale_too_long, missing_tags, and
-    must_without_verification.  All are suppressible via ``lint_suppress``.
+    Covers: testable_without_steps, rationale_too_long, missing_tags,
+    must_without_verification, and missing_story_reference (SHOULD/MAY).
+    All are suppressible via ``lint_suppress``.
     """
     warnings: list[str] = []
     for spec_id, spec in registry.all_specs.items():
@@ -607,6 +637,19 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
                 f"verification: field (MS-05-003); add a verification: "
                 f"criterion, or suppress with "
                 f"lint_suppress: [must_without_verification]"
+            )
+
+        if (
+            spec.kind == SpecKind.PROTOCOL
+            and spec.priority in (RFC2119Priority.SHOULD, RFC2119Priority.MAY)
+            and not spec.stories
+            and LintWarningCode.MISSING_STORY_REFERENCE not in suppressed
+        ):
+            warnings.append(
+                f"[WARN] {spec_id}: kind=protocol, priority={spec.priority} "
+                f"but has no stories: field (SR-11-004); consider adding "
+                f"user-story back-references, or suppress with "
+                f"lint_suppress: [missing_story_reference]"
             )
 
     return warnings
@@ -686,6 +729,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors.extend(
         _check_phantom_spec_id_citations(registry, spec_dir.parent)
     )
+    hard_errors.extend(_check_missing_story_references(registry))
 
     warnings.extend(_check_per_spec_advisory_warnings(registry))
 

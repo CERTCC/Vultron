@@ -25,6 +25,8 @@ groups:
       field relative to its parent type.
     adr:
     - ADR-0033
+    lint_suppress:
+    - missing_story_reference
   - id: LST-01-002
     priority: MUST
     kind: protocol
@@ -35,6 +37,8 @@ groups:
       to its parent's; action-gating milestones appear only in transition logic.
     adr:
     - ADR-0033
+    lint_suppress:
+    - missing_story_reference
 - id: LST-02
   title: VulnerabilityCase Staged Types
   specs:
@@ -50,6 +54,8 @@ groups:
       `IncomingReport`, `Case`, and `EmbargoedCase`.'
     adr:
     - ADR-0033
+    lint_suppress:
+    - missing_story_reference
   - id: LST-02-002
     priority: MUST
     kind: protocol
@@ -64,6 +70,8 @@ groups:
       spec_id: ARCH-10-001
     adr:
     - ADR-0041
+    lint_suppress:
+    - missing_story_reference
   - id: LST-02-003
     priority: MUST
     kind: protocol
@@ -72,6 +80,8 @@ groups:
       type-level non-None guarantee.
     verification: A unit test confirms that `EmbargoedCase.model_validate(...)` raises a validation error when
       `active_embargo` is None or `em_state` is outside `{ACTIVE, REVISE}`.
+    lint_suppress:
+    - missing_story_reference
   - id: LST-02-004
     priority: MUST_NOT
     kind: protocol
@@ -138,6 +148,8 @@ groups:
       spec_id: LST-05-002
     adr:
     - ADR-0033
+    lint_suppress:
+    - missing_story_reference
   - id: LST-05-003
     priority: MUST
     kind: protocol
@@ -148,3 +160,5 @@ groups:
       re-validates to `EmbargoedCase` without field loss.
     adr:
     - ADR-0033
+    lint_suppress:
+    - missing_story_reference

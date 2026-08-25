@@ -27,6 +27,8 @@ groups:
       reads appear outside the class.
     tags:
     - protocol
+    stories:
+    - story_2022_063
   - id: PRM-01-002
     priority: MUST
     kind: protocol
@@ -39,6 +41,8 @@ groups:
       participant's role set and `False` when it is absent.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-01-003
     priority: MUST
     kind: project
@@ -66,6 +70,8 @@ groups:
       `participant.roles` after the call.
     tags:
     - protocol
+    stories:
+    - story_2022_063
   - id: PRM-02-002
     priority: MUST
     kind: protocol
@@ -78,6 +84,8 @@ groups:
       exception on the second call and emits an INFO-level log message.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-02-003
     priority: MUST
     kind: protocol
@@ -90,6 +98,8 @@ groups:
       `KeyError` when the participant already holds that role.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-02-004
     priority: MUST
     kind: protocol
@@ -102,6 +112,8 @@ groups:
       `participant.roles` after the call.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-02-005
     priority: MUST
     kind: protocol
@@ -113,6 +125,8 @@ groups:
       exception and emits an INFO-level log message.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-02-006
     priority: MUST
     kind: protocol
@@ -124,6 +138,8 @@ groups:
       `KeyError` when the participant does not hold that role.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
 - id: PRM-03
   title: Core Layer Rules
   specs:
@@ -150,6 +166,8 @@ groups:
       constructs successfully and `participant.roles` returns the initial role list.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-03-003
     priority: MUST_NOT
     kind: protocol
@@ -209,6 +227,8 @@ groups:
       re-add with INFO-log assertion, and `raise_when_present=True` raising `KeyError`.
     tags:
     - testing
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-05-002
     priority: MUST
     kind: protocol
@@ -221,6 +241,8 @@ groups:
       raising `KeyError`.
     tags:
     - testing
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-05-003
     priority: MUST
     kind: protocol
@@ -232,6 +254,8 @@ groups:
       role is present (returns `True`) and one where it is absent (returns `False`).
     tags:
     - testing
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-05-004
     priority: SHOULD
     kind: project

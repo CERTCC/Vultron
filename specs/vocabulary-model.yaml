@@ -21,12 +21,16 @@ groups:
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that a concrete `as_Object` subclass
       with a `Literal` `type_` annotation is present in `VOCABULARY` immediately after class definition, with no explicit
       registration call.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-01-002
     priority: MUST
     kind: protocol
     statement: The `VOCABULARY` singleton MUST be the sole authoritative source for type lookup during dynamic deserialization
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that `find_in_vocabulary()` returns the
       correct registered class for a known type and raises `KeyError` for any unregistered type name.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-01-003
     priority: MUST
     kind: protocol
@@ -34,6 +38,8 @@ groups:
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry_completeness.py` confirm that importing
       `vultron.wire.as2.vocab` populates all expected vocabulary types in `VOCABULARY` without any explicit registration
       call in application code.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-01-004
     priority: MUST
     kind: project
@@ -76,6 +82,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-02-001
+    lint_suppress:
+    - missing_story_reference
   - id: VM-02-003
     priority: MUST
     kind: protocol
@@ -83,6 +91,8 @@ groups:
       `None` values and serialize using aliases by default
     verification: Unit tests in `test/wire/as2/vocab/test_vocab_case_examples.py` confirm that `to_json()` produces
       alias-keyed JSON with `None` fields excluded and that `from_json()` correctly round-trips the resulting string.
+    lint_suppress:
+    - missing_story_reference
 - id: VM-03
   title: Type Auto-Inference
   specs:
@@ -94,6 +104,8 @@ groups:
     verification: Unit tests `test_as_base_type_set_from_class_name` and `test_as_object_type_set_from_class_name` in
       `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that `type_` is populated from the stripped class
       name when no explicit value is provided to the constructor.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-03-002
     priority: SHOULD
     kind: protocol
@@ -123,6 +135,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: OID-01-001
+    lint_suppress:
+    - missing_story_reference
 - id: VM-05
   title: Vocabulary Extension
   specs:
@@ -156,6 +170,8 @@ groups:
     - rel_type: refines
       spec_id: SE-01-002
       note: semantic-extraction.md
+    lint_suppress:
+    - missing_story_reference
   - id: VM-06-002
     priority: MUST
     kind: protocol
@@ -163,6 +179,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that `rehydrate()` accepts and uses the `dl`
       parameter to resolve URI strings; tests in `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved
       objects are fetched from the supplied DataLayer.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-06-003
     priority: MUST
     kind: protocol
@@ -170,6 +188,8 @@ groups:
       fields, those MUST also be rehydrated up to `MAX_REHYDRATION_DEPTH` levels'
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that the rehydration loop is bounded by
       `MAX_REHYDRATION_DEPTH` and recurses into newly materialized objects to expand nested URI strings at each level.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-06-004
     priority: MUST
     kind: protocol
@@ -185,6 +205,8 @@ groups:
     - rel_type: implements
       spec_id: SE-01-003
       note: semantic-extraction.md
+    lint_suppress:
+    - missing_story_reference
   - id: VM-06-005
     priority: MUST
     kind: protocol
@@ -192,6 +214,8 @@ groups:
       or `ValueError` rather than returning a partially constructed object
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that a vocabulary lookup failure for an unknown
       `as_type` propagates as `KeyError` or `ValueError` rather than returning a partially constructed object.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-06-006
     priority: MUST
     kind: protocol
@@ -208,6 +232,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-06-001
+    lint_suppress:
+    - missing_story_reference
 - id: VM-07
   title: Serialization Rules
   specs:
@@ -218,6 +244,8 @@ groups:
     verification: Unit tests `test_render_excludes_none_fields` in `test/adapters/driven/test_wire_render_adapter.py` and
       `test_exclude_none_true` in `test/adapters/driving/fastapi/test_responses.py` confirm that `None` fields are absent
       from serialized output.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-07-002
     priority: MUST
     kind: protocol
@@ -225,6 +253,8 @@ groups:
     verification: Unit tests `test_render_returns_camel_case_keys` in `test/adapters/driven/test_wire_render_adapter.py`
       and `test_camelcase_keys` in `test/adapters/driving/fastapi/test_responses.py` confirm that JSON output uses
       camelCase keys rather than Python snake_case names.
+    lint_suppress:
+    - missing_story_reference
   - id: VM-07-003
     priority: MUST_NOT
     kind: protocol
@@ -248,6 +278,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-07-001
+    lint_suppress:
+    - missing_story_reference
 - id: VM-08
   title: Static Object Integrity
   specs:
@@ -291,6 +323,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-02-002
+    lint_suppress:
+    - missing_story_reference
   - id: VM-10-002
     priority: MUST
     kind: protocol
@@ -309,3 +343,5 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VM-10-001
+    lint_suppress:
+    - missing_story_reference

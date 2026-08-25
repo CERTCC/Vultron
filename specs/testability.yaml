@@ -42,18 +42,24 @@ groups:
     statement: Integration tests MUST cover inbox POST → handler invocation flow
     verification: Integration tests confirm that a `POST /inbox/` with a valid AS2 activity triggers the correct handler
       invocation and produces the expected DataLayer side effects.
+    lint_suppress:
+    - missing_story_reference
   - id: TB-03-002
     priority: MUST
     kind: protocol
     statement: Integration tests MUST cover validation → error response flow
     verification: Integration tests confirm that a `POST /inbox/` with a malformed or invalid payload returns a
       structured error response (HTTP 400 or 422) rather than an unhandled server error.
+    lint_suppress:
+    - missing_story_reference
   - id: TB-03-003
     priority: MUST
     kind: protocol
     statement: Integration tests MUST verify async processing behavior
     verification: Integration tests confirm that inbox processing returns HTTP 202 for activities dispatched to background
       processing, and that the resulting DataLayer state is updated after the handler completes asynchronously.
+    lint_suppress:
+    - missing_story_reference
 - id: TB-04
   title: Test Organization
   specs:
