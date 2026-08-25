@@ -24,10 +24,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 
 logger = logging.getLogger(__name__)
 
@@ -47,21 +47,31 @@ def _extract_id_from_field(value: Any) -> str | None:
     return getattr(value, "id_", None) or getattr(value, "id", None) or None
 
 
-class _LedgerEffectNode(DataLayerAction):
+class _LedgerEffectNode(DataLayerActionWithPorts):
     """Base class for Announce(CaseLedgerEntry) received-side effect nodes.
 
-    Registers the ``activity`` blackboard key in ``setup()`` and exposes
-    ``_get_entry()`` to retrieve the log entry from the blackboard without
-    repeating the import and call in every subclass.
+    Declares an ``activity`` input port and exposes ``_get_entry()`` to
+    retrieve the log entry without repeating the import in every subclass.
 
     Subclasses override only ``update()`` with their specific side-effect logic.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.activity = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self.activity = None
 
     def _get_entry(self):  # type: ignore[return]
         """Return the HashChainLedgerRecord from the blackboard activity."""
@@ -69,7 +79,7 @@ class _LedgerEffectNode(DataLayerAction):
             _require_log_entry,
         )
 
-        return _require_log_entry(self.blackboard.activity, self.name)
+        return _require_log_entry(self.activity, self.name)
 
     def update(self) -> Status:  # pragma: no cover
         raise NotImplementedError

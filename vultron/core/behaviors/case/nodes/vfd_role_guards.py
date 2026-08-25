@@ -29,13 +29,11 @@ Nodes enforce CVD protocol correctness for self-reported VFD transitions
 """
 
 import logging
-from typing import Any
 
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import (
-    DataLayerCondition,
     DataLayerConditionWithPorts,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -248,7 +246,7 @@ class CheckNotSoleObserverVfdNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class CheckIsCaseOwnerNode(DataLayerCondition):
+class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
     """Check whether the *sender* actor is a CASE_OWNER participant.
 
     Used as the hard-bypass child of ``StatusAdoptionGate`` (RSH-01-002):
@@ -274,21 +272,30 @@ class CheckIsCaseOwnerNode(DataLayerCondition):
         self._sender_actor_id = sender_actor_id
         self._case_id = case_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        try:
-            case_id = self._case_id or self.blackboard.get("case_id")
-        except KeyError:
-            case_id = self._case_id
+        case_id = self._case_id or self._case_id_bb
 
         if not case_id:
             self.logger.debug(

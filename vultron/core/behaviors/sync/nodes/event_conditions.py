@@ -21,12 +21,10 @@ blackboard ``activity.log_entry``.  They are used as preconditions in the
 
 from __future__ import annotations
 
-from typing import Any
-
-import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
@@ -38,7 +36,28 @@ _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
 
 
-class IsRemoveEmbargoEventNode(DataLayerCondition):
+class _ActivityEventNode(DataLayerConditionWithPorts):
+    """Common base for Is*EventNode classes that read activity from a port."""
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.activity = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self.activity = None
+
+
+class IsRemoveEmbargoEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
 
     Used as the precondition in the ``EmbargoEffects`` Selector's inner
@@ -58,20 +77,14 @@ class IsRemoveEmbargoEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, BT-06-001, SYNC-12-001.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _REMOVE_EMBARGO_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsParticipantStatusEventNode(DataLayerCondition):
+class IsParticipantStatusEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS a participant-status event.
 
     Used as the precondition in the ``ParticipantStatusEffects`` Selector's
@@ -91,20 +104,14 @@ class IsParticipantStatusEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3, SYNC-12-001.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _ADD_PARTICIPANT_STATUS_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsAddNoteEventNode(DataLayerCondition):
+class IsAddNoteEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS an add-note event.
 
     Used as the precondition in the ``NoteEffects`` Selector's inner
@@ -124,20 +131,14 @@ class IsAddNoteEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _ADD_NOTE_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsInviteAcceptEventNode(DataLayerCondition):
+class IsInviteAcceptEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS an accept-invite event.
 
     Used as the precondition in the ``InviteAcceptEffects`` Selector's inner
@@ -157,20 +158,14 @@ class IsInviteAcceptEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003, SYNC-12-001.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsCloseCaseEventNode(DataLayerCondition):
+class IsCloseCaseEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS a close-case event.
 
     Used as the precondition in the ``CloseCaseEffects`` Selector's inner
@@ -190,20 +185,14 @@ class IsCloseCaseEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, CM-23-003, SYNC-12-001.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _CLOSE_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsSubmitReportEventNode(DataLayerCondition):
+class IsSubmitReportEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS an add_report_to_case event.
 
     Used as the precondition in the ``OfferReportEffects`` Selector's inner
@@ -223,20 +212,14 @@ class IsSubmitReportEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, ISSUE-2134.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _ADD_REPORT_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsOwnershipTransferEventNode(DataLayerCondition):
+class IsOwnershipTransferEventNode(_ActivityEventNode):
     """Precondition: return SUCCESS when this log entry IS an ownership-transfer event.
 
     Used as the precondition in the ``OwnershipTransferEffects`` Selector's
@@ -257,14 +240,8 @@ class IsOwnershipTransferEventNode(DataLayerCondition):
     Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-002, SYNC-12-001.
     """
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
-        )
-
     def update(self) -> Status:
-        entry = _require_log_entry(self.blackboard.activity, self.name)
+        entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
