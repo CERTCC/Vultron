@@ -78,6 +78,7 @@ def _make_proposal() -> as_CaseProposal:
     )
 
 
+@pytest.mark.spec("CP-05-005")
 class TestPendingCreateCaseActivityModel:
     """AC-1: model stores required fields and produces stable ID."""
 
@@ -130,6 +131,7 @@ class TestPendingCreateCaseActivityModel:
 _CASE_URI = "https://example.org/cases/c-001"
 
 
+@pytest.mark.spec("CP-05-005")
 class TestWriteCreateCaseMarkerNode:
     """Unit tests for _WriteCreateCaseMarkerNode."""
 
@@ -303,6 +305,7 @@ class TestWriteCreateCaseMarkerNode:
         ), "No marker should be stored when save raises"
 
 
+@pytest.mark.spec("CP-05-005")
 class TestClearCreateCaseMarkerNode:
     """Unit tests for _ClearCreateCaseMarkerNode."""
 
@@ -351,6 +354,7 @@ class TestClearCreateCaseMarkerNode:
         assert status == py_trees.common.Status.SUCCESS
 
 
+@pytest.mark.spec("CP-05-005")
 class TestCreateCaseProposalReceivedBTMarkerWiring:
     """AC-4: end-to-end marker write/clear via the full BT tree."""
 
@@ -573,6 +577,8 @@ def _owner_roles(dl: SqliteDataLayer) -> list:
     return list(getattr(participant, "case_roles", []))
 
 
+@pytest.mark.spec("CP-09-001")
+@pytest.mark.spec("CP-09-002")
 class TestADR0041VendorParticipant:
     """ADR-0041 AC-1: vendor added as CASE_OWNER at RM.RECEIVED."""
 
@@ -639,6 +645,8 @@ class TestADR0041VendorParticipant:
         ), f"Vendor must have CASE_OWNER role, got {roles}"
 
 
+@pytest.mark.spec("CP-09-007")
+@pytest.mark.spec("CP-09-008")
 class TestOwnerRolesComeFromActorConfig:
     """The owner's non-CASE_OWNER roles come from ``ActorConfig`` (CFG-07-002).
 
@@ -694,6 +702,7 @@ class TestOwnerRolesComeFromActorConfig:
         assert roles == [CVDRole.CASE_OWNER]
 
 
+@pytest.mark.spec("CP-09-006")
 class TestADR0041ReporterParticipant:
     """ADR-0041 AC-2: reporter added as REPORTER at RM.ACCEPTED."""
 
@@ -752,6 +761,7 @@ class TestADR0041ReporterParticipant:
         assert _VENDOR_URI in case.actor_participant_index
 
 
+@pytest.mark.spec("CP-09-003")
 class TestADR0041EmbargoInit:
     """ADR-0041 AC-3: default embargo initialized."""
 
@@ -1205,6 +1215,7 @@ class TestCM18007InitLedgerEntries:
         )
 
 
+@pytest.mark.spec("CP-09-004")
 class TestADR0041InlineParticipantsPayload:
     """ADR-0041 AC-5: Create(VulnerabilityCase) embeds inline participant objects."""
 
@@ -1292,6 +1303,7 @@ class TestADR0041InlineParticipantsPayload:
         )
 
 
+@pytest.mark.spec("CP-05-006")
 class TestADR0041Idempotency:
     """ADR-0041 / CP-05-006: re-processing a proposal is idempotent.
 

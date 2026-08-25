@@ -19,6 +19,7 @@ AC-4: The invitee MUST reach PEC.SIGNATORY after signing embargo consent.
 This test MUST fail on main before the fix and pass after.
 """
 
+import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.accept_invite_tree import (
@@ -54,6 +55,7 @@ def _run_sign_node(
     return result.status, participant
 
 
+@pytest.mark.spec("CM-10-001")
 class TestSignEmbargoConsentLeafNode:
     """_SignEmbargoConsentLeafNode must set invitee to SIGNATORY (CM-10-001)."""
 

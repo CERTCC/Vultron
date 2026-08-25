@@ -7,13 +7,15 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
 from copy import deepcopy
 from typing import Any, cast
+
+import pytest
 
 import vultron.bt.case_state.transitions as cst
 from vultron.bt.base.node_status import NodeStatus
@@ -98,6 +100,7 @@ class MyTestCase(unittest.TestCase):
                 # make sure the actual state value is correct
                 self.assertEqual(self.expected_value, val2check)
 
+    @pytest.mark.spec("CSB-17-002")
     def test_q_cs_to_V(self):
         self.cls2test = cst.q_cs_to_V
         self.expected_value = VendorAwareness.VENDOR_AWARE
@@ -105,6 +108,7 @@ class MyTestCase(unittest.TestCase):
 
         self._test_q_cs_to_something()
 
+    @pytest.mark.spec("CSB-17-002")
     def test__q_cs_to_F(self):
         self.cls2test = cst._q_cs_to_F
         self.expected_value = FixReadiness.FIX_READY
@@ -132,6 +136,7 @@ class MyTestCase(unittest.TestCase):
 
         self.assertEqual(self.expected_value, attrib2check)
 
+    @pytest.mark.spec("CSB-16-001")
     def test_q_cs_to_F(self):
         self.cls2test = cst.q_cs_to_F
         self.expected_value = FixReadiness.FIX_READY
@@ -140,6 +145,7 @@ class MyTestCase(unittest.TestCase):
 
         self._test_q_cs_to_something_with_precondition()
 
+    @pytest.mark.spec("CSB-17-002")
     def test__q_cs_to_D(self):
         self.cls2test = cst._q_cs_to_D
         self.expected_value = FixDeployment.FIX_DEPLOYED
@@ -147,6 +153,7 @@ class MyTestCase(unittest.TestCase):
 
         self._test_q_cs_to_something()
 
+    @pytest.mark.spec("CSB-16-001")
     def test_q_cs_to_D(self):
         self.cls2test = cst.q_cs_to_D
         self.expected_value = FixDeployment.FIX_DEPLOYED
@@ -155,6 +162,7 @@ class MyTestCase(unittest.TestCase):
 
         self._test_q_cs_to_something_with_precondition()
 
+    @pytest.mark.spec("CSB-17-002")
     def test_q_cs_to_P(self):
         self.cls2test = cst.q_cs_to_P
         self.expected_value = PublicAwareness.PUBLIC_AWARE
@@ -162,6 +170,7 @@ class MyTestCase(unittest.TestCase):
 
         self._test_q_cs_to_something()
 
+    @pytest.mark.spec("CSB-17-002")
     def test_q_cs_to_X(self):
         self.cls2test = cst.q_cs_to_X
         self.expected_value = ExploitPublication.EXPLOIT_PUBLIC
@@ -169,6 +178,7 @@ class MyTestCase(unittest.TestCase):
 
         self._test_q_cs_to_something()
 
+    @pytest.mark.spec("CSB-17-002")
     def test_q_cs_to_A(self):
         self.cls2test = cst.q_cs_to_A
         self.expected_value = AttackObservation.ATTACKS_OBSERVED

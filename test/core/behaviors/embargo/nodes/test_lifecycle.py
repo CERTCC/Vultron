@@ -86,6 +86,7 @@ def clear_blackboard():
 class TestTerminateEmbargoBT:
     """Tests for the shared terminate_embargo_bt factory (BT-19-001)."""
 
+    @pytest.mark.spec("EMB-07-001")
     def test_terminates_active_embargo(self):
         """Shared BT transitions ACTIVE → EXITED and queues the activity."""
         case, _, dl = _make_case_with_manager("teb1", em_state=EM.ACTIVE)
@@ -113,6 +114,7 @@ class TestTerminateEmbargoBT:
         assert updated.active_embargo is None
         factory.terminate_embargo.assert_called_once()
 
+    @pytest.mark.spec("EMB-07-002")
     def test_terminates_revise_embargo(self):
         """Shared BT transitions REVISE → EXITED."""
         case, _, dl = _make_case_with_manager("teb2", em_state=EM.REVISE)
@@ -190,6 +192,7 @@ class TestTerminateEmbargoBT:
         assert result.status == py_trees.common.Status.FAILURE
         factory.terminate_embargo.assert_not_called()
 
+    @pytest.mark.spec("EMB-13-001")
     def test_resets_participant_pec_state(self):
         """Shared BT resets participant embargo_consent_state to NO_EMBARGO."""
         case, _, dl = _make_case_with_manager("teb5", em_state=EM.ACTIVE)
@@ -484,6 +487,7 @@ class TestSetEmbargoActiveNode:
         bt.tick()
         return node.status
 
+    @pytest.mark.spec("EMB-02-001")
     def test_transitions_proposed_to_active(self):
         """Transitions EM.PROPOSED → EM.ACTIVE and persists."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -545,6 +549,7 @@ class TestSetEmbargoActiveNode:
         assert detail, "Expected the 'Activated embargo' detail line"
         assert all(r.levelno == logging.DEBUG for r in detail)
 
+    @pytest.mark.spec("EMB-02-001")
     def test_idempotent_when_embargo_already_active(self):
         """Returns SUCCESS without state mutation when embargo is already active."""
         dl = SqliteDataLayer("sqlite:///:memory:")

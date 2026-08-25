@@ -176,6 +176,8 @@ class TestResetContainersFcv:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CM-17-001")
+@pytest.mark.spec("CM-17-004")
 class TestFindCaseInviteForActor:
     """Test the shared polling helper that locates the CaseActor Invite for the invitee."""
 
@@ -342,6 +344,8 @@ class TestFcvMilestoneAssertions:
         c.get.return_value = {}
         return c
 
+    @pytest.mark.spec("CM-12-001")
+    @pytest.mark.spec("VP-02-015")
     def test_phase_report_submission_calls_verify_case_active(self):
         """_phase_report_submission calls verify_case_active at M1."""
         import contextlib

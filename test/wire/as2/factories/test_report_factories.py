@@ -81,6 +81,7 @@ def sample_offer(sample_report, sample_actor) -> as_Offer:
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-001")
 def test_rm_create_report_returns_create(sample_report, sample_actor):
     result = rm_create_report_activity(
         report=sample_report, actor=sample_actor
@@ -89,6 +90,7 @@ def test_rm_create_report_returns_create(sample_report, sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-001")
 def test_rm_create_report_object_is_report(sample_report, sample_actor):
     result = rm_create_report_activity(
         report=sample_report, actor=sample_actor
@@ -120,6 +122,8 @@ def test_rm_create_report_invalid_report_raises(sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-002")
+@pytest.mark.spec("MSM-01-001")
 def test_rm_submit_report_returns_offer(sample_report, sample_actor):
     result = rm_submit_report_activity(
         report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
@@ -128,6 +132,7 @@ def test_rm_submit_report_returns_offer(sample_report, sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-002")
 def test_rm_submit_report_object_is_report(sample_report, sample_actor):
     result = rm_submit_report_activity(
         report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
@@ -176,12 +181,15 @@ def test_rm_submit_report_invalid_report_raises(sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-003")
+@pytest.mark.spec("MSM-01-008")
 def test_rm_read_report_returns_read(sample_report, sample_actor):
     result = rm_read_report_activity(report=sample_report, actor=sample_actor)
     assert isinstance(result, as_Read)
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-003")
 def test_rm_read_report_object_is_report(sample_report, sample_actor):
     result = rm_read_report_activity(report=sample_report, actor=sample_actor)
     assert result.object_ == sample_report
@@ -208,6 +216,8 @@ def test_rm_read_report_invalid_report_raises(sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-004")
+@pytest.mark.spec("MSM-01-003")
 def test_rm_validate_report_returns_accept(sample_offer, sample_actor):
     result = rm_validate_report_activity(
         offer=sample_offer, actor=sample_actor
@@ -216,6 +226,7 @@ def test_rm_validate_report_returns_accept(sample_offer, sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-004")
 def test_rm_validate_report_object_is_offer(sample_offer, sample_actor):
     result = rm_validate_report_activity(
         offer=sample_offer, actor=sample_actor
@@ -257,6 +268,8 @@ def test_rm_validate_report_malformed_offer_raises(sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-005")
+@pytest.mark.spec("MSM-01-002")
 def test_rm_invalidate_report_returns_tentative_reject(
     sample_offer, sample_actor
 ):
@@ -267,6 +280,7 @@ def test_rm_invalidate_report_returns_tentative_reject(
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-005")
 def test_rm_invalidate_report_object_is_offer(sample_offer, sample_actor):
     result = rm_invalidate_report_activity(
         offer=sample_offer, actor=sample_actor
@@ -314,12 +328,15 @@ def test_rm_invalidate_report_malformed_offer_raises(sample_actor):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-006")
+@pytest.mark.spec("MSM-01-006")
 def test_rm_close_report_returns_reject(sample_offer, sample_actor):
     result = rm_close_report_activity(offer=sample_offer, actor=sample_actor)
     assert isinstance(result, as_Reject)
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-02-006")
 def test_rm_close_report_object_is_offer(sample_offer, sample_actor):
     result = rm_close_report_activity(offer=sample_offer, actor=sample_actor)
     assert result.object_ == sample_offer

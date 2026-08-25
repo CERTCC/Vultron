@@ -198,6 +198,9 @@ def case_with_non_owner(
 
 
 class TestInvalidateReportTriggerTree:
+    @pytest.mark.spec("RMB-11-001")
+    @pytest.mark.spec("BT-15-002")
+    @pytest.mark.spec("BT-03-004")
     def test_success_emits_activity_and_sets_rm_invalid(
         self, scenario: BTTestScenario, actor, report, offer
     ):
@@ -209,6 +212,7 @@ class TestInvalidateReportTriggerTree:
         scenario.assert_success(result)
         scenario.assert_rm_state(report.id_, RM.INVALID)
 
+    @pytest.mark.spec("RMB-11-001")
     def test_success_adds_to_outbox(
         self, scenario: BTTestScenario, actor, report, offer
     ):
@@ -221,6 +225,7 @@ class TestInvalidateReportTriggerTree:
         after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
         assert len(after - before) >= 1
 
+    @pytest.mark.spec("BT-15-002")
     def test_failure_no_trigger_activity_factory(
         self, scenario: BTTestScenario, actor, report, offer
     ):
@@ -238,6 +243,7 @@ class TestInvalidateReportTriggerTree:
         result = bridge_no_factory.execute_with_setup(tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("BT-09-001")
     def test_idempotent_second_run(
         self, scenario: BTTestScenario, actor, report, offer
     ):
@@ -259,6 +265,9 @@ class TestInvalidateReportTriggerTree:
 
 
 class TestRejectReportTriggerTree:
+    @pytest.mark.spec("RMB-14-001")
+    @pytest.mark.spec("BTND-10-001")
+    @pytest.mark.spec("BT-03-004")
     def test_success_emits_activity_and_sets_rm_closed(
         self,
         scenario: BTTestScenario,
@@ -279,6 +288,7 @@ class TestRejectReportTriggerTree:
         scenario.assert_success(result)
         scenario.assert_rm_state(report.id_, RM.CLOSED)
 
+    @pytest.mark.spec("RMB-14-001")
     def test_success_adds_to_outbox(
         self,
         scenario: BTTestScenario,
@@ -296,6 +306,7 @@ class TestRejectReportTriggerTree:
         after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
         assert len(after - before) >= 1
 
+    @pytest.mark.spec("RMB-14-002")
     def test_no_pre_close_guard(
         self,
         scenario: BTTestScenario,
@@ -312,6 +323,7 @@ class TestRejectReportTriggerTree:
         # Should still succeed (idempotent create) — no guard node in this tree
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("BT-15-002")
     def test_failure_no_trigger_activity_factory(
         self, scenario: BTTestScenario, actor, report, offer
     ):
@@ -335,6 +347,9 @@ class TestRejectReportTriggerTree:
 
 
 class TestCloseCaseTriggerTree:
+    @pytest.mark.spec("RMB-14-001")
+    @pytest.mark.spec("BTND-10-001")
+    @pytest.mark.spec("BT-03-004")
     def test_success_emits_activity_and_sets_rm_closed(
         self,
         scenario: BTTestScenario,
@@ -362,6 +377,7 @@ class TestCloseCaseTriggerTree:
         scenario.assert_rm_state(report.id_, RM.CLOSED)
         assert "error" not in result_out
 
+    @pytest.mark.spec("RMB-14-001")
     def test_success_adds_to_outbox(
         self,
         scenario: BTTestScenario,
@@ -385,6 +401,7 @@ class TestCloseCaseTriggerTree:
         after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
         assert len(after - before) >= 1
 
+    @pytest.mark.spec("BT-10-004")
     def test_failure_non_case_owner_blocked(
         self,
         scenario: BTTestScenario,
@@ -405,6 +422,8 @@ class TestCloseCaseTriggerTree:
         result = scenario.run(tree, case_id=case_with_non_owner.id_)
         scenario.assert_failure(result)
 
+    @pytest.mark.spec("BTND-10-001")
+    @pytest.mark.spec("RMB-14-002")
     def test_failure_already_closed_writes_error(
         self,
         scenario: BTTestScenario,
@@ -430,6 +449,7 @@ class TestCloseCaseTriggerTree:
             result_out["error"], VultronInvalidStateTransitionError
         )
 
+    @pytest.mark.spec("BTND-10-001")
     def test_failure_already_closed_error_message(
         self,
         scenario: BTTestScenario,
@@ -453,6 +473,7 @@ class TestCloseCaseTriggerTree:
         assert error is not None
         assert report.id_ in str(error)
 
+    @pytest.mark.spec("BT-15-002")
     def test_failure_no_trigger_activity_factory(
         self,
         scenario: BTTestScenario,

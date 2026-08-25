@@ -178,6 +178,7 @@ class TestSvcCloseCaseUseCase:
         )
         self.dl.create(status)
 
+    @pytest.mark.spec("TRIG-07-001")
     def test_close_case_returns_activity_dict(self):
         """execute() returns result['activity'] as Reject(Offer) dict (DL-06-001)."""
         self._seed_accepted()
@@ -193,6 +194,8 @@ class TestSvcCloseCaseUseCase:
         assert result.get("activity") is not None
         assert result["activity"].get("type") == "Reject"
 
+    @pytest.mark.spec("TRIG-07-001")
+    @pytest.mark.spec("TRIG-02-001")
     def test_close_case_queues_activity_in_outbox(self):
         """execute() enqueues at least one activity in the actor's outbox."""
         self._seed_accepted()

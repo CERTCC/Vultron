@@ -64,6 +64,8 @@ def _make_factory(
 class TestRemoveEmbargoFromCaseTreeAnnounce:
     """Verify Announce(EmbargoEvent) emission wiring in remove_embargo_from_case_tree."""
 
+    @pytest.mark.spec("EMB-07-001")
+    @pytest.mark.spec("EMB-13-001")
     def test_emits_announce_when_active_embargo_removed(self):
         """ActiveTeardown path emits Announce(EmbargoEvent) to outbox."""
         case, _, dl = make_case_with_manager("atrt1", em_state=EM.ACTIVE)
