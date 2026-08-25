@@ -24,6 +24,11 @@ groups:
       spec_id: VP-16-002
     - rel_type: implements
       spec_id: VP-16-003
+    stories:
+    - story_2022_029
+    - story_2022_030
+    - story_2022_034
+    - story_2022_045
   - id: OID-01-002
     priority: MUST
     kind: protocol
@@ -31,6 +36,9 @@ groups:
       full URI form (OID-01-001) with a deployment-controlled authority component.
     verification: Inspection of `vultron/core/` confirms that ID generation embeds a UUID in full-URI form, guaranteeing
       uniqueness within the deployment.
+    stories:
+    - story_2022_029
+    - story_2022_030
   - id: OID-01-003
     priority: MUST
     kind: protocol
@@ -38,6 +46,8 @@ groups:
       or equivalent)
     verification: A unit test confirms that the ID helper reads the base URI from `VULTRON_BASE_URL` (or its configured
       equivalent) rather than a hardcoded value.
+    stories:
+    - story_2022_029
   - id: OID-01-004
     priority: MUST
     kind: project
@@ -53,6 +63,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OID-01-003
+    stories:
+    - story_2022_034
+    - story_2022_035
 - id: OID-02
   title: DataLayer Handling
   specs:
@@ -62,18 +75,24 @@ groups:
     statement: The DataLayer MUST store and retrieve objects using their full-URI `as_id` as the primary key
     verification: A unit test confirms that `DataLayer.save(obj)` and `DataLayer.get(obj.as_id)` round-trip correctly
       using the full-URI key.
+    lint_suppress:
+    - missing_story_reference
   - id: OID-02-002
     priority: MUST
     kind: protocol
     statement: '`object_to_record()` MUST preserve the full-URI `as_id` when serializing objects to the DataLayer'
     verification: A unit test confirms that `object_to_record(obj)` includes the full-URI `as_id` value in the serialized
       record.
+    lint_suppress:
+    - missing_story_reference
   - id: OID-02-003
     priority: MUST
     kind: protocol
     statement: '`record_to_object()` MUST reconstruct objects using the full-URI `as_id` stored in the record'
     verification: A unit test confirms that `record_to_object(record)` produces an object whose `as_id` matches the full
       URI stored in the record.
+    lint_suppress:
+    - missing_story_reference
   - id: OID-02-004
     priority: MUST_NOT
     kind: protocol

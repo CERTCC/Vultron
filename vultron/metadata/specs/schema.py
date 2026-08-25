@@ -34,6 +34,11 @@ AdrIdStr = Annotated[
     StringConstraints(pattern=r"^ADR-\d{4}$"),
 ]
 
+StoryIdStr = Annotated[
+    str,
+    StringConstraints(pattern=r"^story_\d{4}_\d{3}$"),
+]
+
 
 class RFC2119Priority(StrEnum):
     """RFC 2119 priority levels for requirements (SR-02-003)."""
@@ -195,6 +200,7 @@ class LintWarningCode(StrEnum):
     DANGLING_ADR_REF = "dangling_adr_ref"
     PHANTOM_PATH_REF = "phantom_path_ref"
     MUST_WITHOUT_VERIFICATION = "must_without_verification"
+    MISSING_STORY_REFERENCE = "missing_story_reference"
 
 
 class Relationship(BaseModel):
@@ -242,6 +248,7 @@ class StatementSpec(BaseModel):
     relationships: list[Relationship] | None = None
     adr: list[AdrIdStr] | None = None
     lint_suppress: list[LintWarningCode] | None = None
+    stories: list[StoryIdStr] | None = None
 
     @field_validator(
         "scope",
@@ -251,6 +258,7 @@ class StatementSpec(BaseModel):
         "relationships",
         "adr",
         "lint_suppress",
+        "stories",
     )
     @classmethod
     def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:

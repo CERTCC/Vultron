@@ -29,6 +29,11 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-15-003
+    stories:
+    - story_2022_035
+    - story_2022_036
+    - story_2022_089
+    - story_2022_090
   - id: ENC-01-002
     priority: MUST
     kind: protocol
@@ -39,6 +44,9 @@ groups:
       public key per ActivityPub HTTP Signatures conventions.
     scope:
     - production
+    stories:
+    - story_2022_035
+    - story_2022_089
   - id: ENC-01-003
     priority: MUST
     kind: protocol
@@ -49,6 +57,8 @@ groups:
       the CaseActor's public key.
     scope:
     - production
+    stories:
+    - story_2022_090
   - id: ENC-01-004
     priority: MUST_NOT
     kind: protocol
@@ -56,6 +66,8 @@ groups:
       Private keys MUST be stored securely and MUST NOT be logged or included in API responses
     scope:
     - production
+    stories:
+    - story_2022_091
   - id: ENC-01-005
     priority: MUST
     kind: protocol
@@ -72,6 +84,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ENC-01-001
+    stories:
+    - story_2022_091
+    - story_2022_090
   - id: ENC-01-006
     priority: MUST_NOT
     kind: protocol
@@ -100,6 +115,8 @@ groups:
       spec_id: VP-15-003
     - rel_type: implements
       spec_id: VP-15-004
+    stories:
+    - story_2022_091
   - id: ENC-02-002
     priority: SHOULD
     kind: protocol
@@ -116,6 +133,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-15-004
+    stories:
+    - story_2022_091
 - id: ENC-03
   title: Decryption Pipeline
   specs:
@@ -136,6 +155,8 @@ groups:
       spec_id: SE-01-001
     - rel_type: implements
       spec_id: VP-15-003
+    lint_suppress:
+    - missing_story_reference
   - id: ENC-03-002
     priority: MUST
     kind: protocol
@@ -151,6 +172,8 @@ groups:
       spec_id: EH-05-001
     - rel_type: depends_on
       spec_id: HTTP-03-001
+    lint_suppress:
+    - missing_story_reference
   - id: ENC-03-003
     priority: MUST_NOT
     kind: protocol

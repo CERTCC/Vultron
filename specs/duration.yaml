@@ -24,6 +24,9 @@ groups:
       A unit test confirms that duration values produced by `vultron/core/` match
       the `P[n]DT[n]H[n]M[n]S` pattern and are round-tripped correctly from that
       format.
+    stories:
+    - story_2022_010
+    - story_2022_014
   - id: DUR-01-002
     priority: MUST
     kind: protocol
@@ -31,6 +34,8 @@ groups:
     verification: >-
       A unit test confirms that duration fields serialize to a JSON string type,
       not a numeric type, when serialized via the Pydantic model.
+    lint_suppress:
+    - missing_story_reference
   - id: DUR-01-003
     priority: MUST
     kind: protocol
@@ -40,6 +45,9 @@ groups:
     verification: >-
       A unit test confirms that `P1D` is treated as exactly 86400 seconds with no
       DST or calendar adjustment applied during interval arithmetic.
+    stories:
+    - story_2022_010
+    - story_2022_014
 - id: DUR-02
   title: Allowed Grammar (Restricted ISO 8601 Subset)
   specs:
@@ -51,6 +59,8 @@ groups:
       A unit test confirms that duration strings using only `D`, `H`, time-part
       `M`, and `S` units are accepted, and that strings containing any other unit
       are rejected.
+    lint_suppress:
+    - missing_story_reference
   - id: DUR-02-002
     priority: MUST_NOT
     kind: protocol
@@ -93,6 +103,8 @@ groups:
     verification: >-
       A unit test confirms that duration strings containing `Y`, date-part `M`, or
       `W` units are rejected with a validation error.
+    lint_suppress:
+    - missing_story_reference
   - id: DUR-04-002
     priority: MUST
     kind: protocol
@@ -100,6 +112,8 @@ groups:
     verification: >-
       A unit test confirms that strings not conforming to ISO 8601 duration grammar
       (e.g., `"1D"`, `"foo"`) are rejected with a validation error.
+    lint_suppress:
+    - missing_story_reference
   - id: DUR-04-003
     priority: MUST
     kind: protocol
@@ -107,6 +121,8 @@ groups:
     verification: >-
       A unit test confirms that the strings `"P"` and `"PT"` are rejected as empty
       duration strings.
+    lint_suppress:
+    - missing_story_reference
   - id: DUR-04-004
     priority: MUST
     kind: protocol
@@ -114,6 +130,8 @@ groups:
     verification: >-
       A unit test confirms that a valid duration string must contain at least one
       numeric component, and that bare `"P"` or `"PT"` strings are rejected.
+    lint_suppress:
+    - missing_story_reference
 - id: DUR-05
   title: Python / Pydantic v2 Mapping
   specs:
@@ -132,6 +150,8 @@ groups:
       A unit test confirms that a Pydantic model with a duration field serializes
       the field as an ISO 8601 string (e.g., `"P1D"`) rather than a plain number
       of seconds.
+    lint_suppress:
+    - missing_story_reference
 - id: DUR-06
   title: Interval Composition
   specs:
@@ -145,6 +165,9 @@ groups:
       Inspection of `vultron/core/` confirms that code applying an embargo policy
       adds the policy duration to the case creation timestamp to derive the embargo
       end time.
+    stories:
+    - story_2022_010
+    - story_2022_014
   - id: DUR-06-002
     priority: MUST
     kind: protocol
@@ -152,6 +175,8 @@ groups:
     verification: >-
       A unit test confirms that combining a start timestamp with a duration
       produces `end = start + duration` with no additional calendar offset.
+    lint_suppress:
+    - missing_story_reference
   - id: DUR-06-003
     priority: MUST
     kind: protocol
@@ -161,6 +186,8 @@ groups:
     verification: >-
       A unit test confirms that timestamps used in interval composition are parsed
       as RFC 3339 values and that local-timezone arithmetic is not applied.
+    lint_suppress:
+    - missing_story_reference
 - id: DUR-07
   title: Embargo Duration Semantics
   specs:
@@ -173,6 +200,10 @@ groups:
     verification: >-
       Inspection of `vultron/core/` confirms that case embargo end times are stored
       as explicit start and end timestamp pairs, not as a duration-only field.
+    stories:
+    - story_2022_010
+    - story_2022_014
+    - story_2022_074
   - id: DUR-07-002
     priority: SHOULD
     kind: protocol
@@ -191,6 +222,10 @@ groups:
       Integration tests in `test/demo/` confirm that applying a default embargo
       duration at case creation produces an INFO-level log entry and sets
       `CaseStatus.em_state` to `EM.ACTIVE`.
+    stories:
+    - story_2022_010
+    - story_2022_014
+    - story_2022_074
   - id: DUR-07-004
     priority: MUST
     kind: protocol
@@ -201,3 +236,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: DUR-07-002
+    stories:
+    - story_2022_014
+    - story_2022_074
