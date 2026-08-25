@@ -19,6 +19,9 @@ groups:
     kind: protocol
     statement: When an actor creates a case in response to an inbound `Offer(VulnerabilityReport)`, that case creator MUST
       establish trust at the original report submitter by sending a one-time `Create(VulnerabilityCase)` activity.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that when a case is created
+      in response to an `Offer(VulnerabilityReport)`, a `Create(VulnerabilityCase)` is dispatched to the original report
+      submitter's inbox.
     relationships:
     - rel_type: refines
       spec_id: CM-12-001
@@ -29,6 +32,9 @@ groups:
     kind: protocol
     statement: The bootstrap `Create(VulnerabilityCase)` activity MUST carry a full inline `VulnerabilityCase` snapshot rather
       than a minimal stub or partial trust-only payload.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that the bootstrap
+      `Create(VulnerabilityCase)` carries a fully materialized `VulnerabilityCase` object rather than a stub or bare URI
+      reference in its payload.
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
@@ -37,6 +43,9 @@ groups:
     kind: protocol
     statement: The bootstrap case snapshot MUST identify the case creator/owner as a participant with `CASE_OWNER` role and
       MUST identify the CaseActor as a participant with `COORDINATOR` role.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that the bootstrap
+      `VulnerabilityCase` snapshot includes a participant with `CASE_OWNER` role for the case creator and a participant
+      with `COORDINATOR` role for the CaseActor.
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
@@ -47,11 +56,17 @@ groups:
     kind: protocol
     statement: When the original report submitter is intended to receive ongoing case updates immediately, the bootstrap case
       snapshot MUST include that actor as a participant from the start.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that the original report
+      submitter appears as an inline participant in `case_participants` of the bootstrap `Create(VulnerabilityCase)` when
+      ongoing case updates are expected from the start.
   - id: CBT-01-005
     priority: MUST
     kind: protocol
     statement: A report submitter MUST NOT trust a newly introduced CaseActor unless the bootstrap `Create(VulnerabilityCase)`
       both comes from the same actor that received the report and references the previously submitted report.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
+      `Create(VulnerabilityCase)` from an unexpected sender or without a matching report reference is rejected and does
+      not establish CaseActor trust.
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
@@ -62,6 +77,9 @@ groups:
     kind: protocol
     statement: After validating the bootstrap `Create(VulnerabilityCase)`, the receiving actor MUST persist the report-to-case
       link, the trusted case-creator identity, and the trusted CaseActor identity for that relationship.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that after a valid bootstrap
+      `Create(VulnerabilityCase)`, the receiver's DataLayer contains the report-to-case link, the trusted case-creator
+      identity, and the trusted CaseActor identity for that relationship.
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
@@ -76,6 +94,10 @@ groups:
       handlers only persist non-string entries (materialized objects). Bare URI strings are silently skipped; the receiver
       cannot seed CaseParticipant records from string-only refs, causing downstream BT failures (e.g., `CheckParticipantExists`
       returns FAILURE for a participant the receiver was never told about).
+    verification: Inspection of `vultron/wire/as2/vocab/` confirms that `ActivityStreamRef` fields accept bare URI strings
+      without error; integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that `CaseParticipant`
+      objects are serialized as full inline objects in the bootstrap payload so the receiver can persist each participant
+      record.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-002
@@ -87,6 +109,9 @@ groups:
     kind: protocol
     statement: For the original report-submission path, `Create(VulnerabilityCase)` is a one-time bootstrap message only;
       subsequent full-case synchronization MUST use `Announce(VulnerabilityCase)` from the trusted CaseActor.
+    verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that after the initial bootstrap
+      exchange, full-case synchronization uses `Announce(VulnerabilityCase)` from the trusted CaseActor and that a second
+      `Create(VulnerabilityCase)` is not issued.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
@@ -105,6 +130,9 @@ groups:
     kind: protocol
     statement: Once a CaseActor has been trusted for a case, that identity MUST NOT be replaced implicitly by ordinary case-update
       traffic; CaseActor rotation or transfer MUST use an explicit transfer workflow.
+    verification: Inspection of `vultron/wire/as2/` confirms that CaseActor identity is stored at bootstrap time and is
+      not overwritten by ordinary `Announce(VulnerabilityCase)` traffic; only an explicit transfer workflow may replace
+      the trusted CaseActor.
     relationships:
     - rel_type: refines
       spec_id: CM-02-010
@@ -133,6 +161,8 @@ groups:
     kind: protocol
     statement: 'When the bounded pre-bootstrap queue expires (default: 300 seconds, configurable via `AppConfig.pre_bootstrap_queue_timeout_seconds`),
       the receiver MUST drop the queued message, log a warning, and require a resend after bootstrap.'
+    verification: A unit test confirms that when the pre-bootstrap queue timeout (`AppConfig.pre_bootstrap_queue_timeout_seconds`)
+      elapses, the queued message is discarded, a warning is logged, and the activity is not applied to local case state.
   - id: CBT-03-004
     priority: SHOULD
     kind: project
@@ -148,6 +178,8 @@ groups:
     kind: protocol
     statement: For a participant added after case creation, the trust-establishing message MUST be `InviteActorToCase` from
       the case creator/owner rather than `Create(VulnerabilityCase)`.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that a participant added after case
+      creation receives an `InviteActorToCase` message rather than a `Create(VulnerabilityCase)` to establish trust.
     relationships:
     - rel_type: refines
       spec_id: CM-11-001
@@ -156,11 +188,17 @@ groups:
     kind: protocol
     statement: The trust-establishing invite for a late joiner MUST identify both the case and the CaseActor that will send
       subsequent `Announce(VulnerabilityCase)` updates.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the `InviteActorToCase` payload
+      includes both the case identifier and the CaseActor that will subsequently send `Announce(VulnerabilityCase)`
+      updates.
   - id: CBT-04-003
     priority: MUST
     kind: protocol
     statement: After the late joiner has validated and accepted that invitation, the CaseActor MAY send `Announce(VulnerabilityCase)`
       without a separate `Create(VulnerabilityCase)` bootstrap.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that after a late joiner accepts
+      `InviteActorToCase`, it correctly processes `Announce(VulnerabilityCase)` from the CaseActor without an intermediate
+      `Create(VulnerabilityCase)` bootstrap.
     relationships:
     - rel_type: refines
       spec_id: PCR-07-007
@@ -172,21 +210,33 @@ groups:
     kind: protocol
     statement: Tests MUST verify that the original report submitter accepts CaseActor-originated `Announce(VulnerabilityCase)`
       updates only after a valid creator-signed bootstrap `Create(VulnerabilityCase)` has established trust.
+    verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that an `Announce(VulnerabilityCase)`
+      from the CaseActor is accepted by the report submitter only after a valid `Create(VulnerabilityCase)` bootstrap has
+      established trust.
   - id: CBT-05-002
     priority: MUST
     kind: protocol
     statement: Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is rejected when the sender does not match the
       actor that received the report or when the case does not reference the known submitted report.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
+      `Create(VulnerabilityCase)` is rejected when its sender mismatches the actor that received the report or when it
+      does not reference the known submitted report.
   - id: CBT-05-003
     priority: MUST
     kind: protocol
     statement: Tests MUST verify that pre-bootstrap CaseActor messages remain unapplied, expire safely, and lead to a replay
       request to the case creator.
+    verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that pre-bootstrap CaseActor messages
+      remain unapplied, that the pre-bootstrap queue expiry is handled safely, and that expiry triggers a replay request
+      to the case creator.
   - id: CBT-05-004
     priority: MUST
     kind: protocol
     statement: Tests MUST verify that late joiners establish trust through `InviteActorToCase` and may then accept CaseActor-originated
       `Announce(VulnerabilityCase)` updates without an intermediate `Create(VulnerabilityCase)` bootstrap.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that late joiners establish trust
+      through `InviteActorToCase` and subsequently accept `Announce(VulnerabilityCase)` updates without a
+      `Create(VulnerabilityCase)` bootstrap.
   - id: CBT-05-005
     priority: MUST
     kind: protocol

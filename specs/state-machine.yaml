@@ -27,6 +27,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: State enum values are the authoritative definition of valid states
+    verification: Inspection confirms all state validation and transition guards reference enum values (e.g.,
+      `RM.RECEIVED`, `EM.ACTIVE`) rather than raw strings or integer literals.
 - id: SM-02
   title: State Machine Definitions
   specs:
@@ -64,6 +66,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'Every valid (source → dest) pair that the protocol describes MUST have a corresponding transition entry.'
+    verification: The transition list for each axis (RM, EM, VFD, PXA) is compared against the protocol's valid
+      (source, dest) pairs; inspection confirms no valid pair is absent.
 - id: SM-04
   title: Runtime State Changes
   specs:
@@ -91,6 +95,8 @@ groups:
     kind: protocol
     statement: The `current_status` property (or equivalent) MUST return the single most-recently-timestamped entry from the
       history list
+    verification: A unit test confirms `current_status` returns the entry with the latest timestamp when the history
+      list contains multiple entries; a single-entry history returns that entry.
     relationships:
     - rel_type: implements
       spec_id: CM-03-006
@@ -122,6 +128,8 @@ groups:
     kind: protocol
     statement: RM state for reports MUST be persisted as participant-level state in `CaseParticipant` records. In-memory transient
       RM state is not permitted.
+    verification: Inspection of all RM state write paths confirms they persist to `ParticipantStatus` records via
+      `dl.save()`; no module-level or request-scoped variable carries RM state across request boundaries.
 - id: SM-07
   title: State Subsets and Guards
   specs:
@@ -142,6 +150,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: State enum values MUST be stored and transmitted as their string value (not as Python enum names or as integers)
+    verification: DataLayer round-trip tests and wire-activity inspection confirm RM, EM, VFD, and PXA values
+      serialize as string values (e.g., `"RECEIVED"`, `"ACTIVE"`) not as Python enum names or integers.
   - id: SM-08-002
     priority: MUST
     kind: project
@@ -189,6 +199,8 @@ groups:
     kind: protocol
     statement: 'RM and VFD state transitions MUST update the sending actor''s `ParticipantStatus` record for the affected
       `CaseParticipant`. These axes are participant-specific: each participant''s RM and VFD state evolves independently.'
+    verification: Integration tests confirm that processing an RM or VFD state message updates the sending actor's
+      `ParticipantStatus` in the CaseActor's DataLayer before the handler exits.
     relationships:
     - rel_type: refines
       spec_id: CM-04-001
@@ -199,6 +211,8 @@ groups:
     kind: protocol
     statement: 'EM and PXA state transitions MUST update the shared `CaseStatus` record for the associated `VulnerabilityCase`.
       These axes are participant-agnostic: a single shared value covers all participants in the case.'
+    verification: Integration tests confirm that processing an EM or PXA message updates `CaseStatus.em_state`
+      or `CaseStatus.pxa_state` on the shared `VulnerabilityCase` before the handler exits.
     relationships:
     - rel_type: refines
       spec_id: CM-04-003

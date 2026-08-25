@@ -61,10 +61,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: Activities in an actor's outbox MUST be delivered to recipient inboxes
+    verification: Integration tests in `test/demo/` confirm that activities queued in an actor's outbox are delivered
+      via HTTP POST to each recipient's inbox endpoint.
   - id: OX-03-002
     priority: MUST
     kind: protocol
     statement: Delivery MUST occur after the generating handler completes
+    verification: Integration tests confirm that outbox delivery does not begin until the inbox handler returns, and
+      the HTTP response is sent before delivery is attempted.
   - id: OX-03-003
     priority: MUST_NOT
     kind: protocol

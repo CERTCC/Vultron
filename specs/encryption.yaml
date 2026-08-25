@@ -22,6 +22,8 @@ groups:
       on restart would invalidate any peer's cached public key and break encrypted communication mid-case. Open question —
       if a single CaseActor process ever manages multiple cases, it is unresolved whether the key pair belongs to the actor
       or to the actor/case tuple; for now the 1:1 case-actor-to-case assumption holds.
+    verification: A unit test confirms that two independently created CaseActors have distinct public keys, and that a
+      newly created CaseActor's key pair is non-None.
     scope:
     - production
     relationships:
@@ -33,6 +35,8 @@ groups:
     statement: >-
       The CaseActor MUST publish its public key in its ActivityPub actor profile using the
       `publicKey` property per ActivityPub HTTP Signatures conventions
+    verification: Inspection of the actor profile endpoint confirms the `publicKey` field is populated with the actor's
+      public key per ActivityPub HTTP Signatures conventions.
     scope:
     - production
   - id: ENC-01-003
@@ -41,6 +45,8 @@ groups:
     statement: >-
       The CaseActor MUST share its public key with each case participant when they are added
       to the case
+    verification: Integration tests confirm that when a participant is added to a case, the outbound activity includes
+      the CaseActor's public key.
     scope:
     - production
   - id: ENC-01-004
@@ -59,6 +65,8 @@ groups:
     rationale: >-
       Regenerating on restart would invalidate any peer's cached public key and break
       encrypted communication mid-case.
+    verification: A unit test confirms that a CaseActor reconstructed from a persisted record retains the same key pair
+      as the original and does not generate a new one on reconstruction.
     scope:
     - production
     relationships:
@@ -117,6 +125,8 @@ groups:
     statement: >-
       Decryption of inbound encrypted activities MUST occur in the inbox handler before the
       activity is passed to semantic extraction or dispatch
+    verification: Inspection of `vultron/core/` confirms the inbox handler invokes the decryption step before calling
+      semantic extraction or the dispatch pipeline.
     scope:
     - production
     relationships:
@@ -132,6 +142,8 @@ groups:
     statement: >-
       If decryption fails, the inbox handler MUST return HTTP 400 with a structured error
       indicating decryption failure
+    verification: A unit test confirms that the inbox handler returns HTTP 400 with a structured error body when the
+      decryption step raises a failure.
     scope:
     - production
     relationships:
