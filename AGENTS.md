@@ -26,7 +26,7 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None`; routing via
   `USE_CASE_MAP` key lookup.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
-- Tests: `uv run pytest --tb=short 2>&1 | tail -5` — run once. See
+- Tests: `uv run pytest --tb=short 2>&1 | tee /tmp/last-test-run.log | tail -5` — run once. See
   `.agents/skills/run-tests/SKILL.md`.
 
 Quick gotchas: specific patterns before general; always `rehydrate()` before

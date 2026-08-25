@@ -52,6 +52,7 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     TransitionCStoFixDeployed,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
+    _EmitParticipantStatusActivityBase,
     CheckRMStateAccepted,
 )
 from vultron.core.models.case_participant import CaseParticipant
@@ -165,6 +166,15 @@ def _seed_status(
         if isinstance(participant, CaseParticipant):
             participant.participant_statuses.append(status)
             bt_scenario.dl.save(participant)
+
+
+# ---------------------------------------------------------------------------
+# _EmitParticipantStatusActivityBase hierarchy (BTND-07-005)
+# ---------------------------------------------------------------------------
+
+
+def test_emit_cd_activity_subclasses_base():
+    assert issubclass(EmitCDActivity, _EmitParticipantStatusActivityBase)
 
 
 # ---------------------------------------------------------------------------

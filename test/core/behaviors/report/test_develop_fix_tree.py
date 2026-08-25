@@ -39,6 +39,7 @@ from vultron.core.behaviors.report.develop_fix_tree import (
     create_develop_fix_tree,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
+    _EmitParticipantStatusActivityBase,
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
     CheckRMStateAccepted,
@@ -593,6 +594,21 @@ class TestTransitionCStoFixReady:
         ]
         assert detail, "Expected the node's own detail line"
         assert all(r.levelno == logging.DEBUG for r in detail)
+
+
+# ---------------------------------------------------------------------------
+# _EmitParticipantStatusActivityBase hierarchy (BTND-07-005)
+# ---------------------------------------------------------------------------
+
+
+def test_emit_cf_activity_subclasses_base():
+    assert issubclass(EmitCFActivity, _EmitParticipantStatusActivityBase)
+
+
+def test_emit_participant_status_base_in_all():
+    import vultron.core.behaviors.report.nodes.develop_fix as mod
+
+    assert "_EmitParticipantStatusActivityBase" in mod.__all__
 
 
 CASE_MANAGER_ACTOR_ID = "https://example.org/actors/case-manager-001"
