@@ -31,7 +31,6 @@ Spec: GitHub issue #1216 (DEMOMA-14).
 import logging
 import os
 import sys
-import time
 
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -81,9 +80,11 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
+    wait_for_case_attributed_to,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
@@ -153,53 +154,6 @@ def reset_containers(
         ("Vendor", vendor_client),
     ]
     _reset_containers(targets, reset_fn=reset_datalayer)
-
-
-# ---------------------------------------------------------------------------
-# Polling helpers
-# ---------------------------------------------------------------------------
-
-
-def _wait_for_case_attributed_to(
-    client: DataLayerClient,
-    case_id: str,
-    expected_attributed_to: str,
-    timeout_seconds: float = 20.0,
-    poll_interval: float = 0.5,
-) -> None:
-    """Poll until *case_id*'s ``attributed_to`` equals *expected_attributed_to*.
-
-    Raises:
-        AssertionError: If the field does not match within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            case_data = client.get(f"/datalayer/{case_id}")
-            if isinstance(case_data, dict):
-                attributed_to = case_data.get("attributedTo") or case_data.get(
-                    "attributed_to"
-                )
-                if isinstance(attributed_to, dict):
-                    attributed_to = attributed_to.get(
-                        "id"
-                    ) or attributed_to.get("id_")
-                if attributed_to == expected_attributed_to:
-                    logger.info(
-                        "Case %s attributed_to updated to %s",
-                        case_id,
-                        expected_attributed_to,
-                    )
-                    return
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for case {case_id!r}"
-        f" attributed_to={expected_attributed_to!r}"
-        f" on container {client.base_url}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +227,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
     )
 
     case = as_VulnerabilityCase.model_validate(
@@ -355,7 +309,7 @@ def _phase_ownership_handoff(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID, C2_ACTOR_ID},
     )
     logger.info("C2 has joined the case")
 
@@ -422,7 +376,7 @@ def _phase_ownership_handoff(
     with demo_check(
         "Case attributed_to updated to C2 on C1's DataLayer (AC-1)"
     ):
-        _wait_for_case_attributed_to(
+        wait_for_case_attributed_to(
             client=c1_client,
             case_id=case.id_,
             expected_attributed_to=c2.id_,
@@ -430,7 +384,7 @@ def _phase_ownership_handoff(
 
     # Also verify on C2's side.
     with demo_check("Case attributed_to updated to C2 on C2's DataLayer"):
-        _wait_for_case_attributed_to(
+        wait_for_case_attributed_to(
             client=c2_client,
             case_id=case.id_,
             expected_attributed_to=c2.id_,
@@ -522,8 +476,13 @@ def _phase_c2_invites_vendor(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=5,
-        timeout_seconds=90.0,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            C1_ACTOR_ID,
+            C2_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+        },
+        timeout_seconds=LATE_JOINER_TIMEOUT,
     )
     logger.info("✓ Vendor joined case (%d participants)", 5)
 
@@ -604,7 +563,12 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=5,
+            expected_actor_ids={
+                FINDER_ACTOR_ID,
+                C1_ACTOR_ID,
+                C2_ACTOR_ID,
+                VENDOR_ACTOR_ID,
+            },
             timeout_seconds=p_timeout,
         )
 

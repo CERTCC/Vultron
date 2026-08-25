@@ -200,7 +200,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, COORDINATOR_ACTOR_ID},
     )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
@@ -295,7 +295,7 @@ def _phase_invite_vendor_reject(
         wait_for_case_participants(
             vendor_client=coordinator_client,
             case_id=case.id_,
-            expected_count=3,
+            expected_actor_ids={FINDER_ACTOR_ID, COORDINATOR_ACTOR_ID},
         )
     logger.info("✓ M2: Vendor rejected invite — participant count stable at 3")
 

@@ -400,7 +400,9 @@ def post_to_inbox_and_wait(
     )
     client.post(f"/actors/{actor_obj_id}/inbox/", json=postfmt(activity))
     delay = DEFAULT_WAIT_SECONDS if wait_seconds is None else wait_seconds
-    time.sleep(delay)
+    time.sleep(
+        delay
+    )  # temporal: liveness probe — give BackgroundTasks time to process (EDF-06-006)
 
 
 def post_to_trigger(
