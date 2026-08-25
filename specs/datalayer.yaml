@@ -671,3 +671,41 @@ groups:
       spec_id: DL-08-001
     tags:
     - persistence
+  - id: DL-08-003
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: architecture
+    statement: >-
+      An activity whose reference field names another *actor* MUST declare that field inline-required.
+    rationale: >-
+      Under ADR-0072 an actor's record lives in its own store, so a peer named by an outbound activity
+      has no record in the sending actor's store and never will — actor discovery is not implemented
+      (ADR-0024). Dehydration is only reversible against such a record (DL-08-001), so collapsing a peer
+      actor to its id is unrecoverable by construction rather than by accident of write order. Three
+      activities name a peer: `_RmInviteToCaseActivity` and `_RecommendActorActivity` in `object_`, and
+      `_OfferCaseParticipantRoleActivity` in `target` — the last also declares its `object_`, whose
+      `CaseParticipantRole` the factory mints inline and no path persists. Every other required typed
+      reference in the vocabulary is either an activity, kept inline already, or a case, report, status,
+      participant or embargo, which the sender does hold; `_OfferCaseOwnershipTransferActivity.target` is
+      exempt because its declared type is a ref union, so an id there is in-shape. Left undeclared, the
+      stored Invite came back carrying a bare string, outbox delivery refused it for AKM-03-001 and gave
+      up after its retries, and the failure surfaced one hop away as the invitee answering 404 to
+      `reject-case-invite` for an invitation it had never been told about. Carrying the object is
+      necessary but not sufficient: read-back must also re-type it, or semantic matching classifies the
+      activity UNKNOWN and the receiver has nothing to dispatch on — which is why the re-typing set
+      `_AS_INLINE_TYPED_FIELDS` is wider than the dehydration set and includes `context`.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-08-001
+    - rel_type: refines
+      spec_id: AKM-03-001
+    verification: >-
+      `test/adapters/driven/test_db_record.py` asserts a stored `_RmInviteToCaseActivity` keeps its
+      invitee as an object through a write/read round-trip, that all three peer-actor-naming activities
+      declare the naming field in `inline_required_refs`, and that each still coerces back to its
+      semantic class after storage.
+    tags:
+    - persistence
+    adr:
+    - ADR-0072

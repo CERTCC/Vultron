@@ -782,3 +782,183 @@ def test_case_to_core_passes_through_a_bare_embargo_id():
     core = case.to_core()
 
     assert core.active_embargo == "urn:uuid:emb-dl08001-0000-0000-000000000001"
+
+
+# ---------------------------------------------------------------------------
+# DL-08-003: an activity whose object_ names a peer actor
+# ---------------------------------------------------------------------------
+
+_PEER_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor-dl08003"
+_CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor"
+
+
+def _invite_naming_a_peer():
+    """An ``Invite(Actor, Case)`` as the Case Actor builds it for a peer.
+
+    Built through the factory, not the internal vocab class, per the
+    AF-05-001 boundary (``test/architecture/test_activity_factory_imports.py``).
+    """
+    from vultron.core.models.actor import CoreActor
+    from vultron.wire.as2.factories import rm_invite_to_case_activity
+
+    return rm_invite_to_case_activity(
+        invitee=CoreActor(id_=_PEER_ACTOR_ID),
+        target="urn:uuid:case-dl08003-0000-0000-000000000001",
+        id_="urn:uuid:inv-dl08003-0000-0000-000000000001",
+        actor=_CASE_ACTOR_ID,
+        to=[_PEER_ACTOR_ID],
+    )
+
+
+def _recommendation_naming_a_peer():
+    """An ``Offer(Actor, Case)`` — the other activity that names a peer."""
+    from vultron.core.models.actor import CoreActor
+    from vultron.wire.as2.factories import recommend_actor_activity
+
+    return recommend_actor_activity(
+        recommended=CoreActor(id_=_PEER_ACTOR_ID),
+        target="urn:uuid:case-dl08003-0000-0000-000000000001",
+        id_="urn:uuid:rec-dl08003-0000-0000-000000000001",
+        actor=_CASE_ACTOR_ID,
+    )
+
+
+def test_invite_keeps_the_invited_peer_inline():
+    """The invitee must survive storage as an object, not an id (DL-08-003).
+
+    Nothing in the sender's store can give this id a record: the invitee is a
+    peer on another node, and under ADR-0072 a peer's record lives in the store
+    of whichever actor knows it — which for an Invite emitted by the Case Actor
+    is not the Case Actor's store. Dehydrating it therefore had nothing to read
+    back from, so the stored Invite returned a bare string and outbox delivery
+    refused it for AKM-03-001 after exhausting its retries. The invitation never
+    arrived and the invitee's ``reject-case-invite`` answered 404 for an invite
+    it had never been told about (#2548, fcv-reject).
+    """
+    invite = _invite_naming_a_peer()
+
+    record = object_to_record(cast(Any, invite))
+    stored = record.data_.get("object_")
+
+    assert isinstance(stored, dict), (
+        f"the invitee collapsed to {stored!r}; nothing in this store can expand"
+        " it again (DL-08-003)"
+    )
+    assert stored.get("id_") == _PEER_ACTOR_ID
+
+
+def test_invited_peer_round_trips_as_an_object():
+    """Read-back is what ``outbox_delivery`` re-serialises, so it is the gate."""
+    back = record_to_object(
+        object_to_record(cast(Any, _invite_naming_a_peer()))
+    )
+    restored = getattr(back, "object_", None)
+
+    assert not isinstance(
+        restored, str
+    ), "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
+
+
+def _role_offer_naming_a_peer():
+    """An ``Offer(CaseParticipantRole, target=Actor, context=Case)`` (ADR-0039).
+
+    Names a peer in ``target`` rather than ``object_`` — same rule, other field.
+    """
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.factories import (
+        offer_case_participant_role_activity,
+    )
+    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    return offer_case_participant_role_activity(
+        role=CVDRole.VENDOR,
+        target_actor=as_Actor(id_=_PEER_ACTOR_ID),
+        case=as_VulnerabilityCase(
+            id_="urn:uuid:case-dl08003-0000-0000-000000000001"
+        ),
+        id_="urn:uuid:role-dl08003-0000-0000-000000000001",
+        actor=_CASE_ACTOR_ID,
+    )
+
+
+@pytest.mark.parametrize(
+    "builder, fields",
+    [
+        (_invite_naming_a_peer, {"object_"}),
+        (_recommendation_naming_a_peer, {"object_"}),
+        (_role_offer_naming_a_peer, {"object_", "target"}),
+    ],
+    ids=["invite", "recommendation", "role-offer"],
+)
+def test_peer_actor_ref_is_declared_inline_required(builder, fields):
+    """Every activity naming a *peer actor* in a ref field declares that field.
+
+    These are the only three, and the role offer is the only one that names its
+    peer in ``target``.  Every other required-and-typed ``object_`` in the
+    vocabulary is either an activity (kept inline by
+    ``_KEEP_INLINE_NESTED_TYPES``) or a case/report/status/participant/embargo,
+    all of which do have a record in the sending actor's own store.  An actor
+    object is the one that never does — and the role offer's ``object_`` is the
+    one other kind that never does, since the factory mints the
+    ``CaseParticipantRole`` inline and no code path persists it (DL-08-001).
+
+    ``_OfferCaseOwnershipTransferActivity.target`` is deliberately excluded: it
+    is typed as a ref union, so an id there is the declared shape.
+
+    Asserted on the class the *factory* returns rather than an imported vocab
+    class, so it also pins the factory to a class that carries the declaration.
+    """
+    assert fields <= type(builder()).inline_required_refs
+
+
+@pytest.mark.parametrize(
+    "builder, semantic_cls_name",
+    [
+        (_invite_naming_a_peer, "_RmInviteToCaseActivity"),
+        (_recommendation_naming_a_peer, "_RecommendActorActivity"),
+        (_role_offer_naming_a_peer, "_OfferCaseParticipantRoleActivity"),
+    ],
+    ids=["invite", "recommendation", "role-offer"],
+)
+def test_stored_activity_still_matches_its_semantic_class(
+    builder, semantic_cls_name
+):
+    """Storage must not cost an activity its semantics.
+
+    ``coerce_to_semantic_class`` is what turns the base class read back out of
+    storage into the specific one, and it needs the fields the matcher keys on to
+    still be typed objects.  When they are not, the read-back is classified
+    UNKNOWN and stays an ``as_Offer``/``as_Invite`` — which is not an error
+    anywhere, it just means the receiver has no semantics to dispatch on and the
+    protocol step silently never happens.
+    """
+    from vultron.adapters.driven.datalayer_sqlite.hydration import (
+        coerce_to_semantic_class,
+    )
+
+    stored = record_to_object(object_to_record(cast(Any, builder())))
+    coerced = coerce_to_semantic_class(cast(Any, stored))
+
+    assert type(coerced).__name__ == semantic_cls_name
+
+
+def test_recommended_peer_round_trips_as_an_object():
+    """The Offer path has the same gap as the Invite path (DL-08-003).
+
+    ``suggest-actor-to-case`` is emitted by the recommender and addressed to the
+    Case Manager, and the actor it names is by definition one the case does not
+    have — so no store on the sending side holds it either.
+    """
+    back = record_to_object(
+        object_to_record(cast(Any, _recommendation_naming_a_peer()))
+    )
+    restored = getattr(back, "object_", None)
+
+    assert not isinstance(
+        restored, str
+    ), "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    assert getattr(restored, "id_", None) == _PEER_ACTOR_ID

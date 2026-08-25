@@ -109,6 +109,20 @@ _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     | {"CaseLedgerEntry"}
 )
 
+# Fields whose inline value must be re-typed to its specific vocabulary class on
+# read-back.  A superset of ``_AS_OBJECT_REF_FIELDS``: re-typing is safe for any
+# field that can hold an inline typed object, whereas *dehydration* is only safe
+# for a field declared as a reference, so the two sets are deliberately distinct.
+#
+# ``context`` is here and not there.  It is never dehydrated, so it is always
+# stored whole — but nothing re-typed it either, and ``as_Activity.context`` is
+# loosely typed, so read-back left a raw ``dict``.  That is enough to break
+# semantic matching: ``_OfferCaseParticipantRoleActivity`` is recognised by its
+# ``context`` being a ``VulnerabilityCase`` (ADR-0039), so a stored role offer
+# came back classified UNKNOWN, was never coerced out of the base ``as_Offer``,
+# and the receiver had no semantics to dispatch on.
+_AS_INLINE_TYPED_FIELDS: frozenset[str] = _AS_OBJECT_REF_FIELDS | {"context"}
+
 # Fields that hold a *list* of object references (ID strings or inline
 # objects).  Used by ``DataLayer.hydrate()`` to expand bare ID strings to
 # full domain objects — the list analogue of ``_AS_OBJECT_REF_FIELDS``.
@@ -239,9 +253,13 @@ def _retype_inline_object_refs(
     record) fully typed on read/replay, so semantic routing and effect
     application work without re-reading a separate record.  Generic: it applies
     to any inline typed reference, not just ``CaseLedgerEntry``.
+
+    Iterates :data:`_AS_INLINE_TYPED_FIELDS`, not ``_AS_OBJECT_REF_FIELDS`` —
+    re-typing what is already stored inline is always safe, so its scope is
+    wider than dehydration's.  See that constant for why ``context`` needs it.
     """
     updates: dict[str, Any] = {}
-    for field_name in _AS_OBJECT_REF_FIELDS:
+    for field_name in _AS_INLINE_TYPED_FIELDS:
         raw_sub = data.get(field_name)
         typed = _retype_inline_ref(obj, field_name, raw_sub)
         if typed is not None:

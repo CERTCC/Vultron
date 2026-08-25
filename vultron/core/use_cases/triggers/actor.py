@@ -70,9 +70,13 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        suggested_raw = self._dl.read(request.suggested_actor_id)
-        if suggested_raw is None:
-            raise VultronNotFoundError("Actor", request.suggested_actor_id)
+        # The recommended actor is a peer by definition — the whole point of a
+        # recommendation is to name an actor the *case* does not yet have. Under
+        # ADR-0072 its record is in the store of whoever knows it, so demanding
+        # one here refused every genuinely remote candidate.
+        _record_named_peer(
+            self._dl, request.suggested_actor_id, "suggested_actor_id"
+        )
 
         self._suggested_actor_id = request.suggested_actor_id
         self._suggested_roles = (
@@ -135,22 +139,65 @@ class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
         )
 
 
-def _require_deliverable_actor_uri(actor_id: str) -> None:
+def _require_deliverable_actor_uri(actor_id: str, field: str) -> None:
     """Raise ``VultronValidationError`` unless *actor_id* is a deliverable URI.
 
     A peer actor id is not an opaque name — it is the URL outbound delivery
     POSTs its inbox to.  Only an absolute ``http``/``https`` URI with a netloc
     can be that, so anything else is rejected here rather than minted into a
     participant that no delivery attempt can ever reach.
+
+    Args:
+        actor_id: The candidate peer actor URI.
+        field: Name of the request field it came from, for the message.
     """
     parsed = urlparse(actor_id)
     if parsed.scheme in ("http", "https") and parsed.netloc:
         return
     raise VultronValidationError(
-        f"invitee_id '{actor_id}' is not a deliverable actor URI: an invitee"
-        " must be named by an absolute http(s) URI, because that URI is where"
-        " the invitation is delivered"
+        f"{field} '{actor_id}' is not a deliverable actor URI: a named peer"
+        " must be an absolute http(s) URI, because that URI is where the"
+        " message about it is delivered"
     )
+
+
+def _record_named_peer(dl: Any, actor_id: str, field: str) -> None:
+    """Record *actor_id* as a peer this actor now knows, if not already known.
+
+    Being named by URI is enough: a peer's record lives in the store of
+    whichever actor knows it (ADR-0072 decision 5), and in a real deployment the
+    peer is on another node whose record will never be here.  Refusing with
+    "Actor '…' not found" therefore refused every cross-node peer — which is
+    what made ``suggest-actor-to-case`` answer 404 for a vendor that existed and
+    was reachable, just not locally recorded (#2548, fcvcv).
+
+    Recording it is the honest Actor Knowledge Model move: this actor has now
+    been told about that peer, so it legitimately knows it.  What it does not
+    have is the peer's details; resolving those is a directory-service concern,
+    tracked as a Retriever call-out (ADR-0024).  The WARNING marks that gap
+    rather than letting it pass silently.
+
+    Minting from an unvalidated string would accept anything, though, so the id
+    has to be a deliverable URI first: it *is* the address outbound delivery
+    posts to, and a typo'd or relative id becomes an unreachable participant
+    that fails much later, in the delivery retry loop, with no trace back here.
+
+    Args:
+        dl: The acting actor's own DataLayer.
+        actor_id: The peer's canonical URI, as named by the request.
+        field: Name of the request field it came from, for the messages.
+    """
+    if dl.read(actor_id) is not None:
+        return
+    _require_deliverable_actor_uri(actor_id, field)
+    logger.warning(
+        "no local record for %s '%s' — recording it from the request. Actor"
+        " discovery is not implemented, so only its URI is known, not its"
+        " details.",
+        field,
+        actor_id,
+    )
+    dl.create(CoreActor(id_=actor_id))
 
 
 class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
@@ -167,40 +214,17 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         owner_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        # Being named by URI is enough to be invited: a peer's record lives in the
-        # store of whichever actor knows it (ADR-0072 decision 5), and in a real
-        # deployment the invitee is on another node whose record will never be
-        # here. Refusing with "Actor '…' not found" therefore refused every
-        # cross-node invitee.
+        # An invitee is a peer named by URI; see ``_record_named_peer``.
         #
-        # But the record cannot simply be *absent*, and this is subtler than it
-        # looks. The outbound Invite must carry its object fully inline
-        # (AKM-03-001); storage dehydrates ``object_`` to an id, and rehydration
-        # reconstitutes it by reading that id back. With no record to read, the
-        # object stays a bare string and delivery refuses the activity — after
-        # exhausting its retries, far from here. So the invitee is *recorded* from
-        # the invitation instead of demanded in advance.
-        #
-        # Recording it is also the honest Actor Knowledge Model move: this actor
-        # has now been told about that peer, so it legitimately knows it. What it
-        # does not have is the peer's details; resolving those is a
-        # directory-service concern, tracked as a Retriever call-out (ADR-0024).
-        # The WARNING marks that gap rather than letting it pass silently.
-        #
-        # Minting from an unvalidated string would accept anything, though. The
-        # id has to be an absolute http(s) URI because it *is* the address
-        # outbound delivery posts to (ADR-0072 decision 5): a typo'd or relative
-        # id becomes an unreachable participant that fails much later, in the
-        # delivery retry loop, with no trace back to this invitation.
-        if self._dl.read(request.invitee_id) is None:
-            _require_deliverable_actor_uri(request.invitee_id)
-            logger.warning(
-                "invite_actor_to_case: no local record for invitee '%s' —"
-                " recording it from the invitation. Actor discovery is not"
-                " implemented, so only its URI is known, not its details.",
-                request.invitee_id,
-            )
-            self._dl.create(CoreActor(id_=request.invitee_id))
+        # This record is *not* what keeps the outbound Invite deliverable. The
+        # Invite is queued in the **Case Actor's** outbox, whose store is not
+        # this one (ADR-0072), so a record written here was never readable at
+        # rehydration time and the Invite went out carrying a bare string —
+        # which delivery then refused for AKM-03-001, silently, after its
+        # retries. Carrying the invitee is now the model's own declared
+        # contract: ``_RmInviteToCaseActivity.inline_required_refs``
+        # (DL-08-003). What this write buys is knowledge, not deliverability.
+        _record_named_peer(self._dl, request.invitee_id, "invitee_id")
 
         self._invitee_id = request.invitee_id
         self._suggested_roles = request.roles
@@ -317,8 +341,11 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        if self._dl.read(request.transferee_id) is None:
-            raise VultronNotFoundError("Actor", request.transferee_id)
+        # A transferee is a peer named by URI — the same reasoning as an invitee
+        # or a recommended actor; see ``_record_named_peer``. Handing ownership
+        # to an actor on another node is the normal case, and that node's record
+        # will never be in this store.
+        _record_named_peer(self._dl, request.transferee_id, "transferee_id")
 
         self._transferee_id = request.transferee_id
         self._content = request.content

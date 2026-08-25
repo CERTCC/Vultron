@@ -300,10 +300,23 @@ def test_trigger_suggest_actor_to_case_unknown_case_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_suggest_actor_to_case_unknown_suggested_actor_returns_404(
+def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
     client_triggers, actor, case_obj
 ):
-    """HTTP-03-005: Unknown suggested_actor_id returns HTTP 404."""
+    """An undeliverable ``suggested_actor_id`` is a validation error, not a 404.
+
+    This asserted 404 under HTTP-03-005, but that rule is about a missing
+    resource *of this API*, and a recommended peer's own actor record is not
+    one: the whole point of a recommendation is to name an actor the case does
+    not have, and under per-actor storage a peer's record lives in the store of
+    whichever actor knows it (ADR-0072 decision 5). Refusing therefore refused
+    every genuinely remote candidate (#2548, fcvcv).
+
+    A ``urn:uuid:`` id is still refused — just for the real reason. That id is
+    the address delivery POSTs to, so it must be an absolute http(s) URI; saying
+    422 here reports the actual defect in the request rather than blaming a
+    resource that was never expected to be local.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
@@ -311,7 +324,22 @@ def test_trigger_suggest_actor_to_case_unknown_suggested_actor_returns_404(
             "suggested_actor_id": "urn:uuid:nonexistent-actor",
         },
     )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert "deliverable actor URI" in resp.json()["detail"]["message"]
+
+
+def test_trigger_suggest_actor_to_case_unrecorded_remote_peer_is_accepted(
+    client_triggers, actor, case_obj
+):
+    """A deliverable peer URI with no local record proceeds (ADR-0072)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
+        json={
+            "case_id": case_obj.id_,
+            "suggested_actor_id": "http://vendor.example:7999/api/v2/actors/v1",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
 
 
 # ===========================================================================

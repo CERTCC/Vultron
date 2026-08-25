@@ -657,7 +657,46 @@ class TestSvcSuggestActorToCaseUseCase:
         assert result["activity"]["actor"] == actor.id_
         assert result["activity"].get("to") == [case_actor.id_]
 
-    def test_suggest_raises_when_suggested_actor_missing(self):
+    def test_suggest_proceeds_when_suggested_actor_missing_but_warns(
+        self, caplog
+    ):
+        """A recommended actor is named by URI; a local record is not required.
+
+        This asserted a 404 before, for the same reason the invite path did, and
+        it was wrong for the same reason: the whole point of a recommendation is
+        to name an actor the case does not have yet, and under per-actor storage
+        that actor's record lives in *its* store (ADR-0072 decision 5). The old
+        behaviour refused every genuinely remote candidate — in the fcvcv demo,
+        ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
+        found`` for a vendor that was running and reachable in another container
+        (#2548).
+        """
+        actor, dl = _make_actor_dl("Coordinator")
+        case_actor, _ = _make_actor_dl("Case Actor")
+        dl.create(case_actor)
+        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
+
+        missing_id = "https://example.org/actors/ghost"
+        request = SuggestActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            suggested_actor_id=missing_id,
+        )
+        with caplog.at_level(logging.WARNING):
+            result = SvcSuggestActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+        assert result is not None
+        assert missing_id in caplog.text
+        assert "no local record for suggested_actor_id" in caplog.text
+
+    @pytest.mark.parametrize(
+        "bad_id",
+        ["ghost", "/actors/ghost", "https:///actors/ghost"],
+    )
+    def test_suggest_rejects_undeliverable_actor_uri(self, bad_id):
+        """The id is the address the eventual invitation is POSTed to."""
         actor, dl = _make_actor_dl("Coordinator")
         case_actor, _ = _make_actor_dl("Case Actor")
         dl.create(case_actor)
@@ -666,12 +705,18 @@ class TestSvcSuggestActorToCaseUseCase:
         request = SuggestActorToCaseTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
-            suggested_actor_id="https://example.org/actors/ghost",
+            suggested_actor_id=bad_id,
         )
-        with pytest.raises(VultronNotFoundError):
+        with pytest.raises(
+            VultronValidationError, match="deliverable actor URI"
+        ):
             SvcSuggestActorToCaseUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+        assert (
+            dl.read(bad_id) is None
+        ), "a rejected candidate must not be recorded as a known actor"
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
@@ -1063,7 +1108,15 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         stored = dl.read(offer_id)
         assert stored is not None
 
-    def test_offer_raises_when_transferee_not_in_dl(self):
+    def test_offer_proceeds_when_transferee_not_in_dl_but_warns(self, caplog):
+        """A transferee is a peer named by URI; a local record is not required.
+
+        Handing a case to an actor on another node is the ordinary case, and
+        under per-actor storage that node's record is in *its* store (ADR-0072
+        decision 5) — so the old 404 refused exactly the transfers the protocol
+        exists to support. Same defect as the invite and recommend paths; all
+        three now share ``_record_named_peer``.
+        """
         owner, dl = _make_actor_dl("Vendor")
         missing_id = "https://example.org/actors/nobody"
         case = as_VulnerabilityCase(
@@ -1083,10 +1136,13 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             case_id=case.id_,
             transferee_id=missing_id,
         )
-        with pytest.raises(VultronNotFoundError):
-            SvcOfferCaseOwnershipTransferUseCase(
+        with caplog.at_level(logging.WARNING):
+            result = SvcOfferCaseOwnershipTransferUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+        assert result is not None
+        assert "no local record for transferee_id" in caplog.text
 
     def test_offer_raises_when_case_not_in_dl(self):
         owner, dl = _make_actor_dl("Vendor")

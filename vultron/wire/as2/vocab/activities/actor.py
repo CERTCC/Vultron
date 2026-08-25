@@ -15,6 +15,8 @@
 Provides Vultron ActivityStreams Activities related to Actors
 """
 
+from typing import ClassVar
+
 from pydantic import Field
 
 from vultron.core.models.actor import CoreActor
@@ -31,7 +33,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 class _RecommendActorActivity(as_Offer):
-    """The actor is recommending another actor to a case."""
+    """The actor is recommending another actor to a case.
+
+    Declares ``object_`` in :attr:`inline_required_refs` (DL-08-003) for the
+    same reason as ``_RmInviteToCaseActivity``: the recommended actor is a peer,
+    so under ADR-0072 the recommender's own store holds no record of it and a
+    dehydrated id has nothing to be read back from. Delivery then refuses the
+    recommendation for carrying a bare string (AKM-03-001).
+    """
 
     object_: CoreActor | as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
@@ -39,6 +48,8 @@ class _RecommendActorActivity(as_Offer):
     target: as_VulnerabilityCaseRef = None
     # suggested_roles is inherited from as_Offer, aliased there; redeclaring it
     # here would shadow the base field and drop the camelCase alias (#1990).
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
 
 class _AcceptActorRecommendationActivity(as_Accept):
