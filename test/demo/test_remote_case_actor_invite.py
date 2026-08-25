@@ -280,7 +280,8 @@ def _invite(topo: _Topology, case_id: str) -> dict:
     assert (
         resp.status_code == 202
     ), f"invite-actor-to-case failed ({resp.status_code}): {resp.text}"
-    return resp.json()
+    body: dict = resp.json()
+    return body
 
 
 # ---------------------------------------------------------------------------
