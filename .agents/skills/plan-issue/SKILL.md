@@ -145,23 +145,33 @@ baseline rather than blank-slate context.
 
 ### Phase 4 — Grill-Me Interview (invoke `grill-me`)
 
-Invoke the `grill-me` skill. Resolve every decision branch one at a time
-via `ask_user`, providing a recommendation for each.
+Invoke the `grill-me` skill. The interview is conversation-driven and
+bottom-up — conclusions (scope, ACs, ADR, options, recommendation) emerge
+from the discussion rather than being asked as structured questions.
 
-**Shared base questions (all types):**
+**General pattern (all types):**
 
-1. **Scope** — What is in scope? What is explicitly out of scope?
-2. **Acceptance criteria** — How do we verify this is fully addressed?
-   Drive one GitHub issue per distinct AC cluster. Be exhaustive: if an
-   acceptance criterion is clearly needed but missing from the issue, add
-   it here. Do not produce a plan that leaves obvious ACs out simply
-   because the issue didn't spell them out. Deferring a clearly-needed AC
-   requires explicit user acknowledgment.
-3. **ADR determination** — Apply the `notes/specs-vs-adrs.md` decision tree
-   (MS-11-001 through MS-11-006). Form a recommendation with reasoning.
-   Present for approval before proceeding.
+1. **Open with a synthesis brief** — Before asking anything, present what
+   the research from Phase 3 reveals: what the issue says, what the current
+   codebase/specs show about the landscape, and 2–3 plausible directions.
+   Ask whether this reading is accurate before proceeding.
 
-**Type-specific questions:** see the loaded companion file.
+2. **Conversation** — Walk through the problem bottom-up. Ask clarifying
+   questions as understanding builds. Do not impose a predetermined question
+   structure. Scope, ACs, and ADR applicability are conclusions to confirm,
+   not questions to ask.
+
+3. **Signal the transition** — When understanding is forming, say so:
+   "I think we're almost there — here's what I have so far. Got more?"
+   Do not declare done unilaterally.
+
+4. **Confirm conclusions** — After the user closes the conversation, propose
+   the full plan as a confirmation block: what to implement, what docs to
+   update, whether an ADR is warranted. These are proposals to confirm, not
+   a new round of questions.
+
+**Type-specific opening and conversation guidance:** see the loaded
+companion file.
 
 Do **not** write anything until grill-me is complete.
 
@@ -327,7 +337,7 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Issue claimed via `claim-issue.sh` (`plan/<N>-<slug>`) — always (Phase 1b)
 - [ ] `orient-agent` invoked
 - [ ] `deepen-context` invoked with focus hints from the issue
-- [ ] All grill-me branches resolved (shared + type-specific)
+- [ ] Grill-me conversation complete — conclusions confirmed as proposals (scope, ACs, ADR, options)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
