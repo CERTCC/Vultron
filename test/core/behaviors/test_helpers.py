@@ -960,3 +960,45 @@ class TestEmitSingleActivityBase:
 
         assert result.status == Status.FAILURE
         assert "failed" in node.feedback_message
+
+    def test_on_success_raising_after_committed_write_propagates(
+        self, datalayer
+    ):
+        """Exception in _on_success() propagates; outbox write already committed.
+
+        _on_success() runs outside the try/except block (see helpers.py), so
+        a hook that raises is NOT silently swallowed as Status.FAILURE.  The
+        exception bubbles to the BT executor, which is the correct behaviour:
+        it signals an unexpected hook bug rather than masking a committed write
+        as a retryable failure.
+
+        Tracks DEFER from code-review of #2582 / issue #2609.
+        """
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-hook-raise"
+        activity_dict = {"id": activity_id}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        def _factory_fn(self_node):
+            return (activity_id, activity_dict)
+
+        def _raising_hook(self_node, aid, adict):
+            raise RuntimeError("hook exploded after write committed")
+
+        node = _StubEmitNode()
+        node.factory_fn = _factory_fn
+        node.on_success_fn = _raising_hook
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        # BTBridge catches uncaught exceptions from update() and surfaces them
+        # as result.errors. The key contract being tested: because _on_success()
+        # is OUTSIDE the try block, its exception bypasses the feedback_message
+        # path — result.errors is set rather than feedback_message.
+        assert result.status == Status.FAILURE
+        assert result.errors is not None
+        # feedback_message was NOT set by the normal except path
+        assert "failed" not in (node.feedback_message or "")
