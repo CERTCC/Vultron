@@ -431,6 +431,7 @@ class TestCheckCSFixNotYetReady:
 class TestCheckRMStateAccepted:
     """CheckRMStateAccepted: SUCCESS when actor RM is ACCEPTED."""
 
+    @pytest.mark.spec("BT-03-001")
     def test_success_when_rm_accepted(
         self,
         bt_scenario: BTTestScenario,
@@ -443,6 +444,7 @@ class TestCheckRMStateAccepted:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("BT-03-001")
     def test_failure_when_rm_not_accepted(
         self,
         bt_scenario: BTTestScenario,
@@ -468,6 +470,7 @@ class TestCheckRMStateAccepted:
 class TestTransitionCStoFixReady:
     """TransitionCStoFixReady: persists VFd ParticipantStatus."""
 
+    @pytest.mark.spec("BT-03-004")
     def test_success_and_creates_vfd_status(
         self,
         bt_scenario: BTTestScenario,
@@ -492,6 +495,7 @@ class TestTransitionCStoFixReady:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("BT-07-003")
     def test_fix_ready_logged_in_narrative_form(
         self,
         bt_scenario: BTTestScenario,
@@ -584,6 +588,7 @@ def case_with_vendor_and_case_manager(
 class TestEmitCFActivity:
     """EmitCFActivity: routes Add(ParticipantStatus) to Case Actor."""
 
+    @pytest.mark.spec("BT-03-004")
     def test_success_emits_cf_activity(
         self,
         bt_scenario: BTTestScenario,
@@ -666,6 +671,7 @@ def test_inner_sequence_has_four_children():
     assert len(inner.children) == 4
 
 
+@pytest.mark.spec("BT-06-006")
 def test_guard_short_circuits_for_non_vendor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_coordinator: VultronCase,
@@ -678,6 +684,7 @@ def test_guard_short_circuits_for_non_vendor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("BT-06-006")
 def test_guard_short_circuits_when_fix_already_ready(
     bt_scenario: BTTestScenario,
     case_with_vendor: VultronCase,

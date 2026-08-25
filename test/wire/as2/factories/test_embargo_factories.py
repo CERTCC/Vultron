@@ -72,6 +72,8 @@ def sample_proposal(sample_embargo) -> as_Invite:
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-005")
+@pytest.mark.spec("MSM-02-001")
 def test_em_propose_embargo_returns_invite(sample_embargo):
     result = em_propose_embargo_activity(
         embargo=sample_embargo, actor=_ACTOR_URI
@@ -108,6 +110,8 @@ def test_em_propose_embargo_invalid_raises():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-006")
+@pytest.mark.spec("MSM-02-002")
 def test_em_accept_embargo_returns_accept(sample_proposal):
     result = em_accept_embargo_activity(
         proposal=sample_proposal, actor=_ACTOR_URI
@@ -144,6 +148,8 @@ def test_em_accept_embargo_plain_invite_raises(sample_embargo):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-007")
+@pytest.mark.spec("MSM-02-006")
 def test_em_reject_embargo_returns_reject(sample_proposal):
     result = em_reject_embargo_activity(
         proposal=sample_proposal, actor=_ACTOR_URI
@@ -214,6 +220,7 @@ def test_choose_preferred_embargo_no_options_creates_empty():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-002")
 def test_activate_embargo_returns_add(sample_embargo):
     result = activate_embargo_activity(
         embargo=sample_embargo, actor=_ACTOR_URI
@@ -257,6 +264,7 @@ def test_activate_embargo_invalid_raises():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-002")
 def test_add_embargo_to_case_returns_add(sample_embargo):
     result = add_embargo_to_case_activity(
         embargo=sample_embargo, actor=_ACTOR_URI
@@ -293,6 +301,7 @@ def test_add_embargo_to_case_invalid_raises():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-004")
 def test_announce_embargo_returns_announce(sample_embargo):
     result = announce_embargo_activity(
         embargo=sample_embargo, actor=_ACTOR_URI
@@ -329,6 +338,8 @@ def test_announce_embargo_invalid_raises():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-003")
+@pytest.mark.spec("MSM-02-007")
 def test_remove_embargo_from_case_returns_remove(sample_embargo):
     result = remove_embargo_from_case_activity(
         embargo=sample_embargo, actor=_ACTOR_URI

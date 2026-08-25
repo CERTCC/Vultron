@@ -18,6 +18,8 @@
 import logging
 from typing import Any, cast
 
+import pytest
+
 from vultron.core.behaviors.case.nodes import _create_and_attach_participant
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.enums.roles import CVDRole
@@ -69,6 +71,7 @@ class TestCreateAndAttachParticipant:
         assert result is not None
         assert participant.id_ in result.case_participants
 
+    @pytest.mark.spec("CM-19-002")
     def test_updates_actor_participant_index(
         self,
         bt_scenario: BTTestScenario,
@@ -174,8 +177,6 @@ class TestResolveParticipantStateShapeGuard:
             return self._obj
 
     def test_returns_state_for_core_shaped_participant(self) -> None:
-        import pytest  # noqa: F401  (kept local; module has no pytest import)
-
         from vultron.core.behaviors.case.nodes.participant.common import (
             resolve_participant_state_from_dl,
         )
@@ -196,8 +197,6 @@ class TestResolveParticipantStateShapeGuard:
         assert rm_state is RM.RECEIVED
 
     def test_raises_on_wire_shaped_participant(self) -> None:
-        import pytest
-
         from vultron.core.behaviors.case.nodes.participant.common import (
             resolve_participant_state_from_dl,
         )

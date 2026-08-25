@@ -835,6 +835,20 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   type names. The Vultron context document imports AS2 internally, so citing
   only the Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
   *Source: CONCERN-2105*
+- **Do Not Add Recursive Dehydration to Inline Activity Sub-Fields in
+  `_dehydrate_data`** — `_dehydrate_data`
+  (`vultron/adapters/driven/db_record.py`) intentionally does NOT recurse into
+  inline Activity objects' sub-fields. A received Activity is an artifact; its
+  sub-field values are a snapshot of state at receipt time (e.g., the
+  `VulnerabilityCase` inside a stored `Offer` captures what the case looked
+  like when the offer was made). Even if Activities gain independent DataLayer
+  records and the technical reason in `_KEEP_INLINE_NESTED_TYPES` is resolved,
+  the snapshot semantic must be preserved. If you extract an object from a
+  received Activity and maintain it as a live record, the two copies diverge by
+  design — never write the snapshot back over the live record. See
+  `notes/datalayer-design.md`
+  § "Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional".
+  *Source: CONCERN-2219*
 - **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
   — two distinct failure modes when a boolean field from the matrix (e.g.
   `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:

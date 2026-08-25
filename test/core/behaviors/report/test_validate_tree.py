@@ -187,6 +187,7 @@ def case(datalayer, actor_id, report):
 # ============================================================================
 
 
+@pytest.mark.spec("BT-06-002")
 def test_create_validate_report_tree_returns_selector(report, offer):
     """Tree factory returns Selector root node."""
     tree = create_validate_report_tree(
@@ -201,6 +202,7 @@ def test_create_validate_report_tree_returns_selector(report, offer):
     assert len(tree.children) == 2  # Early exit + validation flow
 
 
+@pytest.mark.spec("BT-06-002")
 def test_tree_structure_matches_spec(report, offer):
     """Tree structure matches expected hierarchy from spec.
 
@@ -260,6 +262,8 @@ def test_tree_structure_matches_spec(report, offer):
 # ============================================================================
 
 
+@pytest.mark.spec("RMB-09-001")
+@pytest.mark.spec("BT-03-004")
 def test_tree_execution_success_new_report(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -317,6 +321,8 @@ def test_tree_execution_does_not_create_case(
     )
 
 
+@pytest.mark.spec("RMB-09-001")
+@pytest.mark.spec("BT-03-004")
 def test_tree_execution_transitions_vendor_to_valid(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -340,6 +346,7 @@ def test_tree_execution_transitions_vendor_to_valid(
     assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
+@pytest.mark.spec("BT-03-001")
 def test_tree_execution_early_exit_already_valid(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -370,6 +377,8 @@ def test_tree_execution_early_exit_already_valid(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("RMB-11-003")
+@pytest.mark.spec("RMB-09-001")
 def test_tree_execution_invalid_state_transitions_to_valid(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -404,6 +413,8 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
+@pytest.mark.spec("RMB-09-001")
+@pytest.mark.spec("BT-03-004")
 def test_tree_execution_no_prior_status_succeeds(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -432,6 +443,7 @@ def test_tree_execution_no_prior_status_succeeds(
     assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
+@pytest.mark.spec("RMB-09-001")
 def test_tree_execution_policy_stubs_always_accept(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -458,6 +470,7 @@ def test_tree_execution_policy_stubs_always_accept(
 # ============================================================================
 
 
+@pytest.mark.spec("BT-03-001")
 def test_tree_execution_missing_datalayer_fails(
     bridge, actor_id, report, offer
 ):
@@ -537,6 +550,7 @@ def test_tree_execution_missing_report_fails(
 # ============================================================================
 
 
+@pytest.mark.spec("BT-09-001")
 def test_tree_execution_idempotency(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -574,6 +588,7 @@ def test_tree_execution_idempotency(
     # (report already VALID from first execution)
 
 
+@pytest.mark.spec("BT-09-001")
 def test_tree_execution_actor_isolation(
     bridge, datalayer, report, offer, actor, case
 ):

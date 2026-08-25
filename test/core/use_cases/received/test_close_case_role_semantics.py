@@ -191,6 +191,7 @@ def _participant_rm_states(dl: SqliteDataLayer, actor_id: str) -> list[RM]:
 class TestOwnerLeaveReceivePath:
     """CM-23-002: Owner Leave advances leaving participant + CaseActor to RM.CLOSED."""
 
+    @pytest.mark.spec("CM-23-002")
     def test_owner_leave_advances_owner_to_rm_closed(self):
         """Owner Leave: the leaving owner actor is advanced to RM.CLOSED."""
         dl = _make_full_dl()
@@ -206,6 +207,7 @@ class TestOwnerLeaveReceivePath:
             f" rm_states={rm_states}"
         )
 
+    @pytest.mark.spec("CM-23-002")
     def test_owner_leave_advances_case_actor_to_rm_closed(self):
         """Owner Leave: the CaseActor is also advanced to RM.CLOSED (CM-23-002 step 2)."""
         dl = _make_full_dl()
@@ -221,6 +223,7 @@ class TestOwnerLeaveReceivePath:
             f" rm_states={rm_states}"
         )
 
+    @pytest.mark.spec("CM-23-002")
     def test_owner_leave_does_not_close_non_departed_participants(self):
         """Owner Leave: the remaining non-leaving vendor participant is NOT changed.
 
@@ -240,6 +243,7 @@ class TestOwnerLeaveReceivePath:
             f" — fan-out handles that; rm_states={rm_states}"
         )
 
+    @pytest.mark.spec("CM-23-002")
     def test_owner_leave_creates_case_fully_closed_ledger_entry(self):
         """Owner Leave: a case_fully_closed CaseLedgerEntry is written (CM-23-002 step 3)."""
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -263,6 +267,7 @@ class TestOwnerLeaveReceivePath:
             f" found event_types={event_types}"
         )
 
+    @pytest.mark.spec("CM-23-002")
     def test_owner_leave_case_fully_closed_fanout_includes_all_non_case_actor(
         self,
     ):
@@ -317,6 +322,7 @@ class TestOwnerLeaveReceivePath:
 class TestNonOwnerLeaveReceivePath:
     """CM-23-003: Non-owner Leave advances only the leaving participant."""
 
+    @pytest.mark.spec("CM-23-003")
     def test_non_owner_leave_advances_only_leaving_participant(self):
         """Non-owner Leave: the leaving vendor actor is advanced to RM.CLOSED."""
         dl = _make_full_dl()
@@ -332,6 +338,7 @@ class TestNonOwnerLeaveReceivePath:
             f" rm_states={rm_states}"
         )
 
+    @pytest.mark.spec("CM-23-003")
     def test_non_owner_leave_does_not_close_owner(self):
         """Non-owner Leave: the case owner remains open (CM-23-003)."""
         dl = _make_full_dl()
@@ -347,6 +354,7 @@ class TestNonOwnerLeaveReceivePath:
             f" rm_states={rm_states}"
         )
 
+    @pytest.mark.spec("CM-23-003")
     def test_non_owner_leave_does_not_close_case_actor(self):
         """Non-owner Leave: the CaseActor remains open (CM-23-003)."""
         dl = _make_full_dl()
@@ -409,6 +417,7 @@ def _make_announce_event(
 class TestCloseCaseFanOut:
     """Fan-out: ApplyCloseCaseFromLedgerNode advances departing participant on replicas."""
 
+    @pytest.mark.spec("CM-23-003")
     def test_fan_out_advances_departing_participant_to_rm_closed(self):
         """Announce(close_case entry) advances the departing participant on a non-CaseActor replica.
 

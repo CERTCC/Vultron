@@ -31,6 +31,8 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.core.models.activity import VultronActivity
 
@@ -75,6 +77,7 @@ def test_handle_outbox_item_logs_item(caplog):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("OX-03-001")
 def test_handle_outbox_item_delivers_to_recipients():
     """handle_outbox_item calls emitter.emit with activity and recipients."""
     recipient = "https://example.org/actors/alice"

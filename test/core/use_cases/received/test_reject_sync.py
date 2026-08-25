@@ -113,6 +113,7 @@ def _make_reject_event(
 class TestRejectLogEntryPattern:
     """Pattern matching for REJECT_CASE_LEDGER_ENTRY (SYNC-03-001)."""
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_pattern_matches_reject_with_case_ledger_entry(self, entry0):
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry0.model_dump(mode="json")
@@ -123,6 +124,7 @@ class TestRejectLogEntryPattern:
         event = extract_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_rejected_entry_accessible(self, entry0):
         event = _make_reject_event(entry0, "a" * 64, PARTICIPANT_URI)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
@@ -132,6 +134,8 @@ class TestRejectLogEntryPattern:
         assert event.rejected_entry is not None
         assert event.rejected_entry.case_id == CASE_URI
 
+    @pytest.mark.spec("SYNC-03-001")
+    @pytest.mark.spec("SYNC-03-004")
     def test_last_accepted_hash_from_context(self, entry0):
         """last_accepted_hash is extracted from the context field."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
@@ -140,6 +144,7 @@ class TestRejectLogEntryPattern:
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == entry0.entry_hash
 
+    @pytest.mark.spec("CLP-08-005")
     def test_last_accepted_hash_defaults_to_empty_string(self, entry0):
         """When no context is set, last_accepted_hash falls back to '' (CLP-08-005)."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
@@ -156,6 +161,7 @@ class TestRejectLogEntryPattern:
 class TestUpdateReplicationState:
     """_update_replication_state creates and updates per-peer state (SYNC-04-001)."""
 
+    @pytest.mark.spec("SYNC-04-001")
     def test_creates_new_state(self, dl, entry0):
         _update_replication_state(
             CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
@@ -166,6 +172,7 @@ class TestUpdateReplicationState:
         stored = dl.read(state_id)
         assert stored is not None
 
+    @pytest.mark.spec("SYNC-04-001")
     def test_stores_hash(self, dl, entry0):
         _update_replication_state(
             CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
@@ -179,6 +186,8 @@ class TestUpdateReplicationState:
             == entry0.entry_hash
         )
 
+    @pytest.mark.spec("SYNC-04-001")
+    @pytest.mark.spec("SYNC-04-002")
     def test_updates_existing_state(self, dl, entry0, entry1):
         _update_replication_state(
             CASE_URI, PARTICIPANT_URI, entry0.entry_hash, dl
@@ -203,6 +212,7 @@ class TestUpdateReplicationState:
 class TestReplayMissingEntriesTrigger:
     """replay_missing_entries_trigger queues Announce activities (SYNC-03-002)."""
 
+    @pytest.mark.spec("SYNC-03-002")
     def test_replays_all_when_from_genesis(self, dl, entry0, entry1):
         dl.save(entry0)
         dl.save(entry1)
@@ -218,6 +228,7 @@ class TestReplayMissingEntriesTrigger:
         )
         assert replayed == 2
 
+    @pytest.mark.spec("SYNC-03-002")
     def test_replays_only_missing_entries(self, dl, entry0, entry1):
         dl.save(entry0)
         dl.save(entry1)
@@ -233,6 +244,7 @@ class TestReplayMissingEntriesTrigger:
         )
         assert replayed == 1
 
+    @pytest.mark.spec("SYNC-03-002")
     def test_returns_zero_when_up_to_date(self, dl, entry0):
         dl.save(entry0)
 
@@ -247,6 +259,7 @@ class TestReplayMissingEntriesTrigger:
         )
         assert replayed == 0
 
+    @pytest.mark.spec("SYNC-03-002")
     def test_returns_zero_when_no_entries(self, dl):
         sync_port = MagicMock(spec=SyncActivityPort)
         replayed = replay_missing_entries_trigger(
@@ -259,6 +272,8 @@ class TestReplayMissingEntriesTrigger:
         )
         assert replayed == 0
 
+    @pytest.mark.spec("SYNC-02-001")
+    @pytest.mark.spec("SYNC-02-003")
     def test_announces_target_peer(self, dl, entry0):
         dl.save(entry0)
         sync_port = SyncActivityAdapter(dl)
@@ -286,6 +301,7 @@ class TestRejectLedgerEntryReceivedUseCase:
     ) -> RejectLogEntryReceivedEvent:
         return _make_reject_event(entry, last_accepted_hash, PARTICIPANT_URI)
 
+    @pytest.mark.spec("SYNC-04-001")
     def test_updates_replication_state(self, dl, entry0, entry1):
         """Receiving a Reject updates ReplicationState (SYNC-04-001)."""
         dl.save(entry0)
@@ -305,6 +321,7 @@ class TestRejectLedgerEntryReceivedUseCase:
             == entry0.entry_hash
         )
 
+    @pytest.mark.spec("SYNC-03-001")
     def test_ignores_reject_with_no_entry(self, dl):
         """Reject with no object_ is safely ignored."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
@@ -318,6 +335,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         uc = RejectLedgerEntryReceivedUseCase(dl, event)
         uc.execute()  # should not raise
 
+    @pytest.mark.spec("SYNC-03-002")
     def test_replay_triggered_when_case_actor_found(self, dl, entry0, entry1):
         """When a as_CaseActor (Service) exists for the case, missing entries are replayed."""
         from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor

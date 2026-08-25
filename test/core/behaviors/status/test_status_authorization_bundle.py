@@ -39,6 +39,8 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("RSH-01-002")
+@pytest.mark.spec("RSH-02-001")
 def test_bundle_is_frozen_dataclass_with_two_seam_fields():
     """Bundle is a frozen dataclass exposing exactly the two seam factories."""
     assert dataclasses.is_dataclass(StatusAuthorizationCallOutBundle)
@@ -69,6 +71,7 @@ def test_deterministic_fields_satisfy_protocol():
         assert isinstance(val, CallOutBackendFactory)
 
 
+@pytest.mark.spec("RSH-02-002")
 def test_deterministic_both_seams_always_succeed():
     """DETERMINISTIC: both seam factories build nodes that tick SUCCESS."""
     for f in dataclasses.fields(STATUS_AUTHORIZATION_DETERMINISTIC):
@@ -133,6 +136,7 @@ def test_stochastic_seams_use_probabilistic_backend():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("RSH-01-002")
 def test_add_participant_status_tree_accepts_call_out_bundle():
     from vultron.core.behaviors.status.add_participant_status_tree import (
         add_participant_status_tree,
@@ -143,6 +147,7 @@ def test_add_participant_status_tree_accepts_call_out_bundle():
     assert param.default is STATUS_AUTHORIZATION_DETERMINISTIC
 
 
+@pytest.mark.spec("RSH-02-001")
 def test_add_case_status_tree_accepts_call_out_bundle():
     from vultron.core.behaviors.status.add_case_status_tree import (
         add_case_status_tree,

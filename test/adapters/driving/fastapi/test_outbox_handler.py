@@ -33,6 +33,8 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock
 
+import pytest
+
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 
 # ---------------------------------------------------------------------------
@@ -66,6 +68,7 @@ def _mock_dl_with_queue(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("OX-03-001")
 def test_outbox_handler_processes_all_items(monkeypatch):
     """outbox_handler drains the actor's outbox entirely on success."""
     ids = [f"urn:test:item-{i}" for i in range(3)]
@@ -85,6 +88,7 @@ def test_outbox_handler_processes_all_items(monkeypatch):
     assert processed == ids
 
 
+@pytest.mark.spec("OX-03-001")
 def test_outbox_handler_preserves_fifo_order(monkeypatch):
     """outbox_handler processes items in FIFO order (OX-01-002)."""
     ids = [f"urn:test:item-{i}" for i in range(4)]
@@ -103,6 +107,7 @@ def test_outbox_handler_preserves_fifo_order(monkeypatch):
     assert processed == ids
 
 
+@pytest.mark.spec("OX-03-001")
 def test_outbox_handler_empty_outbox_does_nothing(monkeypatch):
     """outbox_handler with empty outbox processes no items."""
     queue: list[str] = []

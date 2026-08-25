@@ -212,6 +212,7 @@ class TestSvcValidateReportUseCase:
 
     # --- AC-1: RM state transition -----------------------------------------
 
+    @pytest.mark.spec("TRIG-02-001")
     def test_validate_report_creates_rm_valid_status_record(self):
         """execute() creates a as_ParticipantStatus record for RM.VALID."""
         request = ValidateReportTriggerRequest(
@@ -230,6 +231,7 @@ class TestSvcValidateReportUseCase:
         status_record = self.dl.read(valid_id)
         assert status_record is not None
 
+    @pytest.mark.spec("TRIG-02-001")
     def test_validate_report_updates_case_participant_rm_state(self):
         """execute() advances the as_CaseParticipant.participant_statuses to RM.VALID."""
         request = ValidateReportTriggerRequest(
@@ -253,6 +255,8 @@ class TestSvcValidateReportUseCase:
 
     # --- AC-2: outbox effect -----------------------------------------------
 
+    @pytest.mark.spec("TRIG-07-001")
+    @pytest.mark.spec("TRIG-02-001")
     def test_validate_report_queues_activity_in_outbox(self):
         """execute() enqueues at least one activity in the actor's outbox."""
         request = ValidateReportTriggerRequest(
@@ -268,6 +272,7 @@ class TestSvcValidateReportUseCase:
         after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
         assert len(after - before) >= 1
 
+    @pytest.mark.spec("TRIG-07-001")
     def test_validate_report_outbox_activity_addressed_to_case_actor(self):
         """Activity queued by execute() is addressed only to the Case Actor
         (PCR-08-001)."""
@@ -366,6 +371,7 @@ class TestSvcValidateReportUseCase:
                 trigger_activity=None,
             ).execute()
 
+    @pytest.mark.spec("TRIG-07-001")
     def test_validate_report_returns_activity_dict(self):
         """execute() returns result['activity'] as Accept(Offer) dict (AC-3, DL-06-001)."""
         request = ValidateReportTriggerRequest(
@@ -462,6 +468,8 @@ class _ReportTriggerBase:
 class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
     """execute() path tests for SvcInvalidateReportUseCase."""
 
+    @pytest.mark.spec("TRIG-02-001")
+    @pytest.mark.spec("TRIG-07-001")
     def test_invalidate_report_returns_activity_dict(self):
         """execute() returns result['activity'] with type 'TentativeReject' (DL-06-001)."""
         request = InvalidateReportTriggerRequest(
@@ -477,6 +485,8 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
         assert result.get("activity") is not None
         assert result["activity"].get("type") == "TentativeReject"
 
+    @pytest.mark.spec("TRIG-02-001")
+    @pytest.mark.spec("TRIG-07-001")
     def test_invalidate_report_queues_activity_in_outbox(self):
         """execute() enqueues at least one activity in the actor's outbox."""
         request = InvalidateReportTriggerRequest(
@@ -511,6 +521,8 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         )
         self.dl.create(status)
 
+    @pytest.mark.spec("TRIG-02-001")
+    @pytest.mark.spec("TRIG-07-001")
     def test_reject_report_returns_activity_dict(self):
         """execute() returns result['activity'] with type 'Reject' (DL-06-001)."""
         self._seed_invalid()
@@ -527,6 +539,8 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         assert result.get("activity") is not None
         assert result["activity"].get("type") == "Reject"
 
+    @pytest.mark.spec("TRIG-02-001")
+    @pytest.mark.spec("TRIG-07-001")
     def test_reject_report_queues_activity_in_outbox(self):
         """execute() enqueues at least one activity in the actor's outbox."""
         self._seed_invalid()
@@ -620,6 +634,7 @@ class TestSvcSubmitReportUseCase:
         assert link.report_id == report_id
         assert link.trusted_case_creator_id == self.vendor.id_
 
+    @pytest.mark.spec("TRIG-07-001")
     def test_submit_report_returns_offer_dict(self):
         """execute() returns {'offer': <offer_dict>} with a non-None offer."""
         request = SubmitReportTriggerRequest(
@@ -640,6 +655,7 @@ class TestSvcSubmitReportUseCase:
 
     # --- AC-2: outbox effect -----------------------------------------------
 
+    @pytest.mark.spec("TRIG-07-001")
     def test_submit_report_queues_offer_in_outbox(self):
         """execute() enqueues the offer activity in the actor's outbox."""
         request = SubmitReportTriggerRequest(

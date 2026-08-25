@@ -25,6 +25,7 @@ Per DEMOMA-07-003 step 2.
 
 import logging
 
+import pytest
 import py_trees
 from py_trees.common import Status
 
@@ -195,6 +196,8 @@ class TestValidateRMTransitionNode:
         result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("RSH-06-001")
+    @pytest.mark.spec("RSH-06-003")
     def test_forward_gap_succeeds_with_warning_and_anomaly(
         self, populated_dl, caplog
     ):
@@ -248,6 +251,8 @@ class TestValidateRMTransitionNode:
         assert anomaly["from_rm"] == RM.RECEIVED
         assert anomaly["to_rm"] == RM.ACCEPTED
 
+    @pytest.mark.spec("RSH-06-002")
+    @pytest.mark.spec("RSH-06-003")
     def test_backward_regression_sets_anomaly(self, populated_dl):
         """Backward RM regression: FAILURE + anomaly flag set (RSH-06-002, RSH-06-003)."""
         accepted_status = as_ParticipantStatus(
@@ -357,6 +362,7 @@ class TestCheckParticipantRMNotClosedNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("RSH-05-006")
     def test_closed_participant_fails(self, populated_dl):
         """Participant already in RM.CLOSED without prior status match → FAILURE."""
         closed_status = as_ParticipantStatus(

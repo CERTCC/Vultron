@@ -323,6 +323,7 @@ def case_with_observer_actors(
     return case
 
 
+@pytest.mark.spec("CM-25-005")
 def test_not_sole_observer_failure_for_sole_observer_actor(
     bt_scenario: BTTestScenario,
     case_with_observer_actors: VultronCase,
@@ -338,6 +339,7 @@ def test_not_sole_observer_failure_for_sole_observer_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.spec("CM-25-005")
 def test_not_sole_observer_success_for_observer_plus_vendor(
     bt_scenario: BTTestScenario,
     case_with_observer_actors: VultronCase,
