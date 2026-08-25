@@ -45,7 +45,7 @@ import py_trees
 from py_trees.common import Status
 from py_trees.display import unicode_tree
 
-from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
@@ -176,8 +176,45 @@ class BTBridge:
         here never refuses: the executing actor is by definition one this node
         runs as, so ``require_same_authority`` is not set and the result is never
         ``None``.
+
+        Reconciling the store is necessary but not sufficient — see
+        :meth:`_ports_for_store` for the other half.
         """
         return store_for_actor(self.datalayer, actor_id) or self.datalayer
+
+    def _ports_for_store(self, store: CasePersistence) -> tuple[
+        "TriggerActivityPort | None",
+        "SyncActivityPort | None",
+        "WireRenderPort | None",
+    ]:
+        """Return this bridge's driven ports, rebound to *store* (DL-07-009).
+
+        ``_store_for_actor`` reconciles the store the *nodes* write through.  The
+        driven adapters on the blackboard hold a second, independent reference to
+        a DataLayer — the one they were constructed with — and that reference is
+        what persists an outbound activity.  Leaving it alone splits a single
+        emit across two stores: ``TriggerActivityAdapter.invite_actor_to_case``
+        creates the ``Invite`` in the *requesting* actor's store while
+        ``EmitInviteActorToCaseNode`` appends its id to the *executing* actor's
+        outbox.  Nothing raises; the outbox handler simply reports the activity
+        "not found in DataLayer for actor …", skips delivery, and the invitee is
+        never told it was invited (ISSUE-2548).
+
+        This is the delegated-emit path the class docstring on
+        ``SvcInviteActorToCaseUseCase`` describes: a trigger addressed to the case
+        owner runs with ``actor_id`` set to the CaseActor, so the two references
+        disagree by construction rather than by mistake.
+
+        Ports that do not opt in are returned unchanged; see
+        :func:`~vultron.core.behaviors.store_scope.port_for_store`.
+        """
+        if store is self.datalayer:
+            return self.trigger_activity, self.sync_port, self.wire_render_port
+        return (
+            port_for_store(self.trigger_activity, store),
+            port_for_store(self.sync_port, store),
+            port_for_store(self.wire_render_port, store),
+        )
 
     def setup_tree(
         self,
@@ -216,29 +253,34 @@ class BTBridge:
             key="actor_id", access=py_trees.common.Access.WRITE
         )
 
-        blackboard.datalayer = self._store_for_actor(actor_id)
+        store = self._store_for_actor(actor_id)
+        trigger_activity, sync_port, wire_render_port = self._ports_for_store(
+            store
+        )
+
+        blackboard.datalayer = store
         blackboard.actor_id = actor_id
 
-        if self.trigger_activity is not None:
+        if trigger_activity is not None:
             blackboard.register_key(
                 key="trigger_activity_factory",
                 access=py_trees.common.Access.WRITE,
             )
-            blackboard.trigger_activity_factory = self.trigger_activity
+            blackboard.trigger_activity_factory = trigger_activity
 
-        if self.sync_port is not None:
+        if sync_port is not None:
             blackboard.register_key(
                 key="sync_port",
                 access=py_trees.common.Access.WRITE,
             )
-            blackboard.sync_port = self.sync_port
+            blackboard.sync_port = sync_port
 
-        if self.wire_render_port is not None:
+        if wire_render_port is not None:
             blackboard.register_key(
                 key="wire_render_port",
                 access=py_trees.common.Access.WRITE,
             )
-            blackboard.wire_render_port = self.wire_render_port
+            blackboard.wire_render_port = wire_render_port
 
         if activity is not None:
             blackboard.register_key(

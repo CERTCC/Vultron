@@ -28,12 +28,17 @@ about whether a store can be opened for an actor this node does not host.
 """
 
 import logging
-from typing import cast
+from typing import Any, TypeVar, cast
 from urllib.parse import urlsplit
 
 from vultron.core.ports.case_persistence import CasePersistence
 
 logger = logging.getLogger(__name__)
+
+_P = TypeVar("_P")
+
+#: Name of the optional rebinding method a port may expose (DL-07-009).
+_REBIND = "for_store"
 
 
 def same_authority(a: str, b: str) -> bool:
@@ -107,3 +112,51 @@ def store_for_actor(
     # `CasePersistence`; the getattr exists only so that test doubles and any
     # non-actor-scoped implementation fall through the guards above untouched.
     return cast(CasePersistence, clone_for_actor(actor_id))
+
+
+def port_for_store(port: _P, store: CasePersistence) -> _P:
+    """Return *port* rebound to *store*, or *port* unchanged.
+
+    :func:`store_for_actor` answers "which store belongs to this actor?", but a
+    store is not the only thing that holds one.  A driven adapter handed to a BT
+    — ``TriggerActivityPort``, ``SyncActivityPort`` — keeps its *own* reference
+    to the DataLayer it was constructed with, and that adapter is the code that
+    actually persists the outbound activity.  Reconciling only the blackboard's
+    ``datalayer`` therefore fixes half of a two-halved write: the activity is
+    created through the port, in the requesting actor's store, while
+    ``outbox_append()`` goes through the reconciled store, into the executing
+    actor's outbox.  The queue entry then names an activity its own store does
+    not hold, delivery logs "not found ... skipping delivery", and the
+    invitation is silently never sent (ISSUE-2548, DL-07-009).
+
+    Rebinding is *opt-in* by design.  A port participates by defining a
+    ``for_store(store)`` method that returns an equivalent port reading and
+    writing *store*; anything else is returned untouched, because a port with no
+    DataLayer of its own has nothing to reconcile and a stateless one must not be
+    replaced behind its caller's back.
+
+    The lookup is deliberately on ``type(port)`` rather than the instance.  A
+    bare ``Mock()`` answers *any* attribute with another callable ``Mock``, so an
+    instance-level ``getattr`` would "rebind" every test double to a Mock return
+    value and quietly break assertions made against the original.  Classes do not
+    synthesise attributes, so asking the class is what keeps test doubles out.
+
+    Args:
+        port: The port to rebind.  May be ``None``.
+        store: The store the port should read and write.
+
+    Returns:
+        The rebound port, or *port* itself when it does not opt in.
+    """
+    if port is None:
+        return port
+    rebind = getattr(type(port), _REBIND, None)
+    if not callable(rebind):
+        return port
+    rebound: Any = rebind(port, store)
+    logger.debug(
+        "Rebound %s to the store of actor '%s'",
+        type(port).__name__,
+        getattr(store, "actor_id", "<unscoped>"),
+    )
+    return cast(_P, rebound)

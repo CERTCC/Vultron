@@ -580,6 +580,44 @@ groups:
     - messaging
     adr:
     - ADR-0072
+  - id: DL-07-009
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: architecture
+    statement: >-
+      When execution is scoped to an actor, every store reference reachable from that scope MUST be
+      reconciled to the same actor — not the store alone. A component injected with a store of its own
+      MUST either offer a named way to be rebound to another actor's store or hold no store at all;
+      writes belonging to one logical operation MUST NOT land in two actors' stores.
+    rationale: >-
+      Reconciling the store alone fixes half of the problem and leaves the other half looking correct.
+      `BTBridge` re-scoped the blackboard's `datalayer` to the executing actor, but the driven adapters
+      on that same blackboard kept the DataLayer they were constructed with — and the adapter is what
+      persists the outbound activity. A delegated emit (a case owner's invite-actor trigger emits as the
+      CaseActor, PCR-08-007) therefore created the `Invite` in the requesting actor's store while the
+      node appended its id to the executing actor's outbox. Nothing raised: delivery found the queue
+      entry, could not read the activity, logged "not found in DataLayer", and skipped — so the invitee
+      was never told it had been invited and the case stalled with no error anywhere (#2548). Rebinding
+      is opt-in so that a stateless collaborator is not swapped out behind its caller's back, and the
+      opt-in must be discoverable on the type rather than the instance, because a test double answers
+      any attribute.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-005
+    - rel_type: implements
+      spec_id: PCR-08-007
+    verification: >-
+      `test/core/behaviors/test_bridge.py::test_a_delegated_emit_writes_activity_and_outbox_to_one_store`
+      creates an activity through the injected port and queues its id through the blackboard store while
+      executing as a co-located CaseActor, and asserts the queued id is readable from the store that
+      holds the queue entry. `test/core/behaviors/test_store_scope.py::TestPortForStore` asserts the
+      rebinding is opt-in, is a no-op when the store already matches, and does not fire on a bare `Mock`.
+    tags:
+    - persistence
+    - behavior-tree
+    adr:
+    - ADR-0072
 - id: DL-08
   title: Storage Fidelity for Inline-Required References
   description: >-

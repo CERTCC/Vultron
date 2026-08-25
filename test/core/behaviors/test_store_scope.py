@@ -37,7 +37,11 @@ from typing import Any, cast
 
 import pytest
 
-from vultron.core.behaviors.store_scope import same_authority, store_for_actor
+from vultron.core.behaviors.store_scope import (
+    port_for_store,
+    same_authority,
+    store_for_actor,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 
 _NODE = "http://vendor:7999/api/v2"
@@ -231,3 +235,86 @@ class TestRequireSameAuthority:
         ):
             _scope(_Store(_OWN), _FOREIGN, require_same_authority=True)
         assert _FOREIGN in caplog.text
+
+
+class _Port:
+    """A driven-adapter double that holds its own store, as the real ones do."""
+
+    def __init__(self, dl: Any) -> None:
+        self._dl = dl
+
+    def for_store(self, dl: Any) -> "_Port":
+        if dl is self._dl:
+            return self
+        return type(self)(dl)
+
+
+class _StatelessPort:
+    """A port with no store of its own — nothing to reconcile."""
+
+
+@pytest.mark.spec("DL-07-009")
+class TestPortForStore:
+    """DL-07-009: the other half of the reconciliation ``store_for_actor`` starts.
+
+    Reconciling only the store fixes half of a two-halved write: the adapter
+    creates the activity in the store it was constructed with, while the node
+    queues its id through the reconciled store. The outbox entry then names an
+    activity its own store does not hold, delivery skips it with a warning, and
+    the invitee is never told it was invited (ISSUE-2548).
+    """
+
+    def test_a_port_holding_a_store_is_rebound_to_the_new_one(self):
+        requesting = _Store(_OWN)
+        executing = _Store(_SIBLING)
+        port = _Port(requesting)
+
+        rebound = port_for_store(port, cast(CasePersistence, executing))
+
+        assert rebound is not port
+        assert rebound._dl is executing
+
+    def test_rebinding_to_the_store_it_already_holds_returns_the_same_port(
+        self,
+    ):
+        """The non-delegated path is every other trigger; it must allocate
+        nothing."""
+        store = _Store(_OWN)
+        port = _Port(store)
+        assert port_for_store(port, cast(CasePersistence, store)) is port
+
+    def test_a_port_that_does_not_opt_in_is_returned_untouched(self):
+        """A stateless port must not be swapped out behind its caller's back."""
+        port = _StatelessPort()
+        assert port_for_store(port, cast(CasePersistence, _Store())) is port
+
+    def test_none_is_passed_through(self):
+        """``BTBridge`` holds optional ports; absent is the common case."""
+        assert port_for_store(None, cast(CasePersistence, _Store())) is None
+
+    def test_a_bare_mock_is_not_rebound(self):
+        """The reason the lookup is on ``type(port)`` and not the instance.
+
+        ``Mock()`` answers *any* attribute with another callable ``Mock``, so an
+        instance-level ``getattr`` would replace every test double with a Mock
+        return value — and assertions made against the original would pass
+        vacuously or fail for reasons that have nothing to do with the test.
+        """
+        from unittest.mock import MagicMock, Mock
+
+        for double in (Mock(), MagicMock()):
+            assert (
+                port_for_store(double, cast(CasePersistence, _Store()))
+                is double
+            )
+
+    def test_a_spec_mock_of_a_real_port_is_not_rebound(self):
+        """Spec'd mocks are the common form in this suite; same guarantee."""
+        from unittest.mock import Mock
+
+        from vultron.core.ports.sync_activity import SyncActivityPort
+
+        double = Mock(spec=SyncActivityPort)
+        assert (
+            port_for_store(double, cast(CasePersistence, _Store())) is double
+        )

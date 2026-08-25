@@ -203,6 +203,25 @@ Concretely:
   be one actor. Letting any two drift makes the gate evaluate against an actor
   holding no role, which returns SUCCESS-by-skip and writes nothing. Nothing
   raises, which is what makes it worth a MUST.
+
+  **The store is not the only thing that holds a store**, and reconciling it
+  alone leaves the other half looking correct. Normative as DL-07-009: every
+  store reference reachable from an actor-scoped execution follows that actor,
+  not just the one on the blackboard. The driven adapters injected into a BT —
+  `TriggerActivityPort`, `SyncActivityPort` — keep the DataLayer they were
+  constructed with, and the adapter is what *persists* the outbound activity. So
+  BT-05-005 alone fixed the queue and left the activity behind: a delegated emit
+  created the `Invite` in the requesting actor's store while the node appended
+  its id to the executing actor's outbox. Delivery then found the queue entry,
+  could not read the activity, logged "not found in DataLayer", and skipped — the
+  invitee was never told it had been invited, and no error surfaced anywhere.
+
+  Rebinding is **opt-in**: a component declares a named way to be rebound
+  (`for_store`) or holds no store at all. Opt-in rather than automatic because a
+  stateless collaborator must not be replaced behind its caller's back, and the
+  declaration is read off the *type* rather than the instance because a test
+  double answers any attribute — an instance-level probe would silently rebind
+  every mock in the suite.
 - **Cross-actor access must be named.** `clone_for_actor` is the only route to
   another actor's store, and `CasePersistence` declares it, so a fan-out is
   explicit in the type as well as in the code rather than something a forgotten
@@ -229,6 +248,29 @@ Concretely:
   canonical case" and "the case-actor owns the case" are different claims, and
   only the first is true. CBT-01-003 is amended accordingly: it previously said
   "case creator/owner", which under ADR-0041 names two different actors.
+
+  Stated flatly, because #2548 showed the question had no written answer: **when a
+  container hosts both a primary actor and a co-located CaseActor, the case lives
+  in the CaseActor's store, and the primary actor holds a replica it receives by
+  protocol message.** There is no write-through from the CaseActor into the
+  primary actor's store, and no shared per-container store. The two rejected
+  alternatives fail for the same reason:
+
+  - *The primary actor owns the case and the CaseActor writes through to it via
+    `clone_for_actor`* — this is a back-end cheat. It works only while the two
+    actors are co-located, so it is not a protocol guarantee, and it makes the
+    CaseActor's authority over the ledger depend on the deployment topology.
+  - *A container has one store shared by the roles it wears; isolation applies
+    only across containers* — this contradicts CM-01-001 directly and reinstates
+    the multi-tenant store this decision exists to remove. It would also make a
+    self-hosted CaseActor structurally different from a remotely-hosted one,
+    which is exactly the indifference PCR-01-003 requires.
+
+  The consequence a reader must carry away is a timing one, not a location one:
+  the replica arrives *later than the case exists*, so any case-scoped work in the
+  primary actor is gated on the replica having actually landed in its own store.
+  That gate is the fix; it is not an optimisation to be skipped when the actors
+  happen to share a host.
 
 - **The latch is written last.** Normative as ID-04-005. When a transition has
   more than one half and one half doubles as the evidence a later guard reads,

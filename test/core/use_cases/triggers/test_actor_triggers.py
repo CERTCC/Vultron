@@ -1141,9 +1141,12 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         return offer
 
     def test_accept_creates_activity(self):
-        owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
+        # The *transferee* accepts, so the store is the transferee's own: it is
+        # the actor that received the Offer, and the store an execution runs
+        # against is the executing actor's (ADR-0072, DL-07-009).
+        owner, _ = _make_actor_dl("Vendor")
+        transferee, dl = _make_actor_dl("Coordinator")
+        dl.create(owner)
         case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Test Case", content="Content"
         )
@@ -1171,9 +1174,12 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         assert activity_data["actor"] == transferee.id_
 
     def test_accept_persisted_in_datalayer(self):
-        owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
+        # The transferee's own store, for the reason given in
+        # ``test_accept_creates_activity``; it is also the store the Accept must
+        # land in, which is what this test reads back.
+        owner, _ = _make_actor_dl("Vendor")
+        transferee, dl = _make_actor_dl("Coordinator")
+        dl.create(owner)
         case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Test Case", content="Content"
         )

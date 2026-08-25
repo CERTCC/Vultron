@@ -24,6 +24,7 @@ import pytest
 
 from test.conftest import seed_case_actor_replica
 from fastapi import FastAPI, status
+from fastapi import Path as FastAPIPath
 from fastapi.testclient import TestClient
 
 from vultron.adapters.driving.fastapi.routers import (
@@ -37,6 +38,7 @@ from vultron.adapters.driving.fastapi.deps import (
 import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -58,16 +60,41 @@ class _NoopEmitter:
         pass
 
 
+def _store_for(actor_id: str) -> SqliteDataLayer:
+    """Open the addressed actor's own store, as the real dependencies do.
+
+    ``get_trigger_service`` builds its ``TriggerService`` from the store of the
+    actor named in the URL, so an override that hands every request one fixed
+    store is not a stand-in for the routing — it is a shared multi-tenant store,
+    the thing ADR-0072 removes. Two of these endpoints are addressed to an actor
+    other than the ``dl`` fixture's, and with one store they read an invitation
+    the accepting actor had never received (#2548, DL-07-009).
+
+    Engines are cached on ``(db_url, actor slug)``, so this returns the same
+    underlying store as the ``dl`` fixture for that fixture's actor and a
+    genuinely separate one for anybody else.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+
 @pytest.fixture
 def client_triggers(dl):
     _outbox_handler._default_emitter = _NoopEmitter()
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
-    app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
+
+    def _service(actor_id: str = FastAPIPath(...)) -> TriggerService:
+        store = _store_for(actor_id)
+        return TriggerService(
+            store, trigger_activity=TriggerActivityAdapter(store)
+        )
+
+    def _dl_for_path(actor_id: str = FastAPIPath(...)) -> SqliteDataLayer:
+        return _store_for(actor_id)
+
+    app.dependency_overrides[get_trigger_service] = _service
+    app.dependency_overrides[get_trigger_dl] = _dl_for_path
+    app.dependency_overrides[get_canonical_actor_dl] = _dl_for_path
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -75,10 +102,26 @@ def client_triggers(dl):
 
 
 @pytest.fixture
-def other_actor(dl):
-    """Create and persist a second actor for suggest-actor tests."""
+def other_actor_and_dl(dl):
+    """A second actor **and its own store** (ADR-0072).
+
+    What this actor knows lives here, not in the inviter's store: an invitation
+    addressed to it is something it received. The inviter's store gets the actor
+    record too, because an inviter must know the actor it is inviting.
+    """
     other = as_Service(name="Other Actor")
+    other_dl = _store_for(other.id_)
+    other_dl.clear_all()
+    other_dl.create(other)
     dl.create(other)
+    yield other, other_dl
+    other_dl.close()
+
+
+@pytest.fixture
+def other_actor(other_actor_and_dl):
+    """Create and persist a second actor for suggest-actor tests."""
+    other, _ = other_actor_and_dl
     return other
 
 
@@ -147,14 +190,21 @@ def case_obj_with_case_actor(dl, actor):
 
 
 @pytest.fixture
-def invite(dl, actor, case_obj, other_actor):
-    """Create and persist an RmInviteToCaseActivity for accept-case-invite tests."""
+def invite(other_actor_and_dl, actor, case_obj):
+    """Persist an RmInviteToCaseActivity in the *invitee's* store.
+
+    The invitee is the actor that accepts or rejects, and the accept/reject
+    trigger runs against its own store — the one it received the invitation into.
+    Seeding the inviter's store instead only worked while the two shared one
+    store (#2548, DL-07-009).
+    """
+    other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
-        other_actor,
+        other,
         target=VulnerabilityCaseStub(id_=case_obj.id_),
         actor=actor.id_,
     )
-    dl.create(invite_activity)
+    other_dl.create(invite_activity)
     return invite_activity
 
 

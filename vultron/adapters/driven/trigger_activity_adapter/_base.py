@@ -155,3 +155,23 @@ class _TriggerAdapterBase:
 
     def __init__(self, dl: CaseOutboxPersistence) -> None:
         self._dl = dl
+
+    def for_store(self, dl: CaseOutboxPersistence) -> "_TriggerAdapterBase":
+        """Return an equivalent adapter that reads and writes *dl* (DL-07-009).
+
+        Opting into
+        :func:`~vultron.core.behaviors.store_scope.port_for_store`.  This adapter
+        is constructed once per request against the *addressed* actor's store, but
+        a delegated emit runs the BT as a different actor — a case owner's
+        invite-actor trigger emits from the CaseActor's identity (PCR-08-007).
+        Without rebinding, the activity is created here in the requesting actor's
+        store while the node queues its id in the executing actor's outbox, so
+        delivery finds no such activity and the invitation is never sent
+        (ISSUE-2548).
+
+        Returns ``self`` when already bound to *dl*, so the common
+        non-delegated case allocates nothing.
+        """
+        if dl is self._dl:
+            return self
+        return type(self)(dl)

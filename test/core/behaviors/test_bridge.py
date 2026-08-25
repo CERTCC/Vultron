@@ -15,12 +15,15 @@
 
 """Unit tests for BT bridge layer."""
 
+from typing import Any
+
 import pytest
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 # Test behavior nodes for verifying bridge functionality
 
@@ -670,3 +673,163 @@ def test_bridge_wire_render_port_is_correct_object(datalayer, test_actor_id):
         key="wire_render_port", access=py_trees.common.Access.READ
     )
     assert blackboard.wire_render_port is stub
+
+
+# ---------------------------------------------------------------------------
+# Delegated emit: the ports follow the executing actor too (DL-07-009, #2548)
+# ---------------------------------------------------------------------------
+
+
+class _StoreHoldingPort:
+    """A driven-adapter double shaped like the real ones.
+
+    ``TriggerActivityAdapter`` and ``SyncActivityAdapter`` are each constructed
+    once per request against the *addressed* actor's store and keep that
+    reference in ``self._dl``; ``for_store`` is how they opt into being rebound.
+    """
+
+    def __init__(self, dl):
+        self._dl = dl
+
+    def for_store(self, dl):
+        if dl is self._dl:
+            return self
+        return type(self)(dl)
+
+
+class _StatelessPort:
+    """A port with no store of its own, so nothing to reconcile."""
+
+
+class EmitThroughPort(py_trees.behaviour.Behaviour):
+    """Reproduces the two-halved write of a delegated emit.
+
+    Creates the activity through the port (as
+    ``TriggerActivityAdapter.invite_actor_to_case`` does) and queues its id
+    through the blackboard store (as ``EmitInviteActorToCaseNode.update`` does).
+    Fails when the store that holds the outbox entry cannot read the activity —
+    exactly the state the outbox handler reports as "not found in DataLayer for
+    actor ...; skipping delivery".
+    """
+
+    def setup(self, **kwargs) -> None:
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        for key in ("datalayer", "trigger_activity_factory"):
+            self.blackboard.register_key(
+                key=key, access=py_trees.common.Access.READ
+            )
+
+    def update(self) -> Status:
+        port = self.blackboard.trigger_activity_factory
+        store = self.blackboard.datalayer
+        note = as_Note(content="delegated emit")
+        port._dl.create(note)
+        store.outbox_append(note.id_)
+        if store.read(note.id_) is None:
+            self.feedback_message = (
+                f"activity {note.id_} queued in {store.actor_id}'s outbox is"
+                " absent from that actor's own store"
+            )
+            return Status.FAILURE
+        self.feedback_message = "activity and outbox entry share one store"
+        return Status.SUCCESS
+
+
+#: A co-located ``case-actor`` on the same node as the ``datalayer`` fixture's
+#: actor.  It must be a *distinct slug*: stores are keyed on the slug, so reusing
+#: ``test-actor`` (as the module's ``test_actor_id`` fixture does) would put both
+#: actors on one store and every split-store assertion below would pass
+#: vacuously.
+_CO_HOSTED_CASE_ACTOR = "https://test.example/api/v2/actors/case-actor-abc"
+
+
+def _ports_blackboard():
+    """Return a client that can read the three driven ports."""
+    blackboard = py_trees.blackboard.Client(name="test-ports")
+    for key in ("trigger_activity_factory", "sync_port", "wire_render_port"):
+        blackboard.register_key(key=key, access=py_trees.common.Access.READ)
+    return blackboard
+
+
+@pytest.mark.spec("DL-07-009")
+def test_a_delegated_emit_writes_activity_and_outbox_to_one_store(
+    datalayer,
+):
+    """ISSUE-2548: the emit must not split across two actors' stores.
+
+    A case owner's ``invite-actor-to-case`` trigger emits from the CaseActor's
+    identity (PCR-08-007), so the BT executes as an actor other than the one the
+    ports were built for.  Reconciling only ``blackboard.datalayer`` left the
+    port creating the ``Invite`` in the requesting actor's store while the node
+    appended its id to the executing actor's outbox.  Nothing raised: delivery
+    found the queue entry, could not read the activity, warned, and skipped — so
+    the invitee was never told it had been invited.
+    """
+    port: Any = _StoreHoldingPort(datalayer)
+    bridge = BTBridge(datalayer=datalayer, trigger_activity=port)
+
+    result = bridge.execute_with_setup(
+        tree=EmitThroughPort(name="EmitThroughPort"),
+        actor_id=_CO_HOSTED_CASE_ACTOR,
+    )
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+
+
+@pytest.mark.spec("DL-07-009")
+def test_ports_are_rebound_to_the_executing_actors_store(datalayer):
+    """DL-07-009: every store-holding port follows the executing actor."""
+    trigger: Any = _StoreHoldingPort(datalayer)
+    sync: Any = _StoreHoldingPort(datalayer)
+    bridge = BTBridge(
+        datalayer=datalayer, trigger_activity=trigger, sync_port=sync
+    )
+
+    bt = bridge.setup_tree(
+        tree=AlwaysSucceed(), actor_id=_CO_HOSTED_CASE_ACTOR
+    )
+    bt.setup()
+
+    blackboard = _ports_blackboard()
+    for published, original in (
+        (blackboard.trigger_activity_factory, trigger),
+        (blackboard.sync_port, sync),
+    ):
+        assert published is not original
+        assert published._dl.actor_id == _CO_HOSTED_CASE_ACTOR
+
+
+@pytest.mark.spec("DL-07-009")
+def test_ports_are_left_alone_when_the_store_already_matches(datalayer):
+    """The non-delegated path — every other trigger — must allocate nothing."""
+    trigger: Any = _StoreHoldingPort(datalayer)
+    sync: Any = _StoreHoldingPort(datalayer)
+    bridge = BTBridge(
+        datalayer=datalayer, trigger_activity=trigger, sync_port=sync
+    )
+
+    bt = bridge.setup_tree(tree=AlwaysSucceed(), actor_id=datalayer.actor_id)
+    bt.setup()
+
+    blackboard = _ports_blackboard()
+    assert blackboard.trigger_activity_factory is trigger
+    assert blackboard.sync_port is sync
+
+
+@pytest.mark.spec("DL-07-009")
+def test_a_port_without_a_store_is_published_unchanged(
+    datalayer, test_actor_id
+):
+    """A stateless port has nothing to reconcile and must not be swapped out.
+
+    ``wire_render_port`` is one: it renders objects handed to it and never reads
+    or writes a store.
+    """
+    stateless: Any = _StatelessPort()
+    bridge = BTBridge(datalayer=datalayer, wire_render_port=stateless)
+
+    bt = bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
+    bt.setup()
+
+    blackboard = _ports_blackboard()
+    assert blackboard.wire_render_port is stateless
