@@ -424,3 +424,36 @@ Derived from the #1558 grill-me interview. All Tasks are children of Epic #427.
 
 Blocker graph: `#1558 -> #1808 -> #1809 -> {#1810, #1811}` and
 `#1810 -> #1811`.
+
+---
+
+## Nodes with Instance-Computed Blackboard Keys
+
+(ISSUE-1885, 2026-08-21; resolved by PR #2530 / #2483, 2026-08-24)
+
+Some nodes compute their blackboard key names dynamically in `__init__` from a
+constructor argument (e.g. `report_id`):
+
+```python
+_seg = report_id.split("/")[-1] if report_id else "default"
+self._participant_case_key = f"participant_case_{_seg}"
+```
+
+`input_ports()` is a **classmethod** — it cannot access instance state. During
+Part 3/5 (#1885), this meant those nodes could not be migrated to
+`DataLayerActionWithPorts` via the standard classmethod pattern.
+
+Additionally, using `DataLayerActionWithPorts` with `self._blackboard_client.register_key(...)`
+in `setup()` fails because `_blackboard_client` is typed `Optional` and Pyright
+correctly flags `.register_key` on `None`.
+
+Affected nodes identified in Part 3/5 (#1885):
+
+- `PersistOwnerCaseNode`
+- `AdvanceOwnerRmToAcceptedNode`
+- `RecordOwnerJoinedEventNode`
+
+**Resolved**: cleanup PR #2530 (issue #2483) successfully migrated all three
+nodes to `DataLayerActionWithPorts` as part of clearing the `AUDITED_SITES`
+backlog. The dynamic-key pattern was handled during that cleanup.
+*Source: ISSUE-1885, PR #2530*

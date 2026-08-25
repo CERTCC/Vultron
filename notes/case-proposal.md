@@ -381,3 +381,29 @@ field. `_EmitAcceptCaseProposalNode` reads `case_id` from the py\_trees
 blackboard (written earlier by `_LoadExistingCaseNode` or
 `_CreateCaseFromProposalNode`) and sets `result=case_id` on the activity
 before persisting it to the DataLayer and outbox.
+
+---
+
+## Exchange Demo: Discovering the Canonical Case
+
+After `validate-report` runs in an exchange demo, `ProposeReportCaseToActorNode`
+fires automatically and the CaseActor creates the canonical `VulnerabilityCase`.
+Do NOT call `create_case_activity` to create a vendor-local case — that produces
+a second, unlinked case with no participants.
+
+**Pattern for exchange demo setup:**
+
+```python
+def _find_canonical_case(client) -> dict:
+    cases = client.get("/datalayer/VulnerabilityCases/").json()
+    for case_id, case in cases.items():
+        if case.get("case_participants"):
+            return case
+    raise AssertionError("No canonical case found after validate-report")
+```
+
+The canonical case is always in the shared DataLayer after `validate-report`,
+even in single-backend test environments where `TestClientRouter` does not
+register the CaseActor's delivery address. See
+`vultron/demo/AGENTS.md` § "Exchange Demos: Discover the Canonical Case".
+*Source: ISSUE-1994*

@@ -44,6 +44,11 @@
 - **Backward-compat re-exports**: split modules re-export all public names from their `__init__.py` to avoid breaking callers (e.g., `vultron/adapters/driven/datalayer_sqlite.py`)
 - **`__init__.py` F401 exception**: unused imports in `__init__.py` files are allowed (flake8 per-file-ignore)
 
+### 3a) BT Node Blackboard Conventions
+
+- **Typed ports (preferred)**: BT DataLayer nodes must declare blackboard key dependencies as typed class attributes (the `WithPorts` variants) rather than calling `register_key()` at runtime. The ratchet test `test_no_bare_register_key_datalayer_nodes.py` enforces this — adding a node with `register_key()` in `setup()` causes immediate CI failure (BTND-03-009).
+- **Wire render via port**: when a BT node needs wire-shaped (AS2 JSON) output from a domain object, it must use `WireRenderPort` (`vultron/core/ports/wire_render.py`) injected via the adapter — never import from `vultron/wire/` directly inside core.
+
 ### 4) Error and Logging Conventions
 
 - **Error strategy by layer**:

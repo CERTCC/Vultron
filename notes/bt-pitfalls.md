@@ -1245,3 +1245,63 @@ where those are valid values.
 that has a fallback sibling, writing sentinel values is unnecessary overhead.
 Only add sentinels when you are composing a Selector with a specific fallback
 consumer in mind. *Source: ISSUE-1873*
+
+---
+
+## Blackboard Bridge Channel for Guard-to-Effect Communication
+
+(ISSUE-2258, 2026-08-20)
+
+When a guard node detects an anomaly and needs to communicate structured context
+to a downstream effect node — but returns `Status.FAILURE` so the Sequence
+aborts before the effect node runs — use the blackboard as an explicit channel:
+
+1. Define a module-level constant for the key (e.g.
+   `BB_RM_ANOMALY = "rm_transition_anomaly"`).
+2. The guard node writes to this key on **every** tick: `None` on normal paths,
+   a typed dict on anomaly paths, **including the FAILURE path**.
+3. The effect node reads the key. It runs only on the SUCCESS path of the
+   Sequence (normal or partial-accept); on FAILURE it never runs.
+
+**Why write on the FAILURE path?** The Sequence aborts after FAILURE, so the
+effect node never runs. The anomaly write on the guard's FAILURE path is the
+only durable record for that tick. Any node that runs before the next tick
+can read it.
+
+**Base class**: use `DataLayerAction` (not `DataLayerActionWithPorts`) for
+emission nodes that need both `self.blackboard` (standard py_trees blackboard)
+and DataLayer access. `DataLayerActionWithPorts` exposes the typed ports
+interface and does not provide `self.blackboard`; calling
+`self.blackboard.get(...)` on it raises `AttributeError`.
+
+See `vultron/core/behaviors/status/nodes/dimension_filter.py` for the reference
+implementation. *Source: ISSUE-2258*
+
+---
+
+## SHOULD-Level Emission Nodes Must Always Return SUCCESS
+
+(ADR-0067, RSH-06-004, 2026-08-20)
+
+Any BT node that emits a SHOULD-level side effect — advisory notes, audit
+records, non-critical notifications — MUST return `Status.SUCCESS` in all
+cases, including when the emission fails (no DataLayer, no factory, exception).
+
+**Why:** The note is advisory. Returning `FAILURE` would abort the enclosing
+Sequence and undo the status adoption that already succeeded — a worse outcome
+than a missing note. Protocol correctness MUST NOT depend on SHOULD-level
+emissions.
+
+**Pattern:** wrap the emission in a try/except, log a WARNING on failure, and
+always return `Status.SUCCESS`.
+
+```python
+def update(self) -> Status:
+    try:
+        self._emit_note()
+    except Exception as exc:
+        logger.warning("Could not emit note: %s", exc)
+    return Status.SUCCESS
+```
+
+<!-- Source: ISSUE-2258, ADR-0067 -->
