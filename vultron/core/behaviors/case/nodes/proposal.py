@@ -35,6 +35,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
+from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
@@ -100,12 +101,21 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
 
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
+        assert self.datalayer is not None
+        # CP-01-007: this store has the OfferRecord because this actor received
+        # the Offer; the CaseActor's own store never will, so the provenance has
+        # to be read here and carried on the proposal (#2548).
+        offer_id, offer_actor_id = find_offer_for_report(
+            self.datalayer, self.report_id
+        )
         try:
             activity_id, _ = (
                 self.trigger_activity_factory.create_case_proposal(
                     actor=self.actor_id,
                     report_id=self.report_id,
                     case_actor_id=case_actor_id,
+                    offer_id=offer_id,
+                    offer_actor_id=offer_actor_id,
                 )
             )
             cast(CaseOutboxPersistence, self.datalayer).outbox_append(

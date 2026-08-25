@@ -272,6 +272,23 @@ Concretely:
   That gate is the fix; it is not an optimisation to be skipped when the actors
   happen to share a host.
 
+- **What the sibling knows must be asked for on the wire.** Normative as
+  CP-01-007. The same rule that makes the timing gate necessary also decides
+  where a *fact* comes from: an actor that needs something only a sibling
+  observed has to be told, in a protocol message, at the moment it is told
+  anything at all. CP-01-004 already established this for the report itself —
+  the `CaseProposal` carries the `VulnerabilityReport` inline because the
+  CaseActor cannot read the proposer's store. Under #2548 the report's *offer
+  provenance* turned out to need the same treatment: only the actor that
+  received `Offer(VulnerabilityReport)` holds the `VultronOfferRecord` for it, so
+  the CaseActor's scan of its own store came back empty, the canonical
+  `add_report_to_case` entry went out without an `offerId`, and every replica's
+  `ApplyOfferReportFromLedgerNode` read that absence as "not about an offer" and
+  skipped. The first visible symptom was an invited actor's `validate-report`
+  answering `404 Offer not found`, four steps and one container away. A
+  cross-store *read* is the shape to distrust here, whether what it wants is an
+  object or a single id.
+
 - **The latch is written last.** Normative as ID-04-005. When a transition has
   more than one half and one half doubles as the evidence a later guard reads,
   that half MUST be written only after the others have succeeded. Writing it

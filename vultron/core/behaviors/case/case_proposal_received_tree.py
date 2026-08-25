@@ -84,6 +84,7 @@ from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_report_to_case_snapshot,
     build_create_case_snapshot,
 )
+from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import (
@@ -777,11 +778,15 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self,
         vendor_uri: str,
         report_id: str | None,
+        offer_id: str | None = None,
+        offer_actor_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._vendor_uri = vendor_uri
         self._report_id = report_id
+        self._offer_id = offer_id
+        self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
         self.wire_render_port = None
 
@@ -851,16 +856,28 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     def _find_offer_id_for_report(
         self, report_id: str
     ) -> tuple[str | None, str | None]:
-        """Return (offer_id, offer_actor_id) for *report_id* by scanning OfferRecords."""
-        from vultron.core.models.offer_record import VultronOfferRecord
+        """Return ``(offer_id, offer_actor_id)`` for *report_id*.
 
+        Its own store first, then what the proposal carried (CP-01-007). The
+        store answers only when this CaseActor received the
+        ``Offer(VulnerabilityReport)`` itself — which a co-located one does not,
+        because the ``OfferRecord`` belongs to the sibling that did and there is
+        no read across that line (ADR-0072, PCR-01-003).
+
+        The fallback is not a nicety. Every invited actor rebuilds its
+        ``VultronOfferRecord`` from this entry's ``offerId``
+        (``ApplyOfferReportFromLedgerNode``, ADR-0035 DL-06-002), and that node
+        is deliberately lenient — a snapshot without one is skipped
+        "(non-fatal)". So the omission surfaced nowhere near here: the invitee's
+        ``validate-report`` answered ``404 Offer not found`` (#2548).
+        """
         assert self.datalayer is not None
-        for raw in self.datalayer.list_objects("OfferRecord"):
-            if not isinstance(raw, VultronOfferRecord):
-                continue
-            if raw.report_id == report_id:
-                return raw.offer_id, raw.offer_actor_id
-        return None, None
+        offer_id, offer_actor_id = find_offer_for_report(
+            self.datalayer, report_id
+        )
+        if offer_id:
+            return offer_id, offer_actor_id
+        return self._offer_id, self._offer_actor_id
 
     def _commit_add_reports(
         self, case: VulnerabilityCase, case_id: str
@@ -1810,6 +1827,27 @@ class _ClearCreateCaseMarkerNode(DataLayerAction):
         return Status.SUCCESS
 
 
+def _offer_provenance_from_proposal(
+    proposal_dict: dict | None,
+) -> tuple[str | None, str | None]:
+    """Return ``(offer_id, offer_actor_id)`` carried on the proposal (CP-01-007).
+
+    Both spellings are accepted for the same reason
+    ``_StoreProposalReportNode._report_from_proposal_dict`` accepts both: which
+    one a caller has depends on whether its dump used ``by_alias``.
+    """
+
+    def _pick(alias: str, field: str) -> str | None:
+        raw = (proposal_dict or {}).get(alias)
+        if not isinstance(raw, str):
+            raw = (proposal_dict or {}).get(field)
+        return raw if isinstance(raw, str) and raw else None
+
+    return _pick("offerId", "offer_id"), _pick(
+        "offerActorId", "offer_actor_id"
+    )
+
+
 def create_case_proposal_received_tree(
     report_id: str | None,
     proposal_id: str,
@@ -1879,7 +1917,10 @@ def create_case_proposal_received_tree(
         proposal_dict: Wire-serialised proposal dict (``model_dump(by_alias=True)``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-003 and the AKM-03-001 outbox requirement. Falls back
-            to bare URI when ``None``.
+            to bare URI when ``None``. It is also where the report's offer
+            provenance arrives (``offerId``/``offerActorId``, CP-01-007), which
+            the ``add_report_to_case`` ledger entry needs and this CaseActor
+            cannot look up for itself.
         actor_config: Optional local actor configuration.  Its
             ``default_case_roles`` determine the CVD roles the proposing
             (report-receiving) actor is given alongside ``CVDRole.CASE_OWNER``
@@ -1892,6 +1933,8 @@ def create_case_proposal_received_tree(
     from vultron.core.behaviors.case.embargo_tree import (
         InitializeDefaultEmbargoNode,
     )
+
+    offer_id, offer_actor_id = _offer_provenance_from_proposal(proposal_dict)
 
     # Sub-Selector: reuse existing case (duplicate) OR create new (normal path)
     case_resolution = py_trees.composites.Selector(
@@ -1943,6 +1986,8 @@ def create_case_proposal_received_tree(
             _CommitNativeLedgerEntriesNode(
                 vendor_uri=vendor_uri,
                 report_id=report_id,
+                offer_id=offer_id,
+                offer_actor_id=offer_actor_id,
             ),
             # Outbound messaging
             _EmitAcceptCaseProposalNode(

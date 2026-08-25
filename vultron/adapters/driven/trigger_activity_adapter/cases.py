@@ -233,12 +233,17 @@ class _CasesMixin:
         case_actor_id: str,
         summary: str | None = None,
         to: list[str] | None = None,
+        offer_id: str | None = None,
+        offer_actor_id: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(as_CaseProposal)`` activity.
 
         Reads the ``as_VulnerabilityReport`` identified by ``report_id``,
         constructs an ``as_CaseProposal``, and persists
         ``Create(as_CaseProposal)`` to the DataLayer.
+
+        ``offer_id``/``offer_actor_id`` are the report's offer provenance and are
+        carried through when supplied (CP-01-007).
 
         Per CP-04-001, CP-04-002.
         """
@@ -258,6 +263,8 @@ class _CasesMixin:
             object_=report,
             target=case_actor_id,
             summary=summary,
+            offer_id=offer_id,
+            offer_actor_id=offer_actor_id,
         )
         # Persist the proposal so the outbox expansion path can find it
         # when the as_Create activity is read back from the DataLayer.

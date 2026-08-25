@@ -68,6 +68,9 @@ class as_CaseProposal(VultronAS2Object):
             which the proposal is addressed (CP-01-005).
         summary: Optional human-readable description of the proposal
             (CP-01-006).
+        offer_id: Optional URI of the ``Offer(VulnerabilityReport)`` this
+            proposal descends from, with ``offer_actor_id`` naming its sender
+            (CP-01-007).
     """
 
     # CP-01-004 / AKM-03-001: the report is carried, not referenced. Declared
@@ -115,6 +118,34 @@ class as_CaseProposal(VultronAS2Object):
     summary: NonEmptyString | None = Field(
         default=None,
         description="Optional human-readable description of the proposal.",
+    )
+
+    # CP-01-007: provenance of the report this proposal is about.
+    #
+    # The CaseActor commits the canonical `add_report_to_case` ledger entry, and
+    # invited actors rebuild their `VultronOfferRecord` from that entry's
+    # snapshot (ADR-0035 DL-06-002, SYNC-02-002). The CaseActor cannot look the
+    # offer up: the `OfferRecord` lives in the store of the actor that received
+    # the Offer, and a co-located CaseActor has its own store and no read into a
+    # sibling's (ADR-0072, PCR-01-003). So the offer travels here, on the
+    # proposal, for the same reason and by the same rule as the report itself
+    # (CP-01-004).
+    #
+    # Without it the snapshot carried no `offerId`, every invited actor's
+    # `ApplyOfferReportFromLedgerNode` logged "no offerId — skipping
+    # (non-fatal)", and `validate-report` answered `404 Offer not found` to an
+    # invitee that had done everything right (#2548).
+    offer_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerId",
+        serialization_alias="offerId",
+        description="URI of the Offer(VulnerabilityReport) this proposal descends from.",
+    )
+    offer_actor_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerActorId",
+        serialization_alias="offerActorId",
+        description="URI of the actor that sent the Offer named by offer_id.",
     )
 
 
