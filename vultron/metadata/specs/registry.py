@@ -199,7 +199,7 @@ class SpecRegistry(BaseModel):
         return dict(self._group_index)
 
 
-def _find_repo_root(start: Path | None = None) -> Path:
+def find_repo_root(start: Path | None = None) -> Path:
     """Return the repository root by searching upward for ``pyproject.toml``
     (SR-03-007)."""
     origin = start or Path.cwd()
@@ -230,7 +230,7 @@ def load_registry(
         FileNotFoundError: If the repository root cannot be resolved.
     """
     if spec_dir is None:
-        root = _find_repo_root()
+        root = find_repo_root()
         spec_dir = root / "specs"
 
     files = []
