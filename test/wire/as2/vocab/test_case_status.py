@@ -18,10 +18,16 @@ Tests for as_CaseStatus and as_ParticipantStatus empty-string field validation
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
+from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
+from vultron.core.models.participant_status import (
+    ParticipantStatus as CoreParticipantStatus,
+)
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
@@ -89,6 +95,37 @@ class TestParticipantStatusTrackingIdField(unittest.TestCase):
                 attributed_to=ACTOR_ID, context=CASE_ID, tracking_id="   "
             )
         assert "must be a non-empty string" in str(exc_info.value)
+
+
+class TestFromCorePreservesPublished(unittest.TestCase):
+    """from_core must not regenerate published (regression: issue #2511)."""
+
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    def test_as_case_status_from_core_preserves_published(self):
+        core = CoreCaseStatus(context=CASE_ID, published=self._FIXED_TIME)
+        wire = as_CaseStatus.from_core(core)
+        self.assertEqual(self._FIXED_TIME, wire.published)
+
+    def test_as_participant_status_from_core_preserves_published(self):
+        core = CoreParticipantStatus(
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            published=self._FIXED_TIME,
+        )
+        wire = as_ParticipantStatus.from_core(core)
+        self.assertEqual(self._FIXED_TIME, wire.published)
+
+    def test_as_participant_status_from_core_preserves_cvd_role(self):
+        """model_dump() produces cvd_role (snake_case); verify it round-trips."""
+        expected_roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        core = CoreParticipantStatus(
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            cvd_role=expected_roles,
+        )
+        wire = as_ParticipantStatus.from_core(core)
+        self.assertEqual(expected_roles, wire.cvd_role)
 
 
 if __name__ == "__main__":
