@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 import isodate  # type: ignore[import-untyped]
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.nodes.em_state import WriteEmStateNode
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -47,7 +48,6 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.models._helpers import _as_id
@@ -382,8 +382,16 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
             stored_case.active_embargo = embargo_id
-            stored_case.current_status.em = EmDimension(state=EM.ACTIVE)
             self.datalayer.save(stored_case)
+            # AC-1: delegate EM state write to WriteEmStateNode.
+            result_out: dict[str, object] = {"em_after": EM.ACTIVE}
+            write_node = WriteEmStateNode(
+                case_id=case_id, result_out=result_out
+            )
+            write_node.datalayer = self.datalayer
+            if write_node.update() != Status.SUCCESS:
+                self.feedback_message = write_node.feedback_message
+                return Status.FAILURE
             self.logger.info(
                 "Attached embargo '%s' to case '%s' as active_embargo",
                 embargo_id,

@@ -289,6 +289,53 @@ class TestInitializeDefaultEmbargoNode:
         ]
 
 
+class TestAttachEmbargoToCaseNodeAC1:
+    """AC-1 regression for AttachEmbargoToCaseNode (issue #2583)."""
+
+    def test_em_write_delegates_to_write_em_state_node(
+        self,
+        bt_scenario: BTTestScenario,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """AC-1 (issue #2583): EM write is delegated to WriteEmStateNode.
+
+        When WriteEmStateNode.update() is patched to return FAILURE the
+        node must propagate FAILURE — proving the inline write was replaced
+        by delegation.
+        """
+        from unittest.mock import patch
+
+        from vultron.core.behaviors.embargo.nodes.em_state import (
+            WriteEmStateNode,
+        )
+
+        embargo = EmbargoEvent(
+            end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+            context=case_obj.id_,
+        )
+        bt_scenario.dl.create(embargo)
+
+        bt_scenario.run(
+            CreateCaseOwnerParticipant(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        with patch.object(
+            WriteEmStateNode, "update", return_value=Status.FAILURE
+        ):
+            result = bt_scenario.run(
+                AttachEmbargoToCaseNode(),
+                actor_id=actor_id,
+                case_id=case_obj.id_,
+                default_embargo_id=embargo.id_,
+                default_embargo_initialized=True,
+            )
+
+        assert result.status == Status.FAILURE
+
+
 class TestSeedOwnerAsSignatoryNode:
     """SeedOwnerAsSignatoryNode is idempotent when participant is already SIGNATORY."""
 
