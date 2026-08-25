@@ -48,7 +48,7 @@ substantially complete:
    narrow gap: the BROADCAST-834 no-op path class (BT-17-003 producer must
    clear output key on failure path) is specified and documented but has no
    dedicated back-to-back regression test in the broadcast sender domain.
-   Tracked in #IMPL.
+   Tracked in #2577.
 
 `CC1-FLAKY` (`test/bt/test_vultrabot.py`) remains deferred — it lives in
 `vultron/bt/` (legacy simulation layer using a custom blackboard) which is
