@@ -46,6 +46,7 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.base import (
     VultronAS2Object,
     _scalar_ref_id_or_value,
+    _strip_core_context,
 )
 
 
@@ -155,20 +156,18 @@ class as_CaseStatus(VultronAS2Object):
 
     @classmethod
     def from_core(cls, core_obj: CoreCaseStatus) -> "as_CaseStatus":
-        # Project dimension objects to flat EM/PXA enum fields for wire format.
-        return cast(
-            "as_CaseStatus",
-            cls.model_validate(
-                {
-                    "id": core_obj.id_,
-                    "type": VO_type.CASE_STATUS,
-                    "context": core_obj.context,
-                    "attributed_to": core_obj.attributed_to,
-                    "em_state": core_obj.em.state.name,
-                    "pxa_state": core_obj.pxa.state.name,
-                }
-            ),
+        data = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
+        # Project dimension dicts to the flat em_state/pxa_state wire fields.
+        em_dim = data.pop("em", {})
+        pxa_dim = data.pop("pxa", {})
+        data["em_state"] = (
+            em_dim.get("state") if isinstance(em_dim, dict) else em_dim
         )
+        data["pxa_state"] = (
+            pxa_dim.get("state") if isinstance(pxa_dim, dict) else pxa_dim
+        )
+        return cast("as_CaseStatus", cls.model_validate(data))
 
     def to_core(self) -> CoreCaseStatus:
         data = self._to_core_data()
@@ -292,30 +291,14 @@ class as_ParticipantStatus(VultronAS2Object):
     def from_core(
         cls, core_obj: CoreParticipantStatus
     ) -> "as_ParticipantStatus":
-        # Project dimension objects to flat enum fields for wire format.
-        consent_state = (
-            core_obj.consent.state if core_obj.consent is not None else None
-        )
-        wire_data: dict = {
-            "id": core_obj.id_,
-            "type": VO_type.PARTICIPANT_STATUS,
-            "context": core_obj.context,
-            "attributed_to": core_obj.attributed_to,
-            "rm_state": core_obj.rm.state.name,
-            "vfd_state": core_obj.vfd.state.name,
-            "case_engagement": core_obj.case_engagement,
-            "embargo_adherence": core_obj.embargo_adherence,
-            "emConsentState": (
-                consent_state.name if consent_state is not None else None
-            ),
-            "cvdRole": [r.name for r in core_obj.cvd_role],
-            "tracking_id": core_obj.tracking_id,
-        }
+        data = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
+        # _migrate_core_dimension_format handles rm/vfd/consent dim-dict → flat.
+        # case_status needs explicit conversion so em/pxa dims cross the boundary.
+        data.pop("case_status", None)
         if core_obj.case_status is not None:
-            wire_data["case_status"] = as_CaseStatus.from_core(
-                core_obj.case_status
-            )
-        return cast("as_ParticipantStatus", cls.model_validate(wire_data))
+            data["case_status"] = as_CaseStatus.from_core(core_obj.case_status)
+        return cast("as_ParticipantStatus", cls.model_validate(data))
 
     def to_core(self) -> CoreParticipantStatus:
         data = self._to_core_data()
