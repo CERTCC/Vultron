@@ -337,7 +337,7 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Issue claimed via `claim-issue.sh` (`plan/<N>-<slug>`) — always (Phase 1b)
 - [ ] `orient-agent` invoked
 - [ ] `deepen-context` invoked with focus hints from the issue
-- [ ] All grill-me branches resolved (shared + type-specific)
+- [ ] Grill-me conversation complete — conclusions confirmed as proposals (scope, ACs, ADR, options)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
