@@ -46,7 +46,7 @@ needs_integration = any(
 **Commands**:
 
 1. `uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5` (all unit tests)
-2. `uv run pytest integration_tests/ -v` (integration test suite)
+2. `uv run pytest integration_tests/ -v 2>&1 | tee /tmp/pytest-integration.log` (integration test suite)
 
 **When**: Demo, adapters, behavior trees, or use-cases modified
 
