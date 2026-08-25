@@ -1477,6 +1477,79 @@ class TestADR0041Idempotency:
             " ledger-index stability is required (ADR-0041)"
         )
 
+    def test_idempotent_even_when_the_clock_moves_between_deliveries(
+        self, make_payload, monkeypatch
+    ):
+        """The same guarantee, with the timing coincidence removed.
+
+        The test above only holds when both deliveries land inside one clock
+        second.  ``now_utc`` truncates to whole seconds and ``as_Base`` stamps
+        ``published``/``updated`` with it at construction, so rebuilding a
+        snapshot a second later restamps every object it embeds — and a dedup
+        comparing snapshots byte-for-byte then misses and appends duplicate
+        indices.  That made this class's guarantee a coin flip: green locally,
+        red on slower CI, which is how it was found.
+
+        Advancing the clock on every read forces the worst case rather than
+        sleeping for it, so a regression fails here every time instead of
+        occasionally somewhere else.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        from vultron.wire.as2.vocab.base import dt_utils
+
+        class _AdvancingClock:
+            """A ``datetime`` stand-in whose ``now()`` steps forward a second.
+
+            Patched into ``dt_utils`` rather than onto the models: the
+            ``published``/``updated`` defaults capture ``now_utc`` itself at
+            class-definition time, so patching that name has no effect once the
+            fields are built.  ``now_utc`` looks ``datetime`` up in its own
+            module at call time, which does.
+            """
+
+            def __init__(self, start: datetime) -> None:
+                self._t = start
+
+            def now(self, tz: timezone | None = None) -> datetime:
+                self._t += timedelta(seconds=1)
+                return self._t
+
+        monkeypatch.setattr(
+            dt_utils,
+            "datetime",
+            _AdvancingClock(datetime.now(timezone.utc)),
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        case_id = next(iter(dl.list_objects("VulnerabilityCase"))).id_
+        entries_before = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "case_id", None) == case_id
+        ]
+        assert entries_before, "first delivery must have written the ledger"
+
+        _run_full_bt(make_payload, dl)
+
+        entries_after = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "case_id", None) == case_id
+        ]
+        assert len(entries_after) == len(entries_before), (
+            "a retry is the same assertion no matter how much later it"
+            " arrives; restamped published/updated values must not defeat the"
+            f" ledger dedup (before={len(entries_before)},"
+            f" after={len(entries_after)}) — ADR-0041"
+        )
+
 
 class TestADR0041GenesisCommitFailure:
     """The genesis create_case commit failure must not be masked."""
