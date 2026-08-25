@@ -144,6 +144,7 @@ class TestAddNoteToCaseTriggerBT:
         assert isinstance(children[2], py_trees.composites.Sequence)
         assert children[2].name == "SenderSideBT"
 
+    @pytest.mark.spec("CM-02-007")
     def test_success_creates_note_and_attaches_to_case(self, dl, bridge):
         store, actor = dl
         case = _make_case_with_case_manager(store, actor.id_)
@@ -167,6 +168,7 @@ class TestAddNoteToCaseTriggerBT:
         assert refreshed is not None
         assert NOTE_ID in refreshed.notes
 
+    @pytest.mark.spec("CM-06-005")
     def test_success_queues_activity_to_outbox(self, dl, bridge):
         store, actor = dl
         case = _make_case_with_case_manager(store, actor.id_)

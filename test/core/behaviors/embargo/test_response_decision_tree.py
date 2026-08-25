@@ -102,11 +102,13 @@ class TestRootStructure:
         tree = _make_tree()
         assert tree.memory is False  # type: ignore[attr-defined]
 
+    @pytest.mark.spec("EMB-15-003")
     def test_two_arms_without_counter(self):
         """Flow B (no counter): accept + reject = 2 arms."""
         tree = _make_tree(counter=False)
         assert len(tree.children) == 2
 
+    @pytest.mark.spec("EMB-15-003")
     def test_three_arms_with_counter(self):
         """Flow A (with counter): accept + counter + reject = 3 arms."""
         tree = _make_tree(counter=True)
@@ -154,6 +156,7 @@ class TestAcceptArm:
         auth = tree.children[0].children[0]
         assert len(auth.children) == 2
 
+    @pytest.mark.spec("EMB-15-002")
     def test_authorize_first_child_is_check_is_case_owner(self):
         """EMB-15-002: gospel-bypass guard is CheckIsCaseOwnerNode."""
         tree = _make_tree()
@@ -165,6 +168,7 @@ class TestAcceptArm:
         auth = tree.children[0].children[0]
         assert auth.children[0].name == "CheckIsCaseOwner"
 
+    @pytest.mark.spec("EMB-15-005")
     def test_accept_arm_second_child_is_evaluate_embargo_proposal_deterministic(
         self,
     ):
@@ -190,6 +194,7 @@ class TestAcceptArm:
 
 
 class TestAuthorizeSeam:
+    @pytest.mark.spec("EMB-15-007")
     def test_non_owner_seam_deterministic_is_always_succeed(self):
         """DETERMINISTIC bundle: CaseOwnerApprovesEmbargoResponse → AlwaysSucceed."""
         tree = _make_tree()
@@ -197,12 +202,14 @@ class TestAuthorizeSeam:
         non_owner_node = auth.children[1]
         assert isinstance(non_owner_node, AlwaysSucceed)
 
+    @pytest.mark.spec("EMB-15-007")
     def test_non_owner_seam_name(self):
         tree = _make_tree()
         auth = tree.children[0].children[0]
         non_owner_node = auth.children[1]
         assert non_owner_node.name == "CaseOwnerApprovesEmbargoResponse"
 
+    @pytest.mark.spec("EMB-15-007")
     def test_non_owner_seam_stochastic_is_correct_fuzzer_class(self):
         """STOCHASTIC bundle: CaseOwnerApprovesEmbargoResponse → fuzzer class."""
         tree = _make_tree(call_out=EMBARGO_STOCHASTIC)
@@ -238,12 +245,14 @@ class TestAuthorizeSeam:
 
 
 class TestEvaluateEmbargoProposalCallOut:
+    @pytest.mark.spec("EMB-15-005")
     def test_stochastic_evaluate_is_correct_fuzzer_class(self):
         """STOCHASTIC bundle: EvaluateEmbargoProposal → fuzzer class."""
         tree = _make_tree(call_out=EMBARGO_STOCHASTIC)
         evaluate_node = tree.children[0].children[1]
         assert isinstance(evaluate_node, EvaluateEmbargoProposal)
 
+    @pytest.mark.spec("EMB-15-005")
     def test_custom_evaluate_factory_wired(self):
         """Custom evaluate_embargo_proposal_factory is injected."""
         called = {"flag": False}
@@ -271,12 +280,14 @@ class TestEvaluateEmbargoProposalCallOut:
 
 
 class TestCounterArm:
+    @pytest.mark.spec("EMB-15-003")
     def test_counter_arm_absent_when_no_counter_bt(self):
         """Flow B: no counter_bt → only 2 arms (no CounterArm)."""
         tree = _make_tree(counter=False)
         names = [c.name for c in tree.children]
         assert "CounterArm" not in names
 
+    @pytest.mark.spec("EMB-15-003")
     def test_counter_arm_present_when_counter_bt_supplied(self):
         """Flow A: counter_bt supplied → CounterArm is child[1]."""
         tree = _make_tree(counter=True)
@@ -295,6 +306,7 @@ class TestCounterArm:
         counter_arm = tree.children[1]
         assert len(counter_arm.children) == 2
 
+    @pytest.mark.spec("EMB-15-003")
     def test_counter_arm_first_child_is_willing_to_counter_deterministic(self):
         """EMB-15-003: WillingToCounterEmbargoProposal defaults to AlwaysFail."""
         tree = _make_tree(counter=True)
@@ -311,6 +323,7 @@ class TestCounterArm:
         delegate = tree.children[1].children[1]
         assert delegate.name == "CounterDelegate"
 
+    @pytest.mark.spec("EMB-15-003")
     def test_counter_arm_first_child_stochastic(self):
         """STOCHASTIC bundle: WillingToCounterEmbargoProposal → fuzzer class."""
         tree = _make_tree(counter=True, call_out=EMBARGO_STOCHASTIC)
@@ -344,11 +357,13 @@ class TestCounterArm:
 
 
 class TestRejectArm:
+    @pytest.mark.spec("EMB-15-004")
     def test_reject_arm_is_last_child_without_counter(self):
         """Flow B: reject arm is child[1] (last, index 1)."""
         tree = _make_tree(counter=False)
         assert tree.children[1].name == "RejectDelegate"
 
+    @pytest.mark.spec("EMB-15-004")
     def test_reject_arm_is_last_child_with_counter(self):
         """Flow A: reject arm is child[2] (last, index 2)."""
         tree = _make_tree(counter=True)
@@ -432,6 +447,7 @@ class TestBTBridgeIntegration:
     # CASE_OWNER gospel bypass (EMB-15-002)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("EMB-15-006")
     def test_case_owner_reaches_accept_bt(self):
         """CASE_OWNER actor: accept arm fires; accept_bt is ticked."""
         scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
@@ -449,6 +465,7 @@ class TestBTBridgeIntegration:
         scenario.assert_success(result)
         assert accept_log["ticked"], "accept_bt must be ticked for CASE_OWNER"
 
+    @pytest.mark.spec("EMB-15-006")
     def test_case_owner_skips_case_owner_approves_call_out(self):
         """CASE_OWNER gospel bypass: CaseOwnerApproves call-out is never reached."""
         called: dict = {"flag": False}
@@ -487,6 +504,7 @@ class TestBTBridgeIntegration:
     # Non-owner routes through call-out seam (EMB-15-002)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("EMB-15-007")
     def test_non_owner_routes_through_case_owner_approves_call_out(self):
         """Non-owner: CaseOwnerApprovesEmbargoResponse call-out IS invoked."""
         called: dict = {"flag": False}
@@ -521,6 +539,7 @@ class TestBTBridgeIntegration:
             "flag"
         ], "CaseOwnerApprovesEmbargoResponse must be called for non-owner"
 
+    @pytest.mark.spec("EMB-15-004")
     def test_unknown_actor_falls_through_to_reject(self):
         """Actor not in case: CheckIsCaseOwner → FAILURE; call-out denies → reject."""
         deny_factory_called: dict = {"flag": False}
@@ -562,6 +581,7 @@ class TestBTBridgeIntegration:
     # Flow A — accept/counter/reject delegation (EMB-15-001 / EMB-15-003 / EMB-15-004)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("EMB-15-001")
     def test_flow_a_accept_delegation(self):
         """Flow A: deterministic default → accept_bt is ticked, result is SUCCESS."""
         scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
@@ -591,6 +611,7 @@ class TestBTBridgeIntegration:
             "ticked"
         ], "reject_bt must NOT be ticked on default-accept"
 
+    @pytest.mark.spec("EMB-15-003")
     def test_flow_a_counter_delegation_when_willing(self):
         """Flow A: WillingToCounter → SUCCESS → counter_bt is ticked."""
         # Accept arm fails because AuthorizeSelector fails:
@@ -633,6 +654,7 @@ class TestBTBridgeIntegration:
             "ticked"
         ], "reject_bt must NOT be ticked when counter arm taken"
 
+    @pytest.mark.spec("EMB-15-004")
     def test_flow_a_reject_delegation_when_all_arms_fail(self):
         """Flow A: accept + counter arms fail → reject_bt is ticked (EMB-15-004).
 
@@ -673,6 +695,7 @@ class TestBTBridgeIntegration:
     # Flow B — accept/reject delegation (no counter arm)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("EMB-15-001")
     def test_flow_b_accept_delegation(self):
         """Flow B: CASE_OWNER + default-accept → accept_bt ticked, no counter arm."""
         scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
@@ -698,6 +721,7 @@ class TestBTBridgeIntegration:
             "ticked"
         ], "reject_bt must NOT be ticked on Flow B accept"
 
+    @pytest.mark.spec("EMB-15-004")
     def test_flow_b_reject_delegation(self):
         """Flow B: accept arm fails → reject_bt is ticked (EMB-15-004).
 

@@ -14,6 +14,8 @@
 import unittest
 from typing import Sequence
 
+import pytest
+
 from vultron.core.states.rm import (
     RM,
     RM_ACTIVE,
@@ -23,6 +25,7 @@ from vultron.core.states.rm import (
 
 
 class MyTestCase(unittest.TestCase):
+    @pytest.mark.spec("RMB-01-001")
     def test_rm_enum(self):
         self.assertGreater(len(RM), 0)
 
@@ -65,6 +68,7 @@ class MyTestCase(unittest.TestCase):
             else:
                 self.assertNotIn(s, alias)
 
+    @pytest.mark.spec("RMB-14-001")
     def test_closable(self):
         self._test_convenience_aliases(RM_CLOSABLE, (RM.I, RM.D, RM.A))
 

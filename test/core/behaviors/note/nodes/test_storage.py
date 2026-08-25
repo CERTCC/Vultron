@@ -64,6 +64,7 @@ class TestSaveNoteNode:
 
 
 class TestAttachNoteToCaseNode:
+    @pytest.mark.spec("CM-02-007")
     def test_attaches_note_to_case(self, bridge, dl, note):
         case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
         dl.create(case)
@@ -75,6 +76,7 @@ class TestAttachNoteToCaseNode:
         assert refreshed is not None
         assert NOTE_ID in refreshed.notes
 
+    @pytest.mark.spec("CM-13-007")
     def test_idempotent_when_note_already_attached(self, bridge, dl, note):
         case = as_VulnerabilityCase(
             id_=CASE_ID, name="Test Case", notes=[NOTE_ID]

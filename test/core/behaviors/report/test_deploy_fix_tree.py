@@ -545,6 +545,7 @@ class TestCheckNoNewDeploymentInfoNode:
 
 
 class TestTransitionCStoFixDeployed:
+    @pytest.mark.spec("BT-03-004")
     def test_success_and_creates_vfd_status(
         self,
         bt_scenario: BTTestScenario,
@@ -573,6 +574,7 @@ class TestTransitionCStoFixDeployed:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("BT-07-003")
     def test_fix_deployed_logged_in_narrative_form(
         self,
         bt_scenario: BTTestScenario,
@@ -619,6 +621,7 @@ class TestTransitionCStoFixDeployed:
 
 
 class TestEmitCDActivity:
+    @pytest.mark.spec("BT-03-004")
     def test_success_emits_cd_activity(
         self,
         bt_scenario: BTTestScenario,
@@ -737,6 +740,7 @@ def test_stay_deferred_short_circuits(
     assert bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID) == []
 
 
+@pytest.mark.spec("BT-03-004")
 def test_full_deploy_arm_completes_and_emits_cd(
     bt_scenario: BTTestScenario,
     case_with_deployer_and_case_manager: VultronCase,

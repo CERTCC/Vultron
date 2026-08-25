@@ -596,6 +596,7 @@ class TestThreatTerminationBranchNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.spec("RSH-03-001")
     @pytest.mark.parametrize(
         "pxa_state",
         [
@@ -632,6 +633,7 @@ class TestThreatTerminationBranchNode:
         assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
+    @pytest.mark.spec("RSH-03-002")
     def test_no_sender_role_gate(self, dl):
         """RSH-03-002: teardown fires regardless of sender role (no CASE_OWNER check).
 
@@ -678,6 +680,7 @@ class TestAddCaseStatusTreeSeam2:
         )
         return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
+    @pytest.mark.spec("RSH-02-001")
     def test_side_effects_guard_always_fail_blocks_threat_termination(self):
         """EmbargoTeardownAuthorizationGate=AlwaysFail → ThreatTerminationBranch never runs.
 
@@ -740,6 +743,8 @@ class TestAddCaseStatusTreeSeam2:
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
 
+    @pytest.mark.spec("RSH-03-001")
+    @pytest.mark.spec("RSH-03-003")
     def test_tree_contains_threat_termination_branch_node(self, dl):
         """add_case_status_tree must contain ThreatTerminationBranchNode (RSH-03-001)."""
         event = self._make_event(dl)

@@ -48,6 +48,8 @@ def case_with_actor(datalayer):
     return case
 
 
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("SYNC-12-002")
 def test_apply_invite_accept_adds_participant(
     bridge, datalayer, case_actor, case_with_actor
 ):
@@ -68,6 +70,7 @@ def test_apply_invite_accept_adds_participant(
     assert INVITEE_ACTOR_ID in updated.actor_participant_index
 
 
+@pytest.mark.spec("SYNC-12-003")
 def test_apply_invite_accept_idempotent(
     bridge, datalayer, case_actor, case_with_actor
 ):
@@ -89,6 +92,7 @@ def test_apply_invite_accept_idempotent(
     assert actor_ids.count(INVITEE_ACTOR_ID) == 1
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_apply_invite_accept_skips_missing_case(bridge, case_actor):
     """Node returns SUCCESS when the case is not in the local DataLayer."""
     entry = _make_invite_accept_entry(INVITEE_ACTOR_ID)

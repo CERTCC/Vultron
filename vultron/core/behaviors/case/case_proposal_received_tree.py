@@ -81,12 +81,11 @@ from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_report_to_case_snapshot,
     build_create_case_snapshot,
 )
-from py_trees.ports import NoDataAvailable
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
-    PortInformation,
 )
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -252,7 +251,7 @@ class _CreateCaseFromProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class _AddCaseActorParticipantNode(DataLayerAction):
+class _AddCaseActorParticipantNode(DataLayerActionWithPorts):
     """Register the CaseActor itself as COORDINATOR + CASE_MANAGER participant.
 
     Under ADR-0041 the CaseActor creates the VulnerabilityCase, so it must
@@ -275,11 +274,23 @@ class _AddCaseActorParticipantNode(DataLayerAction):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _build_bootstrap_statuses(
         self, case_id: str
@@ -363,13 +374,9 @@ class _AddCaseActorParticipantNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
+        case_id = self._case_id_bb
         if not isinstance(case_id, str):
-            self.feedback_message = "case_id is not a string"
+            self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
         stored_case = self.datalayer.read(case_id)
@@ -380,7 +387,7 @@ class _AddCaseActorParticipantNode(DataLayerAction):
         return self._register_participant(case_id)
 
 
-class _AddVendorOwnerParticipantNode(DataLayerAction):
+class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
     """Add the report receiver as CASE_OWNER participant at RM.RECEIVED.
 
     The actor that sent the proposal is the case owner (receiver of the
@@ -409,24 +416,32 @@ class _AddVendorOwnerParticipantNode(DataLayerAction):
         self._report_id = report_id
         self._actor_config = actor_config
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
+        case_id = self._case_id_bb
         if not isinstance(case_id, str):
-            self.feedback_message = "case_id is not a string"
+            self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
         # Skip if vendor already has a participant in this case.
@@ -485,7 +500,7 @@ class _AddVendorOwnerParticipantNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _AddReporterParticipantNode(DataLayerAction):
+class _AddReporterParticipantNode(DataLayerActionWithPorts):
     """Add the reporter as a participant at RM.ACCEPTED.
 
     Reads the reporter's actor URI from ``VulnerabilityReport.attributed_to``
@@ -506,11 +521,23 @@ class _AddReporterParticipantNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _resolve_reporter_uri(self, report_id: str) -> str | None:
         assert self.datalayer is not None
@@ -561,13 +588,9 @@ class _AddReporterParticipantNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
+        case_id = self._case_id_bb
         if not isinstance(case_id, str):
-            self.feedback_message = "case_id is not a string"
+            self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
         reporter_uri = self._resolve_reporter_uri(self._report_id)
@@ -618,7 +641,7 @@ class _AddReporterParticipantNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _CommitNativeLedgerEntriesNode(DataLayerAction):
+class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     """Commit canonical ledger entries natively for CaseActor initialization.
 
     Commits entries in causal order per ADR-0041 AC-4:
@@ -647,12 +670,34 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._vendor_uri = vendor_uri
         self._report_id = report_id
+        self._case_id_bb: str | None = None
+        self.wire_render_port = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["wire_render_port"] = PortInformation(
+            data_type=object, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id", "wire_render_port": "/wire_render_port"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        self.wire_render_port = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _commit_one(
         self,
@@ -821,13 +866,9 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
+        case_id = self._case_id_bb
         if not isinstance(case_id, str):
-            self.feedback_message = "case_id is not a string"
+            self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
         raw_case = self.datalayer.read(case_id)
@@ -916,7 +957,7 @@ def _seed_participant_as_signatory(
     )
 
 
-class _SeedVendorOwnerSignatoryNode(DataLayerAction):
+class _SeedVendorOwnerSignatoryNode(DataLayerActionWithPorts):
     """Seed the vendor (CASE_OWNER) participant as embargo SIGNATORY (CM-13).
 
     ``InitializeDefaultEmbargoNode`` ends in ``SeedOwnerAsSignatoryNode``,
@@ -950,24 +991,33 @@ class _SeedVendorOwnerSignatoryNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._vendor_uri = vendor_uri
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
-        if not isinstance(case_id, str):
-            self.feedback_message = "case_id is not a string"
             return Status.FAILURE
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
@@ -1032,7 +1082,7 @@ class _SeedVendorOwnerSignatoryNode(DataLayerAction):
         )
 
 
-class _SeedReporterSignatoryNode(DataLayerAction):
+class _SeedReporterSignatoryNode(DataLayerActionWithPorts):
     """Seed the reporter participant as embargo SIGNATORY (CM-14-005).
 
     CM-14-005 requires: "When the reporter is added as a participant during
@@ -1063,11 +1113,23 @@ class _SeedReporterSignatoryNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
 
     def _resolve_reporter_uri(self, report_id: str) -> str | None:
         assert self.datalayer is not None
@@ -1149,13 +1211,9 @@ class _SeedReporterSignatoryNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
+        case_id = self._case_id_bb
         if not isinstance(case_id, str):
-            self.feedback_message = "case_id is not a string"
+            self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
         reporter_uri = self._resolve_reporter_uri(self._report_id)
@@ -1376,7 +1434,7 @@ class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _WriteCreateCaseMarkerNode(DataLayerAction):
+class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
     """Write a ``PendingCreateCaseActivity`` marker to the DataLayer.
 
     Called after ``Accept(CaseProposal)`` has been sent and before
@@ -1399,15 +1457,47 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
         self._vendor_uri = vendor_uri
+        self.wire_render_port = None
+        self._case_id_bb: str | None = None
+        self._accept_activity_id_bb: str | None = None
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["accept_activity_id"] = PortInformation(
+            data_type=str, required=False
         )
-        self.blackboard.register_key(
-            key="accept_activity_id", access=py_trees.common.Access.READ
+        ports["wire_render_port"] = PortInformation(
+            data_type=object, required=False
         )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "accept_activity_id": "/accept_activity_id",
+            "wire_render_port": "/wire_render_port",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        self._accept_activity_id_bb = None
+        self.wire_render_port = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = None
+        try:
+            self._accept_activity_id_bb = self.get_input("accept_activity_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._accept_activity_id_bb = None
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except (NoDataAvailable, NotImplementedError):
+            self.wire_render_port = None
 
     def _collect_reporter_uris(self, case_id: str) -> list[str]:
         """Return URIs of REPORTER/FINDER participants in *case_id*, excluding vendor.
@@ -1481,39 +1571,23 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         case_dict["vulnerability_reports"] = inlined_reports
         return case_dict
 
-    def _read_str_key(
-        self, key: str
-    ) -> "tuple[str, None] | tuple[None, Status]":
-        """Read a required string key from the blackboard.
-
-        Returns ``(value, None)`` on success or ``(None, FAILURE)`` on missing
-        or non-string, setting ``feedback_message`` in the failure case.
-        """
-        try:
-            val = self.blackboard.get(key)
-        except (KeyError, AttributeError):
-            self.feedback_message = f"{key} not found in blackboard"
-            return None, Status.FAILURE
-        if not isinstance(val, str):
-            self.feedback_message = f"{key} is not a string"
-            return None, Status.FAILURE
-        return val, None
-
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case_id, err = self._read_str_key("case_id")
-        if err is not None:
-            return err
-        assert isinstance(case_id, str)
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
 
-        accept_activity_id, err = self._read_str_key("accept_activity_id")
-        if err is not None:
-            return err
-        assert isinstance(accept_activity_id, str)
+        accept_activity_id = self._accept_activity_id_bb
+        if not isinstance(accept_activity_id, str):
+            self.feedback_message = (
+                "accept_activity_id not found in blackboard"
+            )
+            return Status.FAILURE
 
         # Pre-construct the payload that will be (re-)sent as
         # Create(VulnerabilityCase).  Mirrors the logic in

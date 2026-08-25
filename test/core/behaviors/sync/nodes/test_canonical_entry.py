@@ -49,6 +49,7 @@ def _note_snapshot_with_actor(actor_id: str) -> dict[str, object]:
     }
 
 
+@pytest.mark.spec("CLP-07-012")
 def test_validate_canonical_entry_rejects_empty_snapshot():
     with pytest.raises(VultronCanonicalEntryError):
         _validate_canonical_entry(
@@ -65,6 +66,7 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CLP-07-003")
 def test_validate_canonical_entry_rejects_case_actor_as_snapshot_actor_for_non_case_authored():
     """CLP-07-003: non-CaseActor-authored signatures must not have case_actor as actor."""
     with pytest.raises(
@@ -80,6 +82,7 @@ def test_validate_canonical_entry_rejects_case_actor_as_snapshot_actor_for_non_c
         )
 
 
+@pytest.mark.spec("CLP-07-003")
 def test_validate_canonical_entry_allows_participant_actor_for_non_case_authored():
     """CLP-07-003: participant actor is valid for non-CaseActor-authored signatures."""
     _validate_canonical_entry(
@@ -92,6 +95,7 @@ def test_validate_canonical_entry_allows_participant_actor_for_non_case_authored
     )
 
 
+@pytest.mark.spec("CLP-07-003")
 def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature():
     """CLP-07-003: CaseActor is the expected actor for Announce(VulnerabilityCase)."""
     snapshot = {
@@ -114,6 +118,7 @@ def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature(
     )
 
 
+@pytest.mark.spec("CLP-07-003")
 def test_validate_canonical_entry_allows_case_actor_for_invite_vulnerability_case():
     """Regression #1526: Invite(VulnerabilityCase) is case-authored; CaseActor must be allowed."""
     participant_actor_id = "https://example.org/actors/participant-1"
@@ -161,6 +166,7 @@ def test_validate_canonical_entry_provenance_skipped_when_no_case_actor_id():
         ("add_participant_status_to_participant", "Add", "ParticipantStatus"),
     ],
 )
+@pytest.mark.spec("CLP-07-003")
 def test_validate_canonical_entry_allows_case_actor_for_native_init(
     event_type, snapshot_type, object_type
 ):

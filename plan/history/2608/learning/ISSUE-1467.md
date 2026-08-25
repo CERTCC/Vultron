@@ -1,21 +1,24 @@
 ---
-title: .agents/skills/ and .claude/skills/ are hard-linked — edits to either affect both
+title: .agents/skills/ and .claude/skills/ are linked — edits and git staging must use .agents/ path
 type: learning
 timestamp: '2026-08-21T00:00:00+00:00'
 source: ISSUE-1467
 signal: tooling-issue
 ---
 
-`.agents/skills/<name>/SKILL.md` and `.claude/skills/<name>/SKILL.md` share the
-same inode (hard links). Editing one with the Edit tool modifies both on disk.
+`.claude/skills/` is a symlink to `.agents/skills/`. Within that directory,
+individual `SKILL.md` files share the same inode (hard links). Two consequences:
 
-When both copies need the same change (which is the common case), edit only
-`.agents/skills/<name>/SKILL.md` — the `.claude/skills/` copy updates
-automatically. Editing both in sequence duplicates the change, causing double
-sections.
+**Editing**: Editing `.agents/skills/<name>/SKILL.md` with the Edit tool
+modifies both copies on disk. When both need the same change, edit only the
+`.agents/` path — editing both duplicates the change.
 
-Confirmed by: `ls -la` showing identical size + timestamp, and `diff` showing
-no differences before and after separate edits.
+**Git staging**: `git add .claude/skills/<name>/SKILL.md` fails with
+`fatal: beyond a symbolic link` because the path traverses a symlink directory.
+Always stage through the real path: `git add .agents/skills/<name>/SKILL.md`.
+
+Confirmed: `ls -la` showing same inode; `git add .claude/...` error reproduced
+in ISSUE-2466 session (2026-08-24).
 
 **Promoted**: 2026-08-24 — captured in AGENTS.md.
 Docs PR: [PR URL TBD].

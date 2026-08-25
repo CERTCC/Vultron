@@ -20,6 +20,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import py_trees
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.teardown import (
@@ -127,6 +128,7 @@ class TestHasEmbargoActiveNode:
 class TestClearActiveEmbargoNode:
     """Tests for ClearActiveEmbargoNode."""
 
+    @pytest.mark.spec("EMB-07-001")
     def test_transitions_em_active_to_exited_and_clears_pointer(self):
         """Transitions EM.ACTIVE → EXITED and sets active_embargo = None."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -193,6 +195,7 @@ class TestClearActiveEmbargoNode:
         assert detail, "Expected the 'Cleared active embargo' detail line"
         assert all(r.levelno == logging.DEBUG for r in detail)
 
+    @pytest.mark.spec("EMB-07-002")
     def test_transitions_em_revise_to_exited(self):
         """Transitions EM.REVISE → EXITED."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -209,6 +212,7 @@ class TestClearActiveEmbargoNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
 
+    @pytest.mark.spec("EMB-07-003")
     def test_idempotent_when_already_exited(self):
         """Returns SUCCESS without modifying state when EM already EXITED."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -289,6 +293,7 @@ class TestClearActiveEmbargoNode:
 class TestResetParticipantConsentNode:
     """Tests for ResetParticipantConsentNode."""
 
+    @pytest.mark.spec("EMB-13-001")
     def test_resets_participant_pec_to_no_embargo(self):
         """Resets all participant PEC states to NO_EMBARGO."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -345,6 +350,7 @@ class TestResetParticipantConsentNode:
 class TestApplyEmbargoTeardownNode:
     """Tests for ApplyEmbargoTeardownNode."""
 
+    @pytest.mark.spec("EMB-07-001")
     def test_transitions_em_active_to_exited(self):
         """Node transitions EM.ACTIVE → EM.EXITED and saves the case."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -407,6 +413,7 @@ class TestApplyEmbargoTeardownNode:
         assert detail, "Expected the 'Embargo teardown applied' detail line"
         assert all(r.levelno == logging.DEBUG for r in detail)
 
+    @pytest.mark.spec("EMB-07-002")
     def test_transitions_em_revise_to_exited(self):
         """Node transitions EM.REVISE → EM.EXITED (also a valid terminate path)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -423,6 +430,7 @@ class TestApplyEmbargoTeardownNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
 
+    @pytest.mark.spec("EMB-07-003")
     def test_idempotent_when_already_exited(self):
         """Node returns SUCCESS without modifying state when already EXITED."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -459,6 +467,7 @@ class TestApplyEmbargoTeardownNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
 
+    @pytest.mark.spec("EMB-13-001")
     def test_resets_participant_embargo_consent(self):
         """Node resets participant PEC state to NO_EMBARGO."""
         dl = SqliteDataLayer("sqlite:///:memory:")

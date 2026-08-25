@@ -77,6 +77,9 @@ Idea's optimistic framing.
     `ShouldAdvanceOwnerToAcceptedNode`, `AlwaysSucceed`, `AlwaysFail`,
     `_AlwaysSucceedNode`) are exempt as constructor-parameterized gates.
     ✓ (2026-08-24)
+  - Cleanup (#2483, PR #2530) migrated the **51 remaining nodes** that were
+    held in the `AUDITED_SITES` backlog added by #1887. Cleared `AUDITED_SITES`
+    to `[]`, making the zero-tolerance ratchet fully in force. ✓ (2026-08-24)
 - **XML parser**: `py_trees.parsers.behaviour_tree_xml` exists but is documented
   as **experimental** ("the parser is experimental and its API may change
   between releases"). It instantiates only classes registered in a

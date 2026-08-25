@@ -89,6 +89,7 @@ def _make_case_with_case_manager(
     return case, case_manager_participant
 
 
+@pytest.mark.spec("CM-24-001")
 class TestResolveCaseManagerNode:
     def test_success_when_case_manager_found(self, dl, bridge):
         store, actor = dl
@@ -178,6 +179,7 @@ class TestConstructActivitiesNode:
         assert result.status == Status.FAILURE
 
 
+@pytest.mark.spec("CM-06-001")
 class TestQueueToOutboxNode:
     def test_queues_activities_to_outbox(self, dl, bridge):
         store, actor = dl

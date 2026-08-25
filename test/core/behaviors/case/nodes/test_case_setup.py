@@ -325,6 +325,8 @@ class TestRecordCaseCreationEvents:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CM-02-001")
+@pytest.mark.spec("CM-02-010")
 class TestCreateCaseActorNodeBlackboard:
     """CreateCaseActorNode reads case_id from blackboard when not given at construction."""
 

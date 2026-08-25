@@ -92,6 +92,7 @@ def case_obj(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CP-09-003")
 class TestInitializeDefaultEmbargoNode:
     """InitializeDefaultEmbargoNode creates and attaches a default embargo."""
 

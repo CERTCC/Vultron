@@ -20,15 +20,19 @@ from vultron.wire.as2.extractor import ActivityPattern
 from vultron.core.models.enums import VultronObjectType as VOtype
 
 
+@pytest.mark.spec("SE-03-001")
+@pytest.mark.spec("VAM-01-001")
 def test_registry_covers_all_semantics():
     registered = {e.semantics for e in SEMANTIC_REGISTRY}
     assert registered == set(MessageSemantics)
 
 
+@pytest.mark.spec("VAM-09-002")
 def test_registry_unknown_is_last():
     assert SEMANTIC_REGISTRY[-1].semantics == MessageSemantics.UNKNOWN
 
 
+@pytest.mark.spec("SE-04-002")
 def test_registry_unresolvable_object_is_second_to_last():
     assert (
         SEMANTIC_REGISTRY[-2].semantics
@@ -36,6 +40,8 @@ def test_registry_unresolvable_object_is_second_to_last():
     )
 
 
+@pytest.mark.spec("SE-03-001")
+@pytest.mark.spec("SE-05-001")
 def test_non_unknown_entries_have_patterns():
     _no_pattern_sentinels = {
         MessageSemantics.UNKNOWN,
@@ -58,6 +64,7 @@ def test_non_unknown_entries_have_event_class():
     assert not missing, f"Missing event_class: {missing}"
 
 
+@pytest.mark.spec("SE-05-002")
 def test_non_unknown_entries_have_use_case_class():
     missing = [
         e.semantics
@@ -67,6 +74,7 @@ def test_non_unknown_entries_have_use_case_class():
     assert not missing, f"Missing use_case_class: {missing}"
 
 
+@pytest.mark.spec("SE-05-002")
 def test_use_case_map_keys_match_semantics():
     ucm = use_case_map()
     registered = set(ucm.keys())
@@ -74,24 +82,28 @@ def test_use_case_map_keys_match_semantics():
     assert registered == expected
 
 
+@pytest.mark.spec("SE-02-001")
 def test_lookup_entry_returns_correct_entry():
     entry = lookup_entry(MessageSemantics.CREATE_REPORT)
     assert entry is not None
     assert entry.semantics == MessageSemantics.CREATE_REPORT
 
 
+@pytest.mark.spec("SE-02-003")
 def test_lookup_entry_unknown_returns_unknown():
     entry = lookup_entry(MessageSemantics.UNKNOWN)
     assert entry is not None
     assert entry.semantics == MessageSemantics.UNKNOWN
 
 
+@pytest.mark.spec("VAM-01-001")
 def test_semantics_to_activity_class_excludes_none_wire_class():
     mapping = semantics_to_activity_class()
     for semantics, cls in mapping.items():
         assert cls is not None, f"{semantics} mapped to None"
 
 
+@pytest.mark.spec("VAM-01-001")
 def test_no_duplicate_semantics():
     seen = set()
     for entry in SEMANTIC_REGISTRY:
@@ -124,6 +136,8 @@ def _make_entry(
     )
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_validate_registry_order_valid_ordering_passes():
     """Specific-before-general ordering must not raise."""
     # specific: Create + VulnerabilityReport object
@@ -143,6 +157,8 @@ def test_validate_registry_order_valid_ordering_passes():
     _validate_registry_order([specific, general])
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_validate_registry_order_reversed_pair_raises():
     """General-before-specific ordering must raise RegistryOrderError."""
     specific = _make_entry(
@@ -161,6 +177,7 @@ def test_validate_registry_order_reversed_pair_raises():
         _validate_registry_order([general, specific])
 
 
+@pytest.mark.spec("SE-03-002")
 def test_validate_registry_order_same_specificity_passes():
     """Entries with identical pattern dumps must not raise.
 
@@ -184,6 +201,8 @@ def test_validate_registry_order_same_specificity_passes():
     _validate_registry_order([pattern_a, pattern_b])
 
 
+@pytest.mark.spec("SE-03-002")
+@pytest.mark.spec("VAM-01-003")
 def test_live_registry_import_guard_passes():
     """Reload semantic_registry to exercise the import-time order guard.
 

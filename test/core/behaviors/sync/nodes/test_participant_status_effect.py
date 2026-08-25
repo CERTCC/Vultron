@@ -108,6 +108,8 @@ def participant(datalayer):
     return p
 
 
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("SYNC-12-002")
 def test_apply_participant_status_roundtrip_preserves_vfd_state(
     bridge, datalayer, case_actor, participant
 ):
@@ -148,6 +150,7 @@ def test_apply_participant_status_roundtrip_preserves_vfd_state(
     assert new_status.rm.state == RM.ACCEPTED
 
 
+@pytest.mark.spec("SYNC-12-003")
 def test_apply_participant_status_idempotent(
     bridge, datalayer, case_actor, participant
 ):
@@ -175,6 +178,7 @@ def test_apply_participant_status_idempotent(
     assert len(updated.participant_statuses) == initial_count + 1
 
 
+@pytest.mark.spec("SYNC-12-001")
 def test_apply_participant_status_skips_missing_participant(
     bridge, case_actor
 ):
