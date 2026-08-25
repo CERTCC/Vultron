@@ -38,7 +38,9 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
     @classmethod
     def output_ports(cls) -> dict[str, PortInformation]:
         return {
-            "case_manager_id": PortInformation(data_type=str, required=True)
+            "case_manager_id": PortInformation(
+                data_type=str | None, required=True
+            )
         }
 
     @classmethod
@@ -47,6 +49,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
+            self._set_output("case_manager_id", None)  # BT-17-003
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
@@ -56,6 +59,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"Case '{self.case_id}' not found or wrong type"
             )
+            self._set_output("case_manager_id", None)  # BT-17-003
             return Status.FAILURE
 
         case_manager_id = _resolve_case_manager_id(case, self.datalayer)
@@ -63,6 +67,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"No CASE_MANAGER participant found in case '{self.case_id}'"
             )
+            self._set_output("case_manager_id", None)  # BT-17-003
             return Status.FAILURE
 
         self._set_output("case_manager_id", case_manager_id)
@@ -112,6 +117,7 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
         case_manager_id = self.case_manager_id_bb
         if not case_manager_id:
             self.feedback_message = "case_manager_id not in blackboard"
+            self._set_output("activity_ids", None)  # BT-17-003
             return Status.FAILURE
 
         try:
@@ -119,6 +125,7 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
         except Exception as exc:
             self.feedback_message = f"Activity construction failed: {exc}"
             self.logger.error(self.feedback_message)
+            self._set_output("activity_ids", None)  # BT-17-003
             return Status.FAILURE
 
         self._set_output("activity_ids", activity_ids)
