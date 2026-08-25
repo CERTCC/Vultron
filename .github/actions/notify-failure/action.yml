@@ -1,0 +1,95 @@
+name: Notify CI failure
+description: >-
+  Files or closes a GitHub Issue for CI failures on push-to-main or
+  scheduled workflows. In "notify" mode, creates a new issue or adds a
+  comment to an existing open one. In "close" mode, closes any open failure
+  issues for this workflow and records recovery. A workflow-specific label
+  combined with ci:main-failure uniquely identifies each workflow's issue
+  (CISEC-05-001, CISEC-05-002, CISEC-05-003).
+
+inputs:
+  mode:
+    description: '"notify" to file/update a failure issue; "close" to close it.'
+    required: true
+  workflow-label:
+    description: >-
+      Workflow-specific label (e.g. ci:workflow-python-app). Combined with
+      ci:main-failure to uniquely identify the failure issue for deduplication
+      and targeted close on recovery (CISEC-05-003).
+    required: true
+  token:
+    description: >-
+      GitHub token with issues:write permission (pass secrets.GITHUB_TOKEN).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure ci:main-failure and workflow-specific labels exist
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        WORKFLOW_LABEL: ${{ inputs.workflow-label }}
+      run: |
+        set -euo pipefail
+        # Idempotent: silently skip if a label already exists.
+        gh label create "ci:main-failure" \
+          --repo "$REPO" \
+          --description "Bot-managed: CI failure on main or scheduled workflow" \
+          --color "d73a4a" 2>/dev/null || true
+        gh label create "$WORKFLOW_LABEL" \
+          --repo "$REPO" \
+          --description "CI failure alert for $WORKFLOW_LABEL" \
+          --color "e4e669" 2>/dev/null || true
+
+    - name: File, update, or close the failure issue
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        MODE: ${{ inputs.mode }}
+        WORKFLOW_LABEL: ${{ inputs.workflow-label }}
+        WORKFLOW_NAME: ${{ github.workflow }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        REF: ${{ github.ref }}
+      run: |
+        set -euo pipefail
+
+        # Collect all open issue numbers matching both labels.
+        mapfile -t ISSUE_NUMS < <(gh issue list \
+          --repo "$REPO" \
+          --label "ci:main-failure" \
+          --label "$WORKFLOW_LABEL" \
+          --state open \
+          --json number \
+          --jq '.[].number')
+
+        if [ "$MODE" = "notify" ]; then
+          if [ "${#ISSUE_NUMS[@]}" -gt 0 ]; then
+            # Add a comment to the first open failure issue.
+            gh issue comment "${ISSUE_NUMS[0]}" \
+              --repo "$REPO" \
+              --body "CI still failing — [run]($RUN_URL)"
+          else
+            # Create a new failure issue.
+            BODY=$(printf \
+              'The **%s** workflow failed on ref `%s`.\n[View run](%s)\n\nThis issue is closed automatically when the workflow next passes.' \
+              "$WORKFLOW_NAME" "$REF" "$RUN_URL")
+            gh issue create \
+              --repo "$REPO" \
+              --title "CI failure: $WORKFLOW_NAME" \
+              --body "$BODY" \
+              --label "ci:main-failure" \
+              --label "$WORKFLOW_LABEL"
+          fi
+        elif [ "$MODE" = "close" ]; then
+          for NUM in "${ISSUE_NUMS[@]}"; do
+            gh issue close "$NUM" \
+              --repo "$REPO" \
+              --comment "CI is passing again — [run]($RUN_URL)"
+          done
+        else
+          echo "::error::Unknown mode '$MODE'. Expected 'notify' or 'close'." >&2
+          exit 1
+        fi

@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
 
     steps:
       - name: Checkout repository
@@ -43,3 +44,18 @@ jobs:
             git push origin "$TAG"
             echo "Created and pushed tag: $TAG"
           fi
+
+      - name: Notify CI failure
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-quarterly-tag
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-quarterly-tag
+          token: ${{ secrets.GITHUB_TOKEN }}
