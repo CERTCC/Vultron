@@ -214,14 +214,14 @@ class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class CheckRMStateAccepted(DataLayerConditionWithPorts):
-    """Guard: actor RM state must be ACCEPTED to create a fix.
+class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
+    """Shared update() skeleton for case-participant RM state guard nodes.
 
-    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
-    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
-
-    Per AC-7 (issue #1812).
+    Reads the actor's latest RM state and returns SUCCESS when it equals
+    ``_target_rm``.  Subclasses set ``_target_rm`` as a class attribute.
     """
+
+    _target_rm: RM
 
     def __init__(
         self,
@@ -258,21 +258,34 @@ class CheckRMStateAccepted(DataLayerConditionWithPorts):
         rm_state, _ = resolve_participant_state_from_dl(
             self.datalayer, participant_id
         )
-
-        if rm_state == RM.ACCEPTED:
+        target = self._target_rm
+        if rm_state == target:
             self.logger.debug(
-                "%s: RM state is ACCEPTED for actor '%s'",
+                "%s: RM state is %s for actor '%s'",
                 self.name,
+                target.name,
                 self._actor_id,
             )
             return Status.SUCCESS
 
         self.feedback_message = (
             f"Actor '{self._actor_id}' RM state is {rm_state!r},"
-            f" expected RM.ACCEPTED"
+            f" expected {target!r}"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+
+class CheckRMStateAccepted(_CheckParticipantRMStateBase):
+    """Guard: actor RM state must be ACCEPTED to create a fix.
+
+    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
+    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
+
+    Per AC-7 (issue #1812).
+    """
+
+    _target_rm = RM.ACCEPTED
 
 
 class TransitionCStoFixReady(DataLayerActionWithPorts):
@@ -472,6 +485,7 @@ class EmitCFActivity(_EmitParticipantStatusActivityBase):
 
 
 __all__ = [
+    "_CheckParticipantRMStateBase",
     "_EmitParticipantStatusActivityBase",
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",

@@ -46,6 +46,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
+    _CheckParticipantRMStateBase,
     _EmitParticipantStatusActivityBase,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -211,7 +212,7 @@ class CheckCSFixNotYetDeployed(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class RMinStateDeferred(DataLayerConditionWithPorts):
+class RMinStateDeferred(_CheckParticipantRMStateBase):
     """Guard: actor RM state must be DEFERRED (stay-deferred arm).
 
     Returns ``SUCCESS`` when the actor's latest RM state is ``RM.DEFERRED``.
@@ -223,56 +224,7 @@ class RMinStateDeferred(DataLayerConditionWithPorts):
     ``develop_fix.py`` but keyed on ``RM.DEFERRED``.
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
-
-        participant_id = case.actor_participant_index.get(self._actor_id)
-        if participant_id is None:
-            self.logger.warning(
-                "%s: actor '%s' not in case '%s'",
-                self.name,
-                self._actor_id,
-                self._case_id,
-            )
-            return Status.FAILURE
-
-        rm_state, _ = resolve_participant_state_from_dl(
-            self.datalayer, participant_id
-        )
-
-        if rm_state == RM.DEFERRED:
-            self.logger.debug(
-                "%s: RM state is DEFERRED for actor '%s'",
-                self.name,
-                self._actor_id,
-            )
-            return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Actor '{self._actor_id}' RM state is {rm_state!r},"
-            f" expected RM.DEFERRED"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+    _target_rm = RM.DEFERRED
 
 
 class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):

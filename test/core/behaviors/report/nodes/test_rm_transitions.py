@@ -32,6 +32,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
+    _TransitionRMtoReportPhaseState,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
@@ -245,6 +246,35 @@ def test_transition_rm_to_closed_context_is_case_uri(
         f"Expected context={case.id_!r}, got {ctx!r} "
         "(report URI must not appear in ParticipantStatus.context, CLP-07-007)"
     )
+
+
+# ---------------------------------------------------------------------------
+# AC-1: _TransitionRMtoReportPhaseState base-class contract
+# ---------------------------------------------------------------------------
+
+
+def test_transition_rm_to_invalid_is_subclass_of_base() -> None:
+    """TransitionRMtoInvalid inherits _TransitionRMtoReportPhaseState."""
+    assert issubclass(TransitionRMtoInvalid, _TransitionRMtoReportPhaseState)
+
+
+def test_transition_rm_to_closed_is_subclass_of_base() -> None:
+    """TransitionRMtoClosed inherits _TransitionRMtoReportPhaseState."""
+    assert issubclass(TransitionRMtoClosed, _TransitionRMtoReportPhaseState)
+
+
+def test_transition_rm_to_invalid_target_rm() -> None:
+    """TransitionRMtoInvalid._target_rm is RM.INVALID."""
+    from vultron.core.states.rm import RM
+
+    assert TransitionRMtoInvalid._target_rm is RM.INVALID
+
+
+def test_transition_rm_to_closed_target_rm() -> None:
+    """TransitionRMtoClosed._target_rm is RM.CLOSED."""
+    from vultron.core.states.rm import RM
+
+    assert TransitionRMtoClosed._target_rm is RM.CLOSED
 
 
 @pytest.mark.spec("BT-03-004")
