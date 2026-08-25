@@ -285,6 +285,7 @@ groups:
       When a vendor or coordinator receives a report and creates a case, they are both the receiving CVD actor (VENDOR or
       COORDINATOR) and the case owner. Representing this explicitly avoids hardcoding the assumption that the case creator
       is always a vendor.
+    verification: Inspection of the `CVDRoles` enum definition confirms that a `CASE_OWNER` flag value is present.
   - id: BTND-05-002
     priority: MUST
     kind: project
@@ -303,6 +304,9 @@ groups:
     statement: The generic participant creation node is `CreateCaseParticipantNode`. Callers MUST pass an explicit `roles`
       parameter; no role-specific subclasses or alias names are permitted.
     rationale: Alias names carry the old "finder-specific" framing and mislead readers about the node's actual generality.
+    verification: Inspection of `vultron/core/behaviors/` confirms `CreateCaseParticipantNode` exists with a required
+      `roles` parameter, and that no role-specific subclasses or alias names (e.g., `CreateFinderParticipantNode`) are
+      present.
   - id: BTND-05-004
     priority: MUST
     kind: project

@@ -64,6 +64,8 @@ groups:
     kind: protocol
     statement: All cascade steps that do not require external input MUST be implemented as BT subtrees within the handling
       actor's BT execution context.
+    verification: Inspection of `vultron/core/behaviors/` and `vultron/core/use_cases/` confirms that every protocol
+      consequence following a primary event is implemented as a BT subtree rather than as procedural post-handler code.
   - id: EDF-03-002
     priority: MUST_NOT
     kind: project
@@ -79,6 +81,8 @@ groups:
     kind: protocol
     statement: The cascading consequence of a primary event MUST be fully determined by BT execution with no required intermediate
       trigger steps, except at explicit external decision nodes (see EDF-04).
+    verification: Integration tests in `test/demo/` confirm that injecting a primary event causes all expected cascade
+      consequences (state changes, outbox activities) without any manual intermediate trigger steps.
   - id: EDF-03-005
     priority: MUST_NOT
     kind: protocol

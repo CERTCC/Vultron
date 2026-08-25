@@ -30,6 +30,8 @@ groups:
     rationale: >-
       RS is the sole RM message that directly changes the receiver's own RM
       state. All other RM messages announce sender state only.
+    verification: A unit test confirms that a participant in `RM.START` whose inbox processes an RS activity has
+      `rm_state == RM.RECEIVED` and a queued RK in its outbox afterwards.
     testable: true
     preconditions:
     - rm_state:
@@ -66,6 +68,8 @@ groups:
       RS is the event that makes a Vendor aware of the vulnerability. The CS
       V-transition records this awareness and CV announces it to other
       Participants.
+    verification: A unit test confirms that a vendor participant in `RM.START` with CS pattern `vfd...` transitions
+      to `CS Vfd...` and emits both CV and RK when processing an RS.
     testable: true
     preconditions:
     - rm_state:
@@ -936,6 +940,8 @@ groups:
       VP-02-002 requires that Participants prioritize Valid cases. Entering
       Valid without initiating prioritization blocks progression and violates
       the requirement.
+    verification: A unit test confirms that a participant entering `RM.VALID` initiates a prioritization evaluation,
+      resulting in a transition to either `RM.ACCEPTED` or `RM.DEFERRED`.
     testable: true
     preconditions:
     - rm_state:
@@ -1244,6 +1250,8 @@ groups:
       Sending RS from a non-Accepted state would initiate coordination before
       the sender has committed to working the report. Accepted represents the
       sender's confirmed engagement and readiness to coordinate.
+    verification: A unit test confirms that attempting to send RS from any RM state other than `ACCEPTED` returns
+      `Status.FAILURE` or raises an error without emitting the RS activity.
     testable: true
     preconditions:
     - rm_state:
@@ -1425,6 +1433,8 @@ groups:
       permitted (status confirmation). An illegal jump or backward move
       MUST cause the node to return Status.FAILURE without writing to the
       DataLayer.
+    verification: A unit test confirms that a BT write node returns `Status.FAILURE` without writing to the DataLayer
+      when passed an illegal RM state transition (e.g., START → CLOSED directly).
     rationale: >-
       ParticipantStatus.rm_state is written via direct-construction
       (e.g. RmDimension(state=target)) at sites such as rm_transitions.py,

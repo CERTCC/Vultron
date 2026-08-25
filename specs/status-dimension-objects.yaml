@@ -51,6 +51,8 @@ groups:
       state, applies the state machine rules, and returns a NEW dimension object with the updated state.
     rationale: Immutable transitions are consistent with Pydantic's design philosophy and with the append-only status history
       model. Callers replace the embedded field rather than mutating the existing object. See ADR-0036.
+    verification: Unit tests confirm that calling `transition(trigger)` on each dimension object returns a new instance
+      with the updated state without mutating the original object.
     adr:
     - ADR-0036
   - id: SDO-02-002
@@ -59,6 +61,8 @@ groups:
     statement: A dimension object's transition() MUST raise a descriptive exception (VultronInvalidStateTransitionError or
       a subclass) when the trigger is not valid for the current state.
     rationale: Fail-fast at the boundary; never return None or silently no-op on an invalid transition. See ADR-0032 and ARCH-15-001.
+    verification: Unit tests confirm that `transition(invalid_trigger)` raises `VultronInvalidStateTransitionError` for
+      each dimension object when the trigger is not valid for the current state.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-15-001
@@ -84,6 +88,8 @@ groups:
       validation contract established in SDO-02-001/SDO-02-002. BT write nodes
       that build snapshots this way must apply the same validity check themselves.
       See issue #1896 and BTND-10-001.
+    verification: Unit tests confirm that constructing a dimension object with an invalid target state raises
+      `VultronInvalidStateTransitionError`, while a same-state write succeeds without error.
     relationships:
     - rel_type: refines
       spec_id: SDO-02-002
@@ -110,6 +116,8 @@ groups:
       fields: em: EmDimension and pxa: PxaDimension.'
     rationale: Flat enum fields provide no transition validation or guard methods. Dimension objects make illegal transitions
       unrepresentable. See ADR-0036.
+    verification: 'Inspection of `vultron/core/models/` confirms `CaseStatus` declares `em: EmDimension` and `pxa:
+      PxaDimension` fields with no residual flat `em_state` or `pxa_state` fields.'
     adr:
     - ADR-0036
   - id: SDO-03-002
@@ -118,6 +126,8 @@ groups:
     statement: 'ParticipantStatus MUST replace its flat enum fields (rm_state: RM, vfd_state: CS_vfd, em_consent_state: PEC
       | None) with embedded dimension object fields: rm: RmDimension, vfd: VfdDimension, and consent: PecDimension | None.'
     rationale: Same rationale as SDO-03-001. See ADR-0036.
+    verification: 'Inspection of `vultron/core/models/` confirms `ParticipantStatus` declares `rm: RmDimension`, `vfd:
+      VfdDimension`, and `consent: PecDimension | None` with no residual flat enum fields.'
     adr:
     - ADR-0036
   - id: SDO-03-003
@@ -174,6 +184,8 @@ groups:
       as the core model changes so that from_core() and to_core() correctly handle the new dimension-object field shape.
     rationale: Deferring wire changes creates an extended period of core/wire divergence requiring shim adapters. Both layers
       are in scope per ADR-0036.
+    verification: Inspection of `vultron/wire/as2/` confirms `as_CaseStatus.from_core()` and `as_ParticipantStatus.from_core()`
+      correctly project the new dimension-object field shape without accessing flat enum fields.
     adr:
     - ADR-0036
   - id: SDO-04-002
