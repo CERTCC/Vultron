@@ -60,8 +60,9 @@ groups:
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-01-002
     priority: MUST_NOT
     kind: protocol
@@ -144,8 +145,8 @@ groups:
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: EMB-01-004
     priority: SHOULD_NOT
     kind: protocol
@@ -247,8 +248,9 @@ groups:
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-02-002
     priority: MUST_NOT
     kind: protocol
@@ -366,8 +368,8 @@ groups:
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: EMB-03-002
     priority: MUST
     kind: protocol
@@ -405,8 +407,8 @@ groups:
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: EMB-03-003
     priority: MUST
     kind: protocol
@@ -455,8 +457,9 @@ groups:
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_023
+    - story_2022_080
 - id: EMB-04
   title: Receive EJ (Embargo Revision Rejected)
   description: Behaviors triggered when a participant receives an EJ (Embargo Revision Rejected) message, reverting EM state from Revise to Active and acknowledging receipt.
@@ -504,8 +507,8 @@ groups:
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: EMB-04-002
     priority: MUST
     kind: protocol
@@ -550,8 +553,9 @@ groups:
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_023
+    - story_2022_080
 - id: EMB-05
   title: Receive EC (Embargo Revision Accepted)
   description: Behaviors triggered when a participant receives an EC (Embargo Revision Accepted) message, advancing EM state from Revise back to Active with updated terms and acknowledging receipt.
@@ -601,8 +605,8 @@ groups:
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: EMB-05-002
     priority: MUST
     kind: protocol
@@ -646,8 +650,9 @@ groups:
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_023
+    - story_2022_080
 - id: EMB-06
   title: Receive ER (Embargo Rejected)
   description: Behaviors triggered when a participant receives an ER (Embargo Rejected) message, transitioning EM state from Proposed to None and acknowledging receipt.
@@ -694,8 +699,8 @@ groups:
       spec_id: MSM-02-006
       note: 'ER shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
 - id: EMB-07
   title: Receive ET (Embargo Terminated)
   description: Behaviors triggered when a participant receives an ET (Embargo Terminated) message, transitioning EM state to Terminated and acknowledging receipt.
@@ -740,8 +745,9 @@ groups:
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-07-002
     priority: MUST
     kind: protocol
@@ -780,8 +786,9 @@ groups:
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-07-003
     priority: MUST
     kind: protocol
@@ -814,8 +821,8 @@ groups:
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
 - id: EMB-08
   title: Receive EE (Embargo Error)
   description: Behaviors triggered when a participant receives an EE (Embargo Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
@@ -1286,8 +1293,9 @@ groups:
       spec_id: EMB-07-001
       note: Voluntary actor termination is a sub-case of active-embargo termination
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_080
+    - story_2022_014
   - id: EMB-14-002
     priority: MUST
     kind: protocol
@@ -1436,8 +1444,9 @@ groups:
     - rel_type: refines
       spec_id: CM-18-003
       note: Flow B acceptance advances the PEC state machine (INVITED → SIGNATORY)
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_006
   - id: EMB-15-005
     priority: MUST
     kind: protocol
@@ -1457,8 +1466,9 @@ groups:
     - rel_type: refines
       spec_id: EMB-15-001
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_006
   - id: EMB-15-002
     priority: MUST
     kind: protocol
@@ -1501,8 +1511,9 @@ groups:
       spec_id: BT-18-004
     - rel_type: refines
       spec_id: EMB-15-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
+    - story_2022_006
   - id: EMB-15-006
     priority: MUST_NOT
     kind: protocol
@@ -1533,8 +1544,9 @@ groups:
     - rel_type: refines
       spec_id: EMB-15-002
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
+    - story_2022_006
   - id: EMB-15-003
     priority: SHOULD
     kind: protocol
@@ -1627,8 +1639,9 @@ groups:
       spec_id: EMB-01-002
       note: Mandatory rejection when public/exploit/attacks overrides default-accept
 
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_027
 - id: EMB-16
   title: CS Public/Exploit/Attacks Detected While EM Proposed
   description: >-
@@ -1697,8 +1710,9 @@ groups:
     - rel_type: refines
       spec_id: EMB-06-001
       note: ER emission semantics apply; EM returns to NONE
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_080
+    - story_2022_023
 - id: EMB-17
   title: Late Accept of an Expired Embargo Invitation
   description: >-
@@ -1741,8 +1755,9 @@ groups:
       spec_id: CM-28-003
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_014
   - id: EMB-17-002
     priority: MUST
     kind: protocol
@@ -1777,8 +1792,9 @@ groups:
       spec_id: EMB-17-001
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_013
   - id: EMB-17-003
     priority: MUST
     kind: protocol
@@ -1820,8 +1836,9 @@ groups:
       spec_id: EMB-17-001
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_014
   - id: EMB-17-005
     priority: MUST_NOT
     kind: protocol
@@ -1898,8 +1915,9 @@ groups:
         after EM EXITED when CS is not yet P/X/A
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_088
   - id: EMB-17-007
     priority: MUST_NOT
     kind: protocol

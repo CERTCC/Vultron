@@ -155,8 +155,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-01-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_106
   - id: TRIG-06-002
     priority: MUST
     kind: protocol
@@ -184,8 +185,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OX-02-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
+    - story_2022_081
 - id: TRIG-08
   title: Trigger Classification
   specs:
@@ -307,8 +309,9 @@ groups:
       Integration tests in `test/demo/` confirm that a POST to
       `/actors/{actor_id}/trigger/add-object-to-case` with a non-Note AS2 object
       type succeeds and produces an outgoing activity.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_102
   - id: TRIG-10-002
     priority: MUST
     kind: protocol
@@ -360,8 +363,8 @@ groups:
       spec_id: TRIG-01-001
     - rel_type: refines
       spec_id: TRIG-02-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_050
   - id: TRIG-11-002
     priority: MUST
     kind: protocol
@@ -379,8 +382,9 @@ groups:
       spec_id: TRIG-01-001
     - rel_type: refines
       spec_id: TRIG-02-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_048
+    - story_2022_050
   - id: TRIG-11-003
     priority: SHOULD
     kind: protocol

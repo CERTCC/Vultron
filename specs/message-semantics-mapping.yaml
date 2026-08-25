@@ -29,8 +29,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_038
   - id: MSM-01-002
     priority: MUST
     kind: protocol
@@ -43,8 +44,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-005
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_101
+    - story_2022_006
   - id: MSM-01-003
     priority: MUST
     kind: protocol
@@ -57,8 +59,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_101
+    - story_2022_006
   - id: MSM-01-004
     priority: MUST
     kind: protocol
@@ -74,8 +77,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-03-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_086
   - id: MSM-01-005
     priority: MUST
     kind: protocol
@@ -90,8 +94,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-03-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_013
   - id: MSM-01-006
     priority: MUST
     kind: protocol
@@ -104,8 +109,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-006
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_101
   - id: MSM-01-007
     priority: MUST
     kind: protocol
@@ -134,8 +140,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_016
+    - story_2022_002
 - id: MSM-02
   title: EM Protocol Message Shorthands
   description: Normative shorthand-to-semantic mappings for Embargo Management (EM) protocol messages, covering EP, EA, EV,
@@ -155,8 +162,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-005
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_010
   - id: MSM-02-002
     priority: MUST
     kind: protocol
@@ -170,8 +178,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-006
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: MSM-02-003
     priority: MUST
     kind: project
@@ -199,8 +208,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-007
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_007
   - id: MSM-02-005
     priority: MUST
     kind: protocol
@@ -214,8 +224,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-006
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: MSM-02-006
     priority: MUST
     kind: protocol
@@ -229,8 +240,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-007
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_007
   - id: MSM-02-007
     priority: MUST
     kind: protocol
@@ -243,8 +255,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_015
   - id: MSM-02-008
     priority: MUST
     kind: protocol
@@ -295,8 +308,10 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
+    - story_2022_081
+    - story_2022_088
   - id: MSM-03-002
     priority: MUST
     kind: protocol
@@ -311,8 +326,10 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_107
+    - story_2022_062
+    - story_2022_081
   - id: MSM-03-003
     priority: MUST
     kind: protocol
@@ -327,8 +344,10 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_107
+    - story_2022_103
+    - story_2022_081
   - id: MSM-03-004
     priority: MUST
     kind: protocol
@@ -343,8 +362,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_069
+    - story_2022_081
   - id: MSM-03-005
     priority: MUST
     kind: protocol
@@ -359,8 +379,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_018
+    - story_2022_081
   - id: MSM-03-006
     priority: MUST
     kind: protocol
@@ -375,8 +396,9 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_019
+    - story_2022_081
   - id: MSM-03-007
     priority: MUST
     kind: protocol

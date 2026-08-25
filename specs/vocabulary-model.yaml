@@ -323,8 +323,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-02-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
   - id: VM-10-002
     priority: MUST
     kind: protocol
@@ -343,5 +343,5 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VM-10-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039

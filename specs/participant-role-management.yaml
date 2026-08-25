@@ -41,8 +41,8 @@ groups:
       participant's role set and `False` when it is absent.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_063
   - id: PRM-01-003
     priority: MUST
     kind: project
@@ -84,8 +84,9 @@ groups:
       exception on the second call and emits an INFO-level log message.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_063
   - id: PRM-02-003
     priority: MUST
     kind: protocol
@@ -112,8 +113,9 @@ groups:
       `participant.roles` after the call.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_063
+    - story_2022_066
   - id: PRM-02-005
     priority: MUST
     kind: protocol
@@ -125,8 +127,9 @@ groups:
       exception and emits an INFO-level log message.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_063
+    - story_2022_066
   - id: PRM-02-006
     priority: MUST
     kind: protocol

@@ -63,8 +63,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OID-01-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_034
+    - story_2022_035
 - id: OID-02
   title: DataLayer Handling
   specs:

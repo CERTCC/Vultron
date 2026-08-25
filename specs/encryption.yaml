@@ -84,8 +84,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ENC-01-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_091
+    - story_2022_090
   - id: ENC-01-006
     priority: MUST_NOT
     kind: protocol

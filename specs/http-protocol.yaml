@@ -17,8 +17,9 @@ groups:
     statement: Inbox endpoint MUST accept `application/activity+json` Content-Type
     verification: 'Integration tests confirm that `POST /inbox/` with `Content-Type: application/activity+json` is
       accepted and returns a 2xx response.'
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_002
+    - story_2022_040
   - id: HTTP-01-002
     priority: MUST
     kind: protocol
@@ -26,16 +27,18 @@ groups:
     verification: >-
       Integration tests confirm that `POST /inbox/` with `Content-Type: application/ld+json;
       profile="https://www.w3.org/ns/activitystreams"` is accepted and returns a 2xx response.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_002
+    - story_2022_040
   - id: HTTP-01-003
     priority: MUST
     kind: protocol
     statement: Inbox endpoint MUST reject requests with invalid Content-Type using HTTP 415
     verification: Integration tests confirm that `POST /inbox/` with an unrecognized `Content-Type` header returns
       HTTP 415.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_002
+    - story_2022_039
 - id: HTTP-02
   title: Request Size Limits
   specs:
@@ -116,8 +119,9 @@ groups:
       The previous requirement (`application/json` for all responses) is superseded by this entry.
     verification: 'Integration test asserts that `GET /actors/{id}/profile` and `GET /cases/{id}` responses carry `Content-Type:
       application/activity+json`. Health-check response carries `Content-Type: application/json`.'
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_040
+    - story_2022_028
 - id: HTTP-05
   title: Correlation ID Propagation
   specs:

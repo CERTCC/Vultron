@@ -147,8 +147,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CP-01-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_046
   - id: CP-04-002
     priority: MUST
     kind: project
@@ -167,8 +168,9 @@ groups:
       activities.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms `CreateCaseProposalReceivedUseCase`
       is implemented and tested in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_046
   - id: CP-05-002
     priority: MUST
     kind: protocol
@@ -176,8 +178,10 @@ groups:
       `Accept(CaseProposal)` or `Reject(CaseProposal)` activity accordingly.'
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm `CreateCaseProposalReceivedUseCase`
       evaluates a proposal and emits either `Accept(CaseProposal)` or `Reject(CaseProposal)` in response.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_012
+    - story_2022_101
   - id: CP-05-003
     priority: MUST
     kind: protocol
@@ -192,8 +196,9 @@ groups:
       See ADR-0045.'
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::test_case_actor_sends_accept_and_create_case`
       confirm the two-activity sequence with correct `actor`, `context`, and `in_reply_to` on `Create(VulnerabilityCase)`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_016
   - id: CP-05-004
     priority: MUST
     kind: protocol
@@ -201,8 +206,9 @@ groups:
       embedded inline as `object_`.
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the reject path emits
       `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_016
   - id: CP-05-005
     priority: MUST
     kind: protocol
@@ -236,8 +242,9 @@ groups:
       activities.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
       `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()` method.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_088
   - id: CP-06-002
     priority: MUST
     kind: protocol
@@ -245,8 +252,9 @@ groups:
       activities.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
       `RejectCaseProposalReceivedUseCase` is implemented with an `execute()` method.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_088
   - id: CP-06-003
     priority: MUST
     kind: protocol
@@ -254,8 +262,9 @@ groups:
       has accepted the proposal (e.g., record the case-actor URI and await the subsequent `Create(VulnerabilityCase)`).'
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm
       `AcceptCaseProposalReceivedUseCase` updates vendor local state to record the case-actor acceptance.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_088
   - id: CP-06-004
     priority: MUST
     kind: protocol
@@ -263,8 +272,9 @@ groups:
       mark the pending case as rejected and surface the rejection reason if present).'
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm
       `RejectCaseProposalReceivedUseCase` updates vendor local state to reflect the rejection.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_088
 - id: CP-07
   title: Testing
   specs:
@@ -440,8 +450,9 @@ groups:
     adr:
     - ADR-0023
     - ADR-0041
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_046
   - id: CP-09-002
     priority: MUST
     kind: protocol
@@ -462,8 +473,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_013
   - id: CP-09-006
     priority: MUST
     kind: protocol
@@ -480,8 +492,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_088
   - id: CP-09-007
     priority: MUST
     kind: protocol
@@ -496,8 +509,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_063
+    - story_2022_093
   - id: CP-09-008
     priority: MUST_NOT
     kind: protocol
@@ -525,8 +539,9 @@ groups:
       spec_id: CP-09-001
     adr:
     - ADR-0041
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: CP-09-004
     priority: MUST
     kind: protocol
@@ -545,8 +560,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_045
   - id: CP-09-005
     priority: MUST_NOT
     kind: protocol

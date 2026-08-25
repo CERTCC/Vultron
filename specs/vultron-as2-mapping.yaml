@@ -116,8 +116,9 @@ groups:
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `find_matching_semantics()`
       returns `CREATE_REPORT` for a `Create(VulnerabilityReport)` activity, and inspection of `_instances.py`
       confirms `CreateReportPattern` matches this shape.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_002
   - id: VAM-02-002
     priority: MUST
     kind: protocol
@@ -142,8 +143,9 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-008
       note: RK shorthand → ACK_REPORT → this wire form
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_016
+    - story_2022_002
   - id: VAM-02-004
     priority: MUST
     kind: protocol
@@ -168,8 +170,9 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-002
       note: RI shorthand → INVALIDATE_REPORT → this wire form
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_101
+    - story_2022_006
   - id: VAM-02-006
     priority: MUST
     kind: protocol
@@ -181,8 +184,9 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-006
       note: RC shorthand → CLOSE_REPORT → this wire form
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_066
+    - story_2022_006
 - id: VAM-03
   title: Case Management Messages
   specs:
@@ -193,8 +197,8 @@ groups:
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `extract_event()` correctly
       handles `Create(VulnerabilityCase)`, and inspection of `_instances.py` confirms `CreateCasePattern`
       matches this shape.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
   - id: VAM-03-002
     priority: MUST
     kind: protocol
@@ -202,8 +206,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `UpdateCasePattern`
       is registered as `Update(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
       update-case flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_074
   - id: VAM-03-003
     priority: MUST
     kind: protocol
@@ -215,8 +220,9 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-005
       note: RA shorthand → ENGAGE_CASE → this wire form
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_013
   - id: VAM-03-004
     priority: MUST
     kind: protocol
@@ -228,8 +234,9 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-004
       note: RD shorthand → DEFER_CASE → this wire form
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_086
   - id: VAM-03-005
     priority: MUST
     kind: protocol
@@ -237,8 +244,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AddReportToCasePattern`
       uses `TAtype.ADD`, `AOtype.VULNERABILITY_REPORT`, and `target_=VULNERABILITY_CASE`; integration tests
       in `test/demo/` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_104
   - id: VAM-03-006
     priority: MUST
     kind: protocol
@@ -246,8 +254,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `CloseCasePattern`
       is registered as `Leave(VulnerabilityCase)`; integration tests in `test/demo/test_manage_case_demo.py`
       exercise the close-case flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_066
+    - story_2022_067
 - id: VAM-04
   title: Actor Suggestion and Invitation Messages
   specs:
@@ -258,8 +267,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `SuggestActorToCasePattern`
       uses `TAtype.OFFER`, `AOtype.ACTOR`, and `target_=VULNERABILITY_CASE`; integration tests in
       `test/demo/test_suggest_actor_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_053
+    - story_2022_013
   - id: VAM-04-002
     priority: MUST
     kind: protocol
@@ -267,8 +277,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AcceptSuggestActorToCasePattern`
       wraps `SuggestActorToCasePattern` inside an `Accept` outer pattern; integration tests in
       `test/demo/test_suggest_actor_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_054
   - id: VAM-04-003
     priority: MUST
     kind: protocol
@@ -276,8 +286,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RejectSuggestActorToCasePattern`
       wraps `SuggestActorToCasePattern` inside a `Reject` outer pattern; integration tests in
       `test/demo/test_suggest_actor_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_054
   - id: VAM-04-004
     priority: MUST
     kind: protocol
@@ -285,8 +295,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `InviteActorToCasePattern`
       uses `TAtype.INVITE` and `target_=VULNERABILITY_CASE`; integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: VAM-04-005
     priority: MUST
     kind: protocol
@@ -294,8 +305,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AcceptInviteActorToCasePattern`
       wraps `InviteActorToCasePattern` inside an `Accept` outer pattern; integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_054
   - id: VAM-04-006
     priority: MUST
     kind: protocol
@@ -303,8 +315,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RejectInviteActorToCasePattern`
       wraps `InviteActorToCasePattern` inside a `Reject` outer pattern; integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
   - id: VAM-04-007
     priority: MUST
     kind: protocol
@@ -312,8 +324,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `OfferCaseOwnershipTransferPattern` uses `TAtype.OFFER` and `AOtype.VULNERABILITY_CASE`; integration
       tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_050
+    - story_2022_047
   - id: VAM-04-008
     priority: MUST
     kind: protocol
@@ -321,8 +334,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptCaseOwnershipTransferPattern` wraps `OfferCaseOwnershipTransferPattern` inside an `Accept` outer
       pattern; integration tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_050
+    - story_2022_048
   - id: VAM-04-009
     priority: MUST
     kind: protocol
@@ -330,8 +344,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RejectCaseOwnershipTransferPattern` wraps `OfferCaseOwnershipTransferPattern` inside a `Reject` outer
       pattern; integration tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_048
+    - story_2022_050
 - id: VAM-05
   title: Embargo Management Messages
   specs:
@@ -342,8 +357,9 @@ groups:
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(EmbargoEvent)` with a
       `VulnerabilityCase` context maps to `CREATE_EMBARGO_EVENT`, and inspection of `_instances.py` confirms
       `CreateEmbargoEventPattern` uses `TAtype.CREATE`, `AOtype.EVENT`, and `context_=VULNERABILITY_CASE`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_010
   - id: VAM-05-002
     priority: MUST
     kind: protocol
@@ -351,8 +367,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AddEmbargoEventToCasePattern` uses `TAtype.ADD`, `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_manage_embargo_demo.py` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_010
+    - story_2022_014
   - id: VAM-05-003
     priority: MUST
     kind: protocol
@@ -364,8 +381,9 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-007
       note: ET shorthand → REMOVE_EMBARGO_EVENT_FROM_CASE → this wire form
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: VAM-05-004
     priority: MUST
     kind: protocol
@@ -374,8 +392,9 @@ groups:
       `AnnounceEmbargoEventToCasePattern` uses `TAtype.ANNOUNCE`, `AOtype.EVENT`, and
       `context_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_embargo_demo.py` exercise
       this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_010
+    - story_2022_081
   - id: VAM-05-005
     priority: MUST
     kind: protocol
@@ -390,8 +409,9 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-003
       note: EV shorthand (revision) → same wire form as EP
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: VAM-05-006
     priority: MUST
     kind: protocol
@@ -406,8 +426,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-005
       note: EC shorthand (revision accepted) → same wire form as EA
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: VAM-05-007
     priority: MUST
     kind: protocol
@@ -422,8 +442,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-004
       note: EJ shorthand (revision rejected) → same wire form as ER
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
@@ -435,8 +455,9 @@ groups:
       `VulnerabilityCase` context maps to `CREATE_CASE_PARTICIPANT`, and inspection of `_instances.py` confirms
       `CreateCaseParticipantPattern` uses `TAtype.CREATE`, `AOtype.CASE_PARTICIPANT`, and
       `context_=VULNERABILITY_CASE`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: VAM-06-002
     priority: MUST
     kind: protocol
@@ -445,8 +466,9 @@ groups:
       `AddCaseParticipantToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_PARTICIPANT`, and
       `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_participants_demo.py` exercise
       this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: VAM-06-003
     priority: MUST
     kind: protocol
@@ -455,8 +477,9 @@ groups:
       `RemoveCaseParticipantFromCasePattern` uses `TAtype.REMOVE`, `AOtype.CASE_PARTICIPANT`, and
       `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_participants_demo.py` exercise
       this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_066
+    - story_2022_067
 - id: VAM-07
   title: Note Management Messages
   specs:
@@ -467,8 +490,9 @@ groups:
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(Note)` maps to
       `CREATE_NOTE`, and inspection of `_instances.py` confirms `CreateNotePattern` uses `TAtype.CREATE`
       and `AOtype.NOTE`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
+    - story_2022_074
   - id: VAM-07-002
     priority: MUST
     kind: protocol
@@ -476,8 +500,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AddNoteToCasePattern`
       uses `TAtype.ADD`, `AOtype.NOTE`, and `target_=VULNERABILITY_CASE`; integration tests in `test/demo/`
       exercise the full add-note flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
+    - story_2022_074
   - id: VAM-07-003
     priority: MUST
     kind: protocol
@@ -485,8 +510,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RemoveNoteFromCasePattern`
       uses `TAtype.REMOVE`, `AOtype.NOTE`, and `target_=VULNERABILITY_CASE`; integration tests in `test/demo/`
       exercise the full remove-note flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
 - id: VAM-08
   title: Status Tracking Messages
   specs:
@@ -497,8 +522,9 @@ groups:
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(CaseStatus)` with a
       `VulnerabilityCase` context maps to `CREATE_CASE_STATUS`, and inspection of `_instances.py` confirms the
       pattern uses `TAtype.CREATE`, `AOtype.CASE_STATUS`, and `context_=VULNERABILITY_CASE`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
+    - story_2022_088
   - id: VAM-08-002
     priority: MUST
     kind: protocol
@@ -525,8 +551,10 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-03-006
       note: CA shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
+    - story_2022_081
+    - story_2022_088
   - id: VAM-08-003
     priority: MUST
     kind: protocol
@@ -534,8 +562,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `CreateParticipantStatusPattern` uses `TAtype.CREATE` and `AOtype.PARTICIPANT_STATUS`; integration
       tests in `test/demo/` exercise the full create-participant-status flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
+    - story_2022_088
   - id: VAM-08-004
     priority: MUST
     kind: protocol
@@ -543,8 +572,10 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AddParticipantStatusToParticipantPattern` uses `TAtype.ADD`, `AOtype.PARTICIPANT_STATUS`, and
       `target_=CASE_PARTICIPANT`; integration tests in `test/demo/` exercise this flow.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_062
+    - story_2022_075
+    - story_2022_088
 - id: VAM-09
   title: Unrecognized Activities
   specs:

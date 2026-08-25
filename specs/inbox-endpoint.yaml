@@ -117,8 +117,8 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that a structurally invalid
       activity payload is rejected without being placed in the processing queue.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_089
   - id: IE-04-002
     priority: MUST
     kind: protocol
@@ -250,8 +250,9 @@ groups:
       with HTTP 400 and no record is written to the actor's store.
     adr:
     - ADR-0068
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
+    - story_2022_040
   - id: IE-11-002
     priority: MUST
     kind: protocol
@@ -274,8 +275,9 @@ groups:
       both accepted with HTTP 202.
     adr:
     - ADR-0068
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_041
+    - story_2022_043
   - id: IE-11-003
     priority: MUST
     kind: protocol
@@ -292,5 +294,7 @@ groups:
       with HTTP 202, not refused.
     adr:
     - ADR-0068
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_040
+    - story_2022_042
+    - story_2022_044

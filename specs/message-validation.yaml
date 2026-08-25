@@ -130,8 +130,9 @@ groups:
       A unit test confirms that the activity validator rejects activities whose `id`,
       `actor`, or `object` reference fields contain non-URI strings, and accepts
       well-formed URIs.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_034
+    - story_2022_030
   - id: MV-05-002
     priority: MUST
     kind: protocol
@@ -157,8 +158,9 @@ groups:
       Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
       `VultronValidationError` is raised when `object_` is a bare string URI rather
       than a typed object.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
+    - story_2022_106
   - id: MV-09-002
     priority: MUST
     kind: protocol
@@ -199,8 +201,8 @@ groups:
       A unit test confirms that the stub-object validator rejects objects missing either
       `id` or `type`, and accepts objects containing only those two required fields plus
       an optional `summary`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
   - id: MV-10-002
     priority: MUST
     kind: protocol
@@ -250,8 +252,10 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: MV-10-006
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_023
+    - story_2022_045
   - id: MV-10-006
     priority: MUST
     kind: protocol
@@ -266,5 +270,7 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_023
+    - story_2022_026
+    - story_2022_052

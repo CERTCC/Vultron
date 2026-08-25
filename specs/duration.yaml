@@ -24,8 +24,9 @@ groups:
       A unit test confirms that duration values produced by `vultron/core/` match
       the `P[n]DT[n]H[n]M[n]S` pattern and are round-tripped correctly from that
       format.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_010
+    - story_2022_014
   - id: DUR-01-002
     priority: MUST
     kind: protocol
@@ -44,8 +45,9 @@ groups:
     verification: >-
       A unit test confirms that `P1D` is treated as exactly 86400 seconds with no
       DST or calendar adjustment applied during interval arithmetic.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_010
+    - story_2022_014
 - id: DUR-02
   title: Allowed Grammar (Restricted ISO 8601 Subset)
   specs:
@@ -163,8 +165,9 @@ groups:
       Inspection of `vultron/core/` confirms that code applying an embargo policy
       adds the policy duration to the case creation timestamp to derive the embargo
       end time.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_010
+    - story_2022_014
   - id: DUR-06-002
     priority: MUST
     kind: protocol
@@ -197,8 +200,10 @@ groups:
     verification: >-
       Inspection of `vultron/core/` confirms that case embargo end times are stored
       as explicit start and end timestamp pairs, not as a duration-only field.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_010
+    - story_2022_014
+    - story_2022_074
   - id: DUR-07-002
     priority: SHOULD
     kind: protocol
@@ -217,8 +222,10 @@ groups:
       Integration tests in `test/demo/` confirm that applying a default embargo
       duration at case creation produces an INFO-level log entry and sets
       `CaseStatus.em_state` to `EM.ACTIVE`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_010
+    - story_2022_014
+    - story_2022_074
   - id: DUR-07-004
     priority: MUST
     kind: protocol
@@ -229,5 +236,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: DUR-07-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_074

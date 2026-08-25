@@ -93,8 +93,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OID-01-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_034
+    - story_2022_035
   - id: EP-01-006
     priority: SHOULD
     kind: protocol
@@ -144,8 +145,10 @@ groups:
       `vultron:embargoPolicy` key whose value is the embargo-policy endpoint URL.
     scope:
     - production
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_003
+    - story_2022_004
+    - story_2022_009
 - id: EP-03
   title: Policy Compatibility Evaluation
   specs:
@@ -210,8 +213,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DUR-07-003
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EP-04-002
     priority: MUST_NOT
     kind: protocol
@@ -238,8 +242,9 @@ groups:
       A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
       `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
       when both parties carry a proposal at case creation.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_079
   - id: EP-04-004
     priority: MUST
     kind: protocol
@@ -273,8 +278,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-05-002
     priority: MUST_NOT
     kind: protocol
@@ -338,8 +344,9 @@ groups:
       spec_id: CM-28-002
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-07-002
     priority: MUST
     kind: protocol
@@ -358,8 +365,9 @@ groups:
       minimum window.
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-07-003
     priority: MUST
     kind: protocol
@@ -386,8 +394,9 @@ groups:
       spec_id: EP-07-002
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_027
   - id: EP-07-004
     priority: MUST_NOT
     kind: protocol
@@ -421,5 +430,5 @@ groups:
       spec_id: EP-07-003
     adr:
     - ADR-0065
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074

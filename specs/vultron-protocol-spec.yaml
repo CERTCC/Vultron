@@ -81,8 +81,8 @@ groups:
       Integration tests in `test/demo/test_workflow_rm_triage.py` confirm that
       the RM triage workflow only advances to Accepted from the Valid state,
       enforcing priority ordering over Received and Closed cases.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_086
   - id: VP-02-003
     priority: MUST
     kind: protocol
@@ -91,8 +91,9 @@ groups:
       Integration tests in `test/demo/test_initialize_case_demo.py` confirm
       that `RmInviteToCaseActivity` is only emitted when the initiating
       participant's RM state is Accepted.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_006
+    - story_2022_013
   - id: VP-02-004
     priority: MUST_NOT
     kind: protocol
@@ -454,8 +455,8 @@ groups:
       Inspection of `vultron/core/states/em.py` confirms the EM state machine
       has at most one active-embargo state at any time, enforcing the
       single-active-embargo invariant.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: VP-04-003
     priority: MAY
     kind: protocol
@@ -505,8 +506,9 @@ groups:
       Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
       that the EM state transitions to Active with the acceptance timestamp as
       the effective start, not a future date.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_074
   - id: VP-05-004
     priority: MUST
     kind: protocol
@@ -517,8 +519,9 @@ groups:
       Integration tests in `test/demo/test_manage_participants_demo.py` confirm
       that inviting a participant to a case with an Active embargo leaves the
       EM state unchanged.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: VP-05-005
     priority: MUST
     kind: protocol
@@ -718,8 +721,9 @@ groups:
       Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
       that sending RS while EM is in the Proposed state causes EM to advance
       to Active.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_002
   - id: VP-06-008
     priority: MAY
     kind: protocol
@@ -811,8 +815,10 @@ groups:
       Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
       that a receiver with a policy-defined default embargo presents it as a
       Proposed embargo upon receiving a report.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_004
+    - story_2022_009
+    - story_2022_014
   - id: VP-07-003
     priority: MUST
     kind: protocol
@@ -1178,8 +1184,10 @@ groups:
       Inspection of `vultron/core/use_cases/` confirms that the case-split
       handler emits a notification to sibling case managers before any earlier
       child-case embargo end time takes effect.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_104
+    - story_2022_046
+    - story_2022_045
   - id: VP-10-003
     priority: MUST
     kind: protocol
@@ -1190,8 +1198,9 @@ groups:
       Integration tests in `test/demo/` confirm that embargo revision
       activities on a child case are forwarded to all sibling child-case
       participants.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_104
+    - story_2022_041
   - id: VP-10-004
     priority: SHOULD
     kind: protocol
@@ -1236,8 +1245,9 @@ groups:
       Inspection of `vultron/core/states/em.py` confirms that EM guard
       conditions block new embargo proposals when the CS state includes
       P, X, or A substates.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_018
+    - story_2022_019
   - id: VP-11-002
     priority: MUST
     kind: protocol
@@ -1522,8 +1532,9 @@ groups:
       accepts the `a` transition from any pre-attack CS state, and integration
       tests in `test/demo/test_manage_embargo_demo.py` confirm a CA message
       triggers the EM guard correctly.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_019
+    - story_2022_086
   - id: VP-14-005
     priority: SHOULD
     kind: protocol
@@ -1739,8 +1750,9 @@ groups:
     - rel_type: refines
       spec_id: PCR-08-001
       note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_041
   - id: VP-18-002
     priority: MUST_NOT
     kind: protocol
@@ -1768,5 +1780,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-18-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_106

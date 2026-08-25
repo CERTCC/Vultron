@@ -109,8 +109,9 @@ groups:
       actor discovery and federation
     verification: 'Integration tests confirm that `GET /actors/{actor_id}/profile` returns an ActivityStreams actor profile
       with `Content-Type: application/activity+json`.'
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_028
+    - story_2022_034
   - id: AR-10-002
     priority: MUST
     kind: protocol
@@ -125,8 +126,8 @@ groups:
       path parameter
     verification: Integration tests confirm that both a short actor ID (e.g., `vendorco`) and a full actor URI resolve
       to the same actor profile document via `GET /actors/{actor_id}/profile`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_034
 - id: AR-07
   title: CVD Action Rules API
   specs:
@@ -145,8 +146,9 @@ groups:
       unavailable action, the reason it is disallowed.
     verification: Integration tests confirm that the action rules endpoint returns a JSON object containing the current
       case state, the participant's CVD role, available action identifiers, and per-unavailable-action reason strings.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_086
   - id: AR-07-003
     priority: MUST
     kind: protocol

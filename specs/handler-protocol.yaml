@@ -28,8 +28,9 @@ groups:
     statement: Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by the received activity
     verification: Integration tests in `test/demo/` confirm that each inbound activity type results in the expected
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_088
 - id: HP-01
   title: Handler Signature
   specs:
@@ -185,8 +186,10 @@ groups:
       only
     verification: Inspect the `SubmitReportReceivedUseCase` (or equivalent Offer handler) to confirm eligibility logic
       branches only on the `to` field; `cc` and `target` fields are not consulted for eligibility determination.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_002
+    - story_2022_012
+    - story_2022_038
   - id: HP-09-002
     priority: MUST_NOT
     kind: protocol
@@ -210,5 +213,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-09-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_002
+    - story_2022_012

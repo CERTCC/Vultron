@@ -53,8 +53,9 @@ groups:
       Inspection of BT node implementations in `vultron/core/behaviors/` confirms that
       all state reads and writes go through DataLayer method calls, with no in-memory-only
       persistence outside the DataLayer.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_074
   - id: BT-03-002
     priority: MUST_NOT
     kind: project
@@ -70,8 +71,9 @@ groups:
     verification: >-
       A unit test confirms that a BT node's successful `update()` path calls `dl.save()`
       (or equivalent DataLayer commit) before returning `Status.SUCCESS`.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_074
 - id: BT-04
   title: Handler Integration
   specs:
@@ -178,8 +180,9 @@ groups:
       spec_id: SL-03-001
     - rel_type: depends_on
       spec_id: SL-04-001
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_088
 - id: BT-08
   title: Command-Line Execution
   specs:
@@ -206,8 +209,9 @@ groups:
       Integration tests in `test/demo/` confirm that processing messages for two
       different actors produces independent DataLayer writes with no cross-actor state
       overlap.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_106
   - id: BT-09-002
     priority: MUST_NOT
     kind: project
@@ -228,8 +232,9 @@ groups:
       spec_id: VP-02-015
     - rel_type: implements
       spec_id: VP-02-020
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_101
   - id: BT-10-002
     priority: MUST
     kind: protocol
@@ -238,8 +243,9 @@ groups:
       Integration tests in `test/demo/test_initialize_case_demo.py` confirm that the
       case-creation BT produces both a `VulnerabilityCase` and a corresponding
       `CaseActor` service record in the DataLayer.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_046
   - id: BT-10-003
     priority: MUST
     kind: protocol
@@ -248,8 +254,9 @@ groups:
       Integration tests in `test/demo/` confirm that case-scoped activities
       (`Announce`, `Invite`, `Accept`) are dispatched through the `CaseActor` service
       rather than the top-level inbox handler.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_039
   - id: BT-10-004
     priority: MUST
     kind: protocol
@@ -267,8 +274,9 @@ groups:
       spec_id: CLP-09-003
     - rel_type: refines
       spec_id: CLP-09-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_035
+    - story_2022_036
   - id: BT-10-005
     priority: SHOULD
     kind: protocol
@@ -322,8 +330,9 @@ groups:
       Integration tests in `test/demo/` confirm that inbox messages are processed
       sequentially, with each BT execution completing before the next message is
       dispatched.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_039
   - id: BT-11-002
     priority: MUST_NOT
     kind: protocol
@@ -763,8 +772,10 @@ groups:
     verification: 'For any embargo lifecycle BT Sequence that includes both a state-mutation node and a send/dispatch node:
       confirm via code review and test that a simulated missing Case Manager (empty `actor_participant_index`, no `CVDRole.CASE_MANAGER`
       entry) causes the tree to return FAILURE with zero DataLayer state change.'
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
+    - story_2022_014
+    - story_2022_088
   - id: BT-19-002
     priority: MUST
     kind: project

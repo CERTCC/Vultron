@@ -147,8 +147,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: RF-04-002
     priority: SHOULD
     kind: protocol
@@ -199,8 +199,9 @@ groups:
     statement: Response activities MUST be delivered to the relevant actors' inboxes
     verification: Integration tests in `test/demo/` confirm that response activities (Accept, Reject, etc.) appear in the
       intended recipients' inboxes after processing the original inbound activity.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_039
+    - story_2022_040
   - id: RF-06-002
     priority: MUST
     kind: protocol

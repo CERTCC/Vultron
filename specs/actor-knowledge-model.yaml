@@ -56,8 +56,9 @@ groups:
       activity in selective-disclosure scenarios.
     verification: Inspection of `vultron/wire/as2/factories/` confirms that only the `target` field of `Invite`
       activities is permitted to carry an object reference rather than a fully inline object.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_053
+    - story_2022_024
 - id: AKM-03
   title: Outbound Activity Object Integrity
   specs:

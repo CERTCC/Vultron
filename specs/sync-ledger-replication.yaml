@@ -95,8 +95,9 @@ groups:
     verification: >-
       Unit tests confirm that each log entry's entry_hash and prev_log_hash fields are
       correctly populated and form a valid forward-linked hash chain.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_089
   - id: SYNC-01-004
     priority: MUST
     kind: protocol
@@ -104,8 +105,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that all canonical log entry writes
       pass through the CASE_MANAGER's single authoritative write path.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_106
   - id: SYNC-01-005
     priority: MUST
     kind: protocol
@@ -127,8 +129,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that log replication messages are
       wrapped in ActivityStreams Announce activities delivered to Participant Actors.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-02-002
     priority: MUST
     kind: protocol
@@ -137,8 +140,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that each Announce(CaseLedgerEntry)
       identifies the sender, recipient, entry hash, and predecessor hash.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_089
   - id: SYNC-02-003
     priority: MUST
     kind: protocol
@@ -149,8 +153,10 @@ groups:
       Integration tests in `test/demo/` confirm that replication originates from the
       actor holding the CASE_MANAGER role and is addressed to each Participant
       Actor individually.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_046
+    - story_2022_088
   - id: SYNC-02-004
     priority: MUST_NOT
     kind: protocol
@@ -173,8 +179,9 @@ groups:
       Integration tests in `test/demo/` confirm that a receiver rejects any
       replication message whose predecessor hash does not match its current log
       tail hash.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-03-002
     priority: MUST
     kind: protocol
@@ -184,8 +191,9 @@ groups:
       Integration tests in `test/demo/` confirm that after a rejection the sender
       retries replication starting from the entry following the receiver's last
       accepted hash.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-03-003
     priority: MUST_NOT
     kind: protocol
@@ -222,8 +230,9 @@ groups:
       Integration tests in `test/demo/` confirm that the replication leader maintains
       a per-peer state record containing at minimum the last acknowledged log
       entry hash for each peer.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-04-002
     priority: MUST
     kind: protocol
@@ -232,8 +241,9 @@ groups:
       Integration tests in `test/demo/` confirm that per-peer replication state
       survives a leader restart by verifying the acknowledged hash is restored
       from the DataLayer.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: SYNC-05
   title: Retry and Backoff
   specs:
@@ -283,8 +293,8 @@ groups:
       spec_id: SYNC-05-002
     adr:
     - ADR-0066
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
 - id: SYNC-06
   title: Leadership and Ownership
   specs:
@@ -318,8 +328,9 @@ groups:
       Integration tests in `test/demo/` confirm that in a single-node deployment the
       CASE_MANAGER actor is the sole permanent replication leader and no
       leader-election procedure is triggered.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
+    - story_2022_106
   - id: SYNC-06-004
     priority: SHOULD
     kind: protocol
@@ -349,8 +360,9 @@ groups:
       Integration tests in `test/demo/` confirm that log entries are not applied to
       case state until after the entry has been durably written with its content hash
       recorded in the authoritative log.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-09-002
     priority: MUST
     kind: protocol
@@ -359,8 +371,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that outbound protocol activities are
       only emitted after the corresponding CaseLedgerEntry is confirmed as committed.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_081
   - id: SYNC-09-003
     priority: MUST
     kind: protocol
@@ -370,8 +383,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that the CASE_MANAGER's behavior tree
       refuses to execute case actions when the replication leadership role is not held.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
+    - story_2022_106
   - id: SYNC-09-004
     priority: MUST
     kind: protocol
@@ -383,8 +397,9 @@ groups:
       Inspection of the leadership gate implementation confirms that in a multi-node
       deployment it reads the Raft leader state as its authoritative source rather than
       any other mechanism.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
+    - story_2022_106
 - id: SYNC-07
   title: Testing
   specs:
@@ -452,8 +467,9 @@ groups:
     verification: >-
       Unit tests confirm that log entries are immutable once committed and that each
       entry is uniquely identified by its content hash.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_089
   - id: SYNC-08-002
     priority: MUST
     kind: protocol
@@ -462,8 +478,10 @@ groups:
     verification: >-
       Unit tests confirm that two compliant implementations processing an identical
       canonical log prefix derive identical case state after replay.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
+    - story_2022_106
   - id: SYNC-08-003
     priority: MUST_NOT
     kind: protocol
@@ -497,8 +515,9 @@ groups:
       resynchronization.
     adr:
     - ADR-0037
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: SYNC-10
   title: Catch-Up Gate Before New Actions
   specs:
@@ -512,8 +531,9 @@ groups:
       Integration tests in `test/demo/` confirm that after actor restart the actor
       re-establishes case-ledger freshness before proceeding with protocol-significant
       case actions.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-10-002
     priority: MUST
     kind: protocol
@@ -525,8 +545,8 @@ groups:
       Integration tests in `test/demo/` confirm that a catching-up actor blocks
       protocol-significant case actions and surfaces a stale-or-catching-up condition
       until freshness is re-established.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
   - id: SYNC-10-003
     priority: SHOULD
     kind: protocol
@@ -545,8 +565,9 @@ groups:
       Integration tests in `test/demo/` confirm that the catch-up gate blocks protocol
       actions when any gap exists in the canonical log prefix between genesis and the
       actor's acknowledged tip.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-10-005
     priority: MUST_NOT
     kind: protocol
@@ -609,8 +630,9 @@ groups:
       Integration tests in `test/demo/` confirm that domain effects (embargo teardown,
       participant-status update, note attachment, invite-accept) are applied before a
       CaseLedgerEntry is persisted and that a failed effect prevents persistence.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-12-002
     priority: MUST
     kind: protocol
@@ -622,8 +644,9 @@ groups:
       Integration tests in `test/demo/` confirm that any CaseLedgerEntry found in the
       local ledger corresponds to one whose domain effects were all successfully applied
       before persistence.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-12-003
     priority: MUST
     kind: protocol
@@ -635,8 +658,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that a duplicate Announce(CaseLedgerEntry)
       for an already-stored entry triggers neither effect application nor a second persist.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: SYNC-13
   title: Ledger Write Ownership and Layer Boundary
   description: >-
@@ -665,8 +689,8 @@ groups:
     - rel_type: depends_on
       spec_id: SYNC-12-002
       note: SYNC-12-002 relies on this write-ownership guarantee to hold
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
   - id: SYNC-13-002
     priority: MUST_NOT
     kind: protocol
@@ -685,8 +709,9 @@ groups:
       Integration tests in `test/demo/` confirm that CaseLedgerEntry creation for the
       primary case is confined to the CaseActor's authoritative write path and no other
       component creates such records.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_046
   - id: SYNC-13-006
     priority: MUST
     kind: protocol
@@ -697,8 +722,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that participant replicas only acquire
       CaseLedgerEntry records through the Announce(CaseLedgerEntry) receive behavior tree.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-13-003
     priority: MUST_NOT
     kind: protocol
@@ -721,8 +747,8 @@ groups:
       Integration tests in `test/demo/` confirm that an inbound Announce(CaseLedgerEntry)
       is routed to ANNOUNCE_CASE_LEDGER_ENTRY using the typed inline object alone, without
       a DataLayer lookup on first delivery.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
 - id: SYNC-14
   title: Out-of-Order Entry Buffering and Drain
   description: >-
@@ -751,8 +777,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that a forward-gap Announce(CaseLedgerEntry)
       is retained in the non-ledger holding area rather than permanently discarded.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-14-002
     priority: MUST
     kind: protocol
@@ -764,8 +791,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that buffering a forward-gap entry causes a
       Reject(CaseLedgerEntry) carrying the last accepted hash to be sent to the CASE_MANAGER.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-14-003
     priority: MUST
     kind: protocol
@@ -777,8 +805,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that committing a CaseLedgerEntry triggers a
       cascading drain of buffered entries whose prev_log_hash chains from the new tail.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-14-004
     priority: MUST
     kind: protocol
@@ -790,8 +819,9 @@ groups:
     - rel_type: depends_on
       spec_id: SYNC-12-001
       note: The drain MUST preserve the effects-before-persist invariant per applied entry
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-14-007
     priority: MUST_NOT
     kind: protocol
@@ -808,8 +838,8 @@ groups:
       Inspection of the drain implementation confirms that it calls the same
       apply-then-persist function as the in-order delivery path rather than a separate
       code path.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: protocol
@@ -875,8 +905,9 @@ groups:
     - rel_type: depends_on
       spec_id: SYNC-08-005
       note: Reject-on-divergence applies equally to the genesis-unavailable case
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-15-002
     priority: MUST_NOT
     kind: protocol
@@ -909,8 +940,9 @@ groups:
       Integration tests in `test/demo/` confirm that the CASE_MANAGER applies a cooldown
       to replays for a peer whose acknowledged position has not advanced, preventing
       amplification loops.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-15-008
     priority: MUST
     kind: protocol
@@ -923,8 +955,9 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that the CASE_MANAGER persists per-peer
       the entry_hash position and timestamp of the last non-empty replay.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-15-009
     priority: MUST_NOT
     kind: protocol
@@ -944,8 +977,9 @@ groups:
       Integration tests in `test/demo/` confirm that a Reject whose last_accepted_hash is
       ahead of the previously recorded peer position triggers a replay without waiting for
       any cooldown.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-15-011
     priority: MUST_NOT
     kind: protocol
@@ -1015,8 +1049,9 @@ groups:
     - rel_type: refines
       spec_id: SYNC-15-001
       note: The Reject is retained as the loss backstop; buffering is the primary convergence path
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-15-005
     priority: MUST
     kind: protocol
@@ -1046,5 +1081,7 @@ groups:
     - rel_type: depends_on
       spec_id: SYNC-15-004
       note: Drains exactly the entries that SYNC-15-004 buffered during the pre-genesis window
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_045
+    - story_2022_088

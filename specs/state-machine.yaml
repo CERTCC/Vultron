@@ -105,8 +105,9 @@ groups:
     - rel_type: implements
       spec_id: CM-03-006
       note: case-management.md
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_088
   - id: SM-05-003
     priority: MUST
     kind: project
@@ -136,8 +137,9 @@ groups:
       RM state is not permitted.
     verification: Inspection of all RM state write paths confirms they persist to `ParticipantStatus` records via
       `dl.save()`; no module-level or request-scoped variable carries RM state across request boundaries.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_088
 - id: SM-07
   title: State Subsets and Guards
   specs:
@@ -160,8 +162,8 @@ groups:
     statement: State enum values MUST be stored and transmitted as their string value (not as Python enum names or as integers)
     verification: DataLayer round-trip tests and wire-activity inspection confirm RM, EM, VFD, and PXA values
       serialize as string values (e.g., `"RECEIVED"`, `"ACTIVE"`) not as Python enum names or integers.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
   - id: SM-08-002
     priority: MUST
     kind: project
@@ -216,8 +218,10 @@ groups:
       spec_id: CM-04-001
     - rel_type: refines
       spec_id: CM-04-002
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_074
+    - story_2022_088
+    - story_2022_107
   - id: SM-10-002
     priority: MUST
     kind: protocol
@@ -230,8 +234,10 @@ groups:
       spec_id: CM-04-003
     - rel_type: refines
       spec_id: CM-04-004
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_081
+    - story_2022_088
   - id: SM-10-003
     priority: MUST_NOT
     kind: protocol

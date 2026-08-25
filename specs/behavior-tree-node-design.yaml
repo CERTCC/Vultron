@@ -286,8 +286,9 @@ groups:
       COORDINATOR) and the case owner. Representing this explicitly avoids hardcoding the assumption that the case creator
       is always a vendor.
     verification: Inspection of the `CVDRoles` enum definition confirms that a `CASE_OWNER` flag value is present.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_046
+    - story_2022_013
   - id: BTND-05-002
     priority: MUST
     kind: project
@@ -309,8 +310,9 @@ groups:
     verification: Inspection of `vultron/core/behaviors/` confirms `CreateCaseParticipantNode` exists with a required
       `roles` parameter, and that no role-specific subclasses or alias names (e.g., `CreateFinderParticipantNode`) are
       present.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: BTND-05-004
     priority: MUST
     kind: project
@@ -726,5 +728,6 @@ groups:
       Unit tests: (1) invalid backward/skip jump returns Status.FAILURE and sets
       feedback_message; (2) valid forward transition succeeds; (3) same-state write
       succeeds; (4) None target skips validation.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_088
+    - story_2022_107
