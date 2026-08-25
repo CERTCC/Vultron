@@ -19,14 +19,23 @@ groups:
     kind: protocol
     statement: The endpoint URL MUST be discoverable from actor profile
     rationale: Allow flexibility for different deployment contexts
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that the actor
+      profile endpoint includes the actor's inbox URL in its response.
   - id: IE-02-002
     priority: MUST
     kind: protocol
     statement: The endpoint MUST accept POST requests only
+    verification: >-
+      Integration tests in `test/demo/` confirm that POST requests to the inbox
+      endpoint return HTTP 202.
   - id: IE-02-003
     priority: MUST
     kind: protocol
     statement: The endpoint MUST reject non-POST requests with HTTP 405
+    verification: >-
+      Integration tests in `test/demo/` confirm that GET, PUT, DELETE, and PATCH
+      requests to the inbox endpoint return HTTP 405.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
@@ -37,6 +46,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: The endpoint MUST validate Content-Type header
+    verification: >-
+      Integration tests in `test/demo/` confirm that requests missing or carrying
+      an invalid Content-Type header are rejected before the activity is queued.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-01-001
@@ -44,6 +56,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: The endpoint MUST enforce a configurable maximum request body size.
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that the
+      body-size limit is read from `AppConfig` rather than hard-coded.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-02-001
@@ -54,6 +69,9 @@ groups:
     rationale: >-
       Rejecting oversized payloads with an explicit 413 prevents resource exhaustion
       and signals the limit violation to the sender.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a request body exceeding the
+      configured maximum returns HTTP 413.
     relationships:
     - rel_type: refines
       spec_id: IE-03-002
@@ -66,6 +84,9 @@ groups:
     rationale: >-
       Operators need to know the default limit to tune it for their deployment
       environment.
+    verification: >-
+      Inspection of the deployment configuration reference confirms that the default
+      maximum request body size value is explicitly stated.
     relationships:
     - rel_type: refines
       spec_id: IE-03-002
@@ -76,10 +97,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: The endpoint MUST validate activity structure via schema validation
+    verification: >-
+      Integration tests in `test/demo/` confirm that a structurally invalid
+      activity payload is rejected without being placed in the processing queue.
   - id: IE-04-002
     priority: MUST
     kind: protocol
     statement: The endpoint MUST return HTTP 422 for validation failures
+    verification: >-
+      Integration tests in `test/demo/` confirm that a schema-invalid activity
+      body causes the endpoint to return HTTP 422.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
@@ -90,6 +117,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: The endpoint MUST return HTTP 202 within 100ms
+    verification: >-
+      Integration tests in `test/demo/` confirm that the endpoint returns HTTP 202
+      and response-time assertions verify the 100 ms budget is not exceeded.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-06-001
@@ -120,6 +150,10 @@ groups:
       excludes the receiving actor (IE-11-001), HTTP 405 for non-POST methods,
       HTTP 413 for oversized request bodies, and HTTP 422 for activities that
       fail schema validation.
+    verification: >-
+      Integration tests in `test/demo/` confirm each response code: 202 for
+      accepted activities, 400 for mis-addressed activities, 405 for non-POST
+      requests, 413 for oversized bodies, and 422 for schema-invalid payloads.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
@@ -130,6 +164,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'Response body MUST be JSON with fields: `status`, `activity_id`, `message`'
+    verification: >-
+      Integration tests in `test/demo/` confirm that every response body contains
+      the `status`, `activity_id`, and `message` fields on both success and error
+      paths.
     relationships:
     - rel_type: depends_on
       spec_id: EH-05-001
@@ -140,6 +178,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: The endpoint MUST log all requests at INFO level
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that a structured
+      INFO-level log entry is emitted for each incoming request.
     relationships:
     - rel_type: depends_on
       spec_id: SL-01-001
@@ -174,6 +215,10 @@ groups:
       trustworthy if the store's owner was the intended recipient of every
       Activity it processed. A synchronous 4xx is itself the signal to the sender,
       avoiding silent cross-actor data contamination.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an Activity with non-empty
+      addressing fields that exclude the receiving actor is refused synchronously
+      with HTTP 400 and no record is written to the actor's store.
     adr:
     - ADR-0068
   - id: IE-11-002
@@ -192,6 +237,10 @@ groups:
       defaults to acceptance. Fan-out deliveries using collection URIs (e.g.
       ``{case_id}/participants``) cannot be resolved to individual actors at
       inbox processing time and must therefore be accepted.
+    verification: >-
+      Integration tests in `test/demo/` confirm that Activities with absent
+      addressing fields and those referencing unresolvable collection URIs are
+      both accepted with HTTP 202.
     adr:
     - ADR-0068
   - id: IE-11-003
@@ -204,5 +253,9 @@ groups:
     rationale: >-
       Several protocol flows rely on cc-to-self loopback delivery. Checking
       only the to field would incorrectly refuse legitimately addressed Activities.
+    verification: >-
+      Integration tests in `test/demo/` confirm that Activities addressed
+      exclusively via `cc`, `bto`, or `bcc` to the receiving actor are accepted
+      with HTTP 202, not refused.
     adr:
     - ADR-0068

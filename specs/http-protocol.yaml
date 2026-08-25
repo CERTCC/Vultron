@@ -15,14 +15,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: Inbox endpoint MUST accept `application/activity+json` Content-Type
+    verification: 'Integration tests confirm that `POST /inbox/` with `Content-Type: application/activity+json` is
+      accepted and returns a 2xx response.'
   - id: HTTP-01-002
     priority: MUST
     kind: protocol
     statement: Inbox endpoint MUST accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"` Content-Type
+    verification: >-
+      Integration tests confirm that `POST /inbox/` with `Content-Type: application/ld+json;
+      profile="https://www.w3.org/ns/activitystreams"` is accepted and returns a 2xx response.
   - id: HTTP-01-003
     priority: MUST
     kind: protocol
     statement: Inbox endpoint MUST reject requests with invalid Content-Type using HTTP 415
+    verification: Integration tests confirm that `POST /inbox/` with an unrecognized `Content-Type` header returns
+      HTTP 415.
 - id: HTTP-02
   title: Request Size Limits
   specs:

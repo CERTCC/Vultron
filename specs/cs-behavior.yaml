@@ -33,6 +33,10 @@ groups:
       CV announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender. The
       CK acknowledges receipt per VP-12 messaging norms.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CV in an active RM
+      state updates the sender's CS model to Vfd··· and enqueues CK without
+      changing the receiver's own CS state.
     testable: true
     preconditions:
     - rm_state:
@@ -77,6 +81,10 @@ groups:
     rationale: >-
       CF announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CF in an active RM
+      state updates the sender's CS model to VFd··· and enqueues CK without
+      changing the receiver's own CS state.
     testable: true
     preconditions:
     - rm_state:
@@ -121,6 +129,10 @@ groups:
     rationale: >-
       CD announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CD in an active RM
+      state updates the sender's CS model to VFD··· and enqueues CK without
+      changing the receiver's own CS state.
     testable: true
     preconditions:
     - rm_state:
@@ -167,6 +179,10 @@ groups:
       CP is a global (participant-agnostic) CS transition. All receivers must
       update their own CS state. When EM is None or Exited, no embargo teardown
       is needed.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CP with EM None or
+      Exited transitions local CS to ···P·· and emits CK without triggering
+      embargo teardown.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -200,6 +216,9 @@ groups:
     rationale: >-
       Public awareness terminates a pending embargo proposal per VP-09-001 and
       VP-11-002. The embargo cannot be negotiated once the information is public.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
+      transitions local CS to ···P··, sets EM to NONE, and emits CK.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -241,6 +260,10 @@ groups:
       awareness occurs. The ordering — CS transition recorded before embargo
       teardown — satisfies constraint C-14 from the behavioral spec design note:
       record CS state change first, then initiate teardown.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CP with EM Active or
+      Revise transitions CS to ···P··, emits ET before CK, and that the CS
+      transition is recorded before embargo teardown (C-14).
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -292,6 +315,9 @@ groups:
     rationale: >-
       All C* messages warrant acknowledgment. Duplicate CP does not re-trigger
       CS or EM transitions.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a duplicate CP (CS already
+      ···P··) emits CK and leaves all CS and EM states unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -318,6 +344,9 @@ groups:
     rationale: >-
       Public awareness makes further embargo negotiation moot; the pending
       proposal is abandoned per VP-09-001.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
+      and CS ···p·· transitions EM from PROPOSED to NONE.
     testable: true
 
   - id: CSB-04-006
@@ -329,6 +358,9 @@ groups:
       acknowledge receipt.
     rationale: >-
       All C* messages warrant acknowledgment per VP-12 messaging norms.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
+      and CS ···p·· enqueues CK to the sender.
     testable: true
 
   - id: CSB-04-007
@@ -341,6 +373,9 @@ groups:
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when public
       awareness occurs.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CP with EM Active or
+      Revise and CS ···p·· enqueues ET to initiate embargo termination.
     testable: true
 
   - id: CSB-04-008
@@ -352,6 +387,9 @@ groups:
       emit CK to acknowledge receipt.
     rationale: >-
       All C* messages warrant acknowledgment per VP-12 messaging norms.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CP with EM Active or
+      Revise and CS ···p·· enqueues CK to the sender.
     testable: true
 
 - id: CSB-05
@@ -374,6 +412,9 @@ groups:
       CX in state ···px· implies the pX→PX invariant (constraint C-15): exploit
       public without prior public awareness is an ephemeral state that
       immediately resolves to both P and X. The CS transition is atomic.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
+      EM None or Exited atomically sets both P and X bits (···PX·) and emits CK.
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -407,6 +448,9 @@ groups:
     rationale: >-
       Exploit publication terminates a pending embargo proposal per VP-09-001.
       The pX→PX invariant applies (constraint C-15).
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
+      EM Proposed transitions CS to ···PX·, sets EM to NONE, and emits CK.
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -447,6 +491,10 @@ groups:
       VP-09-001 and VP-11-002 require immediate embargo termination when exploit
       publication occurs. The pX→PX invariant applies. C-14 ordering: record
       CS transition first, then initiate teardown.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
+      EM Active or Revise transitions CS to ···PX·, emits ET, then emits CK,
+      with the CS transition recorded before teardown (C-14).
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -491,6 +539,10 @@ groups:
       When public awareness already exists, CX transitions only the exploit bit.
       No new embargo teardown is triggered since the embargo should already have
       been terminated when P was reached.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX in CS ···Px·
+      transitions the exploit bit to X (···PX·) and enqueues CK without triggering
+      embargo teardown.
     testable: true
     preconditions:
     - cs_pattern: "...Px."
@@ -521,6 +573,9 @@ groups:
     rationale: >-
       All C* messages warrant acknowledgment. Duplicate CX does not re-trigger
       CS or EM transitions.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX when CS is already
+      ···PX· enqueues CK and leaves all CS and EM states unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...PX."
@@ -547,6 +602,9 @@ groups:
     rationale: >-
       Exploit publication makes further embargo negotiation moot; the pending
       proposal is abandoned per VP-09-001.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX with EM Proposed
+      and CS ···px· transitions EM from PROPOSED to NONE.
     testable: true
 
   - id: CSB-05-007
@@ -558,6 +616,9 @@ groups:
       (q^em ∈ P) receiving CX MUST emit CK to acknowledge receipt.
     rationale: >-
       All C* messages warrant acknowledgment per VP-12 messaging norms.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX with EM Proposed
+      and CS ···px· enqueues CK to the sender.
     testable: true
 
   - id: CSB-05-008
@@ -571,6 +632,9 @@ groups:
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when exploit
       publication occurs.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX with EM Active or
+      Revise and CS ···px· enqueues ET to initiate embargo termination.
     testable: true
 
   - id: CSB-05-009
@@ -582,6 +646,9 @@ groups:
       (q^em ∈ {A, R}) receiving CX MUST emit CK to acknowledge receipt.
     rationale: >-
       All C* messages warrant acknowledgment per VP-12 messaging norms.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CX with EM Active or
+      Revise and CS ···px· enqueues CK to the sender.
     testable: true
 
   - id: CSB-05-010
@@ -595,6 +662,10 @@ groups:
     rationale: >-
       C-14 ordering requires the CS state change to be recorded first so that
       the canonical ledger correctly reflects cause before effect.
+    verification: >-
+      Integration tests in `test/demo/` confirm that the CS state records ···PX·
+      before ET is emitted when CX is received with EM Active or Revise and
+      non-public CS (C-14 ordering satisfied).
     testable: true
 
 - id: CSB-06
@@ -616,6 +687,9 @@ groups:
       CA in state ···p·a implies constraint C-16: attack observation without
       prior public awareness triggers the CS→P transition alongside CS→A.
       When EM is None or Exited, no embargo teardown is needed.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
+      EM None or Exited atomically sets both P and A bits (···P·A) and emits CK.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -650,6 +724,9 @@ groups:
     rationale: >-
       Attacks observed alongside previously non-public CS triggers CS→P, which
       terminates a pending embargo proposal. Constraint C-16 applies.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
+      EM Proposed transitions CS to ···P·A, sets EM to NONE, and emits CK.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -691,6 +768,10 @@ groups:
       Attacks observed without prior public awareness triggers CS→P (constraint
       C-16) which in turn requires embargo termination per VP-09-001. The C-14
       ordering: record CS transition first, then initiate teardown.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
+      EM Active or Revise transitions CS to ···P·A, emits ET, then emits CK, with
+      the CS transition recorded before teardown (C-14).
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -737,6 +818,10 @@ groups:
     rationale: >-
       When public awareness already exists, CA transitions only the attacks bit.
       The public bit is already set; no new P transition is needed.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA in CS ···P·a
+      transitions the attacks bit to A (···P·A) and enqueues CK without a new P
+      transition.
     testable: true
     preconditions:
     - cs_pattern: "...P.a"
@@ -767,6 +852,9 @@ groups:
     rationale: >-
       All C* messages warrant acknowledgment. Duplicate CA does not re-trigger
       CS or EM transitions.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA when CS is already
+      ···P·A enqueues CK and leaves all CS and EM states unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...P.A"
@@ -793,6 +881,9 @@ groups:
     rationale: >-
       The CS→P transition triggered by attacks observation makes further embargo
       negotiation moot; the pending proposal is abandoned per VP-09-001.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA with EM Proposed
+      and CS ···p·a transitions EM from PROPOSED to NONE.
     testable: true
 
   - id: CSB-06-007
@@ -804,6 +895,9 @@ groups:
       (q^em ∈ P) receiving CA MUST emit CK to acknowledge receipt.
     rationale: >-
       All C* messages warrant acknowledgment per VP-12 messaging norms.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA with EM Proposed
+      and CS ···p·a enqueues CK to the sender.
     testable: true
 
   - id: CSB-06-008
@@ -817,6 +911,9 @@ groups:
     rationale: >-
       VP-09-001 requires immediate embargo termination when public awareness
       occurs; constraint C-16 triggers CS→P on attacks observation.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA with EM Active or
+      Revise and CS ···p·a enqueues ET to initiate embargo termination.
     testable: true
 
   - id: CSB-06-009
@@ -828,6 +925,9 @@ groups:
       (q^em ∈ {A, R}) receiving CA MUST emit CK to acknowledge receipt.
     rationale: >-
       All C* messages warrant acknowledgment per VP-12 messaging norms.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CA with EM Active or
+      Revise and CS ···p·a enqueues CK to the sender.
     testable: true
 
   - id: CSB-06-010
@@ -841,6 +941,10 @@ groups:
     rationale: >-
       C-14 ordering requires the CS state change to be recorded first so that
       the canonical ledger correctly reflects cause before effect.
+    verification: >-
+      Integration tests in `test/demo/` confirm that the CS state records ···P·A
+      before ET is emitted when CA is received with EM Active or Revise and
+      non-public CS (C-14 ordering satisfied).
     testable: true
 
 - id: CSB-07
@@ -861,6 +965,9 @@ groups:
       CE signals a protocol error in the CS process. Acknowledging with CK and
       following up with GI allows the sender to explain the error and enables
       recovery. CE does not trigger a CS state transition.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving CE enqueues CK and GI
+      without modifying any CS state.
     testable: true
     preconditions:
     - rm_state:
@@ -903,6 +1010,9 @@ groups:
       CK is a pure acknowledgment message. It confirms the sender received a
       prior C* message. No state change or response is required from the
       receiver.
+    verification: >-
+      Inspection of the message-handling code confirms that CK is dispatched as a
+      passthrough with no state transition triggered and no response enqueued.
     testable: false
     lint_suppress:
     - testable_without_steps
@@ -927,6 +1037,9 @@ groups:
       VP-14-005 recommends starting the EM process as soon as possible once a
       Vendor is aware. Constraint C-32: EM SHOULD begin promptly on Vfdpxa entry
       when no embargo exists.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a vendor participant entering CS
+      Vfdpxa with EM None is prompted to initiate embargo negotiations.
     testable: false
     preconditions:
     - cs_pattern: "Vfd..."
@@ -954,6 +1067,9 @@ groups:
       State-change notifications support shared situation awareness. CV informs
       other Participants that a Vendor is now aware, enabling them to coordinate
       embargo and fix timing accordingly.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant entering CS Vendor
+      Aware emits CV to case participants.
     testable: true
     preconditions:
     - cs_pattern: "Vfd..."
@@ -989,6 +1105,10 @@ groups:
       VP-14-007 discourages starting or completing new embargo negotiations once
       a fix is ready. Constraint C-34: fix readiness is late in the process for
       beginning embargo negotiations.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant entering CS Fix
+      Ready does not start new embargo negotiations and rejects any pending
+      proposal.
     testable: false
     preconditions:
     - cs_pattern: "VFd..."
@@ -1012,6 +1132,9 @@ groups:
       State-change notifications support shared situation awareness. CF informs
       other Participants that a fix is available, enabling them to coordinate
       embargo extension or termination decisions.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant entering CS Fix
+      Ready emits CF to case participants.
     testable: true
     preconditions:
     - cs_pattern: "VFd..."
@@ -1040,6 +1163,9 @@ groups:
       VP-14-010 recommends terminating any existing embargo once the fix has
       been deployed. Constraint C-35: embargo termination SHOULD follow fix
       deployment.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant entering CS Fix
+      Deployed with an active embargo emits ET and that EM reaches EXITED.
     testable: true
     preconditions:
     - cs_pattern: "VFD..."
@@ -1071,6 +1197,9 @@ groups:
       State-change notifications support shared situation awareness. CD informs
       other Participants that the fix is deployed, allowing them to coordinate
       publication and embargo termination decisions.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant entering CS Fix
+      Deployed emits CD to case participants.
     testable: true
     preconditions:
     - cs_pattern: "VFD..."
@@ -1103,6 +1232,10 @@ groups:
       state change is recorded first, then the teardown begins. This ensures
       the canonical ledger correctly reflects cause (P transition) before effect
       (embargo termination).
+    verification: >-
+      Integration tests in `test/demo/` confirm that entering CS Public Aware with an
+      active embargo records the CS transition before emitting ET, and that EM
+      reaches EXITED (C-14 ordering satisfied).
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -1140,6 +1273,9 @@ groups:
     rationale: >-
       VP-14-001 prohibits seeking new embargoes once public awareness has
       occurred. This applies to all future EP messages for this case.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant with CS ···P··
+      rejects new embargo proposals and does not seek new embargoes for the case.
     testable: false
     preconditions:
     - cs_pattern: "...P.."
@@ -1164,6 +1300,9 @@ groups:
       other Participants that the vulnerability is now public. This item applies
       when the P transition is triggered by a local event (e.g., own publication)
       rather than by receiving CP from another Participant.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant entering CS Public
+      Aware via a local or non-CP trigger emits CP to case participants.
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -1197,6 +1336,9 @@ groups:
       consequence: CX emitted from ···px· state must be accompanied by CP.
       The precondition uses the post-transition pattern ···pX· (X uppercase,
       P lowercase) since state_entered fires after the X bit is set.
+    verification: >-
+      Integration tests in `test/demo/` confirm that entering CS with the X bit newly
+      set while P is unset atomically promotes to ···PX· and emits both CX and CP.
     testable: true
     preconditions:
     - cs_pattern: "...pX."
@@ -1231,6 +1373,9 @@ groups:
       VP-09-001 and VP-14-002 require immediate embargo termination upon exploit
       publication. The C-14 ordering applies: CS state recorded before teardown
       begins.
+    verification: >-
+      Integration tests in `test/demo/` confirm that entering CS ···PX· with an active
+      embargo records the CS transition before emitting ET and that EM reaches EXITED.
     testable: true
     preconditions:
     - cs_pattern: "...PX."
@@ -1269,6 +1414,9 @@ groups:
     rationale: >-
       VP-14-002 prohibits seeking new embargoes once exploit publication has
       occurred.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant with CS ···PX·
+      rejects new embargo proposals and does not initiate new embargo negotiations.
     testable: false
     preconditions:
     - cs_pattern: "....X."
@@ -1298,6 +1446,9 @@ groups:
       VP-09-003 and VP-14-013 recommend early embargo termination when attacks
       are observed. Unlike P and X, the attacks case is SHOULD (not SHALL) to
       allow for judgment in cases where other factors may apply.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a participant entering CS Attacks
+      Observed with an active embargo records the A transition and emits ET.
     testable: true
     preconditions:
     - cs_pattern: ".....A"
@@ -1341,6 +1492,9 @@ groups:
       Constraint C-16: attacks observed on an otherwise non-public case SHOULD
       trigger the P transition. Active attacks constitute de-facto public
       awareness of the vulnerability's existence.
+    verification: >-
+      Integration tests in `test/demo/` confirm that entering CS Attacks Observed in a
+      non-public state (···p·A) triggers the P transition and emits both CP and CA.
     testable: true
     preconditions:
     - cs_pattern: "...p.A"
@@ -1431,6 +1585,10 @@ groups:
       Reporters, and Coordinators likewise MUST NOT self-report fix readiness.
       Without this guard, non-vendor actors can incorrectly advance their participant
       VFD state, producing misleading case state records.
+    verification: >-
+      Integration tests in `test/demo/` confirm that the fix-ready trigger returns
+      FAILURE for actors without CVDRole.VENDOR and creates ParticipantStatus
+      with vfd_state=VFd only for VENDOR actors.
     testable: true
     preconditions:
     - description: Actor requests vfd_state=VFd via the trigger path
@@ -1465,6 +1623,10 @@ groups:
       deployment holds only CVDRole.VENDOR, not CVDRole.DEPLOYER, and MUST stop at VFd.
       Without this guard, vendor-only actors reach VFD, misrepresenting the protocol's
       distinction between fix availability and fix deployment.
+    verification: >-
+      Integration tests in `test/demo/` confirm that the fix-deployed trigger returns
+      FAILURE for actors without CVDRole.DEPLOYER and creates ParticipantStatus
+      with vfd_state=VFD only for DEPLOYER actors.
     testable: true
     preconditions:
     - description: Actor requests vfd_state=VFD via the trigger path
@@ -1500,6 +1662,9 @@ groups:
       Reporters, Coordinators) to incorrectly acquire VFD state when they announce
       public disclosure. The pxa (P event) is participant-agnostic; the VFD (D event)
       is only valid for DEPLOYER-role actors who have separately completed deployment.
+    verification: >-
+      Integration tests in `test/demo/` confirm that notify-published sets only
+      pxa_state=Pxa in the ParticipantStatus record and leaves vfd_state unmodified.
     testable: true
     preconditions:
     - description: Actor calls the notify-published trigger endpoint
@@ -1555,6 +1720,10 @@ groups:
       (add_participant_status_tree) uses a weaker monotonic-forward check
       intentionally — remote peers may advance through multiple VFD steps
       between status messages; strict adjacency applies only to local writes.
+    verification: >-
+      A unit test confirms that the VFD write boundary returns Status.FAILURE for
+      illegal jumps (e.g. vfd→VFD skipping Vfd) and that no ParticipantStatus
+      record is persisted for an invalid transition.
     testable: true
     preconditions:
     - description: A non-None CS_vfd target state is passed to a ParticipantStatus write node
@@ -1591,6 +1760,10 @@ groups:
       backward PXA write would produce a misleading public-disclosure regression
       in the case record. The same fail-closed boundary that protects VFD applies
       equally to PXA. Source: concern #1896.
+    verification: >-
+      A unit test confirms that the PXA write boundary returns Status.FAILURE for any
+      backward PXA move and that no ParticipantStatus record is persisted for the
+      rejected transition.
     testable: true
     preconditions:
     - description: A non-None CS_pxa target state is passed to a ParticipantStatus write node
@@ -1637,6 +1810,10 @@ groups:
       Enumerating only the reachable combinations makes the two impossible
       combinations unrepresentable rather than merely rejected at runtime,
       which is why `CS_vfd` has four members and not eight.
+    verification: >-
+      Inspection of `vultron/core/states/` confirms that the CS compound enum has
+      exactly 32 members, one per valid combination of the 4 VFD states and 8
+      PXA states.
     testable: true
     postconditions:
     - description: The CS enum has exactly 32 members, one per valid compound state
@@ -1663,6 +1840,10 @@ groups:
       validity depends on. These two conditions alone admit 72 transitions;
       applying the ephemeral-state rule of CSB-17-003 leaves exactly 58 valid
       CS transitions.
+    verification: >-
+      A unit test confirms that the transition validator accepts exactly the 58 valid
+      single-event transitions and rejects all multi-dimension, reversal, and
+      VFD-prerequisite-skip cases.
     testable: true
     preconditions:
     - description: A (source, destination) pair of compound CS states
@@ -1722,6 +1903,9 @@ groups:
       events while forbidding the case from progressing in any other direction
       first. The pX ephemeral rule is the pX to PX invariant of CSB-13-001
       generalised from the entry cascade to every successor of a pX state.
+    verification: >-
+      A unit test confirms that vP and pX are classified as ephemeral states each with
+      exactly one valid forced successor and that no other successor is accepted.
     testable: true
     preconditions:
     - description: The case is in one of the 12 ephemeral compound CS states
@@ -1762,6 +1946,10 @@ groups:
       recorded by different participants. SHOULD rather than MUST because a
       consumer holding only a current state, with no event log to replay,
       cannot do better.
+    verification: >-
+      A unit test confirms that replaying all 70 valid complete CS event histories
+      passes validation and that at least one invalid ordering (e.g., X before V)
+      is rejected.
     testable: true
     preconditions:
     - description: An ordered sequence of CS events, possibly incomplete
@@ -1794,6 +1982,9 @@ groups:
       SM-09-001 still forbids that. Pinning acceptance to CSB-17-004's prefix
       closure keeps both directions honest: a validator that merely never
       rejects a genuine prefix could still accept dead ends.
+    verification: >-
+      A unit test confirms that every valid prefix of the 70 complete CS histories is
+      accepted and that dead-end prefixes with no valid completion are rejected.
     testable: true
     preconditions:
     - description: An ordered sequence of CS events with fewer than six entries
@@ -1827,6 +2018,10 @@ groups:
     rationale: >-
       Fix readiness presupposes vendor awareness; the vF combination is
       structurally excluded from the 32 valid compound CS states.
+    verification: >-
+      Inspection of `vultron/core/states/` confirms no enum member encodes vF; a unit
+      test confirms that a vfd→VFd transition skipping V is rejected as an
+      illegal VFD jump.
     testable: true
 
   - id: CSB-17-007
@@ -1838,6 +2033,10 @@ groups:
     rationale: >-
       Fix deployment presupposes fix readiness; the fD combination is
       structurally excluded from the 32 valid compound CS states.
+    verification: >-
+      Inspection of `vultron/core/states/` confirms no enum member encodes fD; a unit
+      test confirms that a vfd→VFD transition skipping V and F is rejected as an
+      illegal VFD jump.
     testable: true
 
   - id: CSB-17-008
@@ -1850,6 +2049,10 @@ groups:
       Each of the three prohibited forms conflates or reorders distinct causal
       events; rejecting them enforces the one-event-at-a-time and monotonicity
       invariants.
+    verification: >-
+      A unit test confirms that multi-dimension transitions, reversed-dimension
+      transitions, and VFD-prerequisite skips are each individually rejected by
+      the compound transition validator.
     testable: true
 
   - id: CSB-17-009
@@ -1860,6 +2063,9 @@ groups:
       The forced-successor rule is the operational consequence of CSB-17-003's
       ephemeral classification: each ephemeral state has exactly one valid
       continuation, enforcing the vP→VP invariant.
+    verification: >-
+      A unit test confirms that from a vP state only the V event is accepted as the
+      next CS transition and all five other CS events are rejected.
     testable: true
 
   - id: CSB-17-012
@@ -1869,6 +2075,9 @@ groups:
     rationale: >-
       The forced-successor rule for pX states enforces the pX→PX invariant;
       pX is ephemeral and P is the only valid continuation.
+    verification: >-
+      A unit test confirms that from a pX state only the P event is accepted as
+      the next CS transition and all five other CS events are rejected.
     testable: true
     relationships:
     - rel_type: refines
@@ -1883,6 +2092,10 @@ groups:
     rationale: >-
       Accepting any other event would break the vP→VP and pX→PX invariants
       that the forced-successor rule exists to enforce.
+    verification: >-
+      A unit test confirms that the forced-successor rule rejects all CS events
+      except the single valid continuation from any ephemeral (vP or pX)
+      compound CS state.
     testable: true
     relationships:
     - rel_type: refines
@@ -1898,6 +2111,10 @@ groups:
       Real cases are still in progress at validation time; requiring all six
       events would reject every live case, and an ephemeral-ending prefix is
       valid as long as its forced successor has not yet been observed.
+    verification: >-
+      A unit test confirms that prefix validation accepts partial CS event
+      sequences, including those ending in ephemeral states, and does not
+      require all six CS events to be present.
     testable: true
 
   - id: CSB-17-011
@@ -1910,6 +2127,10 @@ groups:
       Pinning acceptance to the prefix closure of CSB-17-004 prevents a
       validator from accepting dead-end prefixes that cannot lead to any valid
       complete history.
+    verification: >-
+      A unit test confirms that every accepted partial CS history can be extended
+      to at least one of the 70 valid complete CS event histories, and that
+      dead-end prefixes with no valid completion are rejected.
     testable: true
 
 - id: CSB-18

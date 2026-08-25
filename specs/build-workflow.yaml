@@ -111,6 +111,8 @@ groups:
           Using identical format means archiving is a `git mv` equivalent
           via `uv run append-history --from-file` — no content
           transformation needed.
+        verification: Inspection of `plan/incoming/learnings/` confirms each file parses with required fields `title`,
+          `type` (value `learning`), `timestamp`, and `source` all present and valid.
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
@@ -120,6 +122,8 @@ groups:
         statement: >-
           The `source` field in an incoming learning file MUST match the
           filename stem (`YYYYMMDD-SLUG`).
+        verification: Inspection of `plan/incoming/learnings/` confirms the `source` frontmatter field in each file
+          matches the file's stem (filename without `.md`).
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
@@ -130,6 +134,8 @@ groups:
           The `timestamp` field in an incoming learning file MUST reflect the
           actual creation time of the observation (not the current date if the
           entry was written for a historical run).
+        verification: Inspection of `plan/incoming/learnings/` confirms each file's `timestamp` field is a tz-aware
+          ISO 8601 UTC value and is not a future timestamp or today's date substituted for a historical entry.
         relationships:
           - rel_type: depends_on
             spec_id: HM-06-001

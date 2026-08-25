@@ -107,15 +107,20 @@ groups:
     kind: protocol
     statement: The API MUST expose `GET /actors/{actor_id}/profile` returning an ActivityStreams actor profile document for
       actor discovery and federation
+    verification: 'Integration tests confirm that `GET /actors/{actor_id}/profile` returns an ActivityStreams actor profile
+      with `Content-Type: application/activity+json`.'
   - id: AR-10-002
     priority: MUST
     kind: protocol
     statement: The profile endpoint MUST return HTTP 404 when the actor is not found
+    verification: Integration tests confirm that `GET /actors/{unknown_id}/profile` returns HTTP 404.
   - id: AR-10-003
     priority: MUST
     kind: protocol
     statement: The profile endpoint MUST support both full actor URI and short actor ID (e.g., `vendorco`) as the `actor_id`
       path parameter
+    verification: Integration tests confirm that both a short actor ID (e.g., `vendorco`) and a full actor URI resolve
+      to the same actor profile document via `GET /actors/{actor_id}/profile`.
 - id: AR-07
   title: CVD Action Rules API
   specs:
@@ -132,10 +137,14 @@ groups:
       (a) the current case state, (b) the requesting participant's CVD role, (c) a list
       of valid action identifiers available in the current state, and (d) for each
       unavailable action, the reason it is disallowed.
+    verification: Integration tests confirm that the action rules endpoint returns a JSON object containing the current
+      case state, the participant's CVD role, available action identifiers, and per-unavailable-action reason strings.
   - id: AR-07-003
     priority: MUST
     kind: protocol
     statement: The action rules endpoint MUST be reflected in the OpenAPI schema per AR-01-001
+    verification: Inspection of the `GET /openapi.json` response confirms the action rules endpoint path and response
+      schema are present in the OpenAPI spec.
     scope:
     - production
     relationships:

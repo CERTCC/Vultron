@@ -32,6 +32,9 @@ groups:
       EP is the EM message that initiates embargo negotiation. When no embargo
       exists and the case is still pre-public, the receiver transitions to
       Proposed to signal they are evaluating the proposal.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EP when EM is NONE
+      and CS matches ...pxa transitions EM to PROPOSED and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -112,6 +115,10 @@ groups:
       Multiple EP messages can arrive during negotiation. When already in
       Proposed, no additional state transition is needed. The receiver evaluates
       the counter-proposal and may accept, counter, or reject via EA, EV, or ER.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving a counter EP while
+      already in EM PROPOSED keeps the state at PROPOSED and emits EK without
+      triggering an additional N→P transition.
     testable: true
     preconditions:
     - em_state:
@@ -205,6 +212,9 @@ groups:
     rationale: >-
       EA is the message that moves a negotiated embargo from Proposed to Active.
       The receiver records that the embargo is now in effect.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
+      with CS matching ...pxa transitions EM to ACTIVE and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -317,6 +327,9 @@ groups:
       EV signals a proposal to revise an active embargo's terms. The receiver
       enters Revise state to indicate a pending revision. The original embargo
       remains in force during revision per VP-04-005.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE
+      with CS matching ...pxa transitions EM to REVISE and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -359,6 +372,10 @@ groups:
       Multiple revision proposals can arrive. When already in Revise, no further
       state transition is needed; the receiver evaluates the counter-revision
       and responds with EJ or EC.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving a counter EV while
+      already in EM REVISE keeps the state at REVISE and emits EK without
+      triggering an additional state transition.
     testable: true
     preconditions:
     - em_state:
@@ -392,6 +409,10 @@ groups:
       VP-11-001 and VP-11-002 require termination in these states; receiving a
       revision proposal while in a terminal CS state triggers immediate embargo
       exit.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE or
+      REVISE with a public/exploit/attack CS causes ET to be emitted and EM to
+      transition to EXITED.
     testable: true
     preconditions:
     - em_state:
@@ -442,6 +463,10 @@ groups:
       EJ signals that a revision proposal has been rejected and the embargo
       reverts to its previous Active terms. The receiver restores the
       pre-revision state.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
+      with CS matching ...pxa transitions EM back to ACTIVE and queues EK to the
+      sender.
     testable: true
     preconditions:
     - em_state:
@@ -478,6 +503,10 @@ groups:
       Reverting to Active is not viable once public disclosure has occurred.
       VP-11-002 requires termination in these states. Embargo termination takes
       precedence over the revision rejection.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
+      with a public/exploit/attack CS causes ET to be emitted and EM to transition
+      to EXITED rather than reverting to ACTIVE.
     testable: true
     preconditions:
     - em_state:
@@ -524,6 +553,10 @@ groups:
     rationale: >-
       EC signals that a revision proposal has been accepted. The embargo returns
       to Active state under the new terms agreed by the revision.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
+      with CS matching ...pxa transitions EM back to ACTIVE with revised terms and
+      queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -562,6 +595,10 @@ groups:
     rationale: >-
       Accepting a revision is not viable once public disclosure has occurred.
       VP-11-002 requires termination in these states.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
+      with a public/exploit/attack CS causes ET to be emitted and EM to transition
+      to EXITED rather than accepting the revision.
     testable: true
     preconditions:
     - em_state:
@@ -607,6 +644,9 @@ groups:
     rationale: >-
       ER signals that a proposed embargo has been rejected. The embargo returns
       to None state (no embargo in effect). The EK acknowledges the rejection.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
+      transitions EM to NONE and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -651,6 +691,9 @@ groups:
       ET is the message that terminates an active embargo. The receiver records
       that the embargo has ended. ET has immediate effect regardless of other
       pending messages.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET in EM ACTIVE
+      transitions EM to EXITED and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -684,6 +727,10 @@ groups:
     rationale: >-
       ET terminates the embargo regardless of whether a revision is pending.
       The revision proposal is abandoned upon termination.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET in EM REVISE
+      transitions EM to EXITED, abandons any pending revision, and queues EK to
+      the sender.
     testable: true
     preconditions:
     - em_state:
@@ -718,6 +765,9 @@ groups:
     rationale: >-
       Exited is already the terminal state. The EK acknowledges the duplicate
       termination message; no additional transition is needed.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET while already in
+      EM EXITED emits EK to the sender without changing EM state.
     testable: true
     preconditions:
     - em_state:
@@ -1172,6 +1222,11 @@ groups:
       selection as a Selector of Evaluator call-out points gives actors a
       clear interface (three buttons) while preserving the audit trail and
       allowing policy-rule backends to be injected per ADR-0025.
+    verification: >-
+      Inspection of `vultron/core/` confirms that `create_terminate_active_embargo_tree`
+      uses a Selector of Evaluator call-out points (ExitEmbargoWhenDeployed,
+      ExitEmbargoWhenFixReady, ExitEmbargoForOtherReason) before delegating to
+      `terminate_embargo_bt`.
     testable: true
     preconditions:
     - em_state:
@@ -1217,6 +1272,10 @@ groups:
       on grounds orthogonal to the stated reason (e.g., active revision
       negotiation, pending approvals) without coupling the guard logic to the
       reason semantics.
+    verification: >-
+      Inspection of `vultron/core/` confirms that `create_terminate_active_embargo_tree`
+      places `EmbargoExitPolicyGuard` as a child node after the reason Selector and
+      before the `OnEmbargoExit` actuator.
     testable: true
     preconditions:
     - em_state:
@@ -1309,6 +1368,11 @@ groups:
       the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
       acceptance as an Evaluator call-out point preserves the seam for later
       owner/agent adjudication without changing the tree.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an inbound EP or
+      InviteToEmbargoOnCase is accepted by default under the DETERMINISTIC bundle,
+      with EvaluateEmbargoProposal returning SUCCESS and delegating to the
+      appropriate acceptance BT.
     testable: true
     preconditions:
     - description: >-
@@ -1351,6 +1415,10 @@ groups:
     rationale: >-
       A deterministic accept-by-default keeps actors runnable without a human in
       the loop; the DETERMINISTIC call-out bundle (BT-23) supplies the default.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the DETERMINISTIC call-out bundle
+      resolves `EvaluateEmbargoProposal` to a node that unconditionally returns
+      SUCCESS when no external backend is injected.
     relationships:
     - rel_type: refines
       spec_id: EMB-15-001
@@ -1368,6 +1436,11 @@ groups:
       adjudication seam that a UI or LLM agent can later fulfil. The distinction
       matters because a CaseActor may process an overture routed to it without
       being the party whose consent is being recorded.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the inbound embargo-response
+      decision tree includes a `CheckIsCaseOwner` Condition node as the leading
+      arm of the Selector, positioned before the `CaseOwnerApprovesEmbargoResponse`
+      call-out point.
     testable: true
     preconditions:
     - description: Inbound EP or InviteToEmbargoOnCase received by the deciding actor
@@ -1414,6 +1487,10 @@ groups:
     rationale: >-
       Non-owner actors need an adjudication seam that a UI or LLM agent can later
       fulfil; defaulting to SUCCESS keeps them runnable without an external backend.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the non-owner path in the decision
+      tree routes through `CaseOwnerApprovesEmbargoResponse`, which is resolved to a
+      SUCCESS-returning node under the DETERMINISTIC bundle.
     relationships:
     - rel_type: refines
       spec_id: EMB-15-002
@@ -1481,6 +1558,11 @@ groups:
       semantics. The decision layer selects among them; it must not re-implement
       the transition. The pre-public constraint (EMB-01-002) is a hard protocol
       rule that overrides the default-accept policy.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a rejection decision delegates
+      to `reject_embargo_trigger_bt` for Flow A (emitting ER and returning EM to
+      NONE) or `reject_invite_to_embargo_tree` for Flow B (advancing PEC to
+      DECLINED) without duplicating transition logic.
     testable: true
     preconditions:
     - description: >-
@@ -1535,6 +1617,10 @@ groups:
       would be misleading to other Participants and counter to the purpose of
       coordinated disclosure. The existing reject path (EM P → N + ER) is the
       correct mechanism; no new transition is introduced.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a P/X/A CS transition detected
+      while EM is PROPOSED triggers `reject_embargo_trigger_bt` via
+      `PublicDisclosureBranchNode`, transitioning EM to NO_EMBARGO and queuing ER.
     testable: true
     preconditions:
     - em_state:
@@ -1594,6 +1680,11 @@ groups:
       volunteering to coordinate; refusing them converts a missed deadline into
       a lost participant, which is worse for the case than a late consent.
       See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an `Accept(Invite(EmbargoEvent))`
+      received after the RSVP deadline is not rejected on timeliness grounds and is
+      evaluated against current embargo state per EMB-17-002, EMB-17-003, or
+      EMB-17-004.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -1617,6 +1708,10 @@ groups:
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
       *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept whose embargo ID
+      matches the case's current active embargo records the participant's PEC
+      transition to SIGNATORY with `embargo_adherence` set to true.
     testable: true
     preconditions:
     - em_state:
@@ -1649,6 +1744,11 @@ groups:
       signatory to terms they never saw. Rejecting them would discard a
       willing participant. Re-inviting resolves both: the actor stays in the
       case and is asked to consent to the terms actually in force. See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept referencing a
+      superseded embargo causes a fresh `Invite(EmbargoEvent)` to be emitted
+      carrying the case's current embargo, without recording the stale Accept as
+      consent.
     testable: true
     preconditions:
     - description: >-
@@ -1718,6 +1818,10 @@ groups:
       invitation would manufacture a negotiation nobody requested — but the
       actor's case participation is independent of embargo consent and MUST
       survive. See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept arriving when EM
+      is EXITED or NONE is acknowledged without applying any PEC transition, leaving
+      the participant's PEC state at NO_EMBARGO.
     testable: true
     preconditions:
     - em_state:
