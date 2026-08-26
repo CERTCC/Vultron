@@ -138,6 +138,37 @@ class TestInviteToEmbargoRoutingGuard:
             self.CASE_ID, self.AUTHOR_ID, self.CASE_ACTOR_ID
         )
 
+    def test_absent_stamp_uses_store_owner_invite_to_embargo(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent the store owner processes the invite.
+
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
+        dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
+        ``invite_to_embargo_on_case`` ledger entry IS written.
+        """
+        dl, case_actor, case, embargo = self._setup()
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=self.CASE_ID,
+            actor=self.AUTHOR_ID,
+            id_=f"{self.CASE_ID}/proposals/nostamp",
+        )
+        dl.create(proposal)
+
+        event = make_payload(proposal, receiving_actor_id=None)
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "invite_to_embargo_on_case" in event_types, (
+            "Store-owner fallback (CaseActor) MUST write an"
+            " invite_to_embargo_on_case ledger entry when receiving_actor_id"
+            f" is absent; found: {event_types}"
+        )
+
     def test_caseactor_commits_invite_to_embargo_ledger_entry(
         self, make_payload
     ):
@@ -192,36 +223,6 @@ class TestInviteToEmbargoRoutingGuard:
         assert "invite_to_embargo_on_case" not in event_types, (
             "Non-CaseActor (invitee) must NOT write an invite_to_embargo_on_case"
             f" ledger entry; found: {event_types}"
-        )
-
-    def test_absent_stamp_falls_back_to_store_owner(self, make_payload):
-        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
-
-        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
-        None the store owner is used.  The store owner holds CASE_MANAGER role,
-        so the guarded commit fires and an invite_to_embargo_on_case ledger entry
-        is written.
-        """
-        dl, case_actor, case, embargo = self._setup()
-
-        proposal = em_propose_embargo_activity(
-            embargo,
-            context=self.CASE_ID,
-            actor=self.AUTHOR_ID,
-            id_=f"{self.CASE_ID}/proposals/absent-stamp",
-        )
-        dl.create(proposal)
-
-        event = make_payload(proposal, receiving_actor_id=None)
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
-        ).execute()
-
-        event_types = _ledger_event_types(dl)
-        assert "invite_to_embargo_on_case" in event_types, (
-            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
-            " and commit an invite_to_embargo_on_case ledger entry;"
-            f" found: {event_types}"
         )
 
 
@@ -302,13 +303,14 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             f" ledger entry; found: {event_types}"
         )
 
-    def test_absent_stamp_falls_back_to_store_owner(self, make_payload):
-        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
+    def test_absent_stamp_uses_store_owner_accept_invite_to_embargo(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent the store owner processes the accept.
 
-        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
-        None the store owner is used.  The store owner holds CASE_MANAGER role,
-        so the guarded commit fires and an accept_invite_to_embargo_on_case
-        ledger entry is written.
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
+        dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
+        ``accept_invite_to_embargo_on_case`` ledger entry IS written.
         """
         dl, case_actor, case, accept = self._setup()
 
@@ -319,9 +321,9 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         event_types = _ledger_event_types(dl)
         assert "accept_invite_to_embargo_on_case" in event_types, (
-            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
-            " and commit an accept_invite_to_embargo_on_case ledger entry;"
-            f" found: {event_types}"
+            "Store-owner fallback (CaseActor) MUST write an"
+            " accept_invite_to_embargo_on_case ledger entry when"
+            f" receiving_actor_id is absent; found: {event_types}"
         )
 
 
@@ -418,13 +420,12 @@ class TestRemoveEmbargoRoutingGuard:
             f" ledger entry; found: {event_types}"
         )
 
-    def test_absent_stamp_falls_back_to_store_owner(self, make_payload):
-        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
+    def test_absent_stamp_uses_store_owner_remove_embargo(self, make_payload):
+        """When receiving_actor_id is absent the store owner processes the remove.
 
-        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
-        None the store owner is used.  The store owner holds CASE_MANAGER role,
-        so the guarded commit fires and a remove_embargo_event_from_case ledger
-        entry is written.
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
+        dl.actor_id (CASE_ACTOR_ID), so the guarded commit fires and the
+        ``remove_embargo_event_from_case`` ledger entry IS written.
         """
         dl, case_actor, case, embargo = self._setup()
 
@@ -441,7 +442,7 @@ class TestRemoveEmbargoRoutingGuard:
 
         event_types = _ledger_event_types(dl)
         assert "remove_embargo_event_from_case" in event_types, (
-            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
-            " and commit a remove_embargo_event_from_case ledger entry;"
-            f" found: {event_types}"
+            "Store-owner fallback (CaseActor) MUST write a"
+            " remove_embargo_event_from_case ledger entry when"
+            f" receiving_actor_id is absent; found: {event_types}"
         )

@@ -207,12 +207,12 @@ class TestCloseCaseLedgerRouting:
             f" found: {event_types}"
         )
 
-    def test_absent_stamp_falls_back_to_store_owner(self):
-        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
+    def test_absent_stamp_uses_store_owner_for_commit(self):
+        """When receiving_actor_id is absent the store owner processes the Leave.
 
-        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
-        None the store owner is used.  The store owner holds CASE_MANAGER role,
-        so the guarded commit fires and a close_case ledger entry is written.
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
+        dl.actor_id (CASE_ACTOR_ID here), so the guarded commit fires and the
+        ``close_case`` ledger entry IS written.
         """
         dl = _make_case_actor_dl()
         CloseCaseReceivedUseCase(
@@ -223,7 +223,6 @@ class TestCloseCaseLedgerRouting:
 
         event_types = _ledger_event_types(dl)
         assert "close_case" in event_types, (
-            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
-            " and commit a close_case ledger entry;"
-            f" found: {event_types}"
+            "Store-owner fallback (CaseActor) MUST write a close_case"
+            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
         )

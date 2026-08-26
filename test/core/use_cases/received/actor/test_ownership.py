@@ -284,78 +284,90 @@ class TestOwnershipTransferUseCases:
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
-    def test_offer_absent_stamp_falls_back_to_store_owner(self, make_payload):
-        """OfferCaseOwnershipTransferReceivedUseCase persists the offer when receiving_actor_id is absent.
+    def test_offer_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent the store owner processes the Offer.
 
-        Per resolve_receiving_actor_id (CLP-10-005): a missing stamp falls back
-        to dl.actor_id so the use case runs rather than silently dropping.
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back
+        to dl.actor_id, so the offer is persisted rather than dropped.
         """
+        import py_trees
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/actors/store-owner-offer-abs",
-        )
+        actor_id = "https://example.org/actors/store-owner-ot"
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ot_abs1",
-            name="OT Absent Stamp Offer",
-        )
-        activity = offer_case_ownership_transfer_activity(
-            case,
-            target="https://example.org/users/coordinator-abs1",
-            actor="https://example.org/users/vendor-abs1",
-        )
-        event = make_payload(activity, receiving_actor_id=None)
+            case = as_VulnerabilityCase(
+                id_="https://example.org/cases/case_ot_nostamp",
+                name="OT No-Stamp Test",
+            )
+            activity = offer_case_ownership_transfer_activity(
+                case,
+                target="https://example.org/users/transferee",
+                actor="https://example.org/users/vendor",
+            )
+            event = make_payload(activity, receiving_actor_id=None)
 
-        OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+            OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(activity.type_.value, activity.id_)
-        assert stored is not None, (
-            "Offer must be persisted even when receiving_actor_id is absent"
-            " (store owner used as fallback)"
-        )
+            stored = dl.get(activity.type_.value, activity.id_)
+            assert stored is not None, (
+                "Offer must be persisted even when receiving_actor_id is absent"
+                " (store-owner fallback, CLP-10-005)"
+            )
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
 
-    def test_accept_absent_stamp_falls_back_to_store_owner(self, make_payload):
-        """AcceptCaseOwnershipTransferReceivedUseCase updates case when receiving_actor_id is absent.
+    def test_accept_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent the store owner runs the accept BT.
 
-        Per resolve_receiving_actor_id (CLP-10-005): a missing stamp falls back
-        to dl.actor_id so the use case runs rather than silently dropping.
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back
+        to dl.actor_id (coordinator), so the ownership transfer is applied rather
+        than dropped.
         """
+        import py_trees
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        coordinator_id = "https://example.org/users/coordinator-abs2"
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=coordinator_id,
-        )
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ot_abs2",
-            name="OT Absent Stamp Accept",
-            attributed_to="https://example.org/users/vendor-abs2",
-        )
-        dl.create(case)
+        coordinator_id = "https://example.org/users/coordinator-nostamp"
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
 
-        offer = offer_case_ownership_transfer_activity(
-            case,
-            target=coordinator_id,
-            actor="https://example.org/users/vendor-abs2",
-            id_="https://example.org/activities/offer_ot_abs2",
-        )
-        dl.create(offer)
+            case = as_VulnerabilityCase(
+                id_="https://example.org/cases/case_ot_acc_nostamp",
+                name="OT Accept No-Stamp Test",
+                attributed_to="https://example.org/users/vendor-nostamp",
+            )
+            dl.create(case)
 
-        activity = accept_case_ownership_transfer_activity(
-            offer,
-            actor=coordinator_id,
-        )
-        event = make_payload(activity, receiving_actor_id=None)
+            offer = offer_case_ownership_transfer_activity(
+                case,
+                target=coordinator_id,
+                actor="https://example.org/users/vendor-nostamp",
+                id_="https://example.org/activities/offer_ot_nostamp",
+            )
+            dl.create(offer)
 
-        AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+            activity = accept_case_ownership_transfer_activity(
+                offer, actor=coordinator_id
+            )
+            event = make_payload(activity, receiving_actor_id=None)
 
-        updated_record = dl.get(case.type_.value, case.id_)
-        assert updated_record is not None
-        data = cast(Any, updated_record).get("data_", updated_record)
-        assert data.get("attributed_to") == coordinator_id, (
-            "Accept must update case.attributed_to even when receiving_actor_id"
-            " is absent (store owner used as fallback)"
-        )
+            AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+
+            updated = dl.get(case.type_.value, case.id_)
+            assert updated is not None
+            from typing import cast, Any
+
+            data = cast(Any, updated).get("data_", updated)
+            assert data.get("attributed_to") == coordinator_id, (
+                "Store owner (coordinator) must become new owner when"
+                " receiving_actor_id is absent (CLP-10-005)"
+            )
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
