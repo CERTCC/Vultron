@@ -102,7 +102,38 @@ Invoke the `orient-agent` skill.
    - If any OPEN blockers exist, print blocker numbers/titles and stop.
    - Do not claim, branch, or deepen context when blocked.
 
-6. **Claim the Issue**:
+6. **Pre-claim AC verification gate** — fetch the issue body and verify
+   each acceptance criterion against `origin/main` HEAD before claiming:
+
+   For each `- [ ] AC-N: <text>` item in the issue body, grep or graphify
+   `origin/main` for concrete evidence the AC is already satisfied (e.g.,
+   the described file exists with the required content, the named function
+   or class is present, the referenced behavior is implemented).
+
+   If **all** ACs are confirmed satisfied on `origin/main`:
+
+   1. Post a reference comment on the issue citing the PR(s) that
+      delivered the work:
+
+      ```bash
+      gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+      All acceptance criteria are already satisfied on `origin/main` (delivered
+      by #<PR>). Closing without further work.
+      EOF
+      )"
+      ```
+
+   2. Close the issue:
+
+      ```bash
+      gh issue close <N> --repo CERTCC/Vultron
+      ```
+
+   3. **Stop.** Do not claim, branch, or deepen context.
+
+   If any AC is unconfirmed, proceed to step 7 and claim normally.
+
+7. **Claim the Issue**:
 
    ```bash
    bash .agents/skills/shared/claim-issue.sh <N> task <slug>
@@ -110,7 +141,7 @@ Invoke the `orient-agent` skill.
 
    Abort immediately if this exits non-zero.
 
-7. Fetch the issue body and comments. Use the content as implementation
+8. Fetch the issue body and comments. Use the content as implementation
    context throughout Phases 3–5.
 
 ### Phase 3 — Deepen Context
@@ -120,9 +151,16 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
 ### Phase 4 — Verify Before Coding
 
-1. Search `vultron/` and `test/` to confirm the current state.
-2. Do not assume missing functionality; verify in code.
-3. If a blocking prerequisite is discovered, create and wire it:
+1. **Compose-before-create gate (all domain types — blocking)**:
+   Load `.agents/skills/shared/compose-before-create.md` and apply the
+   per-subsystem search patterns for every subsystem the task touches (use
+   cases, wire handlers, adapters, demo helpers). Do not write any new code
+   until this search is complete. If an existing artifact covers the
+   requirement, compose or subclass it — do not re-implement.
+
+2. Search `vultron/` and `test/` to confirm the current state.
+3. Do not assume missing functionality; verify in code.
+4. If a blocking prerequisite is discovered, create and wire it:
 
    ```bash
    NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
@@ -135,7 +173,7 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
    Record the dependency as a learning file in `plan/incoming/learnings/` and stop.
 
-4. If more than one prerequisite is required, or the work is non-trivial,
+5. If more than one prerequisite is required, or the work is non-trivial,
    create a learning file in `plan/incoming/learnings/` and stop.
 
 ### Phase 5 — Implement
