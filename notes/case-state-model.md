@@ -240,8 +240,9 @@ behavior.
 
 | State dimension | Participant-Specific or Agnostic? | Where tracked |
 |-----------------|----------------------------------|---------------|
-| RM state | **Participant-specific** | `ParticipantStatus.rm_state` |
-| VFD (Vendor Fix Deployment) path | **Participant-specific** (only for Vendors/Deployers) | `ParticipantStatus.vfd_state` |
+| RM state | **Participant-specific** | `ParticipantStatus.rm` |
+| VF (Vendor Awareness / Fix Ready) path | **Participant-specific** (VENDOR role only; `None` for others) | `ParticipantStatus.vf` |
+| D (Fix Deployed) path | **Participant-specific** (DEPLOYER role only; `None` for others) | `ParticipantStatus.d` |
 | EM (Embargo Management) state | **Participant-agnostic** (global per case) | `CaseStatus.em_state` |
 | PXA (Public/Exploit/Attack) sub-state | **Participant-agnostic** (global per case) | `CaseStatus.pxa_state` |
 
@@ -249,8 +250,13 @@ In the Mermaid diagram from `docs/topics/process_models/model_interactions/index
 
 ```text
 Participant-Agnostic: EM ↔ CS_pxa
-Participant-Specific: RM ↔ CS_vfd
+Participant-Specific: RM ↔ CS_vf (vendor path) + CS_d (deployer path)
 ```
+
+The vendor and deployer paths are **structurally separated**: `ParticipantStatus.vf`
+is `None` for non-VENDOR participants, and `ParticipantStatus.d` is `None` for
+non-DEPLOYER participants. A `model_validator` on `ParticipantStatus` enforces both
+directions of this invariant at construction time and raises on violation.
 
 ### Implementation: CaseStatus vs. ParticipantStatus
 
@@ -265,8 +271,11 @@ The canonical Python implementation is in
 
 **`ParticipantStatus`** — participant-specific, one per (actor × case) pair:
 
-- `rm_state: RM` — Report management state (default `RM.START`)
-- `vfd_state: CS_vfd` — Vendor fix path sub-state (default `CS_vfd.vfd`)
+- `rm: RmDimension` — Report management state (default `RM.START`)
+- `vf: VfDimension | None` — Vendor-path sub-state (`CS_vf`: `vf` → `Vf` → `VF`);
+  `None` for non-VENDOR participants (structurally enforced)
+- `d: DDimension | None` — Deployer-path sub-state (`CS_d`: `d` → `D`);
+  `None` for non-DEPLOYER participants (structurally enforced)
 - `actor` — references the participant Actor
 - `context` — references the `VulnerabilityCase`
 - `case_engagement: bool` — whether participant is engaged
@@ -275,20 +284,28 @@ The canonical Python implementation is in
 - `case_status: CaseStatus | None` — optionally embeds the shared case status
 
 Note that `ParticipantStatus` MAY embed a `CaseStatus` for convenience when
-presenting the full participant state as a triple `(rm_state, vfd_state,
-case_status)`, corresponding to the formal protocol's participant state tuple
-`(q^rm, q^em, q^cs)`.
+presenting the full participant state, corresponding to the formal protocol's
+participant state tuple `(q^rm, q^em, q^cs)`.
 
 ### Role-Specific VFD Access
 
-Not all participants have a VFD state:
+The `vf` and `d` fields are structurally assigned by participant role. The
+`model_validator` on `ParticipantStatus` enforces both directions:
 
-- **Vendors**: Have `vfd_state` in `{Vfd, VFd, VFD}` (plus `VFD` only if they
-  also deploy). They enter at `Vfd` (vendor aware) by definition.
-- **Non-Vendor Deployers**: Have `vfd_state` only for the `d → D` transition.
-- **Finders, Reporters, Coordinators**: Do NOT have VFD state. Use the null
-  element `∅` (represented as `CS_vfd.vfd` but semantically "not applicable"
-  for non-vendors — see `vultron/core/states/cs.py`).
+| Role(s) | `vf` | `d` |
+|---------|------|-----|
+| VENDOR only | `VfDimension()` (non-None, required) | `None` (required) |
+| DEPLOYER only | `None` (required) | `DDimension()` (non-None, required) |
+| VENDOR + DEPLOYER | `VfDimension()` (non-None, required) | `DDimension()` (non-None, required) |
+| Finder / Reporter / Coordinator / Observer | `None` (required) | `None` (required) |
+
+Attempting to construct a `ParticipantStatus` that violates this invariant
+raises `VultronValidationError` immediately — it is never silently corrected.
+
+The previous single-field `vfd: VfdDimension` (using `CS_vfd` with 4 states
+`vfd → Vfd → VFd → VFD`) is replaced by these two nullable fields. The old
+`CS_vfd.vfd` "null element" workaround for non-applicable participants is
+superseded by structural `None`.
 
 ### Consequence for Handler Implementation
 
@@ -298,8 +315,9 @@ When handlers process incoming Activities:
   Update `ParticipantStatus.rm_state` for the **sending actor's**
   `CaseParticipant`.
 - **VFD transitions** (e.g., a vendor signaling fix readiness):
-  Update `ParticipantStatus.vfd_state` for the **sending actor's**
-  `CaseParticipant`.
+  Advance `ParticipantStatus.vf` (for VENDOR actors) or `ParticipantStatus.d`
+  (for DEPLOYER actors) on the **sending actor's** `CaseParticipant`. Only the
+  applicable dimension is non-None; the other remains `None` (structural).
 - **EM transitions** (e.g., `accept_embargo`):
   Update `CaseStatus.em_state` — this is **shared** and affects all
   participants.
