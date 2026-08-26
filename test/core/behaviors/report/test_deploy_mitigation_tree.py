@@ -44,7 +44,7 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckNoNewDeploymentInfoNode,
     RMinStateDeferred,
 )
-from vultron.core.behaviors.report.nodes.develop_fix import (
+from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
 from vultron.core.models.case_participant import CaseParticipant

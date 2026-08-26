@@ -3,7 +3,7 @@ title: Idempotency
 description: >-
   Requirements for handling duplicate activity submissions gracefully, ensuring repeated
   identical requests produce the same outcome without unintended side effects.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -79,6 +79,29 @@ groups:
     rationale: >-
       Duplicate processing of state-change messages causes data corruption; SHOULD-level idempotency
       is insufficient for state machines
+  - id: ID-04-005
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A record that a handler later reads as evidence that a transition already happened — an
+      idempotency latch or guard record — MUST NOT be written until every other half of that
+      transition has succeeded. A handler MUST NOT write the latch first and then attempt the
+      remaining work.
+    rationale: >-
+      A latch written ahead of the transition it attests to is indistinguishable from a completed
+      transition, so the guard that reads it suppresses every retry. The transition can then never
+      finish: the failure is silent, permanent, and self-concealing. Issue #2548 is the worked
+      example — `TransitionRMtoValid` wrote the report-phase `RM.VALID` `ParticipantStatus` before
+      advancing the case-scoped `CaseParticipant`. When the case was absent the second half was
+      skipped, but `CheckRMStateValid` read the latch and short-circuited every subsequent
+      `validate-report` to SUCCESS, freezing the participant at `RM.RECEIVED` for the life of the
+      case. Ordering the writes so the latch is last makes an incomplete transition retryable
+      instead of terminal.
+    relationships:
+    - rel_type: refines
+      spec_id: ID-04-004
+    - rel_type: refines
+      spec_id: ARCH-15-001
 - id: ID-05
   title: Implementation Strategy
   specs:

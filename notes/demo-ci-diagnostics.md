@@ -148,20 +148,27 @@ identified which layer broke.
 
 ---
 
-## Single-DataLayer Case-Ledger Endpoint Caveat
+## Case-Ledger Endpoint Is Now Per-Replica
 
-In the in-process test harness, `demo_get_case_ledger` currently ignores the
-`actor_id` path parameter and returns the case's combined ledger view from the
-shared DataLayer.
+**Superseded by ADR-0073.** This section warned that `demo_get_case_ledger`
+ignored its `actor_id` path parameter and returned a combined view from the shared
+DataLayer. There is no shared DataLayer (DL-07-002), and the route now resolves
+`actor_id` through `get_trigger_dl`, which opens *that* actor's store. The
+`# noqa: ARG001` on the handler's `actor_id` argument is therefore about the
+handler body only — the dependency consumes the parameter.
 
 Implications for diagnostics:
 
-- Treat this endpoint as a **combined case log** view, not a per-replica view.
-- Name test helpers accordingly (for example, `_fetch_case_log`, not
-  `_fetch_case_actor_log`).
-- When you need per-replica assertions, use replica JSONL artifacts under
-  `devlogs/fv/<actor>/<case>-case-ledger.jsonl` instead of the demo
-  endpoint.
+- Treat this endpoint as a **per-replica** view: `GET
+  /actors/{actor}/demo/cases/{case}/log` is what that actor holds, and two actors
+  legitimately disagree about a case mid-protocol.
+- A 404 from it means *that actor* has no such case, which is a real finding, not
+  a routing artifact. In particular, a 404 on
+  `.../actors/case-actor/demo/cases/.../log` means the CaseActor's own store is
+  empty — see issue #2548 for the store-split failure mode that produces it.
+- Replica JSONL artifacts under `devlogs/fv/<actor>/<case>-case-ledger.jsonl`
+  remain useful for comparing replicas side by side, and for reading history after
+  a container has exited.
 
 ---
 

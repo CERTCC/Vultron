@@ -27,14 +27,20 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock, call, patch
 
+import httpx2 as httpx
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fv_demo as demo
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import (
+    make_client,
+    make_testclient_call,
+    seed_replicas_for_case_participants,
+)
 from vultron.adapters.utils import strip_id_prefix
+from vultron.core.states.rm import RM
 from vultron.demo.cli import main
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -102,7 +108,7 @@ def _extract_offer_ids(
     client: "demo.DataLayerClient", offer: as_Offer
 ) -> tuple[str | None, str | None]:
     """Return (report_id, reporter_id) extracted from *offer*'s raw data."""
-    offer_data = client.get(f"/datalayer/{offer.id_}")
+    offer_data = client.get(client.dl_path(offer.id_))
     if not offer_data:
         return None, None
     report_id = None
@@ -124,11 +130,11 @@ def _find_case_for_report(
     client: "demo.DataLayerClient", report_id: str | None
 ) -> str | None:
     """Return the case_id linked to *report_id*, or ``None`` if not found."""
-    cases_data = client.get("/datalayer/VulnerabilityCases/")
+    cases_data = client.get(client.dl_path("VulnerabilityCases/"))
     if not cases_data or not report_id:
         return None
     for cid in cases_data:
-        case_data = client.get(f"/datalayer/{cid}")
+        case_data = client.get(client.dl_path(cid))
         if not case_data:
             continue
         reports = (
@@ -151,25 +157,41 @@ def _create_case_from_offer(
 ) -> as_VulnerabilityCase:
     """Return a VulnerabilityCase with actor as CASE_OWNER+VENDOR participant.
 
-    Under ADR-0041, validate-report sends a CaseProposal to the CaseActor but
-    in single-server tests the CaseProposal round-trip cannot complete (nested
-    ASGI delivery is blocked at depth > 0 to prevent deadlocks).  This helper
-    creates the case via trigger/create-case and then seeds the actor as
-    CASE_OWNER + VENDOR participant directly in the DataLayer so that
-    downstream BT nodes (CheckVendorRoleNode, ResolveCaseManagerNode, etc.)
-    find the expected participant state.
+    Under ADR-0041, validate-report sends a CaseProposal to the CaseActor but the
+    round-trip does not complete here.  This helper creates the case via
+    trigger/create-case and then seeds the actor as CASE_OWNER + VENDOR
+    participant directly in the DataLayer so that downstream BT nodes
+    (CheckVendorRoleNode, ResolveCaseManagerNode, etc.) find the expected
+    participant state.
+
+    This docstring used to blame "nested ASGI delivery is blocked at depth > 0 to
+    prevent deadlocks".  That is not so: nothing implements such a guard, and
+    ``_TestClientRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
+    precisely so nested sends cannot deadlock — multi-hop deliveries are
+    observably completing with 202s.  What actually stops the round-trip is
+    ordinary bugs in what the sender queues, so do not treat the incompleteness
+    here as a fixed property of the harness.
 
     Args:
         client: DataLayerClient for the vendor container.
         actor: The vendor actor that will be the CASE_OWNER.
         offer: The Offer activity whose report_id links to the case.
-        dl: DataLayer instance for seeding.  Pass an isolated DataLayer when
-            using ``IsolatedActorApp``; defaults to the shared module-level DL.
+        dl: Store to seed into.  Defaults to *actor*'s own store, which is the
+            one the downstream BTs read, since a tree executes against the store
+            of the actor it runs as (BT-05-005).  There is no shared
+            module-level DataLayer to fall back on any more (ADR-0073), so
+            leaving this ``None`` used to seed nothing and fail later with
+            ``'NoneType' has no attribute 'read'``.
 
     Returns:
         The as_VulnerabilityCase with actor registered as CASE_OWNER+VENDOR.
     """
     from vultron.demo.helpers.seeding import seed_case_participants_for_demo
+
+    if dl is None:
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        dl = get_datalayer(actor.id_)
 
     report_id, reporter_id = _extract_offer_ids(client, offer)
 
@@ -180,8 +202,10 @@ def _create_case_from_offer(
     case_id = _find_case_for_report(client, report_id)
 
     if not case_id:
-        # CaseProposal round-trip hasn't completed (nested ASGI depth guard in
-        # single-server mode).  Create the case manually via the trigger.
+        # The CaseProposal round-trip has not completed.  Not because nested
+        # delivery is blocked — no such guard exists, see the note on this
+        # helper's docstring — so treat this fallback as covering a *bug*, not a
+        # property of the harness.  Create the case manually via the trigger.
         actor_slug = (
             actor.id_.rstrip("/").rsplit("/", 1)[-1] if actor.id_ else ""
         )
@@ -201,14 +225,13 @@ def _create_case_from_offer(
 
     if not case_id:
         # Last resort: take the most-recent case (no report linkage found).
-        cases_data = client.get("/datalayer/VulnerabilityCases/")
+        cases_data = client.get(client.dl_path("VulnerabilityCases/"))
         assert cases_data, "No VulnerabilityCases found"
         case_id = next(reversed(cases_data))
 
     # Seed vendor, reporter, and CaseActor participants directly in the DataLayer.
-    # Under ADR-0041 the CaseActor normally creates participants via
-    # case_proposal_received_tree, but nested ASGI delivery is blocked in
-    # single-server tests (depth > 0 guard prevents deadlocks).
+    # Under ADR-0041 the CaseActor normally creates these when it accepts a
+    # CaseProposal; the round-trip does not complete here, so they are seeded.
     seed_case_participants_for_demo(
         case_id=case_id,
         vendor_actor_id=actor.id_,
@@ -217,7 +240,15 @@ def _create_case_from_offer(
         dl=dl,
     )
 
-    case_data = client.get(f"/datalayer/{case_id}")
+    # Give every other participant — the CaseActor above all — its own replica.
+    # A BT runs against the store of the actor executing it (BT-05-005), so the
+    # CaseActor cannot commit a ledger entry for a case its own store does not
+    # hold: it fails to derive the per-case genesis hash and the commit is
+    # refused (CLP-08-005). Seeding here rather than at each call site means
+    # every test building a case this way gets a coherent set of replicas.
+    seed_replicas_for_case_participants(dl, str(case_id))
+
+    case_data = client.get(client.dl_path(case_id))
     return as_VulnerabilityCase.model_validate(case_data)
 
 
@@ -313,9 +344,9 @@ class TestResetContainers:
 
         reset_mock.assert_has_calls(
             [
-                call(client=finder_client, init=False),
-                call(client=vendor_client, init=False),
-                call(client=case_actor_client, init=False),
+                call(client=finder_client),
+                call(client=vendor_client),
+                call(client=case_actor_client),
             ]
         )
 
@@ -448,7 +479,7 @@ class TestVendorValidatesReport:
         # server (same netloc) so the round-trip completes synchronously, and
         # the VulnerabilityCase may already exist.  What matters is that the
         # VultronReportCaseLink was written (proposal was sent per CP-04-001).
-        offer_data = vendor_client.get(f"/datalayer/{offer.id_}")
+        offer_data = vendor_client.get(vendor_client.dl_path(offer.id_))
         obj_ = (
             offer_data.get("object_") or offer_data.get("object")
             if offer_data
@@ -461,7 +492,7 @@ class TestVendorValidatesReport:
             report_id = obj_
         assert report_id is not None, "Could not extract report_id from offer"
         link_id = VultronReportCaseLink.build_id(report_id)
-        link_data = vendor_client.get(f"/datalayer/{link_id}")
+        link_data = vendor_client.get(vendor_client.dl_path(link_id))
         assert link_data is not None, (
             f"Expected a VultronReportCaseLink at '{link_id}' after"
             " validate-report (ADR-0041 pending proposal marker, CP-04-001)"
@@ -501,7 +532,7 @@ class TestFinderAsksQuestion:
         # ADR-0041: no case after validate-report; create one directly for setup.
         case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         case = as_VulnerabilityCase(**case_data)
         return finder_client, vendor_client, case, finder, vendor
 
@@ -808,14 +839,18 @@ class TestVerifyFinderReplicaState:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when vendor has no record of the given case_id."""
-        vendor_client = make_client(base)
+        # The client needs an actor for the read to be *addressable* at all; the
+        # point of the test is that the case is absent from that actor's store,
+        # not that the read cannot be formed.
+        vendor_actor_id = "https://example.org/vendor"
+        vendor_client = make_client(base, actor_id=vendor_actor_id)
 
         with pytest.raises(AssertionError):
             demo.verify_finder_replica_state(
                 finder_client=vendor_client,
                 vendor_client=vendor_client,
                 case_id="https://example.org/non-existent-case-vrfs",
-                vendor_actor_id="https://example.org/vendor",
+                vendor_actor_id=vendor_actor_id,
                 reporter_actor_id="https://example.org/finder",
             )
 
@@ -924,9 +959,11 @@ class TestActorNotifiesFixDeployed:
             actor=vendor,
             case_id=case.id_,
         )
-        # Call post_to_trigger directly so make_testclient_call's AssertionError
-        # for 4xx responses propagates (demo_step would swallow it).
-        with pytest.raises(AssertionError) as exc_info:
+        # Call post_to_trigger directly so the 4xx propagates; demo_step would
+        # swallow it. The double raises HTTPStatusError like the real client, so
+        # the status code can be asserted structurally rather than by searching
+        # the message for "422".
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
             post_to_trigger(
                 client=vendor_client,
                 actor_id=vendor.id_,
@@ -934,9 +971,14 @@ class TestActorNotifiesFixDeployed:
                 body={"case_id": case.id_},
                 path_prefix="demo",
             )
-        assert "422" in str(
-            exc_info.value
-        ), "Expected HTTP 422 when vendor-only actor attempts VFD transition"
+        assert exc_info.value.response.status_code == 422, (
+            "Expected HTTP 422 when a vendor-only actor attempts the VFD"
+            f" transition; got {exc_info.value.response.status_code}"
+        )
+        assert "DEPLOYER" in exc_info.value.response.text, (
+            "the refusal must name the missing role (CSB-15-002), otherwise a"
+            " reader cannot tell this 422 from any other validation failure"
+        )
 
 
 class TestActorNotifiesPublished:
@@ -1049,7 +1091,7 @@ class TestWaitForAllParticipantsRmClosed:
         demo.actor_closes_case(
             client=finder_client, actor=finder, case_id=case.id_
         )
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         refreshed_case = as_VulnerabilityCase.model_validate(case_data)
         result = demo._all_fetchable_participants_rm_closed(
             vendor_client, refreshed_case
@@ -1074,7 +1116,7 @@ class TestWaitForAllParticipantsRmClosed:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         fetched_case = as_VulnerabilityCase.model_validate(case_data)
 
         # actor_participant_index keys are actor IDs; the CaseActor key is an
@@ -1091,7 +1133,7 @@ class TestWaitForAllParticipantsRmClosed:
         # The CaseActor Service object (HTTP-URL key) must be fetchable.
         actor_id = url_based_actor_ids[0]
         encoded = quote(actor_id, safe="")
-        result = vendor_client.get(f"/datalayer/{encoded}")
+        result = vendor_client.get(vendor_client.dl_path(encoded))
         assert (
             isinstance(result, dict) and result.get("id") == actor_id
         ), f"Expected Service record for URL-format ID {actor_id!r}, got {result!r}"
@@ -1181,43 +1223,23 @@ class TestRunTwoActorDemo:
         # a temp directory so it does not land in the repo-root devlogs/.
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        # In single-server test mode the CaseProposal round-trip (triggered by
-        # run_direct_path_rm_triage) does not complete because the loopback
-        # delivery is blocked at depth > 0 (same TestClient portal). Replace it
-        # with the manual fallback that creates the case directly and drives RM
-        # state through the same validate/engage sequence.
-        from vultron.core.states.rm import RM as _RM
-
-        def _single_server_rm_triage(receiver_client, receiver, offer):
-            case = _create_case_from_offer(receiver_client, receiver, offer)
-            offer_id = getattr(offer, "id_", str(offer))
-            demo.vendor_validates_report(
-                vendor_client=receiver_client,
-                vendor=receiver,
-                offer_id=offer_id,
-            )
-            demo.wait_for_participant_rm_state(
-                client=receiver_client,
-                case_id=case.id_,
-                actor_id=receiver.id_,
-                expected_states={_RM.VALID, _RM.ACCEPTED},
-            )
-            demo.vendor_engages_case(
-                vendor_client=receiver_client,
-                vendor=receiver,
-                case_id=case.id_,
-            )
-            return case
-
-        monkeypatch.setattr(
-            demo, "run_direct_path_rm_triage", _single_server_rm_triage
-        )
-
-        # After issue #2273 (validate-report ordering fix), the in-process
-        # LedgerFanout gap (#2267) is also resolved: case-actor ledger entries now
-        # exist (validate_report + engage_case are properly recorded), enabling
-        # Finder replica replication to complete.  The demo should succeed
-        # with no failures.
+        # No substitution for `run_direct_path_rm_triage`: the real CaseProposal
+        # round-trip completes now, so the demo exercises the actual protocol path
+        # rather than a hand-built stand-in.
+        #
+        # It used to be replaced by a fallback that created the case directly via
+        # `trigger/create-case`. Two defects were keeping the real path from
+        # completing, and the fallback hid both. #2482: the proposal lost its
+        # inline report on the store round-trip. #1872: the proposal was addressed
+        # to a per-case `case-actor-<slug>` identity that the sender derived and no
+        # container hosted, so delivery 404'd permanently — and, once the identity
+        # became the container's, the record still had to be written to the
+        # *CaseActor's own* store to make it resolvable at all (ADR-0073).
+        #
+        # If this test starts failing at "as_VulnerabilityCase exists after
+        # validate-report", check the CaseActor's inbox for a 404 before assuming
+        # the harness is at fault. There is no depth-based delivery guard — that
+        # claim was folklore and is retired.
         with caplog.at_level(logging.ERROR):
             demo.run_fv_demo(
                 finder_client=finder_client,
@@ -1525,11 +1547,16 @@ class TestDeliveryIsolation:
         )
         assert resp.status_code in (200, 201)
 
-        # Finder's DataLayer should have no as_VulnerabilityCase records.
-        cases = finder_isolated.dl.get_all("VulnerabilityCase")
+        # `store_for(finder_id)`, not `dl`: the fixture builds this app under the
+        # default "primary" slug, so `dl` belongs to no actor this test creates
+        # and nothing ever writes to it. Asserting *that* store is empty could
+        # not fail, whatever isolation did.
+        cases = finder_isolated.store_for(finder_id).get_all(
+            "VulnerabilityCase"
+        )
         assert cases == [], (
-            f"Expected no cases in Finder's isolated DataLayer before"
-            f" delivery, but found: {cases}"
+            f"Expected no cases in Finder's own store before delivery,"
+            f" but found: {cases}"
         )
 
     def test_vendor_dl_isolated_from_finder(self, delivery_setup):
@@ -1550,10 +1577,20 @@ class TestDeliveryIsolation:
         )
         assert resp.status_code in (200, 201)
 
-        # Vendor's actor must NOT be visible in Finder's DataLayer.
-        actor_in_finder = finder_isolated.dl.read(vendor_id)
+        # Establish the positive half first, otherwise "not visible in Finder's
+        # store" is satisfied by the record not existing anywhere — which is how
+        # this read on `finder_isolated.dl` (the unwritten "primary" store) used
+        # to pass no matter what isolation did.
+        assert (
+            vendor_isolated.store_for(vendor_id).read(vendor_id) is not None
+        ), "Vendor's actor must be in the vendor's own store to begin with"
+
+        finder_id = (
+            f"{finder_isolated.base_url}/api/v2/actors/finder-isolation-peer"
+        )
+        actor_in_finder = finder_isolated.store_for(finder_id).read(vendor_id)
         assert actor_in_finder is None, (
-            "Vendor's actor should not be in Finder's isolated DataLayer,"
+            "Vendor's actor must not be visible in Finder's own store,"
             " but it was found."
         )
 
@@ -1589,8 +1626,16 @@ class TestDeliveryIsolation:
         assert r.status_code in (200, 201)
 
         # Build DataLayerClient wrappers routed to their respective apps.
-        finder_dc = demo.DataLayerClient(base_url=finder_base)
-        vendor_dc = demo.DataLayerClient(base_url=vendor_base)
+        # Bound to their own actors: a DataLayer read has to say whose store it
+        # is about (ADR-0073), and each of these apps hosts its actor plus any
+        # CaseActor it self-hosts (CP-08-003), so the container alone is not
+        # enough. Unbound, `dl_path` refuses rather than guessing.
+        finder_dc = demo.DataLayerClient(
+            base_url=finder_base, actor_id=finder_id
+        )
+        vendor_dc = demo.DataLayerClient(
+            base_url=vendor_base, actor_id=vendor_id
+        )
         object.__setattr__(
             finder_dc,
             "call",
@@ -1653,8 +1698,15 @@ class TestDeliveryIsolation:
         # proposal round-trip may complete synchronously.  Use _create_case_from_offer
         # which checks for an existing case first and only calls trigger/create-case
         # if the round-trip hasn't completed yet.
+        # `store_for(vendor_id)`, not `vendor_isolated.dl`: the fixture builds
+        # both apps with the default "primary" slug, so `dl` is a store belonging
+        # to no actor this test creates. Seeding into it left the vendor's own
+        # store empty and the failure read "case not found" from the seeder.
         case = _create_case_from_offer(
-            vendor_dc, vendor_actor_fresh, offer, dl=vendor_isolated.dl
+            vendor_dc,
+            vendor_actor_fresh,
+            offer,
+            dl=vendor_isolated.store_for(vendor_id),
         )
         assert (
             case is not None
@@ -1663,7 +1715,8 @@ class TestDeliveryIsolation:
         # The case announcement should have been delivered to Finder's inbox
         # via the outbox→_TestClientRouter→inbox chain.  Finder's isolated
         # DataLayer must contain the case.
-        finder_case = finder_isolated.dl.read(case.id_)
+        # The finder's own store, for the same reason.
+        finder_case = finder_isolated.store_for(finder_id).read(case.id_)
         assert finder_case is not None, (
             f"Expected as_VulnerabilityCase '{case.id_}' to be delivered to"
             f" Finder's isolated DataLayer via the outbox→inbox path,"
@@ -1749,15 +1802,24 @@ def _fetch_case_log(
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture
 def completed_workflow(
     client: TestClient, base: str
 ) -> tuple[demo.DataLayerClient, demo.as_VulnerabilityCase]:
     """Run the full FV workflow and return (vendor_client, case).
 
     Uses deterministic actor IDs (``finder-ledger-inv`` /
-    ``vendor-ledger-inv``) to avoid collisions with other test classes
-    sharing the same module-scoped DataLayer.
+    ``vendor-ledger-inv``) to avoid collisions with other test classes.
+
+    **Per-test, not per-class.** This fixture's value is store state, and
+    ``_dispose_actor_stores_between_tests`` in ``test/conftest.py`` is autouse and
+    per-test: it calls ``reset_datalayer()``, which disposes every per-actor
+    engine and so destroys the named in-memory databases (ADR-0073). A
+    class-scoped workflow therefore survived only until the first test finished —
+    the second and third read a case-actor store that no longer existed and got
+    ``404 Case not found``, which looked like a fan-out defect rather than a
+    fixture-lifetime one. Any fixture holding store state must not outlive the
+    disposal that guarantees test isolation.
     """
     finder_client = make_client(base)
     vendor_client = make_client(base)
@@ -1790,8 +1852,25 @@ def completed_workflow(
         case is not None
     ), "Expected as_VulnerabilityCase after trigger/create-case"
     # Refresh case to get actor_participant_index populated.
-    case_data = vendor_client.get(f"/datalayer/{case.id_}")
+    case_data = vendor_client.get(vendor_client.dl_path(case.id_))
     case = as_VulnerabilityCase(**case_data)
+
+    # Engage the case so the vendor reaches RM.ACCEPTED before any fix-readiness
+    # claim. Without this the fixture went straight from case creation to
+    # `notify_fix_ready`, which the cross-machine entailment rule refuses with
+    # HTTP 422 — VFD='VFd' requires RM ∈ {ACCEPTED, DEFERRED, CLOSED} and RM was
+    # still VALID (rm_em_cs.md § Fix Readiness). `demo_step` logs that 🔴 and
+    # swallows it, so the fixture reported success while its entire fix-lifecycle
+    # half had not run, and three tests asserted against that state.
+    demo.vendor_engages_case(
+        vendor_client=vendor_client, vendor=vendor_in_vendor, case_id=case.id_
+    )
+    demo.wait_for_participant_rm_state(
+        client=vendor_client,
+        case_id=case.id_,
+        actor_id=vendor_in_vendor.id_,
+        expected_states={RM.ACCEPTED},
+    )
 
     # Fix lifecycle: vendor-only actor stops at VFd (CSB-15-002).
     demo.actor_notifies_fix_ready(
@@ -1811,7 +1890,7 @@ def completed_workflow(
     )
 
     # Final refresh to pick up any post-closure case-actor state.
-    case_data = vendor_client.get(f"/datalayer/{case.id_}")
+    case_data = vendor_client.get(vendor_client.dl_path(case.id_))
     case = as_VulnerabilityCase(**case_data)
 
     return vendor_client, case

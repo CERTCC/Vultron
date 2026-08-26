@@ -11,7 +11,7 @@ from vultron.core.models.events.actor import (
     OfferActorToCaseReceivedEvent,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received.sync import _find_local_actor_id
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -59,14 +59,9 @@ class OfferActorToCaseReceivedUseCase:
             )
             return
 
-        local_actor_id = _find_local_actor_id(self._dl)
-        if local_actor_id is None:
-            logger.warning(
-                "OfferActorToCaseReceived: no local actor found in DataLayer"
-                " — skipping event '%s'",
-                activity_id,
-            )
-            return
+        local_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         offer_content = getattr(request.activity, "content", None)
         if offer_content is not None and not isinstance(offer_content, str):

@@ -74,7 +74,7 @@ from vultron.adapters.driving.fastapi.outbox_delivery import (  # noqa: F401
     _warn_secondary_addressing,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 
 logger = logging.getLogger(__name__)
@@ -205,8 +205,7 @@ async def handle_outbox_item(
 
 async def outbox_handler(
     actor_id: str,
-    dl: ActorScopedDataLayer,
-    shared_dl: DataLayer | None = None,
+    dl: DataLayer,
     emitter: ActivityEmitter | None = None,
 ) -> None:
     """Process the outbox for the given actor.
@@ -224,11 +223,11 @@ async def outbox_handler(
 
     Args:
         actor_id: The ID of the Actor whose outbox is being processed.
-        dl: The actor-scoped DataLayer (outbox queue management).
-        shared_dl: The shared DataLayer for reading activity objects and
-            resolving the actor.  Defaults to ``dl`` when ``None`` (covers
-            the ``POST /outbox`` case where activities are stored in the
-            actor's own DL).
+        dl: The actor's DataLayer — outbox queue *and* the activity objects
+            themselves.  Before ADR-0073 a separate ``shared_dl`` was used to
+            read the activities, which only worked because the shared pool saw
+            every actor's rows; the activity an actor queued is its own data
+            and lives in its own store.
         emitter: The ActivityEmitter port to use for delivery. Defaults to
             the configured emitter (``HttpDeliveryAdapter`` by default,
             ADR-0042).
@@ -237,7 +236,7 @@ async def outbox_handler(
         ActivityEmitter,
         emitter if emitter is not None else get_default_emitter(),
     )
-    _read_dl = shared_dl if shared_dl is not None else dl
+    _read_dl = dl
 
     # Resolve actor by full ID first, then fall back to short ID (mirrors
     # inbox_handler resolution so both handlers accept the same actor_id
@@ -252,7 +251,9 @@ async def outbox_handler(
     logger.debug("Processing outbox for actor %s", actor_id)
     # dl satisfies OutboxRetryStore structurally (SqliteDataLayer implements
     # both); cast lets mypy/pyright see the delivery-infrastructure methods
-    # without polluting the core ActorScopedDataLayer port with adapter concerns.
+    # without polluting the core DataLayer port with adapter concerns.  The
+    # retry bookkeeping lands in this actor's own store (ADR-0073), so it needs
+    # no actor argument.
     _retry: OutboxRetryStore = cast(OutboxRetryStore, dl)
     activity_err_counts: dict[str, int] = {}
     while dl.outbox_list():

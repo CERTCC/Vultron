@@ -43,11 +43,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_gate,
     demo_step,
     post_to_trigger,
+    ref_id,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
@@ -64,6 +66,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -232,7 +235,7 @@ def _phase_report_submission(
             )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        vendor_client.get(vendor_client.dl_path(case.id_))
     )
     return (
         finder,
@@ -406,7 +409,7 @@ def _phase_ownership_handoff(
     )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        vendor_client.get(vendor_client.dl_path(case.id_))
     )
     return case
 
@@ -432,13 +435,21 @@ def _phase_coordinator_invites_vendor2(
     logger.info("Phase 3: Coordinator invites Vendor2 (AC-2)")
     logger.info("─" * 80)
 
-    # Trigger on vendor_client (the CaseActor's host container) so the invite is
-    # emitted as CaseActor.  Vendor2's Accept then routes to CaseActor, not to
-    # Coordinator, enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
+    # Post to the Coordinator's OWN container.  A trigger URL is built from the
+    # named actor's bare ID against the client's base_url, so naming an actor a
+    # container does not host 404s — which is exactly what posting Coordinator's
+    # trigger to vendor_client did.
+    #
+    # Emitting as the CaseActor needs no cross-container hack:
+    # ``SvcInviteActorToCaseUseCase._prepare`` resolves the case's CaseActor and
+    # sets ``self._actor_id`` to it, so the Invite goes out attributed to the
+    # CaseActor and Vendor2's Accept routes back to the CaseActor rather than to
+    # the Coordinator, letting AcceptInviteActorToCaseBT run (PCR-08-007,
+    # PCR-08-008).  The assertion below is what holds that property honest.
     invite_result = None
     with demo_step("Coordinator invites Vendor2 to the case"):
         invite_result = post_to_trigger(
-            client=vendor_client,
+            client=coordinator_client,
             actor_id=coordinator_in_coordinator.id_,
             behavior="invite-actor-to-case",
             body={
@@ -449,6 +460,16 @@ def _phase_coordinator_invites_vendor2(
         )
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Vendor2 invite created by Coordinator: %s", invite.id_)
+
+    with demo_check(
+        "Vendor2 invite was emitted as the CaseActor (PCR-08-008)"
+    ):
+        emitting_actor = ref_id(invite.actor)
+        assert emitting_actor == case_actor_id, (
+            f"Invite '{invite.id_}' was emitted as '{emitting_actor}', not as"
+            f" the CaseActor '{case_actor_id}' — Vendor2's Accept would route"
+            " to the Coordinator and AcceptInviteActorToCaseBT would not run"
+        )
 
     with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
         find_case_invite_for_actor(
@@ -966,11 +987,26 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FVCV-handoff's participants and where each ledger lives.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0073), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("vendor", vendor_client, "vendor"),
-        LedgerDumpTarget("coordinator", coordinator_client, "coordinator"),
-        LedgerDumpTarget("vendor2", vendor2_client, "vendor2"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+        ),
+        LedgerDumpTarget(
+            "coordinator",
+            coordinator_client,
+            replica_route_key(coordinator_client, "coordinator"),
+        ),
+        LedgerDumpTarget(
+            "vendor2",
+            vendor2_client,
+            replica_route_key(vendor2_client, "vendor2"),
+        ),
     ]
     # The case-actor is a sub-actor inside the vendor1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -1047,9 +1083,12 @@ def run_fvcv_handoff_demo(
             )
         )
 
-        # The CaseActor is a dynamic sub-actor on the vendor container (not the
-        # case-actor service).  Discover its ID from the case data before
-        # proceeding.
+        # The case's CaseActor is the container-level identity of whichever node
+        # first received the report (ADR-0041, CP-08-003) — not a per-case
+        # sub-actor, and not necessarily the standalone case-actor service.
+        # After a handoff it is on a container that no longer owns the case, so
+        # which one it is cannot be assumed or constructed from a slug: read it
+        # off the case's own participants.
         dynamic_case_actor_id = find_case_actor_participant_id(
             vendor_client, case.id_
         )
@@ -1214,7 +1253,9 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
     coordinator_client = DataLayerClient(base_url=c_url)
-    case_actor_client = DataLayerClient(base_url=ca_url)
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
     vendor2_client = DataLayerClient(base_url=v2_url)
 
     if not skip_health_check:

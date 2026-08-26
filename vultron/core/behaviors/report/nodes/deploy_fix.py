@@ -26,7 +26,7 @@ Six nodes implement the ``DeployFixBT`` guard/action logic:
 ``CheckDeployerRoleNode`` (d→D role guard) is reused from
 ``vultron.core.behaviors.case.nodes.vfd_role_guards`` (AC-3), and
 ``CheckRMStateAccepted`` is reused from
-``vultron.core.behaviors.report.nodes.develop_fix`` (AC-3).
+``vultron.core.behaviors.report.nodes.conditions`` (AC-3).
 
 References: Issue #1825; Source #1248; Concern #1813.
 Spec BT-06-001, BT-18-004; ADR-0021 CLP-10-001 (CD via Case Actor); ADR-0025.
@@ -45,8 +45,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
-from vultron.core.behaviors.report.nodes.develop_fix import (
+from vultron.core.behaviors.report.nodes.conditions import (
     _CheckParticipantRMStateBase,
+)
+from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -351,7 +353,7 @@ class EmitCDActivity(_EmitParticipantStatusActivityBase):
     Calls ``trigger_activity_factory.add_participant_status_to_participant``
     with the status and participant IDs written to *result_out* by
     :class:`TransitionCStoFixDeployed` and queues the resulting activity ID
-    via ``record_outbox_item``.
+    via ``outbox_append``.
 
     Per ADR-0021 CLP-10-001: trigger trees MUST address fix-deployment
     activities to the Case Actor (CASE_MANAGER) so the CaseActor can commit

@@ -49,18 +49,10 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
-
-
-def _find_local_actor_id(dl: CasePersistence) -> str | None:
-    """Find the local actor's ID from the DataLayer."""
-    for actor_type in ("Service", "Person", "Organization"):
-        actors = list(dl.list_objects(actor_type))
-        if actors:
-            return actors[0].id_
-    return None
 
 
 def _run_announce_bt(
@@ -257,7 +249,9 @@ class AnnounceLedgerEntryReceivedUseCase:
             )
             return
 
-        receiving_actor_id = request.receiving_actor_id or "unknown"
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         gap_buffer = self._gap_buffer
         if gap_buffer is None and request.receiving_actor_id:
             gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
@@ -362,7 +356,9 @@ class RejectLedgerEntryReceivedUseCase:
             trigger_activity=self._trigger_activity,
         ).execute_with_setup(
             tree=create_reject_log_entry_tree(),
-            actor_id=request.receiving_actor_id or "unknown",
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
             activity=request,
         )
         if result.status == Status.FAILURE:

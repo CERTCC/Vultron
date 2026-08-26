@@ -113,7 +113,10 @@ def demo_transfer_ownership_accept(
         logger.info(f"Sending offer: {logfmt(offer)}")
         post_to_inbox_and_wait(client, coordinator.id_, offer)
         with demo_check("Ownership offer stored in data layer"):
-            verify_object_stored(client, offer.id_)
+            # The coordinator's store, not the client's default binding: the
+            # offer was delivered to the coordinator's inbox, so that is the
+            # replica holding it (CM-01-001).
+            verify_object_stored(client, offer.id_, actor_id=coordinator.id_)
 
     with demo_step("Step 3: Coordinator accepts ownership transfer"):
         accept = accept_case_ownership_transfer_activity(
@@ -185,7 +188,10 @@ def demo_transfer_ownership_reject(
         logger.info(f"Sending offer: {logfmt(offer)}")
         post_to_inbox_and_wait(client, coordinator.id_, offer)
         with demo_check("Ownership offer stored in data layer"):
-            verify_object_stored(client, offer.id_)
+            # The coordinator's store, not the client's default binding: the
+            # offer was delivered to the coordinator's inbox, so that is the
+            # replica holding it (CM-01-001).
+            verify_object_stored(client, offer.id_, actor_id=coordinator.id_)
 
     with demo_step("Step 3: Coordinator rejects ownership transfer"):
         reject = reject_case_ownership_transfer_activity(

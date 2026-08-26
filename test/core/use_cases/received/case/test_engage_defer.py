@@ -44,9 +44,16 @@ class TestEngageDeferCaseBTFailureReason:
     failure reason — not a trailing colon with nothing after it.
     """
 
+    # The received-side tree executes under the case manager
+    # (BT-17-005), so this names the store it runs in.
+    _CASE_MANAGER_ID = "https://example.org/actors/coordinator-failreason"
+
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_MANAGER_ID,
+        )
 
     @pytest.fixture
     def actor_id(self):
@@ -136,13 +143,20 @@ class TestEngageCaseStoresEmbeddedParticipants:
     established for Create (#564) and Announce (#566) paths.
     """
 
+    # The received-side tree executes under the case manager
+    # (BT-17-005), so this names the store it runs in.
+    _CASE_MANAGER_ID = "https://example.org/actors/coordinator-embedded"
+
     _ACTOR_ID = "https://vendor.example.org/actors/vendor"
     _CASE_ID = "https://example.org/cases/case-573-001"
     _PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_MANAGER_ID,
+        )
 
     @pytest.fixture
     def case_with_inline_participant(self):
@@ -227,7 +241,10 @@ class TestEngageCaseLedgerCommit:
 
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_MANAGER_ID,
+        )
 
     @pytest.fixture
     def seeded_dl(self, dl):
@@ -356,7 +373,10 @@ class TestDeferCaseLedgerCommit:
 
     @pytest.fixture
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_MANAGER_ID,
+        )
 
     @pytest.fixture
     def seeded_dl(self, dl):

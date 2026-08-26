@@ -23,8 +23,8 @@ continue to work without modification.
 Submodules:
 - ``actor``: Actor-participation invite/accept emit nodes
 - ``conditions``: Idempotency guard condition nodes
-- ``case_setup``: Case persistence leaf action nodes
-- ``case_actor_setup``: CaseActor identity resolution and registration nodes (BTND-07-004 split from case_setup)
+- ``case_setup``: Case persistence, CaseActor identity and CaseActor
+  provisioning leaf action nodes
 - ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
@@ -62,13 +62,8 @@ from vultron.core.behaviors.case.nodes.invite_response import (
 from vultron.core.behaviors.case.nodes.proposal import (
     ProposeReportCaseToActorNode,
 )
-from vultron.core.behaviors.case.nodes.case_actor_setup import (
-    CreateCaseActorServiceNode,
-    RegisterCaseActorParticipantNode,
-    ResolveCaseActorUrlsNode,
-    ReuseExistingCaseActorParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.case_setup import (
+    EnsureCaseActorHostedNode,
     PersistCase,
     RecordCaseCreatedEventNode,
     RecordOfferReceivedEventNode,
@@ -89,6 +84,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
     CheckPendingProposalExistsForReport,
     WritePendingReportCaseLinkNode,
+)
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    RequireCaseForReport,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
@@ -122,6 +120,9 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
     EmitOfferCaseOwnershipTransferNode,
 )
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckIsCaseOwnerNode,
@@ -150,20 +151,16 @@ __all__ = [
     "CheckIsCaseManagerNode",
     "CheckIsCaseOwnerNode",
     "CheckPendingProposalExistsForReport",
+    "RequireCaseForReport",
     "WritePendingReportCaseLinkNode",
-    # case_actor_setup (leaf nodes)
-    "ResolveCaseActorUrlsNode",
-    "ReuseExistingCaseActorParticipantNode",
-    "CreateCaseActorServiceNode",
-    "RegisterCaseActorParticipantNode",
     # case_setup (leaf nodes)
+    "EnsureCaseActorHostedNode",
     "PersistCase",
     "SetCaseAttributedTo",
     "RecordOfferReceivedEventNode",
     "RecordCaseCreatedEventNode",
     # case_setup_tree (composite subtrees — lazy via __getattr__)
     "RecordCaseCreationEvents",
-    "CreateCaseActorNode",
     # participant (leaf nodes)
     "CreateParticipantStatusNode",
     "RecordOwnerJoinedEventNode",
@@ -200,6 +197,8 @@ __all__ = [
     # ownership_transfer (leaf nodes)
     "EmitOfferCaseOwnershipTransferNode",
     "EmitAcceptCaseOwnershipTransferNode",
+    # role_gates (gated composites)
+    "create_case_manager_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckVendorRoleNode",
     "CheckDeployerRoleNode",
@@ -221,7 +220,6 @@ __all__ = [
 # At runtime these imports are skipped; the lazy __getattr__ below handles them.
 if TYPE_CHECKING:
     from vultron.core.behaviors.case.case_setup_tree import (  # noqa: F401
-        CreateCaseActorNode,
         RecordCaseCreationEvents,
     )
     from vultron.core.behaviors.case.communication_tree import (  # noqa: F401
@@ -241,7 +239,6 @@ if TYPE_CHECKING:
 # create a cycle.  PEP 562 module __getattr__ resolves the name only when
 # first accessed, after this __init__ is fully initialized.
 _COMPOSITE_COMPAT: dict[str, str] = {
-    "CreateCaseActorNode": "vultron.core.behaviors.case.case_setup_tree",
     "RecordCaseCreationEvents": "vultron.core.behaviors.case.case_setup_tree",
     "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
     "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",

@@ -81,7 +81,10 @@ def _make_entry(
 
 @pytest.fixture
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=RECEIVER_URI,
+    )
 
 
 @pytest.fixture
@@ -243,7 +246,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert dl.read(bad_entry.id_) is None
 
         # A Reject activity should be queued in the receiving actor's outbox
-        queued = dl.outbox_list_for_actor(RECEIVER_URI)
+        queued = dl.outbox_list()
         assert len(queued) == 1
 
         reject_obj = dl.read(queued[0])
@@ -268,7 +271,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             dl, event, sync_port=sync_port
         ).execute()
 
-        queued = dl.outbox_list_for_actor(RECEIVER_URI)
+        queued = dl.outbox_list()
         reject_obj = dl.read(queued[0])
         assert getattr(reject_obj, "context", None) == first_entry.entry_hash
 
@@ -283,7 +286,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             dl, event, sync_port=sync_port
         ).execute()
 
-        queued = dl.outbox_list_for_actor(RECEIVER_URI)
+        queued = dl.outbox_list()
         reject_obj = dl.read(queued[0])
         to_field = getattr(reject_obj, "to", None) or []
         assert ACTOR_URI in to_field
@@ -312,7 +315,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert dl.read(entry.id_) is None
 
         # A Reject MUST be queued so CaseActor retries delivery (SYNC-15-001)
-        queued = dl.outbox_list_for_actor(RECEIVER_URI)
+        queued = dl.outbox_list()
         assert len(queued) == 1, (
             "Expected a Reject activity — missing case silently dropped the entry "
             "(regression for issue #1873)"
@@ -586,7 +589,7 @@ class TestPreGenesisAnnounceBuffering:
         # Buffered, not dropped — the #2186 fix.
         assert gap_buffer.depth(CASE_URI) == 1
         # Reject still queued as the backstop (SYNC-15-001).
-        assert len(dl.outbox_list_for_actor(RECEIVER_URI)) == 1
+        assert len(dl.outbox_list()) == 1
 
     @pytest.mark.spec("SYNC-15-004")
     @pytest.mark.spec("SYNC-15-005")

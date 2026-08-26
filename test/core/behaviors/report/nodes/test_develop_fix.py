@@ -18,7 +18,7 @@
 import pytest
 
 from vultron.core.behaviors.report.nodes.deploy_fix import RMinStateDeferred
-from vultron.core.behaviors.report.nodes.develop_fix import (
+from vultron.core.behaviors.report.nodes.conditions import (
     _CheckParticipantRMStateBase,
     CheckRMStateAccepted,
 )

@@ -31,7 +31,7 @@ Three use cases covering the full CP message flow (ADR-0023):
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from py_trees.common import Status
 
@@ -54,6 +54,7 @@ from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
     RejectCaseProposalReceivedEvent,
 )
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -92,6 +93,47 @@ class CreateCaseProposalReceivedUseCase:
         self._actor_config = actor_config
         self._wire_render_port = wire_render_port
 
+    @staticmethod
+    def _core_inline_report(
+        activity_obj: Any, proposal_id: str
+    ) -> VulnerabilityReport | None:
+        """Return the proposal's inline report in its core shape, if present.
+
+        The proposal dict handed to the tree is deliberately wire-spelled — the
+        ``Accept`` must carry the proposal inline on the wire (CP-05-003,
+        AKM-03-001) — and that is exactly why the report cannot be rebuilt from
+        it: ``by_alias=True`` writes the reporter as ``attributedTo``, while the
+        core ``VulnerabilityReport`` declares ``attributed_to`` and sets
+        ``extra="ignore"``. Validating that dict dropped the reporter without
+        complaint, the report stored fine, and the three things derived from it —
+        the reporter participant, its ledger entry, the SIGNATORY seed — each
+        skipped "best-effort" (#2482).
+
+        Mapping the spellings is the wire layer's own job, via ``to_core()``.
+        Duck-typed for the same reason ``model_dump`` is at the call site: core
+        MUST NOT import wire (ARCH-03-001).
+        """
+        raw_report = getattr(
+            getattr(activity_obj, "object_", None), "object_", None
+        )
+        to_core = getattr(raw_report, "to_core", None)
+        if not callable(to_core):
+            return None
+        try:
+            candidate = to_core()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "create_case_proposal_received: could not convert the inline"
+                " report of proposal '%s' to its core shape: %s — falling back"
+                " to the proposal dict",
+                proposal_id,
+                exc,
+            )
+            return None
+        return (
+            candidate if isinstance(candidate, VulnerabilityReport) else None
+        )
+
     def execute(self) -> None:
         request = self._request
         proposal_id = request.proposal_id
@@ -117,7 +159,7 @@ class CreateCaseProposalReceivedUseCase:
             return
 
         # Extract the wire proposal as a plain dict so the Accept can carry it
-        # inline (CP-05-003, MV-09-001). Uses duck-typing to avoid a core→wire
+        # inline (CP-05-003, AKM-03-001). Uses duck-typing to avoid a core→wire
         # import dependency.
         proposal_dict: dict | None = None
         activity_obj = request.activity
@@ -126,20 +168,26 @@ class CreateCaseProposalReceivedUseCase:
             if raw_proposal is not None and hasattr(
                 raw_proposal, "model_dump"
             ):
-                # DataLayer._rehydrate_fields may have expanded the `target`
-                # URI (case-actor service URL) to a full actor object.
-                # model_dump with target typed as NonEmptyString would warn
-                # (PydanticSerializationUnexpectedValue) — normalize it back.
-                target_val = getattr(raw_proposal, "target", None)
-                if target_val is not None and not isinstance(target_val, str):
-                    raw_proposal = raw_proposal.model_copy(
-                        update={
-                            "target": getattr(
-                                target_val, "id_", str(target_val)
-                            )
-                        }
-                    )
-                proposal_dict = raw_proposal.model_dump(by_alias=True)
+                # `serialize_as_any=True` is required, not cosmetic: without it
+                # Pydantic serialises each field by its *declared* type, so the
+                # proposal's inline `object_` — the vulnerability report — is
+                # flattened away and the tree receives a proposal with no report
+                # to store. Everything derived from the report (the reporter
+                # participant, its ledger entry, the SIGNATORY seed) then skips
+                # "best-effort" and the reporter never gets a replica. The same
+                # flag is needed on the delivery path for the same reason, which
+                # `_TestClientRouter.emit` documents.
+                #
+                # A workaround previously sat here, normalising `target` back to a
+                # string because `_rehydrate_fields` had expanded it to a full
+                # actor. That expansion was itself the bug and is fixed at source
+                # (rehydration now respects the field's declared type), so the
+                # workaround is gone.
+                proposal_dict = raw_proposal.model_dump(
+                    by_alias=True, serialize_as_any=True
+                )
+
+        inline_report = self._core_inline_report(activity_obj, proposal_id)
 
         tree = create_case_proposal_received_tree(
             report_id=report_id,
@@ -147,6 +195,7 @@ class CreateCaseProposalReceivedUseCase:
             vendor_uri=vendor_uri,
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
+            inline_report=inline_report,
         )
         result = BTBridge(
             datalayer=self._dl,

@@ -176,6 +176,41 @@ def _reconstruct_tail_hash(
     return last.entry_hash, last.log_index
 
 
+#: Wire fields that are stamped when a snapshot is *built* rather than carried
+#: from the object it describes.  ``as_Base`` declares ``published`` and
+#: ``updated`` with ``default_factory=now_utc``, and core status objects hold no
+#: timestamp of their own to supply, so re-rendering one stored object twice
+#: yields two different values.  They are therefore not part of what an entry
+#: asserts, and treating them as such makes idempotency a race against the
+#: clock — ``now_utc`` truncates to whole seconds, so a retry that lands in the
+#: next second appends a duplicate while one in the same second does not.
+_VOLATILE_SNAPSHOT_KEYS = frozenset({"published", "updated"})
+
+
+def _semantic_payload(value: Any) -> Any:
+    """Return *value* with build-time timestamps dropped at every depth.
+
+    Recursive because the drift is nested as well as top-level: an
+    ``add_participant_status_to_participant`` snapshot embeds the whole
+    re-rendered participant as its ``target``, so every entry of that
+    participant's ``participantStatuses`` list carries its own freshly stamped
+    pair.
+
+    Only the two keys are dropped.  Where a timestamp *is* load-bearing it is
+    still compared through its consequences — a case's ``published`` feeds
+    ``genesis_hash`` (CLP-08-002), which stays in the comparison.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _semantic_payload(item)
+            for key, item in value.items()
+            if key not in _VOLATILE_SNAPSHOT_KEYS
+        }
+    if isinstance(value, (list, tuple)):
+        return [_semantic_payload(item) for item in value]
+    return value
+
+
 def _find_equivalent_recorded_entry(
     *,
     case_id: str,
@@ -189,7 +224,14 @@ def _find_equivalent_recorded_entry(
     "Equivalent" means same case, object, event type, and payload snapshot.
     This supports idempotent handling of participant retries without appending
     duplicate canonical entries for the same logical assertion.
+
+    Snapshots are compared through :func:`_semantic_payload`, so a retry is
+    recognised as one even though rebuilding its snapshot restamps every
+    ``published``/``updated`` field it embeds.  Comparing those would make the
+    dedup — and with it ADR-0041's ledger-index stability — depend on whether
+    the two deliveries happened to land in the same clock second.
     """
+    wanted = _semantic_payload(payload_snapshot)
     matches: list[CaseLedgerEntry] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
@@ -198,7 +240,7 @@ def _find_equivalent_recorded_entry(
         and obj.disposition == "recorded"
         and obj.log_object_id == object_id
         and obj.event_type == event_type
-        and obj.payload_snapshot == payload_snapshot
+        and _semantic_payload(obj.payload_snapshot) == wanted
     ]
     if not matches:
         return None

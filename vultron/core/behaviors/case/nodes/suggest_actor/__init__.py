@@ -17,12 +17,15 @@
 
 Submodules:
 
-- ``emit``: CaseActor-side emission and state-write nodes
+- ``emit``: CaseActor-side nodes addressing the *Case Owner* — state writes and
+  the offer it must decide on
   (``RecordRecommendationRecommenderNode``,
   ``EmitOfferCaseParticipantToOwnerNode``,
-  ``EmitAcceptActorRecommendationNode``,
-  ``EmitRejectActorRecommendationNode``,
   ``EmitNoteDuplicateRecommendationToOwnerNode``)
+- ``emit_response``: the answer back to the *recommender* once the owner has
+  decided
+  (``EmitAcceptActorRecommendationNode``,
+  ``EmitRejectActorRecommendationNode``)
 - ``accept_offer``: Case Owner owner-side Accept response
   (``EmitAcceptCaseParticipantOfferNode``)
 - ``conditions``: Duplicate-detection precondition nodes
@@ -40,11 +43,13 @@ from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     PendingOfferCaseParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
-    EmitAcceptActorRecommendationNode,
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
-    EmitRejectActorRecommendationNode,
     RecordRecommendationRecommenderNode,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor.emit_response import (
+    EmitAcceptActorRecommendationNode,
+    EmitRejectActorRecommendationNode,
 )
 
 __all__ = [

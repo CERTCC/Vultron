@@ -43,6 +43,7 @@ from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckPendingProposalExistsForReport,
     ProposeReportCaseToActorNode,
+    EnsureCaseActorHostedNode,
     WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.receive_report_case_tree import (
@@ -138,39 +139,57 @@ class TestTreeStructure:
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
-    def test_flow_has_two_children(self, report, offer, reporter_actor_id):
-        """ReceiveReportProposalFlow has exactly 2 children."""
+    def test_flow_has_three_children(self, report, offer, reporter_actor_id):
+        """ReceiveReportProposalFlow has exactly 3 children."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1].children[1]
-        assert len(flow.children) == 2
+        assert len(flow.children) == 3
 
-    def test_flow_first_child_is_write_link(
+    def test_flow_first_child_ensures_case_actor_hosted(
         self, report, offer, reporter_actor_id
     ):
-        """Flow's first child is WritePendingReportCaseLinkNode (AC-2)."""
+        """Provisioning runs before the link write, as its own leaf.
+
+        ``EnsureCaseActorHostedNode`` was extracted from
+        ``WritePendingReportCaseLinkNode.update()``, which had grown to two jobs
+        (BTND-02-001).  Ordering matters: the CaseActor record must be in its own
+        store before ``ProposeReportCaseToActorNode`` delivers to its inbox.
+        """
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1].children[1]
-        assert isinstance(flow.children[0], WritePendingReportCaseLinkNode)
+        assert isinstance(flow.children[0], EnsureCaseActorHostedNode)
 
-    def test_flow_second_child_is_propose(
+    def test_flow_second_child_is_write_link(
         self, report, offer, reporter_actor_id
     ):
-        """Flow's second child is ProposeReportCaseToActorNode."""
+        """Flow's second child is WritePendingReportCaseLinkNode (AC-2)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1].children[1]
-        assert isinstance(flow.children[1], ProposeReportCaseToActorNode)
+        assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
+
+    def test_flow_third_child_is_propose(
+        self, report, offer, reporter_actor_id
+    ):
+        """Flow's third child is ProposeReportCaseToActorNode."""
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        flow = tree.children[1].children[1]
+        assert isinstance(flow.children[2], ProposeReportCaseToActorNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
         """Tree does NOT contain CreateCaseNode (AC-1)."""
@@ -352,7 +371,7 @@ class TestHappyPath:
         assert link.case_id is None, "Link must be pending (case_id=None)"
         assert not link.proposal_rejected
 
-    def test_trusted_case_creator_id_is_derived_case_actor(
+    def test_trusted_case_creator_id_is_the_case_actor_container(
         self,
         datalayer,
         actor,
@@ -361,11 +380,15 @@ class TestHappyPath:
         report,
         bridge,
     ):
-        """Link.trusted_case_creator_id is derived from case_actor_service_url."""
-        from vultron.core.behaviors.case.nodes.case_actor_setup import (
-            _derive_case_slug,
-        )
+        """Link.trusted_case_creator_id is the CaseActor *container* identity.
 
+        #1872 AC-5. It used to be ``.../actors/case-actor-{slug}``, derived from
+        the report id. That identity was a phantom — the sender computed it and no
+        container hosted it — so the proposal's delivery 404'd and the round-trip
+        never began. The bootstrap match (CP-06-003) works on the container
+        identity because the case a message concerns travels in
+        ``activity.context``, not in the actor URI.
+        """
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
@@ -378,11 +401,13 @@ class TestHappyPath:
         link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
         assert isinstance(link, VultronReportCaseLink)
 
-        expected_slug = _derive_case_slug(report.id_)
-        expected_actor_id = (
-            f"{_CASE_ACTOR_SERVICE_URL}/actors/case-actor-{expected_slug}"
+        assert link.trusted_case_creator_id == (
+            f"{_CASE_ACTOR_SERVICE_URL}/actors/case-actor"
+        ), "the CaseActor identity is the container's, and carries no case"
+        assert "case-actor-" not in (link.trusted_case_creator_id or ""), (
+            "a per-case slug is the retired form; it is unhostable by"
+            " construction (#1872)"
         )
-        assert link.trusted_case_creator_id == expected_actor_id
 
     def test_proposal_queued_to_outbox(
         self,

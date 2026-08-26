@@ -47,7 +47,10 @@ PARTICIPANT_ID = "https://example.org/participants/p1"
 @pytest.fixture
 def dl():
     """In-memory DataLayer with a minimal valid case setup."""
-    layer = SqliteDataLayer("sqlite:///:memory:")
+    layer = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=ACTOR_ID,
+    )
 
     # Case: as_VulnerabilityCase with actor_participant_index
     case = as_VulnerabilityCase(
@@ -170,7 +173,13 @@ class TestGetActionRulesUseCase:
 
     def test_no_case_statuses_defaults(self, dl):
         """When case has no as_CaseStatus entries, EM/PXA default to None/pxa."""
-        layer = SqliteDataLayer("sqlite:///:memory:")
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/no-case-statuses-defaults",
+        )
         case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="Empty Status Case",
@@ -204,7 +213,13 @@ class TestGetActionRulesUseCase:
 
     def test_no_participant_statuses_defaults(self, dl):
         """When participant has no as_ParticipantStatus entries, RM/VFD default."""
-        layer = SqliteDataLayer("sqlite:///:memory:")
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/no-participant-statuses-defaults",
+        )
         case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="Default Participant Status Case",
@@ -240,7 +255,15 @@ class TestGetActionRulesUseCase:
             EM.REVISE,
             EM.EXITED,
         ]:
-            layer = SqliteDataLayer("sqlite:///:memory:")
+            layer = SqliteDataLayer(
+                "sqlite:///:memory:",
+                # Its own actor, therefore its own store: sharing ACTOR_ID with the
+                # `dl` fixture would mean sharing one in-memory database, and the
+                # re-seed below would collide on CASE_ID.
+                # One store per iteration: the loop re-seeds CASE_ID each time,
+                # and a single actor id would mean a single in-memory database.
+                actor_id=f"{ACTOR_ID}/em-state-{em.value}",
+            )
             case = as_VulnerabilityCase(
                 id_=CASE_ID,
                 case_participants=[PARTICIPANT_ID],
@@ -267,7 +290,13 @@ class TestGetActionRulesUseCase:
             ), f"Expected {em!r}, got {result['em_state']!r}"
 
     def test_participant_lookup_raises_on_index_mismatch(self):
-        layer = SqliteDataLayer("sqlite:///:memory:")
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/participant-lookup-raises-on-index-misma",
+        )
         participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
@@ -288,7 +317,13 @@ class TestGetActionRulesUseCase:
             GetActionRulesUseCase(dl=layer, request=req).execute()
 
     def test_participant_lookup_succeeds_without_index_entry(self):
-        layer = SqliteDataLayer("sqlite:///:memory:")
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/participant-lookup-succeeds-without-inde",
+        )
         participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,

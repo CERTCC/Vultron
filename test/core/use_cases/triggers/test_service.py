@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.errors import (
     VultronInvalidStateTransitionError,
@@ -76,6 +77,26 @@ def _add_case_manager(case, dl) -> as_Service:
     return case_actor
 
 
+def _add_self_participant(case, dl, actor_id: str, rm: RM = RM.RECEIVED):
+    """Add *actor_id* as a participant of *case* at RM state *rm*.
+
+    RM.VALID is case-scoped, so an actor can only advance it when it appears in
+    the case's ``actor_participant_index`` — which is exactly what a delivered
+    ``Create(VulnerabilityCase)`` replica provides (ADR-0041, CBT-01-002).
+    Without this the validate-report BT correctly refuses to act (ISSUE-2548).
+    """
+    participant = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    participant.append_rm_state(rm, actor_id, case.id_)
+    dl.create(participant)
+    case.actor_participant_index[actor_id] = participant.id_
+    dl.save(case)
+    return participant
+
+
 def test_submit_report_trigger_creates_report_case_link(dl, actor):
     """submit_report creates an unlinked ReportCaseLink for later replica sync."""
     TriggerService(
@@ -108,7 +129,10 @@ def dl(datalayer):
 
 @pytest.fixture
 def actor(dl):
-    actor_obj = as_Service(name="Vendor Co")
+    # The acting actor *is* the actor whose store `dl` is: every trigger here
+    # runs as `actor.id_`, and a BT's store follows its executing actor, so a
+    # separate id would run each trigger against an empty store.
+    actor_obj = as_Service(id_=TEST_ACTOR_ID, name="Vendor Co")
     dl.create(object_to_record(actor_obj))
     return actor_obj
 
@@ -167,6 +191,7 @@ def received_report(dl, actor, report):
     )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
+    _add_self_participant(case_obj, dl, actor.id_, RM.RECEIVED)
     return report
 
 
@@ -427,13 +452,13 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """invalidate_report_trigger adds a new activity to the actor's outbox."""
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).invalidate_report(actor.id_, offer.id_, None)
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -487,13 +512,13 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, rejected_report
 ):
     """reject_report_trigger adds a new activity to the actor's outbox."""
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).reject_report(actor.id_, offer.id_, "Reason.")
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -631,13 +656,13 @@ def test_engage_case_trigger_adds_activity_to_outbox(
     dl, actor, case_with_participant
 ):
     """engage_case_trigger adds a new activity to the actor's outbox."""
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).engage_case(actor.id_, case_with_participant.id_)
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -920,11 +945,11 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
 ):
     """terminate_embargo_trigger adds a new activity to the actor's outbox."""
     case_obj, _ = case_with_embargo
-    before = set(dl.outbox_list_for_actor(actor.id_))
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).terminate_embargo(actor.id_, case_obj.id_)
 
-    after = set(dl.outbox_list_for_actor(actor.id_))
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
