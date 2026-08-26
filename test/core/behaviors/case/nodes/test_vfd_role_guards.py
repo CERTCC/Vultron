@@ -415,7 +415,7 @@ def test_not_sole_observer_failure_when_case_missing(
     reason=(
         "CSB-15-004: CheckDeployerRoleNode does not yet enforce the VFd causal gate. "
         "A DEPLOYER-only actor MUST be blocked (FAILURE) when no VENDOR participant "
-        "in the case has reached VFd. Tracked by Bug #2606."
+        "in the case has reached VFd. Tracked by #2593."
     ),
 )
 @pytest.mark.spec("CSB-15-004")
@@ -434,7 +434,7 @@ def test_deployer_only_blocked_when_no_vendor_at_vfd(
     it the scenario store belongs to the default actor, the deployer's own store
     holds no case (ADR-0073), and the node returns FAILURE for "case not found"
     — which would satisfy a strict xfail for entirely the wrong reason and hide
-    #2606 the moment someone read the result as green.
+    #2593 the moment someone read the result as green.
     """
     result = bt_scenario.run(
         CheckDeployerRoleNode(
