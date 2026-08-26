@@ -102,8 +102,22 @@ def clear_blackboard():
 
 
 @pytest.fixture
-def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+def executing_actor_id(request):
+    """The actor whose identity this test's tree runs under.
+
+    Declared per test with ``@pytest.mark.executes_as(...)``; defaults to
+    ``ACTOR_ID``. Every store fixture below derives from it, because a BT's store
+    follows its executing actor (ADR-0073) — so declaring the actor once keeps the
+    whole fixture chain (``dl`` → ``bridge`` → ``populated_dl`` →
+    ``populated_bridge``) consistent without threading it through each signature.
+    """
+    marker = request.node.get_closest_marker("executes_as")
+    return marker.args[0] if marker else ACTOR_ID
+
+
+@pytest.fixture
+def dl(executing_actor_id):
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=executing_actor_id)
 
 
 @pytest.fixture
@@ -169,6 +183,7 @@ def populated_bridge(populated_dl):
 
 
 class TestVerifySenderIsParticipantNode:
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
         node = VerifySenderIsParticipantNode(
             status_id=STATUS_ID,
@@ -180,6 +195,7 @@ class TestVerifySenderIsParticipantNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_sender_fails(self, populated_bridge):
         node = VerifySenderIsParticipantNode(
             status_id=STATUS_ID,
@@ -201,6 +217,7 @@ class TestVerifySenderIsParticipantNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_falls_back_to_dl_lookup(self, populated_bridge):
         """When case_id is None, node resolves case_id from status.context."""
         node = VerifySenderIsParticipantNode(
@@ -665,6 +682,7 @@ class TestAppendParticipantStatusSubtree:
 
 
 class TestPublicDisclosureBranchNode:
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_skips_when_no_pxa_state(self, populated_bridge, status_obj):
         """Status without case_status.pxa_state → skips teardown, SUCCESS."""
         node = PublicDisclosureBranchNode(
@@ -677,6 +695,7 @@ class TestPublicDisclosureBranchNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_skips_when_status_is_none(self, populated_bridge):
         node = PublicDisclosureBranchNode(
             status_obj=None,
@@ -688,6 +707,7 @@ class TestPublicDisclosureBranchNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_skips_when_sender_is_not_case_owner(
         self, populated_dl, populated_bridge, status_obj
     ):
@@ -712,6 +732,7 @@ class TestPublicDisclosureBranchNode:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_triggers_teardown_on_public_aware_case_owner(
         self, populated_dl, populated_bridge, case, status_obj
     ):
@@ -772,6 +793,7 @@ class TestPublicDisclosureBranchNode:
 
 
 class TestAllParticipantsRMClosedConditionNode:
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_fails_when_participants_not_closed(self, populated_bridge):
         """No closed status on participant → FAILURE (not all closed)."""
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
@@ -780,6 +802,7 @@ class TestAllParticipantsRMClosedConditionNode:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_succeeds_when_all_participants_closed(
         self,
         populated_dl,
@@ -809,6 +832,7 @@ class TestAllParticipantsRMClosedConditionNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_fails_when_case_manager_participant_not_closed(
         self,
         populated_dl,
@@ -853,6 +877,7 @@ class TestAllParticipantsRMClosedConditionNode:
 
 
 class TestCloseNotYetEmittedConditionNode:
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_succeeds_when_outbox_empty(self, populated_bridge):
         """Empty outbox → no prior Leave → SUCCESS."""
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
@@ -867,6 +892,7 @@ class TestCloseNotYetEmittedConditionNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_fails_when_leave_already_in_outbox(self, populated_dl):
         """Leave(VulnerabilityCase) already in outbox → FAILURE (idempotency)."""
         from vultron.core.models.activity import VultronActivity
@@ -878,13 +904,14 @@ class TestCloseNotYetEmittedConditionNode:
             object_=CASE_ID,
         )
         populated_dl.create(leave_activity)
-        populated_dl.record_outbox_item(CASE_MANAGER_ID, leave_activity.id_)
+        populated_dl.outbox_append(leave_activity.id_)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_succeeds_when_leave_for_different_case(self, populated_dl):
         """Leave in outbox for a different case → SUCCESS (not our case)."""
         from vultron.core.models.activity import VultronActivity
@@ -897,7 +924,7 @@ class TestCloseNotYetEmittedConditionNode:
             object_=other_case_id,
         )
         populated_dl.create(leave_activity)
-        populated_dl.record_outbox_item(CASE_MANAGER_ID, leave_activity.id_)
+        populated_dl.outbox_append(leave_activity.id_)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
@@ -963,11 +990,12 @@ class TestAddParticipantStatusTree:
         assert STATUS_ID in status_ids
 
         # RSH-01-003: self-addressed Add(CaseStatus) must be queued in outbox
-        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = populated_dl.outbox_list()
         assert (
             len(outbox) > 0
         ), "EmitAddCaseStatusToSelfNode must queue Add(CaseStatus)"
 
+    @pytest.mark.executes_as(OUTSIDER_ID)
     def test_full_tree_fails_for_unknown_sender(
         self,
         populated_dl,
@@ -1035,7 +1063,7 @@ class TestAddParticipantStatusTree:
         result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         # Outbox must be empty: guard blocked before EmitAddCaseStatusToSelfNode
-        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = populated_dl.outbox_list()
         assert (
             len(outbox) == 0
         ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
@@ -1185,6 +1213,7 @@ class TestNoAutoCloseSequenceInTree:
 
 class TestCheckIsCaseOwnerNode:
     @pytest.mark.spec("RSH-01-002")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_case_owner_returns_success(self, populated_bridge):
         """CASE_OWNER sender → SUCCESS (gospel bypass)."""
         node = CheckIsCaseOwnerNode(
@@ -1197,6 +1226,7 @@ class TestCheckIsCaseOwnerNode:
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("RSH-01-002")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_non_owner_returns_failure(self, populated_bridge):
         """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
         node = CheckIsCaseOwnerNode(
@@ -1208,6 +1238,7 @@ class TestCheckIsCaseOwnerNode:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_actor_returns_failure(self, populated_bridge):
         """Actor not in actor_participant_index → FAILURE."""
         node = CheckIsCaseOwnerNode(
@@ -1219,6 +1250,7 @@ class TestCheckIsCaseOwnerNode:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_returns_failure(self, bridge):
         """No case in DataLayer → FAILURE."""
         node = CheckIsCaseOwnerNode(
@@ -1228,6 +1260,7 @@ class TestCheckIsCaseOwnerNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_returns_failure(self, bridge):
         """No case_id at all → FAILURE."""
         node = CheckIsCaseOwnerNode(
@@ -1251,6 +1284,7 @@ class TestEmitAddCaseStatusToSelfNode:
         )
 
     @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_emits_activity_and_queues_in_outbox(self, dl):
         """With a factory and embedded case_status: activity queued in outbox."""
         from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
@@ -1273,9 +1307,10 @@ class TestEmitAddCaseStatusToSelfNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-        outbox = dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        outbox = dl.outbox_list()
         assert len(outbox) > 0, "Activity should be queued in outbox"
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_fails_without_factory(self, populated_bridge):
         """No TriggerActivityPort → FAILURE (BT-14-001)."""
         node = EmitAddCaseStatusToSelfNode(
@@ -1287,6 +1322,7 @@ class TestEmitAddCaseStatusToSelfNode:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_fails_when_participant_status_id_empty(self, populated_dl):
         """Empty participant_status_id → FAILURE."""
         bridge = self._bridge_with_factory(populated_dl)
@@ -1296,6 +1332,7 @@ class TestEmitAddCaseStatusToSelfNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_fails_when_case_id_none(self, populated_dl):
         """None case_id → FAILURE."""
         bridge = self._bridge_with_factory(populated_dl)
@@ -1305,6 +1342,7 @@ class TestEmitAddCaseStatusToSelfNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_returns_success_when_status_has_no_case_status(
         self, populated_dl
     ):
@@ -1329,6 +1367,7 @@ class TestEmitAddCaseStatusToSelfNode:
 
 
 class TestStatusAuthorizationCallOutBundle:
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_deterministic_singleton_approves_by_default(
         self, populated_bridge
     ):
@@ -1341,6 +1380,7 @@ class TestStatusAuthorizationCallOutBundle:
         )
         assert result.status == Status.SUCCESS
 
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_custom_bundle_with_always_fail(self, populated_bridge):
         """Custom bundle with AlwaysFail factory → call-out denies approval."""
         bundle = StatusAuthorizationCallOutBundle(
@@ -1410,7 +1450,9 @@ class TestRejectionValidatorBeforeCommit:
         from vultron.core.states.cs import CS_vfd
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The tree runs as the case manager, so this is the case manager's
+        # own store (BT-05-005, ADR-0073).
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
         cm_participant = as_CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
@@ -1493,7 +1535,9 @@ class TestRejectionValidatorBeforeCommit:
         from vultron.core.states.cs import CS_vfd
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The tree runs as the case manager, so this is the case manager's
+        # own store (BT-05-005, ADR-0073).
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
         cm_participant = as_CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
@@ -1568,8 +1612,15 @@ class TestRejectionValidatorBeforeCommit:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.executes_as(CASE_MANAGER_ID)
 class TestEmitRMGapNoteNode:
-    """EmitRMGapNoteNode emits Add(Note,Case) on RM anomaly (RSH-06-004)."""
+    """EmitRMGapNoteNode emits Add(Note,Case) on RM anomaly (RSH-06-004).
+
+    Every test here runs the node as the case manager, so ``dl`` — and the
+    ``populated_dl`` built on it — must be the *case manager's* store: a BT's
+    store follows its executing actor (BT-05-005, ADR-0073), and the node
+    enqueues to whichever store it was handed.
+    """
 
     def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
         return BTBridge(
@@ -1596,7 +1647,7 @@ class TestEmitRMGapNoteNode:
         )
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
-        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        outbox = populated_dl.outbox_list()
         assert len(outbox) == 0, "No anomaly → no outbox entry expected"
 
     @pytest.mark.spec("RSH-06-004")
@@ -1613,7 +1664,7 @@ class TestEmitRMGapNoteNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        outbox = populated_dl.outbox_list()
         assert (
             len(outbox) == 1
         ), "Gap anomaly should emit exactly one Add(Note,Case)"
@@ -1631,7 +1682,7 @@ class TestEmitRMGapNoteNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        outbox = populated_dl.outbox_list()
         assert (
             len(outbox) == 1
         ), "Regression anomaly should emit exactly one Add(Note,Case)"
@@ -1647,7 +1698,7 @@ class TestEmitRMGapNoteNode:
 
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
-        outbox = populated_dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        outbox = populated_dl.outbox_list()
         assert len(outbox) == 0, "No case_id → no outbox entry expected"
 
     def test_no_factory_is_success_noop(self, populated_bridge):

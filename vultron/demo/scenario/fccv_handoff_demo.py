@@ -49,11 +49,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_step,
     post_to_inbox_and_wait,
     post_to_trigger,
+    ref_id,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
@@ -70,6 +72,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -231,7 +234,7 @@ def _phase_report_submission(
     )
 
     case = as_VulnerabilityCase.model_validate(
-        c1_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(c1_client.dl_path(case.id_))
     )
     return (
         finder,
@@ -396,7 +399,7 @@ def _phase_ownership_handoff(
     )
 
     case = as_VulnerabilityCase.model_validate(
-        c1_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(c1_client.dl_path(case.id_))
     )
     return case
 
@@ -421,13 +424,22 @@ def _phase_c2_invites_vendor(
     logger.info("Phase 3: C2 invites Vendor (AC-2)")
     logger.info("─" * 80)
 
-    # Trigger on c1_client (the CaseActor's host container) so the invite is
-    # emitted as CaseActor.  Vendor's Accept then routes to CaseActor,
-    # enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
+    # Post to C2's OWN container.  A trigger URL is built from the named actor's
+    # bare ID against the client's base_url, so naming an actor a container does
+    # not host 404s — posting C2's trigger to c1_client did exactly that (the
+    # same defect fvcv-handoff hit in CI; fccv-handoff was simply not among the
+    # scenarios CI selected, so it stayed latent here).
+    #
+    # Emitting as the CaseActor needs no cross-container hack:
+    # ``SvcInviteActorToCaseUseCase._prepare`` resolves the case's CaseActor and
+    # sets ``self._actor_id`` to it, so the Invite goes out attributed to the
+    # CaseActor and Vendor's Accept routes back to the CaseActor rather than to
+    # C2, letting AcceptInviteActorToCaseBT run (PCR-08-007, PCR-08-008).  The
+    # assertion below is what holds that property honest.
     invite_result = None
     with demo_step("C2 invites Vendor to the case"):
         invite_result = post_to_trigger(
-            client=c1_client,
+            client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="invite-actor-to-case",
             body={
@@ -438,6 +450,14 @@ def _phase_c2_invites_vendor(
         )
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Vendor invite created by C2: %s", invite.id_)
+
+    with demo_check("Vendor invite was emitted as the CaseActor (PCR-08-008)"):
+        emitting_actor = ref_id(invite.actor)
+        assert emitting_actor == case_actor_id, (
+            f"Invite '{invite.id_}' was emitted as '{emitting_actor}', not as"
+            f" the CaseActor '{case_actor_id}' — Vendor's Accept would route to"
+            " C2 and AcceptInviteActorToCaseBT would not run"
+        )
 
     with demo_check("Vendor invite delivered to Vendor's DataLayer"):
         find_case_invite_for_actor(
@@ -922,11 +942,26 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FCCV-handoff's participants and where each ledger lives.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0073), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("vendor", c1_client, "vendor"),
-        LedgerDumpTarget("coordinator", c2_client, "coordinator"),
-        LedgerDumpTarget("vendor2", vendor_client, "vendor2"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "vendor", c1_client, replica_route_key(c1_client, "vendor")
+        ),
+        LedgerDumpTarget(
+            "coordinator",
+            c2_client,
+            replica_route_key(c2_client, "coordinator"),
+        ),
+        LedgerDumpTarget(
+            "vendor2",
+            vendor_client,
+            replica_route_key(vendor_client, "vendor2"),
+        ),
     ]
     # The case-actor is a sub-actor inside the C1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -1163,7 +1198,12 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     c1_client = DataLayerClient(base_url=_c1_url)
     c2_client = DataLayerClient(base_url=_c2_url)
-    case_actor_client = DataLayerClient(base_url=ca_url)
+    # actor_id must be bound here: the dedicated CaseActor container hosts the
+    # `case-actor` actor, and a /datalayer/ read has to name whose store it is
+    # about (ADR-0073).  Leaving it unset makes every dl_path() call raise.
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
     vendor_client = DataLayerClient(base_url=v_url)
 
     if not skip_health_check:

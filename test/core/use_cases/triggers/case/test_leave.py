@@ -116,11 +116,11 @@ class TestLeaveCaseTriggersOutboxActivity:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcLeaveCaseUseCase(
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
     def test_leave_case_outbox_activity_addressed_to_case_actor(self):
@@ -129,11 +129,11 @@ class TestLeaveCaseTriggersOutboxActivity:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcLeaveCaseUseCase(
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "No new outbox item was queued"
 

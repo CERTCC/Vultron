@@ -105,7 +105,10 @@ class TestSendEmbargoActivityBaseContract:
 
     def test_factory_unavailable_delegates_to_hook(self):
         """When factory is None, _on_factory_unavailable determines the status."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         setup_blackboard(dl, actor_id=ACTOR_ID)
 
         for expected in (Status.SUCCESS, Status.FAILURE):

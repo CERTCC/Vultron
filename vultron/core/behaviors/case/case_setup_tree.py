@@ -37,12 +37,6 @@ specs/behavior-tree-node-design.yaml BTND-07-003.
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.case_actor_setup import (
-    CreateCaseActorServiceNode,
-    RegisterCaseActorParticipantNode,
-    ResolveCaseActorUrlsNode,
-    ReuseExistingCaseActorParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.case_setup import (
     RecordCaseCreatedEventNode,
     RecordOfferReceivedEventNode,
@@ -61,37 +55,5 @@ class RecordCaseCreationEvents(py_trees.composites.Sequence):
             children=[
                 RecordOfferReceivedEventNode(),
                 RecordCaseCreatedEventNode(),
-            ],
-        )
-
-
-class CreateCaseActorNode(py_trees.composites.Sequence):
-    """
-    Composed subtree that creates and registers the CaseActor for a case.
-
-    Per specs/case-management.yaml CM-02-001 and BTND-07-001.
-    """
-
-    def __init__(self, case_id: str | None = None, name: str | None = None):
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                ResolveCaseActorUrlsNode(case_id=case_id),
-                py_trees.composites.Selector(
-                    name="EnsureCaseActorRegistered",
-                    memory=False,
-                    children=[
-                        ReuseExistingCaseActorParticipantNode(),
-                        py_trees.composites.Sequence(
-                            name="CreateAndRegisterCaseActor",
-                            memory=False,
-                            children=[
-                                CreateCaseActorServiceNode(),
-                                RegisterCaseActorParticipantNode(),
-                            ],
-                        ),
-                    ],
-                ),
             ],
         )

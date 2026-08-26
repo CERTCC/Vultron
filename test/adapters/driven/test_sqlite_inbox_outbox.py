@@ -14,7 +14,7 @@
 """Tests for SqliteDataLayer inbox/outbox queue operations and enqueue callback.
 
 Covers: inbox_append/list/pop, outbox_append/list/pop, file-backed
-integration, set_enqueue_callback, record_outbox_item, and clone_for_actor.
+integration, set_enqueue_callback, and clone_for_actor.
 Fixtures (dl, file_dl, scoped_dl) come from conftest.
 """
 
@@ -90,7 +90,14 @@ def test_file_backed_store_and_retrieve(file_dl):
 
 
 # ---------------------------------------------------------------------------
-# enqueue_callback — outbox_append and record_outbox_item (AC-1)
+# enqueue_callback — outbox_append (AC-1)
+#
+# There is no ``record_outbox_item`` counterpart.  Its distinguishing behaviour
+# was firing the callback for an actor *other* than the DataLayer's own, which
+# ADR-0073 removes: the queue is in the owning actor's store, so the only actor
+# an append can notify is that store's.  Two tests that had been mechanically
+# rewritten to call ``outbox_append`` were left here asserting the old explicit
+# actor, and once corrected were exact duplicates of the two above.
 # ---------------------------------------------------------------------------
 
 
@@ -121,29 +128,13 @@ def test_outbox_append_callback_cleared_by_set_none(scoped_dl):
     assert calls == []
 
 
-def test_record_outbox_item_calls_callback_with_actor_id():
-    """record_outbox_item fires the enqueue_callback with the explicit actor_id."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
-    calls: list[str] = []
-    dl.set_enqueue_callback(calls.append)
-    dl.record_outbox_item("https://example.org/carol", "urn:test:act-002")
-    assert calls == ["https://example.org/carol"]
-    dl.clear_all()
-    dl.close()
-
-
-def test_record_outbox_item_no_callback_by_default():
-    """record_outbox_item does not raise when no callback is set."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
-    dl.record_outbox_item("https://example.org/carol", "urn:test:act-002")
-    dl.clear_all()
-    dl.close()
-
-
 def test_clone_for_actor_inherits_callback():
     """clone_for_actor() inherits the parent's enqueue_callback."""
     calls: list[str] = []
-    parent = SqliteDataLayer("sqlite:///:memory:")
+    parent = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     parent.set_enqueue_callback(calls.append)
     clone = parent.clone_for_actor("https://example.org/alice")
     clone.outbox_append("urn:test:act-003")

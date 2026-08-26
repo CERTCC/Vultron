@@ -101,34 +101,60 @@ groups:
   - id: DL-04-002
     priority: MUST
     kind: project
-    statement: The current required minimum `CasePersistence` surface is `create`, `read`, `get`, `save`, `by_type`,
-      `find_case_by_report_id`, and `find_actor_by_short_id`; future additions MAY be made only when they preserve the
-      same core-facing persistence/query boundary and do not introduce queue, admin, health, or diagnostic
-      responsibilities.
-    rationale: Makes the current narrow-port contract explicit without freezing the interface against future legitimate
-      query helpers.
+    statement: The current required minimum `CasePersistence` surface is `actor_id`, `clone_for_actor`, `create`, `read`,
+      `save`, `save_many`, `list_objects`, `find_case_by_report_id`, `find_actor_by_short_id`, `find_case_by_short_id`,
+      `find_protocol_pair`, and `delete`; future additions MAY be made only when they preserve the same core-facing
+      persistence/query boundary and do not introduce queue, admin, health, or diagnostic responsibilities. `actor_id`
+      and `clone_for_actor` are part of the minimum because a store belongs to exactly one actor (DL-07-002) and
+      reaching another's is a named operation (DL-07-005).
+    rationale: >-
+      Makes the current narrow-port contract explicit without freezing the interface against future legitimate
+      query helpers. The enumeration is the *declared* Protocol, so a drift between it and
+      `vultron/core/ports/case_persistence.py` is a spec defect rather than a code one. `get` and `by_type`
+      were listed here until ADR-0073 and are deliberately absent now: they are not declared on the Protocol
+      and have no remaining core call site (see DL-04-005).
+    adr:
+    - ADR-0073
   - id: DL-04-003
+    lint_suppress:
+    - rationale_too_long
     priority: MUST_NOT
     kind: project
     statement: '`CasePersistence` MUST NOT include inbox queue methods, outbox inspection or drain methods, `ping`,
-      `clear_*`, `update`, `delete`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
+      `clear_*`, `update`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
       operations that belong to the full `DataLayer` adapter contract.'
-    rationale: Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
+    rationale: >-
+      Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
+      `delete` was on this prohibition list while simultaneously being declared on the Protocol and called
+      from two core BT nodes, which retracts single-marker queue records
+      (`PendingCreateCaseActivity`) once they are consumed. Removing a marker the core itself wrote is a
+      domain operation, not an admin one, so `delete` moved to DL-04-002. `update` stays prohibited: core
+      code mutates through `save`, which is idempotent by object id.
   - id: DL-04-004
     priority: MUST
     kind: project
-    statement: '`CaseOutboxPersistence` MUST extend `CasePersistence` only with the outbound enqueue methods
-      `record_outbox_item` and `outbox_append`; if a `ReceivedUseCase` depends on `CaseOutboxPersistence`, that
-      dependency MUST be treated as a documented architectural smell rather than normal design.'
-    rationale: Makes outbound side effects explicit and highlights mixed inbound-plus-broadcast handlers for later
-      refactoring.
+    statement: '`CaseOutboxPersistence` MUST extend `CasePersistence` only with the outbound enqueue method
+      `outbox_append`; if a `ReceivedUseCase` depends on `CaseOutboxPersistence`, that dependency MUST be treated as a
+      documented architectural smell rather than normal design.'
+    rationale: >-
+      Makes outbound side effects explicit and highlights mixed inbound-plus-broadcast handlers for later
+      refactoring. `record_outbox_item(actor_id, ...)` was removed from this surface by ADR-0073: it existed
+      so that an unscoped DataLayer could name the actor explicitly, and every one of its call sites passed
+      the executing actor's own id, so under a mandatory actor scope it was exactly `outbox_append`. Keeping
+      both would have preserved a way to write to a queue that is not the store's own.
+    adr:
+    - ADR-0073
   - id: DL-04-005
     priority: MUST
     kind: project
-    statement: '`get()` and `by_type()` on `CasePersistence` are deprecated compatibility methods; new or refactored core
-      code MUST prefer typed `read()`, `list()`, or dedicated typed helper methods, and migration work MUST remove the
-      deprecated methods once existing call sites have been replaced.'
-    rationale: The narrow port should converge on typed domain-object access rather than preserve raw-record escape hatches.
+    statement: '`get()` and `by_type()` MUST NOT be declared on `CasePersistence`; core code MUST use typed `read()`,
+      `list_objects()`, or dedicated typed helper methods. Any reintroduction of a raw-record escape hatch on the narrow
+      port MUST be recorded as a deliberate decision rather than added incidentally.'
+    rationale: >-
+      The narrow port converges on typed domain-object access rather than preserving raw-record escape hatches.
+      This entry used to describe `get`/`by_type` as deprecated-but-present; the migration it called for has
+      completed — neither is declared on the Protocol and neither has a call site under `vultron/core/` — so
+      the requirement is now the prohibition rather than the migration.
 - id: DL-05
   title: Core-Object Read Contract
   description: The DataLayer read path MUST return core domain objects for every persisted type that has a registered core
@@ -385,3 +411,305 @@ groups:
     - wire-format
     adr:
     - ADR-0035
+- id: DL-07
+  title: Per-Actor Store Isolation
+  specs:
+  - id: DL-07-001
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: project
+    statement: >-
+      Each actor MUST have its own store. A DataLayer instance MUST belong to exactly one actor, and
+      one actor's writes MUST NOT be able to affect what another actor could read — including writes
+      to the same object ID, which two actors MAY each hold their own replica of.
+    rationale: >-
+      This is CM-01-001's isolation requirement restated as a property of the *storage layout* rather
+      than of each query. Previously `actor_id` was an indexed filter column over a globally unique
+      primary key, so reads were partitioned and writes were not: `save()` on one actor's DataLayer
+      overwrote another actor's row while leaving it owned by the original actor, and `create()`
+      raised a spurious duplicate error for the second actor. Both are unreachable when the layout —
+      not the WHERE clause — carries the isolation. Decided in ADR-0073; source issue #2238.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-01-001
+    verification: >-
+      `test/adapters/driven/test_datalayer_isolation.py` asserts that two actors sharing one
+      configured store each create, read back and mutate their own replica of the same object ID,
+      and that neither can affect what the other reads.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-07-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A DataLayer MUST NOT be constructible without an actor. There MUST be no shared, unscoped, or
+      "admin" DataLayer, and no factory MUST return an instance whose actor is unset.
+    rationale: >-
+      Makes DL-07-001 unreachable to violate rather than merely discouraged. An unscoped mode is not
+      a neutral convenience: `deps.py` demonstrated that it accumulates domain data ("operational
+      data — actors, offers, reports, cases — is stored in the shared DataLayer"), so anything holding
+      one could read across actors. Guarantees that depend on every call site remembering to scope had
+      already failed once here, producing two architecture ratchets for one problem (#2232).
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-001
+    verification: >-
+      `SqliteDataLayer` cannot be constructed without a keyword `actor_id`, and
+      `test_every_instance_carries_the_actor_it_was_asked_for` asserts that `get_datalayer` always
+      returns an instance carrying the actor it was asked for and that the argument cannot be omitted.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-07-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The configured `db_url` MUST be treated as a template rather than a location: each actor's store
+      MUST be derived from it per actor. An already-derived URL MUST NOT be passed back through the
+      derivation.
+    rationale: >-
+      A single configured location cannot express one store per actor. Derivation is not idempotent
+      and cannot be made so, because a suffix cannot be stripped unambiguously — `app7-vendor` is
+      indistinguishable from `app7` plus `vendor` — so re-deriving silently produces a third store.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-002
+    tags:
+    - persistence
+    - configuration
+    adr:
+    - ADR-0073
+  - id: DL-07-004
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: project
+    statement: >-
+      An in-memory store MUST be named such that its identity is carried entirely by its URL, not by
+      the identity of an engine object held in a cache.
+    rationale: >-
+      With identity in a Python object, two independent applications in one process that both host the
+      same actor silently shared one store — the URL said `:memory:` for both and only the cache
+      distinguished them. Naming the database makes the URL the single source of store identity in
+      both file-backed and in-memory modes. Two consequences follow for tests and MUST be respected:
+      two DataLayers built for the same actor id are the *same* database, and two scenarios that must
+      not see each other's rows therefore need two actor ids.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-002
+    tags:
+    - persistence
+    - testing
+    adr:
+    - ADR-0073
+  - id: DL-07-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Cross-actor access MUST be named at the call site. `clone_for_actor` MUST be the only route to
+      another actor's store, and any node-wide view MUST be assembled by enumerating hosted actors and
+      fanning out rather than obtained from a single query.
+    rationale: >-
+      Makes a fan-out explicit rather than something a forgotten filter grants. `CasePersistence`
+      declares `clone_for_actor`, so a cross-actor read is visible in the type as well as in the code.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-001
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-07-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A URL path segment naming an actor MUST be resolved to a canonical actor URI by computation from
+      the node's own base URL, without a registry lookup or a scan over stored actor records.
+    rationale: >-
+      A scan is a cross-actor read, and it could return a *peer's* record — an actor this node does not
+      host — because since DL-07-007 a hosted actor's store is full of peer records. Computation also
+      means only an actor whose id already has this node's shape is addressable here, which is correct:
+      an id under another authority names a process elsewhere.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-005
+    tags:
+    - persistence
+    - protocol
+    adr:
+    - ADR-0073
+  - id: DL-07-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A peer actor's record MUST live in the address book of each hosted actor that knows it, not in a
+      node-global store. `GET /actors/` MUST return only the actors the node hosts.
+    rationale: >-
+      An actor's view of its peers is that actor's own data, per the Actor Knowledge Model: what an
+      actor knows is bounded by what it has received. This is safe because delivery derives a
+      recipient's inbox URL from its URI alone and never reads the peer's stored record. A peer is not
+      something the node hosts; it is an address some hosted actor happens to know.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-001
+    references:
+    - notes/actor-knowledge-model.md
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-07-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Retry and dead-letter bookkeeping for an actor's outbox MUST live in that actor's own store and
+      MUST NOT be keyed by an actor column in a shared table.
+    rationale: >-
+      Delivery bookkeeping about an actor's own outbox is that actor's own data, so it is subject to
+      DL-07-001 like any other row. Keying it on `(actor_id, activity_id)` in a shared table
+      reintroduces exactly the filter-column layout DL-07-001 replaces; keying on `activity_id` alone
+      within the actor's store also makes an attempt counter structurally single-valued, so one
+      activity cannot accumulate two rival counts.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-001
+    - rel_type: refines
+      spec_id: OX-13-001
+    tags:
+    - persistence
+    - messaging
+    adr:
+    - ADR-0073
+  - id: DL-07-009
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: architecture
+    statement: >-
+      When execution is scoped to an actor, every store reference reachable from that scope MUST be
+      reconciled to the same actor — not the store alone. A component injected with a store of its own
+      MUST either offer a named way to be rebound to another actor's store or hold no store at all;
+      writes belonging to one logical operation MUST NOT land in two actors' stores.
+    rationale: >-
+      Reconciling the store alone fixes half of the problem and leaves the other half looking correct.
+      `BTBridge` re-scoped the blackboard's `datalayer` to the executing actor, but the driven adapters
+      on that same blackboard kept the DataLayer they were constructed with — and the adapter is what
+      persists the outbound activity. A delegated emit (a case owner's invite-actor trigger emits as the
+      CaseActor, PCR-08-007) therefore created the `Invite` in the requesting actor's store while the
+      node appended its id to the executing actor's outbox. Nothing raised: delivery found the queue
+      entry, could not read the activity, logged "not found in DataLayer", and skipped — so the invitee
+      was never told it had been invited and the case stalled with no error anywhere (#2548). Rebinding
+      is opt-in so that a stateless collaborator is not swapped out behind its caller's back, and the
+      opt-in must be discoverable on the type rather than the instance, because a test double answers
+      any attribute.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-005
+    - rel_type: implements
+      spec_id: PCR-08-007
+    verification: >-
+      `test/core/behaviors/test_bridge.py::test_a_delegated_emit_writes_activity_and_outbox_to_one_store`
+      creates an activity through the injected port and queues its id through the blackboard store while
+      executing as a co-located CaseActor, and asserts the queued id is readable from the store that
+      holds the queue entry. `test/core/behaviors/test_store_scope.py::TestPortForStore` asserts the
+      rebinding is opt-in, is a no-op when the store already matches, and does not fire on a bare `Mock`.
+    tags:
+    - persistence
+    - behavior-tree
+    adr:
+    - ADR-0073
+- id: DL-08
+  title: Storage Fidelity for Inline-Required References
+  description: >-
+    Persistence dehydrates AS2 reference fields to their id to avoid storing a nested object twice.
+    Some references must not be dehydrated, because the protocol requires the object to be *carried*
+    rather than referenced and nothing else ever gives it a record to be read back from. Added by
+    ISSUE-2482, where the round-trip silently emptied a `Create(CaseProposal)` of its report.
+  specs:
+  - id: DL-08-001
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      Persistence MUST NOT dehydrate a reference field to its id when the declaring model requires that
+      field to carry the object inline. A model MUST be able to declare such fields, and the storage
+      layer MUST consult that declaration rather than enumerating the affected types itself.
+    rationale: >-
+      Dehydration is only reversible when the nested object has a record of its own, and inbound
+      activities are given records only one level deep — so a second-level inline object collapses to
+      an id that no read can expand. CP-01-004 requires `as_CaseProposal` to carry its
+      `as_VulnerabilityReport` inline for exactly the reason that makes the collapse unrecoverable: the
+      receiver may not hold the report and no dereferencing mechanism is specified (AKM-03-001). The
+      declaration belongs on the model because that is where the invariant is, and because a lookup
+      table in the storage layer is action at a distance from the field it governs.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-004
+    - rel_type: refines
+      spec_id: AKM-03-001
+    verification: >-
+      `test/adapters/driven/test_db_record.py` asserts a stored `as_CaseProposal` keeps its report as an
+      inline object and that the report round-trips typed, with its `attributed_to` intact.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-08-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A type annotation MUST NOT be relied on as the record of an inline-only requirement when that
+      annotation also admits a URI string.
+    rationale: >-
+      `ActivityStreamRequiredRef[T]` expands to `T | as_Link | str`, so a bare URI type-checks and
+      `model_validate` accepts a dehydrated object without complaint. CP-01-004 was therefore recorded
+      only in prose, and the storage layer had nothing to consult; the resulting collapse surfaced as
+      three unrelated "best-effort" skips several layers away, none of which named the cause.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-08-001
+    tags:
+    - persistence
+  - id: DL-08-003
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: architecture
+    statement: >-
+      An activity whose reference field names another *actor* MUST declare that field inline-required.
+    rationale: >-
+      Under ADR-0073 an actor's record lives in its own store, so a peer named by an outbound activity
+      has no record in the sending actor's store and never will — actor discovery is not implemented
+      (ADR-0024). Dehydration is only reversible against such a record (DL-08-001), so collapsing a peer
+      actor to its id is unrecoverable by construction rather than by accident of write order. Three
+      activities name a peer: `_RmInviteToCaseActivity` and `_RecommendActorActivity` in `object_`, and
+      `_OfferCaseParticipantRoleActivity` in `target` — the last also declares its `object_`, whose
+      `CaseParticipantRole` the factory mints inline and no path persists. Every other required typed
+      reference in the vocabulary is either an activity, kept inline already, or a case, report, status,
+      participant or embargo, which the sender does hold; `_OfferCaseOwnershipTransferActivity.target` is
+      exempt because its declared type is a ref union, so an id there is in-shape. Left undeclared, the
+      stored Invite came back carrying a bare string, outbox delivery refused it for AKM-03-001 and gave
+      up after its retries, and the failure surfaced one hop away as the invitee answering 404 to
+      `reject-case-invite` for an invitation it had never been told about. Carrying the object is
+      necessary but not sufficient: read-back must also re-type it, or semantic matching classifies the
+      activity UNKNOWN and the receiver has nothing to dispatch on — which is why the re-typing set
+      `_AS_INLINE_TYPED_FIELDS` is wider than the dehydration set and includes `context`.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-08-001
+    - rel_type: refines
+      spec_id: AKM-03-001
+    verification: >-
+      `test/adapters/driven/test_db_record.py` asserts a stored `_RmInviteToCaseActivity` keeps its
+      invitee as an object through a write/read round-trip, that all three peer-actor-naming activities
+      declare the naming field in `inline_required_refs`, and that each still coerces back to its
+      semantic class after storage.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073

@@ -26,6 +26,7 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.sync_helpers import (
+    _find_equivalent_recorded_entry,
     _reconstruct_tail_hash,
     is_ledger_fresh_for_case,
 )
@@ -40,7 +41,10 @@ _ZERO_HASH: str = "0" * 64  # arbitrary hash for non-genesis test chains
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 def _make_case(
@@ -248,3 +252,115 @@ class TestIndexGap:
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
         assert fresh is False
         assert "gap" in reason or "jump" in reason
+
+
+class TestEquivalentRecordedEntry:
+    """``_find_equivalent_recorded_entry`` is what makes a retry idempotent.
+
+    A miss appends a *new* ledger index for an assertion already recorded, which
+    is exactly the ledger-index instability ADR-0041 forbids.  The snapshots a
+    retry rebuilds are not byte-identical to the originals: ``as_Base`` stamps
+    ``published`` and ``updated`` with ``now_utc`` at construction, so every
+    embedded object gets a fresh pair whenever the snapshot is rebuilt.  These
+    tests fix which differences count.
+    """
+
+    _OBJECT_ID = "https://example.org/activities/log-0"
+    _EVENT = "add_participant_status_to_participant"
+
+    def _snapshot(self, stamp: str, rm_state: str = "RECEIVED") -> dict:
+        """A snapshot in the shape ``build_add_participant_status_snapshot``
+        produces: a re-rendered object *and* a re-rendered target whose own
+        nested status list carries timestamps too."""
+        return {
+            "type": "Add",
+            "actor": CASE_ACTOR_ID,
+            "context": CASE_ID,
+            "object": {
+                "id": "https://example.org/statuses/ps-0",
+                "type": "ParticipantStatus",
+                "rmState": rm_state,
+                "published": stamp,
+                "updated": stamp,
+            },
+            "target": {
+                "id": "https://example.org/participants/p-0",
+                "type": "CaseParticipant",
+                "published": stamp,
+                "updated": stamp,
+                "participantStatuses": [
+                    {
+                        "id": "https://example.org/statuses/ps-0",
+                        "rmState": rm_state,
+                        "published": stamp,
+                        "updated": stamp,
+                    }
+                ],
+            },
+        }
+
+    def _record(self, dl, snapshot: dict) -> VultronCaseLedgerEntry:
+        entry = VultronCaseLedgerEntry(
+            case_id=CASE_ID,
+            log_index=0,
+            log_object_id=self._OBJECT_ID,
+            event_type=self._EVENT,
+            payload_snapshot=snapshot,
+            prev_log_hash=_ZERO_HASH,
+            entry_hash="a" * 64,
+        )
+        dl.save(entry)
+        return entry
+
+    def _find(self, dl, snapshot: dict):
+        return _find_equivalent_recorded_entry(
+            case_id=CASE_ID,
+            object_id=self._OBJECT_ID,
+            event_type=self._EVENT,
+            payload_snapshot=snapshot,
+            dl=dl,
+        )
+
+    def test_a_rebuilt_snapshot_still_matches(self, dl):
+        """The regression: only the restamped timestamps differ, at every depth.
+
+        ``now_utc`` truncates to whole seconds, so byte equality made this a
+        coin flip on whether the retry landed in the same second as the
+        original — passing locally and failing on slower CI.
+        """
+        self._record(dl, self._snapshot("2026-01-01T00:00:00+00:00"))
+
+        found = self._find(dl, self._snapshot("2026-01-01T00:00:07+00:00"))
+
+        assert found is not None, (
+            "a retry whose snapshot differs only in restamped published/updated"
+            " values is the same assertion, and must not append a new index"
+        )
+        assert found.log_index == 0
+
+    def test_a_real_difference_still_misses(self, dl):
+        """The dedup must stay a dedup: a changed state is a new assertion.
+
+        Timestamps are dropped from the comparison, not the whole payload — if
+        they were, a genuine status change carrying the same object id would be
+        swallowed and never recorded.
+        """
+        self._record(dl, self._snapshot("2026-01-01T00:00:00+00:00"))
+
+        found = self._find(
+            dl, self._snapshot("2026-01-01T00:00:00+00:00", rm_state="VALID")
+        )
+
+        assert found is None
+
+    def test_a_rejected_entry_is_not_a_match(self, dl):
+        """Only ``recorded`` entries count; a rejection is not an assertion."""
+        snapshot = self._snapshot("2026-01-01T00:00:00+00:00")
+        entry = self._record(dl, snapshot)
+        entry.disposition = "rejected"
+        entry.reason_code = "invalid"
+        dl.save(entry)
+
+        assert (
+            self._find(dl, self._snapshot("2026-01-01T00:00:09+00:00")) is None
+        )

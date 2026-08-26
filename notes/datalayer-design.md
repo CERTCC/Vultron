@@ -468,29 +468,25 @@ Files to investigate:
 
 ---
 
-## `outbox_list()` Requires `clone_for_actor` in Tests
+## RETIRED: `outbox_list()` Requires `clone_for_actor` in Tests
 
-(ISSUE-1298, 2026-07-10)
+(ISSUE-1298, 2026-07-10; retired by ADR-0073 / ISSUE-2238, 2026-08-20)
 
-`SqliteDataLayer.outbox_list()` reads the outbox for `dl._actor_id`, which is
-`""` on a freshly constructed `SqliteDataLayer("sqlite:///:memory:")`. BT nodes
-call `record_outbox_item(actor_id, activity_id)`, writing to the named actor's
-queue. The two paths do not share the same key unless the DataLayer was obtained
-via `clone_for_actor(actor_id)`.
+This pitfall no longer exists. It described a writer and a reader disagreeing
+about which `actor_id` string keyed a queue row — `record_outbox_item(actor_id,
+…)` wrote under a named actor while `outbox_list()` read under `dl._actor_id`,
+which was `""` on a freshly constructed DataLayer.
 
-**In tests that verify outbox contents after use-case execution:**
+Neither half survives. A DataLayer cannot be constructed without an actor
+(DL-07-002), so there is no `""` scope to fall into; and queue rows carry no
+`actor_id` column at all (DL-07-001) — the queue lives in its owner's store, so
+`record_outbox_item` and `outbox_list_for_actor` collapsed into `outbox_append`
+and `outbox_list`.
 
-```python
-# ✅ CORRECT — read by explicit actor ID
-outbox = dl.outbox_list_for_actor(local_actor_id)
-
-# ✅ ALSO CORRECT — clone before reading (matches BT pattern)
-actor_dl = dl.clone_for_actor(actor_id)
-outbox = actor_dl.outbox_list()
-
-# ❌ WRONG — returns [] unless dl._actor_id was set
-outbox = dl.outbox_list()
-```
+Kept as a retirement notice rather than deleted, because the *shape* recurs: a
+writer and a reader that disagree about which store they are addressing. That
+question is now answered by the store's identity rather than by a string
+comparison, which is the point of the change.
 
 ---
 
@@ -522,49 +518,49 @@ the case where only one of the two required activities was emitted.
 
 ---
 
-## Dual-DataLayer Isolation Guard in Tests
+## RETIRED: Dual-DataLayer Isolation Guard in Tests
 
-(ISSUE-1749, 2026-08-08)
+(ISSUE-1749, 2026-08-08; retired by ADR-0073 / ISSUE-2238, 2026-08-20)
 
-A single-DataLayer test cannot catch a BT node that accidentally calls
-`get_datalayer()` (the process-global singleton) instead of `self.datalayer`.
-Such a node writes records to the singleton while the injected DataLayer stays
-empty — all positive assertions on the injected DL still pass.
+This pattern no longer has anything to guard. It asserted that a BT node had not
+written to the process-global *unscoped* singleton instead of the injected
+DataLayer, by checking the singleton was empty afterwards.
 
-**The dual-DL isolation pattern** uses two separate in-memory DataLayer
-instances and asserts the global singleton is empty after the BT runs:
+There is no unscoped singleton. `get_datalayer()` requires an actor and returns
+that actor's own store (DL-07-002), so the "shared/admin" instance the guard
+watched does not exist. The four tests built on the pattern were rewritten, and
+one of them —`test_actor_isolation` — turned out to assert `... or True`, so it
+could not have failed either way.
 
-```python
-from vultron.adapters.driven.datalayer_sqlite import get_datalayer, reset_datalayer
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+What replaces it is stronger and needs no test discipline: a BT's store is the
+store of its executing actor, reconciled once in `BTBridge._store_for_actor`
+(BT-05-005). A node cannot write to "some other" store by forgetting to use
+`self.datalayer`, because there is no ambient store to reach for.
 
-@pytest.fixture(autouse=True)
-def _reset_singleton(self):
-    reset_datalayer()
-    yield
-    reset_datalayer()
+Two live hazards remain in this area, and they are the reason the retirement is
+recorded rather than deleted:
 
-def test_records_on_injected_dl_not_singleton(self, make_payload):
-    case_actor_dl = SqliteDataLayer("sqlite:///:memory:")  # injected DL
-    _seed_and_run(make_payload, case_actor_dl)
+- An actor id **is** a store name. Two DataLayers built for the same actor id are
+  the *same* database (DL-07-004), so two scenarios that must not see each
+  other's rows need two actor ids — deriving one per test
+  (`f"{ACTOR_ID}/{slug}"`) is enough and self-documenting. Conversely, do not
+  give one logical actor two ids merely to get a fresh database; that
+  reintroduces the masking.
+- Sharing one store between two logical actors hides a *missing* write: the
+  reader finds the writer's row and the test passes for the wrong reason. This is
+  the defect class ISSUE-2238 was about, and it is why `test/conftest.py` carries
+  an autouse `_dispose_actor_stores_between_tests` — **do not remove it.** Note
+  that it only handles the between-test case; both hazards above can occur
+  *within* a single test, where no fixture can help.
 
-    assert list(case_actor_dl.list_objects("VulnerabilityCase")), \
-        "record must appear on the injected DataLayer"
-    assert not list(get_datalayer().list_objects("VulnerabilityCase")), \
-        "singleton must stay empty — a get_datalayer() call in the BT node would fail this"
-```
+References: ADR-0073 and ISSUE-2238 for the decision itself. The rewritten
+tests are in
+`test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTCaseActorRecords`,
+which now asserts against each actor's own store rather than against an empty
+singleton.
 
-Key points:
-
-- `reset_datalayer()` before **and** after each test ensures test order
-  independence — a previous test that did call `get_datalayer()` won't poison
-  the singleton check.
-- `get_datalayer()` called with no arguments returns the shared/admin singleton
-  (unscoped). It is never the same object as `SqliteDataLayer("sqlite:///:memory:")`
-  created directly — the two have independent backing stores.
-- Apply this pattern for any BT-backed use case that receives a DataLayer as a
-  constructor argument: `CreateCaseProposalReceivedUseCase`,
-  `SvcCreateCaseUseCase`, and any future CaseActor-initialisation BTs.
-
-Reference: `test/core/behaviors/case/test_case_proposal_received_tree.py`,
-class `TestCreateCaseProposalReceivedBTCaseActorRecords`.
+The originating learning (`20260819-one-actor-id-is-one-database`) is not cited
+by path: BW-03-002 requires every incoming learning to be archived out of
+`plan/incoming/learnings/` into `plan/history/YYMM/learning/`, so any such path
+is guaranteed to go stale. Search `plan/history/` by slug if the original is
+wanted.

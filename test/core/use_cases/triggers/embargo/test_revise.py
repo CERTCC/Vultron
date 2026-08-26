@@ -57,7 +57,7 @@ def test_propose_embargo_revision_queues_outbox_activity(
     actor, dl = finder_actor_and_dl
     case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
 
-    outbox_before = dl.outbox_list_for_actor(actor.id_)
+    outbox_before = dl.outbox_list()
 
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
@@ -69,7 +69,7 @@ def test_propose_embargo_revision_queues_outbox_activity(
         dl, request, trigger_activity=TriggerActivityAdapter(dl)
     ).execute()
 
-    outbox_after = dl.outbox_list_for_actor(actor.id_)
+    outbox_after = dl.outbox_list()
     assert len(outbox_after) > len(outbox_before)
 
 

@@ -44,7 +44,7 @@ from vultron.adapters.driving.fastapi.routers.actors._inbox import (
 )
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
@@ -86,8 +86,9 @@ class FastAPIIngressAdapter:
     """Ingress adapter for the FastAPI driving adapter.
 
     ``parse`` parses a raw JSON request-body dict into a typed
-    ``as_Activity`` and stores the activity in the shared DataLayer so
-    later rehydration can resolve references.  ``rehydrate`` deep-hydrates
+    ``as_Activity`` and stores the activity in the *receiving actor's* store so
+    later rehydration can resolve references (ADR-0073: there is no shared
+    DataLayer; the ``dl`` handed in is already one actor's own).  ``rehydrate`` deep-hydrates
     the *in-memory* parsed activity's reference fields via the DataLayer.
 
     ``rehydrate`` intentionally hydrates the in-memory activity rather than
@@ -158,24 +159,43 @@ class FastAPIIngressAdapter:
         hydrated in place (:meth:`DataLayer.hydrate` expands any scalar/list ID
         references) and returned, so routing sees the typed ``CaseLedgerEntry``
         without the adapter ever writing the ledger.
+
+        The same hazard bit ``Create(CaseProposal)``, which inlines the
+        vulnerability report inside the proposal (CP-01-004): the report was never
+        pre-stored, so the by-ID re-read collapsed it and the receiver had no report
+        (#2482). That is fixed neither here nor at ingress, but in *storage*: the
+        proposal declares ``object_`` in ``inline_required_refs``, so persistence
+        keeps the report inline instead of dehydrating it to an id that nothing
+        could resolve. The re-read is correct once the store is faithful to what
+        the sender inlined.
+
+        Resist adding activity types to the exception above. An in-place hydration
+        skips the wire→core normalisation the by-ID path performs, so routing
+        downstream sees `as_`-prefixed types and fails with "Expected
+        VulnerabilityCase, got as_VulnerabilityCase". Fix what the store keeps, not
+        the read.
         """
         if _is_inline_ledger_entry_announce(activity):
-            try:
-                hydrated = self._dl.hydrate(activity)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning(
-                    "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
-                    " returning parsed activity unchanged.",
-                    exc,
-                )
-                return activity
-            if isinstance(hydrated, as_Activity):
-                return hydrated
-            return activity
+            return self._hydrate_in_place(activity)
 
         result = rehydrate(activity.id_, dl=self._dl)
         if isinstance(result, as_Activity):
             return result
+        return activity
+
+    def _hydrate_in_place(self, activity: as_Activity) -> as_Activity:
+        """Expand reference fields on the *parsed* activity, without a re-read."""
+        try:
+            hydrated = self._dl.hydrate(activity)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
+                " returning parsed activity unchanged.",
+                exc,
+            )
+            return activity
+        if isinstance(hydrated, as_Activity):
+            return hydrated
         return activity
 
 
@@ -273,11 +293,11 @@ class FastAPIQueuePort:
     def __init__(
         self,
         dl: DataLayer,
-        actor_dl: ActorScopedDataLayer,
+        actor_dl: DataLayer,
         actor_id: str,
     ) -> None:
         self._dl = dl
-        self._actor_dl = cast(ActorScopedDataLayer, actor_dl)
+        self._actor_dl = cast(DataLayer, actor_dl)
         self._actor_id = actor_id
 
     def is_case_known(self, case_id: str) -> bool:
@@ -320,8 +340,7 @@ class FastAPIQueuePort:
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     body: dict[str, Any] | None,
-    dl: DataLayer,
-    actor_dl: ActorScopedDataLayer,
+    actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
     emitter: Any,
@@ -341,8 +360,10 @@ async def run_inbox_pipeline(
         payload: Raw inbox payload (JSON body dict or as_Activity).
         body: Raw JSON request body dict, forwarded from the endpoint for
             nested-object re-parsing (preserves domain-specific fields).
-        dl: Shared DataLayer.
-        actor_dl: Actor-scoped DataLayer for inbox/outbox queues.
+        actor_dl: The receiving actor's DataLayer — ingress, dispatch, queues
+            and stored activities alike.  Before ADR-0073 a separate shared
+            DataLayer was threaded alongside it; the two only differed because
+            the shared pool could see every actor's rows.
         actor_id: Canonical URI of the receiving actor.
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
@@ -350,13 +371,13 @@ async def run_inbox_pipeline(
     from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
     from vultron.core.behaviors.inbox import process_payload
 
-    ingress = FastAPIIngressAdapter(dl=dl, body=body)
+    ingress = FastAPIIngressAdapter(dl=actor_dl, body=body)
     dispatch_adp = FastAPIDispatchAdapter(
-        dl=dl, actor_id=actor_id, dispatcher=dispatcher
+        dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
     )
     queue = FastAPIQueuePort(
-        dl=dl,
-        actor_dl=cast(ActorScopedDataLayer, actor_dl),
+        dl=actor_dl,
+        actor_dl=cast(DataLayer, actor_dl),
         actor_id=actor_id,
     )
 
@@ -375,7 +396,7 @@ async def run_inbox_pipeline(
 
         # Process any replayed activities (pushed back to the queue by
         # DeferCheckNode/DispatchNode replay after bootstrap).
-        stored_ingress = StoredActivityIngressAdapter(dl=dl)
+        stored_ingress = StoredActivityIngressAdapter(dl=actor_dl)
         while actor_dl.inbox_list():
             item_id = actor_dl.inbox_pop()
             if item_id is None:
@@ -389,4 +410,4 @@ async def run_inbox_pipeline(
                 replay_outcome.context_id,
             )
 
-    await outbox_handler(actor_id, actor_dl, shared_dl=dl, emitter=emitter)
+    await outbox_handler(actor_id, actor_dl, emitter=emitter)

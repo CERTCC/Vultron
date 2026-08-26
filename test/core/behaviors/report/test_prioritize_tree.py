@@ -113,13 +113,27 @@ def _make_defer_request(
 
 
 @pytest.fixture
-def datalayer():
-    return SqliteDataLayer("sqlite:///:memory:")
+def datalayer(actor_id):
+    """The vendor's own store — the actor almost every tree here executes as."""
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 @pytest.fixture
 def actor_id():
     return "https://example.org/actors/vendor"
+
+
+@pytest.fixture
+def case_manager_datalayer(case_manager_actor_id):
+    """The case manager's own store.
+
+    The split-identity test runs the tree under the case manager's identity
+    (BT-17-005), so the replica it reads and writes is the case manager's rather
+    than the vendor's (ADR-0073).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_manager_actor_id)
+    yield dl
+    dl.close()
 
 
 @pytest.fixture
@@ -255,6 +269,50 @@ def case_with_manager(
         },
     )
     datalayer.create(case)
+    return case
+
+
+@pytest.fixture
+def case_with_manager_in_cm_store(
+    case_manager_datalayer, actor_id, actor, report, case_manager_actor_id
+):
+    """The same case as ``case_with_manager``, in the *case manager's* store.
+
+    A separate fixture rather than a re-scoping of ``case_with_manager`` because
+    that one serves tests which execute as the vendor, and a store belongs to
+    exactly one actor (ADR-0073). The split-identity test executes as the case
+    manager, so it needs the case manager's replica.
+    """
+    vendor_participant = _make_participant_in_valid_state(
+        id_="https://example.org/participants/vendor-cp-002",
+        attributed_to=actor_id,
+        context="https://example.org/cases/case-manager-001",
+    )
+    case_manager_datalayer.create(vendor_participant)
+
+    cm_actor = VultronCaseActor(id_=case_manager_actor_id, name="Coordinator")
+    case_manager_datalayer.create(cm_actor)
+
+    cm_participant = VultronParticipant(
+        id_="https://example.org/participants/coordinator-cp-001",
+        attributed_to=case_manager_actor_id,
+        context="https://example.org/cases/case-manager-001",
+        case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+    )
+    case_manager_datalayer.create(cm_participant)
+
+    case = VultronCase(
+        id_="https://example.org/cases/case-manager-001",
+        name="Test Case With Manager",
+        attributed_to=case_manager_actor_id,
+        vulnerability_reports=[report.id_],
+        case_participants=[vendor_participant.id_, cm_participant.id_],
+        actor_participant_index={
+            actor_id: vendor_participant.id_,
+            case_manager_actor_id: cm_participant.id_,
+        },
+    )
+    case_manager_datalayer.create(case)
     return case
 
 
@@ -443,9 +501,15 @@ def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
 
 
 @pytest.mark.spec("BT-09-001")
-def test_engage_only_affects_target_actor(bridge, datalayer, report):
-    """Engaging updates only the target actor's RM state, not other participants."""
-    actor_a = "https://example.org/actors/vendor-a"
+def test_engage_only_affects_target_actor(bridge, datalayer, actor_id, report):
+    """Engaging updates only the target actor's RM state, not other participants.
+
+    Both participants are records inside *one* case replica — the replica of the
+    actor executing the tree — so this is legitimately a single-store test.
+    ``actor_a`` is therefore that actor; ``actor_b`` is a peer participant it
+    knows about, not a second store.
+    """
+    actor_a = actor_id
     actor_b = "https://example.org/actors/vendor-b"
 
     participant_a = _make_participant_in_valid_state(
@@ -568,7 +632,10 @@ def test_defer_case_tree_idempotent(
 
 @pytest.mark.spec("BT-09-001")
 def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
-    bridge, datalayer, actor_id, case_manager_actor_id, case_with_manager
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
 ):
     """TransitionParticipantRMtoAccepted uses the constructor actor_id, not the blackboard.
 
@@ -576,12 +643,17 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
     (blackboard actor_id = CaseManager) while the RM transition must still target
     the engaging actor (constructor actor_id = vendor).  This test exercises the
     split-identity path: blackboard != constructor.
+
+    The two identities now also select the store: the tree executes as the case
+    manager, so it operates on the case manager's replica, and the vendor's
+    participant record is one of the records *inside* that replica.
     """
+    case_with_manager = case_with_manager_in_cm_store
     request = _make_engage_request(case_with_manager, actor_id)
     tree = create_engage_case_tree(
         case_id=case_with_manager.id_, actor_id=actor_id
     )
-    result = bridge.execute_with_setup(
+    result = BTBridge(datalayer=case_manager_datalayer).execute_with_setup(
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,
@@ -590,14 +662,14 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
 
     # Vendor's RM state must be ACCEPTED — not the CaseManager's.
     vendor_participant_id = case_with_manager.actor_participant_index[actor_id]
-    updated_vendor = datalayer.read(vendor_participant_id)
+    updated_vendor = case_manager_datalayer.read(vendor_participant_id)
     assert updated_vendor.participant_statuses[-1].rm.state == RM.ACCEPTED
 
     # CaseManager's participant must not have gained an RM entry.
     cm_participant_id = case_with_manager.actor_participant_index[
         case_manager_actor_id
     ]
-    cm_participant = datalayer.read(cm_participant_id)
+    cm_participant = case_manager_datalayer.read(cm_participant_id)
     assert not any(
         s.rm.state == RM.ACCEPTED for s in cm_participant.participant_statuses
     ), "CaseManager must not have been incorrectly transitioned to ACCEPTED"

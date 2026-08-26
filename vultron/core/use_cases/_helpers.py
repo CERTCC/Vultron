@@ -172,6 +172,63 @@ def build_activity_payload_snapshot(
     return inlined if isinstance(inlined, dict) else {}
 
 
+def _scan_report_case_links(
+    dl: CasePersistence, case_id: str
+) -> tuple[str | None, set[str]]:
+    """Split one pass over the links into the two answers callers need.
+
+    Returns ``(established, pending_creator_ids)``: the completed link's
+    ``trusted_case_actor_id`` for *case_id* when there is one, and the set of
+    ``trusted_case_creator_id`` values from links that are still pending.
+
+    One pass rather than two because the links are read from storage; the tuple
+    keeps :func:`_find_case_actor_id` at a reviewable size without paying for a
+    second scan.
+    """
+    established: str | None = None
+    pending_creator_ids: set[str] = set()
+    for link in dl.list_objects("ReportCaseLink"):
+        if not isinstance(link, VultronReportCaseLink):
+            continue
+        if (
+            established is None
+            and link.case_id == case_id
+            and link.trusted_case_actor_id
+        ):
+            established = str(link.trusted_case_actor_id)
+        if link.case_id is None and link.trusted_case_creator_id:
+            pending_creator_ids.add(str(link.trusted_case_creator_id))
+    return established, pending_creator_ids
+
+
+def _case_actor_by_role(dl: CasePersistence, case_id: str) -> str | None:
+    """Return the case's CASE_MANAGER when it is a CaseActor container identity.
+
+    The evidence that an actor is a CaseActor is the role plus the shape of its
+    identity, not the existence of a per-case ``Service`` object (#1872 AC-4).
+    Both halves are needed:
+
+    - The **role** alone is not enough. A case whose manager is an ordinary
+      participant has no CaseActor and must resolve ``None`` (ADR-0021).
+    - The **shape** alone is not enough either; an actor at a CaseActor identity
+      that does not hold the role for *this* case is not this case's manager.
+
+    A ``case-actor-<slug>`` id is rejected: that form is unhostable by
+    construction, so returning one hands the caller an address whose delivery
+    404s — strictly worse than ``None``, which every caller already handles.
+    """
+    # Local import: `use_cases` does not import `behaviors` at module scope.
+    from vultron.core.behaviors.case.case_actor_identity import (
+        is_case_actor_identity,
+    )
+
+    case_obj = dl.read(case_id)
+    if not isinstance(case_obj, VulnerabilityCase):
+        return None
+    manager_id = _resolve_case_manager_id(case_obj, dl)
+    return manager_id if is_case_actor_identity(manager_id) else None
+
+
 def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
     """Return the CaseActor Service ID for *case_id*, if present in the DataLayer.
 
@@ -183,7 +240,12 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
        matches the ``CVDRole.CASE_MANAGER`` participant of the case replica
        (CBT-01-003), i.e. the proposal target has confirmed itself as case
        manager but the link has not been completed yet.
-    3. A legacy scan for a ``Service`` object whose ``context`` is *case_id*.
+    3. The case's ``CVDRole.CASE_MANAGER`` participant, when its actor id is a
+       CaseActor *container* identity (``.../actors/case-actor``). The CaseActor
+       is a participant wearing that hat, so the role plus the identity shape is
+       the evidence — no per-case ``Service`` object is required (#1872 AC-4).
+    4. A legacy scan for a ``Service`` object whose ``context`` is *case_id*,
+       retained for cases created before path 3 existed.
 
     Path 2 exists because paths 1 and 3 both have a window in which they
     cannot answer.  The link only carries ``case_id``/``trusted_case_actor_id``
@@ -201,21 +263,23 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
 
     Path 2 is deliberately narrow: it requires *both* an outstanding proposal
     to a known CaseActor *and* the case replica naming that same actor as
-    CASE_MANAGER.  A CASE_MANAGER participant alone is not sufficient evidence
-    of a CaseActor — cases whose manager is an ordinary participant have no
-    CaseActor and MUST still resolve ``None`` (ADR-0021).
+    CASE_MANAGER.  Path 3 is narrow for the same reason, by a different test: a
+    CASE_MANAGER participant alone is not sufficient evidence of a CaseActor —
+    cases whose manager is an ordinary participant have no CaseActor and MUST
+    still resolve ``None`` (ADR-0021).  What distinguishes the two is the
+    *identity*, which is why path 3 tests its shape rather than merely the role.
+
+    A ``case-actor-<slug>`` id does not qualify.  That form is unhostable by
+    construction (#1872), so returning one would hand callers an address whose
+    delivery 404s — worse than ``None``, which callers handle.
 
     Returns ``None`` when no CaseActor Service can be found for *case_id*.
     This is the authoritative resolver for PCR-08-007 (invite sender) and
     PCR-08-008 (accept recipient).
     """
-    pending_creator_ids: set[str] = set()
-    for link in dl.list_objects("ReportCaseLink"):
-        if isinstance(link, VultronReportCaseLink):
-            if link.case_id == case_id and link.trusted_case_actor_id:
-                return str(link.trusted_case_actor_id)
-            if link.case_id is None and link.trusted_case_creator_id:
-                pending_creator_ids.add(str(link.trusted_case_creator_id))
+    established, pending_creator_ids = _scan_report_case_links(dl, case_id)
+    if established is not None:
+        return established
 
     if pending_creator_ids:
         case = dl.read(case_id)
@@ -224,10 +288,49 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
             if manager_id is not None and manager_id in pending_creator_ids:
                 return manager_id
 
+    role_holder = _case_actor_by_role(dl, case_id)
+    if role_holder is not None:
+        return role_holder
+
     for service in dl.list_objects("Service"):
         if getattr(service, "context", None) == case_id:
             return service.id_
     return None
+
+
+def resolve_receiving_actor_id(
+    dl: CasePersistence, receiving_actor_id: str | None
+) -> str:
+    """Return the actor whose replica a received message is being applied to.
+
+    Received-side use cases need an executing actor identity to run their BT
+    under (BT-17-005).  ``receiving_actor_id`` is set by the inbox adapter and
+    is authoritative when present.  When it is absent — CLI dispatch, replay,
+    tests — the answer is *the actor whose store we were handed*: under
+    ADR-0073 a DataLayer is always some specific actor's own, and a received-
+    side use case is by construction invoked with the receiving actor's store
+    (CM-01-001).
+
+    This replaces an ``or "unknown"`` fabrication that predated per-actor
+    storage.  A synthetic identity used to be merely a mislabelled log line
+    over a shared pool; now ``actor_id`` *selects the store*, so inventing one
+    silently routes every read and write into an empty scratch store and the
+    work is lost without an error (ARCH-15-001).
+
+    Raises:
+        VultronValidationError: If neither source yields an identity, since
+            there is then no defensible answer to "whose replica is this?".
+    """
+    if receiving_actor_id:
+        return receiving_actor_id
+    own_actor_id = getattr(dl, "actor_id", None)
+    if isinstance(own_actor_id, str) and own_actor_id:
+        return own_actor_id
+    raise VultronValidationError(
+        "cannot resolve the receiving actor: the request carries no"
+        " receiving_actor_id and the DataLayer reports no actor of its own,"
+        " so there is no store this message could be applied to (CM-01-001)"
+    )
 
 
 def _idempotent_create(
@@ -244,6 +347,20 @@ def _idempotent_create(
     and returns without storing.  Otherwise stores *obj* (if not ``None``) via
     ``dl.create``.
 
+    An object carrying an id but **no ``type_``** is a *reference*, not something
+    that can be stored: ``type_`` is what selects the storage table, so
+    ``Record.from_obj`` refuses it outright.  The extractor produces exactly such
+    a stub — ``VultronObject(id_=…, type_=None)`` — when an inbound activity names
+    its object by bare URI, or by an object with no type.  That stub is load
+    bearing: ``event.object_id`` is *derived* from ``object_``, so it is how the id
+    survives at all; it simply is not a storable record.
+
+    Storing it was attempted anyway, which aborted the enclosing BT
+    (``CreateReportReceivedBT`` among them).  Such a reference is skipped here with
+    a warning naming it as one, because there is nothing to store — this is the
+    "Bare Object URI" case the Actor Knowledge Model describes, where the sender
+    should have inlined the object and the recipient legitimately has no copy.
+
     Args:
         dl: The DataLayer to read/write.
         type_key: Object type used as the DataLayer collection key.
@@ -259,11 +376,21 @@ def _idempotent_create(
         # (SL-04-007).  Fires on essentially every received-side activity.
         logger.debug("'%s' already stored — skipping (idempotent)", id_key)
         return
-    if obj is not None:
-        dl.create(obj)
-        logger.info("Stored %s '%s'", label, id_key)
-    else:
+    if obj is None:
         logger.warning("no %s object for event '%s'", label, activity_id)
+        return
+    if getattr(obj, "type_", None) is None:
+        logger.warning(
+            "%s '%s' arrived as a bare reference with no type (activity '%s'):"
+            " the sender named it by URI instead of inlining it, so there is no"
+            " object to store — recording nothing (Actor Knowledge Model)",
+            label,
+            id_key,
+            activity_id,
+        )
+        return
+    dl.create(obj)
+    logger.info("Stored %s '%s'", label, id_key)
 
 
 def resolve_case(case_id: str, dl: CasePersistence):
@@ -601,23 +728,6 @@ def reset_case_participant_embargo_consent(
             dl.save(participant)
 
 
-def case_addressees(
-    case: VulnerabilityCase, excluding_actor_id: str
-) -> list[str]:
-    """Return actor IDs for all case participants except *excluding_actor_id*.
-
-    Uses ``case.actor_participant_index`` (a ``dict[actor_id, participant_id]``)
-    so the caller does not need to iterate over ``case_participants`` directly.
-
-    Returns an empty list when there are no other participants.
-    """
-    return [
-        actor_id
-        for actor_id in case.actor_participant_index.keys()
-        if actor_id != excluding_actor_id
-    ]
-
-
 def _log_label(uri: str) -> str:
     """Return a deterministic redacted label for IDs used in log messages.
 
@@ -632,19 +742,20 @@ def _log_label(uri: str) -> str:
 def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
     """Return the set of string activity IDs in the actor's outbox queue.
 
-    Uses ``outbox_list_for_actor`` when available (explicit actor scope),
-    otherwise falls back to the actor-scoped ``outbox_list()``.
+    *actor_id* is retained for call-site readability and logging symmetry only;
+    *dl* is already that actor's store, so it does not select the queue.  The
+    former ``hasattr(dl, "outbox_list_for_actor")`` branch is gone: both arms
+    now resolve to the same call (ADR-0073).
 
     Args:
-        actor_id: The actor whose outbox should be queried.
-        dl: The DataLayer to use for persistence.
+        actor_id: The actor whose outbox is being queried. Not used to select
+            the queue — *dl* determines that.
+        dl: That actor's DataLayer.
 
     Returns:
         Set of activity IDs queued for delivery.
     """
-    if hasattr(dl, "outbox_list_for_actor"):
-        items: list[str] = dl.outbox_list_for_actor(actor_id)  # type: ignore[attr-defined]
-        return set(items)
+    del actor_id  # documented above: *dl* selects the queue
     return set(dl.outbox_list())
 
 
@@ -653,16 +764,18 @@ def add_activity_to_outbox(
 ) -> None:
     """Append an activity ID to an actor's outbox and queue it for delivery.
 
-    Uses ``record_outbox_item`` to explicitly enqueue against *actor_id*,
-    bypassing any actor-scope on *dl* itself.  This ensures correct delivery
-    even when *dl* is a shared (unscoped) DataLayer instance.
+    Appends to *dl*'s own outbox.  This previously used
+    ``record_outbox_item(actor_id, …)`` to enqueue against *actor_id*
+    explicitly, bypassing any actor-scope on *dl* — necessary when *dl* could
+    be a shared, unscoped instance.  Under ADR-0073 it cannot be.
 
     Args:
-        actor_id: The actor whose outbox should receive the activity.
+        actor_id: The actor whose outbox receives the activity. Used only for
+            the debug log; *dl* determines the queue.
         activity_id: The ID of the activity to queue for delivery.
         dl: The DataLayer to use for persistence.
     """
-    dl.record_outbox_item(actor_id, activity_id)
+    dl.outbox_append(activity_id)
     logger.debug(
         "Queued activity '%s' in delivery queue for actor '%s'",
         _log_label(activity_id),

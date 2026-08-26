@@ -65,7 +65,10 @@ CASE_GENESIS_HASH = compute_genesis_hash(
 
 @pytest.fixture
 def invited_dl():
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=INVITED_ACTOR_ID,
+    )
     yield dl
     dl.close()
 
@@ -244,7 +247,10 @@ class TestApplyOfferReportFromLedgerNode:
 
     @pytest.fixture
     def datalayer(self):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=INVITED_ACTOR_ID,
+        )
         yield dl
         dl.close()
 
@@ -439,7 +445,10 @@ class TestInvitePathReportAvailableWithoutSpoof:
 
     @pytest.fixture
     def datalayer(self):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=INVITED_ACTOR_ID,
+        )
         yield dl
         dl.close()
 

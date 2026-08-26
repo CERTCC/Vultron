@@ -36,7 +36,15 @@ def clear_blackboard():
 
 @pytest.fixture
 def datalayer():
-    return SqliteDataLayer("sqlite:///:memory:")
+    """The participant's own replica store (ADR-0073).
+
+    These effect nodes apply an announced ledger entry to the replica of the
+    actor executing them, and that actor is PARTICIPANT_ACTOR_ID for every file
+    in this package except ``test_conditions.py``, which runs as the owner and
+    shadows this fixture with its own store.  ``actor_id=case_actor.id_``
+    elsewhere in these files is the *event's* author, not the executing actor.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=PARTICIPANT_ACTOR_ID)
 
 
 @pytest.fixture

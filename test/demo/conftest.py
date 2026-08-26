@@ -14,6 +14,7 @@
 """Shared fixtures and helpers for demo tests."""
 
 import functools
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -26,7 +27,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -45,6 +46,40 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
 demo_utils.DEFAULT_WAIT_SECONDS = 0.0
 
 logger = logging.getLogger(__name__)
+
+#: Characters that cannot appear in a SQLite in-memory deployment name.
+_NODE_NAME_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def node_db_url(base_url: str) -> str:
+    """Return a named in-memory storage deployment private to one node.
+
+    ``actor_db_url`` derives a store from the **final path segment** of an actor
+    id, dropping scheme and netloc, so ``http://vendor.test/…/actors/case-actor``
+    and ``http://coordinator.test/…/actors/case-actor`` resolve to one store
+    (:func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug`, #2549).
+    Under Docker that collision is harmless-by-accident: each container has its
+    own volume, so the two ``mydb-case-actor.sqlite`` files are different files.
+    In this harness every node is an app in one process, so the anonymous
+    ``sqlite:///:memory:`` template put them in the *same* store — and a node
+    that wrongly opened a store for a **foreign** actor found the real one
+    sitting there, fully populated. The defect this harness exists to catch
+    became undetectable precisely where it matters most.
+
+    Naming the deployment per node restores the container boundary: the base
+    name is carried through to every per-actor store, so a cross-node slug
+    collision resolves to two distinct empty stores exactly as it does in
+    Docker (``_memory_base_name``).
+
+    Args:
+        base_url: The node's base URL, e.g. ``"http://vendor.test"``.
+
+    Returns:
+        A named shared-cache in-memory URL template for that node alone.
+    """
+    name = _NODE_NAME_UNSAFE_RE.sub("_", base_url.rstrip("/"))
+    return f"sqlite:///file:node-{name}?mode=memory&cache=shared&uri=true"
+
 
 #: Hosts that are intentionally unreachable in tests (known-fictional external URLs).
 #: Drops to these hosts are expected and logged at DEBUG.
@@ -156,17 +191,47 @@ class IsolatedActorApp:
             ``base_url`` (e.g. ``http://actor-name.test``).
         dl: The isolated in-memory ``SqliteDataLayer`` for this actor.
         base_url: The base URL used to construct actor IDs.
+        actor_id: Canonical URI of this app's own actor — the one ``dl`` belongs
+            to. Exposed so a test can address it without rebuilding the URL.
+        db_url: This node's storage-deployment template, private to it the way a
+            container's volume is (see :func:`node_db_url`).
     """
 
     app: FastAPI
     client: TestClient
     dl: SqliteDataLayer
     base_url: str
+    actor_id: str = ""
+    db_url: str = "sqlite:///:memory:"
+
+    def store_for(self, actor_id: str) -> SqliteDataLayer:
+        """Return the store of *actor_id* as hosted by this app.
+
+        ``dl`` is only ever *one* actor's store — the app's own, named by
+        ``actor_slug`` at construction.  A container may host more actors than
+        that (a participant plus the CaseActors it self-hosts, CP-08-003), and a
+        test that creates its actor under a per-test slug is asking about a
+        different store than ``dl``.  Reading ``dl`` in that case reports an empty
+        store and the assertion fails for the wrong reason.
+
+        Built through ``get_datalayer`` with the same ``db_url`` the app's
+        ``get_actor_dl`` override uses, so it is the *same instance* the routes
+        are handed — and, because that template is this node's alone, a store
+        this method opens is this node's copy and not a same-slug actor's on
+        another node (:func:`node_db_url`).
+
+        Args:
+            actor_id: Canonical URI of an actor hosted by this app.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        return get_datalayer(actor_id, db_url=self.db_url)
 
 
 def create_isolated_actor_app(
     base_url: str,
     router: "_TestClientRouter",
+    actor_slug: str = "primary",
 ) -> "IsolatedActorApp":
     """Create an isolated FastAPI app for a single actor in tests.
 
@@ -186,19 +251,73 @@ def create_isolated_actor_app(
             Actor IDs will use this as their URL prefix.
         router: Shared :class:`_TestClientRouter` instance that all apps
             register with so cross-app deliveries are routed correctly.
+        actor_slug: Final path segment of *this app's own* actor. Determines
+            which store ``dl`` addresses, so a test that seeds or asserts through
+            ``dl`` MUST pass the slug it creates its actor under. Routing does not
+            depend on it — every actor gets its own store via the per-actor
+            override below — but ``dl`` has to name one of them.
 
     Returns:
         An :class:`IsolatedActorApp` whose ``client`` context manager has
         *not* been entered yet — callers must use it as a context manager.
     """
-    isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
-    app = create_app(docs_url=None, openapi_url=None)
-    app.dependency_overrides[get_shared_dl] = lambda: isolated_dl
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    # This app's own node root, declared on the app so every dependency resolves
+    # segments into *this* node's namespace rather than the process-global
+    # configured one — several of these apps run in one process, so there is no
+    # single configured answer that is right for all of them (ISSUE-2238).
+    node_root = f"{base_url.rstrip('/')}/api/v2"
+
+    # This node's own storage deployment, so a store opened for a foreign actor
+    # is this node's empty copy rather than the owning node's populated one —
+    # the container boundary Docker gets from separate volumes (see node_db_url).
+    db_url = node_db_url(base_url)
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        """Route per actor, in memory.
+
+        Overriding with a single fixed DataLayer pinned every actor id to one
+        store, which is what made this harness unable to find an actor it had
+        just created: ``create_actor`` writes through the per-actor factory
+        (correctly), so creation and lookup landed in different stores and the
+        actor came back ``404 Actor not found`` (ADR-0073 / ISSUE-2238). Only the
+        backing URL is replaced here; which store a segment selects is part of
+        what these tests exercise.
+        """
+        return get_datalayer(
+            canonical_actor_uri(actor_id, base_url=node_root),
+            db_url=db_url,
+        )
+
+    app = create_app(docs_url=None, openapi_url=None, node_base_url=node_root)
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
+    # Declared on the app, not only wired into the override: routes whose subject
+    # actor is named in the request body (actor creation) have no path segment to
+    # scope on and read this instead (``deps.node_db_url_template``).  Without it
+    # they would open the process-global store while every other route reads this
+    # node's, so an actor would 404 immediately after being created.
+    app.state.db_url = db_url
+
+    # `dl` is this app's own actor's store, for tests that seed or assert
+    # directly. Built through `get_datalayer` so it is the *same instance* the
+    # override hands the routes, and so the actor registers as hosted here.
+    own_actor_id = f"{base_url.rstrip('/')}/api/v2/actors/{actor_slug}"
+    isolated_dl = get_datalayer(own_actor_id, db_url=db_url)
+
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
     router.register(base_url, client)
     return IsolatedActorApp(
-        app=app, client=client, dl=isolated_dl, base_url=base_url
+        app=app,
+        client=client,
+        dl=isolated_dl,
+        base_url=base_url,
+        actor_id=own_actor_id,
+        db_url=db_url,
     )
 
 
@@ -231,7 +350,20 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.integration)
 
 
-_CASE_ACTOR_SERVICE_URL = "http://localhost:7999/api/v2"
+#: Where demo tests expect to find a CaseActor service.
+#:
+#: This is ``TestClient``'s own base, not the configured ``localhost:7999``,
+#: because it must name the node that actually *serves* these tests.
+#: ``ResolveCaseActorUrlsNode`` derives a CaseActor's id from this value, and the
+#: inbox route resolves an incoming path segment against the serving app's base
+#: URL.  Point the two at different hosts and the case's CASE_MANAGER participant
+#: names one CaseActor while the route opens another's store — so
+#: ``CheckIsCaseManagerNode`` finds no match, the guarded commit skips silently,
+#: no ``Announce(CaseLedgerEntry)`` is queued, and the fan-out that carries notes
+#: and status to the other participants never happens. Nothing raises.
+#:
+#: Tests using ``create_isolated_actor_app`` override this with their own host.
+_CASE_ACTOR_SERVICE_URL = "http://testserver/api/v2"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -464,8 +596,20 @@ def client():
         previous_app_emitter = getattr(api_app.state, "emitter", None)
         configure_default_emitter(router)  # type: ignore[arg-type]
         api_app.state.emitter = router  # type: ignore[assignment]
+
+        # Tell the serving app which node it is. These tests address actors as
+        # `{TestClient base}/api/v2/actors/{slug}` — TestClient's base_url, not
+        # the configured one — so without this the routes resolve a segment into
+        # the *configured* namespace and open a different (empty) store than the
+        # one `POST /actors/` wrote to. `app_v2` is what carries it because
+        # `main.app` mounts it, so `request.app` inside a route is the sub-app.
+        from vultron.adapters.driving.fastapi.app import app_v2
+
+        previous_node_base_url = getattr(app_v2.state, "node_base_url", None)
+        app_v2.state.node_base_url = f"{tc_base}/api/v2"
         try:
             yield test_client
         finally:
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
             api_app.state.emitter = previous_app_emitter
+            app_v2.state.node_base_url = previous_node_base_url

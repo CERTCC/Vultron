@@ -18,6 +18,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -54,20 +55,32 @@ def patch_datalayer_call(client: TestClient, base: str):
 # ---------------------------------------------------------------------------
 
 
+def _bound_client(slug: str) -> MagicMock:
+    """A dump client stub bound to a *generated* actor id, as the real one is.
+
+    ``actor_id`` must be a real string: the dump derives its route key from it
+    (``replica_route_key``, ADR-0073) and writes the key into the manifest, so a
+    bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
+    deliberately *not* the docker-compose seed names — that is the whole point of
+    deriving the key, and a stub carrying ``actor_id="finder"`` would pass even if
+    the derivation were dropped.
+    """
+    client = MagicMock()
+    client.actor_id = f"https://example.org/actors/{slug}"
+    client.get_list.return_value = [{"logIndex": 0}]
+    return client
+
+
 class TestPhaseDumpCaseLedgersFvcv:
     """Tests for the case-ledger dump phase in the FVCV-handoff demo."""
 
     def test_writes_jsonl_files_for_all_four_actors(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        vendor_client = MagicMock()
-        coordinator_client = MagicMock()
-        vendor2_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
-        coordinator_client.get_list.return_value = [{"logIndex": 0}]
-        vendor2_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        vendor_client = _bound_client("vendor-2b71")
+        coordinator_client = _bound_client("coordinator-4c05")
+        vendor2_client = _bound_client("vendor2-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fvcv-test-case"
@@ -108,17 +121,26 @@ class TestPhaseDumpCaseLedgersFvcv:
             / f"{case_slug}-case-ledger.jsonl"
         ).exists()
 
+        # The route key selects the store (ADR-0073), so it must be the client's
+        # own actor id — not the seed name the output directory is named after.
+        manifest = json.loads(
+            (tmp_path / "fvcv-handoff" / "dump-manifest.json").read_text()
+        )
+        keys = {r["actorName"]: r["routeKey"] for r in manifest["actors"]}
+        assert keys == {
+            "finder": "finder-9f3a",
+            "vendor": "vendor-2b71",
+            "coordinator": "coordinator-4c05",
+            "vendor2": "vendor2-8ade",
+        }
+
     def test_includes_case_actor_when_in_participant_index(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        vendor_client = MagicMock()
-        coordinator_client = MagicMock()
-        vendor2_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
-        coordinator_client.get_list.return_value = [{"logIndex": 0}]
-        vendor2_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        vendor_client = _bound_client("vendor-2b71")
+        coordinator_client = _bound_client("coordinator-4c05")
+        vendor2_client = _bound_client("vendor2-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fvcv-with-ca",
@@ -692,14 +714,25 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
             VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
         ):
             router = _TestClientRouter()
+            # `actor_slug` decides which actor's store `iso.dl` is. These actors
+            # are created under the module slugs below, and a store belongs to
+            # exactly one actor (ADR-0073), so leaving the default `"primary"`
+            # points `dl` at an empty database — the finder's Announce assertion
+            # then reads a store nothing was ever delivered to.
             vendor_iso = create_isolated_actor_app(
-                base_url=_OTC_VENDOR_BASE, router=router
+                base_url=_OTC_VENDOR_BASE,
+                router=router,
+                actor_slug=_OTC_VENDOR_SLUG,
             )
             coordinator_iso = create_isolated_actor_app(
-                base_url=_OTC_COORDINATOR_BASE, router=router
+                base_url=_OTC_COORDINATOR_BASE,
+                router=router,
+                actor_slug=_OTC_COORDINATOR_SLUG,
             )
             finder_iso = create_isolated_actor_app(
-                base_url=_OTC_FINDER_BASE, router=router
+                base_url=_OTC_FINDER_BASE,
+                router=router,
+                actor_slug=_OTC_FINDER_SLUG,
             )
 
             previous_emitter = get_default_emitter()
@@ -1088,7 +1121,13 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 side_effect=lambda _: __import__("contextlib").nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = MagicMock(id_="urn:t:invite")
+            # actor="urn:t:ca" matches the case_actor_id passed below: the
+            # phase now asserts the Invite went out attributed to the CaseActor
+            # (PCR-08-008), which is the property that used to be pursued by
+            # posting the trigger to the CaseActor's container instead.
+            mock_ta.model_validate.return_value = MagicMock(
+                id_="urn:t:invite", actor="urn:t:ca"
+            )
             demo._phase_coordinator_invites_vendor2(
                 finder_client=finder_client,
                 vendor_client=vendor_client,

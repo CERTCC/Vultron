@@ -25,6 +25,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from vultron.adapters.utils import strip_id_prefix
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
@@ -44,13 +45,48 @@ def _route_key(object_id: str) -> str:
     return strip_id_prefix(object_id)
 
 
+def _host_actor(actor):
+    """Make the node *host* *actor*, then seed its record in its own store.
+
+    ``GET /actors/`` enumerates the actors this node hosts, and under ADR-0073
+    that means the actors for which a store exists — for an in-memory URL, the
+    in-process store registry.  Creating an actor's record inside some *other*
+    actor's store therefore does not make it hosted; opening its own store does.
+    Returns the store so callers can close it.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    # get_datalayer(), not a bare SqliteDataLayer(): only the cached factory
+    # registers the instance, and for an in-memory URL that registry *is* the
+    # list of hosted actors (there are no files to enumerate).
+    dl = get_datalayer(actor.id_, db_url="sqlite:///:memory:")
+    dl.create(object_to_record(actor))
+    return dl
+
+
 @pytest.fixture
 def client_actors(datalayer):
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from fastapi import Path as FastAPIPath
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        """Per-actor override: the addressed actor's own in-memory store.
+
+        Overriding with a single fixed DataLayer would defeat the routing this
+        file exercises — ``get_actor_dl`` resolves the path segment to a
+        canonical URI and opens *that* actor's store (ADR-0073), so a one-store
+        override makes every actor id resolve to the same rows.  The only thing
+        that needs overriding is the backing URL: the configured db_url is a
+        file, and tests must stay in memory.
+        """
+        return get_datalayer(
+            canonical_actor_uri(actor_id), db_url="sqlite:///:memory:"
+        )
 
     app = FastAPI()
     app.include_router(actors_router.router)
-    app.dependency_overrides[get_shared_dl] = lambda: datalayer
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
     with TestClient(app) as c:
         yield c
     app.dependency_overrides = {}
@@ -58,11 +94,18 @@ def client_actors(datalayer):
 
 @pytest.fixture
 def client_datalayer(datalayer):
-    from vultron.adapters.driven.datalayer import get_shared_dl
+    from fastapi import Path as FastAPIPath
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        return get_datalayer(
+            canonical_actor_uri(actor_id), db_url="sqlite:///:memory:"
+        )
 
     app = FastAPI()
     app.include_router(datalayer_router.router)
-    app.dependency_overrides[get_shared_dl] = lambda: datalayer
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl
     with TestClient(app) as c:
         yield c
     app.dependency_overrides = {}
@@ -79,11 +122,16 @@ def embargo_policy():
     )
 
 
+# Actor ids must be canonical under the node's own base URL.  ``GET
+# /actors/{segment}`` resolves the segment to an actor URI by *computation*
+# (base_url + "actors/" + segment, ADR-0073) rather than by scanning a shared
+# store for an id ending in that segment, so an id under some other authority
+# can never be addressed on this node — it is not an actor this node hosts.
 @pytest.fixture
 def vultron_person(embargo_policy):
     return as_VultronPerson(
         name="Alice",
-        id_="https://example.org/actors/alice",
+        id_=canonical_actor_uri("alice"),
         embargo_policy=embargo_policy,
     )
 
@@ -92,7 +140,7 @@ def vultron_person(embargo_policy):
 def vultron_organization(embargo_policy):
     return as_VultronOrganization(
         name="ACME Corp",
-        id_="https://example.org/actors/acme",
+        id_=canonical_actor_uri("acme"),
         embargo_policy=embargo_policy,
     )
 
@@ -101,7 +149,7 @@ def vultron_organization(embargo_policy):
 def vultron_service(embargo_policy):
     return as_VultronService(
         name="VulnBot",
-        id_="https://example.org/actors/vulnbot",
+        id_=canonical_actor_uri("vulnbot"),
         embargo_policy=embargo_policy,
     )
 
@@ -110,7 +158,7 @@ def vultron_service(embargo_policy):
 def vultron_application(embargo_policy):
     return as_VultronApplication(
         name="VulnApp",
-        id_="https://example.org/actors/vulnapp",
+        id_=canonical_actor_uri("vulnapp"),
         embargo_policy=embargo_policy,
     )
 
@@ -119,7 +167,7 @@ def vultron_application(embargo_policy):
 def vultron_group(embargo_policy):
     return as_VultronGroup(
         name="VulnGroup",
-        id_="https://example.org/actors/vulngroup",
+        id_=canonical_actor_uri("vulngroup"),
         embargo_policy=embargo_policy,
     )
 
@@ -148,7 +196,7 @@ def test_get_actors_list_includes_embargo_policy(
     silently dropped subclass-specific fields.
     """
     actor = request.getfixturevalue(fixture_name)
-    datalayer.create(object_to_record(actor))
+    _host_actor(actor)
 
     resp = client_actors.get("/actors/")
     assert resp.status_code == 200
@@ -195,7 +243,7 @@ def test_get_actor_by_id_includes_embargo_policy(
     as_Actor.model_validate() double-dropped subclass-specific fields.
     """
     actor = request.getfixturevalue(fixture_name)
-    datalayer.create(object_to_record(actor))
+    _host_actor(actor)
 
     resp = client_actors.get(f"/actors/{_route_key(actor.id_)}")
     assert resp.status_code == 200
@@ -221,7 +269,7 @@ def test_get_actor_profile_includes_embargo_policy(
 ):
     """GET /actors/{actor_id}/profile MUST preserve subtype fields."""
     actor = request.getfixturevalue(fixture_name)
-    datalayer.create(object_to_record(actor))
+    _host_actor(actor)
 
     resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/profile")
     assert resp.status_code == 200
@@ -266,7 +314,7 @@ def test_post_actors_idempotency_returns_full_actor(
     Regression test for HTTP-08-001 violation where the idempotency branch used
     as_Actor.model_validate(), dropping subclass-specific fields like embargo_policy.
     """
-    datalayer.create(object_to_record(vultron_person))
+    _host_actor(vultron_person)
 
     resp = client_actors.post(
         "/actors/",
@@ -298,9 +346,13 @@ def test_datalayer_get_actors_includes_embargo_policy(
     """
     from vultron.core.ports.datalayer import StorableRecord
 
-    # /datalayer/Actors/ currently queries the "Actor" table specifically.
-    # Store a record in that table whose payload is a concrete Person actor.
-    datalayer.create(
+    # The debug router is actor-scoped in its path now (ADR-0073): there is no
+    # node-wide store to inspect, so the record goes in this actor's own store
+    # and the request names that actor.
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    hosted = get_datalayer(vultron_person.id_, db_url="sqlite:///:memory:")
+    hosted.create(
         StorableRecord(
             id_=vultron_person.id_,
             type_="Actor",
@@ -308,7 +360,9 @@ def test_datalayer_get_actors_includes_embargo_policy(
         )
     )
 
-    resp = client_datalayer.get("/datalayer/Actors/")
+    resp = client_datalayer.get(
+        f"/actors/{_route_key(vultron_person.id_)}/datalayer/Actors/"
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, dict)
