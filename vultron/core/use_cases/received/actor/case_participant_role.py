@@ -20,6 +20,7 @@ from vultron.core.models.events.actor import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
@@ -53,13 +54,9 @@ class OfferCaseParticipantRoleReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "OfferCaseParticipantRoleReceivedUseCase: missing"
-                " receiving_actor_id — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         offer_id = request.activity_id
         vendor_id = request.actor_id

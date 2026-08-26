@@ -59,6 +59,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -149,14 +150,11 @@ class CreateCaseProposalReceivedUseCase:
         # The inner object is the VulnerabilityReport embedded in the proposal.
         report_id = request.inner_object_id
 
-        # receiving_actor_id is the case-actor service URI set by the inbox adapter.
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.warning(
-                "create_case_proposal_received: no receiving_actor_id"
-                " — skipping (CLP-10-005)"
-            )
-            return
+        # receiving_actor_id is the case-actor service URI set by the inbox adapter;
+        # falls back to the store's own actor_id on CLI/replay paths (CLP-10-005).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         # Extract the wire proposal as a plain dict so the Accept can carry it
         # inline (CP-05-003, AKM-03-001). Uses duck-typing to avoid a core→wire

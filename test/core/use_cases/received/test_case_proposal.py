@@ -186,31 +186,38 @@ class TestCreateCaseProposalReceivedUseCase:
             report_id in case_obj.vulnerability_reports
         ), f"Report '{report_id}' not linked to case"
 
-    def test_execute_skips_without_receiving_actor_id(self, make_payload):
-        """Missing receiving_actor_id causes a no-op (CLP-10-005)."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        proposal = _make_proposal()
-        activity = as_Create(
-            actor=_VENDOR_URI,
-            object_=proposal,
-            to=[_CASE_ACTOR_URI],
-        )
-        event = make_payload(activity)
-        # receiving_actor_id is None by default when not set
-        event = event.model_copy(update={"receiving_actor_id": None})
+    def test_execute_uses_store_owner_when_no_receiving_actor_id(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the proposal."""
+        import py_trees
 
-        CreateCaseProposalReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
-        ).execute()
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer(
+                "sqlite:///:memory:",
+                actor_id=_CASE_ACTOR_URI,
+            )
+            proposal = _make_proposal()
+            activity = as_Create(
+                actor=_VENDOR_URI,
+                object_=proposal,
+                to=[_CASE_ACTOR_URI],
+            )
+            event = make_payload(activity)
+            event = event.model_copy(update={"receiving_actor_id": None})
 
-        # No case should have been created
-        cases = dl.list_objects("VulnerabilityCase")
-        assert (
-            len(cases) == 0
-        ), "No case should be created without receiving_actor_id"
+            CreateCaseProposalReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
+
+            # The BT runs under the store owner's identity; case creation fires.
+            cases = dl.list_objects("VulnerabilityCase")
+            assert (
+                len(cases) == 1
+            ), "Store-owner fallback should have created a case"
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
 
     def test_create_activity_fields_adhere_to_adr_0045(self, make_payload):
         """Create(VulnerabilityCase) must use context=case_uri, in_reply_to=accept_uri (ADR-0045 / CP-05-003).

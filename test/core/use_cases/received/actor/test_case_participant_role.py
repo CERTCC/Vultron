@@ -88,23 +88,30 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         stored = dl.get(offer.type_.value, offer.id_)
         assert stored is not None
 
-    def test_offer_case_participant_role_skips_when_no_receiving_actor(
+    def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
     ):
-        """OfferCaseParticipantRoleReceivedUseCase skips when receiving_actor_id is None."""
+        """When receiving_actor_id is absent the store owner processes the offer."""
+        import py_trees
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        offer = self._make_offer()
-        event = make_payload(offer, receiving_actor_id=None)
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer(
+                "sqlite:///:memory:",
+                actor_id=self._CASE_ACTOR_URI,
+            )
+            offer = self._make_offer()
+            event = make_payload(offer, receiving_actor_id=None)
 
-        OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
+            OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is None
+            # The BT runs under the store owner's identity; the tree stores the
+            # offer idempotently regardless of receiving_actor_id stamp.
+            stored = dl.get(offer.type_.value, offer.id_)
+            assert stored is not None
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
 
     def test_offer_case_participant_role_coordinator_persists(
         self, make_payload

@@ -25,6 +25,7 @@ from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _resolve_case_manager_id,
     add_activity_to_outbox,
+    resolve_receiving_actor_id,
 )
 
 if TYPE_CHECKING:
@@ -57,13 +58,9 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             request.activity_id,
         )
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "OfferCaseOwnershipTransferReceived: missing"
-                " receiving_actor_id — skipping cascade (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         case_id = _as_id(request.activity.object_)
         if case_id is None:
@@ -155,13 +152,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "AcceptCaseOwnershipTransferReceived: missing"
-                " receiving_actor_id — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         case_id = request.case_id
         new_owner_id = request.actor_id
         if case_id is None:
