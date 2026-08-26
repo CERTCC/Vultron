@@ -50,7 +50,11 @@ from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 from vultron.core.behaviors.status.nodes import (
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
-    ValidateCaseStatusTransitionNode,
+)
+from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+    FilterCsEmDimensionNode,
+    FilterCsPxaDimensionNode,
+    FinalizeCsFilterNode,
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
@@ -99,11 +103,13 @@ def add_case_status_tree(
                 case_id=case_id,
                 status_id=status_id,
             ),
-            ValidateCaseStatusTransitionNode(
+            FilterCsEmDimensionNode(
                 case_id=case_id,
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
+            FilterCsPxaDimensionNode(),
+            FinalizeCsFilterNode(),
         ],
         effect_nodes=[
             AppendCaseStatusToCaseNode(

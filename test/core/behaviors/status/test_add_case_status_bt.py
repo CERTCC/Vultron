@@ -49,6 +49,7 @@ from vultron.core.behaviors.status.nodes import (
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
@@ -385,6 +386,54 @@ class TestAddCaseStatusTree:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID not in status_ids
+
+    def test_valid_em_advance_with_pxa_regression_applies_em_and_refuses_pxa(
+        self, dl, make_payload
+    ):
+        """EM advances (NONE→PROPOSED) with stale PXA regression → BT SUCCEEDS.
+
+        Bug #2256: ValidateCaseStatusTransitionNode returned FAILURE when PXA
+        regressed, discarding the valid EM advance and aborting the Sequence
+        before ThreatTerminationBranchNode.  Per-dimension adjudication must
+        accept the EM advance and carry the current PXA forward.
+        """
+        case = as_VulnerabilityCase(id_=CASE_ID, name="EM PXA Split")
+        # The case auto-seeds an initial CaseStatus (pxa=pxa by default).
+        # Set PXA=Pxa so the asserted pxa=pxa is a real regression.
+        cast(as_CaseStatus, case.case_statuses[0]).pxa_state = CS_pxa.Pxa
+        dl.create(case)
+
+        # Sender asserts EM NONE→PROPOSED (valid) + PXA Pxa→pxa (stale regression)
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em_state=EM.PROPOSED,
+            pxa_state=CS_pxa.pxa,  # regression: P was True, sender claims False
+        )
+        dl.create(asserted)
+
+        activity = add_status_to_case_activity(
+            asserted, target=case, actor=ACTOR_ID
+        )
+        event = make_payload(activity)
+
+        tree = add_case_status_tree(request=event)
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
+        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
+        assert STATUS_ID in status_ids
+
+        # EM advance accepted, PXA carried forward (not regressed).
+        # Assert on the saved domain CaseStatus at STATUS_ID, not
+        # current_status: current_status uses max-by-ID and the auto-seeded
+        # UUID-ID status sorts lexically higher than STATUS_ID.
+        saved_status = cast(CaseStatus, dl.read(STATUS_ID))
+        assert saved_status.em.state == EM.PROPOSED
+        assert saved_status.pxa.state == CS_pxa.Pxa
 
 
 # ---------------------------------------------------------------------------

@@ -15,8 +15,11 @@
 
 """Case status workflow nodes for AddCaseStatusToCase.
 
-Contains the idempotency guard, EM/PXA transition validation, and append
-nodes implementing the AddCaseStatusToCase BT sequence (issue #758).
+Contains the idempotency guard, all-or-nothing transition validator, and
+append node implementing the AddCaseStatusToCase BT sequence (issue #758).
+
+Per-dimension adjudication nodes (RSH-05, ADR-0061, ISSUE-2256) live in
+:mod:`cs_dimension_filter` to keep this module under the 500-line limit.
 """
 
 import logging
@@ -27,14 +30,18 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+    BB_CASE_STATUS_DIM_FILTER,
+)
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
-from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
@@ -202,9 +209,13 @@ class ValidateCaseStatusTransitionNode(DataLayerConditionWithPorts):
 class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
     """Append the resolved CaseStatus to ``case.case_statuses`` and persist.
 
-    Resolves the status object from the DataLayer first; if not found there,
-    saves the inline fallback and re-reads so the stored canonical record is
-    used.
+    When ``BB_CASE_STATUS_DIM_FILTER`` carries a filtered status for this
+    tick (written by :class:`FinalizeCsFilterNode`), that filtered object is
+    appended and saved to the DataLayer so the canonical record reflects the
+    accepted portion, not the raw assertion (RSH-05, ISSUE-2256).
+
+    Falls back to resolving from the DataLayer/fallback when no filter is
+    present (original behavior for unfiltered statuses).
 
     Returns SUCCESS on successful append.
     Returns FAILURE if the case or status cannot be resolved.
@@ -223,6 +234,31 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
         self.case_id = case_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            **super().input_ports(),
+            BB_CASE_STATUS_DIM_FILTER: PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            BB_CASE_STATUS_DIM_FILTER: f"/{BB_CASE_STATUS_DIM_FILTER}",
+        }
+
+    def _resolve_filtered(self) -> CaseStatus | None:
+        """Return the filter-adjusted CaseStatus if one exists for this tick."""
+        payload = self._try_get_input(BB_CASE_STATUS_DIM_FILTER)
+        if not isinstance(payload, dict):
+            return None
+        if payload.get("status_id") != self.status_id:
+            return None
+        obj = payload.get("filtered_status")
+        return obj if isinstance(obj, CaseStatus) else None
 
     def _resolve_status(self) -> "PersistableModel | None":
         assert self.datalayer is not None
@@ -248,7 +284,16 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        status_obj = self._resolve_status()
+        # Use the per-dimension-filtered status when available; otherwise fall
+        # back to the raw asserted object (no filtering was needed or applied).
+        status_obj: CaseStatus | PersistableModel | None = (
+            self._resolve_filtered()
+        )
+        if status_obj is not None:
+            self.datalayer.save(status_obj)
+        else:
+            status_obj = self._resolve_status()
+
         if status_obj is None:
             self.feedback_message = f"Status '{self.status_id}' not found"
             self.logger.warning(
