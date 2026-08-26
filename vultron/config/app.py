@@ -269,8 +269,8 @@ def config_override(**env_updates: str) -> Generator[AppConfig, None, None]:
     }
     for key, value in env_updates.items():
         os.environ[key] = value
-    reload_config()
     try:
+        reload_config()
         yield get_config()
     finally:
         for key, original in originals.items():
