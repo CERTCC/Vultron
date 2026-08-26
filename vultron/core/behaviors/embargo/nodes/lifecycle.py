@@ -356,10 +356,12 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
         case_id: str,
         embargo_id: str,
         name: str | None = None,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
+        self._transition_mode = transition_mode
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -390,7 +392,7 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
                 case_id=self.case_id,
                 embargo_id=self.embargo_id,
                 actor_id=self.actor_id,
-                transition_mode=TransitionMode.STRICT,
+                transition_mode=self._transition_mode,
             )
         except VultronNotFoundError as exc:
             self.feedback_message = str(exc)
