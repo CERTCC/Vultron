@@ -79,7 +79,7 @@ described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and
 [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174).
 
 Normative requirements are indexed to their source SYNC spec IDs in
-[§8 (Normative Requirements Reference)](#8-normative-requirements-reference).
+[§12 (Normative Requirements Reference)](#12-normative-requirements-reference).
 
 ---
 
@@ -396,8 +396,8 @@ entry. It MUST send a `Reject(CaseLedgerEntry)` with
 entries from the beginning once the case is delivered. (SYNC-15-001)
 
 A `CaseLedgerEntry` received when the per-case genesis hash is unavailable
-MUST NOT be treated as committed (SYNC-15-006), and its domain effects MUST
-NOT be applied (SYNC-15-007).
+MUST NOT be persisted (SYNC-15-002), MUST NOT be treated as committed
+(SYNC-15-006), and its domain effects MUST NOT be applied (SYNC-15-007).
 
 ### 8.2 Pre-Genesis Buffer and Drain
 
@@ -544,6 +544,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-14-007 | §6.3 | Drain MUST NOT re-apply effects for already-committed entry |
 | SYNC-14-008 | §6.3 | Drain path MUST be the same apply-then-persist path as in-order delivery |
 | SYNC-15-001 | §8.1 | Pre-genesis entry MUST NOT be silently dropped; MUST send Reject |
+| SYNC-15-002 | §8.1 | Participant MUST NOT persist entry when genesis hash unavailable |
 | SYNC-15-003 | §5.4 | CASE_MANAGER MUST bound replay rate for non-advancing peer |
 | SYNC-15-004 | §8.2 | Pre-genesis entry MUST be buffered pending case seed |
 | SYNC-15-005 | §8.2 | After case seed, MUST drain pre-genesis buffer |

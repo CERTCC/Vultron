@@ -1151,8 +1151,7 @@ It is separable from the Authority capability set.
 !!! note "Ledger replication scope"
     The detailed replication mechanics (hash-chaining, gap detection, ordering
     guarantees) are specified in a companion document,
-    `docs/reference/draft-vultron-replication-spec.md` (forthcoming, tracked in
-    #2495), not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
+    `docs/reference/draft-vultron-replication-spec.md`, not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
     replication architecture: one Case Actor holds exclusive write authority and
     replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
     Distributed consensus (multi-node CaseActor cluster) is a future extension
@@ -1536,7 +1535,7 @@ implementation. Other implementations are not required to use this structure.
 2. ~~**Sync/replication**~~ — Resolved. Replication mechanics belong in a
    companion document, not this RFC; the normative model (single-hub /
    single-writer + fan-out) is stated in §7.2. See ADR-0077 and
-   `docs/reference/draft-vultron-replication-spec.md` (tracked in #2495).
+   `docs/reference/draft-vultron-replication-spec.md`.
 3. ~~**ActivityPub vs. bare AS2**~~ — Resolved for this version. §4.1 states the
    current normative floor as AS2 vocabulary only, with an informative note that
    a future version is expected to require full ActivityPub conformance for all
