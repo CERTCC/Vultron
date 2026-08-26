@@ -526,7 +526,7 @@ coordinated disclosure.
 
 ---
 
-## Sentinel supersession note (2026-07-30)
+## Sentinel supersession note (2026-07-30; removal complete 2026-08-26)
 
 Planning session for #1252 surfaced a design mismatch between the
 `create_report_to_others_tree` module (from Production Collapse 3, #1311,
@@ -552,18 +552,16 @@ identification and invitation step belongs in a **Sentinel capability**
    cascade handles the rest
 
 No inline tick-driven BT loop is required at the outer level. The
-`create_report_to_others_tree` module is an implementation artifact of the
-intermediate design and is tracked for removal in a follow-on Task (see
-BT-20-003 note in `specs/behavior-tree-integration.yaml`).
+`create_report_to_others_tree` module was an implementation artifact of the
+intermediate design and has been removed by issue #1848 (ADR-0047; see
+BT-20-003 in `specs/behavior-tree-integration.yaml`).
 
-**Files to remove** (tracked as a follow-on Task, not this PR):
+**Files removed** (issue #1848):
 
 - `vultron/core/behaviors/report/report_to_others_tree.py`
 - `vultron/core/behaviors/call_out/bundles/report_to_others.py`
 - `vultron/demo/fuzzer/bundles/report_to_others.py`
 - `test/core/behaviors/report/test_report_to_others_tree.py`
-
-None of these have production callers outside their own test file.
 
 **New work**: a new Idea under #1147 tracks the participant discovery Sentinel
 design. When that Idea is planned, it should mine #1252 for any residual

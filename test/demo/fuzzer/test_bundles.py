@@ -89,10 +89,6 @@ def test_bundle_fields_satisfy_protocol():
             "vultron.demo.fuzzer.bundles.publication",
             "PublicationCallOutBundle",
         ),
-        (
-            "vultron.demo.fuzzer.bundles.report_to_others",
-            "ReportToOthersCallOutBundle",
-        ),
         ("vultron.demo.fuzzer.bundles.deploy_fix", "DeployFixCallOutBundle"),
         (
             "vultron.demo.fuzzer.bundles.deploy_mitigation",
@@ -170,11 +166,6 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
             "PUBLICATION_STOCHASTIC",
         ),
         (
-            "vultron.demo.fuzzer.bundles.report_to_others",
-            "REPORT_TO_OTHERS_DETERMINISTIC",
-            "REPORT_TO_OTHERS_STOCHASTIC",
-        ),
-        (
             "vultron.demo.fuzzer.bundles.deploy_fix",
             "DEPLOY_FIX_DETERMINISTIC",
             "DEPLOY_FIX_STOCHASTIC",
@@ -236,7 +227,6 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "PrioritizationCallOutBundle",
         "EmbargoCallOutBundle",
         "PublicationCallOutBundle",
-        "ReportToOthersCallOutBundle",
         "DeployFixCallOutBundle",
         "DeployMitigationCallOutBundle",
         "AcquireExploitCallOutBundle",
@@ -254,8 +244,6 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "EMBARGO_STOCHASTIC",
         "PUBLICATION_DETERMINISTIC",
         "PUBLICATION_STOCHASTIC",
-        "REPORT_TO_OTHERS_DETERMINISTIC",
-        "REPORT_TO_OTHERS_STOCHASTIC",
         "DEPLOY_FIX_DETERMINISTIC",
         "DEPLOY_FIX_STOCHASTIC",
         "DEPLOY_MITIGATION_DETERMINISTIC",
