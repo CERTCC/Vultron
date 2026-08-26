@@ -86,6 +86,7 @@ globals().update(
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_FCV_REJECT_EXPECTED_EVENT_TYPES,
         check_fix_ready=False,
+        narrative_path="docs/topics/scenarios/fcv-reject.md",
     )
 )
 

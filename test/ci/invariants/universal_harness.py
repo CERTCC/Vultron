@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from test.ci.invariants.common import (
+    check_causal_edges,
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
@@ -42,6 +43,7 @@ from test.ci.invariants.common import (
     check_payload_context_uses_case_uri,
     check_per_actor_replica_divergence,
     check_rm_closed_termination,
+    load_narrative_edges,
 )
 
 
@@ -50,8 +52,9 @@ def make_universal_invariant_tests(  # noqa: C901
     chain_actors: list,
     expected_event_types: list,
     check_fix_ready: bool = True,
+    narrative_path: str | None = None,
 ) -> dict[str, Any]:
-    """Return the 16 universal invariant test functions keyed by name.
+    """Return the universal invariant test functions keyed by name.
 
     Parameters
     ----------
@@ -69,6 +72,11 @@ def make_universal_invariant_tests(  # noqa: C901
         ``check_per_actor_replica_divergence``; set to ``False`` for the
         ``fcv-reject`` scenario where Vendor never advances the VFD state
         machine.
+    narrative_path:
+        Repo-relative path to the scenario narrative Markdown page that
+        carries the machine-readable ``causal_edges:`` front-matter block.
+        When provided, injects ``test_invariant_16_causal_edges_in_ledger_order``.
+        When absent, that test is omitted (DEMOMA-22-005).
     """
     calling_module = sys._getframe(1).f_globals.get("__name__", __name__)
 
@@ -299,6 +307,37 @@ def make_universal_invariant_tests(  # noqa: C901
         "test_invariant_clp13_no_rejected_invite_entries": test_invariant_clp13_no_rejected_invite_entries,
         "test_invariant_per_actor_replica_divergence": test_invariant_per_actor_replica_divergence,
     }
+
+    if narrative_path is not None:
+        _narrative_path = narrative_path
+
+        @pytest.mark.case_ledger_invariants
+        def test_invariant_16_causal_edges_in_ledger_order(
+            request: pytest.FixtureRequest,
+        ) -> None:
+            """Every declared causal edge appears in the ledger in causal order (DEMOMA-22-005).
+
+            Reads the scenario narrative page's YAML front-matter to obtain the
+            machine-readable ``causal_edges:`` list, then verifies that for each
+            observable edge (antecedent, consequent) there exists at least one
+            antecedent entry that precedes at least one consequent entry in the
+            authoritative log.
+            """
+            replicas = request.getfixturevalue(replicas_fixture)
+            edges = load_narrative_edges(_narrative_path)
+            violations = check_causal_edges(replicas, edges)
+            assert not violations, (
+                f"{len(violations)} causal-edge ordering violation(s):\n"
+                + "\n".join(violations)
+            )
+
+        test_invariant_16_causal_edges_in_ledger_order.__module__ = (
+            calling_module
+        )
+        result["test_invariant_16_causal_edges_in_ledger_order"] = (
+            test_invariant_16_causal_edges_in_ledger_order
+        )
+
     for fn in result.values():
         fn.__module__ = calling_module
     return result
