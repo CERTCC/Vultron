@@ -92,6 +92,12 @@ def _build_case(
     """Build a VulnerabilityCase with full participant setup and linked report."""
     case = as_VulnerabilityCase(name="Chain Integration Case")
     case.vulnerability_reports.append(report_id)
+    # DUR-07-004: an embargo must be established before RM.VALID.  This used to
+    # be satisfiable by accident — TransitionRMtoValid wrote its latch before
+    # EnsureEmbargoExists ran, and the latch made CheckRMStateValid pass on the
+    # fallback arm (ISSUE-2548).  The check is now upstream of every write, so
+    # the case replica has to actually carry the embargo.
+    case.active_embargo = f"{case.id_}/embargoes/chain-embargo"
 
     vendor_p = as_CaseParticipant(
         attributed_to=vendor_id,
@@ -262,7 +268,7 @@ class TestValidateEngageChain:
         """ValidateReport queues an activity addressed to the Case Actor (PCR-08-001)."""
         vendor, _, case_actor, dl, _, offer, _ = chain_context
 
-        before = set(dl.outbox_list_for_actor(vendor.id_))
+        before = set(dl.outbox_list())
         SvcValidateReportUseCase(
             dl,
             ValidateReportTriggerRequest(
@@ -270,7 +276,7 @@ class TestValidateEngageChain:
             ),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
-        after = set(dl.outbox_list_for_actor(vendor.id_))
+        after = set(dl.outbox_list())
         new_ids = after - before
         assert (
             new_ids

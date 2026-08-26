@@ -239,7 +239,7 @@ groups:
       receiving actor. The refusal MUST be synchronous, before the HTTP 202 is
       returned, and MUST NOT write anything to the receiving actor's store.
     rationale: >-
-      Per-actor DataLayer isolation (ADR-0066) makes each actor's store the
+      Per-actor DataLayer isolation (ADR-0073) makes each actor's store the
       authoritative answer to "whose replica is this?". That invariant is only
       trustworthy if the store's owner was the intended recipient of every
       Activity it processed. A synchronous 4xx is itself the signal to the sender,
@@ -250,6 +250,7 @@ groups:
       with HTTP 400 and no record is written to the actor's store.
     adr:
     - ADR-0068
+    - ADR-0073
     stories:
     - story_2022_039
     - story_2022_040

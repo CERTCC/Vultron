@@ -60,7 +60,10 @@ OFFER_ID = f"urn:uuid:{uuid.uuid4()}"
 
 @pytest.fixture
 def datalayer():
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=PARTICIPANT_ACTOR_ID,
+    )
     yield dl
     dl.close()
 

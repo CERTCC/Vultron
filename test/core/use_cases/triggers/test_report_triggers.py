@@ -263,13 +263,13 @@ class TestSvcValidateReportUseCase:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcValidateReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
     @pytest.mark.spec("TRIG-07-001")
@@ -280,13 +280,13 @@ class TestSvcValidateReportUseCase:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcValidateReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "No new outbox item was queued"
 
@@ -493,13 +493,13 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcInvalidateReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
 
@@ -548,13 +548,13 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcRejectReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
 
@@ -664,13 +664,13 @@ class TestSvcSubmitReportUseCase:
             report_content="Vulnerability details",
             recipient_id=self.vendor.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.finder.id_))
+        before = set(self.dl.outbox_list())
         SvcSubmitReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.finder.id_))
+        after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
     def test_submit_report_offer_addressed_to_recipient(self):
@@ -681,13 +681,13 @@ class TestSvcSubmitReportUseCase:
             report_content="Vulnerability details",
             recipient_id=self.vendor.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.finder.id_))
+        before = set(self.dl.outbox_list())
         SvcSubmitReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.finder.id_))
+        after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "No new outbox item was queued"
 

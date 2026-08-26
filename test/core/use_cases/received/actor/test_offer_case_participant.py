@@ -70,7 +70,10 @@ def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
     The Case Owner is the local actor that receives Offer(CaseParticipant)
     from the CaseActor.
     """
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
+    )
     owner_actor = as_Actor(id_=CASE_OWNER_ID)
     case = as_VulnerabilityCase(
         id_=CASE_ID,
@@ -88,7 +91,10 @@ def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
     The CaseActor is the local actor that receives Accept/Reject from the
     Case Owner.
     """
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
+    )
     case_actor = as_Service(id_=CASE_ACTOR_ID)
     case = as_VulnerabilityCase(
         id_=CASE_ID,
@@ -138,14 +144,26 @@ class TestOfferCaseParticipantReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-    def test_skips_when_no_local_actor(self, caplog):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+    def test_never_fabricates_the_local_actor(self, caplog):
+        """There is no "no local actor" case to skip for (ADR-0073).
+
+        A DataLayer always belongs to exactly one actor, so "who am I?" always has
+        an answer: ``resolve_receiving_actor_id`` prefers the inbox-supplied
+        ``receiving_actor_id`` and otherwise asks the store. The old skip branch
+        resolved it by scanning for the first actor object instead, which since
+        peer records live in each actor's own address book could return a *peer* —
+        so it was both unreachable by design and wrong when it did fire.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
+        )
         event = self._event()
         with caplog.at_level(logging.WARNING):
             OfferCaseParticipantReceivedUseCase(dl, event).execute()
-        assert any(
-            "no local actor" in r.message.lower() for r in caplog.records
-        )
+        messages = " ".join(r.message.lower() for r in caplog.records)
+        assert "no local actor" not in messages
+        assert "unknown" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_owner()
@@ -189,14 +207,24 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-    def test_skips_when_no_local_actor(self, caplog):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+    def test_never_fabricates_the_local_actor(self, caplog):
+        """There is no "no local actor" case to skip for (ADR-0073).
+
+        A DataLayer always belongs to exactly one actor, so "who am I?" always
+        has an answer. The old skip branch scanned for the first actor object,
+        which since peer records live in each actor's own address book could
+        return a *peer* — unreachable by design and wrong when it did fire.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
+        )
         event = self._event()
         with caplog.at_level(logging.WARNING):
             AcceptOfferCaseParticipantReceivedUseCase(dl, event).execute()
-        assert any(
-            "no local actor" in r.message.lower() for r in caplog.records
-        )
+        messages = " ".join(r.message.lower() for r in caplog.records)
+        assert "no local actor" not in messages
+        assert "unknown" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_actor()
@@ -251,7 +279,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(actor_id)
+        outbox = dl.outbox_list()
         assert len(outbox) >= 2, (
             "Expected at least two outbox activities (Accept notification to "
             f"recommender + Invite to invitee); got {len(outbox)}"
@@ -299,14 +327,24 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-    def test_skips_when_no_local_actor(self, caplog):
-        dl = SqliteDataLayer("sqlite:///:memory:")
+    def test_never_fabricates_the_local_actor(self, caplog):
+        """There is no "no local actor" case to skip for (ADR-0073).
+
+        A DataLayer always belongs to exactly one actor, so "who am I?" always
+        has an answer. The old skip branch scanned for the first actor object,
+        which since peer records live in each actor's own address book could
+        return a *peer* — unreachable by design and wrong when it did fire.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
+        )
         event = self._event()
         with caplog.at_level(logging.WARNING):
             RejectOfferCaseParticipantReceivedUseCase(dl, event).execute()
-        assert any(
-            "no local actor" in r.message.lower() for r in caplog.records
-        )
+        messages = " ".join(r.message.lower() for r in caplog.records)
+        assert "no local actor" not in messages
+        assert "unknown" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_actor()
@@ -342,7 +380,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(actor_id)
+        outbox = dl.outbox_list()
         assert len(outbox) >= 1, (
             "Expected at least one outbox activity (RejectActorRecommendation "
             f"to recommender); got {len(outbox)}"
@@ -377,7 +415,9 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
     """
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    # This scenario has its own CaseActor (AC1_CASE_ACTOR_ID), so the store is
+    # that one's, not the module-level CASE_ACTOR_ID used elsewhere in the file.
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=AC1_CASE_ACTOR_ID)
     case_actor = as_Service(id_=AC1_CASE_ACTOR_ID, context=AC1_CASE_ID)
     case = as_VulnerabilityCase(
         id_=AC1_CASE_ID,
@@ -461,7 +501,7 @@ class TestRolesFromStoredOffer:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)
@@ -497,7 +537,7 @@ class TestRolesFromStoredOffer:
         ).execute()
 
         # Step 2: find the stored Invite
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)
@@ -600,7 +640,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)
@@ -636,7 +676,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         ).execute()
 
         # Step 2: find the stored Invite
-        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        outbox = dl.outbox_list()
         invite_obj = None
         for act_id in outbox:
             obj = dl.read(act_id)

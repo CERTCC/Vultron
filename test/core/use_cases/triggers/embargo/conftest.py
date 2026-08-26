@@ -186,17 +186,45 @@ def _build_active_embargo_case_with_case_manager(
     return case
 
 
+def _actor_and_own_store(
+    name: str,
+) -> Generator[tuple[as_Service, SqliteDataLayer], None, None]:
+    """Yield an actor and *its own* store.
+
+    Which actor owns the store is not decoration: a trigger's BT executes as the
+    requesting actor and its store follows that actor (ADR-0073), so a test whose
+    request names actor A while holding B's store leaves the tree reading an
+    empty one and the case "not found".  Pick the fixture that matches the
+    ``actor_id`` on the request under test.
+    """
+    actor = as_Service(name=name)
+    reset_datalayer(actor.id_)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
+    dl.clear_all()
+    dl.create(actor)
+    try:
+        yield actor, dl
+    finally:
+        dl.close()
+        reset_datalayer(actor.id_)
+
+
 @pytest.fixture
 def finder_actor_and_dl() -> (
     Generator[tuple[as_Service, SqliteDataLayer], None, None]
 ):
-    finder_actor = as_Service(name="Finder Co")
-    reset_datalayer(finder_actor.id_)
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=finder_actor.id_)
-    dl.clear_all()
-    dl.create(finder_actor)
-    try:
-        yield finder_actor, dl
-    finally:
-        dl.close()
-        reset_datalayer(finder_actor.id_)
+    """The finder and its own store — for triggers requested *by the finder*."""
+    yield from _actor_and_own_store("Finder Co")
+
+
+@pytest.fixture
+def owner_actor_and_dl() -> (
+    Generator[tuple[as_Service, SqliteDataLayer], None, None]
+):
+    """The case owner and its own store — for triggers requested *by the owner*.
+
+    Embargo teardown is one: the authority is the case's CASE_MANAGER, which
+    ``_build_active_embargo_case`` gives to the owner, so the owner is both the
+    requesting actor and the store's owner.
+    """
+    yield from _actor_and_own_store("Vendor Co")

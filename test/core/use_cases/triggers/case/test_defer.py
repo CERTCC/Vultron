@@ -123,7 +123,7 @@ class TestDeferCaseRMTransitionViaBT:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcDeferCaseUseCase(
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
@@ -134,7 +134,7 @@ class TestDeferCaseRMTransitionViaBT:
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm.state == RM.DEFERRED
 
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "DeferCase must queue at least one outbox activity"
         activity_id = next(iter(new_ids))

@@ -48,6 +48,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_step,
@@ -65,6 +66,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -75,6 +77,7 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
+    resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_participants,
@@ -213,7 +216,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        coordinator_client.get(f"/datalayer/{case.id_}")
+        coordinator_client.get(coordinator_client.dl_path(case.id_))
     )
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
     return (
@@ -289,10 +292,20 @@ def _phase_invite_vendor_reject(
         "Participant count stays at 3 (Vendor not added after rejection)"
     ):
         # Give the CaseActor time to process the Reject then confirm stability.
+        #
+        # Read the CaseActor's own store: the rejection is self-contained on the
+        # CaseActor — it records that the invitee declined and has no participant
+        # effect to announce (CLP-10-006) — so no replica ever receives this
+        # entry.  Before ADR-0073 the coordinator and the CaseActor it self-hosts
+        # shared one store, which is why reading the coordinator's own replica
+        # used to find it.
         wait_for_event_type_in_ledger(
             client=coordinator_client,
             case_id=case.id_,
             event_type="reject_invite_actor_to_case",
+            dl_actor_id=resolve_case_actor_store_id(
+                coordinator_client, str(case.id_)
+            ),
         )
         wait_for_case_participants(
             vendor_client=coordinator_client,
@@ -473,9 +486,18 @@ def _phase_dump_case_ledgers(
     :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
     per-actor export, the 404 handling, and the dump manifest.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0073), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("coordinator", coordinator_client, "coordinator"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "coordinator",
+            coordinator_client,
+            replica_route_key(coordinator_client, "coordinator"),
+        ),
     ]
     # The case-actor is a sub-actor inside the coordinator container.
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -617,7 +639,9 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(base_url=ca_url)
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

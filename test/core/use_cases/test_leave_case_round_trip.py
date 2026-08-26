@@ -238,13 +238,13 @@ class TestLeaveCaseRoundTrip:
             actor_id=vendor.id_,
             case_id=case.id_,
         )
-        before = set(vendor_dl.outbox_list_for_actor(vendor.id_))
+        before = set(vendor_dl.outbox_list())
         SvcLeaveCaseUseCase(
             vendor_dl,
             request,
             trigger_activity=TriggerActivityAdapter(vendor_dl),
         ).execute()
-        after = set(vendor_dl.outbox_list_for_actor(vendor.id_))
+        after = set(vendor_dl.outbox_list())
         assert after - before, "Leave must be queued in vendor outbox"
 
         # AC-2: vendor RM is NOT closed immediately at send time
@@ -368,13 +368,13 @@ class TestLeaveCaseRoundTrip:
             actor_id=vendor.id_,
             case_id=case.id_,
         )
-        before = set(vendor_dl.outbox_list_for_actor(vendor.id_))
+        before = set(vendor_dl.outbox_list())
         SvcLeaveCaseUseCase(
             vendor_dl,
             request,
             trigger_activity=TriggerActivityAdapter(vendor_dl),
         ).execute()
-        after = set(vendor_dl.outbox_list_for_actor(vendor.id_))
+        after = set(vendor_dl.outbox_list())
         assert after - before, "Owner Leave must be queued in vendor outbox"
 
         # Step 2: AC-2 — RM.CLOSED must NOT be set at send time

@@ -22,7 +22,11 @@ Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
 
+import logging
+
 import pytest
+
+from test.conftest import seed_case_actor_replica
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -177,7 +181,20 @@ class TestSvcInviteActorToCaseUseCase:
         assert stored is not None
         assert isinstance(stored, as_Invite)
 
-    def test_invite_raises_when_invitee_not_in_dl(self):
+    def test_invite_proceeds_when_invitee_not_in_dl_but_warns(self, caplog):
+        """An invitee is named by URI; a local record is not required.
+
+        This asserted a 404 before. Holding a local record was never a protocol
+        requirement — the record was read and discarded, delivery derives the
+        invitee's inbox from its URI alone, and under per-actor storage a peer's
+        record lives in *its* store, not the inviter's (ADR-0073 decision 5). So
+        the old behaviour refused invitations to actors that exist and are
+        reachable, which is every cross-node invitee in a real deployment.
+
+        Absence is still reported at WARNING: actor discovery does not exist yet,
+        so the inability to verify the invitee locally is a real gap and must not
+        pass unremarked.
+        """
         actor, dl = _make_actor_dl("Coordinator")
         # invitee NOT seeded in actor's DL
         missing_id = "https://example.org/actors/nobody"
@@ -191,10 +208,55 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=case.id_,
             invitee_id=missing_id,
         )
-        with pytest.raises(VultronNotFoundError):
+        with caplog.at_level(logging.WARNING):
+            result = SvcInviteActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+        assert result is not None
+        assert missing_id in caplog.text
+        assert "no local record for invitee" in caplog.text
+
+    @pytest.mark.parametrize(
+        "bad_id",
+        [
+            "nobody",  # bare name, no scheme
+            "/actors/nobody",  # relative path
+            "https:///actors/nobody",  # scheme but no netloc
+            "ftp://example.org/actors/nobody",  # non-HTTP scheme
+        ],
+    )
+    def test_invite_rejects_undeliverable_invitee_uri(self, bad_id):
+        """An unknown invitee is minted, but only from a deliverable URI.
+
+        Absence is not grounds for refusal (see the test above), which leaves
+        the id itself as the only thing that can be checked. It has to be an
+        absolute http(s) URI because it *is* the address the invitation is
+        POSTed to: a typo'd or relative id would otherwise become a case
+        participant that no delivery attempt can ever reach, failing far away
+        in the retry loop instead of here.
+        """
+        actor, dl = _make_actor_dl("Coordinator")
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=bad_id,
+        )
+        with pytest.raises(
+            VultronValidationError, match="deliverable actor URI"
+        ):
             SvcInviteActorToCaseUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+        assert (
+            dl.read(bad_id) is None
+        ), "a rejected invitee must not be recorded as a known actor"
 
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -258,6 +320,9 @@ class TestSvcInviteActorToCaseUseCase:
             name="CaseActorService",
         )
         dl.create(case_actor)
+        # The Invite is authored as the CaseActor and committed to its ledger, so
+        # the tree runs in the CaseActor's store and that store needs the case.
+        seed_case_actor_replica(dl, case_actor.id_, case, invitee)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -483,7 +548,10 @@ class TestRolesThreadingIntegration:
 
         # Shared DataLayer: both trigger and receive sides use it so the
         # persisted Invite is visible when Accept is processed.
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         _CREATED_DLS.append(dl)
 
         owner = as_Service(name="CaseOwner")
@@ -589,7 +657,46 @@ class TestSvcSuggestActorToCaseUseCase:
         assert result["activity"]["actor"] == actor.id_
         assert result["activity"].get("to") == [case_actor.id_]
 
-    def test_suggest_raises_when_suggested_actor_missing(self):
+    def test_suggest_proceeds_when_suggested_actor_missing_but_warns(
+        self, caplog
+    ):
+        """A recommended actor is named by URI; a local record is not required.
+
+        This asserted a 404 before, for the same reason the invite path did, and
+        it was wrong for the same reason: the whole point of a recommendation is
+        to name an actor the case does not have yet, and under per-actor storage
+        that actor's record lives in *its* store (ADR-0073 decision 5). The old
+        behaviour refused every genuinely remote candidate — in the fcvcv demo,
+        ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
+        found`` for a vendor that was running and reachable in another container
+        (#2548).
+        """
+        actor, dl = _make_actor_dl("Coordinator")
+        case_actor, _ = _make_actor_dl("Case Actor")
+        dl.create(case_actor)
+        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
+
+        missing_id = "https://example.org/actors/ghost"
+        request = SuggestActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            suggested_actor_id=missing_id,
+        )
+        with caplog.at_level(logging.WARNING):
+            result = SvcSuggestActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+        assert result is not None
+        assert missing_id in caplog.text
+        assert "no local record for suggested_actor_id" in caplog.text
+
+    @pytest.mark.parametrize(
+        "bad_id",
+        ["ghost", "/actors/ghost", "https:///actors/ghost"],
+    )
+    def test_suggest_rejects_undeliverable_actor_uri(self, bad_id):
+        """The id is the address the eventual invitation is POSTed to."""
         actor, dl = _make_actor_dl("Coordinator")
         case_actor, _ = _make_actor_dl("Case Actor")
         dl.create(case_actor)
@@ -598,12 +705,18 @@ class TestSvcSuggestActorToCaseUseCase:
         request = SuggestActorToCaseTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
-            suggested_actor_id="https://example.org/actors/ghost",
+            suggested_actor_id=bad_id,
         )
-        with pytest.raises(VultronNotFoundError):
+        with pytest.raises(
+            VultronValidationError, match="deliverable actor URI"
+        ):
             SvcSuggestActorToCaseUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+        assert (
+            dl.read(bad_id) is None
+        ), "a rejected candidate must not be recorded as a known actor"
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
@@ -995,7 +1108,15 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         stored = dl.read(offer_id)
         assert stored is not None
 
-    def test_offer_raises_when_transferee_not_in_dl(self):
+    def test_offer_proceeds_when_transferee_not_in_dl_but_warns(self, caplog):
+        """A transferee is a peer named by URI; a local record is not required.
+
+        Handing a case to an actor on another node is the ordinary case, and
+        under per-actor storage that node's record is in *its* store (ADR-0073
+        decision 5) — so the old 404 refused exactly the transfers the protocol
+        exists to support. Same defect as the invite and recommend paths; all
+        three now share ``_record_named_peer``.
+        """
         owner, dl = _make_actor_dl("Vendor")
         missing_id = "https://example.org/actors/nobody"
         case = as_VulnerabilityCase(
@@ -1015,10 +1136,13 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             case_id=case.id_,
             transferee_id=missing_id,
         )
-        with pytest.raises(VultronNotFoundError):
-            SvcOfferCaseOwnershipTransferUseCase(
+        with caplog.at_level(logging.WARNING):
+            result = SvcOfferCaseOwnershipTransferUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+        assert result is not None
+        assert "no local record for transferee_id" in caplog.text
 
     def test_offer_raises_when_case_not_in_dl(self):
         owner, dl = _make_actor_dl("Vendor")
@@ -1061,6 +1185,19 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             name="CaseActorService",
         )
         dl.create(case_actor)
+
+        # The delegated-emit contract makes the CaseActor the actor this BT
+        # executes as (CM-24-001), and a BT reads and writes its executing
+        # actor's own store (ADR-0073) — which is *not* the owner's, even when
+        # the two are co-located on one container.  In a deployment the
+        # CaseActor's store holds the case because the CaseActor is the case
+        # manager and keeps its canonical log; seeded here so the emit has a
+        # case to enrich the wire object from (CM-17-002) instead of failing on
+        # an empty store.
+        case_actor_dl = dl.clone_for_actor(case_actor.id_)
+        _CREATED_DLS.append(case_actor_dl)
+        for obj in (owner, transferee, case, case_actor):
+            case_actor_dl.create(obj)
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -1152,9 +1289,12 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         return offer
 
     def test_accept_creates_activity(self):
-        owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
+        # The *transferee* accepts, so the store is the transferee's own: it is
+        # the actor that received the Offer, and the store an execution runs
+        # against is the executing actor's (ADR-0073, DL-07-009).
+        owner, _ = _make_actor_dl("Vendor")
+        transferee, dl = _make_actor_dl("Coordinator")
+        dl.create(owner)
         case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Test Case", content="Content"
         )
@@ -1182,9 +1322,12 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         assert activity_data["actor"] == transferee.id_
 
     def test_accept_persisted_in_datalayer(self):
-        owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
+        # The transferee's own store, for the reason given in
+        # ``test_accept_creates_activity``; it is also the store the Accept must
+        # land in, which is what this test reads back.
+        owner, _ = _make_actor_dl("Vendor")
+        transferee, dl = _make_actor_dl("Coordinator")
+        dl.create(owner)
         case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Test Case", content="Content"
         )
@@ -1309,9 +1452,16 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         This test seeds a case with a CASE_MANAGER participant and verifies
         the emitted ``to`` field carries the case actor URI.
         """
-        owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
+        # The store is the *transferee's*: it is the requesting actor, so it is
+        # the actor the BT executes as, and a BT reads and writes its executing
+        # actor's own store (ADR-0073).  Holding the owner's store instead left
+        # the tree looking for the case in an empty one, and `to` fell back to an
+        # actor that is not the case manager — the assertion below failed on a
+        # value that had nothing to do with `_resolve_case_manager_id`.
+        transferee, dl = _make_actor_dl("Coordinator")
+
+        owner, _ = _make_actor_dl("Vendor")
+        dl.create(owner)
 
         case_actor, _ = _make_actor_dl("CaseActor")
         dl.create(case_actor)

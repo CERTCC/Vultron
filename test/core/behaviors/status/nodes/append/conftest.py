@@ -42,7 +42,9 @@ def clear_blackboard():
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    # ACTOR_ID's own store: every tree in this package executes as ACTOR_ID,
+    # and a BT's store follows its executing actor (ADR-0073).
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
 
 @pytest.fixture

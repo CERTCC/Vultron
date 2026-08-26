@@ -17,7 +17,14 @@ mode: prototype
 
 server:
   # Base URL used when constructing activity/actor object IDs.
-  base_url: http://localhost:7999
+  #
+  # MUST include the API path prefix.  An actor's id is the URL that reaches it,
+  # and a hosted actor is named `{base_url}/actors/{slug}` with its inbox at
+  # `{id}/inbox` — so a base_url without `/api/v2` mints ids that address
+  # nothing, because the routes live under that prefix.  The deployed compose
+  # files set e.g. `http://finder:7999/api/v2/`; this default now matches their
+  # shape so a local run behaves like a deployed one.
+  base_url: http://localhost:7999/api/v2
 
   # Root log level.  One of: DEBUG, INFO, WARNING, ERROR, CRITICAL.
   log_level: INFO

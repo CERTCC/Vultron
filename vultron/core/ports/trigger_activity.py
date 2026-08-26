@@ -257,6 +257,8 @@ class TriggerActivityPort(Protocol):
         case_actor_id: str,
         summary: str | None = None,
         to: list[str] | None = None,
+        offer_id: str | None = None,
+        offer_actor_id: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(as_CaseProposal)`` activity.
 
@@ -264,6 +266,11 @@ class TriggerActivityPort(Protocol):
         identified by ``report_id``, addressed to the case-actor service at
         ``case_actor_id``, and persists ``Create(as_CaseProposal)`` to the
         DataLayer.
+
+        ``offer_id`` and ``offer_actor_id`` carry the provenance of the report —
+        which ``Offer(VulnerabilityReport)`` brought it and from whom
+        (CP-01-007).  The CaseActor cannot recover them on its own; see
+        ``as_CaseProposal.offer_id`` for why they have to travel on the wire.
 
         Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
         Returns ``(activity_id, activity_dict)``.

@@ -28,6 +28,7 @@ from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_already_received,
     _collect_addresses,
     _get_body,
+    _names_an_individual_actor,
     _record_inbox_receipt,
     _reparse_as_specific_type,
     _store_inbox_activity,
@@ -416,37 +417,192 @@ def test_activity_addressed_to_short_id_of_other_actor_does_not_match():
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
 
-def test_activity_addressed_to_returns_true_for_collection_uri_with_dl(
-    datalayer,
-):
-    """IE-11-002: collection URI (unresolvable) → Liberal Accept when DL is present."""
-    from vultron.adapters.driven.db_record import object_to_record
-    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+def test_activity_addressed_to_returns_true_for_collection_uri():
+    """IE-11-002: collection URI (unresolvable) → Liberal Accept.
 
-    actor = as_Organization(id_=_ACTOR_URI, name="Alice")
-    datalayer.create(object_to_record(actor))
-
+    No DataLayer is involved.  This used to seed the receiving actor and pass a
+    ``dl``, which read as though store contents mattered to the outcome; they
+    never did for this case, and the parameter is gone.
+    """
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
     # Collection URI — the last segment "participants" won't resolve to any actor
     activity.to = "https://example.org/cases/case-001/participants"
-    assert _activity_addressed_to(activity, _ACTOR_URI, dl=datalayer) is True
+    assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
-def test_activity_addressed_to_returns_false_when_all_addresses_are_known_other_actors(
-    datalayer,
-):
-    """IE-11-001: all addresses resolve to known actors, none the receiver → refuse."""
-    from vultron.adapters.driven.db_record import object_to_record
-    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+def test_activity_addressed_to_refuses_when_every_address_names_another_actor():
+    """IE-11-001: every address names some other individual actor → refuse.
 
-    # Persist the receiving actor and the "other" actor
-    alice = as_Organization(id_=_ACTOR_URI, name="Alice")
-    bob = as_Organization(id_=_OTHER_ACTOR_URI, name="Bob")
-    datalayer.create(object_to_record(alice))
-    datalayer.create(object_to_record(bob))
-
+    "Known" is no longer part of the question — the predicate reads the address's
+    shape, not any store's contents.
+    """
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = (
-        _OTHER_ACTOR_URI  # addressed exclusively to bob (a known actor)
+    activity.to = _OTHER_ACTOR_URI  # addressed exclusively to bob
+    assert _activity_addressed_to(activity, _ACTOR_URI) is False
+
+
+def test_activity_addressed_to_refuses_peer_absent_from_the_receivers_store():
+    """IE-11-001: a peer the receiver's store has never heard of is still a peer.
+
+    Regression for the ADR-0073 interaction: resolvability used to be probed
+    with ``dl.find_actor_by_short_id``, which asks the *receiving actor's own*
+    store whether it knows the addressee.  Under per-actor isolation the answer
+    is structurally "no" for every peer — a store holds its owner's knowledge,
+    not the node's roster — so every misaddressed Activity naming a real peer
+    fell through to Liberal Accept and IE-11-001 refused nothing at all.
+
+    Nothing is seeded, because nothing can be: the predicate no longer takes a
+    store.  Bob being absent from alice's store is the normal state of affairs,
+    not an edge case, which is precisely why the lookup had to go.
+    """
+    activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
+    activity.to = _OTHER_ACTOR_URI
+    assert _activity_addressed_to(activity, _ACTOR_URI) is False
+
+
+# ---------------------------------------------------------------------------
+# _names_an_individual_actor — the address-shape predicate behind IE-11-002
+# ---------------------------------------------------------------------------
+
+
+class TestNamesAnIndividualActor:
+    """IE-11-002 asks about the *address*, so each recognised shape is pinned.
+
+    The predicate consults no store, which is what fixed the ADR-0073
+    interaction: a store holds its owner's knowledge, not the node's roster, so
+    "do I know this addressee?" answered "no" for every peer and IE-11-001
+    refused nothing. Since the answer now comes entirely from the string, the
+    string shapes are the contract.
+
+    False means "unresolvable", which means Liberal Accept — so a bug here does
+    not reject good traffic, it *accepts* misaddressed traffic. That asymmetry is
+    why the negative cases below matter more than the positive ones.
+    """
+
+    @pytest.mark.parametrize(
+        "addr",
+        [
+            "https://example.org/actors/alice",
+            "http://vendor:7999/api/v2/actors/vendor",
+            "https://example.org/actors/case-actor-abc123",
+            "bob",
+        ],
     )
-    assert _activity_addressed_to(activity, _ACTOR_URI, dl=datalayer) is False
+    def test_recognises_an_individual_actor(self, addr):
+        assert _names_an_individual_actor(addr) is True
+
+    def test_a_sub_collection_of_an_actor_is_not_the_actor(self):
+        """``{actor_id}/followers`` addresses a set, not the actor.
+
+        The second-to-last segment is the actor slug, not ``actors``, so this is
+        unresolvable and falls through to Liberal Accept. Treating it as
+        individual would make IE-11-001 refuse an Activity addressed to alice's
+        followers when alice is the receiver — a broadcast rejected as
+        misaddressed.
+        """
+        assert (
+            _names_an_individual_actor(
+                "https://example.org/actors/alice/followers"
+            )
+            is False
+        )
+
+    @pytest.mark.parametrize(
+        "sub", ["followers", "following", "inbox", "liked"]
+    )
+    def test_no_actor_sub_collection_is_treated_as_individual(self, sub):
+        assert (
+            _names_an_individual_actor(
+                f"https://example.org/actors/alice/{sub}"
+            )
+            is False
+        )
+
+    def test_the_public_addressing_constant_is_not_an_individual(self):
+        """``as:Public`` is the broadest possible address.
+
+        Its path is ``/ns/activitystreams``, so the shape test rejects it — which
+        is the required outcome: an Activity addressed only to Public must reach
+        every receiver, and treating the constant as "some other individual actor"
+        would refuse all of them.
+        """
+        assert (
+            _names_an_individual_actor(
+                "https://www.w3.org/ns/activitystreams#Public"
+            )
+            is False
+        )
+
+    @pytest.mark.parametrize(
+        "addr",
+        [
+            "https://example.org/cases/case-001/participants",
+            "https://example.org/cases/case-001",
+            "https://remote.example/users/alice",
+            "https://remote.example/u/alice",
+        ],
+    )
+    def test_a_collection_or_unfamiliar_layout_is_unresolvable(self, addr):
+        """A remote node's layout is not this node's to interpret."""
+        assert _names_an_individual_actor(addr) is False
+
+    @pytest.mark.parametrize("empty", ["", None])
+    def test_an_absent_address_names_nobody(self, empty):
+        assert _names_an_individual_actor(empty) is False
+
+    def test_an_activity_addressed_only_to_public_is_accepted(self):
+        """The branch that matters at the route level, not just the predicate."""
+        activity = as_Create(
+            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        )
+        activity.to = "https://www.w3.org/ns/activitystreams#Public"
+        assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+    def test_an_activity_addressed_to_another_actors_followers_is_accepted(
+        self,
+    ):
+        """Unresolvable, so Liberal Accept — not a refusal."""
+        activity = as_Create(
+            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        )
+        activity.to = f"{_OTHER_ACTOR_URI}/followers"
+        assert _activity_addressed_to(activity, _ACTOR_URI) is True
+
+    def test_public_in_the_cc_makes_an_otherwise_refused_activity_acceptable(
+        self,
+    ):
+        """Refusal requires *provable* exclusion of every address.
+
+        ``to: bob`` alone is refused, but adding ``cc: as:Public`` makes the same
+        Activity acceptable — one unresolvable address is enough uncertainty to
+        accept the whole thing (IE-11-002). That is the right reading rather than
+        a hole: ``as:Public`` means "everyone", so alice genuinely *is* addressed.
+
+        Pinned as a pair so the contrast is the assertion. If a future change
+        makes refusal the rule for any address naming another individual, this
+        test fails and names the policy that changed.
+        """
+        aimed_at_bob = as_Create(
+            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        )
+        aimed_at_bob.to = _OTHER_ACTOR_URI
+        assert _activity_addressed_to(aimed_at_bob, _ACTOR_URI) is False
+
+        also_public = as_Create(
+            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        )
+        also_public.to = _OTHER_ACTOR_URI
+        also_public.cc = "https://www.w3.org/ns/activitystreams#Public"
+        assert _activity_addressed_to(also_public, _ACTOR_URI) is True
+
+    def test_two_named_peers_are_still_refused(self):
+        """Every address resolvable and none of them me → refuse (IE-11-001).
+
+        The guard against reading the rule above as "any extra address accepts".
+        """
+        activity = as_Create(
+            actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
+        )
+        activity.to = _OTHER_ACTOR_URI
+        activity.cc = "https://example.org/actors/carol"
+        assert _activity_addressed_to(activity, _ACTOR_URI) is False

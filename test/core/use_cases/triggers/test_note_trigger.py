@@ -151,12 +151,15 @@ def _to_field(activity_obj) -> list[str] | None:
 
 
 def _outbox_activity_ids(actor_id: str, dl: SqliteDataLayer) -> list[str]:
-    """Return all activity IDs in the actor's outbox."""
-    scoped = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-    scoped._engine.dispose()
-    scoped._engine = dl._engine
-    scoped._owns_engine = False
-    return scoped.outbox_list()
+    """Return all activity IDs in *actor_id*'s outbox.
+
+    ``clone_for_actor`` is the supported way to reach another actor's store
+    (ADR-0073).  This used to build a store for *actor_id* and then swap in
+    ``dl``'s engine — a hand-rolled cross-actor read that also disposed a
+    *cached* engine, destroying the in-memory database it was pointing at and
+    leaving later reads with "no such table".
+    """
+    return dl.clone_for_actor(actor_id).outbox_list()
 
 
 # ---------------------------------------------------------------------------
@@ -184,10 +187,12 @@ class TestSvcAddNoteToCaseUseCase:
             )
         )
         yield
-        self.dl.clear_all()
-        reset_datalayer(self.vendor.id_)
-        reset_datalayer(self.finder.id_)
-        reset_datalayer(self.case_actor.id_)
+        # No clear_all() here: an in-memory store lives only while a connection
+        # is open, so once a per-actor engine is disposed the database is gone
+        # and clearing it raises "no such table". The autouse
+        # _dispose_actor_stores_between_tests fixture in test/conftest.py already
+        # drops every per-actor store after each test (ADR-0073), which is
+        # strictly more thorough than clearing rows.
         _reset_stores()
 
     def _execute(self, actor_id=None, in_reply_to=None):

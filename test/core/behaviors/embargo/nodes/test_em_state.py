@@ -63,7 +63,10 @@ class TestReadEmStateNode:
 
     def test_returns_success_and_populates_em_before(self):
         """SUCCESS when case found with valid em_state; stores EM in result_out."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("rsn1", em_state=EM.ACTIVE)
         dl.create(case)
         setup_blackboard(dl)
@@ -79,7 +82,10 @@ class TestReadEmStateNode:
 
     def test_reads_revise_state(self):
         """SUCCESS when em_state is REVISE; returns EM.REVISE in result_out."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("rsn2", em_state=EM.REVISE)
         dl.create(case)
         setup_blackboard(dl)
@@ -95,7 +101,10 @@ class TestReadEmStateNode:
 
     def test_reads_none_state(self):
         """SUCCESS when em_state is NONE; returns EM.NONE in result_out."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("rsn3", em_state=EM.NONE)
         case.active_embargo = None
         dl.create(case)
@@ -112,7 +121,10 @@ class TestReadEmStateNode:
 
     def test_returns_failure_when_case_missing(self):
         """FAILURE when case_id is not in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         setup_blackboard(dl)
 
         result_out: dict = {}
@@ -181,7 +193,10 @@ class TestWriteEmStateNode:
 
     def test_writes_em_after_and_persists(self):
         """SUCCESS and em_state updated on case when result_out has em_after."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("wsn1", em_state=EM.PROPOSED)
         case.active_embargo = None
         dl.create(case)
@@ -201,7 +216,10 @@ class TestWriteEmStateNode:
 
     def test_idempotent_when_already_at_target(self):
         """SUCCESS without saving when em_state already equals em_after."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("wsn2", em_state=EM.ACTIVE)
         dl.create(case)
         setup_blackboard(dl)
@@ -216,7 +234,10 @@ class TestWriteEmStateNode:
 
     def test_returns_failure_when_em_after_missing(self):
         """FAILURE when result_out['em_after'] is absent."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("wsn3", em_state=EM.ACTIVE)
         dl.create(case)
         setup_blackboard(dl)
@@ -231,7 +252,10 @@ class TestWriteEmStateNode:
 
     def test_returns_failure_when_em_after_not_em_type(self):
         """FAILURE when result_out['em_after'] is not an EM enum value."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("wsn4", em_state=EM.ACTIVE)
         dl.create(case)
         setup_blackboard(dl)
@@ -246,7 +270,10 @@ class TestWriteEmStateNode:
 
     def test_returns_failure_when_case_missing(self):
         """FAILURE when case_id not found in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         setup_blackboard(dl)
 
         result_out: dict = {"em_after": EM.EXITED}
@@ -279,7 +306,10 @@ class TestReadWriteEmStateIntegration:
 
     def test_read_then_write_transitions_em_state(self):
         """Read PROPOSED, write ACTIVE: case persists EM.ACTIVE."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("rw1", em_state=EM.PROPOSED)
         case.active_embargo = None
         dl.create(case)

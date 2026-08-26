@@ -48,7 +48,10 @@ _INVITEE_ID = "https://example.org/actors/vendor2"
 
 @pytest.fixture
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer(db_url="sqlite:///:memory:")
+    return SqliteDataLayer(
+        db_url="sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 def _make_announce_body() -> dict:

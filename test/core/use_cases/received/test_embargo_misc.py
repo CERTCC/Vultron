@@ -44,7 +44,10 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_aem1",
             name="Announce Embargo No-Op Test",
@@ -122,7 +125,10 @@ class TestResetEmbargoConsentWithInlineParticipants:
         case_id = "https://example.org/cases/case_609_inline"
         participant_id = f"{case_id}/participants/p1"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",  # the receiving actor's own store
+        )
 
         # Build a participant and store it — it also appears inline in case
         participant = as_CaseParticipant(
@@ -191,7 +197,10 @@ class TestResetEmbargoConsentWithInlineParticipants:
         case_id = "https://example.org/cases/case_609_reset"
         participant_id = f"{case_id}/participants/p1"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",  # the receiving actor's own store
+        )
 
         # Wire-layer as_CaseParticipant with non-default consent state.
         # Stored in the DataLayer separately so dl.read(participant_id) works.
@@ -248,7 +257,10 @@ class TestPxaEmbargoIneligible:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",
+        )
         pxa_state = CS_pxa[pxa_state_name]
         case = as_VulnerabilityCase(id_=self.CASE_ID, name="PXA Test")
         # Modify the auto-created default CaseStatus in-place so that
@@ -275,7 +287,10 @@ class TestPxaEmbargoIneligible:
         """Missing case returns False so normal processing can continue."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",
+        )
         assert (
             _pxa_embargo_ineligible(dl, "https://example.org/cases/missing")
             is False

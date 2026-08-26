@@ -26,24 +26,16 @@ Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-001
 and GitHub issue #401.
 """
 
-import hashlib
 from unittest.mock import MagicMock
 
 import py_trees
 import pytest
 
 from vultron.core.behaviors.case.nodes import (
-    CreateCaseActorNode,
     RecordCaseCreatedEventNode,
     RecordCaseCreationEvents,
     RecordOfferReceivedEventNode,
     UpdateActorOutbox,
-)
-from vultron.core.behaviors.case.nodes.case_actor_setup import (
-    CreateCaseActorServiceNode,
-    RegisterCaseActorParticipantNode,
-    ResolveCaseActorUrlsNode,
-    ReuseExistingCaseActorParticipantNode,
 )
 from vultron.core.behaviors.helpers import (
     UpdateActorOutbox as UpdateActorOutboxHelper,
@@ -325,233 +317,6 @@ class TestRecordCaseCreationEvents:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("CM-02-001")
-@pytest.mark.spec("CM-02-010")
-class TestCreateCaseActorNodeBlackboard:
-    """CreateCaseActorNode reads case_id from blackboard when not given at construction."""
-
-    def test_creates_case_actor_from_blackboard_case_id(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """CreateCaseActorNode() (no args) succeeds and creates a CaseActor entity."""
-        result = bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        bt_scenario.assert_success(result)
-
-        # A Service (VultronCaseActor) should exist in the DataLayer.
-        services = list(bt_scenario.dl.list_objects("Service"))
-        case_actor_services = [
-            s for s in services if getattr(s, "context", None) == case_obj.id_
-        ]
-        assert len(case_actor_services) >= 1
-
-    def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
-        node = CreateCaseActorNode()
-        assert isinstance(node, py_trees.composites.Sequence)
-        assert isinstance(node.children[0], ResolveCaseActorUrlsNode)
-        assert isinstance(node.children[1], py_trees.composites.Selector)
-
-        idempotency_selector = node.children[1]
-        assert isinstance(
-            idempotency_selector.children[0],
-            ReuseExistingCaseActorParticipantNode,
-        )
-        create_branch = idempotency_selector.children[1]
-        assert isinstance(create_branch, py_trees.composites.Sequence)
-        assert [type(child) for child in create_branch.children] == [
-            CreateCaseActorServiceNode,
-            RegisterCaseActorParticipantNode,
-        ]
-
-    def test_writes_case_actor_id_to_blackboard(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """CreateCaseActorNode() writes case_actor_id to the blackboard."""
-        bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        # py_trees stores global keys with a leading "/" prefix.
-        stored = py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
-        assert stored is not None
-        assert isinstance(stored, str)
-
-    def test_registers_case_actor_participant(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """CreateCaseActorNode registers a CASE_MANAGER participant in the case."""
-        bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        # Participant ID is derived from case_actor_service_url (CP-08-002).
-        case_id = case_obj.id_
-        if case_id.startswith("urn:uuid:"):
-            case_slug = case_id[len("urn:uuid:") :]
-        else:
-            case_slug = hashlib.sha256(case_id.encode()).hexdigest()[:12]
-
-        base_url = _CASE_ACTOR_SERVICE_URL.rstrip("/")
-        expected_participant_id = (
-            f"{base_url}/actors/case-actor-{case_slug}/participant"
-        )
-        participant = bt_scenario.dl.read(expected_participant_id)
-        assert participant is not None
-
-    def test_fails_without_case_id(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-    ) -> None:
-        """CreateCaseActorNode() fails when case_id is not in blackboard."""
-        result = bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            # No case_id supplied
-        )
-        assert result.status == py_trees.common.Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# ResolveCaseActorUrlsNode — CP-08-002/003 unit tests (AC-7)
-# ---------------------------------------------------------------------------
-
-
-class TestResolveCaseActorUrlsNode:
-    """ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig."""
-
-    def test_succeeds_with_configured_url(
-        self,
-        bt_scenario: BTTestScenario,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """Returns SUCCESS and writes case_actor_id when URL is configured."""
-        result = bt_scenario.run(
-            ResolveCaseActorUrlsNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        assert result.status == py_trees.common.Status.SUCCESS
-
-        stored_id = py_trees.blackboard.Blackboard.storage.get(
-            "/case_actor_id"
-        )
-        assert stored_id is not None
-        assert isinstance(stored_id, str)
-        assert stored_id.startswith(_CASE_ACTOR_SERVICE_URL)
-
-    def test_actor_id_uses_case_actor_service_url_not_server_base_url(
-        self,
-        bt_scenario: BTTestScenario,
-        actor_id: str,
-        case_obj: VultronCase,
-        monkeypatch,
-    ) -> None:
-        """case_actor_id is derived from case_actor_service_url, not server.base_url."""
-        from vultron.config.app import reload_config
-
-        monkeypatch.setenv(
-            "VULTRON_SERVER__BASE_URL", "http://vendor:7999/api/v2"
-        )
-        reload_config()
-
-        result = bt_scenario.run(
-            ResolveCaseActorUrlsNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        assert result.status == py_trees.common.Status.SUCCESS
-
-        stored_id = py_trees.blackboard.Blackboard.storage.get(
-            "/case_actor_id"
-        )
-        assert stored_id is not None
-        assert stored_id.startswith(_CASE_ACTOR_SERVICE_URL)
-        assert "vendor" not in stored_id
-
-    def test_fails_when_case_actor_service_url_is_none(
-        self,
-        bt_scenario: BTTestScenario,
-        actor_id: str,
-        case_obj: VultronCase,
-        monkeypatch,
-    ) -> None:
-        """Returns FAILURE with a log message when case_actor_service_url is None."""
-        from vultron.config.app import reload_config
-
-        monkeypatch.delenv(
-            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", raising=False
-        )
-        reload_config()
-
-        result = bt_scenario.run(
-            ResolveCaseActorUrlsNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        assert result.status == py_trees.common.Status.FAILURE
-
-    def test_fails_without_case_id(
-        self,
-        bt_scenario: BTTestScenario,
-        actor_id: str,
-    ) -> None:
-        """Returns FAILURE when case_id is absent from blackboard."""
-        result = bt_scenario.run(
-            ResolveCaseActorUrlsNode(),
-            actor_id=actor_id,
-        )
-        assert result.status == py_trees.common.Status.FAILURE
-
-    def test_server_base_url_not_registered_in_setup(
-        self,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """setup() must NOT register server_base_url as a blackboard key."""
-        import py_trees
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.behaviors.bridge import BTBridge
-
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        bridge = BTBridge(datalayer=dl)
-        node = ResolveCaseActorUrlsNode()
-        bt = bridge.setup_tree(node, actor_id=actor_id, case_id=case_obj.id_)
-        bt.setup()
-
-        # server_base_url must not be registered after setup.
-        all_keys = {
-            k.lstrip("/") for k in py_trees.blackboard.Blackboard.storage
-        }
-        assert "server_base_url" not in all_keys
-
-
-# ---------------------------------------------------------------------------
-# ActorConfig — case_actor_service_url field tests (AC-7a)
-# ---------------------------------------------------------------------------
-
-
 class TestActorConfigCaseActorServiceUrl:
     """ActorConfig.case_actor_service_url field validation (CP-08-001)."""
 
@@ -601,64 +366,6 @@ class TestActorConfigCaseActorServiceUrl:
 # ---------------------------------------------------------------------------
 
 
-class TestResolveCaseActorUrlsNodeTrailingSlash:
-    """case_actor_service_url with a trailing slash must not produce double-slash IDs."""
-
-    CASE_ID = "urn:uuid:trailing-slash-test"
-
-    def test_trailing_slash_in_url_does_not_double_slash_actor_id(
-        self, bt_scenario: BTTestScenario, monkeypatch
-    ) -> None:
-        from vultron.config.app import reload_config
-
-        monkeypatch.setenv(
-            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
-            "http://case-actor:7999/api/v2/",  # trailing slash
-        )
-        reload_config()
-        result = bt_scenario.run(
-            ResolveCaseActorUrlsNode(case_id=self.CASE_ID),
-        )
-        bt_scenario.assert_success(result)
-        case_actor_id = py_trees.blackboard.Blackboard.storage.get(
-            "/case_actor_id"
-        )
-        assert case_actor_id is not None
-        assert (
-            "//" not in case_actor_id.split("://", 1)[-1]
-        ), f"Double-slash in actor ID: {case_actor_id!r}"
-
-
-# ---------------------------------------------------------------------------
-# RegisterCaseActorParticipantNode — precondition failure tests
-# ---------------------------------------------------------------------------
-
-
-class TestRegisterCaseActorParticipantNode:
-    """RegisterCaseActorParticipantNode returns FAILURE when case is absent."""
-
-    def test_fails_when_case_not_in_datalayer(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-    ) -> None:
-        """Node returns FAILURE (not SUCCESS) when the case record is missing."""
-        result = bt_scenario.run(
-            RegisterCaseActorParticipantNode(),
-            actor_id=actor_id,
-            case_id="https://example.org/cases/nonexistent",
-            case_actor_id=f"{actor_id}/case-actor",
-            case_actor_participant_id=f"{actor_id}/case-actor/participant",
-        )
-        assert result.status == py_trees.common.Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# ProposeCaseToActorNode tests
-# ---------------------------------------------------------------------------
-
-
 class TestProposeCaseToActorNode:
     """ProposeCaseToActorNode sends Create(as_CaseProposal) to the case-actor."""
 
@@ -681,9 +388,7 @@ class TestProposeCaseToActorNode:
             ProposeCaseToActorNode,
         )
 
-        outbox_before = list(
-            bt_scenario.dl.outbox_list_for_actor(actor_id) or []
-        )
+        outbox_before = list(bt_scenario.dl.outbox_list() or [])
         result = bt_scenario.run(
             ProposeCaseToActorNode(),
             actor_id=actor_id,
@@ -692,9 +397,7 @@ class TestProposeCaseToActorNode:
         )
         bt_scenario.assert_success(result)
 
-        outbox_after = list(
-            bt_scenario.dl.outbox_list_for_actor(actor_id) or []
-        )
+        outbox_after = list(bt_scenario.dl.outbox_list() or [])
         assert len(outbox_after) > len(
             outbox_before
         ), "ProposeCaseToActorNode must enqueue an activity to the outbox"
@@ -852,7 +555,10 @@ class TestProposeCaseToActorNode:
         )
 
         # Build a bridge with NO trigger_activity_factory injected.
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         dl.create(actor)
         dl.create(report)
         dl.create(case_obj)

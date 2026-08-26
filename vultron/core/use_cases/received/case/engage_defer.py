@@ -12,7 +12,10 @@ from vultron.core.models.events.case import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 
-from ._helpers import _store_embedded_participants
+from ._helpers import (
+    _store_embedded_embargo,
+    _store_embedded_participants,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -65,6 +68,7 @@ class EngageCaseReceivedUseCase:
         case_obj = request.case
         if isinstance(case_obj, VulnerabilityCase):
             _store_embedded_participants(case_obj, self._dl, case_id)
+            _store_embedded_embargo(case_obj, self._dl, case_id)
 
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",

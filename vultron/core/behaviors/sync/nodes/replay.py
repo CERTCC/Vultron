@@ -12,7 +12,13 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Action nodes for SYNC log-replication replay and fan-out workflows."""
+"""Action nodes for SYNC log-replication replay.
+
+Replay is catch-up for one peer that has fallen behind, driven by an inbound
+``Reject(CaseLedgerEntry)``.  The fan-out nodes that used to live here — the
+distribution of a single entry to every recipient — now sit in ``fanout.py``
+alongside their RM.CLOSED-filtered variants (BTND-07-004).
+"""
 
 from __future__ import annotations
 
@@ -105,6 +111,16 @@ def _require_case_actor_id(case_actor: object, node_name: str) -> str:
 
 
 class FindCaseActorNode(DataLayerActionWithPorts):
+    """Resolve the case's CaseActor, and publish the case id for later gates.
+
+    ``case_id`` is an output because ``CheckIsCaseManagerNode`` reads it from the
+    blackboard (CLP-09). Without it the role gate on the genesis pre-seed could
+    not resolve a case, returned FAILURE, and the guard's selector silently took
+    its skip branch — so the announce never fired for *anyone*, case manager or
+    not. This node already derives the value from the rejected entry, so it is
+    the right place to publish it.
+    """
+
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
@@ -113,13 +129,18 @@ class FindCaseActorNode(DataLayerActionWithPorts):
 
     @classmethod
     def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_actor_id": PortInformation(data_type=str, required=True)}
+        return {
+            "case_actor_id": PortInformation(data_type=str, required=True),
+            # See the class docstring: the role gate downstream needs this.
+            "case_id": PortInformation(data_type=str, required=True),
+        }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "activity": "/activity",
             "case_actor_id": "/case_actor_id",
+            "case_id": "/case_id",
         }
 
     def initialise(self) -> None:
@@ -131,6 +152,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         entry = _require_rejected_entry(self.activity, self.name)
+        self._set_output("case_id", entry.case_id)
         case_actor = _find_case_actor(self.datalayer, entry.case_id)
         if case_actor is None:
             self.logger.warning(
@@ -366,6 +388,8 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
 
     Returns SUCCESS unconditionally (missing trigger port is only a WARNING so
     that the replay still runs in environments without a trigger port).
+
+    Authored as the executing actor, gated on CASE_MANAGER (ADR-0073).
     """
 
     @classmethod
@@ -388,9 +412,10 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
         self.case_actor_id_bb: str = self.get_input("case_actor_id")
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
 
         activity = self.activity
         if activity.last_accepted_hash != "":
@@ -411,17 +436,22 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
 
         entry = _require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
-        case_actor_id = self.case_actor_id_bb
+        # `case_actor_id` is no longer read here: the announce is authored by the
+        # executing actor (see below), not by a looked-up CaseActor. The input
+        # port is left declared so the node's contract is unchanged for callers
+        # that already populate it.
 
         try:
             activity_id = factory.announce_vulnerability_case(
                 case_id=entry.case_id,
-                actor=case_actor_id,
+                # The executing actor, which the CASE_MANAGER gate has already
+                # established holds that role — not a looked-up CaseActor id.
+                actor=self.actor_id,
                 context_id=entry.case_id,
                 to=[peer_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                case_actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: queued AnnounceVulnerabilityCase '%s' to peer '%s'"

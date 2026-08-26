@@ -30,7 +30,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 )
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -91,7 +91,7 @@ class InboxPipeline:
             return None
 
         queue_dl = cast(
-            ActorScopedDataLayer, self._dl.clone_for_actor(receiving_actor_id)
+            DataLayer, self._dl.clone_for_actor(receiving_actor_id)
         )
         try:
             event = prepare_for_dispatch(activity=obj)

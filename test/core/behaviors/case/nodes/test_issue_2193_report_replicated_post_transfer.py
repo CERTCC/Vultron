@@ -53,7 +53,10 @@ CASE_GENESIS_HASH = compute_genesis_hash(
 
 @pytest.fixture
 def dl():
-    datalayer = SqliteDataLayer("sqlite:///:memory:")
+    datalayer = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=NEW_OWNER_ACTOR_ID,
+    )
     yield datalayer
     datalayer.close()
 

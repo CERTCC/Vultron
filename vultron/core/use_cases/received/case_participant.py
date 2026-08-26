@@ -15,7 +15,10 @@ from vultron.core.models.events.case_participant import (
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import _idempotent_create
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    resolve_receiving_actor_id,
+)
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -65,10 +68,11 @@ class AddCaseParticipantToCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=(
-                request.receiving_actor_id
-                if request.receiving_actor_id is not None
-                else request.actor_id
+            # The *receiving* actor, not the sender (BT-17-005): an
+            # inbound activity is applied to the receiver's own replica,
+            # so the tree must execute in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             ),
             activity=request,
         )
@@ -112,10 +116,11 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=(
-                request.receiving_actor_id
-                if request.receiving_actor_id is not None
-                else request.actor_id
+            # The *receiving* actor, not the sender (BT-17-005): an
+            # inbound activity is applied to the receiver's own replica,
+            # so the tree must execute in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             ),
             activity=request,
         )

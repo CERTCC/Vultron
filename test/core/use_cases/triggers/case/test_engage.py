@@ -124,7 +124,7 @@ class TestEngageCaseRMTransitionViaBT:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        before = set(self.dl.outbox_list())
         SvcEngageCaseUseCase(
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
@@ -135,7 +135,7 @@ class TestEngageCaseRMTransitionViaBT:
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm.state == RM.ACCEPTED
 
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "EngageCase must queue at least one outbox activity"
         activity_id = next(iter(new_ids))

@@ -35,11 +35,32 @@ from vultron.core.models.case import VulnerabilityCase
 
 
 class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
-    """Return SUCCESS when the current actor owns the case."""
+    """Return SUCCESS when the *sender* of the update owns the case.
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    The authorization question for an inbound ``Update(VulnerabilityCase)`` is
+    "was this authored by the case owner?" — a property of the sender. It is not
+    "am I the owner?", which would let only the owner apply an update to its own
+    replica and leave every other participant's replica permanently stale.
+
+    ``sender_actor_id`` is held as a private attribute rather than read from the
+    blackboard, because ``setup()`` overwrites the blackboard ``actor_id`` with
+    the *executing* actor (BT-17-005, BT-17-006) — and it must, since the sibling
+    ``CheckIsCaseManagerNode`` gate needs the receiving actor. Conflating the two
+    is what made this gate compare the wrong identity: the update was applied only
+    on the owner's replica, and the ``GuardedBroadcastCaseUpdateBT`` selector
+    below — whose whole purpose is to let a *non-manager* apply the update and
+    skip the announce — became unreachable for everyone but the owner.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self._sender_actor_id = sender_actor_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -56,14 +77,25 @@ class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
+        if self._sender_actor_id is None:
+            self.feedback_message = (
+                f"no sender actor supplied for case '{self.case_id}'"
+                " — cannot authorize the update"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         owner_id = _as_id(case.attributed_to)
-        if owner_id != self.actor_id:
-            self.feedback_message = f"actor '{self.actor_id}' is not the owner of case '{self.case_id}'"
+        if owner_id != self._sender_actor_id:
+            self.feedback_message = (
+                f"actor '{self._sender_actor_id}' is not the owner"
+                f" of case '{self.case_id}'"
+            )
             self.logger.info(
                 "%s: actor '%s' is not the owner of case '%s' (owner: '%s')"
                 " — skipping update-case handling",
                 self.name,
-                self.actor_id,
+                self._sender_actor_id,
                 self.case_id,
                 owner_id,
             )
@@ -91,9 +123,10 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerConditionWithPorts):
         return {"excluded_actor_ids": "/excluded_actor_ids"}
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -157,7 +190,13 @@ class ApplyCaseUpdateNode(DataLayerActionWithPorts):
 
 
 class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
-    """Broadcast the updated case to eligible participants."""
+    """Broadcast the updated case to eligible participants (CM-06-001).
+
+    MUST be wrapped in a ``CheckIsCaseManagerNode`` gate: only the case's
+    ``CASE_MANAGER`` may announce canonical case state, and this node authors
+    the ``Announce`` as the executing actor. See
+    ``create_update_case_received_tree``.
+    """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -180,9 +219,10 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
         self.excluded_actor_ids: set = self.get_input("excluded_actor_ids")
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -198,6 +238,7 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
             self.datalayer,
             self.case_id,
             case,
+            self.actor_id,
             excluded_actor_ids=self.excluded_actor_ids,
         )
         return Status.SUCCESS

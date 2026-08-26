@@ -102,5 +102,5 @@ def participant_adds_note_to_case(
 
     logger.info("Note added to case: %s", note_id)
 
-    note_data = watching_client.get(f"/datalayer/{note_id}")
+    note_data = watching_client.get(watching_client.dl_path(note_id))
     return as_Note(**note_data)

@@ -17,6 +17,8 @@ Custom Activity Streams Activities for VulnerabilityCase objects.
 Each activity should have a VulnerabilityCase object as either its target or object.
 """
 
+from typing import ClassVar
+
 from pydantic import Field, model_validator
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -196,6 +198,24 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     target: as_Actor (required — the Actor receiving the role offer)
     context: as_VulnerabilityCase or str URI (required)
 
+    Declares **both** ``object_`` and ``target`` in
+    :attr:`inline_required_refs`, because neither can be read back from the
+    sender's store once collapsed to an id:
+
+    - ``object_`` is minted inline by ``offer_case_participant_role_activity``
+      and never persisted as a record of its own, so its id resolves to nothing
+      (DL-08-001).  Since ``Offer`` is an initiating type, the outbox gate then
+      refuses the whole activity for carrying a bare string (AKM-03-001).
+    - ``target`` is the *peer* receiving the role.  Under ADR-0073 a peer's
+      record lives in the store of whichever actor knows it, which is not the
+      sender's (DL-08-003) — the same reason ``_RmInviteToCaseActivity``
+      declares its invitee.
+
+    Unlike ``_OfferCaseOwnershipTransferActivity.target``, this ``target`` is
+    typed ``as_Actor`` rather than a ref union, so an id there is not merely
+    unresolvable but off-type: read-back yields a plain ``as_Offer`` that no
+    longer matches this class, and the receiver cannot dispatch it at all.
+
     See SE-08-003, ADR-0039.
     """
 
@@ -207,6 +227,10 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     )
     context: as_VulnerabilityCase | str = Field(
         ..., validation_alias="context", serialization_alias="context"
+    )
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset(
+        {"object_", "target"}
     )
 
 
@@ -284,12 +308,23 @@ class _RmInviteToCaseActivity(as_Invite):
     object_: the Actor being invited
     target: as_VulnerabilityCase
     roles: inherited from as_Invite (CM-17-003)
+
+    Declares ``object_`` in :attr:`inline_required_refs` (DL-08-003). The
+    invitee is by definition a *peer* — under ADR-0073 its record lives in the
+    store of whichever actor knows it, and the sender here is the Case Actor,
+    which does not. Dehydrating the invitee to its id therefore had nothing to
+    read it back from, so the stored Invite came back carrying a bare string and
+    outbox delivery refused it (AKM-03-001) after exhausting its retries. The
+    invitation never arrived, and the invitee's ``reject-case-invite`` then
+    answered 404 for an invite it had never been told about (#2548, fcv-reject).
     """
 
     object_: CoreActor | as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseStub | str | None = None
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
 
 class _RmAcceptInviteToCaseActivity(as_Accept):
