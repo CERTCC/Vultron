@@ -181,6 +181,7 @@ class TestSvcInviteActorToCaseUseCase:
         assert stored is not None
         assert isinstance(stored, as_Invite)
 
+    @pytest.mark.spec("AKM-05-001")
     def test_invite_proceeds_when_invitee_not_in_dl(self, caplog):
         """An invitee is named by URI; a local record is not required.
 
