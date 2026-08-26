@@ -51,20 +51,29 @@ A correct embargo lifecycle transition must update **all three** consistently.
 
 ## Current Fragmentation (the problem)
 
-EM state transition logic is currently duplicated in four places:
+EM state transition logic is currently duplicated across several places:
 
-| Module | Role | Lines |
-|---|---|---|
-| `vultron/core/states/em.py` | EM state machine definition | ~150 |
-| `vultron/core/states/participant_embargo_consent.py` | PEC machine | ~155 |
-| `vultron/core/use_cases/triggers/embargo.py` | Trigger-side (5 use-case classes + 10 module-level helpers) | ~902 |
-| `vultron/core/use_cases/received/embargo.py` | Receive-side (7 use-case classes) | ~482 |
-| `vultron/bt/embargo_management/` | BT-side autonomous management | ~548 |
+| Module | Role | Lines | Status |
+|---|---|---|---|
+| `vultron/core/states/em.py` | EM state machine definition | ~150 | — |
+| `vultron/core/states/participant_embargo_consent.py` | PEC machine | ~155 | — |
+| `vultron/core/use_cases/triggers/embargo.py` | Trigger-side (5 use-case classes + 10 module-level helpers) | ~902 | needs migration |
+| `vultron/core/use_cases/received/embargo.py` | Receive-side (7 use-case classes) | ~482 | needs migration |
+| `vultron/core/behaviors/embargo/nodes/` | BT-side autonomous management | — | partially migrated (see below) |
 
-There is **no single authoritative place** that owns what it means to
-"accept an embargo offer" or "terminate an embargo." The trigger-side and
-BT-side implementations are logically parallel but structurally independent —
-bugs fixed in one will not propagate to the other.
+**BT-side migration progress** (EMB-18-001, issue #2480):
+
+- `ClearActiveEmbargoNode` — migrated (PR #2691); routes through
+  `EmbargoLifecycle.terminate_active_embargo()`
+- `SetEmbargoActiveNode` — migrated (PR #2691, issue #2696); routes through
+  new `EmbargoLifecycle.activate_embargo()` in STRICT mode; returns FAILURE
+  for non-standard EM transitions (EMB-18-002)
+- `AdvanceEMStateToActiveNode` — migrated; uses `EmbargoLifecycle.propose_embargo()`
+
+There is still **no single authoritative place** that owns what it means to
+"accept an embargo offer" or "terminate an embargo" across the trigger-side and
+BT-side implementations. Bugs fixed in one will not propagate to the other
+until the trigger-side and received-side use cases are migrated.
 
 ---
 
@@ -125,6 +134,9 @@ class EmbargoLifecycle:
     ) -> EmbargoLifecycleResult: ...
     def terminate_active_embargo(
         self, *, case_id, actor_id, transition_mode=STRICT
+    ) -> EmbargoLifecycleResult: ...
+    def activate_embargo(
+        self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
     def record_participant_consent(
         self, *, case_id, actor_id, pec_trigger, embargo_id=None

@@ -241,7 +241,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_},
     )
 
     with demo_check(
@@ -352,10 +352,10 @@ def _phase_report_submission(
         vendor_client=c1_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            C1_ACTOR_ID,
-            V1_ACTOR_ID,
-            C2_ACTOR_ID,
+            finder.id_,
+            c1_in_c1.id_,
+            v1.id_,
+            c2_in_c2.id_,
         },
     )
 
@@ -399,6 +399,7 @@ def _phase_c2_suggests_v2(
     offer: as_Offer,
     report: as_VulnerabilityReport,
     finder: as_Actor,
+    v1: as_Actor,
 ) -> None:
     """C2 suggests V2 via ADR-0026; C1 approves; V2 joins (DEMOMA-19-009)."""
     logger.info("─" * 80)
@@ -488,11 +489,11 @@ def _phase_c2_suggests_v2(
         vendor_client=c1_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            C1_ACTOR_ID,
-            V1_ACTOR_ID,
-            C2_ACTOR_ID,
-            V2_ACTOR_ID,
+            finder.id_,
+            c1_in_c1.id_,
+            v1.id_,
+            c2_in_c2.id_,
+            v2.id_,
         },
         timeout_seconds=LATE_JOINER_TIMEOUT,
     )
@@ -529,6 +530,9 @@ def _phase_sync_verification(
     c1: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
+    v1: as_Actor,
+    c2_in_c2: as_Actor,
+    v2: as_Actor,
 ) -> None:
     """Verify LedgerFanout replication for all participant replicas."""
     logger.info("─" * 80)
@@ -573,11 +577,11 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                C1_ACTOR_ID,
-                V1_ACTOR_ID,
-                C2_ACTOR_ID,
-                V2_ACTOR_ID,
+                finder.id_,
+                c1.id_,
+                v1.id_,
+                c2_in_c2.id_,
+                v2.id_,
             },
             timeout_seconds=p_timeout,
         )
@@ -1137,6 +1141,7 @@ def run_fcvcv_demo(
             offer=offer,
             report=report,
             finder=finder,
+            v1=v1,
         )
 
         v2_in_v2 = get_actor_by_id(v2_client, v2.id_)
@@ -1151,6 +1156,9 @@ def run_fcvcv_demo(
             c1,
             finder,
             case,
+            v1,
+            c2_in_c2,
+            v2,
         )
         _phase_notes_exchange(
             finder_client=finder_client,

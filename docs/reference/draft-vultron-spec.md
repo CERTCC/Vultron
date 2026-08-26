@@ -39,10 +39,24 @@ shared state tracking.
 
 ### 1.1 Background and Motivation
 
-- CVD as a multi-party coordination problem
-- Why a protocol (vs. ad-hoc process) is needed
-- Scope: MPCVD (multi-party CVD) as the target
-- *Source: `docs/topics/background/`*
+Coordinated Vulnerability Disclosure (CVD) is a multi-party coordination
+problem: once a vulnerability is discovered, parties who know about it must
+decide what to do, who else needs to know, and when. Ad-hoc email and informal
+handoffs do not scale across organizations or supply chains. Vultron provides
+a formal protocol to address that coordination gap at MPCVD scale.
+
+!!! info "Background prose not yet drafted inline"
+    The following pages cover what §1.1 will draw from in a future revision:
+
+    - [CVD as a Coordination Problem](../topics/background/index.md) — what
+      CVD is, why MPCVD is just CVD at scale, and what we mean by *protocol*
+    - [What Does Success Mean in CVD?](../topics/background/cvd_success.md) —
+      the 12 ordering preferences that define CVD quality outcomes
+    - [The Need for Interoperability](../topics/background/interoperability.md) —
+      why syntactic and semantic interoperability are both required
+
+    For a practitioner-level introduction to CVD, see the
+    [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD).
 
 ### 1.2 Design Goals
 
@@ -71,11 +85,20 @@ shared state tracking.
 
 ### 2.1 Core Terms
 
-- Vulnerability, Report, Case, Participant, Actor
-- Reporter, Vendor, Coordinator, Deployer, Observer
-- Case Owner vs. Case Participant
-- *Source: `docs/reference/glossary.md`; `vultron/enums/roles.py` (`CVDRole`);
-  `docs/_acronyms/index.md`*
+The Vultron protocol uses a precise vocabulary where terms carry specific
+protocol-level meanings that may differ from informal usage.
+
+!!! info "Terminology reference"
+    Full definitions, including aliases to avoid, are in the
+    [Ubiquitous Language Glossary](glossary.md). The authoritative role
+    enumeration is `CVDRole` in `vultron/enums/roles.py`.
+
+Key terms used throughout this specification:
+
+- **Vulnerability**, **Report**, **Case**, **Participant**, **Actor**
+- **Reporter**, **Vendor**, **Coordinator**, **Deployer**, **Observer** —
+  process roles (§7.3.1)
+- **Case Owner**, **Case Manager** — protocol authority roles (§7.3.2)
 
 ### 2.2 Protocol Terms
 
@@ -1151,8 +1174,7 @@ It is separable from the Authority capability set.
 !!! note "Ledger replication scope"
     The detailed replication mechanics (hash-chaining, gap detection, ordering
     guarantees) are specified in a companion document,
-    `docs/reference/draft-vultron-replication-spec.md` (forthcoming, tracked in
-    #2495), not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
+    `docs/reference/draft-vultron-replication-spec.md`, not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
     replication architecture: one Case Actor holds exclusive write authority and
     replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
     Distributed consensus (multi-node CaseActor cluster) is a future extension
@@ -1536,13 +1558,15 @@ implementation. Other implementations are not required to use this structure.
 2. ~~**Sync/replication**~~ — Resolved. Replication mechanics belong in a
    companion document, not this RFC; the normative model (single-hub /
    single-writer + fan-out) is stated in §7.2. See ADR-0077 and
-   `docs/reference/draft-vultron-replication-spec.md` (tracked in #2495).
+   `docs/reference/draft-vultron-replication-spec.md`.
 3. ~~**ActivityPub vs. bare AS2**~~ — Resolved for this version. §4.1 states the
    current normative floor as AS2 vocabulary only, with an informative note that
    a future version is expected to require full ActivityPub conformance for all
    participants. Tracked in issue #2068.
-4. **Background material depth** — How much CVD domain background belongs here
-   vs. a companion "CVD Concepts" document?
+4. ~~**Background material depth**~~ — Resolved. §1.1 uses informative
+   admonition blocks pointing to `docs/topics/background/` rather than
+   inlining prose or creating a separate companion document. Full §1.1 prose
+   before external circulation is tracked in #2698.
 5. ~~**Finder removal ADR**~~ — Resolved. ADR-0078
    (`docs/adr/0078-retire-finder-role.md`) retires `CVDRole.FINDER`; Reporter is
    the protocol-salient role. Finder identity is metadata, not a protocol role.

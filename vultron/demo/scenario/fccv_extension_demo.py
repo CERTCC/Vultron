@@ -232,7 +232,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_},
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
@@ -278,7 +278,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID, C2_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_, c2.id_},
     )
 
     with demo_check(
@@ -412,10 +412,10 @@ def _phase_c2_suggests_vendor(
         vendor_client=c1_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            C1_ACTOR_ID,
-            C2_ACTOR_ID,
-            VENDOR_ACTOR_ID,
+            finder.id_,
+            c1_in_c1.id_,
+            c2_in_c2.id_,
+            vendor.id_,
         },
         timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
     )
@@ -453,6 +453,8 @@ def _phase_sync_verification(
     c1: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
+    c2_in_c2: as_Actor,
+    vendor: as_Actor,
 ) -> None:
     """Verify LedgerFanout replication for Finder, C2, and Vendor replicas."""
     logger.info("─" * 80)
@@ -496,10 +498,10 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                C1_ACTOR_ID,
-                C2_ACTOR_ID,
-                VENDOR_ACTOR_ID,
+                finder.id_,
+                c1.id_,
+                c2_in_c2.id_,
+                vendor.id_,
             },
             timeout_seconds=p_timeout,
         )
@@ -969,6 +971,8 @@ def run_fccv_extension_demo(
             c1,
             finder,
             case,
+            c2_in_c2,
+            vendor,
         )
         _phase_notes_exchange(
             finder_client=finder_client,
