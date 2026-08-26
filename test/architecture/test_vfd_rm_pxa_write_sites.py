@@ -88,6 +88,8 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("status/nodes/_adjudication.py", "PxaDimension"),
         ("status/nodes/_adjudication.py", "RmDimension"),
         ("status/nodes/_adjudication.py", "VfdDimension"),
+        # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
+        ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
         ("sync/nodes/participant_status_effect.py", "RmDimension"),
     ]

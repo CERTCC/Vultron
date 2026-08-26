@@ -98,7 +98,7 @@ _SNAKE_TWINS: dict[str, str] = {
 #: an unrecognized ``producer_type`` still applies (RSH-05-014 is a warning,
 #: not a block); this set is an audit allowlist, not a security gate.
 _RECOGNIZED_OVERRIDE_PRODUCERS: frozenset[str] = frozenset(
-    {"FilterParticipantStatusDimensionsNode"}
+    {"FilterParticipantStatusDimensionsNode", "FinalizeCsFilterNode"}
 )
 
 

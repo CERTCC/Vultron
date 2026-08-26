@@ -47,6 +47,12 @@ from vultron.core.behaviors.status.nodes.case_status import (
     CheckCaseStatusIdempotencyNode,
     ValidateCaseStatusTransitionNode,
 )
+from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+    BB_CASE_STATUS_DIM_FILTER,
+    FilterCsEmDimensionNode,
+    FilterCsPxaDimensionNode,
+    FinalizeCsFilterNode,
+)
 from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
     CloseNotYetEmittedConditionNode,
@@ -103,8 +109,12 @@ __all__ = [
     "EmitCloseCaseNode",
     "EmitRMGapNoteNode",
     # case_status
+    "BB_CASE_STATUS_DIM_FILTER",
     "CASE_STATUS_ALREADY_PRESENT",
     "CheckCaseStatusIdempotencyNode",
+    "FilterCsEmDimensionNode",
+    "FilterCsPxaDimensionNode",
+    "FinalizeCsFilterNode",
     "ValidateCaseStatusTransitionNode",
     "AppendCaseStatusToCaseNode",
 ]
