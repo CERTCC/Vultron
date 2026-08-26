@@ -64,6 +64,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -195,7 +196,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, VENDOR_ACTOR_ID},
     )
 
     with demo_check(
@@ -250,7 +251,11 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+            VENDOR2_ACTOR_ID,
+        },
     )
 
     # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
@@ -287,7 +292,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        vendor_client.get(vendor_client.dl_path(case.id_))
     )
     return finder, vendor, vendor_in_vendor, vendor2, report, offer, case
 
@@ -337,12 +342,20 @@ def _phase_sync_verification(
     wait_for_case_participants(
         vendor_client=finder_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+            VENDOR2_ACTOR_ID,
+        },
     )
     wait_for_case_participants(
         vendor_client=vendor2_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+            VENDOR2_ACTOR_ID,
+        },
     )
 
     with demo_check(
@@ -699,10 +712,21 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FVV's participants and where each one's ledger lives.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0073), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("vendor", vendor_client, "vendor"),
-        LedgerDumpTarget("vendor2", vendor2_client, "vendor2"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+        ),
+        LedgerDumpTarget(
+            "vendor2",
+            vendor2_client,
+            replica_route_key(vendor2_client, "vendor2"),
+        ),
     ]
     # The case-actor is a sub-actor inside the vendor1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)

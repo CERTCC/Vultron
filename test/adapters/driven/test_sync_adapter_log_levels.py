@@ -107,4 +107,4 @@ def test_announce_is_still_queued_to_the_outbox(dl, entry):
         entry=entry, actor_id=_CASE_ACTOR, to=[_PARTICIPANT]
     )
 
-    assert dl.outbox_list_for_actor(_CASE_ACTOR)
+    assert dl.outbox_list()

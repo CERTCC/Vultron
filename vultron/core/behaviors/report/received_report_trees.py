@@ -40,20 +40,11 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
+from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.report.nodes.conditions import (
-    CheckRMStateReceivedOrInvalid,
-    CheckRMStateValid,
-    EnsureEmbargoExists,
-    EvaluateReportCredibility,
-    EvaluateReportValidity,
-)
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
-from vultron.core.behaviors.report.nodes.rm_transitions import (
-    TransitionRMtoValid,
-)
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionCaseParticipantRMtoClosed,
     TransitionCaseParticipantRMtoInvalid,
@@ -61,6 +52,9 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
 from vultron.core.behaviors.report.nodes.storage import (
     StoreActivityNode,
     StoreReportNode,
+)
+from vultron.core.behaviors.report.validate_tree import (
+    create_validate_report_subtree,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,25 +78,35 @@ def create_validate_report_received_tree(
     the validation effects so receipt is recorded before any RM state
     transitions run (CLP-10-006).  Pass ``None`` to skip ledger commit.
 
+    The validation subtree itself is built by
+    :func:`~vultron.core.behaviors.report.validate_tree.create_validate_report_subtree`
+    with ``emit=False`` — one definition shared with the trigger side
+    (ARCH-15-004).  ``emit=False`` because the activity being handled *is* the
+    ``validate-report`` message; re-emitting it would loop.
+
     Structure::
 
         ValidateReportReceivedBT (Sequence)
-        ├── GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt (CLP-10-006)
+        ├── GuardedCommitOrSkip (Selector, only if case_id)  # receipt (CLP-10-006)
         │   ├── Sequence
         │   │   ├── CheckIsCaseManagerNode
         │   │   └── CommitCaseLedgerEntryNode
         │   └── Success("CommitSkippedNotCaseManager")
-        └── ValidationOrSkip (Selector)
-            ├── ValidationOrShortcut (Selector)   # try validation
-            │   ├── CheckRMStateValid(sender_actor_id)       # idempotency exit
-            │   └── ValidationFlow (Sequence)
-            │       ├── CheckRMStateReceivedOrInvalid(sender_actor_id)
-            │       ├── EvaluateReportCredibility
-            │       ├── EvaluateReportValidity
-            │       └── ValidationActions (Sequence)
-            │           ├── TransitionRMtoValid(sender_actor_id)
-            │           └── EnsureEmbargoExists
-            └── Success("ValidationSkipped")        # fallback — commit already ran
+        └── ValidateReportBT (Selector)
+            ├── CheckRMStateValid(sender_actor_id)      # idempotency exit
+            └── ValidationFlow (Sequence)
+                ├── CheckRMStateReceivedOrInvalid(sender_actor_id)
+                ├── EvaluateReportCredibility
+                ├── EvaluateReportValidity
+                ├── RequireCaseForReport                # publishes /case_id
+                ├── EnsureEmbargoExists                 # DUR-07-004
+                └── ValidationActions (Sequence)
+                    └── TransitionRMtoValid(sender_actor_id)
+
+    There is no ``Success("ValidationSkipped")`` mask around the validation
+    subtree any more.  It turned every validation failure into a SUCCESS the
+    caller could not distinguish from a real one (ARCH-15-001) — including the
+    ISSUE-2548 case where the sender's case replica had not arrived yet.
 
     Args:
         report_id: ID of the VulnerabilityReport being validated.
@@ -115,57 +119,18 @@ def create_validate_report_received_tree(
     Returns:
         Root node of the ``ValidateReportReceivedBT`` Sequence.
     """
-    validation_actions = py_trees.composites.Sequence(
-        name="ValidationActions",
-        memory=False,
-        children=[
-            TransitionRMtoValid(
-                report_id=report_id,
-                offer_id=offer_id,
-                sender_actor_id=sender_actor_id,
-            ),
-            EnsureEmbargoExists(report_id=report_id),
-        ],
-    )
-
-    validation_flow = py_trees.composites.Sequence(
-        name="ValidationFlow",
-        memory=False,
-        children=[
-            CheckRMStateReceivedOrInvalid(
-                report_id=report_id, sender_actor_id=sender_actor_id
-            ),
-            EvaluateReportCredibility(report_id=report_id),
-            EvaluateReportValidity(report_id=report_id),
-            validation_actions,
-        ],
-    )
-
-    validation_or_shortcut = py_trees.composites.Selector(
-        name="ValidationOrShortcut",
-        memory=False,
-        children=[
-            CheckRMStateValid(
-                report_id=report_id, sender_actor_id=sender_actor_id
-            ),
-            validation_flow,
-        ],
-    )
-
-    validation_or_skip = py_trees.composites.Selector(
-        name="ValidationOrSkip",
-        memory=False,
-        children=[
-            validation_or_shortcut,
-            py_trees.behaviours.Success(name="ValidationSkipped"),
-        ],
+    validation = create_validate_report_subtree(
+        report_id=report_id,
+        offer_id=offer_id,
+        sender_actor_id=sender_actor_id,
+        emit=False,
     )
 
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[validation_or_skip],
+        effect_nodes=[validation],
     )
     logger.debug(
         "Created ValidateReportReceivedBT for report=%s offer=%s sender=%s"
@@ -298,8 +263,13 @@ def create_close_report_received_tree(
 
     Steps (Sequence):
     1. Store CloseReport activity idempotently.
-    2. Transition actor's RM state → CLOSED in the associated case (soft pass
-       if no case is found).
+    2. Resolve this actor's case for the report (``RequireCaseForReport``).
+    3. Transition actor's RM state → CLOSED in that case.
+
+    Steps 2–3 return FAILURE when the case is not in this actor's store.  They
+    used to soft-pass with SUCCESS, which reported a state transition that never
+    happened (ARCH-15-001, ISSUE-2548).  The stored activity in step 1 is what
+    makes a later retry possible.
 
     Args:
         request: The parsed inbound domain event.
@@ -318,6 +288,7 @@ def create_close_report_received_tree(
                 activity_obj=request.activity,
                 label="CloseReport",
             ),
+            RequireCaseForReport(report_id=request.report_id),
             TransitionCaseParticipantRMtoClosed(
                 report_id=request.report_id,
             ),
@@ -341,8 +312,12 @@ def create_invalidate_report_received_tree(
 
     Steps (Sequence):
     1. Store InvalidateReport activity idempotently.
-    2. Transition actor's RM state → INVALID in the associated case (soft
-       pass if no case is found).
+    2. Resolve this actor's case for the report (``RequireCaseForReport``).
+    3. Transition actor's RM state → INVALID in that case.
+
+    Steps 2–3 return FAILURE when the case is not in this actor's store, for the
+    same reason as ``create_close_report_received_tree`` (ARCH-15-001,
+    ISSUE-2548).
 
     Args:
         request: The parsed inbound domain event.
@@ -361,6 +336,7 @@ def create_invalidate_report_received_tree(
                 activity_obj=request.activity,
                 label="InvalidateReport",
             ),
+            RequireCaseForReport(report_id=request.report_id),
             TransitionCaseParticipantRMtoInvalid(
                 report_id=request.report_id,
             ),

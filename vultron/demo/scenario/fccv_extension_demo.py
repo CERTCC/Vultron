@@ -74,6 +74,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -85,6 +86,7 @@ from vultron.demo.helpers.verification import _check_participant_vfd_state_in
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
+    PARTICIPANT_JOIN_TIMEOUT,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
     wait_for_all_participants_rm_closed,
@@ -230,7 +232,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
@@ -276,7 +278,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID, C2_ACTOR_ID},
     )
 
     with demo_check(
@@ -291,7 +293,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        c1_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(c1_client.dl_path(case.id_))
     )
     return (
         finder,
@@ -409,8 +411,13 @@ def _phase_c2_suggests_vendor(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=5,
-        timeout_seconds=20.0,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            C1_ACTOR_ID,
+            C2_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+        },
+        timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
     )
     logger.info("✓ M3: Vendor joined case (%d participants)", 5)
 
@@ -488,7 +495,12 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=5,
+            expected_actor_ids={
+                FINDER_ACTOR_ID,
+                C1_ACTOR_ID,
+                C2_ACTOR_ID,
+                VENDOR_ACTOR_ID,
+            },
             timeout_seconds=p_timeout,
         )
 
@@ -841,14 +853,29 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FCCV-extension's participants and where each ledger lives.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0073), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        # C1 is on the coordinator container; route key is "coordinator".
-        LedgerDumpTarget("vendor", c1_client, "coordinator"),
-        # C2 is on actor5; route key is "coordinator2".
-        LedgerDumpTarget("coordinator", c2_client, "coordinator2"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        # C1 is on the coordinator container.
+        LedgerDumpTarget(
+            "vendor", c1_client, replica_route_key(c1_client, "coordinator")
+        ),
+        # C2 is on actor5 (seeded as "coordinator2").
+        LedgerDumpTarget(
+            "coordinator",
+            c2_client,
+            replica_route_key(c2_client, "coordinator2"),
+        ),
         # Vendor is on the vendor container.
-        LedgerDumpTarget("vendor2", vendor_client, "vendor"),
+        LedgerDumpTarget(
+            "vendor2",
+            vendor_client,
+            replica_route_key(vendor_client, "vendor"),
+        ),
     ]
     # The case-actor is a sub-actor inside the C1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)

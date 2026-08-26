@@ -62,6 +62,7 @@ from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -82,7 +83,7 @@ _LATE_JOINER_BASE = "http://late-joiner.test"
 
 
 @pytest.fixture
-def three_app_setup(monkeypatch):
+def three_app_setup():
     """Owner app + reporter app + late-joiner app wired for end-to-end delivery.
 
     Uses three isolated FastAPI app instances each with their own in-memory
@@ -105,7 +106,7 @@ def three_app_setup(monkeypatch):
          owner's app so that CaseActor deliveries are routed correctly.
       5. Yields the three ``IsolatedActorApp`` instances and their clients.
       6. On teardown restores the previous default emitter, closes DLs, and
-         reloads config to remove the patched env var.
+         restores config to remove the patched env vars.
 
     Yields:
         Tuple of (owner_iso, reporter_iso, late_joiner_iso,
@@ -115,65 +116,63 @@ def three_app_setup(monkeypatch):
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import get_config, reload_config
+    from vultron.config import config_override
 
-    # Patch the server base URL so the CaseActor is created with the owner's
-    # routable base URL.  Without this, CreateCaseActorNode reads the default
-    # http://localhost:7999 which produces IDs like
-    # http://localhost:7999/actors/case-actor-... and the owner's app returns
-    # 404 for /actors/ paths (it expects /api/v2/actors/).
-    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_OWNER_BASE}/api/v2")
-    # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
-    # (CP-08-002); in this single-owner test setup the owner IS the case-actor
-    # service, so we point it at the same base URL.
-    monkeypatch.setenv(
-        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", f"{_OWNER_BASE}/api/v2"
-    )
-    reload_config()
+    # config_override atomically sets env vars, reloads the cache, and
+    # restores both on exit — the ordering footgun (#2086) is impossible
+    # by construction (CFG-06-006).
+    with config_override(
+        # Patch the server base URL so the CaseActor is created with the
+        # owner's routable base URL.  Without this, CreateCaseActorNode reads
+        # the default http://localhost:7999 which produces IDs like
+        # http://localhost:7999/actors/case-actor-... and the owner's app
+        # returns 404 for /actors/ paths (it expects /api/v2/actors/).
+        VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
+        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # (CP-08-002); in this single-owner test setup the owner IS the
+        # case-actor service, so we point it at the same base URL.
+        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
+    ) as cfg:
+        router = _TestClientRouter()
+        owner_iso = create_isolated_actor_app(
+            base_url=_OWNER_BASE, router=router
+        )
+        reporter_iso = create_isolated_actor_app(
+            base_url=_REPORTER_BASE, router=router
+        )
+        late_joiner_iso = create_isolated_actor_app(
+            base_url=_LATE_JOINER_BASE, router=router
+        )
 
-    router = _TestClientRouter()
-    owner_iso = create_isolated_actor_app(base_url=_OWNER_BASE, router=router)
-    reporter_iso = create_isolated_actor_app(
-        base_url=_REPORTER_BASE, router=router
-    )
-    late_joiner_iso = create_isolated_actor_app(
-        base_url=_LATE_JOINER_BASE, router=router
-    )
+        # Register the patched base_url with the router so CaseActor deliveries
+        # (whose IDs now use http://owner-late-joiner.test/api/v2) route to
+        # the owner's ASGI app.
+        config_base_url = cfg.server.base_url.rstrip("/")
+        router.register(config_base_url, owner_iso.client)
 
-    # Register the patched base_url with the router so CaseActor deliveries
-    # (whose IDs now use http://owner-late-joiner.test/api/v2) route to
-    # the owner's ASGI app.
-    config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.client)
+        # Replace the module-level default emitter so outbox_handler calls from
+        # trigger endpoints use the router instead of HttpDeliveryAdapter (real
+        # HTTP with retry backoff).
+        previous_emitter = get_default_emitter()
+        configure_default_emitter(router)  # type: ignore[arg-type]
 
-    # Replace the module-level default emitter so outbox_handler calls from
-    # trigger endpoints use the router instead of HttpDeliveryAdapter (real
-    # HTTP with retry backoff).
-    previous_emitter = get_default_emitter()
-    configure_default_emitter(router)  # type: ignore[arg-type]
+        with owner_iso.client as owner_tc:
+            with reporter_iso.client as reporter_tc:
+                with late_joiner_iso.client as late_joiner_tc:
+                    yield (
+                        owner_iso,
+                        reporter_iso,
+                        late_joiner_iso,
+                        owner_tc,
+                        reporter_tc,
+                        late_joiner_tc,
+                    )
 
-    with owner_iso.client as owner_tc:
-        with reporter_iso.client as reporter_tc:
-            with late_joiner_iso.client as late_joiner_tc:
-                yield (
-                    owner_iso,
-                    reporter_iso,
-                    late_joiner_iso,
-                    owner_tc,
-                    reporter_tc,
-                    late_joiner_tc,
-                )
-
-    # Restore previous emitter to avoid polluting other tests.
-    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-    owner_iso.dl.close()
-    reporter_iso.dl.close()
-    late_joiner_iso.dl.close()
-    # Undo the env patches BEFORE reloading: monkeypatch's own undo runs after
-    # this teardown, so reloading first would re-cache this fixture's URLs into
-    # the module-level config for the rest of the session (#2086).
-    monkeypatch.undo()
-    reload_config()
+        # Restore previous emitter to avoid polluting other tests.
+        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+        owner_iso.dl.close()
+        reporter_iso.dl.close()
+        late_joiner_iso.dl.close()
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +218,7 @@ def _bootstrap_case(
     reporter_tc,
     owner_slug: str,
     reporter_slug: str,
-) -> str:
+) -> tuple[str, str]:
     """Set up a case on owner's app by having reporter submit a report.
 
     Exercises the full bootstrap sequence for PCR-07-007 prerequisites:
@@ -270,6 +269,17 @@ def _bootstrap_case(
         target=owner_actor_id,
         to=owner_actor_id,
     )
+    # Provision the CaseActor the case-creation flow will address.  Its id is
+    # *derived* from the report (ResolveCaseActorUrlsNode) and the owner is the
+    # case-actor service in this setup, so the owner's node must host it or the
+    # Announce/Invite deliveries to it answer 404.  Spawning one on demand for an
+    # as-yet-unknown case is #2469 / #1700.
+    _create_actor(
+        owner_tc,
+        owner_base_api,
+        _actor_slug(case_actor_id_for_report(str(report.id_))),
+        "Case Actor",
+    )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
     # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
@@ -292,26 +302,32 @@ def _bootstrap_case(
     # Find the canonical case by report_id to avoid picking up the extra
     # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
     # also creates one via case_proposal_received_tree).
-    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    # The owner's own store, not `owner_iso.dl`: this test creates its actor
+    # under a per-test slug, while `dl` is the app's default-slug store, so
+    # reading `dl` reports an empty store and the assertion fails for the wrong
+    # reason (ADR-0073 — a store is exactly one actor's).
+    owner_dl = owner_iso.store_for(owner_actor_id)
+
+    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
     case_id: str
     if case_from_proposal is not None:
         case_id = str(case_from_proposal.id_)
     else:
-        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        all_cases = owner_dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, (
             "Expected at least one VulnerabilityCase in owner's DataLayer "
-            "after trigger/create-case."
+            f"({owner_actor_id}) after trigger/create-case."
         )
         case_id = str(all_cases[0]["id_"])
 
     # In this test the owner acts as the CaseActor.  Register that identity
     # in the VultronReportCaseLink so _find_case_actor_id resolves correctly
     # for invite-actor-to-case and accept-case-invite flows.
-    for link in owner_iso.dl.list_objects("ReportCaseLink"):
+    for link in owner_dl.list_objects("ReportCaseLink"):
         if isinstance(link, VultronReportCaseLink):
             link.case_id = case_id
             link.trusted_case_actor_id = owner_actor_id
-            owner_iso.dl.save(link)
+            owner_dl.save(link)
             break
 
     resp = owner_tc.post(
@@ -323,7 +339,7 @@ def _bootstrap_case(
         resp.status_code == 202
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
-    return case_id
+    return case_id, owner_actor_id
 
 
 def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
@@ -347,11 +363,11 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
             outbox queue and the activity objects).
         case_actor_id: Full ID of the CaseActor.
     """
-    case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
-    try:
-        asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
-    finally:
-        case_actor_dl.close()
+    # The CaseActor's own store, and no close(): it is the app's live store,
+    # and an in-memory store is named, so disposing the engine destroys the
+    # database every other holder shares.
+    case_actor_dl = owner_iso.store_for(case_actor_id)
+    asyncio.run(outbox_handler(case_actor_id, case_actor_dl))
 
 
 def _run_late_joiner_sequence(
@@ -395,7 +411,7 @@ def _run_late_joiner_sequence(
         Tuple of (case_id, lj_actor_id).
     """
     # Step 1: bootstrap the case
-    case_id = _bootstrap_case(
+    case_id, owner_actor_id = _bootstrap_case(
         owner_iso,
         reporter_iso,
         owner_tc,
@@ -428,7 +444,9 @@ def _run_late_joiner_sequence(
     # CaseActor's outbox (not the owner's), so drain it explicitly here.
     # The background task triggered by the invite endpoint only drains the
     # owner's outbox; the CaseActor's outbox must be processed separately.
-    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
+    case_actor_id = _find_case_actor_id(
+        owner_iso.store_for(owner_actor_id), case_id
+    )
     assert case_actor_id is not None, (
         f"Could not find CaseActor for case '{case_id}' in owner's "
         f"DataLayer.  CreateCaseActorNode may not have run during "
@@ -437,7 +455,7 @@ def _run_late_joiner_sequence(
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Step 4: retrieve invite_id from late-joiner's DataLayer
-    invites = late_joiner_iso.dl.list_objects("Invite")
+    invites = late_joiner_iso.store_for(lj_actor_id).list_objects("Invite")
     assert len(invites) >= 1, (
         "Expected at least one Invite in late-joiner's DataLayer after "
         "owner triggered invite-actor-to-case.  The Invite may not have "
@@ -502,7 +520,17 @@ class TestLateJoinerSequence:
             late_joiner_tc,
         ) = three_app_setup
 
-        assert late_joiner_iso.dl.get_all("VulnerabilityCase") == [], (
+        # Named up front so the precondition can be checked against the store the
+        # sequence will actually use.  Read through the app's default-slug `dl`
+        # this was vacuous: that store is empty whatever happens, so the check
+        # could not fail (ADR-0073 — a store belongs to exactly one actor).
+        lj_slug = "late-joiner-pcr-007-ac1"
+        lj_actor_id = f"{_LATE_JOINER_BASE}/api/v2/actors/{lj_slug}"
+
+        assert (
+            late_joiner_iso.store_for(lj_actor_id).get_all("VulnerabilityCase")
+            == []
+        ), (
             "Prerequisite: late-joiner's DataLayer must have no cases before "
             "the late-joiner sequence begins."
         )
@@ -516,22 +544,22 @@ class TestLateJoinerSequence:
             late_joiner_tc,
             owner_slug="owner-pcr-007-ac1",
             reporter_slug="reporter-pcr-007-ac1",
-            lj_slug="late-joiner-pcr-007-ac1",
+            lj_slug=lj_slug,
         )
 
         # The late-joiner actor's inbox queue must be empty: the inbox handler
         # ran and processed the Announce (dispatch chain completed).
-        lj_actor_dl = late_joiner_iso.dl.clone_for_actor(lj_actor_id)
-        try:
-            assert lj_actor_dl.inbox_list() == [], (
-                "Late-joiner actor's inbox queue was not drained after "
-                "processing Announce(VulnerabilityCase).  The inbox handler "
-                "may not have run (PCR-07-007 AC-1)."
-            )
-        finally:
-            lj_actor_dl.close()
+        lj_actor_dl = late_joiner_iso.store_for(lj_actor_id)
+        # No close(): this is the app's live store, and an in-memory store is
+        # named, so disposing the engine destroys the database every other holder
+        # shares — the read below would fail "no such table".
+        assert lj_actor_dl.inbox_list() == [], (
+            "Late-joiner actor's inbox queue was not drained after "
+            "processing Announce(VulnerabilityCase).  The inbox handler "
+            "may not have run (PCR-07-007 AC-1)."
+        )
 
-        replica = late_joiner_iso.dl.read(case_id)
+        replica = lj_actor_dl.read(case_id)
         assert replica is not None, (
             f"Expected VulnerabilityCase '{case_id}' in late-joiner's "
             f"DataLayer after Announce(VulnerabilityCase) delivery, but "
@@ -571,7 +599,7 @@ class TestLateJoinerSequence:
             lj_slug="late-joiner-pcr-007-ac2",
         )
 
-        replica = late_joiner_iso.dl.read(case_id)
+        replica = late_joiner_iso.store_for(lj_actor_id).read(case_id)
         assert replica is not None, (
             f"No VulnerabilityCase replica found for '{case_id}' in "
             "late-joiner's DataLayer after the late-joiner sequence."

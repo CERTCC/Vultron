@@ -4,7 +4,7 @@ description: >-
   Requirements for how each Vultron Actor maintains and manages its local copy (replica) of
   a VulnerabilityCase. Covers replica identity, bootstrap, update authority, case-context
   message routing, reporter case discovery, and unknown-context handling.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -46,6 +46,38 @@ groups:
       spec_id: CM-02-001
     stories:
     - story_2022_046
+  - id: PCR-01-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Actor co-location is an implementation choice the protocol MUST remain indifferent to.
+      Whether every Actor runs on one host or on many, Actors MUST exchange information only
+      through protocol messages. An Actor MUST NOT read, write, or otherwise reach into another
+      Actor's store, and MUST NOT rely on out-of-band communication with a co-located Actor.
+      In particular, an Actor that has asked a CaseActor to create a case MUST treat the case as
+      absent from its own knowledge until the CaseActor's `Create(VulnerabilityCase)` replica has
+      been delivered to it, and MUST NOT assume co-location makes the case visible sooner.
+    rationale: >-
+      Co-location is a deployment convenience; a back-end cheat that only works when two Actors
+      happen to share a host encodes that convenience into the protocol and stops being a protocol
+      at all. Per-actor stores (ADR-0073) make the cheat impossible for reads and writes, but they
+      do not stop code from *expecting* it. Issue #2548 is the worked example: a co-located
+      CaseActor created the case in its own store, and the report receiver's behavior tree
+      proceeded as though the case were already its own. It was not — under ADR-0041 the receiver
+      never creates the case — so the case-scoped half of the RM.VALID transition had nothing to
+      act on. Stating the indifference as a MUST makes "wait for the message" the only correct
+      answer, on one host or many.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-01-001
+    - rel_type: refines
+      spec_id: AKM-01-002
+    - rel_type: implements
+      spec_id: DL-07-001
+    adr:
+    - ADR-0073
+    stories:
+    - story_2022_088
 - id: PCR-02
   title: Replica Bootstrap
   specs:

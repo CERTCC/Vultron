@@ -43,14 +43,26 @@ class TestUseCaseExecution:
     """Test that use cases execute with valid semantics."""
 
     def test_create_report_executes_with_valid_semantics(self, make_payload):
-        """CreateReportReceivedUseCase executes when semantics match."""
+        """CreateReportReceivedUseCase executes when semantics match.
+
+        The event carries a ``receiving_actor_id``, which is not incidental: a
+        received-side use case executes as the receiving actor, and with a
+        ``MagicMock`` DataLayer there is no store to fall back to — ``getattr(dl,
+        "actor_id")`` yields another Mock rather than a string, so
+        ``resolve_receiving_actor_id`` raises rather than inventing an identity
+        that would select an empty scratch store (ARCH-15-001).  The inbox
+        adapter always sets this field in production.
+        """
         report = as_VulnerabilityReport(
             name="TEST-002", content="Test vulnerability report"
         )
         create_activity = as_Create(
             actor="https://example.org/users/tester", object_=report
         )
-        event = make_payload(create_activity)
+        event = make_payload(
+            create_activity,
+            receiving_actor_id="https://example.org/actors/receiver",
+        )
 
         mock_dl = MagicMock()
         result = CreateReportReceivedUseCase(mock_dl, event).execute()
@@ -72,7 +84,10 @@ class TestUseCaseExecution:
 
     def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         report = as_VulnerabilityReport(
             name="TEST-003", content="Test report for shim delegation"
         )
@@ -107,7 +122,10 @@ class TestCreateReportNoStandaloneParticipantStatus:
             activity=activity,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         CreateReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
@@ -132,7 +150,10 @@ class TestCreateReportNoStandaloneParticipantStatus:
             activity=activity,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         CreateReportReceivedUseCase(dl, event).execute()
 
         stored_report = dl.read("https://example.org/reports/r-store-1")
@@ -197,7 +218,10 @@ class TestDuplicateReportHandling:
             "https://example.org/reports/r-dup-1",
             "https://example.org/activities/offer-dup-1",
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
@@ -238,7 +262,10 @@ class TestDuplicateReportHandling:
             object_=report,
             activity=activity,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         # Simulate inbox pre-storage of the nested object.
         dl.save(report)
 

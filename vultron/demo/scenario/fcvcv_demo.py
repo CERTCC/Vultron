@@ -78,6 +78,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -92,6 +93,7 @@ from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
+    LATE_JOINER_TIMEOUT,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -239,7 +241,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
     )
 
     with demo_check(
@@ -349,7 +351,12 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=5,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            C1_ACTOR_ID,
+            V1_ACTOR_ID,
+            C2_ACTOR_ID,
+        },
     )
 
     with demo_check(
@@ -364,7 +371,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        c1_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(c1_client.dl_path(case.id_))
     )
     return (
         finder,
@@ -480,8 +487,14 @@ def _phase_c2_suggests_v2(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=6,
-        timeout_seconds=40.0,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            C1_ACTOR_ID,
+            V1_ACTOR_ID,
+            C2_ACTOR_ID,
+            V2_ACTOR_ID,
+        },
+        timeout_seconds=LATE_JOINER_TIMEOUT,
     )
     logger.info("✓ V2 joined case (6 participants)")
 
@@ -559,7 +572,13 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=6,
+            expected_actor_ids={
+                FINDER_ACTOR_ID,
+                C1_ACTOR_ID,
+                V1_ACTOR_ID,
+                C2_ACTOR_ID,
+                V2_ACTOR_ID,
+            },
             timeout_seconds=p_timeout,
         )
 
@@ -1007,17 +1026,31 @@ def _phase_dump_case_ledgers(
     """
     # Devlog directory names use scenario-role names (DEMOMA-19-007):
     # finder, c1, v1, c2, v2, case-actor.
-    # Container routing keys must match actual docker-compose service/actor paths.
+    # Route keys come from each client's own actor id, not its display name:
+    # the key selects the store (ADR-0073), so a literal is right only while
+    # the scenario seeds deterministic named ids. The literal passed to
+    # replica_route_key() is the docker-compose seed name, kept as the fallback
+    # for a client that was never bound.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        # C1 is on the coordinator container; route key is "coordinator".
-        LedgerDumpTarget("c1", c1_client, "coordinator"),
-        # V1 is on the vendor container; route key is "vendor".
-        LedgerDumpTarget("v1", v1_client, "vendor"),
-        # C2 is on actor5; route key is "vendor2" (actor5 seed).
-        LedgerDumpTarget("c2", c2_client, "vendor2"),
-        # V2 is on actor6; route key is "vendor-deployer".
-        LedgerDumpTarget("v2", v2_client, "vendor-deployer"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        # C1 is on the coordinator container.
+        LedgerDumpTarget(
+            "c1", c1_client, replica_route_key(c1_client, "coordinator")
+        ),
+        # V1 is on the vendor container.
+        LedgerDumpTarget(
+            "v1", v1_client, replica_route_key(v1_client, "vendor")
+        ),
+        # C2 is on actor5 (seeded as "vendor2").
+        LedgerDumpTarget(
+            "c2", c2_client, replica_route_key(c2_client, "vendor2")
+        ),
+        # V2 is on actor6 (seeded as "vendor-deployer").
+        LedgerDumpTarget(
+            "v2", v2_client, replica_route_key(v2_client, "vendor-deployer")
+        ),
     ]
     # The case-actor is a sub-actor inside the C1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)

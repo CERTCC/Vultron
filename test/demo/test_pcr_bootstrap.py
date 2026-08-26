@@ -40,13 +40,19 @@ the handler's side effect (note appended to ``replica.notes``).
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -211,7 +217,7 @@ def _bootstrap_case_for_participant(
     participant_tc,
     owner_slug: str,
     participant_slug: str,
-) -> str:
+) -> tuple[str, str, str]:
     """Set up a case on owner's app and deliver Announce to participant.
 
     Exercises the full bootstrap sequence for PCR-07-006 AC-1:
@@ -235,7 +241,10 @@ def _bootstrap_case_for_participant(
         participant_slug: Short slug for the participant actor.
 
     Returns:
-        The ``id_`` of the ``as_VulnerabilityCase`` created on owner's app.
+        ``(case_id, owner_actor_id, participant_actor_id)``.  The actor ids are
+        returned alongside the case because a caller wanting either actor's *view*
+        of the case has to open that actor's own store, and both actors are created
+        here under per-test slugs the caller would otherwise have to reconstruct.
     """
     owner_base_api = owner_iso.base_url + "/api/v2"
     participant_base_api = participant_iso.base_url + "/api/v2"
@@ -294,17 +303,69 @@ def _bootstrap_case_for_participant(
     # Under ADR-0041, case_proposal_received_tree creates the canonical case
     # when Create(as_CaseProposal) is processed; trigger/create-case above
     # may add a second case — find by report_id to avoid ambiguity.
-    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    # The owner's own store, not `owner_iso.dl`: this test creates its actor
+    # under a per-test slug, while `dl` is the app's default-slug store, so
+    # reading `dl` reports an empty store and the assertion fails for the wrong
+    # reason (ADR-0073 — a store is exactly one actor's).
+    owner_dl = owner_iso.store_for(owner_actor_id)
+
+    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
     case_id: str
     if case_from_proposal is not None:
         case_id = str(case_from_proposal.id_)
     else:
-        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        all_cases = owner_dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, (
             "Expected at least one as_VulnerabilityCase in owner's DataLayer "
             "after trigger/create-case, but none was found."
         )
         case_id = str(all_cases[0]["id_"])
+
+    # trigger/create-case is a shortcut around the real ADR-0041 path, so the
+    # case it leaves behind is missing two things a delivered
+    # Create(VulnerabilityCase) replica always carries.  Both are now load-bearing
+    # on the validate path (ISSUE-2548), where the checks moved upstream of every
+    # write instead of running after the RM.VALID latch had already been written:
+    #
+    #   - active_embargo, without which RM.VALID is refused (DUR-07-004);
+    #   - a CaseParticipant for the owner, reachable through
+    #     actor_participant_index (CM-19-003), without which the case-scoped half
+    #     of the RM.VALID transition has nothing to advance.
+    #
+    # Seed both here, alongside the trust anchor below.
+    case_obj = owner_dl.read(case_id)
+    assert (
+        case_obj is not None
+    ), f"case {case_id!r} not readable from the owner's own store"
+    case_obj.active_embargo = f"{case_id}/embargoes/bootstrap-embargo"
+
+    # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
+    # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking
+    # in the report; RECEIVED → VALID is the legal move validate-report makes.
+    owner_participant = as_CaseParticipant(
+        attributed_to=owner_actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    owner_participant.append_rm_state(RM.RECEIVED, owner_actor_id, case_id)
+    owner_dl.create(owner_participant)
+    case_obj.actor_participant_index[owner_actor_id] = owner_participant.id_
+    if owner_participant.id_ not in case_obj.case_participants:
+        case_obj.case_participants.append(owner_participant.id_)
+    owner_dl.save(case_obj)
+
+    # In this test the owner also acts as the CaseActor (its
+    # case_actor_service_url points at its own base).  Register that identity in
+    # the VultronReportCaseLink so `_find_case_actor_id` can resolve it: the case
+    # was made by trigger/create-case, which does not register a CASE_MANAGER
+    # participant, so the trust anchor is the only route to the case actor and
+    # validate-report otherwise fails with "no routable recipients".
+    for link in owner_dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            link.case_id = case_id
+            link.trusted_case_actor_id = owner_actor_id
+            owner_dl.save(link)
+            break
 
     # Owner validates the report: this triggers the validate-report BT
     # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to
@@ -318,7 +379,7 @@ def _bootstrap_case_for_participant(
         resp.status_code == 202
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
-    return case_id
+    return case_id, owner_actor_id, participant_actor_id
 
 
 # ---------------------------------------------------------------------------
@@ -357,31 +418,34 @@ class TestBootstrapSequence:
             "the bootstrap sequence begins."
         )
 
-        case_id = _bootstrap_case_for_participant(
-            owner_iso,
-            participant_iso,
-            owner_tc,
-            participant_tc,
-            owner_slug="owner-pcr-006-ac1",
-            participant_slug="participant-pcr-006-ac1",
+        case_id, owner_actor_id, participant_actor_id = (
+            _bootstrap_case_for_participant(
+                owner_iso,
+                participant_iso,
+                owner_tc,
+                participant_tc,
+                owner_slug="owner-pcr-006-ac1",
+                participant_slug="participant-pcr-006-ac1",
+            )
         )
 
         # The participant actor's inbox queue must be empty: the inbox handler
         # ran and processed the Announce (dispatch chain completed).
-        participant_actor_id = (
-            f"{_PARTICIPANT_BASE}/api/v2/actors/participant-pcr-006-ac1"
+        # The participant's own store, not the app's default-slug `dl`: the actor
+        # is created under a per-test slug, and a store belongs to exactly one
+        # actor (ADR-0073), so `dl` is a different (empty) database.
+        actor_dl = participant_iso.store_for(participant_actor_id)
+        # No `close()` on it.  This is the participant's *live* store, shared with
+        # the running app — not a throwaway clone.  An in-memory store is named, so
+        # disposing the engine destroys the database every other holder is using
+        # and the next read fails with "no such table: vultron_objects".
+        assert actor_dl.inbox_list() == [], (
+            "Participant actor's inbox queue was not drained after "
+            "processing Announce(as_VulnerabilityCase).  The inbox handler "
+            "may not have run (PCR-07-006 AC-1)."
         )
-        actor_dl = participant_iso.dl.clone_for_actor(participant_actor_id)
-        try:
-            assert actor_dl.inbox_list() == [], (
-                "Participant actor's inbox queue was not drained after "
-                "processing Announce(as_VulnerabilityCase).  The inbox handler "
-                "may not have run (PCR-07-006 AC-1)."
-            )
-        finally:
-            actor_dl.close()
 
-        replica = participant_iso.dl.read(case_id)
+        replica = actor_dl.read(case_id)
         assert replica is not None, (
             f"Expected as_VulnerabilityCase '{case_id}' in participant's "
             f"DataLayer after Announce(as_VulnerabilityCase) delivery, but "
@@ -397,22 +461,24 @@ class TestBootstrapSequence:
         """
         owner_iso, participant_iso, owner_tc, participant_tc = two_app_setup
 
-        case_id = _bootstrap_case_for_participant(
-            owner_iso,
-            participant_iso,
-            owner_tc,
-            participant_tc,
-            owner_slug="owner-pcr-006-fields",
-            participant_slug="participant-pcr-006-fields",
+        case_id, owner_actor_id, participant_actor_id = (
+            _bootstrap_case_for_participant(
+                owner_iso,
+                participant_iso,
+                owner_tc,
+                participant_tc,
+                owner_slug="owner-pcr-006-fields",
+                participant_slug="participant-pcr-006-fields",
+            )
         )
 
-        replica = participant_iso.dl.read(case_id)
+        replica = participant_iso.store_for(participant_actor_id).read(case_id)
         assert replica is not None, (
             f"No as_VulnerabilityCase replica found for '{case_id}' in "
             "participant's DataLayer after bootstrap sequence."
         )
 
-        owner_case = owner_iso.dl.read(case_id)
+        owner_case = owner_iso.store_for(owner_actor_id).read(case_id)
         expected_name = getattr(owner_case, "name", None)
         # Under ADR-0041 the CaseActor creates the case without a name;
         # field-preservation still holds (None == None is valid).
@@ -464,8 +530,12 @@ class TestBootstrapSequence:
             to=[actor_id],
         )
         _post_to_inbox(participant_tc, _actor_slug(actor_id), announce)
+        # The store of the actor just created, not the app's default-slug `dl`:
+        # the Announce was delivered to `actor_id`, so that is the replica it
+        # seeded (ADR-0073).
+        actor_dl = participant_iso.store_for(actor_id)
         assert (
-            participant_iso.dl.read(_DIRECT_CASE_ID) is not None
+            actor_dl.read(_DIRECT_CASE_ID) is not None
         ), "Prerequisite: case replica must exist before routing test."
 
         # Post a case-scoped Add(Note) with context = case_id.
@@ -480,7 +550,7 @@ class TestBootstrapSequence:
 
         # Assert 1: The note activity must NOT have been deferred.
         pending_id = VultronPendingCaseInbox.build_id(_DIRECT_CASE_ID)
-        pending = participant_iso.dl.read(pending_id)
+        pending = actor_dl.read(pending_id)
         deferred = isinstance(pending, VultronPendingCaseInbox) and (
             note_activity.id_ in pending.activity_ids
         )
@@ -498,7 +568,7 @@ class TestBootstrapSequence:
         # exclusively via Announce(CaseLedgerEntry) fan-out from the CaseActor
         # (SYNC-02-002).  The BT still returns SUCCESS (via the fallback path),
         # so the handler ran to completion — demonstrated by Assert 3 below.
-        replica = participant_iso.dl.read(_DIRECT_CASE_ID)
+        replica = actor_dl.read(_DIRECT_CASE_ID)
         assert replica is not None
         replica_note_ids = [
             getattr(n, "id_", n) if not isinstance(n, str) else n
@@ -513,12 +583,11 @@ class TestBootstrapSequence:
 
         # Assert 3: The actor's inbox queue must be drained, confirming
         # inbox_handler ran and dispatched the Add(Note) activity.
-        actor_dl = participant_iso.dl.clone_for_actor(actor_id)
-        try:
-            assert actor_dl.inbox_list() == [], (
-                f"Actor '{actor_id}' inbox queue was not drained after "
-                f"Add(Note) was processed. The inbox handler may not have "
-                f"run or may have re-queued the activity (PCR-07-006 AC-2)."
-            )
-        finally:
-            actor_dl.close()
+        # `actor_dl` above is already this actor's store, and it is the app's
+        # live one — no `close()`, which would dispose the shared in-memory
+        # engine out from under the app.
+        assert actor_dl.inbox_list() == [], (
+            f"Actor '{actor_id}' inbox queue was not drained after "
+            f"Add(Note) was processed. The inbox handler may not have "
+            f"run or may have re-queued the activity (PCR-07-006 AC-2)."
+        )

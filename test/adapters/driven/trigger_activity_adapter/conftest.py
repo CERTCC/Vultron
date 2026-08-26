@@ -24,7 +24,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 @pytest.fixture
 def dl():
     """In-memory SQLite DataLayer for adapter tests."""
-    _dl = SqliteDataLayer("sqlite:///:memory:")
+    _dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield _dl
     _dl.clear_all()
     _dl.close()

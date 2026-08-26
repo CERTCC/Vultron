@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Generator
+from contextlib import contextmanager
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
@@ -96,12 +98,18 @@ class ServerConfig(BaseModel):
 
     Attributes:
         base_url: Base URL of the Vultron server, used for constructing
-            object IDs.  Defaults to ``"http://localhost:7999"``.
+            object IDs.  MUST include the API path prefix: an actor's id is the
+            URL that reaches it, and a hosted actor is named
+            ``{base_url}/actors/{slug}``, so a value without ``/api/v2`` mints
+            ids that address nothing (DL-07-006).  Defaults to
+            ``"http://localhost:7999/api/v2"``, matching the shape the compose
+            files set, so a local run resolves actors the way a deployed one
+            does.
         log_level: Root log level name.  Must be one of ``DEBUG``, ``INFO``,
             ``WARNING``, ``ERROR``, or ``CRITICAL``.  Defaults to ``"INFO"``.
     """
 
-    base_url: str = "http://localhost:7999"
+    base_url: str = "http://localhost:7999/api/v2"
     log_level: LogLevelName = "INFO"
 
     @field_validator("base_url")
@@ -236,3 +244,44 @@ def reload_config() -> AppConfig:
     global _config_cache
     _config_cache = None
     return get_config()
+
+
+@contextmanager
+def config_override(**env_updates: str) -> Generator[AppConfig, None, None]:
+    """Atomically patch env vars, reload the config cache, and restore on exit.
+
+    Sets each key in *env_updates* as an environment variable, reloads the
+    config cache, yields the updated :class:`AppConfig`, then restores the
+    original environment values and reloads again in a ``finally`` block so
+    that the restore always happens even when the body raises (CFG-06-006).
+
+    This makes the incorrect ``monkeypatch.undo()``-after-``reload_config()``
+    ordering impossible by construction (CONCERN-2323).
+
+    Example::
+
+        with config_override(VULTRON_SERVER__BASE_URL="http://test:8080") as cfg:
+            assert cfg.server.base_url == "http://test:8080"
+        # env and cache are restored here
+
+    Args:
+        **env_updates: Environment variable names mapped to override values.
+
+    Yields:
+        The updated :class:`AppConfig` instance after reloading.
+    """
+    originals: dict[str, str | None] = {
+        key: os.environ.get(key) for key in env_updates
+    }
+    for key, value in env_updates.items():
+        os.environ[key] = value
+    try:
+        reload_config()
+        yield get_config()
+    finally:
+        for key, original in originals.items():
+            if original is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = original
+        reload_config()

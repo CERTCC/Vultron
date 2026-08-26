@@ -22,6 +22,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
+import json
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -162,17 +163,17 @@ class TestResetContainersFccv:
 
         reset_mock.assert_has_calls(
             [
-                call(client=finder_client, init=False),
-                call(client=c1_client, init=False),
-                call(client=c2_client, init=False),
-                call(client=case_actor_client, init=False),
-                call(client=vendor_client, init=False),
+                call(client=finder_client),
+                call(client=c1_client),
+                call(client=c2_client),
+                call(client=case_actor_client),
+                call(client=vendor_client),
             ]
         )
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for _wait_for_case_attributed_to
+# Unit tests for wait_for_case_attributed_to
 # ---------------------------------------------------------------------------
 
 
@@ -184,7 +185,7 @@ class TestWaitForCaseAttributedTo:
         client.get.return_value = {
             "attributedTo": {"id": "http://c2/actors/c2"}
         }
-        demo._wait_for_case_attributed_to(
+        demo.wait_for_case_attributed_to(
             client=client,
             case_id="urn:uuid:case-1",
             expected_attributed_to="http://c2/actors/c2",
@@ -198,7 +199,7 @@ class TestWaitForCaseAttributedTo:
             "attributedTo": {"id": "http://c1/actors/c1"}
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._wait_for_case_attributed_to(
+            demo.wait_for_case_attributed_to(
                 client=client,
                 case_id="urn:uuid:case-1",
                 expected_attributed_to="http://c2/actors/c2",
@@ -209,7 +210,7 @@ class TestWaitForCaseAttributedTo:
     def test_accepts_bare_string_attributed_to(self):
         client = MagicMock()
         client.get.return_value = {"attributedTo": "http://c2/actors/c2"}
-        demo._wait_for_case_attributed_to(
+        demo.wait_for_case_attributed_to(
             client=client,
             case_id="urn:uuid:case-1",
             expected_attributed_to="http://c2/actors/c2",
@@ -233,12 +234,19 @@ class TestWaitForObjectStored:
 
         client = MagicMock()
         client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
+        client.dl_path.side_effect = (
+            lambda key="": f"/actors/an-actor/datalayer/{key}"
+        )
         wait_for_object_stored(
             client=client,
             obj_id=self.OBJ_ID,
             timeout_seconds=1.0,
         )
-        client.get.assert_called_with(f"/datalayer/{self.OBJ_ID}")
+        # The read must be actor-scoped, and must ask the client to build the
+        # path rather than hand-writing it (ADR-0073): a MagicMock would happily
+        # accept any string, so assert the delegation too.
+        client.dl_path.assert_called_with(self.OBJ_ID)
+        client.get.assert_called_with(client.dl_path(self.OBJ_ID))
 
     def test_raises_on_timeout_when_object_absent(self):
         from vultron.demo.helpers.polling import wait_for_object_stored
@@ -332,20 +340,32 @@ class TestFccvHandoffCliCommand:
 # ---------------------------------------------------------------------------
 
 
+def _bound_client(slug: str) -> MagicMock:
+    """A dump client stub bound to a *generated* actor id, as the real one is.
+
+    ``actor_id`` must be a real string: the dump derives its route key from it
+    (``replica_route_key``, ADR-0073) and writes the key into the manifest, so a
+    bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
+    deliberately *not* the docker-compose seed names — that is the whole point of
+    deriving the key, and a stub carrying ``actor_id="finder"`` would pass even if
+    the derivation were dropped.
+    """
+    client = MagicMock()
+    client.actor_id = f"https://example.org/actors/{slug}"
+    client.get_list.return_value = [{"logIndex": 0}]
+    return client
+
+
 class TestPhaseDumpCaseLedgersFccv:
     """Tests for the case-ledger dump phase in the FCCV-handoff demo."""
 
     def test_writes_jsonl_files_for_all_four_actors(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        c1_client = MagicMock()
-        c2_client = MagicMock()
-        vendor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        c1_client.get_list.return_value = [{"logIndex": 0}]
-        c2_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        c1_client = _bound_client("coordinator1-2b71")
+        c2_client = _bound_client("coordinator2-4c05")
+        vendor_client = _bound_client("vendor-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fccv-test-case"
@@ -386,17 +406,28 @@ class TestPhaseDumpCaseLedgersFccv:
             / f"{case_slug}-case-ledger.jsonl"
         ).exists()
 
+        # The route key selects the store (ADR-0073), so it must be the
+        # client's own actor id — not the seed name the directory is named
+        # after.  Note the FCCV handoff deliberately crosses the two: c1 is
+        # the actor written under "vendor".
+        manifest = json.loads(
+            (tmp_path / "fccv-handoff" / "dump-manifest.json").read_text()
+        )
+        keys = {r["actorName"]: r["routeKey"] for r in manifest["actors"]}
+        assert keys == {
+            "finder": "finder-9f3a",
+            "vendor": "coordinator1-2b71",
+            "coordinator": "coordinator2-4c05",
+            "vendor2": "vendor-8ade",
+        }
+
     def test_includes_case_actor_when_in_participant_index(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        c1_client = MagicMock()
-        c2_client = MagicMock()
-        vendor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        c1_client.get_list.return_value = [{"logIndex": 0}]
-        c2_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        c1_client = _bound_client("coordinator1-2b71")
+        c2_client = _bound_client("coordinator2-4c05")
+        vendor_client = _bound_client("vendor-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fccv-with-ca",
@@ -829,6 +860,11 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
         finder = self._actor("urn:test:finder")
         invite = MagicMock()
         invite.id_ = "urn:test:invite"
+        # Matches the case_actor_id passed below: the phase now asserts the
+        # Invite went out attributed to the CaseActor (PCR-08-008), which is the
+        # property that used to be pursued by posting the trigger to the
+        # CaseActor's container instead.
+        invite.actor = "urn:test:case-actor"
 
         call_order: list[str] = []
 

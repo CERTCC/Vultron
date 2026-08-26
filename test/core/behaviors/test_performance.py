@@ -34,14 +34,20 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.vultron_types import (
     VultronAccept,
     VultronCaseActor,
     VultronOffer,
     VultronReport,
 )
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
+
+_PERF_ACTOR_ID = "https://example.org/vendor"
 
 
 def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
@@ -135,6 +141,36 @@ def _mock_by_type_helper(type_name: str) -> dict:
     return {}
 
 
+def _seed_mock_case(storage: dict) -> VulnerabilityCase:
+    """Build a case replica the perf actor is a participant of, in *storage*.
+
+    ``ValidateReportBT`` requires a real ``VulnerabilityCase`` in this actor's
+    store with the actor in ``actor_participant_index`` — that is what a
+    delivered ``Create(VulnerabilityCase)`` provides (ADR-0041, ISSUE-2548).  A
+    bare ``MagicMock`` no longer satisfies it: ``RequireCaseForReport`` does a
+    real ``isinstance`` check, and ``TransitionRMtoValid`` actually advances the
+    participant's case-scoped RM state.
+    """
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/perf-case",
+        name="Perf test case",
+        attributed_to=_PERF_ACTOR_ID,
+        vulnerability_reports=["test-report-123"],
+        active_embargo="https://example.org/embargoes/perf-embargo",
+    )
+    participant = CaseParticipant(
+        id_=f"{case.id_}/participants/vendor",
+        attributed_to=_PERF_ACTOR_ID,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    participant.append_rm_state(RM.RECEIVED, _PERF_ACTOR_ID, case.id_)
+    case.add_participant(participant)
+    storage[case.id_] = case
+    storage[participant.id_] = participant
+    return case
+
+
 @pytest.fixture
 def mock_datalayer():
     """Mock DataLayer for performance testing."""
@@ -142,6 +178,7 @@ def mock_datalayer():
 
     # In-memory store so that create()/save() objects are visible to read().
     storage: dict = {}
+    case = _seed_mock_case(storage)
 
     dl.get.side_effect = _mock_get_helper
     dl.read.side_effect = partial(_mock_read_helper, storage)
@@ -149,7 +186,8 @@ def mock_datalayer():
     dl.save.side_effect = partial(_mock_store, storage)
     dl.update.return_value = None
     dl.by_type.side_effect = _mock_by_type_helper
-    dl.record_outbox_item.return_value = None
+    dl.outbox_append.return_value = None
+    dl.find_case_by_report_id.return_value = case
 
     return dl
 

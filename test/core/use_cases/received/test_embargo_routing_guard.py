@@ -68,7 +68,9 @@ def _make_embargo_case(
     SqliteDataLayer, VultronCaseActor, as_VulnerabilityCase, as_EmbargoEvent
 ]:
     """Return (dl, case_actor, case, embargo) ready for routing tests."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    # The case actor holds the canonical ledger these routing tests assert on,
+    # and it is the receiving actor for the on-path cases, so this is its store.
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
 
     case_actor = VultronCaseActor(
         id_=case_actor_id,

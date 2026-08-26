@@ -76,7 +76,12 @@ class TestBootstrapCreateReporterParticipant:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._FINDER_ID,
+        )
 
     @pytest.fixture()
     def seeded_dl(self, dl):
@@ -130,7 +135,7 @@ class TestBootstrapCreateReporterParticipant:
         activity = create_case_activity(
             case_with_string_participants, actor=self._VENDOR_ID
         )
-        return make_payload(activity)
+        return make_payload(activity, receiving_actor_id=self._FINDER_ID)
 
     def test_reporter_participant_created_after_bootstrap(
         self, seeded_dl, create_event
@@ -203,7 +208,12 @@ class TestBootstrapReporterUpgradesFromStart:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._FINDER_ID,
+        )
 
     @pytest.fixture()
     def base_dl(self, dl):
@@ -247,7 +257,7 @@ class TestBootstrapReporterUpgradesFromStart:
 
     def _create_event(self, make_payload, case):
         activity = create_case_activity(case, actor=self._VENDOR_ID)
-        return make_payload(activity)
+        return make_payload(activity, receiving_actor_id=self._FINDER_ID)
 
     def _pre_seed_participant(self, dl, rm_state: RM) -> VultronParticipant:
         """Store a finder participant at the given rm_state before bootstrap."""
@@ -414,7 +424,12 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._ACTOR_ID,
+        )
 
     def _wire_case(self, rm_state: RM) -> as_VulnerabilityCase:
         """A received-shaped case carrying one wire participant at *rm_state*."""

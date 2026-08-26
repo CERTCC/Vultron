@@ -15,32 +15,56 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.adapters.driving.fastapi.routers import health as health_router
 
 
 @pytest.fixture
-def client_health(datalayer):
+def client_health():
+    """A client for the health router.
+
+    No DataLayer is injected: readiness probes the configured storage *location*
+    via ``actor_hosts.storage_ready()``, not any actor's store.  Under ADR-0073
+    there is no shared store to ``ping()``, and a node that has not seeded an
+    actor yet is still ready.
+    """
     app = FastAPI()
     app.include_router(health_router.router)
-    app.dependency_overrides[get_shared_dl] = lambda: datalayer
     client = TestClient(app)
     yield client
-    app.dependency_overrides = {}
 
 
 @pytest.fixture
-def client_health_failing():
-    class FailingDataLayer:
-        def read(self, *args, **kwargs):
-            raise OSError("storage unavailable")
+def client_health_unready(monkeypatch):
+    """A client whose storage probe reports not-ready.
 
+    This used to inject a ``FailingDataLayer`` by overriding ``get_actor_dl``.
+    The route has no such dependency any more, so the override did nothing and
+    readiness kept answering 200 — the test could not fail for the reason it
+    named.  Patch what readiness actually consults.
+    """
+    monkeypatch.setattr(
+        "vultron.adapters.driven.actor_hosts.storage_ready", lambda: False
+    )
     app = FastAPI()
     app.include_router(health_router.router)
-    app.dependency_overrides[get_shared_dl] = lambda: FailingDataLayer()
     client = TestClient(app)
     yield client
-    app.dependency_overrides = {}
+
+
+@pytest.fixture
+def client_health_probe_raises(monkeypatch):
+    """A client whose storage probe raises rather than returning False."""
+
+    def _boom():
+        raise OSError("storage unavailable")
+
+    monkeypatch.setattr(
+        "vultron.adapters.driven.actor_hosts.storage_ready", _boom
+    )
+    app = FastAPI()
+    app.include_router(health_router.router)
+    client = TestClient(app)
+    yield client
 
 
 def test_liveness_returns_200(client_health):
@@ -69,7 +93,19 @@ def test_readiness_response_body(client_health):
     assert data["status"] == "ok"
 
 
-def test_readiness_returns_503_when_datalayer_fails(client_health_failing):
+def test_readiness_returns_503_when_storage_not_ready(client_health_unready):
     """OB-05-002: /health/ready MUST return 503 when dependencies unavailable."""
-    resp = client_health_failing.get("/health/ready")
+    resp = client_health_unready.get("/health/ready")
+    assert resp.status_code == 503
+
+
+def test_readiness_returns_503_when_storage_probe_raises(
+    client_health_probe_raises,
+):
+    """Readiness must never propagate an exception (OB-05-002).
+
+    The route catches everything from the probe and reports not-ready, so a
+    storage failure that raises is answered the same as one that returns False.
+    """
+    resp = client_health_probe_raises.get("/health/ready")
     assert resp.status_code == 503

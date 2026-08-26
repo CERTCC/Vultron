@@ -23,7 +23,7 @@ wire serialisation (MV-10-001, OX-08-001).
 # Reference fields that must be collapsed to URI strings before validating as
 # VultronActivity.  ``object`` is intentionally excluded — it must remain a
 # full inline typed object so recipients can determine the semantic type
-# (MV-09-001).
+# (AKM-03-001).
 #
 # ``target`` is also partially excluded: minimal stub dicts
 # ``{id, type[, summary]}`` are preserved so that ``Invite.target`` carries
@@ -81,7 +81,7 @@ def _dehydrate_references(activity_dict: dict) -> dict:
 
     ``"object"`` is explicitly excluded from dehydration because outbound
     initiating activities must carry a fully inline typed object for semantic
-    routing on the receiving side (MV-09-001).
+    routing on the receiving side (AKM-03-001).
 
     Args:
         activity_dict: Raw ``dict`` produced by ``model_dump(by_alias=True)``

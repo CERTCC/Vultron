@@ -96,13 +96,13 @@ def load_adr_registry(
         except Exception as exc:  # noqa: BLE001 — re-raise with file context
             raise ValueError(f"{key}: {exc}") from exc
 
-        if fm.superseded_by and not _superseded_target_exists(
-            adr_dir, fm.superseded_by
-        ):
-            raise ValueError(
-                f"{key}: superseded_by '{fm.superseded_by}' does not resolve "
-                f"to an ADR file in {adr_dir} or {adr_dir / 'archived'}"
-            )
+        for field in ("superseded_by", "partially_superseded_by"):
+            target = getattr(fm, field)
+            if target and not _superseded_target_exists(adr_dir, target):
+                raise ValueError(
+                    f"{key}: {field} '{target}' does not resolve "
+                    f"to an ADR file in {adr_dir} or {adr_dir / 'archived'}"
+                )
 
         registry[key] = fm
 

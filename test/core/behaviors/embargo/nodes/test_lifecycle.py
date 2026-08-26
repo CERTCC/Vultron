@@ -48,7 +48,10 @@ def _make_case_with_manager(
     em_state: EM = EM.ACTIVE,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a populated DataLayer with a case + CASE_MANAGER participant."""
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=ACTOR_ID,
+    )
     case, _ = make_case_and_embargo(suffix, em_state=em_state)
 
     cm_participant = as_CaseParticipant(
@@ -142,7 +145,10 @@ class TestTerminateEmbargoBT:
 
     def test_missing_case_manager_returns_failure_before_state_change(self):
         """AC-5: Missing CASE_MANAGER → FAILURE; EM state and active_embargo unchanged."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo("teb3", em_state=EM.ACTIVE)
         dl.create(case)  # no CASE_MANAGER participant
 
@@ -263,14 +269,17 @@ class TestTerminateEmbargoBT:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
         factory.terminate_embargo.assert_called_once()
-        outbox = dl.outbox_list_for_actor(ACTOR_ID)
+        outbox = dl.outbox_list()
         assert "https://example.org/activities/act1" in outbox
 
     def test_cascade_path_missing_case_manager_failure_before_state_change(
         self,
     ):
         """AC-5 (cascade path): Missing CASE_MANAGER → FAILURE; no state mutation."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("teb8", em_state=EM.ACTIVE)
         dl.create(case)  # no CASE_MANAGER participant
 
@@ -326,7 +335,10 @@ class TestValidateEmbargoRevisionStateNode:
 
     def test_returns_success_when_em_state_is_active(self):
         """SUCCESS when case EM state is ACTIVE."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("rev1", em_state=EM.ACTIVE)
         dl.create(case)
 
@@ -337,7 +349,10 @@ class TestValidateEmbargoRevisionStateNode:
 
     def test_returns_success_when_em_state_is_revise(self):
         """SUCCESS when case EM state is REVISE."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("rev2", em_state=EM.REVISE)
         dl.create(case)
 
@@ -348,7 +363,10 @@ class TestValidateEmbargoRevisionStateNode:
 
     def test_returns_failure_when_em_state_is_none(self):
         """FAILURE when case EM state is NONE (no active embargo)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("rev3", em_state=EM.NONE)
         case.active_embargo = None
         dl.create(case)
@@ -360,7 +378,10 @@ class TestValidateEmbargoRevisionStateNode:
 
     def test_returns_failure_when_em_state_is_proposed(self):
         """FAILURE when case EM state is PROPOSED (initial proposal, not revision)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("rev4", em_state=EM.PROPOSED)
         dl.create(case)
 
@@ -371,7 +392,10 @@ class TestValidateEmbargoRevisionStateNode:
 
     def test_returns_failure_when_em_state_is_exited(self):
         """FAILURE when case EM state is EXITED."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("rev5", em_state=EM.EXITED)
         dl.create(case)
 
@@ -384,7 +408,10 @@ class TestValidateEmbargoRevisionStateNode:
         """Error in result_out is VultronInvalidStateTransitionError for bad state."""
         from vultron.errors import VultronInvalidStateTransitionError
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("rev6", em_state=EM.NONE)
         case.active_embargo = None
         dl.create(case)
@@ -397,7 +424,10 @@ class TestValidateEmbargoRevisionStateNode:
 
     def test_returns_failure_when_case_not_found(self):
         """FAILURE when the case ID does not exist in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         self._setup_blackboard(dl)
 
         status, result_out = self._run_node(
@@ -409,7 +439,10 @@ class TestValidateEmbargoRevisionStateNode:
 
     def test_reads_em_state_via_read_em_state_node(self):
         """AC-1: em_before in result_out is populated by ReadEmStateNode."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, _ = make_case_and_embargo("rev7", em_state=EM.ACTIVE)
         dl.create(case)
 
@@ -490,7 +523,10 @@ class TestSetEmbargoActiveNode:
     @pytest.mark.spec("EMB-02-001")
     def test_transitions_proposed_to_active(self):
         """Transitions EM.PROPOSED → EM.ACTIVE and persists."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo("sea1", em_state=EM.PROPOSED)
         case.active_embargo = None
         dl.create(case)
@@ -505,7 +541,10 @@ class TestSetEmbargoActiveNode:
         """EM PROPOSED → ACTIVE is logged at INFO (SL-04-001, AC-16)."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo(
             "sea-narrative", em_state=EM.PROPOSED
         )
@@ -533,7 +572,10 @@ class TestSetEmbargoActiveNode:
         """The verbose "Activated embargo ..." detail line is DEBUG."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo(
             "sea-detail", em_state=EM.PROPOSED
         )
@@ -552,7 +594,10 @@ class TestSetEmbargoActiveNode:
     @pytest.mark.spec("EMB-02-001")
     def test_idempotent_when_embargo_already_active(self):
         """Returns SUCCESS without state mutation when embargo is already active."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo("sea2", em_state=EM.ACTIVE)
         case.active_embargo = embargo.id_
         dl.create(case)
@@ -565,7 +610,10 @@ class TestSetEmbargoActiveNode:
 
     def test_reads_em_state_via_read_em_state_node(self):
         """AC-1: _apply_transition receives em_state read by ReadEmStateNode."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo("sea3", em_state=EM.PROPOSED)
         case.active_embargo = None
         dl.create(case)
@@ -590,7 +638,10 @@ class TestSetEmbargoActiveNode:
 
     def test_returns_failure_when_case_missing(self):
         """Returns FAILURE when the case is not found in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
 
         status = self._run(
             dl,
@@ -604,7 +655,10 @@ class TestSetEmbargoActiveNode:
         """Logs WARNING for non-standard EM transitions (state-sync override)."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo("sea5", em_state=EM.NONE)
         case.active_embargo = None
         dl.create(case)
@@ -636,7 +690,10 @@ class TestSetEmbargoActiveNode:
             WriteEmStateNode,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
         case, embargo = make_case_and_embargo("sea-ac1", em_state=EM.PROPOSED)
         case.active_embargo = None
         dl.create(case)

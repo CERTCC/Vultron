@@ -38,11 +38,13 @@ from vultron.core.behaviors.call_out.bundles.develop_fix import (
 from vultron.core.behaviors.report.develop_fix_tree import (
     create_develop_fix_tree,
 )
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+)
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
-    CheckRMStateAccepted,
     EmitCFActivity,
     TransitionCStoFixReady,
 )
@@ -57,6 +59,16 @@ from vultron.enums.roles import CVDRole
 CASE_ID = "https://example.org/cases/test-develop-001"
 VENDOR_ACTOR_ID = "https://example.org/actors/vendor-001"
 COORDINATOR_ACTOR_ID = "https://example.org/actors/coordinator-001"
+
+
+@pytest.fixture
+def bt_scenario():
+    """Scenario scoped to VENDOR_ACTOR_ID — the vendor, who develops the fix.
+
+    Shadows the harness default so the store belongs to the actor these trees
+    execute as: a BT's store follows its executing actor (ADR-0073).
+    """
+    return BTTestScenario(VENDOR_ACTOR_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +108,41 @@ def case_with_vendor(
         actor_participant_index={VENDOR_ACTOR_ID: vendor_participant.id_},
     )
     bt_scenario.seed(vendor_participant, case)
+    return case
+
+
+@pytest.fixture
+def coordinator_scenario():
+    """Scenario scoped to COORDINATOR_ACTOR_ID.
+
+    The two non-vendor tests execute as the coordinator, so the case they read
+    has to be in the coordinator's own store, not the vendor's.
+    """
+    return BTTestScenario(COORDINATOR_ACTOR_ID)
+
+
+@pytest.fixture
+def coordinator_case(
+    coordinator_scenario: BTTestScenario,
+    vendor_participant: VultronParticipant,
+    coordinator_participant: VultronParticipant,
+) -> VultronCase:
+    """The same two-participant case, seeded in the coordinator's store."""
+    case = VultronCase(
+        id_=CASE_ID,
+        name="Test Case",
+        case_participants=[
+            vendor_participant.id_,
+            coordinator_participant.id_,
+        ],
+        actor_participant_index={
+            VENDOR_ACTOR_ID: vendor_participant.id_,
+            COORDINATOR_ACTOR_ID: coordinator_participant.id_,
+        },
+    )
+    coordinator_scenario.seed(
+        vendor_participant, coordinator_participant, case
+    )
     return case
 
 
@@ -345,10 +392,10 @@ class TestCheckIsVendorRoleNode:
 
     def test_success_for_coordinator_non_vendor(
         self,
-        bt_scenario: BTTestScenario,
-        case_with_vendor_and_coordinator: VultronCase,
+        coordinator_scenario: BTTestScenario,
+        coordinator_case: VultronCase,
     ) -> None:
-        result = bt_scenario.run(
+        result = coordinator_scenario.run(
             CheckIsVendorRoleNode(
                 case_id=CASE_ID, actor_id=COORDINATOR_ACTOR_ID
             ),
@@ -689,14 +736,14 @@ def test_inner_sequence_has_four_children():
 
 @pytest.mark.spec("BT-06-006")
 def test_guard_short_circuits_for_non_vendor(
-    bt_scenario: BTTestScenario,
-    case_with_vendor_and_coordinator: VultronCase,
+    coordinator_scenario: BTTestScenario,
+    coordinator_case: VultronCase,
 ) -> None:
     """Non-vendor actor: CheckIsVendorRoleNode returns SUCCESS → Fallback succeeds."""
     tree = create_develop_fix_tree(
         case_id=CASE_ID, actor_id=COORDINATOR_ACTOR_ID
     )
-    result = bt_scenario.run(tree, actor_id=COORDINATOR_ACTOR_ID)
+    result = coordinator_scenario.run(tree, actor_id=COORDINATOR_ACTOR_ID)
     assert result.status == Status.SUCCESS
 
 

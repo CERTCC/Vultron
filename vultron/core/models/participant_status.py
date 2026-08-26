@@ -20,6 +20,7 @@ from typing import Any, Literal
 from pydantic import (
     ConfigDict,
     Field,
+    computed_field,
     field_serializer,
     field_validator,
     model_validator,
@@ -105,8 +106,14 @@ class ParticipantStatus(CoreObject):
     rm: RmDimension = Field(default_factory=RmDimension)
     vfd: VfdDimension = Field(default_factory=VfdDimension)
     case_engagement: bool = True
-    embargo_adherence: bool = True
     consent: PecDimension | None = None
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def embargo_adherence(self) -> bool:
+        """True iff consent.state == SIGNATORY; False otherwise (CM-18-008, ADR-0056)."""
+        return self.consent is not None and self.consent.is_signatory()
+
     cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OBSERVER])
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None

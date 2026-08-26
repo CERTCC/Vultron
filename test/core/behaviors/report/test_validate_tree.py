@@ -62,7 +62,10 @@ _ALWAYS_SUCCEED_BUNDLE = ValidationCallOutBundle(
 @pytest.fixture
 def datalayer():
     """Create in-memory TinyDB data layer for testing."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture
@@ -160,14 +163,43 @@ def bridge_no_emit(datalayer):
     return BTBridge(datalayer=datalayer)
 
 
+def _seed_case_participant(datalayer, case_obj, participant_actor_id, slug):
+    """Add a ``CaseParticipant`` at RM.RECEIVED for *participant_actor_id*.
+
+    ``RM.VALID`` is case-scoped, so a case replica is only actionable once the
+    acting actor is in ``actor_participant_index`` — that is what
+    ``Create(VulnerabilityCase)`` delivers (CBT-01-002).  Without it
+    ``TransitionRMtoValid`` correctly returns FAILURE (ISSUE-2548).
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    participant = CaseParticipant(
+        id_=f"{case_obj.id_}/participants/{slug}",
+        attributed_to=participant_actor_id,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    participant.append_rm_state(
+        RM.RECEIVED, participant_actor_id, case_obj.id_
+    )
+    datalayer.create(participant)
+    case_obj.add_participant(participant)
+    datalayer.save(case_obj)
+    return participant
+
+
 @pytest.fixture
 def case(datalayer, actor_id, report):
     """Pre-create a VulnerabilityCase with an active embargo for validate_tree tests.
 
     ADR-0041: the vendor tree no longer creates a VulnerabilityCase.  This
-    fixture creates one directly to satisfy the EnsureEmbargoExists precondition
-    in ValidateReportBT, simulating what the CaseActor would have provided after
-    accepting a CaseProposal.
+    fixture creates one directly to satisfy the ``RequireCaseForReport`` and
+    ``EnsureEmbargoExists`` preconditions in ValidateReportBT, simulating what
+    the CaseActor would have provided after accepting a CaseProposal.
+
+    The case carries a ``CaseParticipant`` for ``actor_id`` at RM.RECEIVED
+    because the RM.VALID transition is case-scoped (ISSUE-2548).
     """
     from vultron.core.models.case import VulnerabilityCase
 
@@ -179,6 +211,7 @@ def case(datalayer, actor_id, report):
         active_embargo=f"{actor_id}/embargoes/test-embargo",
     )
     datalayer.create(case_obj)
+    _seed_case_participant(datalayer, case_obj, actor_id, "vendor")
     return case_obj
 
 
@@ -206,55 +239,50 @@ def test_create_validate_report_tree_returns_selector(report, offer):
 def test_tree_structure_matches_spec(report, offer):
     """Tree structure matches expected hierarchy from spec.
 
-    Per #1029 ADR-0021: tree now includes emit node for CaseActor routing.
-    Root is a Selector with:
-    - Child 0: EmitAndValidate sequence (trigger path)
-    - Child 1: ValidationOnly selector (fallback for received path)
+    Root is a Selector with exactly two children: the ``CheckRMStateValid``
+    idempotency exit (ID-04-004) and a single ``ValidationFlow`` sequence.
+
+    The tree used to have a second, structurally duplicated validation branch
+    (``ValidationOrShortcutFallback``) so that a failed emit could still
+    validate.  That duplicate was the ISSUE-2548 mechanism: the first branch
+    wrote the report-phase RM.VALID latch, failed on a later precondition, and
+    the fallback branch's ``CheckRMStateValid`` then read that very latch and
+    reported SUCCESS.  There is now one branch, the emit is masked by its own
+    ``MaybeEmitValidateReport`` Selector, and every case-dependent precondition
+    is checked before the first write (ID-04-005).
     """
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
     )
 
-    # Root: Selector with 2 children (emit+validate, fallback validate)
+    # Root: Selector[idempotency exit, validation flow]
     assert len(tree.children) == 2
+    assert tree.children[0].name == "CheckRMStateValid"
 
-    # Child 0: EmitAndValidate (Sequence with emit + validation)
-    emit_and_validate = tree.children[0]
-    assert emit_and_validate.name == "EmitAndValidate"
-    assert len(emit_and_validate.children) == 2
-    assert emit_and_validate.children[0].name == "EmitValidateReportActivity"
-
-    # Child 1 of EmitAndValidate: ValidationOrShortcut selector
-    validation_selector = emit_and_validate.children[1]
-    assert validation_selector.name == "ValidationOrShortcut"
-    assert len(validation_selector.children) == 2
-    assert validation_selector.children[0].name == "CheckRMStateValid"
-
-    # ValidationFlow inside ValidationOrShortcut
-    validation_flow = validation_selector.children[1]
+    validation_flow = tree.children[1]
     assert validation_flow.name == "ValidationFlow"
-    assert (
-        len(validation_flow.children) == 4
-    )  # Precondition + 2 policies + actions
+    # Precondition + 2 policies + case + embargo + actions
+    assert len(validation_flow.children) == 6
 
-    # Validation flow children
-    precondition = validation_flow.children[0]
-    assert precondition.name == "CheckRMStateReceivedOrInvalid"
+    assert validation_flow.children[0].name == "CheckRMStateReceivedOrInvalid"
+    assert validation_flow.children[1].name == "EvaluateReportCredibility"
+    assert validation_flow.children[2].name == "EvaluateReportValidity"
+    # Case-scoped preconditions precede any write (ISSUE-2548): the case must
+    # be in *this* actor's store (ADR-0073, PCR-01-003) and carry an embargo
+    # (DUR-07-004).
+    assert validation_flow.children[3].name == "RequireCaseForReport"
+    assert validation_flow.children[4].name == "EnsureEmbargoExists"
 
-    credibility = validation_flow.children[1]
-    assert credibility.name == "EvaluateReportCredibility"
-
-    validity = validation_flow.children[2]
-    assert validity.name == "EvaluateReportValidity"
-
-    actions = validation_flow.children[3]
+    actions = validation_flow.children[5]
     assert actions.name == "ValidationActions"
     # Per ADR-0015: case/participant creation moved to receive_report_case_tree.
-    # ValidationActions now only transitions RM state and checks embargo.
+    # ValidationActions now only emits and transitions RM state.
     assert len(actions.children) == 2
-    assert actions.children[0].name == "TransitionRMtoValid"
-    assert actions.children[1].name == "EnsureEmbargoExists"
+    maybe_emit = actions.children[0]
+    assert maybe_emit.name == "MaybeEmitValidateReport"
+    assert maybe_emit.children[0].name == "EmitValidateReportActivity"
+    assert actions.children[1].name == "TransitionRMtoValid"
 
 
 # ============================================================================
@@ -596,10 +624,13 @@ def test_tree_execution_actor_isolation(
     actor_a = "https://example.org/actors/vendor-a"
     actor_b = "https://example.org/actors/vendor-b"
 
-    # Create both actors
-    for aid in [actor_a, actor_b]:
+    # Create both actors and register each as a participant of the case —
+    # RM.VALID is case-scoped, so an actor with no CaseParticipant cannot make
+    # the transition at all (ISSUE-2548).
+    for aid, slug in ((actor_a, "vendor-a"), (actor_b, "vendor-b")):
         actor_obj = VultronCaseActor(id_=aid, name=f"Actor {aid}")
         datalayer.create(actor_obj)
+        _seed_case_participant(datalayer, case, aid, slug)
 
     # Execute for actor A
     tree_a = create_validate_report_tree(

@@ -21,7 +21,7 @@ before per-recipient delivery:
 - Activity loading from the DataLayer with dehydration fallback
 - ``to:`` field enforcement (OX-08-001, OX-08-002)
 - ``cc``/``bto``/``bcc`` secondary-addressing warnings (OX-08-004)
-- Bare-string ``object_`` expansion for initiating activity types (MV-09-001)
+- Bare-string ``object_`` expansion for initiating activity types (AKM-03-001)
 - Inline ``object_`` integrity validation
 - Dict-based object recovery and DataLayer hydration
 """
@@ -154,7 +154,7 @@ def _expand_inline_object(
 
     logger.warning(
         "Outbound %s activity '%s' has a bare string object_ '%s'."
-        " Attempting DataLayer expansion (MV-09-001 violation).",
+        " Attempting DataLayer expansion (AKM-03-001 violation).",
         activity_type,
         activity_id,
         activity_object,
@@ -184,7 +184,7 @@ def _validate_inline_object(
             f"Outbound {activity_type} activity '{activity_id}' has an"
             f" inline object_ that is a bare string or Link"
             f" ({activity_object!r}). Outbound initiating activities must"
-            " carry fully inline typed objects (MV-09-001).",
+            " carry fully inline typed objects (AKM-03-001).",
             activity_id=activity_id,
             activity_type=activity_type,
         )
@@ -216,13 +216,20 @@ def _recover_typed_inline_object_from_dict(
 
     try:
         full_obj = model_class.model_validate(activity_object)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        # Report *why*, and what was offered.  Without them this warning says only
+        # that hydration was skipped, which is the symptom; the recipient then
+        # cannot extract the activity's semantics and the protocol step silently
+        # does not happen, far from here.
         logger.warning(
-            "Failed to reconstruct %s model for %s activity '%s';"
-            " hydration will be skipped.",
+            "Failed to reconstruct %s model for %s activity '%s' from keys %s:"
+            " %s. Hydration will be skipped, so the recipient will see a"
+            " dehydrated object and may not match this activity's semantics.",
             obj_type,
             activity_type,
             activity_id,
+            sorted(activity_object.keys()),
+            exc,
         )
         return activity_object
 

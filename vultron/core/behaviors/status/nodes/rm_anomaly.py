@@ -148,8 +148,8 @@ class EmitRMGapNoteNode(DataLayerActionWithPorts):
                 actor=self.actor_id,
                 to=[self.sender_actor_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "EmitRMGapNoteNode: queued Add(Note,Case) '%s' for RM %s"

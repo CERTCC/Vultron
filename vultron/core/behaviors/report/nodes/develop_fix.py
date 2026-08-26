@@ -13,13 +13,17 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Production-layer BT nodes for the fix development workflow.
 
-Five nodes implement the ``DevelopFixBT`` guard/action logic:
+Four nodes implement the ``DevelopFixBT`` guard/action logic:
 
 - :class:`CheckIsVendorRoleNode` — short-circuit: actor is not a vendor
 - :class:`CheckCSFixNotYetReady` — short-circuit: fix already ready
-- :class:`CheckRMStateAccepted` — guard: actor RM must be ACCEPTED
 - :class:`TransitionCStoFixReady` — persist VFD VFd snapshot
 - :class:`EmitCFActivity` — emit CF (Fix Readiness) to Case Actor
+
+The tree's RM guard, ``CheckRMStateAccepted``, lives in ``conditions.py``
+alongside the other RM-state condition nodes: three trees use it
+(``DevelopFixBT``, ``DeployFixBT``, ``DeployMitigationBT``), so it is a
+participant-RM condition rather than anything specific to developing a fix.
 
 References
 ----------
@@ -42,8 +46,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
-from vultron.core.behaviors.case.nodes.participant.common import (
+from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_manager_id,
+)
+from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -54,7 +60,6 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -214,80 +219,6 @@ class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
-    """Shared update() skeleton for case-participant RM state guard nodes.
-
-    Reads the actor's latest RM state and returns SUCCESS when it equals
-    ``_target_rm``.  Subclasses set ``_target_rm`` as a class attribute.
-    """
-
-    _target_rm: RM
-
-    def __init__(
-        self,
-        case_id: str,
-        actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
-
-        participant_id = case.actor_participant_index.get(self._actor_id)
-        if participant_id is None:
-            self.logger.warning(
-                "%s: actor '%s' not in case '%s'",
-                self.name,
-                self._actor_id,
-                self._case_id,
-            )
-            return Status.FAILURE
-
-        rm_state, _ = resolve_participant_state_from_dl(
-            self.datalayer, participant_id
-        )
-        target = self._target_rm
-        if rm_state == target:
-            self.logger.debug(
-                "%s: RM state is %s for actor '%s'",
-                self.name,
-                target.name,
-                self._actor_id,
-            )
-            return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Actor '{self._actor_id}' RM state is {rm_state!r},"
-            f" expected {target!r}"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-
-class CheckRMStateAccepted(_CheckParticipantRMStateBase):
-    """Guard: actor RM state must be ACCEPTED to create a fix.
-
-    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
-    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
-
-    Per AC-7 (issue #1812).
-    """
-
-    _target_rm = RM.ACCEPTED
-
-
 class TransitionCStoFixReady(DataLayerActionWithPorts):
     """Persist a VFd ParticipantStatus snapshot for the actor in this case.
 
@@ -383,9 +314,20 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
     """Shared guard+factory-dispatch+outbox-write skeleton for
     ``Add(ParticipantStatus)`` trigger activities (BTND-07-005).
 
+    Calls ``trigger_activity_factory.add_participant_status_to_participant``
+    with the status and participant IDs written to *result_out* by
+    :class:`TransitionCStoFixReady` and queues the resulting activity ID
+    via ``outbox_append``.
+
     Subclasses provide only a constructor docstring; all protocol logic
     lives here.  The ``result_out`` dict must be populated by the preceding
     ``TransitionCStoFix*`` node (keys: ``status_id``, ``participant_id``).
+
+    Per ADR-0021 CLP-10-001: trigger trees MUST address fix-readiness
+    activities to the Case Actor (CASE_MANAGER) so the CaseActor can
+    commit a canonical ledger entry.
+
+    Per AC-7 (issue #1812).
     """
 
     def __init__(
@@ -449,8 +391,8 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
                 actor=self._actor_id,
                 to=to,
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self._actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "Actor '%s' emitted %s for case '%s'",
@@ -485,11 +427,9 @@ class EmitCFActivity(_EmitParticipantStatusActivityBase):
 
 
 __all__ = [
-    "_CheckParticipantRMStateBase",
     "_EmitParticipantStatusActivityBase",
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",
-    "CheckRMStateAccepted",
     "TransitionCStoFixReady",
     "EmitCFActivity",
 ]

@@ -80,7 +80,15 @@ def clear_actor_locks():
 
 @pytest.fixture
 def dl():
-    db = SqliteDataLayer("sqlite:///:memory:")
+    """The *receiving* actor's own store.
+
+    The pipeline under test runs as ``_PEER_ID``, and a BT's store follows its
+    executing actor (ADR-0073), so this has to be that actor's store.  It used to
+    be the generic marker actor's, with the peer's store derived by
+    ``clone_for_actor`` — which meant the assertions read a store the pipeline
+    never wrote to.
+    """
+    db = SqliteDataLayer("sqlite:///:memory:", actor_id=_PEER_ID)
     yield db
     db.close()
 
@@ -202,8 +210,6 @@ def test_concurrent_inbox_tasks_serialize_processing(seeded_dl) -> None:
     dl, entries = seeded_dl
     entry0, entry1 = entries
 
-    actor_dl = dl.clone_for_actor(_PEER_ID)
-
     body0 = _make_announce_body(entry0)
     body1 = _make_announce_body(entry1)
 
@@ -217,10 +223,10 @@ def test_concurrent_inbox_tasks_serialize_processing(seeded_dl) -> None:
     async def _run():
         await asyncio.gather(
             run_inbox_pipeline(
-                body0, body0, dl, actor_dl, _PEER_ID, dispatcher, null_emitter
+                body0, body0, dl, _PEER_ID, dispatcher, null_emitter
             ),
             run_inbox_pipeline(
-                body1, body1, dl, actor_dl, _PEER_ID, dispatcher, null_emitter
+                body1, body1, dl, _PEER_ID, dispatcher, null_emitter
             ),
         )
 

@@ -37,7 +37,6 @@ from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -488,17 +487,19 @@ class TestTriggerCaseOutboxScheduling:
 
 
 class TestTriggerCaseOutboxCanonicalId:
-    """Regression tests for BUG-2026040901.
+    """The URL path segment must resolve to the canonical actor URI.
 
-    The bug: trigger routes receive ``actor_id`` as a short UUID from the URL
-    path, but use-case helpers write to the outbox using the canonical full URI
-    (``actor.id_``).  If ``outbox_handler`` is called with the short UUID, it
-    reads from a different TinyDB table and finds nothing — silently dropping
-    all outbox activities.
+    Originally a regression test for BUG-2026040901, where a queue written
+    under the canonical URI was read under the short path segment and the
+    activities vanished. That *class* of bug is now unreachable: ADR-0073
+    dropped the ``actor_id`` column, so a queue lives in its owner's store
+    rather than in a bucket named by one spelling of an id.
 
-    Fix: ``_canonical_actor_dl`` resolves the actor from the DataLayer and
-    returns an actor-scoped DataLayer keyed by the canonical URI, which is then
-    passed to ``outbox_handler``.
+    What still needs pinning is the resolution itself. ``get_canonical_actor_dl``
+    turns a short path segment into the canonical URI, and it is that URI which
+    selects the store ``outbox_handler`` drains. Get it wrong and the handler
+    opens a different — empty — store, which is the same silent drop by a
+    different route.
     """
 
     def test_engage_case_canonical_actor_dl_resolves_full_uri(
@@ -507,30 +508,27 @@ class TestTriggerCaseOutboxCanonicalId:
         """outbox_handler receives the canonical-URI-keyed DataLayer.
 
         When the URL uses a short UUID (last path segment of actor.id_),
-        get_canonical_actor_dl must resolve to the full URI so that
-        outbox_handler reads from the same table as record_outbox_item.
+        get_canonical_actor_dl must resolve to the full URI, because that URI
+        is what selects the store the handler drains.
         """
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
         short_uuid = actor.id_.rstrip("/").rsplit("/", 1)[-1]
 
-        # Fresh app — override get_trigger_service and get_trigger_dl but NOT
-        # get_canonical_actor_dl so the real dependency resolves the canonical
+        # Fresh app — override get_trigger_service but NOT
+        # get_canonical_actor_dl, so the real dependency resolves the canonical
         # URI via the real DataLayer.
-        from vultron.adapters.driving.fastapi.deps import get_trigger_dl
-
         app = FastAPI()
         app.include_router(trigger_case_router.router)
         app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         )
-        app.dependency_overrides[get_trigger_dl] = lambda: dl
         # get_canonical_actor_dl intentionally NOT overridden.
 
         captured_dl_arg = []
 
-        async def capture_outbox(actor_id, actor_dl, shared_dl):
+        async def capture_outbox(actor_id, actor_dl):
             captured_dl_arg.append((actor_id, actor_dl))
 
         import pytest
@@ -578,14 +576,85 @@ def report(dl):
 
 
 @pytest.fixture
-def http_actor(dl):
-    """Create a URL-form actor to match demo trigger path behavior."""
-    actor_obj = as_Service(
-        id_="https://example.test/api/v2/actors/vendor-http",
-        name="Vendor Co HTTP",
+def short_id_env(report):
+    """An actor addressable by its short path segment, with its own store.
+
+    A trigger route resolves its ``{actor_id}`` path segment by *computation* —
+    ``base_url + "actors/" + segment``, no registry and no cross-actor scan
+    (ADR-0073 decision 2).  Only an actor whose id already has that shape can be
+    reached by its short id at all.
+
+    That rules out both actors this test used to be written against.  The
+    ``actor`` fixture's id is a ``urn:uuid:``, and the old ``http_actor``'s was
+    under ``https://example.test/…``; either way the segment resolves to a
+    *different* actor under this node's base URL, holding a different store.  The
+    test could not have been fixed by scoping a fixture, because the actor it
+    addressed was not addressable here.
+
+    So this derives the id from ``canonical_actor_uri`` and puts the actor, the
+    case and the report in that actor's own store — which is the store the BT
+    writes and therefore the store the outbox assertion must read.
+    """
+    from types import SimpleNamespace
+
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import (
+        get_datalayer,
+        reset_datalayer,
     )
-    dl.create(actor_obj)
-    return actor_obj
+
+    segment = "vendor-http"
+    actor_id = canonical_actor_uri(segment)
+    reset_datalayer(actor_id)
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        """Route per actor, in memory.
+
+        A single fixed store would defeat the routing under test: the point is
+        that the segment selects *which* store, so every actor id must not
+        resolve to the same rows.  Only the backing URL is replaced.
+        """
+        return get_datalayer(
+            canonical_actor_uri(actor_id), db_url="sqlite:///:memory:"
+        )
+
+    store = get_datalayer(actor_id, db_url="sqlite:///:memory:")
+    store.clear_all()
+    actor_obj = as_Service(id_=actor_id, name="Vendor Co HTTP")
+    store.create(actor_obj)
+    store.create(report)
+
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-SHORT-ID")
+    participant = as_CaseParticipant(
+        attributed_to=actor_id, context=case_obj.id_
+    )
+    participant.append_rm_state(
+        RM.RECEIVED, actor=actor_id, context=case_obj.id_
+    )
+    participant.append_rm_state(RM.VALID, actor=actor_id, context=case_obj.id_)
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor_id] = participant.id_
+    store.create(case_obj)
+    store.create(participant)
+    _add_case_manager(case_obj, store)
+
+    app = FastAPI()
+    app.include_router(trigger_case_router.router)
+    app.dependency_overrides[get_trigger_dl] = _in_memory_actor_dl
+    app.dependency_overrides[get_canonical_actor_dl] = _in_memory_actor_dl
+    client = TestClient(app)
+    yield SimpleNamespace(
+        client=client,
+        segment=segment,
+        actor=actor_obj,
+        store=store,
+        case=case_obj,
+        report=report,
+    )
+    app.dependency_overrides = {}
+    reset_datalayer(actor_id)
 
 
 # ===========================================================================
@@ -659,22 +728,21 @@ def test_trigger_create_case_unknown_actor_returns_404(client_triggers):
 
 
 def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
-    client_triggers, dl, http_actor, caplog
+    short_id_env, caplog
 ):
-    """Short actor IDs should still update the canonical actor outbox."""
+    """A short actor id in the path still queues to that actor's own outbox."""
     import logging
 
-    short_uuid = parse_id(http_actor.id_)["object_id"]
-    outbox_before = set(dl.outbox_list_for_actor(http_actor.id_))
+    outbox_before = set(short_id_env.store.outbox_list())
 
     with caplog.at_level(logging.WARNING):
-        resp = client_triggers.post(
-            f"/actors/{short_uuid}/trigger/create-case",
+        resp = short_id_env.client.post(
+            f"/actors/{short_id_env.segment}/trigger/create-case",
             json={"name": "Case-001", "content": "Case content"},
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    outbox_after = set(dl.outbox_list_for_actor(http_actor.id_))
+    outbox_after = set(short_id_env.store.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records
@@ -756,25 +824,24 @@ def test_trigger_add_report_to_case_unknown_report_returns_404(
 
 
 def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
-    client_triggers, dl, http_actor, case_with_participant, report, caplog
+    short_id_env, caplog
 ):
-    """Short actor IDs should not break add-report outbox updates."""
+    """A short actor id in the path does not break add-report outbox updates."""
     import logging
 
-    short_uuid = parse_id(http_actor.id_)["object_id"]
-    outbox_before = set(dl.outbox_list_for_actor(http_actor.id_))
+    outbox_before = set(short_id_env.store.outbox_list())
 
     with caplog.at_level(logging.WARNING):
-        resp = client_triggers.post(
-            f"/actors/{short_uuid}/trigger/add-report-to-case",
+        resp = short_id_env.client.post(
+            f"/actors/{short_id_env.segment}/trigger/add-report-to-case",
             json={
-                "case_id": case_with_participant.id_,
-                "report_id": report.id_,
+                "case_id": short_id_env.case.id_,
+                "report_id": short_id_env.report.id_,
             },
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    outbox_after = set(dl.outbox_list_for_actor(http_actor.id_))
+    outbox_after = set(short_id_env.store.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records

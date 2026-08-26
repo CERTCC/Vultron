@@ -76,7 +76,7 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     RMinStateDeferred,
     TransitionCStoFixDeployed,
 )
-from vultron.core.behaviors.report.nodes.develop_fix import (
+from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
 

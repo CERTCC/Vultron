@@ -79,8 +79,13 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
         )
 
     def _enqueue_accept(self, accept_id: str) -> None:
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(  # type: ignore[union-attr]
-            self.actor_id, accept_id  # type: ignore[arg-type]
+        # The Accept is now persisted.  Outbox enqueue MUST NOT return FAILURE
+        # here — the AcceptOrReject Selector would fall through to
+        # EmitRejectCaseParticipantRoleNode, producing contradictory protocol
+        # state (Accept stored, Reject sent).  Let the exception propagate
+        # instead.
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(  # type: ignore[union-attr]
+            accept_id
         )
 
     def _validate_context(self) -> Status | None:
@@ -207,8 +212,8 @@ class EmitRejectCaseParticipantRoleNode(DataLayerAction):
 
     def _emit(self) -> None:
         reject_id = self._call_factory()
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(  # type: ignore[union-attr]
-            self.actor_id, reject_id  # type: ignore[arg-type]
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(  # type: ignore[union-attr]
+            reject_id
         )
         self.logger.info(
             "%s: emitted Reject '%s' to vendor '%s' for offer '%s'",
