@@ -42,7 +42,10 @@ class TestValidateCaseExistsNode:
 
     def test_returns_success_when_case_found(self):
         """Node returns SUCCESS when case exists in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("vcn1")
         dl.create(case)
 
@@ -56,7 +59,10 @@ class TestValidateCaseExistsNode:
 
     def test_returns_failure_when_case_missing(self):
         """Node returns FAILURE when the case ID is not in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         setup_blackboard(dl)
 
         node = ValidateCaseExistsNode(
@@ -74,7 +80,10 @@ class TestIsActiveEmbargoNode:
 
     def test_returns_success_when_embargo_is_active(self):
         """Node returns SUCCESS when case.active_embargo matches embargo_id."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, embargo = make_case_and_embargo("ian1", em_state=EM.ACTIVE)
         dl.create(case)
 
@@ -88,7 +97,10 @@ class TestIsActiveEmbargoNode:
 
     def test_returns_failure_when_embargo_not_active(self):
         """Node returns FAILURE when active_embargo does not match."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, embargo = make_case_and_embargo("ian2", em_state=EM.PROPOSED)
         case.active_embargo = None
         dl.create(case)
@@ -106,7 +118,10 @@ class TestIsActiveEmbargoNode:
 
     def test_returns_failure_when_case_missing(self):
         """Node returns FAILURE when the case ID is not in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         setup_blackboard(dl)
 
         node = IsActiveEmbargoNode(
@@ -127,7 +142,10 @@ class TestHasActiveEmbargoNode:
 
     def test_returns_success_when_active_embargo_present(self):
         """Node returns SUCCESS when case.active_embargo is non-None."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("hae1", em_state=EM.ACTIVE)
         dl.create(case)
 
@@ -143,7 +161,10 @@ class TestHasActiveEmbargoNode:
 
     def test_returns_failure_when_no_active_embargo(self):
         """Node returns FAILURE when active_embargo is None."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("hae2")
         case.active_embargo = None
         dl.create(case)
@@ -162,7 +183,10 @@ class TestHasActiveEmbargoNode:
 
     def test_returns_failure_when_case_missing(self):
         """Node returns FAILURE when the case is not in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         setup_blackboard(dl)
 
         result_out: dict = {}
@@ -178,7 +202,10 @@ class TestHasActiveEmbargoNode:
 
     def test_error_message_includes_case_id(self):
         """result_out['error'] message references the case ID."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case, _ = make_case_and_embargo("hae3")
         case.active_embargo = None
         dl.create(case)
@@ -198,7 +225,10 @@ class TestHasCaseStatusesNode:
 
     def test_returns_success_when_case_statuses_non_empty(self):
         """Node returns SUCCESS when case has at least one CaseStatus entry."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/hcs1",
             case_statuses=[as_CaseStatus(em_state=EM.ACTIVE)],
@@ -215,7 +245,10 @@ class TestHasCaseStatusesNode:
 
     def test_returns_failure_when_case_statuses_empty(self):
         """Node returns FAILURE when case.case_statuses is empty."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/hcs2",
             case_statuses=[],
@@ -232,7 +265,10 @@ class TestHasCaseStatusesNode:
 
     def test_returns_failure_when_case_missing(self):
         """Node returns FAILURE when the case is not in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         setup_blackboard(dl)
 
         node = HasCaseStatusesNode(

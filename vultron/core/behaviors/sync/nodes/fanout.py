@@ -39,7 +39,6 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -47,6 +46,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.models.case import case_addressees
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +222,18 @@ class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
                 _SendLogEntryToEachNode(name="SendLogEntryToEach"),
             ],
         )
+
+
+# ---------------------------------------------------------------------------
+# Unfiltered fan-out — moved here from ``replay.py`` (BTND-07-004).
+#
+# These are the plain fan-out nodes; the filtered variants above skip
+# participants already at RM.CLOSED.  They lived in ``replay.py`` because
+# reject-driven replay was written first, but fan-out is a distinct concern:
+# replay is catch-up for one lagging peer, fan-out is distribution of one
+# entry to every recipient.  Keeping both fan-out flavours in one module also
+# makes the filtered/unfiltered choice visible in one place.
+# ---------------------------------------------------------------------------
 
 
 class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):

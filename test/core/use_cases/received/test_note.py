@@ -39,7 +39,10 @@ class TestNoteUseCases:
 
     def test_create_note_stores_note(self, monkeypatch, make_payload):
         """create_note persists the Note to the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         note = as_Note(
             id_="https://example.org/notes/note1",
@@ -59,7 +62,10 @@ class TestNoteUseCases:
 
     def test_create_note_idempotent(self, monkeypatch, make_payload):
         """create_note skips storing a duplicate Note."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         note = as_Note(
             id_="https://example.org/notes/note2",
@@ -81,7 +87,10 @@ class TestNoteUseCases:
         self, monkeypatch, make_payload
     ):
         """create_note attaches the Note to the case when note.context is set."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn1",
             name="Context Case",
@@ -110,7 +119,10 @@ class TestNoteUseCases:
         self, monkeypatch, make_payload
     ):
         """create_note is idempotent when note already attached to case."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         note_id = "https://example.org/notes/note_ctx2"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn2",
@@ -172,7 +184,10 @@ class TestNoteUseCases:
 
     def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
         """CaseActor appends note ID to case.notes on Add(Note, Case)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/cases/case_n1/actor",
+        )
         case_actor_id = "https://example.org/cases/case_n1/actor"
         case_id = "https://example.org/cases/case_n1"
         case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
@@ -200,7 +215,10 @@ class TestNoteUseCases:
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """CaseActor skips adding a note already in the case (idempotent)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/cases/case_n2/actor",
+        )
         case_actor_id = "https://example.org/cases/case_n2/actor"
         case_id = "https://example.org/cases/case_n2"
         note = as_Note(
@@ -238,7 +256,10 @@ class TestNoteUseCases:
         the non-CaseActor takes the Success fallback and skips both attach
         and commit.
         """
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/actors/non-manager",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_n3_noop",
             name="Noop Case",
@@ -270,7 +291,10 @@ class TestNoteUseCases:
         self, monkeypatch, make_payload
     ):
         """remove_note_from_case removes note ID from case.notes and persists."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         note = as_Note(
             id_="https://example.org/notes/note5",
             content="A note",
@@ -299,7 +323,10 @@ class TestNoteUseCases:
 
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
         """remove_note_from_case is idempotent when note not in case."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         note = as_Note(
             id_="https://example.org/notes/note6",
             content="A note",
@@ -334,7 +361,10 @@ class TestNoteUseCases:
         case MUST commit one VultronCaseLedgerEntry after accepting a note
         addition.
         """
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/cases/case_le1/actor",
+        )
         case_actor_id = "https://example.org/cases/case_le1/actor"
         author_id = "https://example.org/users/vendor"
         participant_id = "https://example.org/users/finder"
@@ -411,7 +441,10 @@ class TestNoteUseCases:
         The log entry IS committed locally, but no outbox messages are queued
         for delivery to participants.
         """
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/cases/case_le2/actor",
+        )
         case_actor_id = "https://example.org/cases/case_le2/actor"
         author_id = "https://example.org/users/vendor"
         participant_id = "https://example.org/users/finder"

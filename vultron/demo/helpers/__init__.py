@@ -21,7 +21,8 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
   ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
-  ``wait_for_object_stored``, and all ``wait_for_*`` helpers.
+  ``resolve_case_actor_store_id``, ``wait_for_object_stored``, and all
+  ``wait_for_*`` helpers.
 - :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
   and named CVD lifecycle action wrappers.
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory.
@@ -39,7 +40,8 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
   ``receiver_validates_report``, ``receiver_engages_case``,
   ``find_case_by_report_id``, ``find_case_for_offer``,
-  ``setup_initialized_case``, and ``setup_two_participant_case``.
+  ``wait_for_case_for_offer``, ``setup_initialized_case``, and
+  ``setup_two_participant_case``.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -80,6 +82,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     find_case_invite_for_actor,
     find_cp_offer_for_case,
     find_ownership_transfer_offer_for_actor,
+    resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_attributed_to,
     wait_for_case_em_terminated,
@@ -137,4 +140,5 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     run_invite_path_rm_triage,
     setup_initialized_case,
     setup_two_participant_case,
+    wait_for_case_for_offer,
 )

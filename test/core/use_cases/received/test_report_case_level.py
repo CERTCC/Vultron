@@ -79,7 +79,8 @@ class TestCaseLevelUseeCases:
     def test_invalidate_case_transitions_participant_to_invalid(self):
         """InvalidateCaseUseCase sets participant RM state to INVALID."""
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         case, _ = self._make_case_with_participant(dl, actor_id, RM.RECEIVED)
 
         InvalidateCaseUseCase(dl, case.id_, actor_id).execute()
@@ -92,7 +93,8 @@ class TestCaseLevelUseeCases:
     def test_close_case_transitions_participant_to_closed(self):
         """CloseCaseUseCase sets participant RM state to CLOSED."""
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
         case, _ = self._make_case_with_participant(dl, actor_id, RM.INVALID)
 
@@ -107,7 +109,10 @@ class TestCaseLevelUseeCases:
         """InvalidateCaseUseCase warns when case_id is not found."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         with caplog.at_level(logging.WARNING):
             InvalidateCaseUseCase(
                 dl,
@@ -123,7 +128,10 @@ class TestCaseLevelUseeCases:
         """CloseCaseUseCase warns when case_id is not found."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         with caplog.at_level(logging.WARNING):
             CloseCaseUseCase(
                 dl,
@@ -185,7 +193,8 @@ class TestDereferencePatternInReportUseCases:
         """InvalidateReportReceivedUseCase dereferences and sets RM.INVALID."""
         report_id = "https://example.org/reports/r-invalidate-deref"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         case, _ = self._setup_case_for_report(dl, report_id, actor_id)
 
         offer_activity = VultronActivity(
@@ -215,7 +224,8 @@ class TestDereferencePatternInReportUseCases:
         """CloseReportReceivedUseCase dereferences and sets RM.CLOSED."""
         report_id = "https://example.org/reports/r-close-deref"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
         case, _ = self._setup_case_for_report(
             dl, report_id, actor_id, RM.INVALID
@@ -245,12 +255,18 @@ class TestDereferencePatternInReportUseCases:
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_invalidate_report_warns_when_no_case(self, caplog):
-        """InvalidateReportReceivedUseCase warns when no case linked to report."""
+        """InvalidateReportReceivedUseCase warns when no case linked to report.
+
+        The tree now *fails* rather than soft-passing when the case is absent
+        from this actor's own store, so the warning names the unresolved case
+        lookup as the failure reason (ARCH-15-001, ISSUE-2548).
+        """
         import logging
 
         report_id = "https://example.org/reports/r-no-case"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
         offer_activity = VultronActivity(
             id_="https://example.org/activities/offer-no-case",
@@ -272,7 +288,8 @@ class TestDereferencePatternInReportUseCases:
             InvalidateReportReceivedUseCase(dl, event).execute()
 
         assert any(
-            "no case found" in r.message.lower() for r in caplog.records
+            "no vulnerabilitycase for report" in r.message.lower()
+            for r in caplog.records
         )
 
     def test_close_report_warns_when_no_case(self, caplog):
@@ -281,7 +298,8 @@ class TestDereferencePatternInReportUseCases:
 
         report_id = "https://example.org/reports/r-close-no-case"
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The store belongs to the actor whose replica is being mutated.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
         offer_activity = VultronActivity(
             id_="https://example.org/activities/offer-close-no-case",
@@ -303,5 +321,6 @@ class TestDereferencePatternInReportUseCases:
             CloseReportReceivedUseCase(dl, event).execute()
 
         assert any(
-            "no case found" in r.message.lower() for r in caplog.records
+            "no vulnerabilitycase for report" in r.message.lower()
+            for r in caplog.records
         )

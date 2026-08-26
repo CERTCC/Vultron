@@ -21,7 +21,7 @@ as a standalone record under ``offer_id`` (it is reconstituted on demand from a
 field 'object_' ... keeping string reference", and leaves ``object_`` a bare
 string. The outbox gate ``_validate_inline_object`` then rejects it:
 "Outbound initiating activities must carry fully inline typed objects
-(MV-09-001)". The Accept is never delivered, the participant stays at
+(AKM-03-001)". The Accept is never delivered, the participant stays at
 RM.RECEIVED, and ``engage-case`` later returns 422
 ``TransitionParticipantRMtoAccepted``.
 
@@ -58,7 +58,10 @@ RECEIVER_ID = "https://example.org/actors/receiver"
 
 @pytest.fixture
 def dl():
-    layer = SqliteDataLayer("sqlite:///:memory:")
+    layer = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield layer
     layer.close()
 
@@ -99,7 +102,7 @@ def test_validate_report_accept_is_inline_before_store(dl):
 
 
 def test_outbox_gate_rejects_bare_string_object():
-    """Control: a bare-string ``object_`` trips the MV-09-001 outbox gate.
+    """Control: a bare-string ``object_`` trips the AKM-03-001 outbox gate.
 
     Documents the downstream cause of the 422 TransitionParticipantRMtoAccepted
     (the Accept is rejected and never delivered).
@@ -112,13 +115,13 @@ def test_outbox_gate_rejects_bare_string_object():
 
 def test_stored_validate_report_accept_carries_inline_typed_object(dl):
     """Outbound validate-report ``Accept.object_`` must be a fully-inline typed
-    object (not a bare ``str`` / ``as_Link``) so it passes the MV-09-001 outbox
+    object (not a bare ``str`` / ``as_Link``) so it passes the AKM-03-001 outbox
     gate without a DataLayer expansion round-trip.
 
     Production adapter persists the Accept with ``dl.create(activity)`` and does
     NOT separately persist the Offer under ``offer_id`` on the reconstitution
     path. Reading the activity back (as ``_load_outbound_activity`` does) yields
-    ``object_`` as a bare string today -> MV-09-001 rejection.
+    ``object_`` as a bare string today -> AKM-03-001 rejection.
     """
     accept, _offer_id = _build_validate_report_accept()
 
@@ -127,12 +130,12 @@ def test_stored_validate_report_accept_carries_inline_typed_object(dl):
     # (reconstitution path), matching the failing invite-path scenarios.
     dl.create(accept)
 
-    # Outbox delivery reads the queued activity back before the MV-09-001 gate.
+    # Outbox delivery reads the queued activity back before the AKM-03-001 gate.
     stored = dl.read(accept.id_)
     outbound_object = getattr(stored, "object_", None)
 
     assert not isinstance(outbound_object, (str, as_Link)), (
         "Outbound validate-report Accept.object_ is a bare"
         f" {type(outbound_object).__name__} ({outbound_object!r}); it must be a"
-        " fully-inline typed object to satisfy MV-09-001 (#2194)."
+        " fully-inline typed object to satisfy AKM-03-001 (#2194)."
     )

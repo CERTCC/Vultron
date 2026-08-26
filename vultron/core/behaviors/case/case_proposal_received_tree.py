@@ -67,6 +67,9 @@ from py_trees.common import Status
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    RequireCaseForReport,
+)
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
     _get_or_create_accepted_status,
@@ -81,6 +84,7 @@ from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_report_to_case_snapshot,
     build_create_case_snapshot,
 )
+from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import (
@@ -151,7 +155,7 @@ class _CheckMarkerExistsNode(DataLayerAction):
         return Status.FAILURE
 
 
-class _LoadExistingCaseNode(DataLayerActionWithPorts):
+class _LoadExistingCaseNode(RequireCaseForReport):
     """Find an existing ``VulnerabilityCase`` for *report_id* and load it.
 
     AC-1 / AC-2 (CP-05-006): detects a duplicate ``Create(as_CaseProposal)``
@@ -161,45 +165,14 @@ class _LoadExistingCaseNode(DataLayerActionWithPorts):
 
     Returns FAILURE when no existing case is found, allowing the outer
     Selector to fall through to ``_CreateCaseFromProposalNode`` (normal path).
+
+    Behaviour is inherited wholesale from
+    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
+    — "resolve this store's case for a report, publish ``/case_id``, fail when
+    absent" has exactly one implementation (ARCH-15-004).  The subclass exists
+    only to keep the CP-05-006 node name in BT traces and to document what
+    FAILURE means *here*: no duplicate, so create the case.
     """
-
-    def __init__(
-        self,
-        report_id: str | None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._report_id = report_id
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_id": PortInformation(data_type=str, required=True)}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        if self._report_id is None:
-            return Status.FAILURE
-
-        existing = self.datalayer.find_case_by_report_id(self._report_id)
-        if existing is None:
-            return Status.FAILURE
-
-        self._set_output("case_id", existing.id_)
-        logger.info(
-            "%s: Found existing VulnerabilityCase '%s' for report '%s'"
-            " — reusing for duplicate proposal (CP-05-006 AC-1/AC-2)",
-            self.name,
-            existing.id_,
-            self._report_id,
-        )
-        return Status.SUCCESS
 
 
 class _CreateCaseFromProposalNode(DataLayerActionWithPorts):
@@ -249,6 +222,130 @@ class _CreateCaseFromProposalNode(DataLayerActionWithPorts):
             case.id_,
         )
         return Status.SUCCESS
+
+
+class _StoreProposalReportNode(DataLayerAction):
+    """Persist the report the proposal carried inline, if not already stored.
+
+    Nothing else in this tree did, and three downstream nodes need it:
+    ``_AddReporterParticipantNode``, ``_CommitNativeLedgerEntriesNode`` and
+    ``_SeedReporterSignatoryNode`` each ``read(report_id)`` and skip
+    "best-effort" when it is absent. So one missing write degraded silently in
+    three places, and the visible symptom was a participant who never appeared
+    and a replica the reporter never received.
+
+    A shared store hid it: the *vendor* had stored the report when it received
+    the Offer, and that row was visible to everyone. With per-actor stores the
+    CaseActor has its own, and the report only reaches it inline on the proposal
+    (CP-01-004) — so it has to be written here.
+
+    Prefers *inline_report*, a report already converted to the core shape by the
+    caller. The fallback — validating the proposal's serialised ``object`` — can
+    only be as good as that dict's spelling, and the dict the received-side use
+    case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
+    the proposal inline on the wire (CP-05-003, AKM-03-001). In wire spelling the
+    reporter is ``attributedTo``; this core model declares ``attributed_to`` and
+    sets ``extra="ignore"``, so validating that dict quietly produced a report
+    with no reporter, and the complaint surfaced three nodes later as "has no
+    attributed_to" (#2482). Converting is the wire layer's job — it owns
+    ``to_core()`` — and core MUST NOT import wire to do it itself (ARCH-03-001),
+    so the caller converts and passes the result down.
+    """
+
+    def __init__(
+        self,
+        report_id: str | None,
+        proposal_dict: dict | None,
+        inline_report: VulnerabilityReport | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
+        self._proposal_dict = proposal_dict
+        self._inline_report = inline_report
+
+    def _report_from_proposal_dict(self) -> VulnerabilityReport | None:
+        """Rebuild the report from the proposal's serialised inline object.
+
+        Accepts either spelling of the key: ``object`` is the wire alias and
+        ``object_`` the field name, and which one a caller has depends on
+        whether its dump used ``by_alias``.
+        """
+        proposal = self._proposal_dict or {}
+        raw = proposal.get("object")
+        if not isinstance(raw, dict):
+            raw = proposal.get("object_")
+        if not isinstance(raw, dict):
+            logger.warning(
+                "%s: proposal carried no inline report for '%s' (got %s), so"
+                " the reporter participant and its ledger entry cannot be"
+                " derived; the proposal should inline it (CP-01-004)",
+                self.name,
+                self._report_id,
+                type(raw).__name__,
+            )
+            return None
+        try:
+            return VulnerabilityReport.model_validate(raw)
+        except Exception as exc:
+            logger.warning(
+                "%s: could not reconstruct the inline report '%s' from the"
+                " proposal: %s",
+                self.name,
+                self._report_id,
+                exc,
+            )
+            return None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if not self._report_id:
+            return Status.SUCCESS
+        if self.datalayer.read(self._report_id) is not None:
+            return Status.SUCCESS
+
+        report = self._inline_report or self._report_from_proposal_dict()
+        if report is None:
+            return Status.SUCCESS
+        self._warn_if_unattributed(report)
+
+        try:
+            self.datalayer.create(report)
+        except ValueError as exc:
+            logger.debug(
+                "%s: report '%s' already stored: %s",
+                self.name,
+                self._report_id,
+                exc,
+            )
+            return Status.SUCCESS
+
+        logger.info(
+            "%s: stored report '%s' from the inline proposal",
+            self.name,
+            self._report_id,
+        )
+        return Status.SUCCESS
+
+    def _warn_if_unattributed(self, report: VulnerabilityReport) -> None:
+        """Say out loud that a storable report is useless for what follows.
+
+        Three downstream nodes derive from ``attributed_to``; without it each
+        reports the absence separately and much further from the cause.
+        """
+        if report.attributed_to:
+            return
+        logger.warning(
+            "%s: the inline report '%s' has no attributed_to, so the"
+            " reporter participant, its ledger entry and the SIGNATORY"
+            " seed cannot be derived from it (CP-01-004 requires a report"
+            " attributed to its reporter)",
+            self.name,
+            self._report_id,
+        )
 
 
 class _AddCaseActorParticipantNode(DataLayerActionWithPorts):
@@ -510,6 +607,19 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
     No-ops gracefully when the report cannot be found (logs a warning, returns
     SUCCESS) so the overall flow is not blocked by a missing reporter.
 
+    **Why degrading is right here, and where it went wrong.** The case is valid
+    without this participant: a proposal names the vendor and the case actor
+    directly, and refusing the whole case because one *derived* participant could
+    not be built would lose more than it protects. So SUCCESS is correct.
+
+    What was wrong was that this node, ``_CommitNativeLedgerEntriesNode`` and
+    ``_SeedReporterSignatoryNode`` each independently discovered the same missing
+    write and each logged its own symptom, so one lost report read as three
+    unrelated shrugs and nothing named the cause (#2482 AC-4). The write belongs
+    to ``_StoreProposalReportNode``, which now says so loudly and in one place;
+    these three name it in their warnings so a reader lands on the cause rather
+    than on the third symptom.
+
     Reads ``case_id`` from the blackboard.
     """
 
@@ -544,8 +654,11 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
         raw_report = self.datalayer.read(report_id)
         if not isinstance(raw_report, VulnerabilityReport):
             logger.warning(
-                "%s: report '%s' not found — skipping reporter participant"
-                " (best-effort)",
+                "%s: report '%s' not found, so the reporter cannot be"
+                " identified — skipping reporter participant (best-effort)."
+                " The report is written by _StoreProposalReportNode from the"
+                " copy the proposal carries inline (CP-01-004); if that node"
+                " logged nothing, the proposal arrived without one",
                 self.name,
                 report_id,
             )
@@ -665,11 +778,15 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self,
         vendor_uri: str,
         report_id: str | None,
+        offer_id: str | None = None,
+        offer_actor_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._vendor_uri = vendor_uri
         self._report_id = report_id
+        self._offer_id = offer_id
+        self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
         self.wire_render_port = None
 
@@ -739,16 +856,28 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     def _find_offer_id_for_report(
         self, report_id: str
     ) -> tuple[str | None, str | None]:
-        """Return (offer_id, offer_actor_id) for *report_id* by scanning OfferRecords."""
-        from vultron.core.models.offer_record import VultronOfferRecord
+        """Return ``(offer_id, offer_actor_id)`` for *report_id*.
 
+        Its own store first, then what the proposal carried (CP-01-007). The
+        store answers only when this CaseActor received the
+        ``Offer(VulnerabilityReport)`` itself — which a co-located one does not,
+        because the ``OfferRecord`` belongs to the sibling that did and there is
+        no read across that line (ADR-0073, PCR-01-003).
+
+        The fallback is not a nicety. Every invited actor rebuilds its
+        ``VultronOfferRecord`` from this entry's ``offerId``
+        (``ApplyOfferReportFromLedgerNode``, ADR-0035 DL-06-002), and that node
+        is deliberately lenient — a snapshot without one is skipped
+        "(non-fatal)". So the omission surfaced nowhere near here: the invitee's
+        ``validate-report`` answered ``404 Offer not found`` (#2548).
+        """
         assert self.datalayer is not None
-        for raw in self.datalayer.list_objects("OfferRecord"):
-            if not isinstance(raw, VultronOfferRecord):
-                continue
-            if raw.report_id == report_id:
-                return raw.offer_id, raw.offer_actor_id
-        return None, None
+        offer_id, offer_actor_id = find_offer_for_report(
+            self.datalayer, report_id
+        )
+        if offer_id:
+            return offer_id, offer_actor_id
+        return self._offer_id, self._offer_actor_id
 
     def _commit_add_reports(
         self, case: VulnerabilityCase, case_id: str
@@ -760,8 +889,11 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             raw_report = self.datalayer.read(report_id)
             if not isinstance(raw_report, VulnerabilityReport):
                 logger.warning(
-                    "%s: report '%s' not found — skipping add_report_to_case"
-                    " (best-effort)",
+                    "%s: report '%s' not found — skipping"
+                    " add_report_to_case (best-effort). The report is written"
+                    " by _StoreProposalReportNode from the copy the proposal"
+                    " carries inline (CP-01-004); if that node logged nothing,"
+                    " the proposal arrived without one",
                     self.name,
                     report_id,
                 )
@@ -943,7 +1075,9 @@ def _seed_participant_as_signatory(
     machine and ``ParticipantStatus.consent`` atomically. The idempotency
     guard (``!= PEC.SIGNATORY``) prevents double-transitions on retries.
     """
-    embargo_id = stored_case.active_embargo
+    # `active_embargo_id`, not the field: it may hold the whole EmbargoEvent
+    # when a received case carried one (AKM-03-001), and this list holds ids.
+    embargo_id = stored_case.active_embargo_id
     if participant.embargo_consent_state != PEC.SIGNATORY:
         participant.apply_pec_transition(PEC_Trigger.ACCEPT)
     if embargo_id and embargo_id not in participant.accepted_embargo_ids:
@@ -1136,8 +1270,12 @@ class _SeedReporterSignatoryNode(DataLayerActionWithPorts):
         raw_report = self.datalayer.read(report_id)
         if not isinstance(raw_report, VulnerabilityReport):
             logger.warning(
-                "%s: report '%s' not found — skipping reporter SIGNATORY"
-                " seed (best-effort)",
+                "%s: report '%s' not found, so the reporter cannot be"
+                " identified — skipping reporter SIGNATORY seed"
+                " (best-effort). The report is written by"
+                " _StoreProposalReportNode from the copy the proposal carries"
+                " inline (CP-01-004); if that node logged nothing, the"
+                " proposal arrived without one",
                 self.name,
                 report_id,
             )
@@ -1274,7 +1412,7 @@ class _EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
         self._proposal_id = proposal_id
         self._vendor_uri = vendor_uri
         # proposal_dict is the wire-serialised proposal (model_dump(by_alias=True)).
-        # Storing it inline satisfies CP-05-003 and the outbox MV-09-001 requirement.
+        # Storing it inline satisfies CP-05-003 and the outbox AKM-03-001 requirement.
         self._object = (
             proposal_dict if proposal_dict is not None else proposal_id
         )
@@ -1329,9 +1467,9 @@ class _EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity.id_
-        )
+        # `outbox_append`, not `record_outbox_item`: the queue lives in the
+        # owning actor's store, so it takes no actor argument (ADR-0073).
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity.id_)
         self._set_output("accept_activity_id", activity.id_)
         logger.info(
             "%s: Queued Accept(CaseProposal) '%s' to outbox for vendor '%s'",
@@ -1415,8 +1553,8 @@ class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
             return Status.FAILURE
 
         try:
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity.id_
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity.id_
             )
         except Exception as exc:
             self.feedback_message = (
@@ -1689,12 +1827,34 @@ class _ClearCreateCaseMarkerNode(DataLayerAction):
         return Status.SUCCESS
 
 
+def _offer_provenance_from_proposal(
+    proposal_dict: dict | None,
+) -> tuple[str | None, str | None]:
+    """Return ``(offer_id, offer_actor_id)`` carried on the proposal (CP-01-007).
+
+    Both spellings are accepted for the same reason
+    ``_StoreProposalReportNode._report_from_proposal_dict`` accepts both: which
+    one a caller has depends on whether its dump used ``by_alias``.
+    """
+
+    def _pick(alias: str, field: str) -> str | None:
+        raw = (proposal_dict or {}).get(alias)
+        if not isinstance(raw, str):
+            raw = (proposal_dict or {}).get(field)
+        return raw if isinstance(raw, str) and raw else None
+
+    return _pick("offerId", "offer_id"), _pick(
+        "offerActorId", "offer_actor_id"
+    )
+
+
 def create_case_proposal_received_tree(
     report_id: str | None,
     proposal_id: str,
     vendor_uri: str,
     proposal_dict: dict | None = None,
     actor_config: ActorConfig | None = None,
+    inline_report: VulnerabilityReport | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
@@ -1756,8 +1916,11 @@ def create_case_proposal_received_tree(
         vendor_uri: URI of the vendor actor to whom the responses are sent.
         proposal_dict: Wire-serialised proposal dict (``model_dump(by_alias=True)``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
-            satisfying CP-05-003 and the MV-09-001 outbox requirement. Falls back
-            to bare URI when ``None``.
+            satisfying CP-05-003 and the AKM-03-001 outbox requirement. Falls back
+            to bare URI when ``None``. It is also where the report's offer
+            provenance arrives (``offerId``/``offerActorId``, CP-01-007), which
+            the ``add_report_to_case`` ledger entry needs and this CaseActor
+            cannot look up for itself.
         actor_config: Optional local actor configuration.  Its
             ``default_case_roles`` determine the CVD roles the proposing
             (report-receiving) actor is given alongside ``CVDRole.CASE_OWNER``
@@ -1770,6 +1933,8 @@ def create_case_proposal_received_tree(
     from vultron.core.behaviors.case.embargo_tree import (
         InitializeDefaultEmbargoNode,
     )
+
+    offer_id, offer_actor_id = _offer_provenance_from_proposal(proposal_dict)
 
     # Sub-Selector: reuse existing case (duplicate) OR create new (normal path)
     case_resolution = py_trees.composites.Selector(
@@ -1788,6 +1953,14 @@ def create_case_proposal_received_tree(
         memory=False,
         children=[
             case_resolution,
+            # Store the inline report first: the reporter participant, its ledger
+            # entry and the SIGNATORY seed are all derived from it, and each of
+            # those nodes skips "best-effort" when it is missing.
+            _StoreProposalReportNode(
+                report_id=report_id,
+                proposal_dict=proposal_dict,
+                inline_report=inline_report,
+            ),
             # ADR-0041: register CaseActor as COORDINATOR + CASE_MANAGER
             _AddCaseActorParticipantNode(),
             # ADR-0041 AC-1: add vendor as CASE_OWNER at RM.RECEIVED
@@ -1813,6 +1986,8 @@ def create_case_proposal_received_tree(
             _CommitNativeLedgerEntriesNode(
                 vendor_uri=vendor_uri,
                 report_id=report_id,
+                offer_id=offer_id,
+                offer_actor_id=offer_actor_id,
             ),
             # Outbound messaging
             _EmitAcceptCaseProposalNode(

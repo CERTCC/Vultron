@@ -62,10 +62,9 @@ def test_validation_stochastic_bundle_end_to_end():
     assert isinstance(tree, py_trees.behaviour.Behaviour)
 
     # Find ValidationFlow's credibility and validity children (positions 1 and 2
-    # inside the EmitAndValidate → ValidationOrShortcut → ValidationFlow path).
-    emit_and_validate = tree.children[0]
-    validation_or_shortcut = emit_and_validate.children[1]
-    validation_flow = validation_or_shortcut.children[1]
+    # under the root Selector's second child).  The duplicated
+    # EmitAndValidate → ValidationOrShortcut wrapper was removed in ISSUE-2548.
+    validation_flow = tree.children[1]
     assert isinstance(validation_flow.children[1], EvaluateReportCredibility)
     assert isinstance(validation_flow.children[2], EvaluateReportValidity)
 

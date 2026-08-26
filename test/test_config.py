@@ -68,7 +68,7 @@ def reset_config(monkeypatch, tmp_path):
 
 def test_defaults_server_base_url():
     cfg = get_config()
-    assert cfg.server.base_url == "http://localhost:7999"
+    assert cfg.server.base_url == "http://localhost:7999/api/v2"
 
 
 def test_defaults_server_log_level():
@@ -208,7 +208,7 @@ def test_missing_config_file_raises_when_vultron_config_set(monkeypatch):
 def test_no_config_file_no_env_uses_defaults():
     # tmp_path + no VULTRON_CONFIG → defaults only
     cfg = get_config()
-    assert cfg.server.base_url == "http://localhost:7999"
+    assert cfg.server.base_url == "http://localhost:7999/api/v2"
     assert cfg.database.db_url == "sqlite:///vultron.db"
 
 
@@ -326,7 +326,7 @@ def test_config_override_restores_on_exception():
     except RuntimeError:
         pass
     assert "VULTRON_SERVER__BASE_URL" not in os.environ
-    assert get_config().server.base_url == "http://localhost:7999"
+    assert get_config().server.base_url == "http://localhost:7999/api/v2"
 
 
 def test_config_override_nested_key():
@@ -339,4 +339,4 @@ def test_config_override_cache_restored_after_exit():
     """Config cache reflects restored state after config_override block exits."""
     with config_override(VULTRON_SERVER__BASE_URL="http://inside.test"):
         pass
-    assert get_config().server.base_url == "http://localhost:7999"
+    assert get_config().server.base_url == "http://localhost:7999/api/v2"

@@ -94,7 +94,7 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
 # 1. Technical: Activities may not have independent DataLayer records (e.g. a
 #    reconstituted Offer in the validate-report path, a CaseLedgerEntry inside
 #    an Announce envelope), so dehydrating them would make rehydration
-#    impossible on read-back and cause MV-09-001 outbox-gate failures.
+#    impossible on read-back and cause AKM-03-001 outbox-gate failures.
 #
 # 2. Semantic (more important): a received Activity is an artifact; its inline
 #    sub-fields are a snapshot of state at receipt time.  An
@@ -109,6 +109,20 @@ _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     | {"CaseLedgerEntry"}
 )
 
+# Fields whose inline value must be re-typed to its specific vocabulary class on
+# read-back.  A superset of ``_AS_OBJECT_REF_FIELDS``: re-typing is safe for any
+# field that can hold an inline typed object, whereas *dehydration* is only safe
+# for a field declared as a reference, so the two sets are deliberately distinct.
+#
+# ``context`` is here and not there.  It is never dehydrated, so it is always
+# stored whole — but nothing re-typed it either, and ``as_Activity.context`` is
+# loosely typed, so read-back left a raw ``dict``.  That is enough to break
+# semantic matching: ``_OfferCaseParticipantRoleActivity`` is recognised by its
+# ``context`` being a ``VulnerabilityCase`` (ADR-0039), so a stored role offer
+# came back classified UNKNOWN, was never coerced out of the base ``as_Offer``,
+# and the receiver had no semantics to dispatch on.
+_AS_INLINE_TYPED_FIELDS: frozenset[str] = _AS_OBJECT_REF_FIELDS | {"context"}
+
 # Fields that hold a *list* of object references (ID strings or inline
 # objects).  Used by ``DataLayer.hydrate()`` to expand bare ID strings to
 # full domain objects — the list analogue of ``_AS_OBJECT_REF_FIELDS``.
@@ -119,7 +133,9 @@ _AS_LIST_REF_FIELDS: frozenset[str] = frozenset(
 )
 
 
-def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
+def _dehydrate_data(
+    data: dict[str, Any], obj: "PersistableModel | BaseModel | None" = None
+) -> dict[str, Any]:
     """Replace ``as_ObjectRef``-typed fields with their ID string.
 
     Only fields whose names are in ``_AS_OBJECT_REF_FIELDS`` are
@@ -131,31 +147,57 @@ def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
     reference to the nested object instead of an inline copy, eliminating
     redundant storage.
 
-    Inline Activity objects and ``CaseLedgerEntry`` instances are kept whole
-    without further recursion into their own sub-fields.  Their nested values
-    are stored as a snapshot of state at write time — intentional artifact
-    semantics.  See ``_KEEP_INLINE_NESTED_TYPES`` and
-    ``notes/datalayer-design.md``
+    Two things are never collapsed:
+
+    - a nested value whose ``type_`` is in ``_KEEP_INLINE_NESTED_TYPES``;
+    - a field named in *obj*'s ``inline_required_refs``, for models whose
+      protocol contract is to carry the object rather than reference it.
+
+    Both exist for the same reason: dehydration is only reversible when the
+    nested object has a record of its own to be read back from.  It often does
+    not — ingress gives a record only to the *first* level of an inbound
+    activity's nesting — and a collapse with no counterpart write is silent
+    data loss that surfaces far away (#2482).
+
+    Kept-inline values are stored whole, without further recursion into their
+    own sub-fields, so their nested values are a snapshot of state at write
+    time — intentional artifact semantics.  See ``_KEEP_INLINE_NESTED_TYPES``
+    and ``notes/datalayer-design.md``
     § "Received Activity Artifacts: Inline Sub-Field Snapshots Are
     Intentional" for why this must not be changed to recursive dehydration.
 
     Args:
         data: Serialised (``model_dump(mode="json")``) field dict of a
               domain object.
+        obj: The object *data* was serialised from, consulted for its
+             ``inline_required_refs`` declaration.  Optional so that callers
+             testing the dict transform alone need not construct a model;
+             omitting it only forgoes the per-model exemption.
 
     Returns:
         A shallow copy of *data* with qualifying nested object dicts
         replaced by ID strings.
     """
+    inline_required: frozenset[str] = frozenset()
+    if obj is not None:
+        declared = getattr(type(obj), "inline_required_refs", None)
+        if isinstance(declared, frozenset | set):
+            inline_required = frozenset(declared)
+
     result: dict[str, Any] = {}
     for key, value in data.items():
+        if key in inline_required:
+            # The model declares this ref is carried, not referenced. Collapsing
+            # it would store a URI that nothing can resolve.
+            result[key] = value
+            continue
         if key in _AS_OBJECT_REF_FIELDS and isinstance(value, dict):
             # Keep Activity-type and CaseLedgerEntry nested objects inline.
             # These may not have independent DataLayer records (e.g. a
             # reconstituted Offer in validate-report, or a CaseLedgerEntry
             # inside an Announce envelope), so collapsing them to a bare ID
             # would make rehydration impossible on outbox read-back, causing
-            # MV-09-001 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
+            # AKM-03-001 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
             if value.get("type_") in _KEEP_INLINE_NESTED_TYPES:
                 result[key] = value
                 continue
@@ -211,9 +253,13 @@ def _retype_inline_object_refs(
     record) fully typed on read/replay, so semantic routing and effect
     application work without re-reading a separate record.  Generic: it applies
     to any inline typed reference, not just ``CaseLedgerEntry``.
+
+    Iterates :data:`_AS_INLINE_TYPED_FIELDS`, not ``_AS_OBJECT_REF_FIELDS`` —
+    re-typing what is already stored inline is always safe, so its scope is
+    wider than dehydration's.  See that constant for why ``context`` needs it.
     """
     updates: dict[str, Any] = {}
-    for field_name in _AS_OBJECT_REF_FIELDS:
+    for field_name in _AS_INLINE_TYPED_FIELDS:
         raw_sub = data.get(field_name)
         typed = _retype_inline_ref(obj, field_name, raw_sub)
         if typed is not None:
@@ -357,9 +403,20 @@ class Record(StorableRecord):
             Record: The created Record.
         """
         obj_type = obj.type_
-        if obj_type is None or obj_type.startswith("as_"):
+        # Two distinct faults, reported distinctly.  They were previously raised
+        # with one message naming only the ``as_`` case, which sent a reader
+        # hunting for a wire class when the object simply had no ``type_`` —
+        # ``type_`` selects the table, so neither can be stored.
+        if obj_type is None:
             raise ValueError(
-                "Object 'type_' attribute cannot start with 'as_' for Record conversion"
+                f"Object of class {type(obj).__name__!r} (id={obj.id_!r}) has no"
+                " 'type_' attribute, which is what selects the storage table;"
+                " it cannot be converted to a Record"
+            )
+        if obj_type.startswith("as_"):
+            raise ValueError(
+                f"Object 'type_' attribute {obj_type!r} cannot start with 'as_'"
+                " for Record conversion"
             )
 
         # Wire ``type_`` values are bare, so the guard above cannot catch a
@@ -376,8 +433,11 @@ class Record(StorableRecord):
             # object_ typed only as the base union on the parent model would be
             # serialized against the base schema and lose its domain fields —
             # breaking read/replay reconstruction (SYNC-13-004).
+            # ``obj`` is passed so its ``inline_required_refs`` are honoured.
+            # Note this is the *post*-``_normalize_to_core`` object, so a core
+            # counterpart of a wire type must carry the declaration too.
             data_=_dehydrate_data(
-                obj.model_dump(mode="json", serialize_as_any=True)
+                obj.model_dump(mode="json", serialize_as_any=True), obj
             ),
         )
         return record

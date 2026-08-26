@@ -166,7 +166,7 @@ narrowing (e.g., activities loaded from DataLayer records that predate the
 
 ```text
 WARNING  Outbound <Type> activity '<id>' has a bare string object_ '<uri>'.
-         Attempting DataLayer expansion (MV-09-001 violation).
+         Attempting DataLayer expansion (AKM-03-001 violation).
 ```
 
 If this warning appears in logs, trace back to the activity builder that

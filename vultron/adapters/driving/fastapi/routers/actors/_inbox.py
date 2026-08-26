@@ -23,10 +23,14 @@ to background processing. No route handlers here.
 import json
 import logging
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 
+from vultron.adapters.driven.actor_hosts import (
+    ACTORS_SEGMENT as _ACTORS_SEGMENT,
+)
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import CoreActor
@@ -96,10 +100,42 @@ def _collect_addresses(activity: as_Activity) -> list[str]:
     return result
 
 
+def _names_an_individual_actor(addr: str) -> bool:
+    """Return True if *addr* refers to one specific actor rather than a group.
+
+    IE-11-002 makes resolvability a question about the *address*: an address is
+    unresolvable when it "cannot be confirmed to refer to a specific individual
+    actor", the given example being a collection URI such as
+    ``{case_id}/participants``.  So this asks about the address's shape, and
+    deliberately consults no store.
+
+    An earlier reading asked the receiving actor's own DataLayer whether it knew
+    the addressee.  That was already a loose proxy for the question, and under
+    per-actor storage isolation (ADR-0073) it became a vacuous one: a store
+    holds its owner's knowledge, not the node's roster, so a peer is never in it
+    and *every* misaddressed Activity naming a real peer fell through to Liberal
+    Accept.  IE-11-001 refused nothing.
+
+    Recognised as individual: a bare short id (``"bob"``), and an absolute URI
+    whose path ends in ``/actors/{slug}`` — the canonical actor URI shape this
+    node mints (``canonical_actor_uri``).  Anything else — a collection URI, a
+    sub-collection like ``{actor_id}/followers``, the public addressing
+    constant, or a remote node's unfamiliar layout — is unresolvable and so
+    falls through to Liberal Accept.
+    """
+    if not addr:
+        return False
+    path = urlsplit(addr).path if urlsplit(addr).scheme else addr
+    segments = [seg for seg in path.split("/") if seg]
+    if len(segments) == 1 and not urlsplit(addr).scheme:
+        # A bare short id names one actor, and AC-4 requires it to count.
+        return True
+    return len(segments) >= 2 and segments[-2] == _ACTORS_SEGMENT
+
+
 def _activity_addressed_to(
     activity: as_Activity,
     canonical_actor_id: str,
-    dl: DataLayer | None = None,
 ) -> bool:
     """Return True if the Activity addresses canonical_actor_id.
 
@@ -107,11 +143,21 @@ def _activity_addressed_to(
     non-empty address set is checked against the canonical URI and the
     short-ID suffix, so both spellings satisfy the check (AC-4).
 
-    When ``dl`` is supplied, any address that does not resolve to a known
-    actor in the DataLayer (e.g. a collection URI like
-    ``{case_id}/participants``) is also treated as unresolvable and falls
-    through to Liberal Accept (IE-11-002). Without ``dl`` the legacy
-    short-ID-only check applies.
+    An address that does not name a specific individual actor (e.g. a collection
+    URI like ``{case_id}/participants``) is unresolvable and also falls through
+    to Liberal Accept (IE-11-002); see :func:`_names_an_individual_actor`.
+
+    The former ``dl`` parameter is gone.  It asked the receiving actor's store
+    whether it knew the addressee, and treated "not known" as unresolvable and
+    therefore acceptable.  Under ADR-0073 a store holds its *owner's* knowledge
+    and never the node's roster, so that lookup answered a question about the
+    receiver's acquaintances, not about the address — and it made acceptance
+    depend on whichever store the request happened to resolve to.  Resolvability
+    is a property of the address itself, which is what
+    :func:`_names_an_individual_actor` decides.
+
+    The inbox route (``add_item_to_actor_inbox``) gates on this and returns 400
+    when it is False, so a change here changes what the node refuses.
     """
     addresses = _collect_addresses(activity)
     if not addresses:
@@ -123,11 +169,10 @@ def _activity_addressed_to(
             or strip_id_prefix(addr) == canonical_short
         ):
             return True
-    if dl is not None:
-        for addr in addresses:
-            if dl.find_actor_by_short_id(strip_id_prefix(addr)) is None:
-                return True
-    return False
+    # Refuse only on provable exclusion: every address must be one we can
+    # confirm names some *other* individual actor.  One unresolvable address is
+    # enough uncertainty to accept the whole thing.
+    return not all(_names_an_individual_actor(addr) for addr in addresses)
 
 
 def _activity_already_received(actor: CoreActor, activity_id: str) -> bool:
@@ -212,7 +257,7 @@ def _store_nested_inbox_object(
     pre-store is needed for routing.
 
     Args:
-        dl: The shared DataLayer for storing the nested object.
+        dl: The receiving actor's own DataLayer (ADR-0073).
         activity: The parsed AS2 activity whose ``object_`` to store.
         body: Optional raw JSON request body dict.  When present, used to
             re-parse the nested object with the correct specific class.

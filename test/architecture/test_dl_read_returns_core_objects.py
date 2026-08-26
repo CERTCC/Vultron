@@ -150,7 +150,9 @@ def _minimal_kwargs(cls: type[CoreObject]) -> dict:
 def _collect_wire_escapes() -> frozenset[str]:
     """Return CORE_VOCABULARY keys whose ``dl.read()`` result is a wire type."""
     reset_datalayer()
-    dl = SqliteDataLayer()
+    dl = SqliteDataLayer(
+        actor_id="https://test.example/api/v2/actors/test-actor"
+    )
     wire_escapes: set[str] = set()
 
     for vocab_key, base_cls in CORE_VOCABULARY.items():

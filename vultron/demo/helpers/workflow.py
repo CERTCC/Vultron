@@ -26,10 +26,13 @@ from typing import Optional, Tuple
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
+    _poll_until,
+    resolve_case_actor_store_id,
     wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
 )
 from vultron.demo.utils import (
+    seed_case_actor_for_report,
     DataLayerClient,
     demo_check,
     demo_gate,
@@ -66,6 +69,37 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _provision_case_actor(receiver_client, report) -> None:
+    """Provision the CaseActor this report's proposal will be addressed to.
+
+    ``ProposeReportCaseToActorNode`` derives the CaseActor's URI from the report
+    and delivery is an ordinary HTTP POST to that actor's inbox (ADR-0042). The
+    inbox route resolves the actor from the store its URI names (ADR-0073), so
+    the CaseActor has to be a hosted actor *before* the proposal is delivered —
+    otherwise the POST answers 404 and the round-trip never starts.
+
+    Called from both arms of :func:`reporter_submits_report`. It used to sit only
+    in the ``reporter_client is None`` arm, so every scenario that passes a
+    reporter client — the FV demo among them — delivered the proposal to an actor
+    that did not exist. The visible symptom was two phases later and nowhere near
+    the cause: "Expected as_VulnerabilityCase to be created after
+    validate-report", then ``'NoneType' object has no attribute 'id_'``. Only the
+    router's own delivery warning named the 404, and it is a WARNING in a passing
+    step.
+
+    Both arms need it and neither can do it earlier: the report id is not known
+    until the offer exists.
+    """
+    report_id = getattr(report, "id_", None)
+    if not isinstance(report_id, str) or not report_id:
+        logger.warning(
+            "_provision_case_actor: report has no id; cannot derive the"
+            " CaseActor to provision, so its proposal will 404 on delivery"
+        )
+        return
+    seed_case_actor_for_report(receiver_client, report_id)
 
 
 def reporter_submits_report(
@@ -139,6 +173,7 @@ def reporter_submits_report(
         # it explicitly via inbox delivery so SubmitReportReceivedUseCase runs
         # and creates the case at RM.RECEIVED (ADR-0015).
         with demo_step("Deliver reporter's offer to receiver's inbox"):
+            _provision_case_actor(receiver_client, report)
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
     else:
         report = as_VulnerabilityReport(
@@ -159,11 +194,18 @@ def reporter_submits_report(
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
+            _provision_case_actor(receiver_client, report)
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
+    # These checks name the receiver explicitly rather than relying on
+    # `receiver_client`'s binding. The check text says whose replica it is about,
+    # so the read should say so too — and not every caller binds its client, in
+    # which case `dl_path` refuses to guess (ADR-0073).
     with demo_check("Report stored in receiver's DataLayer"):
-        verify_object_stored(receiver_client, report.id_)
+        verify_object_stored(
+            receiver_client, report.id_, actor_id=receiver.id_
+        )
     with demo_check("Offer stored in receiver's DataLayer"):
-        verify_object_stored(receiver_client, offer.id_)
+        verify_object_stored(receiver_client, offer.id_, actor_id=receiver.id_)
     logger.info("Report submitted: %s", ref_id(report))
     return report, offer
 
@@ -317,8 +359,11 @@ def run_invite_path_rm_triage(
         report: The VulnerabilityReport in the case.
         finder: The actor that originally submitted the Offer (unused; kept for
             call-site compatibility).
-        auth_client: Client for an actor that can see the CaseActor state
-            (e.g. the coordinating actor or vendor1_client).
+        auth_client: Client for the container that hosts the CaseActor (e.g.
+            the coordinating actor's or vendor1_client).  The CaseActor's own
+            store is what gets read through it when the case has one — see
+            :func:`resolve_case_actor_store_id`; the host actor's replica is
+            read only when the case has no CaseActor participant.
         case: The VulnerabilityCase.
         invited_obj: The invited actor's top-level object (used for actor_id lookup).
         timeout_seconds: Polling timeout per wait call (default 20s).
@@ -345,6 +390,14 @@ def run_invite_path_rm_triage(
         offer_id=offer_id,
     )
 
+    # Read the CaseActor's own store, not the store of the actor that hosts it:
+    # the CaseActor applies the participant RM transition to its own replica and
+    # emits no add_participant_status_to_participant ledger entry for it, so the
+    # host's replica of the participant stays at RM.START forever (ADR-0073
+    # decision 5).  None means "the case has no CaseActor" and preserves the
+    # previous read.
+    case_actor_store_id = resolve_case_actor_store_id(auth_client, case.id_)
+
     with demo_check(f"CaseActor reflects {invited_obj.id_} at RM.VALID"):
         wait_for_participant_rm_state(
             client=auth_client,
@@ -352,6 +405,7 @@ def run_invite_path_rm_triage(
             actor_id=invited_obj.id_,
             expected_states={RM.VALID, RM.ACCEPTED},
             timeout_seconds=timeout_seconds,
+            dl_actor_id=case_actor_store_id,
         )
 
     # Gate engage-case on the invited actor's OWN RM.VALID commit.
@@ -384,6 +438,7 @@ def run_invite_path_rm_triage(
                 actor_id=invited_obj.id_,
                 expected_states={RM.ACCEPTED},
                 timeout_seconds=timeout_seconds,
+                dl_actor_id=case_actor_store_id,
             )
         with demo_check(f"{invited_obj.id_} own container at RM.ACCEPTED"):
             wait_for_participant_rm_state(
@@ -408,11 +463,15 @@ def run_direct_path_rm_triage(
     Offer(VulnerabilityReport) directly) validates the report and then engages
     the case, holding CASE_OWNER on its own container.
 
-    Steps, each gated on the receiver's *own* participant RM state so the demo
-    follows causal arrows rather than mere sequence:
+    Steps, each gated on the receiver's *own* store so the demo follows causal
+    arrows rather than mere sequence:
 
-    1. Trigger validate-report (RM → VALID).
-    2. Resolve the as_VulnerabilityCase created for the offer.
+    1. Wait for the CaseActor's ``Create(VulnerabilityCase)`` replica to land in
+       the receiver's own store.  Under ADR-0041 the receiver never creates the
+       case itself, and under PCR-01-003 co-location grants it no peek into the
+       CaseActor's store — so until the replica arrives there is no case to
+       validate against, and ``RM.VALID`` is a case-scoped transition.
+    2. Trigger validate-report (RM → VALID).
     3. Poll until the receiver's own participant status reaches RM.VALID —
        validate-report is dispatched asynchronously (HTTP 202), so the
        ParticipantStatus commit lands *after* the trigger returns.  engage-case
@@ -426,6 +485,12 @@ def run_direct_path_rm_triage(
     case object (which appears synchronously during validate and is therefore
     not a valid causal precondition for engagement).
 
+    Step 1 replaced a post-hoc ``demo_check`` that asserted the case existed
+    *after* validate-report.  That check passed by accident: validate-report used
+    to write its report-phase RM.VALID latch whether or not the case was there,
+    so the run limped on with the two halves of RM state split, and the case
+    usually showed up a moment later (ISSUE-2548).
+
     Args:
         receiver_client: Client connected to the receiver's container.
         receiver: The receiver's local ``as_Actor`` replica.
@@ -433,57 +498,72 @@ def run_direct_path_rm_triage(
         timeout_seconds: Polling timeout per wait call (default 20s).
 
     Returns:
-        The ``as_VulnerabilityCase`` created for the offer.
+        The ``as_VulnerabilityCase`` replica in the receiver's own store.
     """
     offer_id = getattr(offer, "id_", str(offer))
+    case: as_VulnerabilityCase | None = None
 
-    receiver_validates_report(
-        receiver_client=receiver_client,
-        receiver=receiver,
-        offer_id=offer_id,
-    )
-
-    case = None
-    with demo_check("as_VulnerabilityCase exists after validate-report"):
-        case = find_case_for_offer(receiver_client, offer_id)
-        if case is None:
-            raise AssertionError(
-                "Expected as_VulnerabilityCase to be created after"
-                " validate-report"
-            )
-        logger.info("Case created: %s", case.id_)
-
-    # Gate engage-case on the receiver's OWN RM.VALID commit.  validate-report
-    # returns HTTP 202 before its ParticipantStatus write lands, so engaging on
-    # case-object-presence alone races the async commit (TransitionParticipant
-    # RMtoAccepted 422).  RM.ACCEPTED is accepted too in case the state has
-    # already advanced by the time we poll.
-    with demo_gate(f"{receiver.id_} reached RM.VALID before engage-case"):
-        wait_for_participant_rm_state(
+    # Gate everything on the case replica reaching this receiver's own store.
+    # Dependent steps are nested inside the gate per demo_gate's scoping model,
+    # so a missing replica records one clear GATE FAILED rather than a cascade of
+    # 422s from work that had no case to act on.
+    with demo_gate(
+        f"case replica present in {receiver.id_}'s own store before"
+        " validate-report"
+    ):
+        case = wait_for_case_for_offer(
             client=receiver_client,
-            case_id=case.id_,
-            actor_id=receiver.id_,
-            expected_states={RM.VALID, RM.ACCEPTED},
+            offer_id=offer_id,
             timeout_seconds=timeout_seconds,
         )
-        logger.info("✓ %s RM state reached VALID", receiver.id_)
+        logger.info("✓ Case replica available locally: %s", case.id_)
 
-        receiver_engages_case(
+        receiver_validates_report(
             receiver_client=receiver_client,
             receiver=receiver,
-            case_id=case.id_,
+            offer_id=offer_id,
         )
 
-        with demo_check(f"{receiver.id_} reached RM.ACCEPTED"):
+        # Gate engage-case on the receiver's OWN RM.VALID commit.
+        # validate-report returns HTTP 202 before its ParticipantStatus write
+        # lands, so engaging on case-object-presence alone races the async commit
+        # (TransitionParticipantRMtoAccepted 422).  RM.ACCEPTED is accepted too
+        # in case the state has already advanced by the time we poll.
+        with demo_gate(f"{receiver.id_} reached RM.VALID before engage-case"):
             wait_for_participant_rm_state(
                 client=receiver_client,
                 case_id=case.id_,
                 actor_id=receiver.id_,
-                expected_states={RM.ACCEPTED},
+                expected_states={RM.VALID, RM.ACCEPTED},
                 timeout_seconds=timeout_seconds,
             )
-        logger.info("✓ %s RM state reached ACCEPTED", receiver.id_)
+            logger.info("✓ %s RM state reached VALID", receiver.id_)
 
+            receiver_engages_case(
+                receiver_client=receiver_client,
+                receiver=receiver,
+                case_id=case.id_,
+            )
+
+            with demo_check(f"{receiver.id_} reached RM.ACCEPTED"):
+                wait_for_participant_rm_state(
+                    client=receiver_client,
+                    case_id=case.id_,
+                    actor_id=receiver.id_,
+                    expected_states={RM.ACCEPTED},
+                    timeout_seconds=timeout_seconds,
+                )
+            logger.info("✓ %s RM state reached ACCEPTED", receiver.id_)
+
+    if case is None:
+        # demo_gate suppresses its failure so the accumulator can report it, but
+        # every caller dereferences the returned case.  Fail loudly here rather
+        # than letting an AttributeError surface hundreds of lines downstream.
+        raise AssertionError(
+            "run_direct_path_rm_triage: no VulnerabilityCase replica for offer"
+            f" {offer_id!r} in {receiver.id_}'s store — the CaseActor's"
+            " Create(VulnerabilityCase) never arrived (ADR-0041, PCR-01-003)"
+        )
     return case
 
 
@@ -518,12 +598,16 @@ def _report_id_from_offer_data(
 def _load_case_from_datalayer(
     client: DataLayerClient,
     item: str | dict[str, object],
+    actor_id: str | None = None,
 ) -> as_VulnerabilityCase | None:
     """Load a as_VulnerabilityCase from the DataLayer, handling both IDs and dicts.
 
     Args:
         client: DataLayerClient for the container to query.
         item: Either a full case URI string or a raw dict to validate.
+        actor_id: Whose replica to read.  Defaults to *client*'s own actor; must
+            match the store the enclosing listing came from, or the id fetched
+            here will be looked for in a different replica than it was found in.
 
     Returns:
         The ``as_VulnerabilityCase``, or ``None`` if the fetch fails.
@@ -533,7 +617,7 @@ def _load_case_from_datalayer(
 
     try:
         return as_VulnerabilityCase.model_validate(
-            client.get(f"/datalayer/{item}")
+            client.get(client.dl_path(item, actor_id=actor_id))
         )
     except Exception as exc:
         logger.warning("Could not fetch case %s: %s", item, exc)
@@ -543,22 +627,33 @@ def _load_case_from_datalayer(
 def find_case_by_report_id(
     client: DataLayerClient,
     report_id: str,
+    actor_id: str | None = None,
 ) -> Optional[as_VulnerabilityCase]:
     """Find the first ``as_VulnerabilityCase`` referencing *report_id*.
 
     Args:
         client: DataLayerClient connected to the container holding the case.
         report_id: Full URI of the ``as_VulnerabilityReport``.
+        actor_id: Whose replica to search.  Defaults to *client*'s own actor.
+            Note that under ADR-0041 the **CaseActor** authors the canonical case,
+            so a caller looking for the case a report produced — rather than for
+            its own replica of one — should pass the CaseActor
+            (:func:`~vultron.demo.utils.case_actor_id_for_report`).  Searching the
+            reporter's or vendor's store instead finds nothing until the
+            CaseActor's ``Create(VulnerabilityCase)`` has been delivered and
+            processed.
 
     Returns:
         The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
-    cases_data = client.get("/datalayer/VulnerabilityCases/")
+    cases_data = client.get(
+        client.dl_path("VulnerabilityCases/", actor_id=actor_id)
+    )
     if not cases_data:
         return None
 
     for item in cases_data:
-        case = _load_case_from_datalayer(client, item)
+        case = _load_case_from_datalayer(client, item, actor_id=actor_id)
         if case is None:
             continue
 
@@ -588,7 +683,7 @@ def find_case_for_offer(
     Returns:
         The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
-    offer_data = client.get(f"/datalayer/{offer_id}")
+    offer_data = client.get(client.dl_path(offer_id))
     if not offer_data:
         return None
 
@@ -597,6 +692,65 @@ def find_case_for_offer(
         return None
 
     return find_case_by_report_id(client, report_id)
+
+
+def wait_for_case_for_offer(
+    client: DataLayerClient,
+    offer_id: str,
+    timeout_seconds: float = 20.0,
+    poll_interval: float = 0.5,
+) -> as_VulnerabilityCase:
+    """Poll *client*'s own store until the case for *offer_id* is replicated.
+
+    This is the causal precondition for ``validate-report`` (ADR-0058).  Under
+    ADR-0041 the receiver does not create the case: it proposes one to the
+    CaseActor, which creates the case in *its own* store (ADR-0073) and
+    replicates it back as ``Create(VulnerabilityCase)``.  PCR-01-003 makes that
+    the *only* route — co-locating the CaseActor on the same host grants no
+    visibility into its store — so the receiver genuinely has no case until the
+    replica lands, and ``RM.VALID`` is a case-scoped transition.
+
+    Unlike the case object as observed *after* validate-report (which used to
+    look synchronously available and was therefore an invalid gate, #2134), the
+    replica's arrival is a real asynchronous event driven by another actor's
+    outbox: exactly the kind of causal arrow ADR-0058 wants gated.
+
+    Lives next to :func:`find_case_for_offer` rather than in ``polling.py``
+    because it is that finder's polling wrapper; putting it here keeps the
+    offer→report→case resolution chain in one module (ARCH-15-004).
+
+    Args:
+        client: DataLayerClient connected to the receiving actor's container.
+        offer_id: Full URI of the submit-report ``as_Offer`` activity.
+        timeout_seconds: Maximum time to wait for the replica.
+        poll_interval: Seconds between polls.
+
+    Returns:
+        The replicated ``as_VulnerabilityCase`` from *client*'s own store.
+
+    Raises:
+        AssertionError: If the replica does not appear within *timeout_seconds*.
+    """
+    found: dict[str, as_VulnerabilityCase] = {}
+
+    def _check() -> bool:
+        case = find_case_for_offer(client, offer_id)
+        if case is None:
+            return False
+        found["case"] = case
+        return True
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for the VulnerabilityCase replica for offer"
+        f" {offer_id!r} to arrive in the store at {client.base_url} — the"
+        " CaseActor's Create(VulnerabilityCase) may not have been delivered"
+        " (ADR-0041, PCR-01-003)",
+        swallow_exceptions=True,
+    )
+    return found["case"]
 
 
 def setup_initialized_case(

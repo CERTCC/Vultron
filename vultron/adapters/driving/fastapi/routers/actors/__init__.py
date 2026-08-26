@@ -30,4 +30,8 @@ from vultron.adapters.driving.fastapi.routers.actors._routes import (  # noqa: F
     AnyActor,
     router,
 )
-from vultron.adapters.driven.datalayer import get_shared_dl  # noqa: F401
+
+# Re-exported so tests can key dependency_overrides off the package rather than
+# the private _routes module (issue #970).  This is now the actor-scoping seam:
+# get_shared_dl is gone, since no DataLayer is unscoped (ADR-0073).
+from vultron.adapters.driving.fastapi.deps import get_actor_dl  # noqa: F401

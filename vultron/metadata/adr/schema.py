@@ -39,6 +39,16 @@ class AdrFrontmatter(BaseModel):
     form ``superseded by <link>`` is normalised to ``superseded``). A retired
     ADR (``superseded`` or ``deprecated``) MUST carry a ``superseded_by`` link.
     All other fields are optional but must be non-empty when present.
+
+    ``partially_superseded_by`` is distinct from ``superseded_by`` and does not
+    retire the ADR: it marks one decision inside an otherwise live ADR as
+    replaced, so the ADR keeps ``status: accepted`` and stays in the accepted
+    list. ADR-0012 is the case that motivated it — ADR-0073 replaced its
+    DataLayer-isolation decision and nothing else, so retiring the whole thing
+    would have discarded the decisions still in force. Declared here rather than
+    left as an extra key because pydantic drops unknown fields silently, which
+    made the marker inert: no index annotation and no check that its target
+    resolves.
     """
 
     status: AdrStatus
@@ -47,6 +57,7 @@ class AdrFrontmatter(BaseModel):
     consulted: PersonField | None = None
     informed: PersonField | None = None
     superseded_by: NonEmptyStr | None = None
+    partially_superseded_by: NonEmptyStr | None = None
     supersedes: NonEmptyStr | None = None
     amended: NonEmptyStr | None = None
     lint_suppress: list[AdrLintSuppressCode] | None = None

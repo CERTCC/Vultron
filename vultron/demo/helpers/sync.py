@@ -25,6 +25,8 @@ the generic ``verify_replica_state`` parameters.
 import logging
 from typing import Optional
 
+import httpx2 as httpx
+
 from vultron.demo.utils import DataLayerClient, post_to_trigger
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -62,7 +64,7 @@ def _get_log_entries_for_case(
         ``GET /actors/{actor_id}/demo/cases/{case_id}/log``
         (see ``demo_triggers.demo_get_case_ledger``).
     """
-    raw = client.get("/datalayer/CaseLedgerEntrys/")
+    raw = client.get(client.dl_path("CaseLedgerEntrys/"))
     if not isinstance(raw, dict):
         return []
     return [
@@ -125,6 +127,28 @@ def trigger_log_commit(
     return entry_hash
 
 
+def _case_or_none(client: DataLayerClient, case_id: str) -> Optional[dict]:
+    """Read a case from *client*'s own store, or ``None`` if it holds no copy.
+
+    A store that has no copy of the case answers 404, and both the real client and
+    the TestClient double raise ``HTTPStatusError`` for that. Callers here want to
+    *assert* on absence in their own words, so the 404 is converted rather than
+    propagated; anything else is a real transport fault and re-raises.
+
+    This used to rely on ``client.get`` returning a falsy value for a missing
+    case, which made the ``assert ... not found`` lines below unreachable against
+    a client that raises — that is, against the real one. The demo double had been
+    hiding it by raising ``AssertionError`` instead, which those asserts' callers
+    happened to expect.
+    """
+    try:
+        return client.get(client.dl_path(case_id))
+    except httpx.HTTPStatusError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            return None
+        raise
+
+
 def verify_replica_state(
     auth_client: DataLayerClient,
     replica_client: DataLayerClient,
@@ -152,15 +176,19 @@ def verify_replica_state(
             future participant-status checks).
 
     Raises:
-        AssertionError: If any replica invariant is violated.
+        AssertionError: If any replica invariant is violated, *including* a case
+            that is absent from either store. An absent case reads as a 404, so
+            it is converted here rather than allowed to surface as a transport
+            error — which is the whole point of this function: it reports
+            replica divergence in the demo's own terms.
 
     Spec: SYNC-02-002, D5-7-DEMOREPLCHECK-1.
     """
-    auth_case_data = auth_client.get(f"/datalayer/{case_id}")
+    auth_case_data = _case_or_none(auth_client, case_id)
     assert auth_case_data, f"Authoritative case {case_id!r} not found"
     auth_case = as_VulnerabilityCase.model_validate(auth_case_data)
 
-    replica_case_data = replica_client.get(f"/datalayer/{case_id}")
+    replica_case_data = _case_or_none(replica_client, case_id)
     assert replica_case_data, (
         f"Replica does not have a copy of case {case_id!r} — "
         "outbox delivery or inbox processing may have failed"

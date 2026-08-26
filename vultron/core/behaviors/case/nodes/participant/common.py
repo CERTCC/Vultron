@@ -46,6 +46,7 @@ from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import (
     _as_id,
     _report_phase_status_id,
+    report_phase_context,
 )
 
 if TYPE_CHECKING:
@@ -119,11 +120,9 @@ def _get_or_create_accepted_status(
     if report_id is None:
         return None
 
-    # CLP-07-007: context must use the case URI once a case exists.
-    case_obj = dl.find_case_by_report_id(report_id)
-    context = (
-        case_obj.id_ if isinstance(case_obj, VulnerabilityCase) else report_id
-    )
+    # CLP-07-007: context must use the case URI once a case exists.  Single
+    # canonical copy of that selection lives in models/_helpers (ARCH-15-004).
+    context = report_phase_context(dl, report_id)
 
     accepted_status_id = _report_phase_status_id(
         actor_id,
@@ -225,46 +224,6 @@ def resolve_participant_state_from_dl(
     return RM.START, CS_vfd.vfd
 
 
-def resolve_case_manager_id(
-    case: VulnerabilityCase,
-    dl: CasePersistence,
-) -> str | None:
-    """Return the actor ID of the CASE_MANAGER participant, or None.
-
-    Checks ``actor_participant_index`` first (fast path), then falls back to
-    iterating ``case_participants`` for bootstrap-phase inline objects.
-
-    Behaviors-layer twin of
-    ``vultron.core.use_cases._helpers._resolve_case_manager_id``; kept here so
-    BT nodes (e.g. ``EmitCFActivity``, ``EmitCDActivity``) resolve the Case
-    Actor without a behaviors→use_cases import (BTND-04-003).
-    """
-    for p_id in case.actor_participant_index.values():
-        p = dl.read(p_id)
-        if not isinstance(p, CaseParticipant):
-            continue
-        if CVDRole.CASE_MANAGER in p.roles:
-            return _as_id(getattr(p, "attributed_to", None))
-
-    indexed_ids = set(case.actor_participant_index.values())
-    for p_ref in case.case_participants:
-        if not isinstance(p_ref, str):
-            if (
-                isinstance(p_ref, CaseParticipant)
-                and CVDRole.CASE_MANAGER in p_ref.roles
-            ):
-                return _as_id(getattr(p_ref, "attributed_to", None))
-            continue
-        if p_ref in indexed_ids:
-            continue
-        p = dl.read(p_ref)
-        if not isinstance(p, CaseParticipant):
-            continue
-        if CVDRole.CASE_MANAGER in p.roles:
-            return _as_id(getattr(p, "attributed_to", None))
-    return None
-
-
 def _queue_participant_add_notification(
     dl: CasePersistence,
     node_name: str,
@@ -301,9 +260,7 @@ def _queue_participant_add_notification(
         actor=sender_actor_id,
         to=[participant_actor_id],
     )
-    cast(CaseOutboxPersistence, dl).record_outbox_item(
-        sender_actor_id, add_notification_id
-    )
+    cast(CaseOutboxPersistence, dl).outbox_append(add_notification_id)
     node_logger.info(
         "Queued Add(CaseParticipant '%s' for actor '%s' to case '%s') "
         "activity '%s' to actor '%s' outbox",

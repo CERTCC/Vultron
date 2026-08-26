@@ -70,6 +70,37 @@ class TestAdrFrontmatterSchema:
         assert fm.status is AdrStatus.SUPERSEDED
         assert fm.superseded_by == "0041-next.md"
 
+    def test_partially_superseded_by_is_a_declared_field(self):
+        """Declared, not an extra key — pydantic drops unknown keys silently.
+
+        ADR-0012 carried ``partially_superseded_by`` for a while as an undeclared
+        key, so nothing read it: the index rendered ADR-0012 as wholly current
+        and the loader never checked the target resolved.
+        """
+        fm = AdrFrontmatter.model_validate(
+            {
+                "status": "accepted",
+                "partially_superseded_by": "0072-per-actor-storage.md",
+            }
+        )
+        assert fm.partially_superseded_by == "0072-per-actor-storage.md"
+
+    def test_partially_superseded_does_not_retire_the_adr(self):
+        """The whole point of the distinction: the ADR stays live.
+
+        ``superseded`` moves an ADR to ``docs/adr/archived/`` and out of the
+        default context sweep. ADR-0012 still holds decisions in force, so
+        archiving it would hide them.
+        """
+        fm = AdrFrontmatter.model_validate(
+            {
+                "status": "accepted",
+                "partially_superseded_by": "0072-per-actor-storage.md",
+            }
+        )
+        assert fm.status is AdrStatus.ACCEPTED
+        assert fm.superseded_by is None
+
     def test_lint_suppress_valid_code(self):
         fm = AdrFrontmatter.model_validate(
             {
@@ -110,6 +141,23 @@ def test_loader_rejects_dangling_superseded_by(tmp_path):
         "---\nstatus: superseded\nsuperseded_by: 9999-nope.md\n---\n# x\n"
     )
     with pytest.raises(ValueError, match="superseded_by"):
+        load_adr_registry(tmp_path)
+
+
+def test_loader_rejects_dangling_partially_superseded_by(tmp_path):
+    """The same check as ``superseded_by``, for the same reason.
+
+    This branch had its own ADR renumbered three times (0066 → 0069 → 0070 →
+    0072) because ``main`` landed a different ADR at each number first. A pointer
+    written before a renumber rots, and an unvalidated one rots silently.
+    """
+    adr_dir = tmp_path / "docs" / "adr"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / "0001-x.md").write_text(
+        "---\nstatus: accepted\n"
+        "partially_superseded_by: 9999-nope.md\n---\n# x\n"
+    )
+    with pytest.raises(ValueError, match="partially_superseded_by"):
         load_adr_registry(tmp_path)
 
 

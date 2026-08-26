@@ -39,7 +39,7 @@ from vultron.core.models.events.actor import (
     RejectOfferCaseParticipantReceivedEvent,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received.sync import _find_local_actor_id
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.enums.roles import serialize_roles
 
 if TYPE_CHECKING:
@@ -78,14 +78,9 @@ class OfferCaseParticipantReceivedUseCase:
             )
             return
 
-        local_actor_id = _find_local_actor_id(self._dl)
-        if local_actor_id is None:
-            logger.warning(
-                "OfferCaseParticipantReceived: no local actor found"
-                " — skipping event '%s'",
-                activity_id,
-            )
-            return
+        local_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         tree = create_receive_offer_case_participant_tree(
             case_id=case_id,
@@ -146,7 +141,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         if offer_id:
             stored_offer = self._dl.read(offer_id)
             stored_participant = getattr(stored_offer, "object_", None)
-            # MV-09-001: dehydration stores object_ as a bare ID string;
+            # AKM-03-001: dehydration stores object_ as a bare ID string;
             # follow the reference to retrieve the full as_CaseParticipant.
             if isinstance(stored_participant, str):
                 stored_participant = self._dl.read(stored_participant)
@@ -162,14 +157,9 @@ class AcceptOfferCaseParticipantReceivedUseCase:
             )
             return
 
-        local_actor_id = _find_local_actor_id(self._dl)
-        if local_actor_id is None:
-            logger.warning(
-                "AcceptOfferCaseParticipantReceived: no local actor found"
-                " — skipping event '%s'",
-                activity_id,
-            )
-            return
+        local_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         tree = create_accept_actor_recommendation_received_tree(
             recommendation_id=recommendation_id or "",
@@ -232,14 +222,9 @@ class RejectOfferCaseParticipantReceivedUseCase:
             )
             return
 
-        local_actor_id = _find_local_actor_id(self._dl)
-        if local_actor_id is None:
-            logger.warning(
-                "RejectOfferCaseParticipantReceived: no local actor found"
-                " — skipping event '%s'",
-                activity_id,
-            )
-            return
+        local_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         tree = create_reject_actor_recommendation_received_tree(
             recommendation_id=recommendation_id or "",

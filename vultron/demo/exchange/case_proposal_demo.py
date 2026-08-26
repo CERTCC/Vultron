@@ -65,6 +65,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     demo_environment,
     demo_step,
     post_to_inbox_and_wait,
+    seed_case_actor_for_report,
     setup_demo_logging,
     verify_object_stored,
 )
@@ -104,6 +105,10 @@ def demo_case_proposal_round_trip(
             actor=finder.id_,
             to=vendor.id_,
         )
+        # Provision the CaseActor this report's proposal will be
+        # addressed to; its id is derived from the report and this
+        # node hosts it in single-container demo mode (#2469).
+        seed_case_actor_for_report(client, report.id_)
         post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report and offer persisted in DataLayer"):
             verify_object_stored(client, report.id_)

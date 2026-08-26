@@ -61,7 +61,15 @@ def _make_proposal() -> as_CaseProposal:
 
 
 def _run_create_proposal(dl, proposal, make_payload):
-    """Helper: build and execute CreateCaseProposalReceivedUseCase."""
+    """Helper: build and execute CreateCaseProposalReceivedUseCase.
+
+    The event names ``_CASE_ACTOR_URI`` as the receiving actor, so *dl* must be
+    that actor's store: the tree executes as the receiving actor and reads and
+    writes its own store (ADR-0073).  Callers that passed a generic marker
+    actor's store saw the tree run against an empty one — and their assertions
+    were comparative ("no *second* case", "no *new* Accept"), so several passed
+    while nothing happened at all.
+    """
     activity = as_Create(
         actor=_VENDOR_URI,
         object_=proposal,
@@ -82,7 +90,10 @@ class TestCreateCaseProposalReceivedUseCase:
 
     def test_execute_creates_case_and_queues_activities(self, make_payload):
         """Happy path: case created + Accept + Create(VulnerabilityCase) queued."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
         proposal = _make_proposal()
         activity = as_Create(
             actor=_VENDOR_URI,
@@ -112,7 +123,7 @@ class TestCreateCaseProposalReceivedUseCase:
         accepts = dl.list_objects("Accept")
         assert len(accepts) == 1, "Expected one Accept activity"
 
-        # The Accept must carry the full inline proposal (CP-05-003, MV-09-001).
+        # The Accept must carry the full inline proposal (CP-05-003, AKM-03-001).
         accept_obj = dl.read(accepts[0].id_)
         accept_object_ = getattr(accept_obj, "object_", None)
         assert (
@@ -139,12 +150,15 @@ class TestCreateCaseProposalReceivedUseCase:
         ), "Expected one Create(VulnerabilityCase) activity"
 
         # Both activities appear in the outbox
-        outbox = dl.outbox_list_for_actor(_CASE_ACTOR_URI)
+        outbox = dl.outbox_list()
         assert len(outbox) == 2, f"Expected 2 outbox items, got {len(outbox)}"
 
     def test_execute_report_linked_to_case(self, make_payload):
         """The report from the proposal is linked to the created case."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
         proposal = _make_proposal()
         activity = as_Create(
             actor=_VENDOR_URI,
@@ -174,7 +188,10 @@ class TestCreateCaseProposalReceivedUseCase:
 
     def test_execute_skips_without_receiving_actor_id(self, make_payload):
         """Missing receiving_actor_id causes a no-op (CLP-10-005)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         proposal = _make_proposal()
         activity = as_Create(
             actor=_VENDOR_URI,
@@ -201,7 +218,10 @@ class TestCreateCaseProposalReceivedUseCase:
         The old assignment (context=accept_uri) caused the inbox deferral router to
         mistake an activity URI for a case ID, deadlocking the bootstrap flow.
         """
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
         proposal = _make_proposal()
         activity = as_Create(
             actor=_VENDOR_URI,
@@ -249,7 +269,10 @@ class TestCreateCaseProposalIdempotency:
         self, make_payload
     ):
         """AC-1: Second proposal for same report creates no duplicate case."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
         proposal = _make_proposal()
 
         _run_create_proposal(dl, proposal, make_payload)
@@ -274,7 +297,10 @@ class TestCreateCaseProposalIdempotency:
         self, make_payload
     ):
         """AC-2: Duplicate proposal triggers a new Accept referencing existing case."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
         proposal = _make_proposal()
 
         _run_create_proposal(dl, proposal, make_payload)
@@ -324,7 +350,10 @@ class TestCreateCaseProposalIdempotency:
 
     def test_in_flight_proposal_is_no_op(self, make_payload):
         """AC-3: Proposal with existing marker is a no-op (no duplicate Accept)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
         proposal = _make_proposal()
 
         # Run first proposal fully so a case and outbox entries exist
@@ -372,7 +401,7 @@ class TestCreateCaseProposalIdempotencyIntegration:
         a persistent backend, not just an in-memory one.
         """
         db_url = f"sqlite:///{tmp_path / 'test_idempotency.db'}"
-        dl = SqliteDataLayer(db_url)
+        dl = SqliteDataLayer(db_url, actor_id=_CASE_ACTOR_URI)
         proposal = _make_proposal()
 
         _run_create_proposal(dl, proposal, make_payload)
@@ -415,7 +444,10 @@ class TestAcceptCaseProposalReceivedUseCase:
 
     def test_execute_records_case_actor_uri(self, make_payload):
         """accept_case_proposal_received updates VultronReportCaseLink.trusted_case_actor_id."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
         proposal = _make_proposal()
         assert isinstance(
             proposal.object_, as_VulnerabilityReport
@@ -447,7 +479,10 @@ class TestAcceptCaseProposalReceivedUseCase:
 
     def test_execute_no_link_is_non_fatal(self, make_payload):
         """Missing VultronReportCaseLink causes a warning but not an error (CP-06-003)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
         proposal = _make_proposal()
 
         activity = as_Accept(
@@ -463,7 +498,10 @@ class TestAcceptCaseProposalReceivedUseCase:
 
     def test_execute_skips_when_no_inner_object_id(self, make_payload):
         """Missing report_id (inner_object_id) logs a warning and returns early."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
 
         # Build an Accept whose object_ lacks a nested object (pathological case)
         activity = as_Accept(
@@ -485,7 +523,10 @@ class TestRejectCaseProposalReceivedUseCase:
 
     def test_execute_marks_link_as_rejected(self, make_payload):
         """Rejection sets proposal_rejected=True on VultronReportCaseLink (CP-06-004)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
         proposal = _make_proposal()
         assert isinstance(proposal.object_, as_VulnerabilityReport)
         report_id = proposal.object_.id_
@@ -518,7 +559,10 @@ class TestRejectCaseProposalReceivedUseCase:
 
     def test_execute_records_rejection_reason(self, make_payload):
         """When Reject activity carries a summary, it is stored as rejection_reason (CP-06-004)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
         proposal = _make_proposal()
         assert isinstance(proposal.object_, as_VulnerabilityReport)
         report_id = proposal.object_.id_
@@ -550,7 +594,10 @@ class TestRejectCaseProposalReceivedUseCase:
 
     def test_execute_no_link_is_non_fatal(self, make_payload):
         """Missing VultronReportCaseLink causes a warning but not an error (CP-06-004)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
         proposal = _make_proposal()
 
         activity = as_Reject(
@@ -566,7 +613,10 @@ class TestRejectCaseProposalReceivedUseCase:
 
     def test_execute_logs_rejection(self, make_payload, caplog):
         """Rejection is surfaced via a warning-level log message (CP-06-004)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
         proposal = _make_proposal()
         activity = as_Reject(
             actor=_CASE_ACTOR_URI,

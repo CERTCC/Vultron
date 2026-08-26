@@ -22,20 +22,27 @@ proposal send that operates directly from a ``report_id`` without requiring a
 
 The pre-ADR-0041 node (:class:`~vultron.core.behaviors.case.nodes.actor.ProposeCaseToActorNode`)
 reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
-``CreateCaseActorNode``).  This module's node derives ``case_actor_id``
-deterministically from ``ActorConfig.case_actor_service_url`` and
-``_derive_case_slug(report_id)`` instead.
+``CreateCaseActorNode``).  This module's node reads the CaseActor's identity from
+:func:`~vultron.core.behaviors.case.case_actor_identity.case_actor_identity`
+instead — the container's identity, not a per-case one derived from the report
+(#1872).
 """
 
 from typing import cast
 
 from py_trees.common import Status
 
-from vultron.config import get_config
-from vultron.core.behaviors.case.nodes.case_actor_setup import (
-    _derive_case_slug,
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
 )
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+)
+from vultron.core.models.pending_create_case_activity import (
+    PendingCreateCaseActivity,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 
@@ -63,17 +70,23 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
         self.report_id = report_id
 
     def _derive_case_actor_id(self) -> str | None:
-        cfg = get_config().actor
-        if cfg.case_actor_service_url is None:
+        """Return the CaseActor to address, or ``None`` when unconfigured.
+
+        The identity is the container's — ``.../actors/case-actor`` — and carries
+        no case. It used to be ``.../actors/case-actor-{slug}``, derived here from
+        ``report_id``, which made it a phantom: this node computed it and no
+        container hosted it, so delivery 404'd permanently and the round-trip
+        never began (#1872). Which case a message concerns travels in
+        ``activity.context``, so the slug carried nothing the payload lacked.
+        """
+        identity = case_actor_identity()
+        if identity is None:
             self.feedback_message = (
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
             self.logger.error(self.feedback_message)
-            return None
-        base_url = str(cfg.case_actor_service_url).rstrip("/")
-        slug = _derive_case_slug(self.report_id)
-        return f"{base_url}/actors/case-actor-{slug}"
+        return identity
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -88,16 +101,25 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
 
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
+        assert self.datalayer is not None
+        # CP-01-007: this store has the OfferRecord because this actor received
+        # the Offer; the CaseActor's own store never will, so the provenance has
+        # to be read here and carried on the proposal (#2548).
+        offer_id, offer_actor_id = find_offer_for_report(
+            self.datalayer, self.report_id
+        )
         try:
             activity_id, _ = (
                 self.trigger_activity_factory.create_case_proposal(
                     actor=self.actor_id,
                     report_id=self.report_id,
                     case_actor_id=case_actor_id,
+                    offer_id=offer_id,
+                    offer_actor_id=offer_actor_id,
                 )
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
         except Exception as exc:
             self.feedback_message = f"create_case_proposal failed: {exc}"
@@ -113,3 +135,120 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
             self.report_id,
         )
         return Status.SUCCESS
+
+
+class RequeuePendingCreateCaseActivityNode(DataLayerAction):
+    """Re-queue a persisted ``Create(VulnerabilityCase)`` obligation.
+
+    Crash recovery: when the process died between persisting a
+    ``PendingCreateCaseActivity`` marker and delivering the activity, the
+    obligation survives in storage and must be re-queued on the next startup.
+
+    This is protocol-significant behaviour — it causes an outbound delivery —
+    so it lives in a BT node rather than in the adapter that schedules the scan
+    (BT-15-001).  It previously ran directly in
+    ``vultron/adapters/driving/fastapi/pending_retry.py``, bypassing the BT
+    audit trail.
+
+    No ``CASE_MANAGER`` gate: recovery makes no new authorship claim.  The
+    activity was authored when the marker was written, and this node only
+    re-queues it in the store it already belongs to.
+
+    Idempotent (AC-4): ``outbox_append`` does not enforce uniqueness, so an
+    activity already present is left alone rather than queued twice — which
+    would cause double delivery.  Returns SUCCESS when the activity is in the
+    outbox, whether this node put it there or found it.
+    """
+
+    def __init__(
+        self,
+        marker: PendingCreateCaseActivity,
+        activity_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.marker = marker
+        self.activity_id = activity_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if (failure := self._ensure_queued()) is not None:
+            return failure
+        self._discard_marker()
+
+        self.logger.info(
+            "Actor '%s' re-queued Create(VulnerabilityCase) '%s' from marker"
+            " '%s' (crash recovery)",
+            self.marker.case_actor_id,
+            self.activity_id,
+            self.marker.id_,
+        )
+        return Status.SUCCESS
+
+    def _ensure_queued(self) -> Status | None:
+        """Queue the activity unless it is already there; ``None`` when queued.
+
+        Returns ``Status.FAILURE`` on a storage error rather than raising:
+        recovery runs during boot, so one undeliverable obligation must not stop
+        the server from starting.
+        """
+        assert self.datalayer is not None
+        outbox = cast(CaseOutboxPersistence, self.datalayer)
+        try:
+            already_queued = self.activity_id in outbox.outbox_list()
+        except Exception as exc:  # noqa: BLE001 - recovery must not crash boot
+            self.feedback_message = f"could not read outbox: {exc}"
+            self.logger.error(
+                "%s: could not read outbox for actor '%s': %s",
+                self.name,
+                self.marker.case_actor_id,
+                exc,
+            )
+            return Status.FAILURE
+
+        if already_queued:
+            self.logger.debug(
+                "%s: Create(VulnerabilityCase) '%s' already queued for actor"
+                " '%s'; not duplicating.",
+                self.name,
+                self.activity_id,
+                self.marker.case_actor_id,
+            )
+            return None
+
+        try:
+            outbox.outbox_append(self.activity_id)
+        except Exception as exc:  # noqa: BLE001
+            self.feedback_message = f"could not enqueue: {exc}"
+            self.logger.error(
+                "%s: could not enqueue Create(VulnerabilityCase) '%s'"
+                " for actor '%s': %s",
+                self.name,
+                self.activity_id,
+                self.marker.case_actor_id,
+                exc,
+            )
+            return Status.FAILURE
+        return None
+
+    def _discard_marker(self) -> None:
+        """Delete the discharged marker, best-effort.
+
+        The obligation is discharged once the activity is queued.  A surviving
+        marker is re-scanned next startup and skipped by ``_ensure_queued``'s
+        idempotency check, so failing to delete it is a warning, not an error.
+        """
+        assert self.datalayer is not None
+        if self.datalayer.delete("PendingCreateCaseActivity", self.marker.id_):
+            return
+        self.logger.warning(
+            "%s: marker '%s' could not be deleted after successful"
+            " re-queue for actor '%s'. The next startup scan will find the"
+            " activity already in the outbox and skip it.",
+            self.name,
+            self.marker.id_,
+            self.marker.case_actor_id,
+        )

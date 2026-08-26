@@ -44,7 +44,10 @@ class TestUnresolvableObjectUseCase:
 
     def test_execute_stores_dead_letter_record(self):
         """execute() stores a DeadLetterRecord in the DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = _make_unresolvable_event()
 
         UnresolvableObjectUseCase(dl, event).execute()
@@ -56,7 +59,10 @@ class TestUnresolvableObjectUseCase:
 
     def test_execute_stores_unresolvable_uri(self):
         """Dead-letter record preserves the unresolvable URI."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = _make_unresolvable_event()
 
         UnresolvableObjectUseCase(dl, event).execute()
@@ -67,7 +73,10 @@ class TestUnresolvableObjectUseCase:
 
     def test_execute_stores_actor_id(self):
         """Dead-letter record includes the actor ID."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = _make_unresolvable_event()
 
         UnresolvableObjectUseCase(dl, event).execute()
@@ -78,7 +87,10 @@ class TestUnresolvableObjectUseCase:
 
     def test_execute_stores_activity_id(self):
         """Dead-letter record includes the activity ID."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = _make_unresolvable_event()
 
         UnresolvableObjectUseCase(dl, event).execute()
@@ -89,7 +101,10 @@ class TestUnresolvableObjectUseCase:
 
     def test_execute_includes_activity_summary(self):
         """Dead-letter record includes an activity_summary snapshot."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = _make_unresolvable_event()
 
         UnresolvableObjectUseCase(dl, event).execute()
@@ -100,7 +115,10 @@ class TestUnresolvableObjectUseCase:
 
     def test_execute_is_idempotent(self):
         """Calling execute() twice stores two records (no deduplication at this layer)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = _make_unresolvable_event()
 
         UnresolvableObjectUseCase(dl, event).execute()
@@ -115,7 +133,10 @@ class TestUnresolvableObjectUseCase:
         """execute() logs a WARNING identifying the unresolvable URI."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         event = _make_unresolvable_event()
 
         with caplog.at_level(logging.WARNING):
