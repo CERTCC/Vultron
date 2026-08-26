@@ -59,6 +59,7 @@ from vultron.core.behaviors.embargo.nodes import (
     UpdateParticipantEmbargoPecNode,
     ValidateCaseExistsNode,
 )
+from vultron.core.services.embargo_lifecycle import TransitionMode
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 logger = logging.getLogger(__name__)
@@ -158,7 +159,11 @@ def add_embargo_to_case_tree(
         case_id=case_id,
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
         effect_nodes=[
-            SetEmbargoActiveNode(case_id=case_id, embargo_id=embargo_id),
+            SetEmbargoActiveNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                transition_mode=TransitionMode.OBSERVED,
+            ),
         ],
     )
     logger.info(
