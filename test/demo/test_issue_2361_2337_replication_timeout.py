@@ -186,6 +186,9 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
         c1=c1,
         finder=finder,
         case=case,
+        v1=MagicMock(),
+        c2_in_c2=MagicMock(),
+        v2=MagicMock(),
     )
 
     failures = demo_utils._demo_failures
@@ -267,6 +270,9 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         c1=c1,
         finder=finder,
         case=case,
+        v1=MagicMock(),
+        c2_in_c2=MagicMock(),
+        v2=MagicMock(),
     )
 
     finder_timeout = timeouts_by_client_id.get(id(finder_client))

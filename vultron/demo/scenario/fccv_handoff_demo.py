@@ -230,7 +230,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_},
     )
 
     case = as_VulnerabilityCase.model_validate(
@@ -257,6 +257,7 @@ def _phase_ownership_handoff(
     c2: as_Actor,
     c2_in_c2: as_Actor,
     case: as_VulnerabilityCase,
+    finder: as_Actor,
 ) -> as_VulnerabilityCase:
     """C1 invites C2 then transfers case ownership to C2.
 
@@ -312,7 +313,7 @@ def _phase_ownership_handoff(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID, C2_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_, c2.id_},
     )
     logger.info("C2 has joined the case")
 
@@ -418,6 +419,7 @@ def _phase_c2_invites_vendor(
     offer: as_Offer,
     report: as_VulnerabilityReport,
     finder: as_Actor,
+    c1: as_Actor,
 ) -> None:
     """C2 (new CASE_OWNER) invites Vendor and Vendor joins the case (AC-2)."""
     logger.info("─" * 80)
@@ -497,10 +499,10 @@ def _phase_c2_invites_vendor(
         vendor_client=c1_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            C1_ACTOR_ID,
-            C2_ACTOR_ID,
-            VENDOR_ACTOR_ID,
+            finder.id_,
+            c1.id_,
+            c2.id_,
+            vendor.id_,
         },
         timeout_seconds=LATE_JOINER_TIMEOUT,
     )
@@ -584,10 +586,10 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                C1_ACTOR_ID,
-                C2_ACTOR_ID,
-                VENDOR_ACTOR_ID,
+                finder.id_,
+                c1.id_,
+                c2.id_,
+                vendor.id_,
             },
             timeout_seconds=p_timeout,
         )
@@ -1057,6 +1059,7 @@ def run_fccv_handoff_demo(
             c2=c2,
             c2_in_c2=c2_in_c2,
             case=case,
+            finder=finder,
         )
 
         _phase_c2_invites_vendor(
@@ -1073,6 +1076,7 @@ def run_fccv_handoff_demo(
             offer=offer,
             report=report,
             finder=finder,
+            c1=c1,
         )
 
         # Verify case active now that all participants have joined.
