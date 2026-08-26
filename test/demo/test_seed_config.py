@@ -98,13 +98,23 @@ class TestSeedConfigFromEnv:
         cfg = SeedConfig.from_env()
         assert cfg.local_actor.actor_type == "Person"
 
-    def test_from_env_reads_id(self, monkeypatch):
+    def test_from_env_actor_id_env_var_not_read(self, monkeypatch):
+        # VULTRON_ACTOR_ID env var is intentionally not read by from_env().
+        # Pass actor_id explicitly, or use VULTRON_SEED_CONFIG (YAML) instead.
         monkeypatch.setenv("VULTRON_ACTOR_NAME", "Finder")
         monkeypatch.delenv("VULTRON_ACTOR_TYPE", raising=False)
         monkeypatch.setenv(
             "VULTRON_ACTOR_ID", "http://finder:7999/api/v2/actors/finder"
         )
         cfg = SeedConfig.from_env()
+        assert cfg.local_actor.id_ is None
+
+    def test_from_env_explicit_id_arg_is_used(self, monkeypatch):
+        monkeypatch.setenv("VULTRON_ACTOR_NAME", "Finder")
+        monkeypatch.delenv("VULTRON_ACTOR_TYPE", raising=False)
+        cfg = SeedConfig.from_env(
+            actor_id="http://finder:7999/api/v2/actors/finder"
+        )
         assert cfg.local_actor.id_ == "http://finder:7999/api/v2/actors/finder"
 
     def test_from_env_explicit_args_override_env(self, monkeypatch):
