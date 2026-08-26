@@ -110,13 +110,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      The default backend for `EmbargoTeardownAuthorizationGate` MUST be `AlwaysSucceed`,
-      preserving existing behavior until a real policy engine is wired in.
+      The default backend for `EmbargoTeardownAuthorizationGate` MUST be
+      `RequireCaseOwnerApproval` — an Evaluator that performs an
+      Offer/Accept/Reject round-trip with the Case Owner before permitting
+      teardown side-effects. A permissive backend (e.g., `AlwaysSucceed`) MAY
+      be configured for trusted-participant or demo deployments but MUST be
+      explicitly configured. See RSH-07.
     rationale: >
-      Prototype-stage default per ADR-0025 ceiling/floor rule. Changing the
-      default would alter existing demo behavior.
+      Conservative default for a security-significant gate per ADR-0025
+      (security-significant gate exception) and ADR-0076. The prior default
+      of `AlwaysSucceed` was a prototype-stage convenience; production-ready
+      posture requires explicit operator opt-in for permissive behavior.
+      Belt-and-suspenders: even though `StatusAdoptionGate` (RSH-07-001) has
+      already obtained Case Owner approval before the self-addressed
+      `Add(CaseStatus)` arrives here, an operator constructing
+      `add_case_status_tree` outside the self-addressed pattern would otherwise
+      inherit a permissive teardown gate with no explicit opt-in.
     verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
-      `EmbargoTeardownAuthorizationGate` is `AlwaysSucceed`, preserving existing demo behavior.
+      `EmbargoTeardownAuthorizationGate` is `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
 
     lint_suppress:
     - missing_story_reference
@@ -651,3 +662,69 @@ groups:
     - story_2022_039
     - story_2022_074
     - story_2022_077
+
+- id: RSH-07
+  title: Conservative Default Authorization Policy for Status Gates
+  description: >
+    Both StatusAdoptionGate and EmbargoTeardownAuthorizationGate MUST default to
+    `RequireCaseOwnerApproval` — an Evaluator that performs an Offer/Accept/Reject
+    round-trip with the Case Owner before allowing PXA assertion adoption or
+    embargo teardown side-effects. Permissive backends are valid but MUST be
+    explicitly configured.
+    Derived from CONCERN-2092 and ADR-0076.
+  specs:
+  - id: RSH-07-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      The default backend for the `CaseOwnerApprovesStatusUpdate` Evaluator
+      call-out in `StatusAdoptionGate` MUST be `RequireCaseOwnerApproval` —
+      an Evaluator that sends an `Offer` to the Case Owner and waits for
+      `Accept` or `Reject` before allowing the PXA assertion to be adopted
+      as canonical case state.
+    rationale: >
+      A permissive default (e.g., `AlwaysSucceed`) means any admitted
+      participant — including a hostile or malfunctioning Observer admitted
+      as a sentinel — can force PXA adoption and thereby trigger embargo
+      teardown without any Case Owner confirmation. The default posture must
+      be conservative; permissive behavior requires explicit opt-in. See ADR-0076.
+    verification: >
+      Inspection of `StatusAuthorizationCallOutBundle` confirms
+      `status_adoption_gate_factory` defaults to `RequireCaseOwnerApproval`,
+      not `AlwaysSucceed`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      The default backend for `EmbargoTeardownAuthorizationGate` MUST be
+      `RequireCaseOwnerApproval`. See also RSH-02-002.
+    rationale: >
+      Belt-and-suspenders: both gates default conservatively. See RSH-02-002
+      rationale and ADR-0076 for full justification.
+    verification: >
+      Inspection of `StatusAuthorizationCallOutBundle` confirms
+      `embargo_teardown_authorization_gate_factory` defaults to
+      `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-003
+    priority: MAY
+    kind: protocol
+    statement: >
+      An implementation MAY configure a permissive backend (e.g.,
+      `AlwaysSucceed`) for `CaseOwnerApprovesStatusUpdate` or
+      `EmbargoTeardownAuthorizationGate` in deployments where all admitted
+      participants are trusted and the operational overhead of Case Owner
+      approval is unacceptable. Any such configuration MUST be explicit and
+      documented.
+    rationale: >
+      Demo and trusted-participant deployments legitimately need automated
+      sentinel behavior without ceremony. The conservative posture applies by
+      default; permissive is an explicit operator choice with documented
+      consequences. Other valid alternative backends include role-differentiated
+      policy, probabilistic approval, and any `CallOutBackendFactory`-conformant
+      implementation. See ADR-0076.
+    lint_suppress:
+    - missing_story_reference

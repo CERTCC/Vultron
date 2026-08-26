@@ -66,8 +66,10 @@ without coupling the trees directly: when StatusAdoptionGate passes, the CaseAct
   policy decision that could be misconfigured
 - Good: side-effects (teardown) only execute after canonical state is written,
   preserving write-before-side-effect ordering
-- Good: both seams default to `AlwaysSucceed`, so existing behavior is
-  unchanged until real backends are wired in
+- Good: both seams default to `RequireCaseOwnerApproval`, making the
+  conservative posture the out-of-the-box behavior; permissive behavior
+  (e.g., `AlwaysSucceed` for trusted-participant or demo deployments) requires
+  explicit operator configuration (RSH-07-003, ADR-0076)
 - Neutral: two new call-out fields add bundle surface area; addressed by a
   single `StatusAuthorizationCallOutBundle` (StatusAdoptionGate and EmbargoTeardownAuthorizationGate)
 - Bad: the self-addressed `Add(CaseStatus)` introduces an internal loopback;
@@ -84,7 +86,7 @@ claim), before any canonicalization.
 ```text
 StatusAdoptionGate (Fallback)
 ├─ CheckIsCaseOwnerNode            ← hard bypass: CASE_OWNER = gospel
-└─ CaseOwnerApprovesStatusUpdate   ← Evaluator call-out (AlwaysSucceed default)
+└─ CaseOwnerApprovesStatusUpdate   ← Evaluator call-out (RequireCaseOwnerApproval default)
 ```
 
 If the gate passes, `EmitAddCaseStatusToSelfNode` emits a self-addressed
@@ -95,7 +97,7 @@ If the gate passes, `EmitAddCaseStatusToSelfNode` emits a self-addressed
 Positioned after `AppendCaseStatusToCaseNode`.
 
 ```text
-EmbargoTeardownAuthorizationGate (Evaluator call-out, AlwaysSucceed default)
+EmbargoTeardownAuthorizationGate (Evaluator call-out, RequireCaseOwnerApproval default)
 ThreatTerminationBranchNode    ← fires teardown on CS.P OR CS.X OR CS.A
 ```
 
