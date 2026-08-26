@@ -151,21 +151,30 @@ from the discussion rather than being asked as structured questions.
 
 **General pattern (all types):**
 
-1. **Open with a synthesis brief** — Before asking anything, present what
+1. **Prior-art search (before the synthesis brief):** Load
+   `.agents/skills/shared/compose-before-create.md` and search for existing
+   helpers, use cases, or base classes that match the domain nouns in the
+   issue title and body. This surfaces reuse opportunities before acceptance
+   criteria are drafted. Record any findings — they become the `## Prior Art`
+   section of the implementation issues created in Phase 8; omit the section
+   if nothing is found.
+
+2. **Open with a synthesis brief** — Before asking anything, present what
    the research from Phase 3 reveals: what the issue says, what the current
    codebase/specs show about the landscape, and 2–3 plausible directions.
-   Ask whether this reading is accurate before proceeding.
+   Include any prior-art findings from step 1 in the brief. Ask whether this
+   reading is accurate before proceeding.
 
-2. **Conversation** — Walk through the problem bottom-up. Ask clarifying
+3. **Conversation** — Walk through the problem bottom-up. Ask clarifying
    questions as understanding builds. Do not impose a predetermined question
    structure. Scope, ACs, and ADR applicability are conclusions to confirm,
    not questions to ask.
 
-3. **Signal the transition** — When understanding is forming, say so:
+4. **Signal the transition** — When understanding is forming, say so:
    "I think we're almost there — here's what I have so far. Got more?"
    Do not declare done unilaterally.
 
-4. **Confirm conclusions** — After the user closes the conversation, propose
+5. **Confirm conclusions** — After the user closes the conversation, propose
    the full plan as a confirmation block: what to implement, what docs to
    update, whether an ADR is warranted. These are proposals to confirm, not
    a new round of questions.
@@ -252,6 +261,9 @@ issue** and as **child of the parent epic** (if `EPIC_NUMBER` is non-empty):
 PARENT_ARG=""
 [ -n "${EPIC_NUMBER}" ] && PARENT_ARG="--parent ${EPIC_NUMBER}"
 
+# Body template. Include the "## Prior Art" section only when Phase 4
+# found relevant helpers, use cases, or base classes; omit it entirely
+# when the prior-art search returned no results (AC-3 in #2646).
 IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Implementation title from grill-me>" \
   --body "## Summary
@@ -259,6 +271,9 @@ IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 
 ## Acceptance Criteria
 - [ ] AC-1: <from grill-me>
+
+## Prior Art              ← include only when Phase 4 found prior art; omit if empty
+- <existing helper / use case / base class and its location>
 
 ## Reference
 Source: #${ISSUE_NUMBER}
