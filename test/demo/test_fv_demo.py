@@ -2155,8 +2155,6 @@ class TestFvMilestoneAssertions:
 
     def test_phase_fix_lifecycle_gates_on_rm_accepted(self):
         """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
-        import contextlib
-
         finder_client = self._client()
         vendor_client = self._client()
         vendor = self._actor("urn:test:vendor")
@@ -2177,11 +2175,6 @@ class TestFvMilestoneAssertions:
             patch.object(demo, "actor_notifies_fix_ready", mock_fix_ready),
             patch.object(demo, "wait_for_participant_vfd_state"),
             patch.object(demo, "verify_fix_ready"),
-            patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
         ):
             demo._phase_fix_lifecycle(
                 finder_client=finder_client,
