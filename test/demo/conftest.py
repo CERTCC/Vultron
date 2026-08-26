@@ -81,6 +81,13 @@ def node_db_url(base_url: str) -> str:
     return f"sqlite:///file:node-{name}?mode=memory&cache=shared&uri=true"
 
 
+#: Hosts that are intentionally unreachable in tests (known-fictional external URLs).
+#: Drops to these hosts are expected and logged at DEBUG.
+#: Drops to any other unregistered host are logged at WARNING — almost always
+#: a config-cache leak or missing :meth:`_TestClientRouter.register` call.
+_KNOWN_FICTIONAL_HOSTS: frozenset[str] = frozenset({"vultron.example"})
+
+
 class _TestClientRouter:
     """Cross-app delivery adapter for isolated multi-actor test setups.
 
@@ -129,7 +136,14 @@ class _TestClientRouter:
             base = f"{parsed.scheme}://{parsed.netloc}"
             client = self._clients.get(base)
             if client is None:
-                logger.debug(
+                host = parsed.hostname or ""
+                level = (
+                    logging.DEBUG
+                    if host in _KNOWN_FICTIONAL_HOSTS
+                    else logging.WARNING
+                )
+                logger.log(
+                    level,
                     "_TestClientRouter: no client registered for %s,"
                     " dropping delivery to %s",
                     base,
