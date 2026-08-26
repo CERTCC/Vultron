@@ -1198,13 +1198,6 @@ completing a role assignment (§6.6.1). The full capability prerequisites per
 role are under active specification; see `docs/reference/vultron-taxonomy.md`
 §"Open Ideas."
 
-!!! note "Finder role: still provisional"
-    **Finder** still requires an ADR before the removal can be treated as normative.
-    The formal protocol definition this document builds on (§3.1, §3.4) defines
-    the process count over Finders, Vendors, Coordinators, Deployers, and Others.
-    `CVDRole.FINDER` exists in the current implementation and is retained until
-    the ADR is written.
-
 !!! note "Note on Reporter"
     Reporters are most often also the discoverer of the vulnerability, but
     the protocol is concerned with who reported it, not who found it. The
@@ -1546,12 +1539,11 @@ implementation. Other implementations are not required to use this structure.
    participants. Tracked in issue #2068.
 4. **Background material depth** — How much CVD domain background belongs here
    vs. a companion "CVD Concepts" document?
-5. **Finder removal ADR** — Decision to drop the Finder role needs an ADR before
-   the spec circulates. Rationale: Reporter is the protocol-salient role; Finder
-   identity may be recorded in the report or case Notes but has no protocol effect.
-   Note the reach: `docs/reference/formal_protocol/index.md` defines the process
-   count $N$ over Finders, Vendors, Coordinators, Deployers, and Others, and §3.1
-   and §3.4 build on that definition. Marked provisional in §7.3.1.
+5. ~~**Finder removal ADR**~~ — Resolved. ADR-0078
+   (`docs/adr/0078-retire-finder-role.md`) retires `CVDRole.FINDER`; Reporter is
+   the protocol-salient role. Finder identity is metadata, not a protocol role.
+   Formal protocol $N$ definition updated. Implementation (enum removal) tracked
+   separately.
 6. ~~**Observer rename ADR**~~ — Resolved. ADR-0057
    (`docs/adr/0057-observer-participant-role.md`) decided the rename and Observer
    semantics (CM-25, CM-26). Implementation (code rename) tracked separately.
