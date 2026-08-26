@@ -147,6 +147,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0075 Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines](0075-split-vfd-state-machine.md) *(provisional)*
 - [ADR-0076 Security-Significant Call-Out Gates Default to `RequireCaseOwnerApproval`](0076-security-significant-gates-default-require-case-owner-approval.md)
 - [ADR-0077 Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative](0077-ledger-replication-companion-spec.md)
+- [ADR-0078 Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role](0078-retire-finder-role.md)
+- [ADR-0079 CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order](0079-case-ledger-causal-ordering.md)
 
 ## Proposed ADRs
 

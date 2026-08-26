@@ -298,6 +298,8 @@ nav:
       - 'Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines': 'adr/0075-split-vfd-state-machine.md'
       - Security-Significant Call-Out Gates Default to RequireCaseOwnerApproval: 'adr/0076-security-significant-gates-default-require-case-owner-approval.md'
       - 'Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative': 'adr/0077-ledger-replication-companion-spec.md'
+      - "Retire CVDRole.FINDER — Reporter Is the Protocol-Salient Role": 'adr/0078-retire-finder-role.md'
+      - 'CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order': 'adr/0079-case-ledger-causal-ordering.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
