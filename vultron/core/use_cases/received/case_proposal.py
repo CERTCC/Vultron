@@ -252,7 +252,9 @@ class AcceptCaseProposalReceivedUseCase:
             )
             return
 
-        receiving_actor_id = request.receiving_actor_id or request.actor_id
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         tree = create_accept_case_proposal_received_tree(
             report_id=report_id,
@@ -316,7 +318,9 @@ class RejectCaseProposalReceivedUseCase:
         if request.activity is not None:
             rejection_reason = request.activity.summary
 
-        receiving_actor_id = request.receiving_actor_id or request.actor_id
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         tree = create_reject_case_proposal_received_tree(
             report_id=report_id,

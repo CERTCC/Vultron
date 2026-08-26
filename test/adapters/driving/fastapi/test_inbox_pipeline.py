@@ -4,6 +4,7 @@ from pytest import MonkeyPatch
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_pipeline import InboxPipeline
+from vultron.errors import VultronValidationError
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.use_cases.received.actor import (
@@ -307,3 +308,46 @@ def test_create_case_with_correct_context_not_deferred(
     assert result.semantic_type.name == "CREATE_CASE"
     # Marker proves execute() ran (i.e. the activity was dispatched, not deferred).
     assert dl.read(marker_id) is not None
+
+
+def test_process_returns_none_without_requeue_on_validation_error(
+    test_pipeline, monkeypatch
+):
+    """VultronValidationError from dispatch must not re-queue the item.
+
+    Regression: the broad ``except Exception`` handler was reached first,
+    re-queuing the item and creating an infinite retry loop.  The specific
+    ``except VultronValidationError`` handler must intercept it, return None,
+    and leave the inbox empty (permanent failure — no re-queue).
+    """
+    import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
+
+    case = _base_case()
+    note = as_Note(
+        id_="https://example.org/notes/n-ibp-val-err", content="validate-me"
+    )
+    activity = add_note_to_case_activity(
+        note,
+        target=case,
+        context=case.id_,
+        actor=SENDER_ID,
+        to=[RECEIVER_ID],
+    )
+
+    pipeline, dl = test_pipeline
+    dl.save(_base_case())
+    dl.save(note)
+    dl.save(activity)
+
+    def _raise_validation_error(**kwargs):
+        raise VultronValidationError("injected validation failure")
+
+    monkeypatch.setattr(ip_module, "dispatch", _raise_validation_error)
+
+    result = pipeline.process(activity.id_)
+
+    assert result is None, "VultronValidationError must return None"
+    queue_dl = dl.clone_for_actor(RECEIVER_ID)
+    assert (
+        activity.id_ not in queue_dl.inbox_list()
+    ), "A permanent validation failure must NOT re-queue the activity"
