@@ -26,12 +26,15 @@ Environment variables
     ActivityStreams actor type for the local actor.  One of ``Person``,
     ``Organization``, ``Service``, ``Application``, or ``Group`` (default:
     ``"Organization"``).
-``VULTRON_ACTOR_ID``
-    Optional full URI for the local actor.  When absent the server derives
-    one from ``VULTRON_SERVER__BASE_URL``.
 ``VULTRON_SEED_CONFIG``
     Path to a YAML file that overrides the individual env-var values above
-    (see ``SeedConfig`` for the expected schema).
+    (see ``SeedConfig`` for the expected schema).  Preferred over
+    ``VULTRON_ACTOR_ID`` for setting a deterministic actor URI.
+
+.. note::
+    ``VULTRON_ACTOR_ID`` is accepted by the ``--actor-id`` CLI option but is
+    **not** read by this module directly.  Set a deterministic actor URI via
+    ``VULTRON_SEED_CONFIG`` (YAML) or ``--actor-id`` on the CLI.
 """
 
 import os
@@ -177,8 +180,8 @@ class SeedConfig(BaseSettings):
                 ``VULTRON_ACTOR_NAME`` env var (default: ``"Vultron Actor"``).
             actor_type: Local actor type string.  Falls back to
                 ``VULTRON_ACTOR_TYPE`` env var (default: ``"Organization"``).
-            actor_id: Optional full URI for the local actor.  Falls back to
-                ``VULTRON_ACTOR_ID`` env var.
+            actor_id: Optional full URI for the local actor.  When ``None``
+                the server derives one from ``VULTRON_SERVER__BASE_URL``.
         """
         from typing import cast
 
@@ -188,7 +191,7 @@ class SeedConfig(BaseSettings):
         a_type = actor_type or os.environ.get(
             "VULTRON_ACTOR_TYPE", "Organization"
         )
-        a_id = actor_id or os.environ.get("VULTRON_ACTOR_ID") or None
+        a_id = actor_id or None
         return cls(
             local_actor=LocalActorConfig(
                 name=name,
