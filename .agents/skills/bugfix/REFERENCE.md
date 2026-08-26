@@ -48,6 +48,9 @@ file each as a new Bug-type GitHub issue. Do not pursue them in the current run.
 
 ```bash
 BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
+# Inherit parent from the issue being fixed so the escalated bug is
+# visible in the epic tree (no:parent-issue orphans break prioritisation).
+PARENT_ARG="--parent ${ISSUE_NUMBER}"
 .agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<short bug title>" \
   --body "$(cat <<'EOF'
@@ -68,7 +71,8 @@ BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
 Discovered during analysis of #N.
 EOF
 )" \
-  --issue-type-id "${BUG_TYPE_ID}"
+  --issue-type-id "${BUG_TYPE_ID}" \
+  ${PARENT_ARG}
 ```
 
 Reference newly filed issues in the PR description:
