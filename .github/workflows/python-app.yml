@@ -118,3 +118,29 @@ jobs:
           name: vultron
           path: dist/vultron-*.tar.gz
           retention-days: 14
+
+  # ── Notify: file or close a failure issue on push to main ────────────────
+  notify:
+    name: Notify CI failure
+    runs-on: ubuntu-latest
+    needs: [test, lint-black, lint-flake8, lint-mypy, lint-pyright, build]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Notify CI failure
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-python-app
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-python-app
+          token: ${{ secrets.GITHUB_TOKEN }}

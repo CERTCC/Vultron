@@ -432,12 +432,13 @@ class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
     Semantic function:
         Action — review the drafted advisory artifact and produce an
         :class:`~vultron.core.behaviors.report.publish_artifact_tree.
-        AdvisoryReviewDecision` record indicating approval status and
-        whether revision is required.  The default fuzzer implementation
-        always approves (``needs_revision=False``) so the pipeline
-        functions end-to-end before a real review agent is available
-        (AC-3, ADR-0030).  A real backend may involve human editorial
-        review, automated QA checks, or both.
+        AdvisoryReviewDecision` record indicating whether revision is
+        required.  The default fuzzer implementation always succeeds with
+        ``needs_revision=False`` so the pipeline functions end-to-end
+        before a real review agent is available (AC-3, ADR-0030).  A real
+        backend may involve human editorial review, automated QA checks, or
+        both; to block submission for any reason it MUST return
+        ``Status.FAILURE`` (BT-18-007).
 
     Blackboard contract (BT-18-001):
       Input keys:  draft_advisory_artifact: str  (reads the Composer output)

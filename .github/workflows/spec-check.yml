@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,3 +43,17 @@ jobs:
         # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
         # distinguishable by shellcheck, which flags the bare form as SC1007.
         run: PYTHONPATH='' uv run spec-lint specs/
+      - name: Notify CI failure
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
