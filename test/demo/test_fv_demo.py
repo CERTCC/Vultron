@@ -553,6 +553,7 @@ class TestFinderAsksQuestion:
             case=case,
         )
 
+        assert question_note is not None
         assert question_note.id_ is not None
         demo.verify_object_stored(vendor_client, question_note.id_)
 
@@ -581,6 +582,7 @@ class TestFinderAsksQuestion:
             question_note=question_note,
         )
 
+        assert reply_note is not None
         assert reply_note.id_ is not None
         demo.verify_object_stored(vendor_client, reply_note.id_)
 
