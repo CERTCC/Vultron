@@ -108,6 +108,8 @@ event, breaking the accountability invariant.
 
 ## ADR Cross-references
 
+- **ADR-0074**: wire Activity artifact immutability — the decision record for
+  this design principle (frozen=True on wire branch, A/B split, dumb-relay ports).
 - **ADR-0017**: two-branch hierarchy (`VultronBase` shared root, core branch
   strict, wire branch lenient). Wire branch flexibility does not preclude wire
   branch immutability.

@@ -305,6 +305,8 @@ groups:
       Inspection of the inbox pipeline confirms that received wire Activity objects are
       constructed once and not modified before being passed to `CaseLedgerEntry.payloadSnapshot`.
       A hydrated routing copy (B) is produced separately from the original artifact (A).
+    adr:
+    - ADR-0074
     relationships:
     - rel_type: refines
       spec_id: VM-08-001
@@ -326,6 +328,8 @@ groups:
       Inspection of outbound emit nodes confirms that `payload_snapshot` is set to the exact
       blob returned by the factory port, without further transformation. Outbox delivery
       passes the blob through unchanged — no `object_` mutation sites remain.
+    adr:
+    - ADR-0074
     relationships:
     - rel_type: refines
       spec_id: VM-08-001
