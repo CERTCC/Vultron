@@ -220,7 +220,7 @@ def _phase_report_submission(
         wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
-            expected_actor_ids={FINDER_ACTOR_ID, VENDOR_ACTOR_ID},
+            expected_actor_ids={finder.id_, vendor.id_},
         )
 
         with demo_check(
@@ -250,6 +250,7 @@ def _phase_report_submission(
 def _phase_ownership_handoff(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    finder: as_Actor,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     coordinator: as_Actor,
@@ -311,9 +312,9 @@ def _phase_ownership_handoff(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            VENDOR_ACTOR_ID,
-            COORDINATOR_ACTOR_ID,
+            finder.id_,
+            vendor.id_,
+            coordinator.id_,
         },
     )
     logger.info("Coordinator has joined the case")
@@ -415,6 +416,8 @@ def _phase_coordinator_invites_vendor2(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
     coordinator: as_Actor,
     coordinator_in_coordinator: as_Actor,
     case_actor_id: str,
@@ -423,7 +426,6 @@ def _phase_coordinator_invites_vendor2(
     case: as_VulnerabilityCase,
     offer: object,
     report: as_VulnerabilityReport,
-    finder: as_Actor,
 ) -> None:
     """Coordinator (new CASE_OWNER) invites Vendor2; Vendor2 runs RM triage."""
     logger.info("─" * 80)
@@ -486,10 +488,10 @@ def _phase_coordinator_invites_vendor2(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            VENDOR_ACTOR_ID,
-            COORDINATOR_ACTOR_ID,
-            VENDOR2_ACTOR_ID,
+            finder.id_,
+            vendor.id_,
+            coordinator.id_,
+            vendor2.id_,
         },
         timeout_seconds=LATE_JOINER_TIMEOUT,
     )
@@ -571,10 +573,10 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                VENDOR_ACTOR_ID,
-                COORDINATOR_ACTOR_ID,
-                VENDOR2_ACTOR_ID,
+                finder.id_,
+                vendor.id_,
+                coordinator.id_,
+                vendor2.id_,
             },
             timeout_seconds=p_timeout,
         )
@@ -1063,6 +1065,7 @@ def run_fvcv_handoff_demo(
         case = _phase_ownership_handoff(
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
+            finder=finder,
             vendor=vendor,
             vendor_in_vendor=vendor_in_vendor,
             coordinator=coordinator,
@@ -1075,6 +1078,8 @@ def run_fvcv_handoff_demo(
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             vendor2_client=vendor2_client,
+            finder=finder,
+            vendor=vendor,
             coordinator=coordinator,
             coordinator_in_coordinator=coordinator_in_coordinator,
             case_actor_id=dynamic_case_actor_id,
@@ -1083,7 +1088,6 @@ def run_fvcv_handoff_demo(
             case=case,
             offer=offer,
             report=report,
-            finder=finder,
         )
 
         # Verify case active now that all participants have joined.

@@ -200,7 +200,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, COORDINATOR_ACTOR_ID},
+        expected_actor_ids={finder.id_, coordinator.id_},
     )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
@@ -231,7 +231,9 @@ def _phase_report_submission(
 def _phase_invite_vendor_reject(
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    finder: as_Actor,
     coordinator_in_coordinator: as_Actor,
+    coordinator: as_Actor,
     vendor: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
@@ -295,7 +297,7 @@ def _phase_invite_vendor_reject(
         wait_for_case_participants(
             vendor_client=coordinator_client,
             case_id=case.id_,
-            expected_actor_ids={FINDER_ACTOR_ID, COORDINATOR_ACTOR_ID},
+            expected_actor_ids={finder.id_, coordinator.id_},
         )
     logger.info("✓ M2: Vendor rejected invite — participant count stable at 3")
 
@@ -542,7 +544,9 @@ def run_fcv_reject_demo(
         _phase_invite_vendor_reject(
             coordinator_client=coordinator_client,
             vendor_client=vendor_client,
+            finder=_finder,
             coordinator_in_coordinator=coordinator_in_coordinator,
+            coordinator=_coordinator,
             vendor=vendor_obj,
             case=case,
         )
