@@ -148,7 +148,6 @@ def _significant_state(status: ParticipantStatus) -> tuple:
         None if case_status is None else case_status.pxa.state,
         None if status.consent is None else status.consent.state,
         status.case_engagement,
-        status.embargo_adherence,
         tuple(sorted(str(role) for role in status.cvd_role)),
     )
 
