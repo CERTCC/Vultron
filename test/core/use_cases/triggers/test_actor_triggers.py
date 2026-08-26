@@ -1304,7 +1304,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
     def test_accept_to_field_is_case_actor(self):
         """Accept activity must be addressed to the CaseActor (CM-21-006 / ADR-0053).
 
-        ``EmitAcceptCaseOwnershipTransferNode._emit()`` calls
+        ``EmitAcceptCaseOwnershipTransferNode._call_factory()`` calls
         ``_resolve_case_manager_id`` and sets ``to=[case_actor_id]``.
         This test seeds a case with a CASE_MANAGER participant and verifies
         the emitted ``to`` field carries the case actor URI.
