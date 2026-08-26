@@ -45,7 +45,6 @@ from vultron.core.services.embargo_lifecycle import (
 from vultron.core.states.em import (
     EM,
     is_em_embargo_active,
-    is_valid_em_transition,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.errors import (
@@ -373,8 +372,12 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
         return case
 
     def _apply_transition(self, case: Any, current_em: EM) -> None:
-        """Apply EM → ACTIVE transition and persist; warn on non-standard path."""
-        if not is_valid_em_transition(current_em, EM.ACTIVE):
+        """Apply EM → ACTIVE transition and persist; state-sync override on non-standard path.
+
+        EMB-18-002: no is_valid_em_transition() warning-only guard; non-standard paths
+        are logged via an explicit state check and handled by the OBSERVED-mode service.
+        """
+        if current_em not in (EM.PROPOSED, EM.REVISE):
             self.logger.warning(
                 "%s: EM transition %s → ACTIVE is not a standard machine"
                 " transition for case '%s'; applying state-sync override",
