@@ -280,6 +280,7 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
                 offer=MagicMock(id_="urn:test:offer"),
                 report=MagicMock(),
                 finder=self._actor("urn:test:finder"),
+                v1=self._actor("urn:test:v1"),
             )
 
         assert (
