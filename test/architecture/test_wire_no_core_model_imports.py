@@ -174,9 +174,9 @@ def test_all_known_violations_still_present() -> None:
     strict=True,
     reason=(
         "ARCH-22-003: Goal state — all wire→core model import violations resolved. "
-        "When the last actual wire→core model import is removed from the codebase, "
-        "_VIOLATIONS becomes frozenset() and this test XPASSes, failing the build — "
-        "delete this xfail marker and clear KNOWN_VIOLATIONS then."
+        "Tracked by #2670. When the last actual wire→core model import is removed "
+        "from the codebase, _VIOLATIONS becomes frozenset() and this test XPASSes, "
+        "failing the build — delete this xfail marker and clear KNOWN_VIOLATIONS then."
     ),
 )
 def test_wire_core_model_import_boundary_goal() -> None:
