@@ -452,7 +452,9 @@ done.
 > necessary, and Issue #1777 deleted the node.  Its known
 > assignment-time-vs-causal-time `log_index` skew disappeared with it: the
 > native entries are committed at initialization, so `log_index` order *is*
-> causal order.  `Offer(CaseManagerRole)` was subsequently removed entirely
+> causal order (normative decision record: ADR-0079; testable invariants:
+> CLP-14-001 through CLP-14-009).  `Offer(CaseManagerRole)` was subsequently
+> removed entirely
 > (issue #2429, ADR-0039); the delegation mechanism was replaced by
 > `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
 > context=VulnerabilityCase)`) handled by `OfferCaseParticipantRoleReceivedUseCase`.
