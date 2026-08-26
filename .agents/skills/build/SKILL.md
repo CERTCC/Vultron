@@ -269,6 +269,9 @@ that clearly belongs with it, apply the following:
    with evidence (failing command/output, clean-base proof, causality check,
    blocked/unblocked impact), wire structured blockers, add a handoff comment,
    and record the Bug link as a learning file in `plan/incoming/learnings/`.
+   Set `--parent "${CURRENT_TASK_NUMBER}"` so the bug is wired under the same
+   task (and therefore the same epic) where it was discovered — this keeps it
+   visible in the epic tree and off the `no:parent-issue` orphan list.
 
 ### Phase 7 — Pre-PR Code Review
 

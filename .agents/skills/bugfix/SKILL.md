@@ -51,6 +51,12 @@ If this fails, stop and investigate before proceeding.
      --issue-type-id "${BUG_TYPE_ID}")
    ```
 
+   Immediately after creation, route the new issue onto the epic forest:
+   invoke `calve-epics` Mode 1 on `${ISSUE_NUMBER}`. If `calve-epics` reports
+   no matching epic, present an `AskUserQuestion` with the top 5 closest open
+   epics plus "Specify other epic number". **A parent epic is required** —
+   do not proceed to Phase 2 until the issue is wired to a parent.
+
 3. Invoke `orient-agent` to load baseline context.
 4. Fetch the issue body and comments.
 
