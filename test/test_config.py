@@ -24,6 +24,7 @@ from vultron.enums.roles import CVDRole
 from vultron.config import (
     RunMode,
     ServerConfig,
+    config_override,
     get_config,
     reload_config,
 )
@@ -279,3 +280,63 @@ def test_yaml_file_sets_actor_default_case_roles(tmp_path, monkeypatch):
     monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
     reload_config()
     assert CVDRole.COORDINATOR in get_config().actor.default_case_roles
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-006: config_override() context manager
+# ---------------------------------------------------------------------------
+
+
+def test_config_override_yields_updated_config():
+    """config_override sets env var and yields a config reflecting the change."""
+    with config_override(
+        VULTRON_SERVER__BASE_URL="http://override.test"
+    ) as cfg:
+        assert cfg.server.base_url == "http://override.test"
+
+
+def test_config_override_restores_env_on_exit():
+    """config_override restores the original env var value after exit."""
+    import os
+
+    original = os.environ.get("VULTRON_SERVER__BASE_URL")
+    with config_override(VULTRON_SERVER__BASE_URL="http://override.test"):
+        pass
+    assert os.environ.get("VULTRON_SERVER__BASE_URL") == original
+
+
+def test_config_override_removes_new_key_on_exit():
+    """config_override removes env vars it introduced (were absent before)."""
+    import os
+
+    os.environ.pop("VULTRON_SERVER__BASE_URL", None)
+    with config_override(VULTRON_SERVER__BASE_URL="http://new.test"):
+        assert "VULTRON_SERVER__BASE_URL" in os.environ
+    assert "VULTRON_SERVER__BASE_URL" not in os.environ
+
+
+def test_config_override_restores_on_exception():
+    """config_override restores env and reloads config even when body raises."""
+    import os
+
+    os.environ.pop("VULTRON_SERVER__BASE_URL", None)
+    try:
+        with config_override(VULTRON_SERVER__BASE_URL="http://exc.test"):
+            raise RuntimeError("deliberate failure")
+    except RuntimeError:
+        pass
+    assert "VULTRON_SERVER__BASE_URL" not in os.environ
+    assert get_config().server.base_url == "http://localhost:7999"
+
+
+def test_config_override_nested_key():
+    """config_override correctly maps __ delimiter to nested config fields."""
+    with config_override(VULTRON_SERVER__BASE_URL="http://nested.test") as cfg:
+        assert cfg.server.base_url == "http://nested.test"
+
+
+def test_config_override_cache_restored_after_exit():
+    """Config cache reflects restored state after config_override block exits."""
+    with config_override(VULTRON_SERVER__BASE_URL="http://inside.test"):
+        pass
+    assert get_config().server.base_url == "http://localhost:7999"

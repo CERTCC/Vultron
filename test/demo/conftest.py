@@ -22,7 +22,6 @@ import logging
 
 import anyio.to_thread
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -230,18 +229,12 @@ def configure_case_actor_url_for_demo():
     is None (CP-08-002/003).  Demo tests run the engage-case BT path, so
     they need the URL configured to reach the case-setup success branch.
     """
-    from vultron.config.app import reload_config
+    from vultron.config import config_override
 
-    mp = MonkeyPatch()
-    try:
-        mp.setenv(
-            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
-        )
-        reload_config()
+    with config_override(
+        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=_CASE_ACTOR_SERVICE_URL
+    ):
         yield
-    finally:
-        mp.undo()
-        reload_config()
 
 
 def config_snapshot() -> dict:
