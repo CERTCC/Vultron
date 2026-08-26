@@ -41,7 +41,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.rm import RM, is_rm_at_least
+from vultron.core.states.rm import RM, is_rm_at_least, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import (
     _as_id,
@@ -403,6 +403,24 @@ def _upgrade_participant_to_accepted(
     dl.read() returns core-typed objects for ParticipantStatus).
     """
     logger = logging.getLogger(__name__)
+    # SM-04-001: guard before writing — RM.INVALID cannot advance to ACCEPTED
+    # without first re-validating (INVALID → VALID → ACCEPTED).  START and
+    # RECEIVED are bootstrap-forward jumps that remain valid because the
+    # reporter is known to have accepted by virtue of submitting the report.
+    if not is_valid_rm_transition(
+        latest_rm, RM.ACCEPTED
+    ) and latest_rm not in (
+        RM.START,
+        RM.RECEIVED,
+    ):
+        logger.warning(
+            "ensure_reporter_participant: participant '%s' is at %s — "
+            "upgrade to RM.ACCEPTED blocked; re-validation required "
+            "before accepting (SM-04-001)",
+            participant_id,
+            latest_rm,
+        )
+        return
     _coerced_consent = coerce_em_consent_state(
         getattr(existing, "embargo_consent_state", None)
     )

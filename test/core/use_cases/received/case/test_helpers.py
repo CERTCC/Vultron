@@ -336,6 +336,30 @@ class TestBootstrapReporterUpgradesFromStart:
         )
         assert statuses[0].rm.state == RM.CLOSED
 
+    def test_reporter_participant_noop_if_at_invalid(
+        self, base_dl, make_payload, case_with_string_participants
+    ):
+        """Reporter participant at RM.INVALID must not be upgraded to ACCEPTED.
+
+        RM.INVALID is a validation-failure branch: the report was determined
+        invalid.  Bypassing re-validation by jumping directly to RM.ACCEPTED
+        violates SM-04-001 (explicit precondition guard before state write).
+        The participant must remain at RM.INVALID (#2481).
+        """
+        self._pre_seed_participant(base_dl, RM.INVALID)
+        event = self._create_event(make_payload, case_with_string_participants)
+
+        CreateCaseReceivedUseCase(base_dl, event).execute()
+
+        stored = base_dl.read(self._FINDER_PARTICIPANT_ID)
+        assert stored is not None
+        statuses = getattr(stored, "participant_statuses", [])
+        assert len(statuses) == 1, (
+            "Reporter participant at RM.INVALID must not gain extra statuses "
+            f"(upgrade to ACCEPTED must be blocked); got {len(statuses)} (#2481)"
+        )
+        assert statuses[0].rm.state == RM.INVALID
+
 
 # ---------------------------------------------------------------------------
 # RM-regression guard must not go inert on a shape mismatch (issue #2232)
