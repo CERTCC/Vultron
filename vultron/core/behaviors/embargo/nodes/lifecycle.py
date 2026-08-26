@@ -15,8 +15,6 @@
 
 """Embargo state machine and lifecycle transition nodes."""
 
-from typing import Any
-
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.em_state import (
@@ -45,12 +43,12 @@ from vultron.core.services.embargo_lifecycle import (
 from vultron.core.states.em import (
     EM,
     is_em_embargo_active,
-    is_valid_em_transition,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
+    VultronNotFoundError,
 )
 
 
@@ -348,9 +346,9 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
 class SetEmbargoActiveNode(DataLayerActionWithPorts):
     """Set embargo active on case and transition EM → ACTIVE.
 
-    Handles idempotency and state-sync override for non-standard EM
-    transitions (e.g. receive-side state-sync when sender has already
-    activated).
+    Routes EM activation through ``EmbargoLifecycle.activate_embargo()``
+    in STRICT mode (EMB-18-001).  Returns FAILURE for non-standard EM
+    transitions (EMB-18-002): valid source states are PROPOSED and REVISE.
     """
 
     def __init__(
@@ -358,68 +356,24 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
         case_id: str,
         embargo_id: str,
         name: str | None = None,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
-
-    def _read_case(self) -> Any | None:
-        assert self.datalayer is not None
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
-        return case
-
-    def _apply_transition(self, case: Any, current_em: EM) -> None:
-        """Apply EM → ACTIVE transition and persist; warn on non-standard path."""
-        if not is_valid_em_transition(current_em, EM.ACTIVE):
-            self.logger.warning(
-                "%s: EM transition %s → ACTIVE is not a standard machine"
-                " transition for case '%s'; applying state-sync override",
-                self.name,
-                current_em,
-                self.case_id,
-            )
-        case.set_embargo(self.embargo_id)
-        assert self.datalayer is not None
-        self.datalayer.save(case)
-        # AC-1: delegate EM state write to WriteEmStateNode.
-        result_out: dict[str, object] = {"em_after": EM.ACTIVE}
-        write_node = WriteEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        write_node.datalayer = self.datalayer
-        if write_node.update() != Status.SUCCESS:
-            self.logger.warning(
-                "%s: Failed to write EM state for case '%s': %s",
-                self.name,
-                self.case_id,
-                write_node.feedback_message,
-            )
-            return
-        self.feedback_message = (
-            f"Activated embargo '{self.embargo_id}' on case"
-            f" '{self.case_id}' (EM {current_em} → ACTIVE)"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
-        # SL-04-001/SL-04-006: embargo activation is a protocol milestone.
-        log_em_transition(
-            self.logger,
-            self.actor_id or "<unknown>",
-            self.case_id,
-            current_em,
-            EM.ACTIVE,
-        )
+        self._transition_mode = transition_mode
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        case = self._read_case()
-        if case is None:
+        # Idempotency check: avoid calling EmbargoLifecycle when the embargo
+        # is already active (ACTIVE + matching id is not a valid ACCEPT source).
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         current_embargo_id = _as_id(case.active_embargo)
@@ -431,17 +385,38 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        # EMB-18-001: route EM activation through EmbargoLifecycle.activate_embargo().
+        lifecycle = EmbargoLifecycle(persistence=self.datalayer)
+        try:
+            result = lifecycle.activate_embargo(
+                case_id=self.case_id,
+                embargo_id=self.embargo_id,
+                actor_id=self.actor_id,
+                transition_mode=self._transition_mode,
+            )
+        except VultronNotFoundError as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        current_em = result_out["em_before"]
-        assert isinstance(current_em, EM)
+        except VultronInvalidStateTransitionError as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
-        self._apply_transition(case, current_em)
+        em_before = result.em_before
+        em_after = result.em_after
+        self.feedback_message = (
+            f"Activated embargo '{self.embargo_id}' on case"
+            f" '{self.case_id}' (EM {em_before} → {em_after})"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        # SL-04-001/SL-04-006: embargo activation is a protocol milestone.
+        if em_after != em_before:
+            log_em_transition(
+                self.logger,
+                self.actor_id or "<unknown>",
+                self.case_id,
+                em_before,
+                em_after,
+            )
         return Status.SUCCESS

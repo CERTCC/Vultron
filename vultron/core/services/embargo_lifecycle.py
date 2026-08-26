@@ -611,6 +611,83 @@ class EmbargoLifecycle:
             participant_changes=participant_changes,
         )
 
+    def activate_embargo(
+        self,
+        *,
+        case_id: str,
+        embargo_id: str,
+        actor_id: str | None = None,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
+    ) -> EmbargoLifecycleResult:
+        """Activate an embargo on a case, driving EM state to ACTIVE.
+
+        Drives ``PROPOSED → ACTIVE`` (or ``REVISE → ACTIVE``) via the ACCEPT
+        trigger and sets ``case.active_embargo`` to *embargo_id*.  In ``STRICT``
+        mode only PROPOSED and REVISE are valid sources.  In ``OBSERVED`` mode
+        the transition is applied unconditionally (state-sync override).
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` to update.
+            embargo_id: ID of the ``EmbargoEvent`` to set as active.
+            actor_id: Optional ID of the activating actor (logging only).
+            transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal read/write of ``case.current_status.em_state``.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` describing what changed.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
+                state does not allow an ACCEPT trigger (valid sources: PROPOSED,
+                REVISE).
+        """
+        case = self._persistence.read(case_id)
+        if not isinstance(case, VulnerabilityCase):
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = case.current_status.em.state
+        assert em_before is not None  # guaranteed by the branch above
+
+        em_after = self._drive_em_transition(
+            case_id=case_id,
+            em_before=em_before,
+            trigger=EM_Trigger.ACCEPT,
+            transition_mode=transition_mode,
+            fallback_dest=EM.ACTIVE,
+            actor_id=actor_id,
+        )
+
+        # When the BT caller owns em I/O, skip the em_state write here —
+        # the caller's WriteEmStateNode handles it.
+        if not caller_owns_em_io:
+            case.current_status.em = EmDimension(state=em_after)
+
+        case.set_embargo(embargo_id)
+        self._persistence.save(case)
+
+        logger.info(
+            "Actor '%s' activated embargo '%s' on case '%s' (EM %s → %s)",
+            actor_id,
+            embargo_id,
+            case_id,
+            em_before,
+            em_after,
+        )
+
+        return EmbargoLifecycleResult(
+            em_before=em_before,
+            em_after=em_after,
+            case_changed=True,
+            case_embargo_changed=True,
+            pec_reset=False,
+        )
+
     def record_participant_consent(
         self,
         *,

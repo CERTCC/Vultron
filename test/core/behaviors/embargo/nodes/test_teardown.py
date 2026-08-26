@@ -325,6 +325,35 @@ class TestClearActiveEmbargoNode:
             len(save_calls) == 1
         ), f"Expected exactly 1 datalayer.save() call, got {len(save_calls)}"
 
+    @pytest.mark.spec("EMB-18-001")
+    def test_delegates_em_transition_to_embargo_lifecycle(self):
+        """EMB-18-001: EM transition is routed through EmbargoLifecycle.terminate_active_embargo()."""
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+        from vultron.errors import VultronNotFoundError
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("caen-emb18", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with patch.object(
+            EmbargoLifecycle,
+            "terminate_active_embargo",
+            side_effect=VultronNotFoundError("VulnerabilityCase", case.id_),
+        ):
+            bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+        unchanged = cast(VulnerabilityCase, dl.read(case.id_))
+        assert unchanged.current_status.em.state == EM.ACTIVE
+
 
 class TestResetParticipantConsentNode:
     """Tests for ResetParticipantConsentNode."""

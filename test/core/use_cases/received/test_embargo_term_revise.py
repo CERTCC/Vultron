@@ -114,11 +114,11 @@ class TestEmbargoTermRevise:
         with caplog.at_level(logging.WARNING):
             AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
-        assert any("state-sync override" in r.message for r in caplog.records)
+        assert any("forcing state-sync" in r.message for r in caplog.records)
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        # State is still updated (synchronization override proceeds).
+        # OBSERVED mode: state is still updated despite non-standard source state.
         assert case.current_status.em.state == EM.ACTIVE
 
     def test_remove_embargo_from_proposed_clears_proposed_list(

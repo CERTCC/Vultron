@@ -608,8 +608,15 @@ class TestSetEmbargoActiveNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.ACTIVE
 
-    def test_reads_em_state_via_read_em_state_node(self):
-        """AC-1: _apply_transition receives em_state read by ReadEmStateNode."""
+    def test_delegates_em_activation_to_embargo_lifecycle(self):
+        """EMB-18-001 (issue #2696): update() delegates to EmbargoLifecycle.activate_embargo()."""
+        from unittest.mock import patch
+
+        from vultron.core.services.embargo_lifecycle import (
+            EmbargoLifecycle,
+            EmbargoLifecycleResult,
+        )
+
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -620,21 +627,27 @@ class TestSetEmbargoActiveNode:
 
         _setup_blackboard_simple(dl)
         node = SetEmbargoActiveNode(case_id=case.id_, embargo_id=embargo.id_)
-
-        calls: list = []
-        original_apply = node._apply_transition
-
-        def recording_apply(case, current_em):  # type: ignore[override]
-            calls.append(current_em)
-            return original_apply(case, current_em)
-
-        node._apply_transition = recording_apply  # type: ignore[method-assign]
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
-        bt.tick()
+
+        fake_result = EmbargoLifecycleResult(
+            em_before=EM.PROPOSED,
+            em_after=EM.ACTIVE,
+            case_changed=True,
+            case_embargo_changed=True,
+            pec_reset=False,
+        )
+        with patch.object(
+            EmbargoLifecycle,
+            "activate_embargo",
+            return_value=fake_result,
+        ) as mock_activate:
+            bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert calls == [EM.PROPOSED]
+        assert (
+            mock_activate.called
+        ), "EmbargoLifecycle.activate_embargo() was never called"
 
     def test_returns_failure_when_case_missing(self):
         """Returns FAILURE when the case is not found in the DataLayer."""
@@ -651,8 +664,9 @@ class TestSetEmbargoActiveNode:
 
         assert status == py_trees.common.Status.FAILURE
 
-    def test_state_sync_override_logs_warning(self, caplog):
-        """Logs WARNING for non-standard EM transitions (state-sync override)."""
+    @pytest.mark.spec("EMB-18-002")
+    def test_returns_failure_on_invalid_em_transition(self, caplog):
+        """EMB-18-002: returns FAILURE for non-standard EM transitions (not warning-only)."""
         import logging
 
         dl = SqliteDataLayer(
@@ -671,23 +685,23 @@ class TestSetEmbargoActiveNode:
         with caplog.at_level(logging.WARNING):
             bt.tick()
 
-        assert node.status == py_trees.common.Status.SUCCESS
-        assert any("state-sync override" in r.message for r in caplog.records)
+        assert node.status == py_trees.common.Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em.state == EM.ACTIVE
+        assert updated.current_status.em.state == EM.NONE
 
     @pytest.mark.spec("EMB-18-001")
-    def test_em_write_goes_through_write_em_state_node(self):
-        """AC-1 (issue #2583): _apply_transition delegates EM write to WriteEmStateNode.
+    def test_em_write_goes_through_embargo_lifecycle(self):
+        """EMB-18-001: EM write is delegated to EmbargoLifecycle.activate_embargo().
 
-        Patch WriteEmStateNode.update() (autospec) to return SUCCESS and confirm
-        it is invoked during the PROPOSED → ACTIVE transition, proving that the
-        EM write goes through the canonical node rather than inline mutation.
+        Patch EmbargoLifecycle.activate_embargo() and confirm it is invoked
+        during the PROPOSED → ACTIVE transition, proving that EM writes route
+        through the service layer (not inline mutation or WriteEmStateNode).
         """
         from unittest.mock import patch
 
-        from vultron.core.behaviors.embargo.nodes.em_state import (
-            WriteEmStateNode,
+        from vultron.core.services.embargo_lifecycle import (
+            EmbargoLifecycle,
+            EmbargoLifecycleResult,
         )
 
         dl = SqliteDataLayer(
@@ -703,13 +717,21 @@ class TestSetEmbargoActiveNode:
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
+        fake_result = EmbargoLifecycleResult(
+            em_before=EM.PROPOSED,
+            em_after=EM.ACTIVE,
+            case_changed=True,
+            case_embargo_changed=True,
+            pec_reset=False,
+        )
         with patch.object(
-            WriteEmStateNode,
-            "update",
-            autospec=True,
-            return_value=py_trees.common.Status.SUCCESS,
-        ) as mock_update:
+            EmbargoLifecycle,
+            "activate_embargo",
+            return_value=fake_result,
+        ) as mock_activate:
             bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert mock_update.called, "WriteEmStateNode.update() was never called"
+        assert (
+            mock_activate.called
+        ), "EmbargoLifecycle.activate_embargo() was never called"
