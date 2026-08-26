@@ -367,8 +367,8 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   pass `TriggerActivityAdapter(dl)` to every use case in chained integration tests.
 - **Routing Prerequisites Must Be Resolved Before State Mutation** — resolve Case
   Manager ID in a read-only guard node BEFORE state-mutation node. See BT-19-001,
-  BT-19-002. [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Routing-Gated
-  State Mutation".
+  BT-19-002. See
+  `vultron/core/behaviors/embargo/AGENTS.md` § "Routing-Gated State Mutation".
 - **Superseded Notes Sections Are Archived via `append-history note`** — stale
   sections (or whole files) go to `plan/history/YYMM/note/` with source ID
   `NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
@@ -509,8 +509,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Pre-Build Dedup Sets Before Fallback Loops** — `seen = set(d.values())`
   before the loop; O(n×m) → O(n+m).
 - **Consolidated Helper Needs One Test Per Distinct Lookup Path** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Dual-Path
-  Consolidation Test Gap".
+  see `test/AGENTS.md` § "Dual-Path Consolidation Test Gap".
 - **Domain Sweep Audit: Catalog → Code, Then Factory Injection, Then
   `register_key`** — see
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).

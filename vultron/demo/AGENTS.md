@@ -458,3 +458,31 @@ See `specs/demo-ci.yaml` DEMOCI-10, `specs/multi-actor-demo.yaml` DEMOMA-23,
 and [notes/demo-ci-invariants.md](../../notes/demo-ci-invariants.md).
 
 <!-- Source: ISSUE-2239 -->
+
+---
+
+### Demo Devlog Race: Wait for Replica Before Dumping
+
+(DEMO-DEVLOG-RACE, 2026-06-18)
+
+Demo phases that write JSONL devlogs will miss recently committed canonical
+ledger entries if they run before the async `Announce(CaseLedgerEntry)`
+fan-out has been processed and stored by the replica actor.
+
+**Pattern**: After any phase that commits a new canonical ledger entry, query
+the sender's current tail hash and poll until the replica acknowledges it
+before writing the devlog:
+
+```python
+vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+if vendor_entries:
+    tail = max(vendor_entries, key=lambda e: e["log_index"])
+    wait_for_finder_log_entry(finder_client, case.id_, tail["entry_hash"])
+```
+
+Apply this poll-until-hash pattern after every phase that introduces a new
+ledger tail before a devlog dump. This is the same pattern used in
+`_phase_sync_verification` and ensures dump artifacts are always consistent
+with the replica's committed state.
+
+<!-- Source: DEMO-DEVLOG-RACE -->
