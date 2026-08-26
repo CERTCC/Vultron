@@ -135,13 +135,12 @@ not sufficient without the persist. See `notes/participant-embargo-consent.md`
 ## Compose Before Create: Node Discovery Gate
 
 Before writing any new BT emit, send, or state-transition node in this
-package, perform these checks (BTND-07-005, BTND-07-009, BTND-07-010):
+package, run the BT Domain section of
+`.agents/skills/shared/compose-before-create.md` (node inventory grep,
+then return here), then apply these BT-specific checks
+(BTND-07-005, BTND-07-009, BTND-07-010):
 
-1. **Inventory existing nodes**: grep `vultron/core/behaviors/<domain>/nodes/`
-   for classes with overlapping protocol state, domain, or action semantics.
-   If a match exists, compose or subclass — do not re-implement.
-
-2. **Use the domain base class**: for emit/send nodes, subclass the
+1. **Use the domain base class**: for emit/send nodes, subclass the
    appropriate base from the table below and override only `_call_factory()`
    and the hook methods. Do not write a new `update()` from scratch.
 
@@ -157,13 +156,11 @@ package, perform these checks (BTND-07-005, BTND-07-009, BTND-07-010):
    class unless you have confirmed no existing base covers your
    guard+emit+outbox pattern.
 
-3. **AC-1 compliance**: any node reading EM/RM/CS state MUST go through
+2. **AC-1 compliance**: any node reading EM/RM/CS state MUST go through
    `Read*StateNode`; any node writing it MUST go through `Write*StateNode`.
    Inline reads/writes are AC-1 violations.
 
-See `vultron/core/behaviors/AGENTS.md` (this file) whenever you are about
-to add a node in this package — the build skill's Phase 4 gate references
-it. Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
+Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
 
 ---
 
