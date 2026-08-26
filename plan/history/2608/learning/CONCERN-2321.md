@@ -43,3 +43,4 @@ raises on failure via `session.commit()`, so the read-back as implicit save-fail
 detection is redundant.
 
 **Resolved**: 2026-08-26 — implementation tracked in #2720.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/2721>.
