@@ -24,7 +24,12 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 import py_trees.behaviour
+from py_trees.common import Status
 
+from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+    ACTOR_DISCOVERY_DETERMINISTIC,
+    ActorDiscoveryCallOutBundle,
+)
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_actor_recommendation_trigger_bt,
     accept_case_invite_trigger_bt,
@@ -65,6 +70,16 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
     (SenderSideBT / PCR-08-001).
     """
 
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+    ) -> None:
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        self._actor_discovery_call_out = call_out
+
     def _prepare(self) -> None:
         request = cast(SuggestActorToCaseTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
@@ -76,7 +91,10 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
         # ADR-0073 its record is in the store of whoever knows it, so demanding
         # one here refused every genuinely remote candidate.
         _record_named_peer(
-            self._dl, request.suggested_actor_id, "suggested_actor_id"
+            self._dl,
+            request.suggested_actor_id,
+            "suggested_actor_id",
+            self._actor_discovery_call_out,
         )
 
         self._suggested_actor_id = request.suggested_actor_id
@@ -166,7 +184,12 @@ def _require_deliverable_actor_uri(actor_id: str, field: str) -> None:
     )
 
 
-def _record_named_peer(dl: Any, actor_id: str, field: str) -> None:
+def _record_named_peer(
+    dl: Any,
+    actor_id: str,
+    field: str,
+    call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+) -> None:
     """Record *actor_id* as a peer this actor now knows, if not already known.
 
     Being named by URI is enough: a peer's record lives in the store of
@@ -178,9 +201,8 @@ def _record_named_peer(dl: Any, actor_id: str, field: str) -> None:
 
     Recording it is the honest Actor Knowledge Model move: this actor has now
     been told about that peer, so it legitimately knows it.  What it does not
-    have is the peer's details; resolving those is a directory-service concern,
-    tracked as a Retriever call-out (ADR-0024).  The WARNING marks that gap
-    rather than letting it pass silently.
+    have is the peer's details; the Retriever call-out in *call_out* is the
+    injectable seam for a real directory service (ADR-0024, ADR-0025).
 
     Minting from an unvalidated string would accept anything, though, so the id
     has to be a deliverable URI first: it *is* the address outbound delivery
@@ -191,17 +213,29 @@ def _record_named_peer(dl: Any, actor_id: str, field: str) -> None:
         dl: The acting actor's own DataLayer.
         actor_id: The peer's canonical URI, as named by the request.
         field: Name of the request field it came from, for the messages.
+        call_out: Actor-discovery call-out bundle; defaults to
+            :data:`ACTOR_DISCOVERY_DETERMINISTIC` (``AlwaysSucceed``).
+            Inject a directory-service backend to resolve actor details.
     """
     if dl.read(actor_id) is not None:
         return
     _require_deliverable_actor_uri(actor_id, field)
-    logger.warning(
-        "no local record for %s '%s' — recording it from the request. Actor"
-        " discovery is not implemented, so only its URI is known, not its"
-        " details.",
-        field,
-        actor_id,
-    )
+    backend = call_out.resolve_actor_factory("ResolveActorDetails")
+    status = backend.update()
+    if status != Status.SUCCESS:
+        logger.warning(
+            "actor discovery returned %s for %s '%s' — recording minimal peer"
+            " (only URI known, not details)",
+            status.name,
+            field,
+            actor_id,
+        )
+    else:
+        logger.debug(
+            "actor discovery succeeded for %s '%s' — recording peer",
+            field,
+            actor_id,
+        )
     dl.create(CoreActor(id_=actor_id))
 
 
@@ -212,6 +246,16 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
     (PCR-08-007).  ``self._actor_id`` is set to the Case Actor URI in
     ``_prepare()`` so the BT queues the invite in the Case Actor's outbox.
     """
+
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+    ) -> None:
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
         request = cast(InviteActorToCaseTriggerRequest, self._request)
@@ -229,7 +273,12 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         # retries. Carrying the invitee is now the model's own declared
         # contract: ``_RmInviteToCaseActivity.inline_required_refs``
         # (DL-08-003). What this write buys is knowledge, not deliverability.
-        _record_named_peer(self._dl, request.invitee_id, "invitee_id")
+        _record_named_peer(
+            self._dl,
+            request.invitee_id,
+            "invitee_id",
+            self._actor_discovery_call_out,
+        )
 
         self._invitee_id = request.invitee_id
         self._suggested_roles = request.roles
@@ -339,6 +388,16 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
     CaseActor's identity on behalf of the offering actor (CM-24-001, TRIG-11-001).
     """
 
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+    ) -> None:
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        self._actor_discovery_call_out = call_out
+
     def _prepare(self) -> None:
         request = cast(OfferCaseOwnershipTransferTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
@@ -349,7 +408,12 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         # or a recommended actor; see ``_record_named_peer``. Handing ownership
         # to an actor on another node is the normal case, and that node's record
         # will never be in this store.
-        _record_named_peer(self._dl, request.transferee_id, "transferee_id")
+        _record_named_peer(
+            self._dl,
+            request.transferee_id,
+            "transferee_id",
+            self._actor_discovery_call_out,
+        )
 
         self._transferee_id = request.transferee_id
         self._content = request.content

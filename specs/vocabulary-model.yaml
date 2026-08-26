@@ -288,6 +288,53 @@ groups:
     kind: protocol
     statement: Objects intended to be static once created (e.g., vocabulary registry entries, canonical example objects) SHOULD
       use immutable (frozen) configuration so that any attempt to modify them at runtime raises an exception
+  - id: VM-08-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A received wire Activity MUST be treated as a frozen artifact from the moment of receipt.
+      It MUST NOT be mutated after construction. If a more hydrated form is required for routing
+      or use-case execution, it MUST be produced as a separate object; the original received
+      artifact MUST remain unmodified.
+    rationale: >-
+      The received artifact is the evidence of what arrived. It is stored as
+      `CaseLedgerEntry.payloadSnapshot` and replicated to other participants via
+      `Announce(CaseLedgerEntry)`. Mutating before storage breaks replication fidelity.
+      Field-type leniency (ARCH-12-002) and post-construction immutability are orthogonal.
+    verification: >-
+      Inspection of the inbox pipeline confirms that received wire Activity objects are
+      constructed once and not modified before being passed to `CaseLedgerEntry.payloadSnapshot`.
+      A hydrated routing copy (B) is produced separately from the original artifact (A).
+    adr:
+    - ADR-0074
+    relationships:
+    - rel_type: refines
+      spec_id: VM-08-001
+    lint_suppress:
+    - missing_story_reference
+  - id: VM-08-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An emitted wire Activity blob MUST be produced by the factory as a complete, frozen object
+      before being handed to any port or adapter. The exact blob returned to core MUST be used
+      as both the delivery payload and `CaseLedgerEntry.payloadSnapshot`. No port or adapter
+      MAY enrich, mutate, or re-derive the blob after it leaves the factory.
+    rationale: >-
+      Ledger integrity requires that what is recorded and what is delivered are identical.
+      Adapter enrichment creates a gap where the ledger records one form and the recipient
+      receives another. The factory is solely responsible for completeness; ports relay only.
+    verification: >-
+      Inspection of outbound emit nodes confirms that `payload_snapshot` is set to the exact
+      blob returned by the factory port, without further transformation. Outbox delivery
+      passes the blob through unchanged — no `object_` mutation sites remain.
+    adr:
+    - ADR-0074
+    relationships:
+    - rel_type: refines
+      spec_id: VM-08-001
+    lint_suppress:
+    - missing_story_reference
 - id: VM-09
   title: Unknown Message Handling
   specs:

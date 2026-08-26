@@ -100,6 +100,19 @@ rules are in `vultron/core/ports/AGENTS.md`.
 resolving which store a read or write belongs to, rehydration of nested
 objects, or storage record migration.
 
+**`wire-artifact-immutability.md`**
+Design principle for wire Activity immutability: received artifacts MUST be
+frozen at receipt (A/B split — A = frozen ledger snapshot, B = separately
+constructed hydrated routing copy); emitted blobs MUST be frozen by the factory
+and used unchanged as both `payloadSnapshot` and delivery payload; ports are
+dumb relays (no adapter enrichment). Covers the orthogonality of lenient field
+types (`validate_assignment=False`) and post-construction immutability
+(`frozen=True`). Spec requirements: `VM-08-002`, `VM-08-003`.
+**Load when**: implementing or reviewing the inbound pipeline (inbox freeze
+point), outbound factory/port interfaces (`TriggerActivityPort`,
+`SyncActivityPort`), `CaseLedgerEntry.payloadSnapshot` construction, or
+auditing `outbox_delivery.py` for enrichment mutations. Source: CONCERN-2545.
+
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.
 See `notes/activity-factories.md` for the full design rationale and inventory.

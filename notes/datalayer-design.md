@@ -425,7 +425,9 @@ losing the at-offer-time snapshot. Even if Activities eventually gain
 independent DataLayer records (removing the technical constraint), the semantic
 reason alone prohibits recursive dehydration here.
 
-*Source: CONCERN-2219.*
+*Source: CONCERN-2219. See also `notes/wire-artifact-immutability.md` for the
+full design (A/B split, `frozen=True` enforcement, outbound blob pipeline, and
+VM-08-002/003 spec requirements).*
 
 ---
 
