@@ -24,7 +24,9 @@ signals a threat (P=True OR X=True OR A=True).
 
     AddCaseStatusToCaseBT (Sequence)
     ├─ CheckCaseStatusIdempotencyNode              # precondition guard (CLP-10-009)
-    ├─ ValidateCaseStatusTransitionNode            # precondition guard (CLP-10-009)
+    ├─ FilterCsEmDimensionNode                     # per-dim EM adjudication (RSH-05, ISSUE-2256)
+    ├─ FilterCsPxaDimensionNode                    # per-dim PXA adjudication (RSH-05, ISSUE-2256)
+    ├─ FinalizeCsFilterNode                        # whole-refusal gate; FAILURE if nothing new
     ├─ GuardedCommitOrSkip                         # canonical ledger commit (CLP-10-006)
     ├─ AppendCaseStatusToCaseNode                  # AC-1: append status and persist
     ├─ EmbargoTeardownAuthorizationGate (Selector) # EmbargoTeardownAuthorizationGate (RSH-02-001)
@@ -70,15 +72,20 @@ def add_case_status_tree(
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
     Handles receipt of an ``Add(CaseStatus, VulnerabilityCase)`` activity.
-    Implements five nodes in a Sequence:
+    Implements seven nodes in a Sequence:
 
     1. Idempotency check — fail fast if the status is already present.
-    2. Transition validation — reject invalid EM or PXA state transitions.
-    3. Append and persist — write the new CaseStatus to the case record.
-    4. ``EmbargoTeardownAuthorizationGate`` (Selector) — EmbargoTeardownAuthorizationGate call-out gate (RSH-02-001).
+    2. Per-dimension EM adjudication — accept valid advances, carry forward
+       refused EM; always returns SUCCESS (RSH-05, ISSUE-2256).
+    3. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
+       carries forward refused PXA; always returns SUCCESS (RSH-05, ISSUE-2256).
+    4. Whole-refusal gate — returns FAILURE if no dimension carries new state;
+       returns SUCCESS otherwise, publishing the filtered CaseStatus.
+    5. Append and persist — write the filtered CaseStatus to the case record.
+    6. ``EmbargoTeardownAuthorizationGate`` (Selector) — call-out gate (RSH-02-001).
        Default is ``AlwaysSucceed``; production adapters may inject a gate
        that blocks side-effects for certain actors or scenarios.
-    5. ``ThreatTerminationBranchNode`` — fires embargo teardown when the
+    7. ``ThreatTerminationBranchNode`` — fires embargo teardown when the
        CaseStatus has at least one of P=True, X=True, or A=True and the case
        has an active embargo (RSH-03-001 to RSH-03-003).
 

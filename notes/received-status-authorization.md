@@ -92,9 +92,8 @@ DataLayer (CLP-10-006), so it can run before `GuardedCommitOrSkip` and the
 canonical entry snapshots the accepted portion rather than the raw claim.
 
 `em` is deliberately **not** adjudicated here — embargo state belongs to EmbargoTeardownAuthorizationGate
-(ISSUE-2256). The EM adjudication node introduced by ISSUE-2256 will be a second producer of
-`ledger_payload_object_override`; ISSUE-2256's body documents the required producer contract
-(RSH-05-010 through RSH-05-014).
+(ISSUE-2256, now implemented). See the **Per-Dimension CaseStatus Adjudication** section for the
+`FilterCsEmDimensionNode` / `FilterCsPxaDimensionNode` / `FinalizeCsFilterNode` design.
 
 Two blackboard keys carry the handoff. Both are written on *every* tick (with
 `None` when nothing was filtered) and matched by object ID on read, because the
@@ -194,6 +193,67 @@ canonical write came from an external message or an internal self-emit.
 
 ---
 
+## Per-Dimension CaseStatus Adjudication (ISSUE-2256, ADR-0061)
+
+**Location**: `add_case_status_tree`, before `GuardedCommitOrSkip`
+
+**Purpose**: accept each EM/PXA dimension independently; carry forward refused
+dimensions so a valid EM advance is not discarded alongside a stale PXA value.
+
+Extends the same liberal-accept pattern that ADR-0061 / ISSUE-2235 applied to
+`ParticipantStatus` (RM+VFD+PXA) to `CaseStatus` (EM+PXA).
+
+```text
+AddCaseStatusToCaseBT (Sequence)
+├─ CheckCaseStatusIdempotencyNode       ← precondition guard (CLP-10-009)
+├─ FilterCsEmDimensionNode              ← per-dim EM adjudication; always SUCCESS
+├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication; always SUCCESS
+├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
+├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
+├─ AppendCaseStatusToCaseNode           ← records accepted portion
+├─ EmbargoTeardownAuthorizationGate     ← call-out (AlwaysSucceed default)
+└─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
+```
+
+`ValidateCaseStatusTransitionNode` (the former all-or-nothing guard) is
+retained in the module and tested but is no longer wired into this tree.
+
+### Three-node design
+
+`FilterCsEmDimensionNode` runs first: it clears both `BB_CASE_STATUS_DIM_FILTER`
+and `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` unconditionally (RSH-05-010, BT-17-003),
+evaluates the EM transition, and writes a per-tick accumulator dict to the
+blackboard.
+
+`FilterCsPxaDimensionNode` runs second: it reads the accumulator by reference
+and mutates it in place to add any PXA refusal. This pattern is required because
+py_trees forbids a port key appearing in both `input_ports` and `output_ports` of
+the same node.
+
+`FinalizeCsFilterNode` runs third: it reads the completed accumulator, builds the
+`model_copy`-filtered `CaseStatus` (refused dimensions carry current values
+forward), and publishes both `BB_CASE_STATUS_DIM_FILTER` (for
+`AppendCaseStatusToCaseNode`) and `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` (for
+`CommitCaseLedgerEntryNode`). Returns FAILURE when every dimension is refused and
+no new state is carried (RSH-05-005).
+
+`FinalizeCsFilterNode` is a REJECTION_VALIDATORS member: it MUST appear in
+`precondition_guards`, never in `effect_nodes` (CLP-10-009).
+
+### Blackboard keys
+
+| Key | Producer | Consumer |
+|---|---|---|
+| `cs_dim_filter_accumulator` | `FilterCsEmDimensionNode` (write+clear) | `FilterCsPxaDimensionNode`, `FinalizeCsFilterNode` (read) |
+| `append_case_status_dim_filter` | `FilterCsEmDimensionNode` (clear), `FinalizeCsFilterNode` (write) | `AppendCaseStatusToCaseNode` |
+| `ledger_payload_object_override` | `FilterCsEmDimensionNode` (clear), `FinalizeCsFilterNode` (write) | `CommitCaseLedgerEntryNode` |
+
+The `ledger_payload_object_override` override fields use camelCase wire aliases
+(`emState`, `pxaState`) per RSH-05-012. `FinalizeCsFilterNode` is registered
+in `_RECOGNIZED_OVERRIDE_PRODUCERS` per RSH-05-014.
+
+---
+
 ## EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode
 
 **Location**: `add_case_status_tree`, after `AppendCaseStatusToCaseNode`
@@ -201,12 +261,10 @@ canonical write came from an external message or an internal self-emit.
 **Purpose**: decide whether to execute side-effects after a canonical write
 
 ```text
-AddCaseStatusToCaseBT (Sequence)
-├─ CheckCaseStatusIdempotencyNode       ← unchanged
-├─ ValidateCaseStatusTransitionNode     ← unchanged
-├─ AppendCaseStatusToCaseNode           ← unchanged (canonical write)
-├─ EmbargoTeardownAuthorizationGate (Evaluator)         ← NEW call-out (AlwaysSucceed default)
-└─ ThreatTerminationBranchNode          ← NEW: fires teardown on CS.P, CS.X, CS.A
+AddCaseStatusToCaseBT (Sequence) — effect nodes only
+├─ AppendCaseStatusToCaseNode           ← canonical write
+├─ EmbargoTeardownAuthorizationGate     ← Evaluator call-out (AlwaysSucceed default)
+└─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
 ### EmbargoTeardownAuthorizationGate

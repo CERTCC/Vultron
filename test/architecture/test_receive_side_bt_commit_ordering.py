@@ -103,6 +103,7 @@ REJECTION_VALIDATORS = {
     "ValidateCaseStatusTransitionNode",
     "CheckCaseStatusIdempotencyNode",
     "CheckParticipantRMNotClosedNode",
+    "FinalizeCsFilterNode",
 }
 
 RECEIVE_ACTIVITY_TREE_CALL = "create_receive_activity_tree"
