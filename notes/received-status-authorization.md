@@ -175,9 +175,11 @@ structural skip: if `CheckIsCaseOwnerNode` succeeds, the approval call-out is
 never reached.
 
 For all other senders, the `CaseOwnerApprovesStatusUpdate` Evaluator call-out
-provides the hook. In the prototype it defaults to `AlwaysSucceed` (all status
-updates are adopted automatically). A production implementation can replace
-this with a real policy engine or human-in-the-loop step.
+provides the hook. The default backend is `RequireCaseOwnerApproval` — an
+Evaluator that performs an Offer/Accept/Reject round-trip with the Case Owner
+before allowing the assertion to be adopted as canonical. A permissive backend
+(e.g., `AlwaysSucceed`) MAY be configured for trusted-participant or demo
+deployments but MUST be explicitly configured (RSH-07-003, ADR-0076).
 
 ### Self-addressed `Add(CaseStatus)` pattern
 
@@ -298,13 +300,24 @@ authorized.
 
 ## Call-Out Bundle
 
-A new `StatusAuthorizationCallOutBundle` covers both gates:
+A `StatusAuthorizationCallOutBundle` covers both gates:
 
 ```python
 @dataclass(frozen=True)
 class StatusAuthorizationCallOutBundle:
-    status_adoption_gate_factory: CallOutBackendFactory = ...  # AlwaysSucceed
-    embargo_teardown_authorization_gate_factory: CallOutBackendFactory = ...   # AlwaysSucceed
+    status_adoption_gate_factory: CallOutBackendFactory = ...  # RequireCaseOwnerApproval
+    embargo_teardown_authorization_gate_factory: CallOutBackendFactory = ...  # RequireCaseOwnerApproval
+```
+
+Both fields default to `RequireCaseOwnerApproval` (RSH-07-001, RSH-07-002,
+ADR-0076). Demo and trusted-participant deployments that need automated
+adoption MUST explicitly configure a permissive backend — e.g.:
+
+```python
+STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(
+    status_adoption_gate_factory=lambda n: AlwaysSucceed(n),
+    embargo_teardown_authorization_gate_factory=lambda n: AlwaysSucceed(n),
+)
 ```
 
 Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
