@@ -193,19 +193,11 @@ class TestAckReportLedgerRouting:
             f" ledger entry; found: {event_types}"
         )
 
-    def test_no_receiving_actor_id_skips_commit(self):
-        """Guarded commit does NOT fire when receiving_actor_id is None.
+    def test_no_receiving_actor_id_uses_store_owner_for_commit(self):
+        """When receiving_actor_id is absent, the store owner processes the Ack.
 
-        Deliberately run in the *CaseActor's* store — the store that
-        ``test_caseactor_commits_ack_report_ledger_entry`` shows does commit. So
-        the absent field is isolated as the cause; with the vendor's store, as
-        before, "no commit" was equally explicable by the executing actor not
-        holding the role.
-
-        Note that ``AckReportReceivedUseCase`` returns early on a missing
-        ``receiving_actor_id`` rather than falling back to the store's own actor
-        the way ``resolve_receiving_actor_id`` does for the other received-side
-        use cases. That difference is real and is what this test pins.
+        The store is owned by the CaseActor, so the guarded commit fires and the
+        ``ack_report`` ledger entry IS written (store-owner fallback, CLP-10-005).
         """
         dl = _make_case_store(CASE_ACTOR_ID)
         AckReportReceivedUseCase(
@@ -216,7 +208,7 @@ class TestAckReportLedgerRouting:
         ).execute()
 
         event_types = _ledger_event_types(dl)
-        assert "ack_report" not in event_types, (
-            "Missing receiving_actor_id must NOT write an ack_report"
-            f" ledger entry; found: {event_types}"
+        assert "ack_report" in event_types, (
+            "Store-owner fallback (CaseActor) MUST write an ack_report"
+            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
         )

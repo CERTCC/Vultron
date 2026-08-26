@@ -400,7 +400,8 @@ the result** (ADR-0022, CLP-10-005, issues #1036/#1047): a received-side
 use case's `execute()` method MUST (a) build exactly one BT via a
 tree-factory function in `vultron/core/behaviors/`, (b) call
 `BTBridge.execute_with_setup()` exactly once, with
-`actor_id=receiving_actor_id`, and (c) handle the result (log, extract
+`actor_id=resolve_receiving_actor_id(self._dl, request.receiving_actor_id)`,
+and (c) handle the result (log, extract
 output — see "Procedural Glue Exception" above). The guarded-commit
 factory above MUST be composed as a child of that one tree, not invoked
 separately, and the use case's main operation MUST itself be a BT node —
