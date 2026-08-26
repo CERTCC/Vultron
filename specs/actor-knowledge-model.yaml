@@ -93,3 +93,25 @@ groups:
       (e.g., via `CaseLedgerEntry` hash-chain records) to avoid redundant full-object transmission.
     scope:
     - production
+- id: AKM-05
+  title: Actor Addressing and Discovery
+  specs:
+  - id: AKM-05-001
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The absence of a local `CoreActor` record for a peer MUST NOT prevent an actor from
+      addressing an outbound activity to that peer. A deliverable http(s) URI is sufficient
+      for addressing; having a fully resolved actor record is an enrichment concern (directory
+      service), not a precondition for protocol participation.
+  - id: AKM-05-002
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      When an actor is first named by URI and no local record exists, the implementation
+      SHOULD attempt resolution via the injected `ActorDiscoveryCallOutBundle`
+      (Retriever call-out, ADR-0024, ADR-0025) before minting a minimal record.
+      A FAILURE result from the backend SHOULD produce an explicit WARNING rather than
+      a silent default.
+    scope:
+    - production

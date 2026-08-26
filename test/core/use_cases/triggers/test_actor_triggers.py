@@ -181,7 +181,8 @@ class TestSvcInviteActorToCaseUseCase:
         assert stored is not None
         assert isinstance(stored, as_Invite)
 
-    def test_invite_proceeds_when_invitee_not_in_dl_but_warns(self, caplog):
+    @pytest.mark.spec("AKM-05-001")
+    def test_invite_proceeds_when_invitee_not_in_dl(self, caplog):
         """An invitee is named by URI; a local record is not required.
 
         This asserted a 404 before. Holding a local record was never a protocol
@@ -191,9 +192,9 @@ class TestSvcInviteActorToCaseUseCase:
         the old behaviour refused invitations to actors that exist and are
         reachable, which is every cross-node invitee in a real deployment.
 
-        Absence is still reported at WARNING: actor discovery does not exist yet,
-        so the inability to verify the invitee locally is a real gap and must not
-        pass unremarked.
+        With the injectable ActorDiscoveryCallOutBundle seam (ADR-0025), the
+        default DETERMINISTIC backend (AlwaysSucceed) logs at DEBUG rather than
+        WARNING — the seam is wired, no gap to report (AKM-05-002).
         """
         actor, dl = _make_actor_dl("Coordinator")
         # invitee NOT seeded in actor's DL
@@ -214,8 +215,8 @@ class TestSvcInviteActorToCaseUseCase:
             ).execute()
 
         assert result is not None
-        assert missing_id in caplog.text
-        assert "no local record for invitee" in caplog.text
+        # No WARNING with the default DETERMINISTIC bundle (AlwaysSucceed)
+        assert "actor discovery returned" not in caplog.text
 
     @pytest.mark.parametrize(
         "bad_id",
@@ -657,9 +658,7 @@ class TestSvcSuggestActorToCaseUseCase:
         assert result["activity"]["actor"] == actor.id_
         assert result["activity"].get("to") == [case_actor.id_]
 
-    def test_suggest_proceeds_when_suggested_actor_missing_but_warns(
-        self, caplog
-    ):
+    def test_suggest_proceeds_when_suggested_actor_missing(self, caplog):
         """A recommended actor is named by URI; a local record is not required.
 
         This asserted a 404 before, for the same reason the invite path did, and
@@ -670,6 +669,9 @@ class TestSvcSuggestActorToCaseUseCase:
         ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
         found`` for a vendor that was running and reachable in another container
         (#2548).
+
+        With the injectable ActorDiscoveryCallOutBundle seam (ADR-0025), the
+        default DETERMINISTIC backend (AlwaysSucceed) logs at DEBUG, not WARNING.
         """
         actor, dl = _make_actor_dl("Coordinator")
         case_actor, _ = _make_actor_dl("Case Actor")
@@ -688,8 +690,8 @@ class TestSvcSuggestActorToCaseUseCase:
             ).execute()
 
         assert result is not None
-        assert missing_id in caplog.text
-        assert "no local record for suggested_actor_id" in caplog.text
+        # No WARNING with the default DETERMINISTIC bundle (AlwaysSucceed)
+        assert "actor discovery returned" not in caplog.text
 
     @pytest.mark.parametrize(
         "bad_id",
@@ -1108,14 +1110,15 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         stored = dl.read(offer_id)
         assert stored is not None
 
-    def test_offer_proceeds_when_transferee_not_in_dl_but_warns(self, caplog):
+    def test_offer_proceeds_when_transferee_not_in_dl(self, caplog):
         """A transferee is a peer named by URI; a local record is not required.
 
         Handing a case to an actor on another node is the ordinary case, and
         under per-actor storage that node's record is in *its* store (ADR-0073
         decision 5) — so the old 404 refused exactly the transfers the protocol
         exists to support. Same defect as the invite and recommend paths; all
-        three now share ``_record_named_peer``.
+        three share ``_record_named_peer`` with the ActorDiscoveryCallOutBundle
+        seam. With DETERMINISTIC (AlwaysSucceed), no WARNING fires (AKM-05-002).
         """
         owner, dl = _make_actor_dl("Vendor")
         missing_id = "https://example.org/actors/nobody"
@@ -1142,7 +1145,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             ).execute()
 
         assert result is not None
-        assert "no local record for transferee_id" in caplog.text
+        # No WARNING with the default DETERMINISTIC bundle (AlwaysSucceed)
+        assert "actor discovery returned" not in caplog.text
 
     def test_offer_raises_when_case_not_in_dl(self):
         owner, dl = _make_actor_dl("Vendor")
@@ -1550,3 +1554,124 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             SvcOfferCaseParticipantRoleUseCase(
                 dl, request, trigger_activity=None
             ).execute()
+
+
+class TestActorDiscoveryCallOut:
+    """Tests for the ActorDiscoveryCallOutBundle seam (ADR-0024, ADR-0025, AKM-05).
+
+    Verifies that the injectable call-out factory:
+    - fires no WARNING with the DETERMINISTIC (AlwaysSucceed) default
+    - fires a WARNING when a FAILURE backend is injected
+    - proceeds in both cases (annotating, not blocking — AC-4)
+    """
+
+    def test_default_bundle_no_warning_on_missing_invitee(self, caplog):
+        """DETERMINISTIC (AlwaysSucceed) logs at DEBUG; no WARNING emitted."""
+        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+            ACTOR_DISCOVERY_DETERMINISTIC,
+        )
+
+        actor, dl = _make_actor_dl("Coordinator")
+        missing_id = "https://example.org/actors/discovery-test"
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_, name="Discovery Test", content="Content"
+        )
+        dl.create(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=missing_id,
+        )
+        with caplog.at_level(logging.WARNING):
+            result = SvcInviteActorToCaseUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                call_out=ACTOR_DISCOVERY_DETERMINISTIC,
+            ).execute()
+
+        assert result is not None
+        assert "actor discovery returned" not in caplog.text
+
+    def test_failure_backend_warns_on_missing_invitee(self, caplog):
+        """When the backend returns FAILURE an explicit WARNING is emitted (AKM-05-002)."""
+        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+            ActorDiscoveryCallOutBundle,
+        )
+        from vultron.core.behaviors.call_out.nodes import AlwaysFail
+
+        def _always_fail(name: str):
+            return AlwaysFail(name)
+
+        fail_bundle = ActorDiscoveryCallOutBundle(
+            resolve_actor_factory=_always_fail  # type: ignore[arg-type]
+        )
+
+        actor, dl = _make_actor_dl("Coordinator")
+        missing_id = "https://example.org/actors/unreachable"
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_,
+            name="Discovery Fail Test",
+            content="Content",
+        )
+        dl.create(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=missing_id,
+        )
+        with caplog.at_level(logging.WARNING):
+            result = SvcInviteActorToCaseUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                call_out=fail_bundle,
+            ).execute()
+
+        # Invite proceeds even on FAILURE — annotating, not blocking (AC-4)
+        assert result is not None
+        # Explicit WARNING is emitted (AC-3, AKM-05-002)
+        assert "actor discovery returned FAILURE" in caplog.text
+        assert missing_id in caplog.text
+
+    def test_failure_backend_records_minimal_peer(self):
+        """Even when discovery fails, a minimal CoreActor record is created."""
+        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+            ActorDiscoveryCallOutBundle,
+        )
+        from vultron.core.behaviors.call_out.nodes import AlwaysFail
+
+        def _always_fail(name: str):
+            return AlwaysFail(name)
+
+        fail_bundle = ActorDiscoveryCallOutBundle(
+            resolve_actor_factory=_always_fail  # type: ignore[arg-type]
+        )
+
+        actor, dl = _make_actor_dl("Coordinator")
+        missing_id = "https://example.org/actors/unreachable2"
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_,
+            name="Minimal Record Test",
+            content="Content",
+        )
+        dl.create(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=missing_id,
+        )
+        SvcInviteActorToCaseUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            call_out=fail_bundle,
+        ).execute()
+
+        # Peer recorded even on FAILURE (protocol proceeds with URI-only record)
+        recorded = dl.read(missing_id)
+        assert recorded is not None
+        assert str(recorded.id_) == missing_id
