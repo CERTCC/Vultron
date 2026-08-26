@@ -37,6 +37,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
+    _prepare_delegated_context,
     resolve_actor,
     resolve_case,
 )
@@ -154,14 +155,13 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
         self._invitee_id = request.invitee_id
         self._suggested_roles = request.roles
 
-        case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
-        self._actor_id = case_actor_id if case_actor_id else owner_id
-        # When case_actor_id is None (no dedicated CaseActor), the Invite is
-        # sent without cc: so no self-delivery occurs and no CaseLedgerEntry
-        # is committed — by design (ADR-0021: no CaseActor → no canonical
-        # ledger).
-        self._case_actor_id = case_actor_id
-        self._attributed_to = owner_id if case_actor_id else None
+        # Delegated-message contract (CM-24-001..003)
+        self._actor_id, self._attributed_to = _prepare_delegated_context(
+            self._dl, self._case.id_, owner_id
+        )
+        # case_actor_id also needed for invite BT routing (ADR-0021: no
+        # CaseActor → no cc: → no self-delivery → no CaseLedgerEntry commit)
+        self._case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return invite_actor_to_case_trigger_bt(
@@ -257,13 +257,13 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
     """Offer case ownership to another actor (trigger-side path).
 
     Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    requesting actor to ``transferee_id`` (TRIG-11-001).
+    CaseActor's identity on behalf of the offering actor (CM-24-001, TRIG-11-001).
     """
 
     def _prepare(self) -> None:
         request = cast(OfferCaseOwnershipTransferTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
-        self._actor_id = actor.id_
+        offering_actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
         if self._dl.read(request.transferee_id) is None:
@@ -272,11 +272,17 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         self._transferee_id = request.transferee_id
         self._content = request.content
 
+        # Delegated-message contract: emit from CaseActor identity (CM-24-001..003)
+        self._actor_id, self._attributed_to = _prepare_delegated_context(
+            self._dl, self._case.id_, offering_actor_id
+        )
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return offer_case_ownership_transfer_trigger_bt(
             case_id=self._case.id_,
             transferee_id=self._transferee_id,
             content=self._content,
+            attributed_to=self._attributed_to,
             captured=self._captured,
         )
 

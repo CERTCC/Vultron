@@ -1042,6 +1042,85 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
 
+    def test_offer_uses_case_actor_as_sender_when_present(self):
+        """CM-24-001/002: when a CaseActor Service exists, the Offer actor
+        MUST be the CaseActor ID and attributedTo MUST be the offering actor ID.
+        """
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        # Register a CaseActor Service via the legacy path used by _find_case_actor_id
+        case_actor = as_Service(
+            id_=f"{owner.id_}/case-actor",
+            context=case.id_,
+            name="CaseActorService",
+        )
+        dl.create(case_actor)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee.id_,
+        )
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Offer"
+        # CM-24-001: Offer actor MUST be the CaseActor, not the offering actor
+        assert activity_data["actor"] == case_actor.id_
+        # CM-24-002: offering actor attribution MUST be preserved
+        assert activity_data.get("attributedTo") == owner.id_
+        # The activity must be in the CaseActor's outbox (CM-24-004)
+        case_actor_outbox = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert activity_data["id"] in case_actor_outbox
+
+    def test_offer_falls_back_to_requesting_actor_when_no_case_actor(self):
+        """CM-24-003: when no CaseActor exists, the Offer actor is the offering
+        actor and attributedTo is absent."""
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee.id_,
+        )
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Offer"
+        # CM-24-003: falls back to requesting actor when no CaseActor
+        assert activity_data["actor"] == owner.id_
+        assert activity_data.get("attributedTo") is None
+
 
 class TestSvcAcceptCaseOwnershipTransferUseCase:
     """Tests for the accept-case-ownership-transfer trigger use case (TRIG-11-002)."""
@@ -1225,7 +1304,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
     def test_accept_to_field_is_case_actor(self):
         """Accept activity must be addressed to the CaseActor (CM-21-006 / ADR-0053).
 
-        ``EmitAcceptCaseOwnershipTransferNode._emit()`` calls
+        ``EmitAcceptCaseOwnershipTransferNode._call_factory()`` calls
         ``_resolve_case_manager_id`` and sets ``to=[case_actor_id]``.
         This test seeds a case with a CASE_MANAGER participant and verifies
         the emitted ``to`` field carries the case actor URI.
