@@ -167,10 +167,20 @@ class TestFccvExtensionMilestoneAssertions:
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "wait_for_case_on_container"),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
             patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active") as mock_m1,
+            patch.object(
+                demo,
+                "demo_gate",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
             patch.object(
                 demo,
                 "demo_check",

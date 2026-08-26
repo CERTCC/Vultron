@@ -119,6 +119,11 @@ from vultron.demo.helpers.workflow import (
 
 logger = logging.getLogger(__name__)
 
+# AC-6 audit (#2203): wait_for_case_on_container calls in this module poll for
+# VulnerabilityCase object delivery (ADR-0041 seeding path). ADR-0037/ADR-0059
+# buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
+# all wait_for_case_on_container calls here remain necessary.
+
 # Default container base URLs — override via environment variables.
 # C1 uses the "coordinator" container, V1 uses "vendor", C2 uses "actor5",
 # and V2 (VendorDeployer) uses "actor6".
@@ -270,18 +275,21 @@ def _phase_report_submission(
     )
     logger.info("V1 invite created: %s", invite_v1.id_)
 
-    with demo_step("Delivering invite to V1's inbox"):
-        post_to_inbox_and_wait(v1_client, v1_in_v1.id_, invite_v1)
-
-    with demo_check("V1 invite stored in V1's DataLayer"):
-        verify_object_stored(v1_client, invite_v1.id_)
+    invite_v1_id = None
+    with demo_gate("CaseActor-routed Invite for V1 stored in V1's DataLayer"):
+        invite_v1_id = find_case_invite_for_actor(
+            client=v1_client,
+            case_id=case.id_,
+            invitee_id=v1.id_,
+        )
+    logger.info("CaseActor Invite for V1: %s", invite_v1_id)
 
     with demo_step("V1 accepts the case invitation"):
         post_to_trigger(
             client=v1_client,
             actor_id=v1_in_v1.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite_v1.id_},
+            body={"invite_id": invite_v1_id},
         )
 
     with demo_check("V1's DataLayer received case replica"):
@@ -327,18 +335,21 @@ def _phase_report_submission(
     )
     logger.info("C2 invite created: %s", invite_c2.id_)
 
-    with demo_step("Delivering invite to C2's inbox"):
-        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, invite_c2)
-
-    with demo_check("C2 invite stored in C2's DataLayer"):
-        verify_object_stored(c2_client, invite_c2.id_)
+    invite_c2_id = None
+    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
+        invite_c2_id = find_case_invite_for_actor(
+            client=c2_client,
+            case_id=case.id_,
+            invitee_id=c2.id_,
+        )
+    logger.info("CaseActor Invite for C2: %s", invite_c2_id)
 
     with demo_step("C2 accepts the case invitation"):
         post_to_trigger(
             client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite_c2.id_},
+            body={"invite_id": invite_c2_id},
         )
 
     with demo_check("C2's DataLayer received case replica"):
