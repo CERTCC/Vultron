@@ -90,6 +90,9 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     ApplyOfferOwnershipTransferFromLedgerNode,
     IsOfferOwnershipTransferEventNode,
 )
+from vultron.core.behaviors.sync.nodes.ledger_authority import (
+    DeclineForeignLedgerCommitNode,
+)
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
     CollectNonClosedLogEntryRecipientsNode,
@@ -141,6 +144,8 @@ __all__ = [
     "CheckHashOrRejectOnMismatchNode",
     # chain
     "ReconstructChainTailNode",
+    # ledger authority
+    "DeclineForeignLedgerCommitNode",
     "UpdateReplicationStateNode",
     "CreateLogEntryNode",
     "PersistLogEntryNode",

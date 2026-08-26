@@ -141,6 +141,26 @@ groups:
       `test/core/behaviors/test_bridge.py` asserts that the blackboard's `datalayer.actor_id` equals
       the blackboard's `actor_id`, and — as the complement — that an injected store which already
       belongs to the executing actor is passed through un-cloned.
+    exceptions:
+    - >-
+      A store that cannot name its own actor — a test double, or any
+      implementation that reports no `actor_id` — is passed through unchanged.
+      There is nothing to reconcile against, and such callers were correct
+      before per-actor storage.
+    - >-
+      An executing actor under a *different* authority than the injected store
+      keeps that store.  `clone_for_actor` succeeds for any well-formed id, so
+      re-scoping to a remote actor would mint an empty local store under its
+      name and the tree would run against nothing — no case to enrich the wire
+      object from (CM-17-002), no genesis hash to anchor the chain, so the
+      ledger commit fails outright (CLP-08-005). This is reachable in normal
+      operation: after an ownership handoff the case's CaseActor is on the
+      container that first received the report (CP-08-003) while the owner is
+      elsewhere, and the CaseActor is resolved by identity shape
+      (`.../actors/case-actor`, ADR-0041), which answers for remote containers
+      too. The wire identity is unaffected — the activity still carries the
+      CaseActor as `actor` (PCR-08-007) — and the CaseActor's canonical ledger
+      learns of it over the wire via the `cc:` copy (CLP-10-001).
     tags:
     - behavior-tree
     - persistence

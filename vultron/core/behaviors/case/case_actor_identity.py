@@ -38,7 +38,7 @@ case" direction rather than away from it. That is the special case of "an actor
 participates in many cases" where the count is one, and such a process gets its
 own first-class actor identity — not a slug suffix on somebody else's.
 
-Spec: CP-04-002, CP-08-002. Per ADR-0041.
+Spec: CP-04-003, BT-10-002. Per ADR-0041.
 """
 
 from vultron.config import get_config

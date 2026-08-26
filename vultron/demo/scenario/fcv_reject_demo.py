@@ -77,6 +77,7 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
+    resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_participants,
@@ -289,10 +290,20 @@ def _phase_invite_vendor_reject(
         "Participant count stays at 3 (Vendor not added after rejection)"
     ):
         # Give the CaseActor time to process the Reject then confirm stability.
+        #
+        # Read the CaseActor's own store: the rejection is self-contained on the
+        # CaseActor — it records that the invitee declined and has no participant
+        # effect to announce (CLP-10-006) — so no replica ever receives this
+        # entry.  Before ADR-0073 the coordinator and the CaseActor it self-hosts
+        # shared one store, which is why reading the coordinator's own replica
+        # used to find it.
         wait_for_event_type_in_ledger(
             client=coordinator_client,
             case_id=case.id_,
             event_type="reject_invite_actor_to_case",
+            dl_actor_id=resolve_case_actor_store_id(
+                coordinator_client, str(case.id_)
+            ),
         )
         wait_for_case_participants(
             vendor_client=coordinator_client,

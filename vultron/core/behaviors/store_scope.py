@@ -116,10 +116,18 @@ def store_for_actor(
     clone_for_actor = getattr(store, "clone_for_actor", None)
     if not callable(clone_for_actor):
         return store
+    # An actor id is a public identifier, not a credential: it is the URL
+    # outbound delivery POSTs an inbox to, and it appears in every AS2 activity
+    # on the wire.  CodeQL classifies it as a secret because one of the fields
+    # it can be read from is named
+    # `VultronReportCaseLink.trusted_case_actor_id`, and the heuristic keys on
+    # "trust" in the name rather than on the value.  Suppressed rather than
+    # renamed: the field name states the bootstrap-trust relation CBT-01-005
+    # and CBT-01-006 define.
     logger.debug(
         "Scoping DataLayer from actor '%s' to actor '%s'",
         own_actor_id,
-        actor_id,
+        actor_id,  # codeql[py/clear-text-logging-sensitive-data]
     )
     # `clone_for_actor` came from getattr, so it is untyped. The cast is safe
     # because every port that declares the method declares it as returning that

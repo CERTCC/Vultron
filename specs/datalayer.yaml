@@ -113,6 +113,8 @@ groups:
       `vultron/core/ports/case_persistence.py` is a spec defect rather than a code one. `get` and `by_type`
       were listed here until ADR-0073 and are deliberately absent now: they are not declared on the Protocol
       and have no remaining core call site (see DL-04-005).
+    adr:
+    - ADR-0073
   - id: DL-04-003
     lint_suppress:
     - rationale_too_long
@@ -140,6 +142,8 @@ groups:
       so that an unscoped DataLayer could name the actor explicitly, and every one of its call sites passed
       the executing actor's own id, so under a mandatory actor scope it was exactly `outbox_append`. Keeping
       both would have preserved a way to write to a queue that is not the store's own.
+    adr:
+    - ADR-0073
   - id: DL-04-005
     priority: MUST
     kind: project

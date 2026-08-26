@@ -12,7 +12,10 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
+from vultron.core.behaviors.sync.nodes import (
+    CreateLogEntryNode,
+    DeclineForeignLedgerCommitNode,
+)
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -86,14 +89,19 @@ def _make_entry(log_index: int, prev_hash: str):
 
 
 @pytest.mark.spec("CLP-02-001")
-def test_create_commit_log_entry_tree_returns_sequence():
+@pytest.mark.spec("BT-05-006")
+def test_create_commit_log_entry_tree_guards_the_mint():
+    """The four commit nodes sit behind the ledger-authority guard (ADR-0073)."""
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-1",
         event_type="case_created",
     )
     assert tree.name == "CommitLogEntryBT"
-    assert len(tree.children) == 4
+    guard, mint = tree.children
+    assert isinstance(guard, DeclineForeignLedgerCommitNode)
+    assert mint.name == "MintAndFanOutLogEntry"
+    assert len(mint.children) == 4
 
 
 @pytest.mark.spec("CLP-02-001")
@@ -210,7 +218,70 @@ def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
         event_type="case_created",
     )
     create_node = next(
-        c for c in tree.children if isinstance(c, CreateLogEntryNode)
+        c for c in tree.iterate() if isinstance(c, CreateLogEntryNode)
     )
     assert create_node.payload_snapshot == {}
     assert create_node.payload_snapshot is not None
+
+
+@pytest.mark.spec("BT-05-006")
+@pytest.mark.spec("CLP-08-005")
+@pytest.mark.spec("CLP-10-001")
+def test_commit_tree_declines_to_mint_for_a_foreign_ledger(
+    bridge, datalayer, case_obj
+):
+    """A delegated emit against a remote CaseActor must not claim an index.
+
+    This is the post-handoff shape from #2626: the case owner emits as the
+    case's CaseActor, which lives on another container, so ``BTBridge`` hands
+    the tree the *owner's* store (BT-05-005).  Minting here would fork the
+    canonical chain — the real CaseActor mints its own entry at the same index
+    from the ``cc:`` copy — so the commit is declined and the entry is left to
+    arrive by replication (CLP-10-001).
+    """
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-remote",
+        event_type="invite_actor_to_case",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-remote"
+        ),
+    )
+
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id="https://other.example.net/actors/case-actor",
+        sync_port=sync_port,
+    )
+
+    # SUCCESS, because declining *is* handling it — every caller reads a
+    # non-SUCCESS commit as a hard failure.
+    assert result.status == Status.SUCCESS
+    assert list(datalayer.list_objects("CaseLedgerEntry")) == []
+    sync_port.send_announce_log_entry.assert_not_called()
+
+
+@pytest.mark.spec("BT-05-006")
+@pytest.mark.parametrize(
+    "actor_id,expected",
+    [
+        # This store's own actor, and a CaseActor co-hosted with it: the bridge
+        # can hand the tree that actor's store, so the mint is this store's to
+        # make and the guard stands aside.
+        (OWNER_ACTOR_ID, Status.FAILURE),
+        ("https://example.org/actors/case-actor", Status.FAILURE),
+        # Another container's CaseActor — the post-handoff shape.
+        ("https://other.example.net/actors/case-actor", Status.SUCCESS),
+    ],
+)
+def test_decline_foreign_ledger_commit_only_declines_foreign(
+    bridge, actor_id, expected
+):
+    """FAILURE means "go commit"; SUCCESS means "declined, not ours to mint"."""
+    result = bridge.execute_with_setup(
+        tree=DeclineForeignLedgerCommitNode(name="Guard"),
+        actor_id=actor_id,
+    )
+
+    assert result.status == expected

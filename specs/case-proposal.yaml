@@ -235,6 +235,8 @@ groups:
       spec_id: CP-04-003
     - rel_type: refines
       spec_id: DL-07-001
+    adr:
+    - ADR-0073
 - id: CP-05
   title: Protocol Flow — Receiving (Case-Actor Side)
   specs:

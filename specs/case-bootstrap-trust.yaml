@@ -75,6 +75,8 @@ groups:
       spec_id: CM-02-010
     - rel_type: refines
       spec_id: PCR-01-002
+    adr:
+    - ADR-0073
     stories:
     - story_2022_046
     - story_2022_092

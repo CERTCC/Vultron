@@ -165,9 +165,9 @@ class BTBridge:
 
         Scoping is skipped unless the DataLayer reports a concrete ``actor_id``
         that differs, which leaves test doubles and any non-actor-scoped
-        implementation untouched.  BT-05-005 records those fall-throughs as its
-        one exception: a store that cannot name its own actor has nothing to
-        reconcile against.
+        implementation untouched.  That fall-through is the first of BT-05-005's
+        two recorded exceptions: a store that cannot name its own actor has
+        nothing to reconcile against.
 
         The guard logic itself lives in
         :func:`~vultron.core.behaviors.store_scope.store_for_actor` so that this
@@ -175,7 +175,8 @@ class BTBridge:
         cannot drift apart on what "that actor's store" means.
 
         ``require_same_authority`` is set, and the fall-through is the point of
-        it.  The executing actor is not always one this node hosts: after a
+        it — BT-05-005's second exception.  The executing actor is not always one
+        this node hosts: after a
         handoff the case's CaseActor is on the container that first received the
         report (CP-08-003) while the owner is elsewhere, and
         ``_find_case_actor_id`` resolves it by *identity shape*
@@ -195,6 +196,15 @@ class BTBridge:
         only way a remote store ever can, over the wire via the ``cc:`` copy
         (CLP-10-001).  Callers that queue work for the executing actor must fall
         back the same way; see ``trigger_invite_actor_to_case``.
+
+        That last part is enforced, not merely intended: a *ledger commit* must
+        not ride along on this fall-through, or the requester mints a canonical
+        index in its own replica while the real CaseActor mints its own from the
+        ``cc:`` copy and the chain forks (#2626).
+        :class:`~vultron.core.behaviors.sync.nodes.ledger_authority.DeclineForeignLedgerCommitNode`
+        makes ``CommitLogEntryBT`` decline in exactly the case this method falls
+        through on, reusing this same guard so the two cannot disagree
+        (CLP-10-014).
 
         Reconciling the store is necessary but not sufficient — see
         :meth:`_ports_for_store` for the other half.

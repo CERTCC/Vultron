@@ -250,6 +250,7 @@ groups:
       with HTTP 400 and no record is written to the actor's store.
     adr:
     - ADR-0068
+    - ADR-0073
     stories:
     - story_2022_039
     - story_2022_040

@@ -136,9 +136,12 @@ Concretely:
   column, `get_shared_dl()`, and `get_datalayer()`-with-no-actor are deleted.
 - The URL path segment is resolved to a canonical actor URI by **computation**,
   not lookup: `VULTRON_SERVER__BASE_URL + "actors/" + segment`. This removes
-  the last genuine need for a cross-actor scan. It holds for runtime-created
-  CaseActors, whose IDs are already
-  `{case_actor_service_url}/actors/case-actor-{slug}`.
+  the last genuine need for a cross-actor scan. It holds for CaseActors too,
+  whose id is the container-level `{base_url}/actors/case-actor` under
+  ADR-0041 — one per container, not one per case. The per-case
+  `case-actor-{slug}` form this ADR was first drafted against is deleted by
+  the same change, so the co-location discussion below — which speaks of
+  CaseActors per container — is the one this bullet must be read against.
 - `record_outbox_item(actor_id, …)` and `outbox_list_for_actor(actor_id)`
   collapse into `outbox_append()` / `outbox_list()` at **all** call sites. The
   explicit-actor form existed because the injected DataLayer might be unscoped,
@@ -297,6 +300,22 @@ Concretely:
   #2548 store split became irreversible rather than merely late, and it belongs
   here because per-actor isolation is what makes "not yet" a routine state
   instead of a rare one.
+
+- **Only the ledger's own store mints its indices.** Normative as CLP-10-014.
+  Per-actor isolation turns a log index into a claim one store makes, so two
+  stores claiming the same index fork the chain instead of colliding in it. The
+  delegated-emit path is where the second claimant comes from: a trigger the case
+  *owner* runs emits as the case's CaseActor, and BT-05-005's foreign-authority
+  exception deliberately leaves that tree running in the requester's store so the
+  activity can actually be delivered. The ledger commit must not ride along on
+  that exception. Before this decision the two commits could not be told apart,
+  because a container's single store *was* both the owner's and the co-located
+  CaseActor's — which is precisely the conflation the previous bullet rejects as a
+  back-end cheat. `CommitLogEntryBT` therefore declines when the actor it executes
+  as is not one this container hosts, and the entry arrives by replication from
+  the canonical log instead (#2626). Nothing is lost: the activity still carries
+  the CaseActor as `cc:`, which is the only way a remote store ever learns
+  anything (CLP-10-001).
 
 This supersedes the "DataLayer isolation strategy" half of ADR-0012, which
 chose *Option B — namespace prefix per actor in one file*. ADR-0012's other

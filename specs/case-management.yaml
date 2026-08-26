@@ -2723,6 +2723,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
+    adr:
+    - ADR-0073
   - id: CM-24-005
     priority: MUST
     kind: architecture

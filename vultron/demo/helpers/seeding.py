@@ -22,7 +22,7 @@ a clean baseline before a demo run.
 
 import logging
 from collections.abc import Callable, Sequence
-from typing import Tuple, cast
+from typing import Tuple
 from urllib.parse import quote
 
 from vultron.demo.utils import (
@@ -31,8 +31,8 @@ from vultron.demo.utils import (
     demo_step,
     seed_actor,
 )
+from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -1145,27 +1145,6 @@ def _seed_reporter_participant(
     )
 
 
-def _store_for_actor(dl: "DataLayer", actor_id: str) -> "DataLayer":
-    """Return *actor_id*'s own store, given any actor's *dl*.
-
-    ``clone_for_actor`` is the only sanctioned route to another actor's store
-    (ADR-0073 decision 7), so writing a record into a store other than the one
-    we were handed reads as the cross-actor act it is.  Falls back to *dl* when
-    the port does not offer cloning, which keeps the seeding helpers usable with
-    test doubles — hence the ``getattr`` probes below rather than a bare
-    attribute access, even though the annotation names the port.
-    """
-    if getattr(dl, "actor_id", None) == actor_id:
-        return dl
-    clone_for_actor = getattr(dl, "clone_for_actor", None)
-    if not callable(clone_for_actor):
-        return dl
-    # ``getattr`` erases the port's signature, so the cast restores what
-    # ``DataLayer.clone_for_actor`` already promises rather than asserting
-    # anything new.
-    return cast("DataLayer", clone_for_actor(actor_id))
-
-
 def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     import uuid as _uuid
 
@@ -1191,18 +1170,27 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # CaseActor succeeds.  The record goes in the CaseActor's *own* store,
     # because that is what makes it a hosted actor: the inbox route computes the
     # canonical URI from the path segment and resolves the actor from the store
-    # that URI names (ADR-0073 decision 2), so a copy sitting in the seeding
-    # actor's store leaves `POST /actors/case-actor-…/inbox/` answering
-    # `404 Actor not found` and the CaseProposal round-trip never starts.
-    # (Pre-ADR-0073 this wrote to the one shared store, where "some row exists"
-    # and "this actor is hosted" were the same thing.)
+    # that URI names (ADR-0073), so a copy sitting in the seeding actor's store
+    # leaves `POST /actors/case-actor/inbox/` answering `404 Actor not found`
+    # and the CaseProposal round-trip never starts.  (Pre-ADR-0073 this wrote to
+    # the one shared store, where "some row exists" and "this actor is hosted"
+    # were the same thing.)
+    #
+    # `store_for_actor` rather than a local clone helper: it is the one place
+    # that answers "which store belongs to this actor?" (DL-07-005), and the
+    # demo seeders drifting from the bridge on that answer is what made the
+    # three earlier copies disagree about test doubles.  The seeding actor and
+    # the CaseActor are always on this container here — `case_actor_identity()`
+    # computes the id from this node's own base URL — so the same-authority
+    # guard would never fire, and the `or dl` fall-back keeps a port that
+    # cannot clone (a test double) working exactly as before.
     actor_obj = CaseActor(
         id_=case_actor_id,
         name=f"CaseActor for {case_id}",
         attributed_to=case_actor_id,
         context=case_id,
     )
-    own_store = _store_for_actor(dl, case_actor_id)
+    own_store = store_for_actor(dl, case_actor_id) or dl
     try:
         own_store.create(actor_obj)
     except ValueError:

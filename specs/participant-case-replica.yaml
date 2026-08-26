@@ -74,6 +74,8 @@ groups:
       spec_id: AKM-01-002
     - rel_type: implements
       spec_id: DL-07-001
+    adr:
+    - ADR-0073
     stories:
     - story_2022_088
 - id: PCR-02

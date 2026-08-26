@@ -285,6 +285,7 @@ def wait_for_event_type_in_ledger(
     event_type: str,
     timeout_seconds: float = 20.0,
     poll_interval: float = 0.5,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *event_type* appears.
 
@@ -301,6 +302,14 @@ def wait_for_event_type_in_ledger(
         event_type: The ``event_type`` value to wait for (e.g. ``"close_case"``).
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Read this actor's store instead of *client*'s own.  Pass
+            :func:`resolve_case_actor_store_id` when the entry being waited for
+            is one only the CaseActor commits: under ADR-0073 the CaseActor's
+            store is not its host's, so an event that reaches a participant's
+            replica only if the CaseActor ledgers *and replicates* it is not
+            observable in the host's store at all.  ``reject_invite_actor_to_case``
+            is the case in point — the rejection is self-contained on the
+            CaseActor (CLP-10-006) with no participant effect to announce.
 
     Raises:
         AssertionError: If no entry with *event_type* appears within
@@ -308,7 +317,9 @@ def wait_for_event_type_in_ledger(
     """
 
     def _check() -> bool:
-        raw = client.get(client.dl_path("CaseLedgerEntrys/"))
+        raw = client.get(
+            client.dl_path("CaseLedgerEntrys/", actor_id=dl_actor_id)
+        )
         if not isinstance(raw, dict):
             return False
         for v in raw.values():

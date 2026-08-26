@@ -131,11 +131,15 @@ class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
         )
 
     def _handle_result(self) -> None:
+        # See the note in `vultron/core/behaviors/store_scope.py`: a CaseActor
+        # id is a public delivery address, and CodeQL reads it as a secret only
+        # because `VultronReportCaseLink.trusted_case_actor_id` is one of the
+        # fields it can reach this line from.
         logger.info(
             "Actor '%s' accepted actor recommendation offer '%s' → CaseActor '%s'",
             self._actor_id,
             self._cp_offer_id,
-            self._case_actor_id,
+            self._case_actor_id,  # codeql[py/clear-text-logging-sensitive-data]
         )
 
 
