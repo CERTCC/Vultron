@@ -185,13 +185,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             )
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "remove_embargo_from_case: missing receiving_actor_id"
-                " — skipping"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         # The tree embeds the guarded commit as its final step (ADR-0021,
         # CLP-10-002, CLP-10-003).  Running it with actor_id=receiving_actor_id
@@ -257,7 +253,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         )
 
         request = self._request
-        invitee_id = request.receiving_actor_id or ""
         case_id = request.context_id or ""
         invite_id = request.activity_id
 
@@ -265,13 +260,10 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             logger.warning("invite_to_embargo_on_case: missing activity_id")
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "invite_to_embargo_on_case: missing receiving_actor_id"
-                " — skipping"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        invitee_id = receiving_actor_id
 
         # EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
         if case_id and _pxa_embargo_ineligible(self._dl, case_id):
@@ -372,13 +364,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "accept_invite_to_embargo_on_case: missing receiving_actor_id"
-                " — skipping"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
         if not isinstance(_case, VulnerabilityCase):

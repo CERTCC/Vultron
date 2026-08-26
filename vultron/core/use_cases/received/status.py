@@ -173,13 +173,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "AddParticipantStatusToParticipantReceivedUseCase:"
-                " receiving_actor_id not set — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.status.add_participant_status_tree import (

@@ -81,6 +81,13 @@ class InviteActorToCaseReceivedUseCase:
         receiving_actor_id = request.receiving_actor_id
 
         if receiving_actor_id is None:
+            # Invitee path: this branch is deliberately NOT converted to
+            # resolve_receiving_actor_id() because the receiving actor is the
+            # *invitee* — an actor who does not yet own the case store.  Routing
+            # work into the store owner would silently create state in the wrong
+            # actor's database.  The stub-creation and log below are safe because
+            # they use self._dl directly (the caller's store), not an actor-scoped
+            # DataLayer.  (See issue #2446 AC-2.)
             # Invitee path: store idempotently and log the case-stub reference.
             _idempotent_create(
                 self._dl,

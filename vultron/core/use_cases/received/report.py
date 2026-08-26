@@ -251,14 +251,9 @@ class SubmitReportReceivedUseCase:
         if not request.report_id:
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.warning(
-                "SubmitReportReceivedUseCase: receiving_actor_id not set for "
-                "report '%s' — skipping case creation",
-                request.report_id,
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         if not _is_primary_submit_report_recipient(
             request, receiving_actor_id
@@ -319,13 +314,9 @@ class ValidateReportReceivedUseCase:
                 "ValidateReportReceivedEvent requires report_id and offer_id"
             )
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "ValidateReportReceivedUseCase: receiving_actor_id not set"
-                " — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s' (receiving='%s')",
@@ -429,13 +420,9 @@ class AckReportReceivedUseCase:
     def execute(self) -> None:
         request = self._request
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "AckReportReceivedUseCase: receiving_actor_id not set"
-                " — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         # Resolve case_id for the guarded-commit subtree.
         report_id = request.report_id

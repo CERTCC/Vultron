@@ -19,6 +19,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -78,13 +79,9 @@ class CloseCaseReceivedUseCase:
             logger.warning("close_case: missing case_id")
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "CloseCaseReceivedUseCase: missing receiving_actor_id"
-                " — skipping commit (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         logger.info(
             "Actor '%s' is closing case '%s'",
