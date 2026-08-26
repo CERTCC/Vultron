@@ -238,7 +238,7 @@ def finder_asks_question(
     vendor: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
-) -> as_Note:
+) -> as_Note | None:
     """Scenario alias: finder adds a question note to the case.
 
     Maintained for backward compatibility; prefer
@@ -264,8 +264,8 @@ def vendor_replies_to_question(
     vendor: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
-    question_note: as_Note,
-) -> as_Note:
+    question_note: as_Note | None,
+) -> as_Note | None:
     """Scenario alias: vendor adds a reply note to the case.
 
     Maintained for backward compatibility; prefer
@@ -283,7 +283,7 @@ def vendor_replies_to_question(
             "workaround. A patched version is expected within 30 days. "
             "We will notify all case participants when it is available."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
 

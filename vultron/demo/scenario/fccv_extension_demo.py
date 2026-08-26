@@ -546,7 +546,7 @@ def _phase_notes_exchange(
     c2_in_c2: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note, as_Note, as_Note, as_Note]:
+) -> tuple[as_Note | None, as_Note | None, as_Note | None, as_Note | None]:
     """Run a four-way note exchange among all participants."""
     logger.info("─" * 80)
     logger.info("Phase 4: Notes exchange")
@@ -572,7 +572,7 @@ def _phase_notes_exchange(
         note_content=(
             "Yes, disabling the affected module is an effective interim workaround."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     c2_note = participant_adds_note_to_case(
@@ -585,7 +585,7 @@ def _phase_notes_exchange(
             "We have confirmed that C2 and Vendor are engaged. "
             "Target disclosure in 30 days."
         ),
-        in_reply_to=c1_reply.id_,
+        in_reply_to=c1_reply.id_ if c1_reply is not None else None,
     )
 
     vendor_note = participant_adds_note_to_case(
@@ -598,7 +598,7 @@ def _phase_notes_exchange(
             "Vendor can confirm the issue affects our component. "
             "We will align our fix timeline with the 30-day target."
         ),
-        in_reply_to=c2_note.id_,
+        in_reply_to=c2_note.id_ if c2_note is not None else None,
     )
 
     logger.info(
