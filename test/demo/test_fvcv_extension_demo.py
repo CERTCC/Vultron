@@ -504,6 +504,7 @@ class TestFvcvExtensionMilestoneAssertions:
         case = self._case()
 
         with (
+            patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready"),
             patch.object(demo, "wait_for_participant_vfd_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,

@@ -28,6 +28,7 @@ from typing import Optional, Tuple
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -632,61 +633,74 @@ def _phase_fix_lifecycle(
     )
     logger.info("─" * 80)
 
-    actor_notifies_fix_ready(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
+        )
+        actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor_in_vendor,
+            case_id=case.id_,
         )
 
-    with demo_gate("M4/M5: finder replica reflects fix-ready vfd_state"):
-        wait_for_participant_vfd_state(
-            client=finder_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
-        )
-        with demo_check("M4: both replicas show CS includes F (fix ready)"):
+        with demo_check(
+            "Vendor participant vfd_state transitions to VFd or VFD"
+        ):
             wait_for_participant_vfd_state(
                 client=vendor_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
                 expected_states={CS_vfd.VFd, CS_vfd.VFD},
             )
-            verify_fix_ready(
-                receiver_client=vendor_client,
-                reporter_client=finder_client,
-                case_id=case.id_,
-                receiver_actor_id=vendor.id_,
-            )
-        with demo_check(
-            "M5: both replicas show CS includes F (fix ready) — vendor stops at VFd"
-        ):
-            wait_for_participant_vfd_state(
-                client=vendor_client,
-                case_id=case.id_,
-                actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd},
-            )
+
+        with demo_gate("M4/M5: finder replica reflects fix-ready vfd_state"):
             wait_for_participant_vfd_state(
                 client=finder_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd},
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
             )
-            verify_fix_ready(
-                receiver_client=vendor_client,
-                reporter_client=finder_client,
-                case_id=case.id_,
-                receiver_actor_id=vendor.id_,
-            )
+            with demo_check(
+                "M4: both replicas show CS includes F (fix ready)"
+            ):
+                wait_for_participant_vfd_state(
+                    client=vendor_client,
+                    case_id=case.id_,
+                    actor_id=vendor.id_,
+                    expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                )
+                verify_fix_ready(
+                    receiver_client=vendor_client,
+                    reporter_client=finder_client,
+                    case_id=case.id_,
+                    receiver_actor_id=vendor.id_,
+                )
+            with demo_check(
+                "M5: both replicas show CS includes F (fix ready) — vendor stops at VFd"
+            ):
+                wait_for_participant_vfd_state(
+                    client=vendor_client,
+                    case_id=case.id_,
+                    actor_id=vendor.id_,
+                    expected_states={CS_vfd.VFd},
+                )
+                wait_for_participant_vfd_state(
+                    client=finder_client,
+                    case_id=case.id_,
+                    actor_id=vendor.id_,
+                    expected_states={CS_vfd.VFd},
+                )
+                verify_fix_ready(
+                    receiver_client=vendor_client,
+                    reporter_client=finder_client,
+                    case_id=case.id_,
+                    receiver_actor_id=vendor.id_,
+                )
 
 
 def _phase_publication(

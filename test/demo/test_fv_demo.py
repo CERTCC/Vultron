@@ -2132,6 +2132,7 @@ class TestFvMilestoneAssertions:
         case = self._case()
 
         with (
+            patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready"),
             patch.object(demo, "wait_for_participant_vfd_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
@@ -2151,6 +2152,58 @@ class TestFvMilestoneAssertions:
                 case=case,
             )
         mock_m4.assert_called()
+
+    def test_phase_fix_lifecycle_gates_on_rm_accepted(self):
+        """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        case = self._case()
+
+        call_order = []
+
+        mock_rm_wait = MagicMock(
+            side_effect=lambda *a, **kw: call_order.append("rm_wait")
+        )
+        mock_fix_ready = MagicMock(
+            side_effect=lambda *a, **kw: call_order.append("fix_ready")
+        )
+
+        with (
+            patch.object(demo, "wait_for_participant_rm_state", mock_rm_wait),
+            patch.object(demo, "actor_notifies_fix_ready", mock_fix_ready),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_fix_ready"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_fix_lifecycle(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+            )
+
+        assert (
+            mock_rm_wait.called
+        ), "wait_for_participant_rm_state must be called before notify-fix-ready"
+        rm_call = mock_rm_wait.call_args_list[0]
+        assert rm_call.kwargs.get("expected_states") == {
+            RM.ACCEPTED,
+            RM.DEFERRED,
+            RM.CLOSED,
+        }, "expected_states must be {ACCEPTED, DEFERRED, CLOSED}"
+        assert "rm_wait" in call_order and "fix_ready" in call_order
+        assert call_order.index("rm_wait") < call_order.index(
+            "fix_ready"
+        ), "wait_for_participant_rm_state must be called before actor_notifies_fix_ready"
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""
