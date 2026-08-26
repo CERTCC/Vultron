@@ -110,7 +110,6 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/wire/as2/vocab/base/base.py",
         "vultron/wire/as2/vocab/base/objects/base.py",
         "vultron/wire/as2/vocab/base/registry.py",
-        "vultron/wire/as2/vocab/examples/_base.py",
         "vultron/wire/as2/vocab/objects/case_actor.py",
         "vultron/wire/as2/vocab/objects/case_ledger_entry.py",
         "vultron/wire/as2/vocab/objects/case_participant.py",
