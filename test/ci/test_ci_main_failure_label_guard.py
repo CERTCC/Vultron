@@ -55,15 +55,18 @@ def test_guard_workflow_has_issues_write_permission() -> None:
     data = _load()
     # permissions may be at workflow level or job level
     workflow_perms = data.get("permissions", {})
-    if isinstance(workflow_perms, dict):
-        assert (
-            workflow_perms.get("issues") == "write"
-        ), "Workflow-level permissions must include 'issues: write' (CISEC-05-005)."
-        extra = {k: v for k, v in workflow_perms.items() if k != "issues"}
-        assert not extra, (
-            f"Workflow should have minimal permissions (issues: write only). "
-            f"Extra permissions found: {extra}"
-        )
+    assert isinstance(workflow_perms, dict), (
+        "Workflow permissions must be a scoped dict, not a broad string like "
+        "'write-all' (CISEC-05-005)."
+    )
+    assert (
+        workflow_perms.get("issues") == "write"
+    ), "Workflow-level permissions must include 'issues: write' (CISEC-05-005)."
+    extra = {k: v for k, v in workflow_perms.items() if k != "issues"}
+    assert not extra, (
+        f"Workflow should have minimal permissions (issues: write only). "
+        f"Extra permissions found: {extra}"
+    )
 
 
 def test_guard_workflow_filters_to_ci_main_failure_label() -> None:
