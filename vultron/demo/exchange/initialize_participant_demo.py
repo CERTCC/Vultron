@@ -74,6 +74,7 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 
+from vultron.demo.helpers.polling import wait_for_initialized_case
 from vultron.demo.helpers.runner import run_exchange_demos
 
 logger = logging.getLogger(__name__)
@@ -84,18 +85,9 @@ def _find_canonical_case(
 ) -> as_VulnerabilityCase:
     """Discover the canonical VulnerabilityCase created by the CaseActor.
 
-    After ProposeReportCaseToActorNode runs during report validation, the
-    CaseActor creates the canonical case with the vendor, reporter, and
-    CaseActor as initial participants.  This helper discovers it by listing that
-    actor's VulnerabilityCase objects and returning the first one with
-    participants.
-
-    The list is read from the **CaseActor's** store, because that is where the
-    canonical case is authored (ADR-0041) and each actor now holds only its own
-    replica (CM-01-001).  Reading the vendor's store instead finds nothing here:
-    the CaseActor's ``Create(VulnerabilityCase)`` is what would seed the vendor,
-    and in the single-container demo environment that delivery is not guaranteed
-    to have landed yet.
+    Delegates to :func:`~vultron.demo.helpers.polling.wait_for_initialized_case`
+    so the lookup polls until the CaseActor's BT completes (ISSUE-2359) rather
+    than doing a one-shot read that races initialisation.
 
     Args:
         client: DataLayerClient for the container hosting both actors.
@@ -103,23 +95,10 @@ def _find_canonical_case(
             URI is derived from it.
 
     Raises:
-        ValueError: If no initialized VulnerabilityCase is found.
+        AssertionError: If no initialized VulnerabilityCase appears within the
+            default timeout.
     """
-    case_actor_id = case_actor_id_for_report(report_id)
-    cases_by_id: dict = client.get(
-        client.dl_path("VulnerabilityCases/", actor_id=case_actor_id)
-    )
-    for case_raw in cases_by_id.values():
-        try:
-            case = as_VulnerabilityCase(**case_raw)
-            if case.case_participants:
-                return case
-        except Exception:
-            continue
-    raise ValueError(
-        "No initialized VulnerabilityCase found in the CaseActor's store"
-        f" ({case_actor_id}) after report validation"
-    )
+    return wait_for_initialized_case(client, report_id)
 
 
 def setup_case_precondition(

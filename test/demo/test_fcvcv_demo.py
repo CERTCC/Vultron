@@ -117,8 +117,20 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             patch.object(
                 demo, "run_invite_path_rm_triage", side_effect=_triage
             ),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
             patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_gate",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
             patch.object(
                 demo,
                 "demo_check",
@@ -363,8 +375,20 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
             patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_gate",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
             patch.object(
                 demo,
                 "demo_check",

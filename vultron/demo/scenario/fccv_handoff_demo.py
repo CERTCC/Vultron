@@ -52,6 +52,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     case_actor_id_on,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_inbox_and_wait,
     post_to_trigger,
@@ -86,6 +87,7 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
+    find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_attributed_to,
     wait_for_case_em_terminated,
@@ -93,7 +95,6 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
-    wait_for_object_stored,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -337,16 +338,15 @@ def _phase_ownership_handoff(
         ownership_offer.id_,
     )
 
-    with demo_check(
-        "Ownership transfer offer delivered to C2's DataLayer (TRIG-11-001)"
+    ownership_offer_id = None
+    with demo_gate(
+        "CaseActor-forwarded Offer(VulnerabilityCase) delivered to C2 (TRIG-11-001)"
     ):
-        wait_for_object_stored(
+        ownership_offer_id = find_ownership_transfer_offer_for_actor(
             client=c2_client,
-            obj_id=ownership_offer.id_,
-            timeout_seconds=90.0,
+            case_id=case.id_,
+            transferee_id=c2.id_,
         )
-
-    ownership_offer_id = ownership_offer.id_
     logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
 
     # C2 accepts the ownership transfer (TRIG-11-002).

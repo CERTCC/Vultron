@@ -57,6 +57,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     assert_demo_success,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_inbox_and_wait,
     post_to_trigger,
@@ -251,12 +252,15 @@ def _phase_report_submission(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("C2 invite created: %s", invite.id_)
 
-    # Deliver the invite to C2's inbox.
-    with demo_step("Delivering invite to C2's inbox"):
-        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, invite)
-
-    with demo_check("C2 invite stored in C2's DataLayer"):
-        verify_object_stored(c2_client, invite.id_)
+    # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
+    invite_id = None
+    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
+        invite_id = find_case_invite_for_actor(
+            client=c2_client,
+            case_id=case.id_,
+            invitee_id=c2.id_,
+        )
+    logger.info("CaseActor Invite for C2: %s", invite_id)
 
     # C2 accepts the invite.
     with demo_step("C2 accepts the case invitation"):
@@ -264,7 +268,7 @@ def _phase_report_submission(
             client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite.id_},
+            body={"invite_id": invite_id},
         )
 
     # Wait for C2's container to replicate the case.
