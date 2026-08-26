@@ -285,13 +285,15 @@ def _phase_ownership_handoff(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("C2 invite created: %s", invite.id_)
 
-    with demo_check("C2 invite delivered to C2's DataLayer"):
-        find_case_invite_for_actor(
+    invite_id = None
+    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
+        invite_id = find_case_invite_for_actor(
             client=c2_client,
             case_id=case.id_,
             invitee_id=c2.id_,
             timeout_seconds=90.0,
         )
+    logger.info("CaseActor Invite for C2: %s", invite_id)
 
     # C2 accepts the invite.
     with demo_step("C2 accepts the case invitation"):
@@ -299,7 +301,7 @@ def _phase_ownership_handoff(
             client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite.id_},
+            body={"invite_id": invite_id},
         )
 
     # Wait for C2's case replica.
