@@ -28,11 +28,12 @@ Defects covered:
    participant fetch returns 404, builds an empty list and calls
    ``all_participants_rm_closed([])`` → ``True`` (vacuous convergence).
 
-3. ``polling.py:wait_for_case_participants`` — compares
+3. ``polling.py:wait_for_case_participants`` — previously compared
    ``len(case.case_participants) >= expected_count``; ``case_participants``
    is ``list[as_CaseParticipantRef]`` which can hold bare string IDs, so
-   the count is satisfied even when no real ``CaseParticipant`` objects
-   exist.
+   the count was satisfied even when no real ``CaseParticipant`` objects
+   existed.  Fixed by switching to identity-based subset check on
+   ``actor_participant_index``.
 
 4. ``polling.py:_wait_for_participant_status_field`` — timeout
    ``AssertionError`` message includes only the actor URI; the container
@@ -186,9 +187,9 @@ def test_wait_for_case_participants_does_not_count_id_strings():
     when no real ``CaseParticipant`` objects existed — the bug the fix for
     #2233 was supposed to catch.
 
-    After the fix the check uses ``len(case.actor_participant_index)``
-    instead; that map is only populated when a participant record is actually
-    created, so it cannot be fooled by bare string IDs.
+    After the fix the check uses an identity-based subset check on
+    ``actor_participant_index`` instead of counting ``case_participants``.
+    An empty index never satisfies any non-empty ``expected_actor_ids`` set.
     """
     case_payload = {
         "id": _CASE_ID,
@@ -205,7 +206,7 @@ def test_wait_for_case_participants_does_not_count_id_strings():
         wait_for_case_participants(
             vendor_client=cast(DataLayerClient, client),
             case_id=_CASE_ID,
-            expected_count=2,
+            expected_actor_ids={_RECEIVER_ID, _REPORTER_ID},
             timeout_seconds=0.1,
             poll_interval=0.01,
         )

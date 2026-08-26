@@ -195,7 +195,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, VENDOR_ACTOR_ID},
     )
 
     with demo_check(
@@ -250,7 +250,11 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+            VENDOR2_ACTOR_ID,
+        },
     )
 
     # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
@@ -337,12 +341,20 @@ def _phase_sync_verification(
     wait_for_case_participants(
         vendor_client=finder_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+            VENDOR2_ACTOR_ID,
+        },
     )
     wait_for_case_participants(
         vendor_client=vendor2_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+            VENDOR2_ACTOR_ID,
+        },
     )
 
     with demo_check(

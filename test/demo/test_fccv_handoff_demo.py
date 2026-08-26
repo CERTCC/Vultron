@@ -172,7 +172,7 @@ class TestResetContainersFccv:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for _wait_for_case_attributed_to
+# Unit tests for wait_for_case_attributed_to
 # ---------------------------------------------------------------------------
 
 
@@ -184,7 +184,7 @@ class TestWaitForCaseAttributedTo:
         client.get.return_value = {
             "attributedTo": {"id": "http://c2/actors/c2"}
         }
-        demo._wait_for_case_attributed_to(
+        demo.wait_for_case_attributed_to(
             client=client,
             case_id="urn:uuid:case-1",
             expected_attributed_to="http://c2/actors/c2",
@@ -198,7 +198,7 @@ class TestWaitForCaseAttributedTo:
             "attributedTo": {"id": "http://c1/actors/c1"}
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._wait_for_case_attributed_to(
+            demo.wait_for_case_attributed_to(
                 client=client,
                 case_id="urn:uuid:case-1",
                 expected_attributed_to="http://c2/actors/c2",
@@ -209,7 +209,7 @@ class TestWaitForCaseAttributedTo:
     def test_accepts_bare_string_attributed_to(self):
         client = MagicMock()
         client.get.return_value = {"attributedTo": "http://c2/actors/c2"}
-        demo._wait_for_case_attributed_to(
+        demo.wait_for_case_attributed_to(
             client=client,
             case_id="urn:uuid:case-1",
             expected_attributed_to="http://c2/actors/c2",

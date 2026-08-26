@@ -1094,6 +1094,8 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
                 vendor2_client=vendor2_client,
+                finder=self._actor("urn:t:finder"),
+                vendor=self._actor("urn:t:vendor"),
                 coordinator=coordinator,
                 coordinator_in_coordinator=coordinator_in_coordinator,
                 case_actor_id="urn:t:ca",
@@ -1102,7 +1104,6 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 case=case,
                 offer=MagicMock(id_="urn:t:offer"),
                 report=MagicMock(),
-                finder=self._actor("urn:t:finder"),
             )
 
         assert (
@@ -1222,7 +1223,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             patch.object(demo, "find_case_invite_for_actor"),
             patch.object(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "_wait_for_case_attributed_to"),
+            patch.object(demo, "wait_for_case_attributed_to"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -1244,6 +1245,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             demo._phase_ownership_handoff(
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
+                finder=self._actor("urn:test:finder"),
                 vendor=self._actor("urn:test:vendor"),
                 vendor_in_vendor=vendor_in_vendor,
                 coordinator=coordinator,
