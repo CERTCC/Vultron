@@ -73,7 +73,7 @@ We detail each of these below or in subsequent pages:
 ## Number of Processes
 
 The processes we are concerned with represent the different Participants
-in their roles (Finder, Vendor, Coordinator, Deployer, and Other). Each
+in their roles (Reporter, Vendor, Coordinator, Deployer, and Observer). Each
 Participant has their own process, but Participants might take on
 multiple roles in a given case.
 
