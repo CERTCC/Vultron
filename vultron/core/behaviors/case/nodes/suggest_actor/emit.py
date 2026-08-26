@@ -15,13 +15,17 @@
 
 """Outbound activity emission nodes for the suggest-actor workflow (CM-16).
 
+Every node here addresses the *Case Owner*: it either records who recommended
+whom, or asks the owner to decide on that recommendation.
+
 Classes: RecordRecommendationRecommenderNode (DL-06-002),
 EmitOfferCaseParticipantToOwnerNode (CM-16-004),
-EmitAcceptActorRecommendationNode (CM-16-006),
-EmitRejectActorRecommendationNode (CM-16-007),
 EmitNoteDuplicateRecommendationToOwnerNode (CM-16-008).
-The Case Owner Accept response lives in the ``accept_offer`` submodule
-(BTND-07-004 line limit).
+
+Two sibling modules were split off this one for the BTND-07-004 line limit, both
+along that same "who is being addressed" seam: ``emit_response`` answers the
+*recommender* once the owner has decided (CM-16-006, CM-16-007), and
+``accept_offer`` holds the Case Owner's own Accept response.
 """
 
 from typing import cast
@@ -36,12 +40,52 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.behaviors.case.nodes.participant.roles import (
+    resolve_case_owner_id,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
     _snapshot_with_context,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.enums.roles import CVDRole
+
+
+def _resolve_owner_recipient(
+    dl: CasePersistence,
+    case_id: str,
+    emitting_actor_id: str,
+) -> str | None:
+    """Return the Case Owner's actor URI to address a CaseActor DM to.
+
+    The CaseActor's own copy of the case is ``attributed_to`` **itself** — it
+    authored it (CM-22-001, CP-05-003).  Addressing the Case Owner from that
+    field therefore made the CaseActor DM itself, and the owner never saw the
+    ``Offer(CaseParticipant)`` it was required to decide on (CM-16-004): the
+    fcvcv ADR-0026 chain stalled there, and ``accept-actor-recommendation``
+    returned 422 because no offer had ever arrived.
+
+    The CASE_OWNER participant role is the authoritative record of ownership
+    (CM-21-002), so resolve that first.  ``attributed_to`` stays as a fallback
+    for a store where no participant carries the role yet, but only when it
+    names somebody other than *emitting_actor_id* — a self-addressed DM is
+    never the intent, and returning ``None`` lets the caller fail loudly
+    instead of silently delivering to itself (ARCH-15-001).
+    """
+    case_obj = dl.read(case_id)
+    if isinstance(case_obj, VulnerabilityCase):
+        owner_id = resolve_case_owner_id(case_obj, dl)
+        if owner_id:
+            return owner_id
+
+    raw_owner = getattr(case_obj, "attributed_to", None)
+    fallback = getattr(raw_owner, "id_", raw_owner) or None
+    if fallback and fallback != emitting_actor_id:
+        return cast(str, fallback)
+    return None
 
 
 class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
@@ -177,13 +221,13 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
         try:
-            case_obj = self.datalayer.read(self.case_id)
-            raw_owner = getattr(case_obj, "attributed_to", None)
-            owner_id = getattr(raw_owner, "id_", raw_owner) or None
+            owner_id = _resolve_owner_recipient(
+                self.datalayer, self.case_id, self.actor_id
+            )
             if not owner_id:
                 self.feedback_message = (
-                    f"case '{self.case_id}' has no attributed_to (Case Owner) "
-                    "— cannot address Offer(CaseParticipant)"
+                    f"case '{self.case_id}' names no Case Owner other than "
+                    f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
@@ -215,8 +259,8 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                     f"ledger commit failed for "
                     f"offer_case_participant/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
@@ -229,165 +273,6 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
         except Exception as e:
             self.feedback_message = (
                 f"EmitOfferCaseParticipantToOwner failed: {e}"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-
-class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
-    """Queue AcceptActorRecommendation to the original recommender.
-
-    Used after the Case Owner accepts Offer(CaseParticipant) (CM-16-006 step 3).
-    The ``in_reply_to`` field is set to the original recommender's offer ID
-    (carried in the Case Owner's Accept via the ``origin`` field of the
-    transformed Offer) so the recommender can correlate the response.
-    """
-
-    def __init__(
-        self,
-        recommender_id: str,
-        recommendation_id: str,
-        recommended_id: str,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.recommender_id = recommender_id
-        self.recommendation_id = recommendation_id
-        self.recommended_id = recommended_id
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-        assert self.trigger_activity_factory is not None
-
-        factory = self.trigger_activity_factory  # guaranteed non-None
-        try:
-            activity_id, activity_dict = (
-                factory.emit_accept_actor_recommendation(
-                    recommender_id=self.recommender_id,
-                    recommendation_id=self.recommendation_id,
-                    recommended_id=self.recommended_id,
-                    case_id=self.case_id,
-                    actor=self.actor_id,
-                )
-            )
-            snapshot = _snapshot_with_context(activity_dict, self.case_id)
-            commit_tree = create_commit_log_entry_tree(
-                case_id=self.case_id,
-                object_id=activity_id,
-                event_type="accept_actor_recommendation",
-                payload_snapshot=snapshot,
-                disposition="recorded",
-            )
-            result = BTBridge(
-                datalayer=cast(CaseOutboxPersistence, self.datalayer)
-            ).execute_with_setup(
-                tree=commit_tree,
-                actor_id=self.actor_id,
-            )
-            if result.status != Status.SUCCESS:
-                raise RuntimeError(
-                    f"ledger commit failed for "
-                    f"accept_actor_recommendation/{self.recommended_id}"
-                )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
-            )
-            self.logger.info(
-                "%s: queued AcceptActorRecommendation to '%s' for case '%s'",
-                self.name,
-                self.recommender_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = (
-                f"EmitAcceptActorRecommendation failed: {e}"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-
-class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
-    """Queue RejectActorRecommendation to the original recommender.
-
-    Used after the Case Owner rejects Offer(CaseParticipant) (CM-16-007 step 3).
-    """
-
-    def __init__(
-        self,
-        recommender_id: str,
-        recommendation_id: str,
-        recommended_id: str,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.recommender_id = recommender_id
-        self.recommendation_id = recommendation_id
-        self.recommended_id = recommended_id
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-        assert self.trigger_activity_factory is not None
-
-        factory = self.trigger_activity_factory  # guaranteed non-None
-        try:
-            activity_id, activity_dict = (
-                factory.emit_reject_actor_recommendation(
-                    recommender_id=self.recommender_id,
-                    recommendation_id=self.recommendation_id,
-                    recommended_id=self.recommended_id,
-                    case_id=self.case_id,
-                    actor=self.actor_id,
-                )
-            )
-            snapshot = _snapshot_with_context(activity_dict, self.case_id)
-            commit_tree = create_commit_log_entry_tree(
-                case_id=self.case_id,
-                object_id=activity_id,
-                event_type="reject_actor_recommendation",
-                payload_snapshot=snapshot,
-                disposition="recorded",
-            )
-            result = BTBridge(
-                datalayer=cast(CaseOutboxPersistence, self.datalayer)
-            ).execute_with_setup(
-                tree=commit_tree,
-                actor_id=self.actor_id,
-            )
-            if result.status != Status.SUCCESS:
-                raise RuntimeError(
-                    f"ledger commit failed for "
-                    f"reject_actor_recommendation/{self.recommended_id}"
-                )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
-            )
-            self.logger.info(
-                "%s: queued RejectActorRecommendation to '%s' for case '%s'",
-                self.name,
-                self.recommender_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = (
-                f"EmitRejectActorRecommendation failed: {e}"
             )
             self.logger.error(self.feedback_message)
             return Status.FAILURE
@@ -437,13 +322,14 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
 
         factory = self.trigger_activity_factory  # guaranteed non-None
         try:
-            case_obj = self.datalayer.read(self.case_id)
-            raw_owner = getattr(case_obj, "attributed_to", None)
-            owner_id = getattr(raw_owner, "id_", raw_owner) or None
+            owner_id = _resolve_owner_recipient(
+                self.datalayer, self.case_id, self.actor_id
+            )
             if not owner_id:
                 self.feedback_message = (
-                    f"case '{self.case_id}' has no attributed_to (Case Owner) "
-                    "— cannot address duplicate-recommendation Note"
+                    f"case '{self.case_id}' names no Case Owner other than "
+                    f"'{self.actor_id}' — cannot address the "
+                    "duplicate-recommendation Note"
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
@@ -472,8 +358,8 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
                 actor=self.actor_id,
                 to=[owner_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "%s: sent duplicate-recommendation Note to Case Owner '%s'"
@@ -492,9 +378,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
 
 
 __all__ = [
-    "EmitAcceptActorRecommendationNode",
     "EmitNoteDuplicateRecommendationToOwnerNode",
     "EmitOfferCaseParticipantToOwnerNode",
-    "EmitRejectActorRecommendationNode",
     "RecordRecommendationRecommenderNode",
 ]

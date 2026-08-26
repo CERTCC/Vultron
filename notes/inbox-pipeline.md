@@ -125,7 +125,11 @@ from vultron.adapters.driving.fastapi.inbox_pipeline import (
 
 @pytest.fixture
 def test_pipeline() -> tuple[InboxPipeline, SqliteDataLayer]:
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    # `actor_id` is mandatory — no DataLayer is unscoped (ADR-0073, DL-07-002).
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://example.org/actors/vendor",
+    )
     pipeline = build_test_pipeline(dl)
     return pipeline, dl
 ```

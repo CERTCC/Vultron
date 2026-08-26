@@ -85,6 +85,32 @@ def _check_participant_embargo_acceptance(
     return find_excluded_actor_ids(case, dl)
 
 
+def _store_embedded_embargo(
+    case_obj: VulnerabilityCase, dl: CasePersistence, case_id: str
+) -> None:
+    """Store the ``EmbargoEvent`` a received case carried inline, if any.
+
+    Delegates to the BT-node helper of the same name so there is one
+    implementation; this wrapper exists so the received-side use cases can reach
+    it alongside :func:`_store_embedded_participants` rather than importing from
+    a behaviours module.
+
+    The sender carries the embargo rather than referencing it because a receiver
+    cannot dereference a URI it does not hold (AKM-03-001) — see
+    ``_case_for_wire``. Storing it is what makes this actor's own
+    ``case.active_embargo`` resolve.
+    """
+    from vultron.core.behaviors.case.nodes.announce import (
+        _store_embedded_embargo as _store,
+    )
+
+    _store(case_obj, dl)
+    logger.debug(
+        "_store_embedded_embargo: checked inline embargo for case '%s'",
+        case_id,
+    )
+
+
 def _store_embedded_participants(
     case_obj: VulnerabilityCase, dl: CasePersistence, case_id: str
 ) -> None:

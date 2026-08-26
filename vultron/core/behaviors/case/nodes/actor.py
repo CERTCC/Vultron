@@ -51,6 +51,7 @@ from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
 from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
     _drop_bare_inline_refs,
 )
+from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -194,8 +195,8 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
             activity_id, activity_dict = self._emit(
                 self.trigger_activity_factory
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
@@ -320,21 +321,27 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
             return None
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
+        assert self.datalayer is not None
+        # CP-01-007: see ProposeReportCaseToActorNode — the CaseActor cannot look
+        # the offer up in a sibling's store, so it travels on the proposal.
+        offer_id, offer_actor_id = find_offer_for_report(
+            self.datalayer, report_id
+        )
         try:
             activity_id, _ = (
                 self.trigger_activity_factory.create_case_proposal(
                     actor=self.actor_id,
                     report_id=report_id,
                     case_actor_id=case_actor_id,
+                    offer_id=offer_id,
+                    offer_actor_id=offer_actor_id,
                 )
             )
         except Exception as exc:
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity_id
-        )
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
         return activity_id
 
     def update(self) -> Status:

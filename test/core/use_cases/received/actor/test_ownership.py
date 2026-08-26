@@ -38,7 +38,10 @@ class TestOwnershipTransferUseCases:
         """OfferCaseOwnershipTransferReceivedUseCase persists the offer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot1",
@@ -68,7 +71,10 @@ class TestOwnershipTransferUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         coordinator_id = "https://example.org/users/coordinator"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=coordinator_id,
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot2",
             name="OT Case 2",
@@ -127,7 +133,10 @@ class TestOwnershipTransferUseCases:
         transferee_id = "https://example.org/users/coordinator"
         forwarded_id = "https://example.org/activities/offer_ot4_fwd"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=case_actor_id,
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot4",
@@ -205,7 +214,10 @@ class TestOwnershipTransferUseCases:
         vendor_id = "https://example.org/users/vendor-w"
         transferee_id = "https://example.org/users/coordinator-w"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=case_actor_id,
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot5",

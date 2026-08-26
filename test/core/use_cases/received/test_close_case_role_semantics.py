@@ -84,22 +84,37 @@ def _clear_blackboard():
     py_trees.blackboard.Blackboard.storage.clear()
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
+    """The store of *actor_id*, defaulting to the CaseActor.
+
+    ``_make_full_dl`` below is documented as "DataLayer as seen by the CaseActor",
+    so the CaseActor is the right default: it holds the canonical ledger these
+    tests commit to.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 def _make_full_dl(
     owner_id: str = OWNER_ID,
     extra_participant_id: str | None = VENDOR_ID,
+    store_owner_id: str = CASE_ACTOR_ID,
 ) -> SqliteDataLayer:
-    """DataLayer as seen by the CaseActor, with all participants set up.
+    """*store_owner_id*'s replica of the case, with all participants set up.
 
     Participants:
     - CaseActor: CASE_MANAGER role
     - owner_id: CASE_OWNER role
     - extra_participant_id (optional): VENDOR role
+
+    *store_owner_id* defaults to the CaseActor, which holds the canonical ledger
+    the Leave-side tests commit to.  The fan-out tests override it: they simulate
+    a *replica* receiving the CaseActor's broadcast, so the tree executes as that
+    replica's actor and therefore reads and writes that actor's store (ADR-0073).
+    Leaving it as the CaseActor's left those trees running against an empty store,
+    where nothing advances — which reads as a passing test when the assertion is
+    that a participant was *not* advanced.
     """
-    dl = _make_dl()
+    dl = _make_dl(store_owner_id)
 
     ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
@@ -430,7 +445,7 @@ class TestCloseCaseFanOut:
         the announce tree short-circuits with SUCCESS (skips effects) when the
         entry is already present.  The fan-out scenario is: entry arrives fresh.
         """
-        dl = _make_full_dl()
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
         entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
 
         event = _make_announce_event(
@@ -454,7 +469,7 @@ class TestCloseCaseFanOut:
 
     def test_fan_out_does_not_advance_non_departing_participant(self):
         """Announce(close_case entry for OWNER) must not advance VENDOR to RM.CLOSED."""
-        dl = _make_full_dl()
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
         entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
 
         event = _make_announce_event(

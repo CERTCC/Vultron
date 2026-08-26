@@ -101,14 +101,31 @@ clear transaction boundaries (one execution = one commit).
 **Rejected alternative**: Async tick-based execution with pause/resume —
 requires BT state persistence between ticks, complex failure recovery.
 
-### 6. Case Creation Includes CaseActor Generation
+### 6. Case Creation Does *Not* Generate a CaseActor
 
-VulnerabilityCase creation triggers CaseActor (ActivityStreams Service)
-creation as part of the same workflow.
+**Corrected in #1872.** This note previously said case creation creates a
+CaseActor, one per `VulnerabilityCase` (1:1). It does not, and that model was the
+bug.
 
-**Rationale**: Case needs a message-processing owner. CaseActor models
-case-as-agent, enables multi-case coordination, clear responsibility
-boundary. One CaseActor per VulnerabilityCase (1:1 relationship).
+A CaseActor is a **role** — a participant holding `CVDRole.CASE_MANAGER` for the
+case — worn by a container, one per container, not a per-case object
+(CP-08-002/003). Its identity is the stable
+`{case_actor_service_url}/actors/case-actor`. A per-case identity such as
+`.../actors/case-actor-{slug}` was a phantom: computed by the sender, hosted by
+nobody, so delivery to it 404'd permanently and the proposal round-trip never
+began.
+
+What actually happens: `PublishCaseActorIdentityNode` *publishes* the configured
+identity to the blackboard and creates nothing;
+`EnsureCaseActorHostedNode` provisions the record in the CaseActor's own store so
+its inbox answers, and returns `SUCCESS` when the CaseActor is hosted elsewhere,
+because that is a normal topology. `ResolveCaseActorUrlsNode` — which derived the
+per-case identity *and* created a per-case `Service` object to match — is gone.
+
+**Rationale**: a case needs a message-processing owner, but "owner" is a role
+held in the case, and its holder may be any Actor type. Making it a role rather
+than an object is also what lets a dedicated container provision itself from its
+own seed config.
 
 **Case ownership model**:
 
@@ -136,6 +153,39 @@ access:
 - This models real-world CVD: independent organizations making autonomous
   decisions.
 - Each actor's internal state (RM/EM/CS state machines) is private.
+
+### The store follows the executing actor (BT-05-005)
+
+`BT-05-002` and `BT-05-003` put the store and the executing actor on the
+blackboard as two independent facts, so they could disagree. Under per-actor
+storage they are one fact: a store is always *some* actor's own, so the blackboard
+`actor_id` determines which store the tree operates on. `BTBridge` therefore
+**reconciles** the two rather than accepting whatever store the caller injected —
+see `_store_for_actor`, which delegates to
+`vultron/core/behaviors/store_scope.py::store_for_actor`.
+
+The delegated-emit pattern is where divergence bites. A trigger emitting on the
+CaseActor's behalf runs with `actor_id` set to the CaseActor while the injected
+DataLayer belongs to the *requesting* actor: the activity is created in one store
+and queued in the other's outbox, so the CaseActor never delivers it and its
+outbox names an activity its own store does not hold.
+
+Exception: a store that reports no `actor_id` at all — a test double, or any
+implementation that predates per-actor storage — is passed through untouched, and
+a test may deliberately let the identities differ to assert the *skip* path.
+
+### Role-gated trees: three identities must be one (BT-05-006)
+
+Where a tree is gated on a role held in the case, the **role holder**, the
+**receiving actor** and the **store owner** must be one actor. Letting any two
+drift produces a silent skip rather than an error: the gate evaluates against an
+actor holding no role, returns SUCCESS-by-skip, and nothing is written.
+
+The corollary for node authors: gate on the role
+(`create_case_manager_gated_tree`), never by comparing `actor_id` against a
+computed `case_actor_id` (CM-24-004). Once the emit is role-gated the executing
+actor *is* the case manager, so the activity and its outbox entry land in one
+store by construction. Ungated, the same helper is identity spoofing.
 
 ---
 

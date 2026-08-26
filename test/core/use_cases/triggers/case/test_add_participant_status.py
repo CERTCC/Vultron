@@ -326,11 +326,11 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             case_id=self.case.id_,
             rm_state=RM.RECEIVED,
         )
-        before = set(self.dl.outbox_list_for_actor(self.actor.id_))
+        before = set(self.dl.outbox_list())
         SvcAddParticipantStatusUseCase(
             self.dl, request, trigger_activity=self.trigger_activity
         ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.actor.id_))
+        after = set(self.dl.outbox_list())
         new_ids = after - before
         assert (
             new_ids

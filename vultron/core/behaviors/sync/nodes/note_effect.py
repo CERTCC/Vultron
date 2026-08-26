@@ -29,6 +29,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.note import VultronNote
 from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
@@ -47,9 +48,19 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
     ``Add(Note, Case)`` messages; only the CaseActor does that (ADR-0022,
     SYNC-02-002).
 
+    The note **object** is persisted alongside the reference, from the same
+    ``payload_snapshot["object"]``.  Appending the id alone left the recipient
+    holding a case that referenced a note it could not read — a bare-URI
+    dangling reference of exactly the kind the Actor Knowledge Model exists to
+    prevent.  A shared store hid this: the author's note row was visible to
+    every actor, so nobody noticed the recipient never stored one
+    (ADR-0073, CM-01-001).
+
     Lenient on missing data: if the case replica is absent, the note ID is
     not present in the snapshot, or the snapshot is malformed, the node
-    returns SUCCESS to avoid blocking the ``Announce`` processing flow.
+    returns SUCCESS to avoid blocking the ``Announce`` processing flow.  A note
+    that cannot be reconstructed is logged and the reference still recorded —
+    knowing *that* a note was attached is better than dropping the event.
     """
 
     def update(self) -> Status:
@@ -60,7 +71,8 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
         entry = self._get_entry()
         snapshot = entry.payload_snapshot
 
-        note_id = _extract_id_from_field(snapshot.get("object"))
+        note_data = snapshot.get("object")
+        note_id = _extract_id_from_field(note_data)
         case_id = entry.case_id
 
         if not note_id or not case_id:
@@ -91,6 +103,8 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
+        self._materialise_note(note_data, note_id)
+
         case.notes.append(note_id)
         self.datalayer.save(case)
         self.logger.info(
@@ -100,3 +114,43 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
             case_id,
         )
         return Status.SUCCESS
+
+    def _materialise_note(self, note_data: object, note_id: str) -> None:
+        """Persist the note itself, so the reference about to be added resolves.
+
+        Mirrors ``ApplyParticipantStatusFromLedgerNode``: the canonical entry
+        carries the object inline, so the recipient can reconstruct it rather
+        than having to fetch it from the author — which the Actor Knowledge Model
+        forbids anyway.
+        """
+        assert self.datalayer is not None
+
+        if self.datalayer.read(note_id) is not None:
+            return
+
+        if not isinstance(note_data, dict):
+            self.logger.warning(
+                "%s: payload_snapshot 'object' for note '%s' is not a dict, so"
+                " the note cannot be reconstructed; recording the reference"
+                " only, which leaves it unresolvable locally",
+                self.name,
+                note_id,
+            )
+            return
+
+        try:
+            note = VultronNote.model_validate(note_data)
+        except Exception as exc:
+            self.logger.warning(
+                "%s: failed to reconstruct note '%s' from payload_snapshot:"
+                " %s — recording the reference only",
+                self.name,
+                note_id,
+                exc,
+            )
+            return
+
+        self.datalayer.create(note)
+        self.logger.debug(
+            "%s: stored note '%s' from the canonical entry", self.name, note_id
+        )

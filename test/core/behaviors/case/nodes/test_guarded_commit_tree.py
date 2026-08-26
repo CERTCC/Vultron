@@ -63,6 +63,7 @@ def _seed_case_with_manager(bt_scenario: BTTestScenario) -> None:
 
 
 @pytest.mark.spec("CM-02-002")
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_calls_commit_for_case_manager(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -134,6 +135,7 @@ def _seeded_scenario(bt_scenario: BTTestScenario) -> BTTestScenario:
 
 
 @pytest.mark.spec("CM-02-009")
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_entry_has_non_empty_hash(
     _seeded_scenario: BTTestScenario,
 ) -> None:
@@ -163,6 +165,7 @@ def test_guarded_commit_tree_entry_has_non_empty_hash(
 
 
 @pytest.mark.spec("CM-02-009")
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_entry_has_utc_received_at(
     _seeded_scenario: BTTestScenario,
 ) -> None:
@@ -193,6 +196,7 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
 
 
 @pytest.mark.spec("CM-02-002")
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_guarded_commit_tree_entry_references_correct_case_id(
     _seeded_scenario: BTTestScenario,
 ) -> None:

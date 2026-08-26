@@ -24,7 +24,10 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.models._helpers import _as_id
-from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    resolve_receiving_actor_id,
+)
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
@@ -130,10 +133,11 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=(
-                request.receiving_actor_id
-                if request.receiving_actor_id is not None
-                else request.actor_id
+            # The *receiving* actor, not the sender (BT-17-005): an
+            # inbound activity is applied to the receiver's own replica,
+            # so the tree must execute in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             ),
             activity=request,
         )
@@ -158,7 +162,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             drain_gap_buffer(
                 cast(CaseOutboxPersistence, self._dl),
                 case_id,
-                request.receiving_actor_id or "unknown",
+                resolve_receiving_actor_id(
+                    self._dl, request.receiving_actor_id
+                ),
                 gap_buffer,
                 self._sync_port,
             )

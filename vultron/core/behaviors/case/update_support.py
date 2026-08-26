@@ -80,32 +80,36 @@ def find_excluded_actor_ids(case: Any, dl: CasePersistence) -> set[str]:
     return excluded
 
 
-def resolve_case_actor_id(case_id: str, dl: CasePersistence) -> str | None:
-    """Return the CaseActor ID associated with *case_id* if present."""
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            service_id = getattr(service, "id_", None)
-            if isinstance(service_id, str):
-                return service_id
-            return None
-    return None
-
-
 def broadcast_case_update(
     dl: CasePersistence,
     case_id: str,
     case: Any,
+    actor_id: str,
     excluded_actor_ids: set[str] | None = None,
 ) -> None:
-    """Create and queue an Announce(activity) for a case update."""
+    """Create and queue an ``Announce`` for a case update (CM-06-001).
+
+    Args:
+        dl: The broadcasting actor's own DataLayer.
+        case_id: The case whose update is being announced.
+        case: The updated case object to announce.
+        actor_id: The broadcasting actor. The caller MUST already have
+            established that this actor holds ``CVDRole.CASE_MANAGER`` for the
+            case — see ``create_update_case_received_tree``, which wraps the
+            calling node in a ``CheckIsCaseManagerNode`` gate.
+        excluded_actor_ids: Participants to omit (CM-10-004).
+
+    This used to resolve the announcing identity itself, via a scan for a
+    ``Service`` whose ``context`` matched *case_id*, and then enqueue against
+    that id. Two problems: it was a second, weaker mechanism for an authority
+    the ``CASE_MANAGER`` role already expresses (the role holder may be any
+    Actor type, not necessarily a ``Service``), and it enqueued under an id
+    that was not necessarily the store it had just written the activity to.
+    A shared pool hid the mismatch; per-actor stores do not. The authority is
+    now a role gate in the tree, so the executing actor *is* the announcer and
+    both halves of the emit land in one store (ADR-0073, CLP-09 precedent).
+    """
     excluded = excluded_actor_ids or set()
-    case_actor_id = resolve_case_actor_id(case_id, dl)
-    if case_actor_id is None:
-        logger.debug(
-            "update_case: no CaseActor found for case '%s' — skipping broadcast",
-            case_id,
-        )
-        return
 
     participant_ids = [
         actor_id
@@ -121,7 +125,7 @@ def broadcast_case_update(
 
     broadcast = VultronActivity(
         type_="Announce",
-        actor=case_actor_id,
+        actor=actor_id,
         object_=case,
         to=participant_ids,
     )
@@ -134,12 +138,10 @@ def broadcast_case_update(
         )
         return
 
-    cast(CaseOutboxPersistence, dl).record_outbox_item(
-        case_actor_id, broadcast.id_
-    )
+    cast(CaseOutboxPersistence, dl).outbox_append(broadcast.id_)
     logger.info(
         "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
-        case_actor_id,
+        actor_id,
         case_id,
         len(participant_ids),
     )

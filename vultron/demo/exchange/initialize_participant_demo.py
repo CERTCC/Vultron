@@ -60,8 +60,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
+    case_actor_id_for_report,
     post_to_inbox_and_wait,
     ref_id,
+    seed_case_actor_for_report,
     verify_object_stored,
     setup_demo_logging,
 )
@@ -77,19 +79,36 @@ from vultron.demo.helpers.runner import run_exchange_demos
 logger = logging.getLogger(__name__)
 
 
-def _find_canonical_case(client: DataLayerClient) -> as_VulnerabilityCase:
+def _find_canonical_case(
+    client: DataLayerClient, report_id: str
+) -> as_VulnerabilityCase:
     """Discover the canonical VulnerabilityCase created by the CaseActor.
 
     After ProposeReportCaseToActorNode runs during report validation, the
-    CaseActor creates the canonical case in the DataLayer with the vendor,
-    reporter, and CaseActor as initial participants.  This helper discovers
-    it by listing all VulnerabilityCase objects and returning the first one
-    that has participants.
+    CaseActor creates the canonical case with the vendor, reporter, and
+    CaseActor as initial participants.  This helper discovers it by listing that
+    actor's VulnerabilityCase objects and returning the first one with
+    participants.
+
+    The list is read from the **CaseActor's** store, because that is where the
+    canonical case is authored (ADR-0041) and each actor now holds only its own
+    replica (CM-01-001).  Reading the vendor's store instead finds nothing here:
+    the CaseActor's ``Create(VulnerabilityCase)`` is what would seed the vendor,
+    and in the single-container demo environment that delivery is not guaranteed
+    to have landed yet.
+
+    Args:
+        client: DataLayerClient for the container hosting both actors.
+        report_id: The report whose proposal created the case; the CaseActor's
+            URI is derived from it.
 
     Raises:
         ValueError: If no initialized VulnerabilityCase is found.
     """
-    cases_by_id: dict = client.get("/datalayer/VulnerabilityCases/")
+    case_actor_id = case_actor_id_for_report(report_id)
+    cases_by_id: dict = client.get(
+        client.dl_path("VulnerabilityCases/", actor_id=case_actor_id)
+    )
     for case_raw in cases_by_id.values():
         try:
             case = as_VulnerabilityCase(**case_raw)
@@ -98,8 +117,8 @@ def _find_canonical_case(client: DataLayerClient) -> as_VulnerabilityCase:
         except Exception:
             continue
     raise ValueError(
-        "No initialized VulnerabilityCase found in DataLayer after"
-        " report validation"
+        "No initialized VulnerabilityCase found in the CaseActor's store"
+        f" ({case_actor_id}) after report validation"
     )
 
 
@@ -130,6 +149,7 @@ def setup_case_precondition(
     report_offer = rm_submit_report_activity(
         report, actor=finder.id_, to=vendor.id_
     )
+    seed_case_actor_for_report(client, report.id_)
     post_to_inbox_and_wait(client, vendor.id_, report_offer)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
@@ -140,7 +160,7 @@ def setup_case_precondition(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = _find_canonical_case(client)
+    case = _find_canonical_case(client, report.id_)
     logger.info("Case precondition setup complete.")
     return case
 

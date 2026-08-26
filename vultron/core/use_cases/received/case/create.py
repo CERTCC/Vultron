@@ -11,10 +11,14 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.use_cases._helpers import (
+    _resolve_case_manager_id,
+    resolve_receiving_actor_id,
+)
 
 from ._helpers import (
     _find_report_case_link,
+    _store_embedded_embargo,
     _store_embedded_participants,
 )
 
@@ -114,6 +118,7 @@ class CreateCaseReceivedUseCase:
                         case_id,
                     )
             _store_embedded_participants(case_obj, self._dl, case_id)
+            _store_embedded_embargo(case_obj, self._dl, case_id)
         else:
             logger.info(
                 "create_case_received: no ReportCaseLink for case '%s' and "
@@ -204,17 +209,26 @@ class CreateCaseReceivedUseCase:
         # This must happen regardless of the idempotency guard above because
         # the inbox router may have already seeded the case before dispatch.
         _store_embedded_participants(case_obj, self._dl, case_id)
+        _store_embedded_embargo(case_obj, self._dl, case_id)
 
         # #589: when participants arrive as bare string IDs (the common case),
         # _store_embedded_participants cannot create records for them.  Ensure
         # the reporter's own participant is seeded at RM.ACCEPTED — inferred
         # from the fact that they submitted a report.  This is a protocol-
         # significant RM state transition, so it runs via BTBridge (BT-15-001).
+        # The *receiving* actor, not the sender (BT-17-005). `actor_id` here is
+        # the case creator, deliberately so for `_find_report_case_link` above,
+        # but the node seeds the reporter's participant into the receiver's own
+        # replica — and under ADR-0073 the executing actor selects that store, so
+        # passing the sender would look for the report in the creator's store and
+        # find nothing.
         BTBridge(datalayer=self._dl).execute_with_setup(
             tree=EnsureReporterParticipantAtAcceptedNode(
                 link=link,
                 case_obj=case_obj,
                 case_id=case_id,
             ),
-            actor_id=actor_id,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, self._request.receiving_actor_id
+            ),
         )

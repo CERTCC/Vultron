@@ -593,6 +593,12 @@ groups:
       entry. Using `cc:` rather than `to:` for the self-copy preserves the semantics that the invitee is the primary recipient
       while still routing the activity through the CaseActor''s inbox for archival. See OX-08-004 for the updated addressing
       policy and ADR-0021 for the full end-to-end path.'
+    note: >-
+      The self-`cc:` clause binds only where the canonical entry depends on inbox loopback. A tree that
+      emits under a `CVDRole.CASE_MANAGER` gate and wraps the emit in `create_receive_activity_tree`
+      with a `case_id` commits the entry itself (CLP-10-013), so the entry already exists and a
+      self-addressed copy adds no record — see EMB-19-001 for the worked case, where addressing the
+      manager also made the announce reach nobody.
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the CaseActor's canonical ledger contains
       at least one entry with that `eventType` after a full FV demo run.
     adr:
@@ -768,6 +774,46 @@ groups:
     relationships:
       - rel_type: refines
         spec_id: CLP-10-006
+  - id: CLP-10-014
+    priority: MUST
+    kind: project
+    statement: A store MUST NOT mint a canonical case-ledger index unless it is the store that holds that
+      case's canonical log. `CommitLogEntryBT` MUST decline — reporting success, having written nothing —
+      when the actor it executes as is not one the running container hosts.
+    rationale: >-
+      A log index is a claim on a position in one hash chain, so two stores claiming the same position fork
+      it irreparably. The delegated-emit path is how a second claimant arises: a trigger the case *owner*
+      runs emits as the case's CaseActor (PCR-08-007, CM-24-001) and commits under that same actor id. When
+      the owner hosts the CaseActor this is the canonical commit. After an ownership handoff it is not — the
+      CaseActor stays on the container that first received the report (CP-08-003) while the owner is
+      elsewhere — and BT-05-005's foreign-authority exception deliberately leaves the tree running in the
+      *requester's* store so the activity is created and outboxed where it can be delivered. Without this
+      rule the commit rides along on that exception and mints index N in the owner's replica while the real
+      CaseActor mints its own index N from the `cc:` copy. The two disagree on bytes, not just timing: the
+      owner's snapshot carries local enrichment (`attributedTo`, `name`, the case's `caseStatus`) that the
+      wire copy does not (CM-17-002). Both then fan out, and the case partitions into the participants each
+      reached first (#2626). Declining loses nothing — the activity still carries the CaseActor as `cc:`, so
+      the canonical log gains the entry the only way a remote store ever can (CLP-10-001), and the owner's
+      replica gains it by replication from that log, byte-identical as a replica must be (DL-07-009).
+      Success rather than failure on decline because every existing caller reads a non-SUCCESS commit as a
+      hard error, and "the canonical log is somewhere else" is not one.
+    verification: A test executes `CommitLogEntryBT` under an `actor_id` at a foreign authority and asserts
+      SUCCESS with no `CaseLedgerEntry` written and no fan-out sent, and under a same-authority `actor_id`
+      asserts the guard stands aside.
+    exceptions:
+    - >-
+      A store that cannot name its own actor — a test double, or any implementation that reports no
+      `actor_id` — is never foreign, and such callers commit exactly as they did before per-actor storage.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-05-006
+    - rel_type: refines
+      spec_id: CLP-10-001
+    tags:
+    - persistence
+    - protocol
+    adr:
+    - ADR-0073
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair (e.g., Offer(CaseParticipant) → Accept/Reject)

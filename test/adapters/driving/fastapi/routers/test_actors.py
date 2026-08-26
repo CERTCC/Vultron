@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 # python
+import pytest
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
@@ -30,17 +31,28 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 
 _ACTOR_ID = "https://example.org/actors/alice"
 
-# URN IDs used in action-rules and sub-route tests.
-_URN_ACTOR_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000001"
+# Ids used in action-rules and sub-route tests. The actor is hosted here, so
+# its id is the URL that reaches it; the case and participant are plain objects
+# and keep opaque urns.
+_LOCAL_ACTOR_ID = canonical_actor_uri("participant-1")
 _URN_CASE_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000003"
 _URN_PARTICIPANT_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000004"
 
 
 def _route_key(object_id: str) -> str:
     return strip_id_prefix(object_id)
+
+
+@pytest.fixture
+def urn_actor_dl():
+    """The urn actor's own store — the one the route will open for it."""
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    return get_datalayer(_LOCAL_ACTOR_ID, db_url="sqlite:///:memory:")
 
 
 def test_created_actors_fixture_has_expected_count(created_actors):
@@ -210,7 +222,7 @@ def _seed_action_rules_data(dl):
     """Insert a minimal valid as_VulnerabilityCase / as_CaseParticipant pair."""
     participant = as_CaseParticipant(
         id_=_URN_PARTICIPANT_ID,
-        attributed_to=_URN_ACTOR_ID,
+        attributed_to=_LOCAL_ACTOR_ID,
         context=_URN_CASE_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
@@ -235,13 +247,13 @@ def _seed_action_rules_data(dl):
 
 
 def test_get_action_rules_returns_200_with_expected_fields(
-    client_actors, datalayer
+    client_actors, urn_actor_dl
 ):
     """Actor/case endpoint returns all required state and action fields."""
-    _seed_action_rules_data(datalayer)
+    _seed_action_rules_data(urn_actor_dl)
 
     resp = client_actors.get(
-        f"/actors/{_route_key(_URN_ACTOR_ID)}/cases/"
+        f"/actors/{_route_key(_LOCAL_ACTOR_ID)}/cases/"
         f"{_route_key(_URN_CASE_ID)}/action-rules"
     )
     assert resp.status_code == status.HTTP_200_OK
@@ -262,23 +274,23 @@ def test_get_action_rules_returns_200_with_expected_fields(
     assert expected_keys.issubset(body.keys())
     assert body["case_id"] == _URN_CASE_ID
     assert body["participant_id"] == _URN_PARTICIPANT_ID
-    assert body["participant_actor_id"] == _URN_ACTOR_ID
+    assert body["participant_actor_id"] == _LOCAL_ACTOR_ID
 
 
 def test_get_action_rules_case_not_found_returns_404(client_actors):
     """Missing case returns 404."""
     resp = client_actors.get(
-        f"/actors/{_route_key(_URN_ACTOR_ID)}/cases/"
+        f"/actors/{_route_key(_LOCAL_ACTOR_ID)}/cases/"
         "urn:uuid:00000000-0000-0000-0000-000000000000/action-rules"
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_get_action_rules_actor_not_in_case_returns_404(
-    client_actors, datalayer
+    client_actors, datalayer, urn_actor_dl
 ):
     """Actor outside the selected case returns 404."""
-    _seed_action_rules_data(datalayer)
+    _seed_action_rules_data(urn_actor_dl)
 
     resp = client_actors.get(
         "/actors/99999999-0000-0000-0000-000000000000/cases/"
@@ -385,18 +397,91 @@ class TestCreateActor:
         ids = [a["id"] for a in resp.json()]
         assert "http://example.org/actors/listcheck" in ids
 
-    def test_created_actor_retrievable_by_id(self, client_actors):
-        custom_id = "http://example.org/actors/fetchable"
+    def test_a_bare_slug_is_expanded_to_the_url_that_serves_it(
+        self, client_actors
+    ):
+        """A hosted actor's id is the URL that reaches it on this node.
+
+        An actor is a process with API endpoints, so its id *is* its address:
+        ``{base_url}/actors/{slug}``, with its inbox at ``{id}/inbox``. A client
+        that supplies only a slug is therefore telling this node what to call the
+        actor, and the node supplies the authority.
+
+        This covers the bare-slug shape only. What happens to a client-supplied
+        *absolute* id — including one under a foreign authority — is the separate
+        question pinned by
+        :meth:`test_a_foreign_absolute_id_is_adopted_verbatim`.
+        """
+        from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
         payload = {
             "name": "FetchableActor",
             "actor_type": "Organization",
-            "id": custom_id,
+            "id": "fetchable",
         }
-        client_actors.post("/actors/", json=payload)
-        # Short-ID lookup still works; find_actor_by_short_id resolves to the full ID.
+        created = client_actors.post("/actors/", json=payload)
+        assert created.status_code in (
+            status.HTTP_200_OK,
+            status.HTTP_201_CREATED,
+        )
+        expected_id = canonical_actor_uri("fetchable")
+        assert created.json()["id"] == expected_id
+
         resp = client_actors.get("/actors/fetchable")
         assert resp.status_code == status.HTTP_200_OK
-        assert resp.json()["id"] == custom_id
+        assert resp.json()["id"] == expected_id
+
+    def test_a_foreign_absolute_id_is_adopted_verbatim(self, client_actors):
+        """Pins the shape that actually breaks — issue #2549.
+
+        ``canonical_actor_uri`` returns any id carrying a scheme unchanged, so
+        ``POST /actors/`` with an id under *another* authority creates a record
+        here under that authority and opens a local store for it. That is
+        deliberate for the peer-registration use it was built for — a peer's id is
+        the URL outbound delivery posts to, so rewriting it into this node's
+        namespace would turn a reachable peer into a local phantom (ADR-0073
+        decision 5).
+
+        It is not free, though: the store is keyed by the final path segment
+        alone, so a peer whose URI ends in the same segment as a co-hosted actor
+        shares that actor's store. Asserted here so the day the endpoint learns to
+        distinguish "register a peer" from "create an actor I host", this test
+        fails and says which behaviour changed rather than the change landing
+        silently.
+        """
+        foreign_id = "http://elsewhere.test:7999/api/v2/actors/foreigner"
+        created = client_actors.post(
+            "/actors/",
+            json={
+                "name": "Foreigner",
+                "actor_type": "Organization",
+                "id": foreign_id,
+            },
+        )
+        assert created.status_code == status.HTTP_201_CREATED
+        assert created.json()["id"] == foreign_id, (
+            "the authority is adopted as-is; if this now returns a local URI,"
+            " #2549 was addressed and this test documents the old behaviour"
+        )
+
+        # And it is a *hosted* record: it comes back from this node's collection.
+        listed = client_actors.get("/actors/")
+        assert foreign_id in [a["id"] for a in listed.json()]
+
+    @pytest.mark.parametrize("bad", ["/", "//"])
+    def test_an_id_that_names_no_actor_is_rejected(self, client_actors, bad):
+        """422, not 500, and no store minted for a phantom actor.
+
+        ``"/"`` is not empty but names nothing. Before the guard in
+        ``canonical_actor_uri`` it produced ``{base}/actors/``, whose final path
+        segment is ``actors`` — a usable slug — so the node opened a store for an
+        actor named after a path component and nothing downstream could tell.
+        """
+        resp = client_actors.post(
+            "/actors/",
+            json={"name": "Nameless", "actor_type": "Person", "id": bad},
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ---------------------------------------------------------------------------
@@ -406,17 +491,29 @@ class TestCreateActor:
 _HTTP_URL_ACTOR_ID = "http://vendor:7999/api/v2/actors/alice"
 
 
-def test_get_actor_by_surrogate_key_returns_actor(client_actors, datalayer):
-    """GET /actors/{surrogate-key} resolves actor IDs that contain slashes."""
+def test_get_actor_by_final_path_segment_returns_actor(client_actors):
+    """A hosted actor is addressed by the last segment of its own URL.
+
+    Retitled from "surrogate key". There is no surrogate: the segment is simply
+    the tail of the actor's id, and ``base_url + "actors/" + segment`` reassembles
+    the id exactly (ADR-0073). The previous version stored an actor under a
+    *foreign* authority and expected this node to return it, which conflated
+    "an actor I know the address of" with "an actor I host".
+    """
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
-    actor = as_Organization(id_=_HTTP_URL_ACTOR_ID, name="VendorActor")
-    datalayer.create(object_to_record(actor))
+    actor_id = canonical_actor_uri("vendor-with-path")
+    actor = as_Organization(id_=actor_id, name="VendorActor")
+    get_datalayer(actor_id, db_url="sqlite:///:memory:").create(
+        object_to_record(actor)
+    )
 
-    resp = client_actors.get(f"/actors/{_route_key(_HTTP_URL_ACTOR_ID)}")
+    resp = client_actors.get("/actors/vendor-with-path")
     assert resp.status_code == status.HTTP_200_OK
-    assert resp.json()["id"] == _HTTP_URL_ACTOR_ID
+    assert resp.json()["id"] == actor_id
 
 
 def test_specific_actor_routes_not_shadowed_by_catch_all(

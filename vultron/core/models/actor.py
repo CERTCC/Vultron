@@ -36,7 +36,7 @@ class CoreActor(CoreObject):
 
     Note: inbox and outbox are now simple string URIs representing the
     actor's ActivityStreams collection endpoints. Queue persistence is
-    delegated to the DataLayer, accessed via ActorScopedDataLayer.
+    delegated to the DataLayer, accessed via DataLayer.
     """
 
     model_config = ConfigDict(

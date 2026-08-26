@@ -75,7 +75,13 @@ def case(
     report: VultronReport,
     actor: VultronCaseActor,
 ) -> VulnerabilityCase:
-    """Create a VulnerabilityCase linked to the test report."""
+    """Create a participant-less VulnerabilityCase linked to the test report.
+
+    Deliberately has no ``CaseParticipant``: this is the "case replica arrived
+    dehydrated" shape that ISSUE-2548's negative tests exercise.  Tests that
+    need a case the actor can actually transition in use
+    :func:`case_with_participant`.
+    """
     obj = VulnerabilityCase(
         name="Test Case for TEST-001",
         vulnerability_reports=[report.id_],

@@ -34,7 +34,7 @@ from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.semantic_registry import (
@@ -150,16 +150,17 @@ def make_dispatcher() -> ActivityDispatcher:
     return d
 
 
-def init_dispatcher(dl: DataLayer | None = None) -> None:
+def init_dispatcher() -> None:
     """Initialise the module-level dispatcher.
 
     Must be called once during application startup (e.g. from the FastAPI
     lifespan event) before any inbox items are processed.  Calling it more
     than once (e.g. in tests) is allowed — the dispatcher is simply replaced.
 
-    Args:
-        dl: Unused; retained for backward compatibility. DataLayer is now
-            passed at dispatch time via :func:`dispatch`.
+    The vestigial ``dl`` parameter is gone.  It had already been unused for
+    some time (the DataLayer is passed at dispatch time via :func:`dispatch`),
+    and its one remaining caller reached for the unscoped ``get_datalayer()``
+    to satisfy it — which ADR-0073 removes.
     """
     global _DISPATCHER
     _DISPATCHER = make_dispatcher()
@@ -230,7 +231,7 @@ def _dispatch_or_defer_inbox_item(
     actor_id: str,
     obj: as_Activity,
     dl: DataLayer,
-    queue_dl: ActorScopedDataLayer,
+    queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
@@ -304,7 +305,7 @@ def _process_inbox_item(
     item_id: str,
     item: as_Activity,
     dl: DataLayer,
-    queue_dl: ActorScopedDataLayer,
+    queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success."""
@@ -340,23 +341,27 @@ def _process_inbox_item(
 async def inbox_handler(
     actor_id: str,
     dl: DataLayer,
-    actor_dl: ActorScopedDataLayer | None = None,
+    actor_dl: DataLayer | None = None,
     emitter: ActivityEmitter | None = None,
     dispatcher: ActivityDispatcher | None = None,
 ) -> None:
     """Process the inbox for the given actor.
 
-    Reads pending activity IDs from the actor-scoped DataLayer inbox queue,
-    rehydrates each one into a full AS2 Activity object using the shared
-    DataLayer, and dispatches it.
+    Reads pending activity IDs from the actor's inbox queue, rehydrates each one
+    into a full AS2 Activity object, and dispatches it.
 
     After processing, triggers outbox delivery for any outbound activities
     created during dispatch, using *emitter* when provided.
 
+    There is no shared DataLayer any more (ADR-0073): every store belongs to
+    exactly one actor. *dl* and *actor_dl* are therefore normally the same store —
+    this actor's — and the pair survives only so existing callers keep working.
+    Prefer passing *dl* alone.
+
     Args:
         actor_id: The short ID of the Actor whose inbox is being processed.
-        dl: The shared DataLayer for activity storage and use-case dispatch.
-        actor_dl: The actor-scoped DataLayer for inbox queue management.
+        dl: This actor's DataLayer, for activity storage and use-case dispatch.
+        actor_dl: Deprecated alias for *dl*; defaults to it when omitted.
             Defaults to ``dl`` when not provided (backward-compatible).
         emitter: Optional ``ActivityEmitter`` to use for outbox delivery.
             When provided (e.g. from ``request.app.state.emitter`` in a
@@ -370,8 +375,8 @@ async def inbox_handler(
             ``_DISPATCHER``, giving each :func:`create_app` instance its
             own fully isolated routing table (issue #534).
     """
-    queue_dl: ActorScopedDataLayer = cast(
-        ActorScopedDataLayer, actor_dl if actor_dl is not None else dl
+    queue_dl: DataLayer = cast(
+        DataLayer, actor_dl if actor_dl is not None else dl
     )
     actor = dl.read(actor_id)
     if actor is None:
@@ -420,4 +425,4 @@ async def inbox_handler(
                 break
 
     # OX-1.2 / OX-03-002: trigger outbox delivery after inbox processing completes
-    await outbox_handler(actor_id, queue_dl, shared_dl=dl, emitter=emitter)
+    await outbox_handler(actor_id, queue_dl, emitter=emitter)
