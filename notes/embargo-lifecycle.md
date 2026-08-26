@@ -65,8 +65,9 @@ EM state transition logic is currently duplicated across several places:
 
 - `ClearActiveEmbargoNode` — migrated (PR #2691); routes through
   `EmbargoLifecycle.terminate_active_embargo()`
-- `SetEmbargoActiveNode._apply_transition()` — partial; uses `WriteEmStateNode`
-  delegation, not direct `EmbargoLifecycle` routing
+- `SetEmbargoActiveNode` — migrated (PR #2691, issue #2696); routes through
+  new `EmbargoLifecycle.activate_embargo()` in STRICT mode; returns FAILURE
+  for non-standard EM transitions (EMB-18-002)
 - `AdvanceEMStateToActiveNode` — migrated; uses `EmbargoLifecycle.propose_embargo()`
 
 There is still **no single authoritative place** that owns what it means to
@@ -133,6 +134,9 @@ class EmbargoLifecycle:
     ) -> EmbargoLifecycleResult: ...
     def terminate_active_embargo(
         self, *, case_id, actor_id, transition_mode=STRICT
+    ) -> EmbargoLifecycleResult: ...
+    def activate_embargo(
+        self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
     def record_participant_consent(
         self, *, case_id, actor_id, pec_trigger, embargo_id=None
