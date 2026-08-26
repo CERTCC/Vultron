@@ -48,6 +48,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_step,
@@ -66,6 +67,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -229,7 +231,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        coordinator_client.get(f"/datalayer/{case.id_}")
+        coordinator_client.get(coordinator_client.dl_path(case.id_))
     )
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
     return (
@@ -712,10 +714,22 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FCV's participants and where each one's ledger lives.
     """
+    # Route keys come from each client's own actor id, not from its display
+    # name: the key selects the store (ADR-0073), so a literal only happens to
+    # be right while this scenario seeds deterministic named ids. See
+    # :func:`replica_route_key`.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("coordinator", coordinator_client, "coordinator"),
-        LedgerDumpTarget("vendor", vendor_client, "vendor"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "coordinator",
+            coordinator_client,
+            replica_route_key(coordinator_client, "coordinator"),
+        ),
+        LedgerDumpTarget(
+            "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+        ),
     ]
     # The case-actor is a sub-actor inside the coordinator container.
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -881,7 +895,9 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(base_url=ca_url)
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

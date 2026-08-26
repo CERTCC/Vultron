@@ -29,6 +29,7 @@ import time
 from contextlib import contextmanager
 from http import HTTPMethod
 from typing import Any, Generator, Optional, Sequence, Tuple, cast
+from urllib.parse import urlsplit
 
 # Third-party imports
 import httpx2 as httpx
@@ -37,6 +38,8 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.core.behaviors.store_scope import same_authority
+from vultron.core.models.base import NonEmptyString
 from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -221,15 +224,64 @@ class DataLayerClient(BaseModel):
 
     Wraps ``httpx`` with convenience methods for GET, PUT, POST, and DELETE
     calls to the DataLayer endpoint, with automatic JSON parsing and error logging.
+
+    ``base_url`` addresses a *container*; ``actor_id`` names which of the actors
+    that container hosts a DataLayer read is about.  Both are needed under
+    ADR-0073: a container hosts an actor plus the CaseActors it self-hosts
+    (CP-08-003), so ``/datalayer/{case_id}`` alone no longer says whose replica
+    to read.  Use :meth:`dl_path` to build inspection paths rather than
+    hand-writing ``/datalayer/...``.
     """
 
     base_url: str = BASE_URL
+    #: Canonical URI of the actor whose store this client inspects.  Optional so
+    #: that clients used only for non-DataLayer endpoints (health, info, inbox)
+    #: keep working unchanged; :meth:`dl_path` raises when it is needed and
+    #: absent, rather than silently reading some other actor's replica.
+    #: ``NonEmptyString`` rather than ``str`` so that ``actor_id=""`` is rejected
+    #: at construction instead of reaching :meth:`dl_path` and being reported
+    #: there as a missing id (AGENTS.md: no bare ``str`` for required text).
+    actor_id: NonEmptyString | None = None
     #: Per-request HTTP timeout (seconds).  Generous relative to httpx's 5s
     #: default so a single GET against a container that is busy draining its
     #: outbox (delivery retry/backoff can add several seconds under CI load)
     #: does not fail with a bare read timeout.  Callers may override per-call
     #: by passing ``timeout=`` in kwargs.
     timeout: float = 30.0
+
+    def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
+        """Return the actor-scoped DataLayer inspection path for *key*.
+
+        Args:
+            key: Path suffix after ``/datalayer/`` — an object id, a
+                ``VulnerabilityCases/`` style collection, or ``""`` for the
+                whole-store view.
+            actor_id: Override the client's own ``actor_id``.  Needed when a
+                container hosts more than one actor and the read is about a
+                non-primary one — typically a self-hosted CaseActor.
+
+        Returns:
+            ``/actors/{segment}/datalayer/{key}``, where *segment* is the
+            actor's final URI path segment.  The server recomputes the canonical
+            URI from its own base URL (ADR-0073), which is why the short segment
+            is what travels — the same convention already used for inbox and
+            trigger paths.
+
+        Raises:
+            ValueError: When no actor is available.  Failing here is deliberate:
+                defaulting to *some* actor would silently report another
+                replica's state and could let an ADR-0058 causal gate pass on
+                the wrong actor's committed state.
+        """
+        actor = actor_id or self.actor_id
+        if not actor:
+            raise ValueError(
+                "DataLayerClient.dl_path requires an actor_id: DataLayer reads "
+                "are per-actor (ADR-0073). Set actor_id on the client or pass "
+                "it explicitly."
+            )
+        segment = parse_id(actor)["object_id"]
+        return f"/actors/{segment}/datalayer/{key}"
 
     def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> Any:
         """Make an HTTP request to the DataLayer API.
@@ -313,15 +365,22 @@ class DataLayerClient(BaseModel):
         return cast(dict, self.call(HTTPMethod.DELETE, path, **kwargs))
 
 
-def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
-    """Reset the DataLayer to a clean state via the API.
+def reset_datalayer(client: DataLayerClient) -> dict:
+    """Clear every store on the node *client* addresses, via the API.
+
+    Clearing only clears.  The former ``init`` flag asked the server to seed
+    default actors as part of the reset; provisioning is now the caller's job,
+    via :func:`seed_exchange_actors` or :func:`seed_actor` (see the route
+    docstring for why per-actor storage made the server-side seed unworkable).
 
     Args:
         client: DataLayerClient instance.
-        init: When ``True``, re-seed the DataLayer with default actors after reset.
     """
     logger.debug("Resetting data layer...")
-    return client.delete("/datalayer/reset/", params={"init": init})
+    # Node-level, not actor-scoped: resetting is an operation on the node's
+    # storage rather than a read of one actor's replica, so it deliberately does
+    # *not* go through `dl_path` (ADR-0073 moved it to /admin/).
+    return client.delete("/admin/datalayer/reset/")
 
 
 def _log_discovered_actor(role: str, actor: as_Actor) -> None:
@@ -428,7 +487,12 @@ def post_to_trigger(
 
     Returns:
         Response dict from the trigger endpoint.
+
+    Raises:
+        ValueError: If *actor_id* names an actor that *client*'s container does
+            not host.  See :func:`_assert_client_hosts_actor`.
     """
+    _assert_client_hosts_actor(client, actor_id, behavior)
     actor_obj_id = parse_id(actor_id)["object_id"]
     logger.info(
         "Posting trigger '%s' for actor '%s': %s",
@@ -441,7 +505,58 @@ def post_to_trigger(
     )
 
 
-def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
+def _assert_client_hosts_actor(
+    client: DataLayerClient,
+    actor_id: str,
+    behavior: str,
+) -> None:
+    """Fail loudly when *client* and *actor_id* name different containers.
+
+    The trigger URL keeps only *actor_id*'s bare object ID and resolves it
+    against ``client.base_url``, so a mismatched pair does not address the actor
+    it names — it addresses whatever the target container happens to host under
+    that slug.  There is no error at the HTTP layer to notice: if the slug is
+    unknown there the request 404s three frames from the real mistake, and if it
+    *is* known ``get_actor_dl`` mints an empty store for it and the trigger runs
+    against the wrong actor's state (#2549).
+
+    fvcv-handoff spent a CI run on the 404 form of this — the Coordinator's
+    ``invite-actor-to-case`` posted to the vendor container — so the check is
+    here rather than in each scenario.
+
+    Skipped when either side is not a real absolute URI: test doubles pass a
+    ``MagicMock`` ``base_url`` and unit fixtures use bare actor slugs, neither of
+    which can be checked and neither of which can mis-address a live container.
+    """
+    if not isinstance(actor_id, str) or not _has_authority(actor_id):
+        return
+    base_url = str(getattr(client, "base_url", "") or "")
+    if not _has_authority(base_url):
+        return
+    if not same_authority(base_url, actor_id):
+        raise ValueError(
+            f"trigger '{behavior}' names actor '{actor_id}', which is not"
+            f" hosted by '{base_url}' — post it to that actor's own container"
+        )
+
+
+def _has_authority(value: str) -> bool:
+    """True when *value* parses as a URI carrying a scheme and a netloc.
+
+    ``httpx``'s ``base_url`` is a ``URL``, a ``MagicMock``'s is its repr, and a
+    unit fixture's actor ID may be a bare slug; only a real absolute URI can be
+    compared, and only a real absolute URI can mis-address a live container.
+    """
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return bool(parts.scheme and parts.netloc)
+
+
+def verify_object_stored(
+    client: DataLayerClient, obj_id: str, actor_id: str | None = None
+) -> as_Object:
     """Fetch an object from the DataLayer by ID and verify it is present.
 
     Logs the stored representation so all fields are visible. Nested objects
@@ -449,6 +564,15 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     shows ID strings for nested fields such as ``object_``, ``target``, etc.
     To inspect a nested object, call ``verify_object_stored`` again with the
     nested object's own ID.
+
+    Args:
+        client: DataLayerClient for the container to read from.
+        obj_id: Id of the object to fetch.
+        actor_id: Whose replica to look in.  Defaults to *client*'s own actor.
+            "Is this object stored?" has no answer under ADR-0073 without naming
+            an actor, so pass this whenever the read is about an actor other than
+            the one the client is bound to — typically because the activity was
+            delivered to a different recipient's inbox.
 
     Returns:
         The retrieved ``as_Object``.
@@ -466,7 +590,7 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
             return [_drop_nulls(item) for item in value]
         return value
 
-    obj = client.get(f"/datalayer/{obj_id}")
+    obj = client.get(client.dl_path(obj_id, actor_id=actor_id))
     filtered = _drop_nulls(obj)
     logger.info(
         "Stored record (nested objects shown as ID references): %s",
@@ -482,16 +606,19 @@ def get_offer_from_datalayer(
 
     Args:
         client: DataLayerClient instance.
-        vendor_id: ID of the vendor actor that owns the offer.
+        vendor_id: ID of the vendor actor that owns the offer.  Names the store
+            to read, so the lookup does not depend on *client*'s own binding.
         offer_id: ID of the offer to retrieve.
 
     Returns:
         The retrieved offer as :class:`as_Offer`.
     """
-    vendor_obj_id = parse_id(vendor_id)["object_id"]
     offer_obj_id = parse_id(offer_id)["object_id"]
+    # `Offers/{id}` sits under the actor-scoped prefix, so the owning actor is
+    # already in the path.  The old key nested a second `Actors/{segment}/`
+    # inside it, which addressed nothing once `dl_path` supplied the prefix.
     offer_data = client.get(
-        f"/datalayer/Actors/{vendor_obj_id}/Offers/{offer_obj_id}"
+        client.dl_path(f"Offers/{offer_obj_id}", actor_id=vendor_id)
     )
     raw = as_Offer(**offer_data)
     logger.info(f"Retrieved Offer: {logfmt(raw)}")
@@ -499,11 +626,23 @@ def get_offer_from_datalayer(
 
 
 def log_case_state(
-    client: DataLayerClient, case_id: str, label: str
+    client: DataLayerClient,
+    case_id: str,
+    label: str,
+    actor_id: str | None = None,
 ) -> Optional[as_VulnerabilityCase]:
-    """Fetch and log the current state of a case."""
+    """Fetch and log the current state of a case.
+
+    Args:
+        client: DataLayerClient for the container to read from.
+        case_id: Id of the case to read.
+        label: Short description of the point in the flow, for the log line.
+        actor_id: Whose replica to read.  Defaults to *client*'s own actor.
+            Participants hold their own replicas of a case (PCR), so the state
+            logged is always some named actor's view of it, never "the" state.
+    """
     try:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id, actor_id=actor_id))
         case = as_VulnerabilityCase(**case_data)
         logger.info(
             f"Case state [{label}]: reports={len(case.vulnerability_reports)}, "
@@ -516,21 +655,79 @@ def log_case_state(
         return None
 
 
+#: The three actors every exchange demo runs with, as
+#: ``(slug, name, actor_type)``.
+#:
+#: Slugs, not absolute URIs: ``POST /actors/`` canonicalizes a bare slug into
+#: ``{base_url}actors/{slug}`` (ADR-0073 decision 2), so the id names the very
+#: endpoint this node serves.  A hard-coded absolute id would instead name an
+#: actor on some *other* node — the mistake the retired example actors made, and
+#: the reason they could not be addressed here.
+#:
+#: The names retain the prefixes :func:`discover_actors` matches on, so a node
+#: seeded this way is still introspectable by role.
+_EXCHANGE_ACTORS: Tuple[Tuple[str, str, str], ...] = (
+    ("finndervul", "Finn der Vul", "Person"),
+    ("vendorco", "VendorCo", "Organization"),
+    ("coordinator", "Coordinator LLC", "Organization"),
+)
+
+
+def seed_exchange_actors(
+    client: DataLayerClient,
+) -> Tuple[as_Actor, as_Actor, as_Actor]:
+    """Create the Finder, Vendor and Coordinator actors on *client*'s node.
+
+    Each gets its own store, holding its own record, which is the whole of what
+    a single-container exchange demo needs: the three actors reach each other by
+    URL, and delivery derives a recipient's inbox from its URI alone
+    (``http_delivery``), so no actor needs a stored copy of another's record.
+
+    Idempotent, because ``POST /actors/`` is.
+
+    Returns:
+        A tuple of ``(finder, vendor, coordinator)`` actors as created.
+    """
+    seeded = tuple(
+        seed_actor(
+            client=client, name=name, actor_type=actor_type, actor_id=slug
+        )
+        for slug, name, actor_type in _EXCHANGE_ACTORS
+    )
+    for actor in seeded:
+        logger.info("Seeded exchange actor: %s", actor.id_)
+    finder, vendor, coordinator = seeded
+
+    # One client serves a node hosting three actors, so it cannot infer whose
+    # replica a `dl_path` read is about.  Bind it to the vendor: the exchange
+    # demos are receiver-side stories and the vendor is the recipient in the
+    # large majority of them.  Reads about the finder's or coordinator's replica
+    # pass `actor_id=` explicitly at the call site, which is what makes those
+    # reads legible as cross-actor rather than silently answering from the wrong
+    # store (ADR-0073 decision 7).
+    client.actor_id = vendor.id_
+    logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
+
+    return finder, vendor, coordinator
+
+
 def setup_clean_environment(
     client: DataLayerClient,
 ) -> Tuple[as_Actor, as_Actor, as_Actor]:
-    """Reset the DataLayer and return the three default demo actors.
+    """Reset the node and provision the three default demo actors.
 
-    Resets the DataLayer, clears all actor I/O queues, discovers the Finder,
-    Vendor, and Coordinator actors, and initialises their inboxes and outboxes.
+    Clears every store on the node, then creates the Finder, Vendor and
+    Coordinator actors.  The seeding step is explicit because clearing a node
+    leaves it hosting nothing at all: under ADR-0073 there is no store that
+    outlives the reset for a server-side ``init`` to populate.
 
     Returns:
         A tuple of ``(finder, vendor, coordinator)`` actors.
     """
     logger.info("Setting up clean environment...")
-    reset = reset_datalayer(client=client, init=True)
+    reset = reset_datalayer(client=client)
     logger.info(f"Reset status: {reset}")
-    finder, vendor, coordinator = discover_actors(client=client)
+    finder, vendor, coordinator = seed_exchange_actors(client=client)
     logger.info("Clean environment setup complete.")
     return finder, vendor, coordinator
 
@@ -552,7 +749,7 @@ def demo_environment(
         yield finder, vendor, coordinator
     finally:
         logger.info("Tearing down demo environment...")
-        reset_datalayer(client=client, init=False)
+        reset_datalayer(client=client)
         logger.info("Demo environment torn down.")
 
 
@@ -584,6 +781,133 @@ def seed_actor(
 
     response_data = client.post("/actors/", json=payload)
     return as_Actor.model_validate(response_data)
+
+
+#: Slug every container's self-hosted CaseActor is registered under.  A CaseActor
+#: is a role a container wears per CP-08-002/003, not a per-case object (#1872),
+#: so the slug is a constant rather than something derived from a case or report.
+CASE_ACTOR_SLUG = "case-actor"
+
+
+def case_actor_id_on(base_url: str) -> str:
+    """Return the canonical CaseActor URI hosted by the node at *base_url*.
+
+    Demo inspection clients need this to bind ``DataLayerClient.actor_id``: the
+    dedicated ``case-actor`` container hosts an actor whose store is the one a
+    ``/datalayer/`` read has to name (ADR-0073), and the container's base URL is
+    the only thing a demo entry point knows before any actor exists.
+
+    Args:
+        base_url: Base URL of the container hosting the CaseActor, e.g.
+            ``http://case-actor:7999/api/v2``.
+
+    Returns:
+        ``{base_url}/actors/case-actor``.
+    """
+    return f"{base_url.rstrip('/')}/actors/{CASE_ACTOR_SLUG}"
+
+
+def case_actor_id_for_report(report_id: str) -> str:
+    """Return the CaseActor URI a report's CaseProposal will be sent to.
+
+    The same identity for every report, because a CaseActor is a container, not a
+    per-case object (#1872). *report_id* is retained so call sites still read as
+    "the CaseActor for this report" and so the signature survives if the mapping
+    ever stops being constant.
+
+    Falls back to this node's own base URL when no CaseActor service is
+    configured, which is the single-container demo topology.
+    """
+    from vultron.config import get_config
+    from vultron.core.behaviors.case.case_actor_identity import (
+        case_actor_identity,
+    )
+
+    del report_id  # one CaseActor per container, not per report
+    cfg = get_config()
+    return (
+        case_actor_identity()
+        or case_actor_identity(str(cfg.server.base_url))
+        or ""
+    )
+
+
+def _is_same_node(base_url: str, actor_id: str) -> bool:
+    """True when *actor_id* is served by the node at *base_url*.
+
+    Compared on scheme+host+port, because that is what decides whether a
+    ``POST /actors/`` reaches the container that would host the actor. The path
+    prefix is deliberately ignored: it varies (``/api/v2``) without changing which
+    process answers.
+    """
+    from urllib.parse import urlsplit
+
+    a, b = urlsplit(base_url), urlsplit(actor_id)
+    return (a.scheme, a.netloc) == (b.scheme, b.netloc)
+
+
+def seed_case_actor_for_report(
+    client: DataLayerClient, report_id: str
+) -> as_Actor:
+    """Provision the CaseActor that *report_id*'s CaseProposal is addressed to.
+
+    ``ProposeReportCaseToActorNode`` sends ``Create(CaseProposal)`` to a CaseActor
+    whose URI it derives from the report, and delivery is an ordinary HTTP POST to
+    that actor's inbox (ADR-0042).  The inbox route resolves the actor from the
+    store its URI names, so the CaseActor has to be a *hosted actor* before the
+    proposal is delivered or the round-trip never starts.
+
+    In the exchange demos one container plays both the participant node and the
+    CaseActor service, so that container is the one that must host it.  Going
+    through ``POST /actors/`` is what puts the record in the CaseActor's own
+    store, since the route opens the store the id names (ADR-0073).
+
+    Spawning a CaseActor on demand for an unknown-in-advance case is a separate
+    protocol question (CP-08-003, #1872); this helper deliberately only does what
+    a demo can do — provision an actor whose id it can compute.
+
+    That is less than it sounds, and #1872 is why. In the reporter-client arm of
+    :func:`~vultron.demo.helpers.workflow.reporter_submits_report` the report id
+    is not knowable until the ``submit-report`` trigger returns, and that
+    trigger's own outbox drain has by then already delivered the ``Offer`` to the
+    receiver, whose ``ProposeReportCaseToActorNode`` derives this very id and
+    delivers a proposal to it — 404, because the provisioning below has not run
+    yet. A derived-but-unregistered identity cannot be provisioned in time by a
+    third party, because the sender computes it from data the receiver has not
+    seen. The fix is to stop deriving a per-case slug (#1872), not to provision
+    earlier.
+
+    Returns:
+        The created (or pre-existing) CaseActor as an ``as_Actor``.
+    """
+    case_actor_id = case_actor_id_for_report(report_id)
+
+    # Co-located only. ``POST /actors/`` recomputes the canonical URI from the
+    # *serving* node's base URL (ADR-0073 — which is why only the short segment
+    # travels), so posting a remote CaseActor's id here does not provision that
+    # container: it fabricates a local actor under the same slug. In the Docker
+    # topology that produced a spurious ``http://vendor:7999/api/v2/actors/
+    # case-actor`` alongside the real ``http://case-actor:7999/...`` one.
+    #
+    # A container hosting its own CaseActor provisions it from its own seed
+    # config (``docker/seed-configs/seed-case-actor.yaml``), which is exactly
+    # what a *stable* identity makes possible and a per-case one did not (#1872).
+    if not _is_same_node(client.base_url, case_actor_id):
+        logger.info(
+            "CaseActor %s is hosted elsewhere; leaving provisioning to that"
+            " container's own seed config",
+            case_actor_id,
+        )
+        return as_Actor(id_=case_actor_id, name="CaseActor")
+
+    actor = seed_actor(
+        client=client,
+        name=f"CaseActor for report {report_id}",
+        actor_type="Service",
+        actor_id=case_actor_id,
+    )
+    logger.info("Provisioned CaseActor for report: %s", case_actor_id)
+    return actor
 
 
 def check_server_availability(

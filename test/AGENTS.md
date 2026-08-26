@@ -190,6 +190,43 @@ This is the same reason `AGENTS.md` requires the full suite
 
 ---
 
+## One Actor Id Is One Database
+
+An `actor_id` is a **store name**, not a label on a store (DL-07-004). Two
+`SqliteDataLayer`s built with the same `actor_id` are the *same* in-memory
+database, because the URL is named and the engine cache is keyed by it.
+
+Two consequences, in opposite directions, and both have bitten:
+
+- **Two logical actors sharing one store** hides a *missing* write: the reader
+  finds the writer's row and the test passes for the wrong reason. This is the
+  defect class ISSUE-2238 was about, and it is why several tests were found
+  asserting nothing at all.
+- **One actor id reused for two independent scenarios** collides: the second seed
+  raises `ValueError: record with id_=... already exists`.
+
+Only the loud one was noticeable before per-actor storage, which is why the silent
+one accumulated. Give two scenarios that must not see each other's rows two actor
+ids — deriving one per test (`f"{ACTOR_ID}/{slug}"`) is enough and
+self-documenting. Do **not** give one logical actor two ids merely to get a fresh
+database; that reintroduces the masking.
+
+`test/conftest.py`'s autouse `_dispose_actor_stores_between_tests` handles the
+*between-test* case — **do not remove it.** Neither hazard above is a between-test
+problem: both occur within a single test, where no fixture can help.
+
+Store scoping also has to match *who executes*: a BT's store follows its executing
+actor (BT-05-005), so a test that seeds one actor's store and runs
+`execute_with_setup(actor_id=<other>)` reads an empty one. Declare the executor
+with `@pytest.mark.executes_as(ACTOR)` — `bt_scenario` honours it — or build the
+scenario per actor with `bt_scenario_factory`. Derive a test's executing actor by
+looking at `execute_with_setup(actor_id=…)` and `receiving_actor_id`, never from
+fixture or test names.
+
+Source: ISSUE-2238.
+
+---
+
 ## Demo Integration Test Isolation
 
 Each actor MUST use a **distinct `DataLayer` instance**; mark tests

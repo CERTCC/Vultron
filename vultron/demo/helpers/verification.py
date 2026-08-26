@@ -53,6 +53,7 @@ def _fetch_participant(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
+    dl_actor_id: str | None = None,
 ) -> Optional[as_CaseParticipant]:
     """Fetch the as_CaseParticipant record for *actor_id* in *case_id*.
 
@@ -60,18 +61,25 @@ def _fetch_participant(
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose participant record to fetch.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor.  Needed for a self-hosted CaseActor: it
+            shares its owner's container but not its store (ADR-0073 decision
+            5), so reading the owner's replica reports the owner's view of a
+            participant, not the CaseActor's authoritative one.
 
     Returns:
         The ``as_CaseParticipant`` or ``None`` if the actor or participant
         record is not found.
     """
     try:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id, actor_id=dl_actor_id))
         case = as_VulnerabilityCase.model_validate(case_data)
         participant_id = case.actor_participant_index.get(actor_id)
         if participant_id is None:
             return None
-        p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
+        p_data = client.get(
+            client.dl_path(_dl_key(participant_id), actor_id=dl_actor_id)
+        )
         return as_CaseParticipant(**p_data)
     except (httpx.HTTPStatusError, AssertionError):
         return None
@@ -83,7 +91,7 @@ def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
     Re-raises for any non-404 error so failures are not silently swallowed.
     """
     try:
-        return client.get(f"/datalayer/{_dl_key(p_id)}")
+        return client.get(client.dl_path(_dl_key(p_id)))
     except httpx.HTTPStatusError as e:
         if e.response is not None and e.response.status_code == 404:
             return None
@@ -143,7 +151,7 @@ def _assert_vendor_participant_state(
             RM state is not ``RM.ACCEPTED``.
     """
     participant = as_CaseParticipant(
-        **vendor_client.get(f"/datalayer/{_dl_key(participant_id)}")
+        **vendor_client.get(vendor_client.dl_path(_dl_key(participant_id)))
     )
     latest = participant.participant_status
     if latest is None:
@@ -392,8 +400,12 @@ def verify_activity_in_inbox(
 
     Args:
         client: DataLayerClient for the target container.
-        actor_id: Full URI of the actor whose inbox to check (used for
-            logging only; the DataLayer lookup is ID-based).
+        actor_id: Full URI of the actor whose inbox to check.  This *selects the
+            store* read: an activity delivered to one actor is absent from every
+            other actor's store (CM-01-001), so a lookup by id alone has no
+            answer.  It was logging-only when a container had a single shared
+            store, which made "not in the finder's inbox" report on whichever
+            actor the client happened to be bound to.
         activity_id: Full URI of the activity to find.
 
     Returns:
@@ -401,14 +413,18 @@ def verify_activity_in_inbox(
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
     try:
-        client.get(f"/datalayer/{activity_id}")
+        client.get(client.dl_path(activity_id, actor_id=actor_id))
         logger.info(
             "✓ Activity %s found in DataLayer (actor %s)",
             activity_id,
             actor_obj_id,
         )
         return True
-    except Exception:
+    except (httpx.HTTPStatusError, AssertionError):
+        # Only a transport/HTTP "not there" answer means "not received".  A bare
+        # ``except Exception`` here would report a programming error — an unbound
+        # client, a bad key — as a protocol failure, which is how the
+        # ``dl_path`` ValueError stayed invisible for a whole CI cycle.
         logger.warning(
             "Activity %s not found in DataLayer (actor %s)",
             activity_id,
@@ -450,7 +466,7 @@ def verify_receiver_case_state(
         AssertionError: If any invariant is violated.
     """
     final_case = as_VulnerabilityCase(
-        **receiver_client.get(f"/datalayer/{case_id}")
+        **receiver_client.get(receiver_client.dl_path(case_id))
     )
 
     # Verify required participants are present by ID rather than a raw count,
@@ -499,14 +515,18 @@ def verify_case_actor_unused(
 ) -> None:
     """Verify the dedicated CaseActor container remains unused in D5-2.
 
-    Per D5-1-G3, the per-case ``VultronCaseActor`` co-locates in the
-    receiver container for D5-2.  The standalone ``case-actor`` service
-    participates in the Docker topology but should not hold the created
-    ``as_VulnerabilityCase``.
+    A CaseActor is a role a container wears (``CVDRole.CASE_MANAGER``) rather
+    than a per-case object (#1872), and each container self-hosts its own under
+    the stable ``case-actor`` slug (CP-08-002, CP-08-003).  In D5-2 the receiver
+    container is therefore the case manager for the case it creates, and the
+    standalone ``case-actor`` service — which participates in the Docker topology
+    for the multi-coordinator scenarios — must not hold that case.
 
     Args:
         case_actor_client: Optional client connected to the dedicated
-            CaseActor container.  When ``None`` the check is skipped.
+            CaseActor container.  Must carry a bound ``actor_id`` (see
+            :func:`~vultron.demo.utils.case_actor_id_on`), because the read is
+            per-actor under ADR-0073.  When ``None`` the check is skipped.
         case_id: Full URI of the case that should be absent.
 
     Raises:
@@ -516,7 +536,9 @@ def verify_case_actor_unused(
     if case_actor_client is None:
         return
 
-    case_actor_cases = case_actor_client.get("/datalayer/VulnerabilityCases/")
+    case_actor_cases = case_actor_client.get(
+        case_actor_client.dl_path("VulnerabilityCases/")
+    )
     if case_id in case_actor_cases:
         raise AssertionError(
             "Dedicated case-actor container unexpectedly persisted the D5-2"

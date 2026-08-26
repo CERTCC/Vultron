@@ -223,7 +223,7 @@ class CloseNotYetEmittedConditionNode(DataLayerConditionWithPorts):
             return Status.FAILURE
 
         outbox_port = cast(CaseOutboxPersistence, self.datalayer)
-        activity_ids = outbox_port.outbox_list_for_actor(self.actor_id)
+        activity_ids = outbox_port.outbox_list()
 
         for activity_id in activity_ids:
             activity = self.datalayer.read(activity_id)

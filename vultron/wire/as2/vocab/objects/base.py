@@ -80,12 +80,29 @@ class VultronAS2Object(as_Object):
     subclasses with no name differences can inherit the default without
     override.
 
+    **``inline_required_refs`` contract**: Some AS2 ref fields are *required* by
+    the protocol to carry a whole object rather than a URI — ``as_CaseProposal``
+    must inline its ``as_VulnerabilityReport`` (CP-01-004, AKM-03-001). The type
+    annotation cannot express that: ``ActivityStreamRequiredRef[T]`` is
+    ``T | as_Link | str``, so ``str`` type-checks. Name such fields here::
+
+        inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+
+    Persistence reads this declaration and skips dehydration for those fields,
+    so the invariant survives a store round-trip. Without it the id is stored
+    alone and nothing can rebuild the object, because only the *first* level of
+    an inbound activity's nesting is given a record of its own — the defect
+    behind #2482.
+
     ``to_core`` always raises :exc:`NotImplementedError` at this level;
     subclasses that have a meaningful reverse mapping SHOULD override it.
     """
 
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
     _field_map: ClassVar[dict[str, str]] = {}
+    #: Ref fields that MUST stay inline through persistence. Public (no leading
+    #: underscore) because the storage adapter reads it; see the class docstring.
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
     def from_core(cls, core_obj: Any) -> "VultronAS2Object":

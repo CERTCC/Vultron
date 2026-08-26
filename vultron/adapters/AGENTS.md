@@ -72,18 +72,17 @@ for:
 
 - Avoid `BaseModel` in Port/Adapter Type Hints
 - `create_app()` MUST NOT Mutate Module-Level Singletons
-- **DataLayer Scope Boundaries: Shared vs. Actor-Scoped** — queue methods
-  (`inbox_list`, `inbox_pop`, `inbox_append`, `outbox_list`, `outbox_pop`,
-  `outbox_append`) MUST use an actor-scoped DataLayer, not the shared one.
-  An unscoped DL (`actor_id=None`) silently operates on a phantom queue
-  keyed by `""` — not any actor's real queue.
+- **DataLayer Scope Boundaries** — queue methods (`inbox_list`, `inbox_pop`,
+  `inbox_append`, `outbox_list`, `outbox_pop`, `outbox_append`) take no
+  `actor_id`: they act on the store's own actor. Under ADR-0073 there is no
+  unscoped store to get this wrong with — `actor_id` is required at
+  construction.
 - **DataLayer Identity Contract: Canonical URI Must Match** — the actor_id
-  used to construct an actor-scoped DataLayer for queue reads MUST be the
-  actor's canonical URI (`actor.id_`), and MUST exactly match the string
-  passed to `record_outbox_item` by the use case. Use
-  `get_canonical_actor_dl()` from `deps.py`; do NOT pass the raw URL path
-  segment. Violating this causes outbound activities to be silently dropped
-  (BUG-2026040901).
+  used to construct a DataLayer for queue reads MUST be the actor's canonical
+  URI (`actor.id_`), and MUST exactly match the one the writing store was
+  built with. Use `get_canonical_actor_dl()` from `deps.py`; do NOT pass the
+  raw URL path segment. Violating this reads a *different actor's* store, so
+  outbound activities are silently dropped (BUG-2026040901).
 
 See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structure-fastapi-patterns.md) for:
 
@@ -109,15 +108,16 @@ actor's actual queue.
 **Fix:** query the DataLayer queue directly:
 
 ```python
-activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list_for_actor(actor_id)
+# `datalayer` here is *this* actor's own store (ADR-0073).
+activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list()
 outbox = as_OrderedCollection(id_=f"{actor_id}/outbox")
 outbox.items = [rehydrate(aid, dl=datalayer) for aid in activity_ids]
 ```
 
 The `dl.read(actor_id)` result is still useful for the 404 guard only. Any
 endpoint that needs the *contents* of an actor's outbox queue MUST call
-`outbox_list_for_actor(actor_id)` — the `outbox` field on the actor object is
-now only a URI pointer to the collection endpoint.
+`outbox_list()` on that actor's own store — the `outbox` field on the actor
+object is now only a URI pointer to the collection endpoint.
 
 <!-- Source: ISSUE-1515 (ADR-0034) -->
 

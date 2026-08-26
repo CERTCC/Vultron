@@ -32,7 +32,7 @@ Structure:
        ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
        ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
        ├─ CreateCaseOwnerParticipant   # Add case owner as initial participant (CM-02-008)
-       ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
+       ├─ PublishCaseActorIdentityNode  # CaseActor identity (CP-04-003)
        ├─ ProposeCaseToActorNode       # Send Create(as_CaseProposal) to Case Actor (CP-04-002)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
        └─ UpdateActorOutbox            # Append activity to actor outbox
@@ -51,7 +51,6 @@ import py_trees
 from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import VultronCase
 from vultron.core.behaviors.case.case_setup_tree import (
-    CreateCaseActorNode,
     RecordCaseCreationEvents,
 )
 from vultron.core.behaviors.case.communication_tree import (
@@ -59,6 +58,9 @@ from vultron.core.behaviors.case.communication_tree import (
 )
 from vultron.core.behaviors.case.participant_tree import (
     CreateCaseOwnerParticipant,
+)
+from vultron.core.behaviors.case.nodes.case_setup import (
+    PublishCaseActorIdentityNode,
 )
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
@@ -117,7 +119,7 @@ def create_create_case_tree(
                 # blackboard keys (BTND-03-004).
                 report_id=case_obj.id_,
             ),
-            CreateCaseActorNode(case_id=case_id),
+            PublishCaseActorIdentityNode(case_id=case_id),
             ProposeCaseToActorNode(),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),

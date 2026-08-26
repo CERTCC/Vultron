@@ -130,14 +130,37 @@ def test_find_actor_record_returns_by_full_id(datalayer):
     assert result.get("id_") == _ACTOR_URI
 
 
-def test_find_actor_record_returns_by_path_suffix(datalayer):
-    """Short-ID lookup: actor whose id_ ends with '/{actor_id}'."""
-    actor = as_Organization(id_=_ACTOR_URI, name="Alice Org")
+def test_find_actor_record_resolves_a_path_segment_by_computation(datalayer):
+    """A URL path segment resolves to this node's canonical URI for it."""
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+    canonical = canonical_actor_uri("alice")
+    actor = as_Organization(id_=canonical, name="Alice Org")
     datalayer.create(object_to_record(actor))
-    # 'alice' is the last path segment of _ACTOR_URI
+
     result = _find_actor_record(datalayer, "alice")
     assert result is not None
-    assert result.get("id_") == _ACTOR_URI
+    assert result.get("id_") == canonical
+
+
+def test_find_actor_record_does_not_match_a_foreign_actor_by_suffix(datalayer):
+    """A same-segment actor under another authority is not returned.
+
+    This replaces ``test_find_actor_record_returns_by_path_suffix``, which
+    asserted the opposite: that looking up ``"alice"`` would find
+    ``https://example.org/actors/alice`` by scanning every actor row for one
+    whose id ends in ``/alice``.
+
+    That scan was a cross-actor read, and it could return a *peer's* record —
+    an actor this node does not host — which since ADR-0073 decision 5 is exactly
+    what an actor's own store is full of.  Resolution is now by computation from
+    the node's own base URL, so a foreign id with a colliding last segment is
+    correctly invisible.
+    """
+    foreign = as_Organization(id_=_ACTOR_URI, name="Alice Org Elsewhere")
+    datalayer.create(object_to_record(foreign))
+
+    assert _find_actor_record(datalayer, "alice") is None
 
 
 def test_find_actor_record_returns_none_when_absent(datalayer):

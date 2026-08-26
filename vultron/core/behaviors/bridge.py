@@ -45,6 +45,7 @@ import py_trees
 from py_trees.common import Status
 from py_trees.display import unicode_tree
 
+from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
@@ -143,6 +144,145 @@ class BTBridge:
             f"{__name__}.{self.__class__.__name__}"
         )
 
+    def _store_for_actor(self, actor_id: str) -> CasePersistence:
+        """Return the store belonging to *actor_id* (ADR-0073, BT-05-005).
+
+        BT-05-002 and BT-05-003 put ``datalayer`` and ``actor_id`` on the
+        blackboard as two independent facts.  Under per-actor storage they are
+        one fact: a store is always some actor's own, so the executing actor's
+        identity *determines* which store the tree operates on.  Reconciling
+        them here makes every write a node performs — ``outbox_append()`` above
+        all — correct by construction, rather than correct only when the caller
+        remembered to inject a matching DataLayer.
+
+        The delegated-emit pattern is what makes this load-bearing.  A trigger
+        that emits on the CaseActor's behalf runs with ``actor_id`` set to the
+        CaseActor (CM-24-001) while the injected DataLayer belongs to the
+        *requesting* actor.  Without reconciliation the activity is created in
+        one store and queued in the other's outbox, so the CaseActor never
+        delivers it and the outbox entry names an activity its own store does
+        not hold (PCR-08-007, CM-24-004).
+
+        Scoping is skipped unless the DataLayer reports a concrete ``actor_id``
+        that differs, which leaves test doubles and any non-actor-scoped
+        implementation untouched.  That fall-through is the first of BT-05-005's
+        two recorded exceptions: a store that cannot name its own actor has
+        nothing to reconcile against.
+
+        The guard logic itself lives in
+        :func:`~vultron.core.behaviors.store_scope.store_for_actor` so that this
+        node, ``WritePendingReportCaseLinkNode`` and the demo seeding helpers
+        cannot drift apart on what "that actor's store" means.
+
+        ``require_same_authority`` is set, and the fall-through is the point of
+        it — BT-05-005's second exception.  The executing actor is not always one
+        this node hosts: after a
+        handoff the case's CaseActor is on the container that first received the
+        report (CP-08-003) while the owner is elsewhere, and
+        ``_find_case_actor_id`` resolves it by *identity shape*
+        (``.../actors/case-actor``, ADR-0041) which answers for remote
+        containers too.  ``clone_for_actor`` would then mint an empty local
+        store under a foreign actor's name, and the tree would run against
+        nothing: no case to enrich the wire object from (CM-17-002), no case to
+        read a genesis hash out of, so ``ReconstructChainTailNode`` cannot
+        anchor the chain and the ledger commit fails outright (CLP-08-005) —
+        ``invite-actor-to-case`` returns 422 rather than degrading (#2484).
+
+        So a foreign-authority actor keeps the store it was handed: the store of
+        the actor whose request this is, which does hold the case and its
+        ledger.  The *wire* identity is unaffected — the Invite still goes out
+        with ``actor`` set to the CaseActor and ``attributedTo`` the requester
+        (PCR-08-007) — and the CaseActor's canonical ledger learns of it the
+        only way a remote store ever can, over the wire via the ``cc:`` copy
+        (CLP-10-001).  Callers that queue work for the executing actor must fall
+        back the same way; see ``trigger_invite_actor_to_case``.
+
+        That last part is enforced, not merely intended: a *ledger commit* must
+        not ride along on this fall-through, or the requester mints a canonical
+        index in its own replica while the real CaseActor mints its own from the
+        ``cc:`` copy and the chain forks (#2626).
+        :class:`~vultron.core.behaviors.sync.nodes.ledger_authority.DeclineForeignLedgerCommitNode`
+        makes ``CommitLogEntryBT`` decline in exactly the case this method falls
+        through on, reusing this same guard so the two cannot disagree
+        (CLP-10-014).
+
+        Reconciling the store is necessary but not sufficient — see
+        :meth:`_ports_for_store` for the other half.
+        """
+        return (
+            store_for_actor(
+                self.datalayer, actor_id, require_same_authority=True
+            )
+            or self.datalayer
+        )
+
+    def _ports_for_store(self, store: CasePersistence) -> tuple[
+        "TriggerActivityPort | None",
+        "SyncActivityPort | None",
+        "WireRenderPort | None",
+    ]:
+        """Return this bridge's driven ports, rebound to *store* (DL-07-009).
+
+        ``_store_for_actor`` reconciles the store the *nodes* write through.  The
+        driven adapters on the blackboard hold a second, independent reference to
+        a DataLayer — the one they were constructed with — and that reference is
+        what persists an outbound activity.  Leaving it alone splits a single
+        emit across two stores: ``TriggerActivityAdapter.invite_actor_to_case``
+        creates the ``Invite`` in the *requesting* actor's store while
+        ``EmitInviteActorToCaseNode`` appends its id to the *executing* actor's
+        outbox.  Nothing raises; the outbox handler simply reports the activity
+        "not found in DataLayer for actor …", skips delivery, and the invitee is
+        never told it was invited (ISSUE-2548).
+
+        This is the delegated-emit path the class docstring on
+        ``SvcInviteActorToCaseUseCase`` describes: a trigger addressed to the case
+        owner runs with ``actor_id`` set to the CaseActor, so the two references
+        disagree by construction rather than by mistake.
+
+        A port this bridge was not given is *inherited* from the blackboard
+        rather than left alone, because the blackboard is process-global
+        (``Blackboard.storage``) and the nested-bridge pattern relies on that:
+        an emit node builds its ledger-commit tree with
+        ``BTBridge(datalayer=...)`` and no ports, so whatever the last execution
+        wrote is what the commit tree's ``LedgerFanoutNode`` picks up.  Within
+        one request that inheritance is intended — the ports belong to the
+        execution in progress.  Across requests it is a store leak: a node
+        hosting several actors runs actor A's trigger, then actor B's, and B's
+        ``Announce(CaseLedgerEntry)`` is persisted through A's adapter into A's
+        store (ADR-0073, CM-01-001).  Rebinding on the way through makes the
+        inheritance safe by construction instead of safe by luck, so the port a
+        nested tree reads always writes the store that tree runs in.
+
+        Ports that do not opt in are returned unchanged; see
+        :func:`~vultron.core.behaviors.store_scope.port_for_store`.
+        """
+        return (
+            port_for_store(
+                self.trigger_activity
+                or self._inherited_port("trigger_activity_factory"),
+                store,
+            ),
+            port_for_store(
+                self.sync_port or self._inherited_port("sync_port"), store
+            ),
+            port_for_store(
+                self.wire_render_port
+                or self._inherited_port("wire_render_port"),
+                store,
+            ),
+        )
+
+    @staticmethod
+    def _inherited_port(key: str) -> Any:
+        """Return the port currently on the blackboard under *key*, or ``None``.
+
+        Read straight out of ``Blackboard.storage`` rather than through a
+        ``Client``: registering READ access for a key that may never have been
+        written raises, and "no port has been set yet" is the ordinary case for
+        the first execution in a process.
+        """
+        return py_trees.blackboard.Blackboard.storage.get(f"/{key}")
+
     def setup_tree(
         self,
         tree: py_trees.behaviour.Behaviour,
@@ -180,29 +320,34 @@ class BTBridge:
             key="actor_id", access=py_trees.common.Access.WRITE
         )
 
-        blackboard.datalayer = self.datalayer
+        store = self._store_for_actor(actor_id)
+        trigger_activity, sync_port, wire_render_port = self._ports_for_store(
+            store
+        )
+
+        blackboard.datalayer = store
         blackboard.actor_id = actor_id
 
-        if self.trigger_activity is not None:
+        if trigger_activity is not None:
             blackboard.register_key(
                 key="trigger_activity_factory",
                 access=py_trees.common.Access.WRITE,
             )
-            blackboard.trigger_activity_factory = self.trigger_activity
+            blackboard.trigger_activity_factory = trigger_activity
 
-        if self.sync_port is not None:
+        if sync_port is not None:
             blackboard.register_key(
                 key="sync_port",
                 access=py_trees.common.Access.WRITE,
             )
-            blackboard.sync_port = self.sync_port
+            blackboard.sync_port = sync_port
 
-        if self.wire_render_port is not None:
+        if wire_render_port is not None:
             blackboard.register_key(
                 key="wire_render_port",
                 access=py_trees.common.Access.WRITE,
             )
-            blackboard.wire_render_port = self.wire_render_port
+            blackboard.wire_render_port = wire_render_port
 
         if activity is not None:
             blackboard.register_key(

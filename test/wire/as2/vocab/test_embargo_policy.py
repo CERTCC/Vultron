@@ -274,7 +274,10 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
     def test_datalayer_round_trip(self):
         """DUR-05-001, DUR-05-002: Round-trip through DataLayer preserves durations."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         dl.create(self.policy)
         stored = dl.read(self.policy.id_)
         self.assertIsNotNone(stored)

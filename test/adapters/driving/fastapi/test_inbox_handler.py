@@ -151,7 +151,10 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
         TriggerActivityAdapter,
     )
 
-    real_dl = SqliteDataLayer("sqlite:///:memory:")
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
     # Capture which port_factories map was supplied to get_dispatcher
     captured: dict = {}
@@ -238,7 +241,10 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
     actor_id = "https://example.org/actors/participant"
     case_id = "https://example.org/cases/case-unknown"
     item_id = "https://example.org/activities/add-note-1"
-    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     queue_dl = shared_dl.clone_for_actor(actor_id)
     item = as_Activity(
         id_=item_id,
@@ -278,7 +284,10 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
     case_id = "https://example.org/cases/case-replay"
     note_id = "https://example.org/activities/add-note-2"
     announce_id = "https://example.org/activities/announce-case-1"
-    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     shared_dl.save(as_Service(id_=actor_id, name="Participant"))
     queue_dl = shared_dl.clone_for_actor(actor_id)
     queue_dl.inbox_append(note_id)
@@ -351,7 +360,10 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
     actor_id = "https://example.org/actors/reporter"
     case_id = "https://example.org/cases/cbt-ac5"
     activity_id = "https://example.org/activities/cbt-ac5-note"
-    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
     item = as_Activity(
@@ -401,7 +413,10 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     actor_id = "https://example.org/actors/reporter"
     case_id = "https://example.org/cases/cbt-ac6"
     activity_id = "https://example.org/activities/cbt-ac6-note"
-    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
     # Create a pending queue entry that is already "old" (queued 10 minutes ago)
@@ -437,12 +452,15 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     When ``actor_dl`` is passed as a separate actor-scoped instance (distinct
     from the shared ``dl``), queue operations (``inbox_list``, ``inbox_pop``)
     must use ``actor_dl`` while rehydration and dispatch must receive the
-    shared ``dl`` (ARCH-13-003, ARCH-13-004).
+    shared ``dl`` (ARCH-13-003; ARCH-13-004 was retired by DL-07-001, which
+    removed the second identity it required to agree with the first).
     """
     actor_id = "https://example.org/actors/participant"
     activity_id = "https://example.org/activities/act-dual-dl"
-
-    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     shared_dl.save(
         as_Service(id_=actor_id, name="Participant")  # type: ignore[call-arg]
     )
@@ -571,7 +589,10 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
     fake_actor_config = ActorConfig(auto_create_case=False)
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake_actor_config)
 
-    real_dl = SqliteDataLayer("sqlite:///:memory:")
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     kwargs = pf._submit_report_port_factory(real_dl)
 
     assert "actor_config" in kwargs, "factory must include actor_config"
@@ -594,7 +615,10 @@ def test_submit_report_port_factory_omits_actor_config_when_unavailable(
 
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
 
-    real_dl = SqliteDataLayer("sqlite:///:memory:")
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     kwargs = pf._submit_report_port_factory(real_dl)
 
     assert "actor_config" not in kwargs
@@ -638,7 +662,10 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
         sem in captured["port_factories"]
     ), "SUBMIT_REPORT must have a factory"
 
-    real_dl = SqliteDataLayer("sqlite:///:memory:")
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     kwargs = captured["port_factories"][sem](real_dl)
 
     assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
@@ -664,7 +691,10 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
 
     kwargs = pf._case_proposal_port_factory(
-        SqliteDataLayer("sqlite:///:memory:")
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
     )
 
     assert kwargs["actor_config"] == fake
@@ -686,7 +716,10 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
 
     kwargs = pf._case_proposal_port_factory(
-        SqliteDataLayer("sqlite:///:memory:")
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
     )
 
     assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
@@ -720,7 +753,10 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
         sem in captured["port_factories"]
     ), "CREATE_CASE_PROPOSAL must have a factory"
     kwargs = captured["port_factories"][sem](
-        SqliteDataLayer("sqlite:///:memory:")
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
     )
     actor_config = kwargs.get("actor_config")
     assert isinstance(actor_config, ActorConfig)
@@ -762,7 +798,10 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     # without the full FastAPI lifespan — call make_dispatcher directly.
     dispatcher = ih.make_dispatcher()
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     dl.save(VultronCaseActor(id_=VENDOR_ID))
 
     report = VultronReport(id_=REPORT_ID)
@@ -793,7 +832,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     ), "No as_VulnerabilityCase should be created when auto_create_case=False"
     # Outbox must remain empty.
     assert (
-        dl.outbox_list_for_actor(VENDOR_ID) == []
+        dl.outbox_list() == []
     ), "Outbox must be empty when auto_create_case=False"
 
 
@@ -808,7 +847,10 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     case_id = "https://example.org/cases/cbt-ac7"
     activity_id = "https://example.org/activities/cbt-ac7-note"
     case_actor_id = "https://example.org/actors/case-actor"
-    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
     old_time = datetime.now(timezone.utc) - timedelta(minutes=10)

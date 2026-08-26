@@ -23,7 +23,10 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    _resolve_case_manager_id,
+)
 
 
 class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
@@ -124,8 +127,8 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
             if not addressees:
                 return Status.FAILURE
             activity_id, activity_dict = self._call_factory(self.actor_id, addressees)  # type: ignore[arg-type]
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
@@ -145,7 +148,7 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmValidateReportActivity to the Case Actor's inbox.
 
     Calls ``trigger_activity_factory.validate_report()`` and queues the
-    resulting activity ID via ``record_outbox_item``. Routes the activity
+    resulting activity ID via ``outbox_append``. Routes the activity
     to the Case Actor (CASE_MANAGER participant) using ``_compute_report_addressees``.
 
     Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
@@ -198,9 +201,19 @@ def _compute_report_addressees(
     Per ADR-0035 DL-06-001: the offer submitter ID is read from the core
     ``VultronOfferRecord``, not from the stored wire Offer activity.
 
+    The Case Actor is **not** excluded from being addressed when it is itself the
+    sender.  CLP-10-001 is explicit that "the CaseActor is a participant with
+    extra duties; it is not excluded" — an activity it originates still has to
+    reach its own inbox, because that is what triggers its received-side use case
+    and fires ``GuardedCommitCaseLedgerEntryBT`` in the right inbox context via
+    HTTP loopback self-delivery (OX-12-004).  Dropping the self-address left a
+    report activity with no recipients at all, which fails the emit node and
+    surfaces as "no routable recipients" — so an actor that both participates and
+    manages the case could not validate a report.
+
     Args:
         report_id: VulnerabilityReport ID used to locate the linked case.
-        actor_id: Sender's actor ID (excluded from recipient list).
+        actor_id: Sender's actor ID.
         offer_record: Core offer record capturing the submitter's actor ID.
         dl: DataLayer for case lookup.
 
@@ -209,8 +222,17 @@ def _compute_report_addressees(
     """
     case = dl.find_case_by_report_id(report_id)
     if isinstance(case, VulnerabilityCase):
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id and case_manager_id != actor_id:
+        # The case's own participant list is authoritative once bootstrap has
+        # populated it.  Before that it is empty, so fall back to the trust
+        # anchor recorded on the ``ReportCaseLink`` — the same resolution
+        # `_find_case_actor_id` performs for every other case-scoped path, and
+        # the reason it exists (CBT-01-006).  Without the fallback a case created
+        # before its participants are registered has no addressable manager, and
+        # the report activity fails as unroutable.
+        case_manager_id = _resolve_case_manager_id(case, dl) or (
+            _find_case_actor_id(dl, case.id_)
+        )
+        if case_manager_id:
             return [case_manager_id]
         return None
 
@@ -226,7 +248,7 @@ class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmInvalidateReportActivity (TentativeReject) to the actor outbox.
 
     Calls ``trigger_activity_factory.invalidate_report()`` and queues the
-    resulting activity ID via ``record_outbox_item``.
+    resulting activity ID via ``outbox_append``.
 
     Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
     procedural calls in ``execute()``.
@@ -262,7 +284,7 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmCloseReportActivity (Reject) to the actor outbox.
 
     Calls ``trigger_activity_factory.close_report()`` and queues the
-    resulting activity ID via ``record_outbox_item``.
+    resulting activity ID via ``outbox_append``.
 
     Used by both the reject-report and close-report trigger workflows.
 
@@ -335,7 +357,7 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
     """Create Offer(VulnerabilityReport) and queue in actor outbox.
 
     Calls ``trigger_activity_factory.submit_report()`` and queues the
-    offer ID via ``record_outbox_item``.  Stores the offer dict in
+    offer ID via ``outbox_append``.  Stores the offer dict in
     ``captured["offer"]`` if *captured* is provided.
 
     Per BT-15-001: outbound activity construction and queueing must be
@@ -384,9 +406,7 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
             return f
         try:
             offer_id, offer_dict = self._call_factory()
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, offer_id  # type: ignore[arg-type]
-            )
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(offer_id)
             if self._captured is not None:
                 self._captured["offer"] = offer_dict
             self.logger.info(

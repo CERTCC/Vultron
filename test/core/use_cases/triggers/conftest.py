@@ -21,7 +21,10 @@ def datalayer():
     )
 
     reset_datalayer()
-    datalayer = get_datalayer(db_url="sqlite:///:memory:")
+    datalayer = get_datalayer(
+        "https://test.example/api/v2/actors/test-actor",
+        db_url="sqlite:///:memory:",
+    )
     datalayer.clear_all()
     yield datalayer
     datalayer.clear_all()

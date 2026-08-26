@@ -28,7 +28,7 @@ from vultron.config import get_config
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -49,7 +49,7 @@ def _activity_context_id(
 
 
 def _queue_pending_case_activity(
-    queue_dl: ActorScopedDataLayer,
+    queue_dl: DataLayer,
     case_id: str,
     activity_id: str,
     case_actor_id: str | None = None,
@@ -81,7 +81,7 @@ def _expire_pending_case_activities(
     case_id: str,
     actor_id: str,
     dl: DataLayer,
-    queue_dl: ActorScopedDataLayer,
+    queue_dl: DataLayer,
     timeout_seconds: int | None = None,
 ) -> bool:
     """Drop an expired pre-bootstrap queue and emit a replay ``Question``.
@@ -186,7 +186,7 @@ def _expire_pending_case_activities(
 def _replay_pending_case_activities(
     case_id: str,
     dl: DataLayer,
-    queue_dl: ActorScopedDataLayer,
+    queue_dl: DataLayer,
     actor_id: str | None = None,
 ) -> None:
     """Move deferred activities for *case_id* back onto the live inbox queue.

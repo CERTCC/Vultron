@@ -40,7 +40,10 @@ class TestCaseParticipantUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case2",
             name="TEST-REMOVE",
@@ -85,7 +88,10 @@ class TestCaseParticipantUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case3",
@@ -128,7 +134,10 @@ class TestCaseParticipantUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         actor_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseAP1",
@@ -177,7 +186,10 @@ class TestCaseParticipantUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseRaise1",
             name="TEST-RAISE",
@@ -225,7 +237,10 @@ class TestCaseParticipantUseCases:
             as_VulnerabilityCase,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         actor_id = "https://example.org/users/coordinator"
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseRM1",

@@ -78,7 +78,10 @@ def case(report):
 def dl():
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield dl
     dl.clear_all()
 

@@ -268,7 +268,13 @@ def demo_manage_participants_accept(
         )
         post_to_inbox_and_wait(client, coordinator.id_, create_status)
         with demo_check("as_ParticipantStatus stored in data layer"):
-            verify_object_stored(client, participant_status.id_)
+            # The coordinator's store: the activity was delivered to the
+            # coordinator's inbox, so that is the replica holding the status.
+            # The client is bound to the vendor (the recipient in most of these
+            # demos), so this read has to name the actor explicitly.
+            verify_object_stored(
+                client, participant_status.id_, actor_id=coordinator.id_
+            )
 
     with demo_step(
         "Step 7: Coordinator adds as_ParticipantStatus to their participant"

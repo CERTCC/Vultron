@@ -166,63 +166,54 @@ The `events/` directory structure under `core/models/` SHOULD mirror the
 `activities/` directory structure under `wire/as2/vocab/`, with submodules
 grouped by semantic category (`report.py`, `case.py`, `embargo.py`, etc.).
 
-### Discriminated Event Hierarchy (P65-3 Design)
+### Discriminated Event Hierarchy (P65-3 — Complete)
 
-To support type-safe handler dispatch, the domain event base class (`VultronEvent`
-or equivalent) SHOULD carry a discriminator field based on `MessageSemantics`:
+**Status: implemented.** All 50 `MessageSemantics` values have a typed
+`FooReceivedEvent` subclass in `vultron/core/models/events/`. Each subclass
+carries `semantic_type: Literal[MessageSemantics.XYZ]` as a discriminator and
+domain-named property aliases where the AS2→domain mapping is non-obvious.
+
+The `vultron/semantic_registry/` wires each semantics entry to its typed
+subclass via `SemanticEntry.event_class`; `extract_event()` returns the
+narrowed subclass directly — no raw `VultronEvent` field access is needed in
+handlers.
+
+The base `VultronEvent` (in `vultron/core/models/events/base.py`) carries:
 
 ```python
-# core/models/events/base.py
-from vultron.core.models.events import MessageSemantics
-from pydantic import BaseModel
-
 class VultronEvent(BaseModel):
     semantic_type: MessageSemantics  # discriminator field
     activity_id: str
     actor_id: str
-    object_type: str | None = None
-    object_id: str | None = None
-    target_type: str | None = None
-    target_id: str | None = None
-    inner_object_type: str | None = None
-    inner_object_id: str | None = None
+    # rich domain object fields (object_, target, context, origin, ...)
+    # derived ID/type properties (.object_id, .target_id, ...)
 ```
 
-Specific event subclasses extend this base with fields relevant to their
-use case. Pydantic's discriminated union functionality then allows the correct
-subclass to be reconstructed from the generic base automatically.
+Specific subclasses extend this with domain-named properties (e.g. `.case_id`,
+`.report_id`) derived from the base fields.
 
-**Design principle**: Do not add fields speculatively. Derive the required fields
-from a full audit of handler code (P65-3 task) to see exactly which AS2 fields
-each handler accesses on `raw_activity`. Add only what the handlers actually need.
+Completed migration steps (all four now done):
 
-The current `InboundPayload` model is the immediate precursor to this design.
-The migration path is:
+1. ✅ Audited all handler field accesses (P65-3 audit).
+2. ✅ Enriched base `VultronEvent` with the needed fields.
+3. ✅ Defined per-semantic subclasses for all 50 `MessageSemantics` values.
+4. ✅ `extract_event()` produces the typed subclass for every inbound activity.
 
-1. Audit all `raw_activity` accesses across handler files (P65-3 audit step).
-2. Enrich `InboundPayload` with the fields needed (replacing `raw_activity: Any`).
-3. Define per-semantic subclasses and migrate handlers to use them (P65-3a).
-4. Update the extractor to produce specific subclasses instead of a generic
-   payload (P65-3b).
+### P65-6a: `extract_intent()` Returns a Typed Subclass (Complete)
 
-### P65-6a: `extract_intent()` Should Return a Discriminated Union
+**Status: implemented.** `extract_intent()` (in `vultron/wire/as2/extractor/_extract.py`)
+takes `event_class: type[VultronEvent]` and instantiates it directly. The public
+`extract_event()` in `vultron/semantic_registry/__init__.py` looks up the
+typed subclass from the registry and calls `extract_intent()` with it, so the
+return value is always the narrowed per-semantic subclass.
 
-Once per-semantic subclasses are defined (step 4 above), `extract_intent()` in
-`wire/as2/extractor.py` SHOULD return a discriminated union of `VultronEvent`
-subclasses rather than the flat `InboundPayload`. This allows the adapter layer
-to pass a strongly-typed domain event directly to the dispatcher; the
-`@verify_semantics` decorator continues to operate based on
-`dispatchable.payload.semantic_type` without change.
-
-**Implementation notes (P65-6a)**:
+Implementation details:
 
 - `VultronEvent` base class lives in `core/models/events/base.py` with
   `semantic_type: MessageSemantics` as the discriminator field.
 - Per-semantic subclasses live in `core/models/events/` grouped by category
   (`report.py`, `case.py`, `embargo.py`, etc.) following the `FooReceivedEvent`
   suffix convention for inbound handler-side events (see CS-10-002).
-- Do **not** add fields speculatively — include only what handler code actually
-  needs after the P65-3 audit.
 - The wire layer adapter populates the correct subclass from the raw AS2
   activity; core handlers never see AS2 types.
 
@@ -362,10 +353,11 @@ domain-specific event objects directly, rather than a generic event that
 then exposes typed properties through mixin aliases.
 
 **Current state**: `extractor.py` maps `(AS2 Activity type, Object type)` to
-`MessageSemantics`, and a generic `VultronEvent` carries the raw AS2 fields.
-Mixins added in TECHDEBT-30 give use-case code a cleaner property API, but
-the event object itself still carries AS2-named fields (`object_id`,
-`target_id`, etc.) internally.
+`MessageSemantics`, and the semantic registry routes each semantics value to
+its typed `FooReceivedEvent` subclass. Per-semantic subclasses carry
+domain-named property aliases where the AS2→domain mapping is non-obvious.
+The P65-3 audit of handler field accesses (see the P65-3 section above)
+informed which aliases to add.
 
 **Design option — EventFactory pattern**: Rather than having the extractor
 only classify the activity, it could also perform the field translation and

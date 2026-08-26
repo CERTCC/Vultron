@@ -55,10 +55,12 @@ class ActorConfig(BaseModel):
             before deciding to accept or reject (ADR-0015 Option 3;
             CM-15-001, issue #1133).
         case_actor_service_url: Base URL of the dedicated CaseActor service
-            (e.g. ``http://case-actor:7999/api/v2``).  Required for any actor
-            whose BT may run the ``engage-case`` path.  When ``None``,
-            ``ResolveCaseActorUrlsNode`` returns ``FAILURE`` with a clear
-            error message (CP-08-001, CP-08-002).
+            (e.g. ``http://case-actor:7999/api/v2``).  The CaseActor's identity is
+            ``{this}/actors/case-actor`` — one per container, no per-case slug
+            (CP-04-003, #1872).  Required for any actor whose BT may run the
+            ``engage-case`` path.  When ``None``, the nodes that need it return
+            ``FAILURE`` with a clear error rather than guessing a base URL, since
+            a guessed identity is one no container hosts (CP-08-001, CP-08-002).
     """
 
     default_case_roles: list[CVDRole] = Field(default_factory=list)
@@ -74,9 +76,10 @@ class ActorConfig(BaseModel):
         default=None,
         description=(
             "Base URL of the dedicated CaseActor service "
-            "(e.g. http://case-actor:7999/api/v2). Required for actors that "
-            "create cases; absence causes ResolveCaseActorUrlsNode to fail "
-            "(CP-08-001)."
+            "(e.g. http://case-actor:7999/api/v2). The CaseActor identity is "
+            "{this}/actors/case-actor. Required for actors that create cases; "
+            "absence makes the proposal-sending nodes fail rather than guess "
+            "(CP-08-001, CP-04-003)."
         ),
     )
 

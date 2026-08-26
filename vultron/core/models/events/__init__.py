@@ -12,11 +12,24 @@ Public surface:
 
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
+    AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
+    AcceptOfferCaseParticipantReceivedEvent,
+    AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
+    OfferActorToCaseReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
+    OfferCaseParticipantReceivedEvent,
+    OfferCaseParticipantRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
+    RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
+    RejectOfferCaseParticipantReceivedEvent,
+)
+from vultron.core.models.events.case_proposal import (
+    AcceptCaseProposalReceivedEvent,
+    CreateCaseProposalReceivedEvent,
+    RejectCaseProposalReceivedEvent,
 )
 from vultron.core.models.events.base import (
     MessageSemantics,
@@ -72,7 +85,10 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
-from vultron.core.models.events.unknown import UnknownReceivedEvent
+from vultron.core.models.events.unknown import (
+    UnknownReceivedEvent,
+    UnresolvableObjectReceivedEvent,
+)
 
 __all__ = [
     "MessageSemantics",
@@ -96,12 +112,24 @@ __all__ = [
     "AddReportToCaseReceivedEvent",
     "CloseCaseReceivedEvent",
     # actor
+    "OfferActorToCaseReceivedEvent",
+    "OfferCaseParticipantReceivedEvent",
+    "AcceptOfferCaseParticipantReceivedEvent",
+    "RejectOfferCaseParticipantReceivedEvent",
+    "OfferCaseParticipantRoleReceivedEvent",
+    "AcceptCaseParticipantRoleReceivedEvent",
+    "RejectCaseParticipantRoleReceivedEvent",
+    "AnnounceVulnerabilityCaseReceivedEvent",
     "OfferCaseOwnershipTransferReceivedEvent",
     "AcceptCaseOwnershipTransferReceivedEvent",
     "RejectCaseOwnershipTransferReceivedEvent",
     "InviteActorToCaseReceivedEvent",
     "AcceptInviteActorToCaseReceivedEvent",
     "RejectInviteActorToCaseReceivedEvent",
+    # case_proposal
+    "CreateCaseProposalReceivedEvent",
+    "AcceptCaseProposalReceivedEvent",
+    "RejectCaseProposalReceivedEvent",
     # case_participant
     "CreateCaseParticipantReceivedEvent",
     "AddCaseParticipantToCaseReceivedEvent",
@@ -125,6 +153,7 @@ __all__ = [
     "AddParticipantStatusToParticipantReceivedEvent",
     # unknown
     "UnknownReceivedEvent",
+    "UnresolvableObjectReceivedEvent",
     # sync
     "AnnounceLogEntryReceivedEvent",
     "RejectLogEntryReceivedEvent",

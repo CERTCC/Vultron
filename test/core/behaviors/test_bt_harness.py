@@ -71,7 +71,10 @@ class TestBTScenarioFactory:
         bt_scenario_factory: Callable[..., BTTestScenario],
     ) -> None:
         """Two factory instances created with the same dl share data."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         s1 = bt_scenario_factory(
             actor_id="https://example.org/actors/a1", dl=dl
         )

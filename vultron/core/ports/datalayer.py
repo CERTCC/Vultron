@@ -24,17 +24,20 @@ Port direction: **outbound (driven)** — core calls ``read()``,
 retrieve domain objects through whatever storage backend the adapter
 provides.
 
-Two protocols are defined here:
+One protocol is defined here: :class:`DataLayer`, the storage port for a
+**single actor's** own store, including its inbox and outbox queues.
 
-:class:`DataLayer`
-    Base port for shared object storage (read, write, save, list).  This
-    type MUST NOT be passed to functions that call inbox or outbox queue
-    operations (ARCH-13-001).
+There was formerly a second, :class:`ActorScopedDataLayer`, a refinement that
+added the queue methods — because a base ``DataLayer`` could be unscoped, and
+calling a queue method on it silently operated on a phantom queue keyed by
+``""`` rather than any actor's real queue. The ARCH-13 requirement group exists
+to police that hazard.
 
-:class:`ActorScopedDataLayer`
-    Refinement of :class:`DataLayer` that adds inbox/outbox queue methods.
-    Obtained by calling :meth:`DataLayer.clone_for_actor`.  All callers
-    that perform queue operations MUST declare this type (ARCH-13-002).
+Under ADR-0073 every DataLayer belongs to exactly one actor, so the distinction
+has no referent: there is no unscoped DataLayer to guard against, and the queue
+methods are as safe as any other. The refinement is therefore gone and its
+methods are declared directly on :class:`DataLayer` — the design deletes the
+guard rail rather than maintaining it.
 
 No adapter-layer types (``Record``, ``TinyDB``, etc.) appear here.
 
@@ -103,8 +106,6 @@ class DataLayer(Protocol):
 
     def ping(self) -> bool: ...
 
-    def record_outbox_item(self, actor_id: str, activity_id: str) -> None: ...
-
     def by_type(self, type_: str) -> dict[str, dict[str, Any]]: ...
 
     def get_all(self, table: str) -> list[dict[str, Any]]: ...
@@ -137,27 +138,11 @@ class DataLayer(Protocol):
         reply_event_types: frozenset[str],
     ) -> ProtocolPair: ...
 
-    def clone_for_actor(self, actor_id: str) -> "ActorScopedDataLayer": ...
+    def clone_for_actor(self, actor_id: str) -> "DataLayer": ...
 
-
-class ActorScopedDataLayer(DataLayer, Protocol):
-    """Refinement of :class:`DataLayer` that exposes actor-scoped queue operations.
-
-    Inbox and outbox queue operations are actor-scoped — calling them on the
-    shared DataLayer (``actor_id=None``) silently operates on a phantom queue
-    keyed by ``""`` rather than any actor's real queue (ARCH-13-001).
-
-    All callers that perform inbox or outbox queue operations MUST accept this
-    type rather than the base :class:`DataLayer` (ARCH-13-002).
-
-    :meth:`DataLayer.clone_for_actor` returns an instance of this type.
-    ``SqliteDataLayer`` satisfies both :class:`DataLayer` and
-    :class:`ActorScopedDataLayer` structurally — no declaration needed.
-
-    See also:
-        - ``specs/architecture.yaml`` ARCH-13-001 through ARCH-13-005
-        - ``notes/architecture-adapters.md`` § DataLayer Scope Boundaries
-    """
+    # -- Queue operations -------------------------------------------------
+    # Declared directly here rather than on a separate refinement: this
+    # DataLayer *is* one actor's store, so its queues are unambiguous.
 
     def inbox_append(self, activity_id: str) -> None: ...
 

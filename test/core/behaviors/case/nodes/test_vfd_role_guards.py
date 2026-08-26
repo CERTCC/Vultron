@@ -120,6 +120,7 @@ def test_vendor_guard_success_for_vendor_actor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_vendor_guard_failure_for_deployer_only_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -135,6 +136,7 @@ def test_vendor_guard_failure_for_deployer_only_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_vendor_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -187,6 +189,7 @@ def test_vendor_guard_failure_when_actor_not_in_case(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_guard_success_for_deployer_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -217,6 +220,7 @@ def test_deployer_guard_failure_for_vendor_only_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_deployer_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -232,6 +236,7 @@ def test_deployer_guard_failure_for_coordinator_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_guard_failure_when_case_missing(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -340,6 +345,7 @@ def test_not_sole_observer_failure_for_sole_observer_actor(
 
 
 @pytest.mark.spec("CM-25-005")
+@pytest.mark.executes_as(OBSERVER_VENDOR_ACTOR_ID)
 def test_not_sole_observer_success_for_observer_plus_vendor(
     bt_scenario: BTTestScenario,
     case_with_observer_actors: VultronCase,
@@ -370,6 +376,7 @@ def test_not_sole_observer_success_for_vendor_only_actor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_not_sole_observer_success_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_observer_actors: VultronCase,
@@ -412,6 +419,7 @@ def test_not_sole_observer_failure_when_case_missing(
     ),
 )
 @pytest.mark.spec("CSB-15-004")
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_only_blocked_when_no_vendor_at_vfd(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -421,6 +429,12 @@ def test_deployer_only_blocked_when_no_vendor_at_vfd(
     The fixture seeds a VENDOR participant at default vfd state (not VFd).
     The causal gate MUST return FAILURE. Currently xfails: CheckDeployerRoleNode
     returns SUCCESS for any DEPLOYER without checking the VENDOR's VFd state.
+
+    `executes_as` matters here even though the assertion is on FAILURE: without
+    it the scenario store belongs to the default actor, the deployer's own store
+    holds no case (ADR-0073), and the node returns FAILURE for "case not found"
+    — which would satisfy a strict xfail for entirely the wrong reason and hide
+    #2606 the moment someone read the result as green.
     """
     result = bt_scenario.run(
         CheckDeployerRoleNode(

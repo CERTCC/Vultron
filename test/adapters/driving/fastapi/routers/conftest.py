@@ -39,7 +39,6 @@ from vultron.core.models.actor import CoreActor
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.adapters.utils import make_id
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -92,14 +91,38 @@ def dl(actor_and_dl):
 
 
 # TestClient for datalayer router
+
+
+def _in_memory_actor_dl_override():
+    """A ``get_actor_dl`` override that still routes per actor.
+
+    Overriding with one fixed DataLayer defeats the routing these tests exercise:
+    ``get_actor_dl`` resolves the path segment to a canonical URI and opens *that*
+    actor's store (ADR-0073), so a single-store override makes every actor id
+    resolve to the same rows.  Only the backing URL needs replacing — the
+    configured ``db_url`` is a file and tests must stay in memory.
+    """
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    def _override(actor_id: str = FastAPIPath(...)):
+        return get_datalayer(
+            canonical_actor_uri(actor_id), db_url="sqlite:///:memory:"
+        )
+
+    return _override
+
+
 @pytest.fixture
 def client_datalayer(datalayer):
-    from vultron.adapters.driven.datalayer import get_datalayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     app = FastAPI()
     app.include_router(datalayer_router.router)
-    # Override get_datalayer dependency to use test's datalayer instance
-    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    app.include_router(datalayer_router.admin_router)
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl_override()
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -108,12 +131,11 @@ def client_datalayer(datalayer):
 # TestClient for actors router
 @pytest.fixture
 def client_actors(datalayer):
-    from vultron.adapters.driven.datalayer import get_datalayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     app = FastAPI()
     app.include_router(actors_router.router)
-    # Override get_datalayer dependency to use test's datalayer instance
-    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl_override()
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -136,20 +158,37 @@ def actor_classes():
 
 
 @pytest.fixture
-def created_actors(datalayer, actor_classes):
+def created_actors(actor_classes):
+    """Host one actor per class, each in its own store.
+
+    ``GET /actors/`` enumerates the actors this node *hosts*, and hosting means
+    holding that actor's store (ADR-0073) — for an in-memory URL, the in-process
+    registry that ``get_datalayer`` populates. Writing six actor rows into one
+    store would therefore report **one** host, not six.
+
+    Ids are canonical under the node's ``base_url`` because the actor routes
+    resolve a path segment to an actor URI by computation, so a generated ``urn:``
+    id could not be addressed on this node at all.
+    """
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
     actors = []
     for actor_cls in actor_classes:
+        actor_id = canonical_actor_uri(f"list-{actor_cls.__name__.lower()}")
         # CoreActor stores inbox/outbox as URI strings; provide them explicitly
         # so profile-discovery tests can assert inbox/outbox are present.
         if issubclass(actor_cls, CoreActor):
             actor = actor_cls(
+                id_=actor_id,
                 name="Test Actor for List",
-                inbox=make_id("inbox"),
-                outbox=make_id("outbox"),
+                inbox=f"{actor_id}/inbox",
+                outbox=f"{actor_id}/outbox",
             )
         else:
-            actor = actor_cls(name="Test Actor for List")
-        datalayer.create(object_to_record(actor))
+            actor = actor_cls(id_=actor_id, name="Test Actor for List")
+        dl = get_datalayer(actor_id, db_url="sqlite:///:memory:")
+        dl.create(object_to_record(actor))
         actors.append(actor)
     return actors
 

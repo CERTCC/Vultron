@@ -72,6 +72,7 @@ def case_with_manager(
     return case
 
 
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_returns_success_when_actor_is_case_manager(
     bt_scenario: BTTestScenario, case_with_manager: VultronCase
 ) -> None:
@@ -92,6 +93,7 @@ def test_returns_failure_when_actor_is_not_case_manager(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_returns_failure_when_case_is_missing(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -102,6 +104,7 @@ def test_returns_failure_when_case_is_missing(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
 def test_returns_failure_when_case_has_no_case_manager(
     bt_scenario: BTTestScenario, vendor_participant: VultronParticipant
 ) -> None:
