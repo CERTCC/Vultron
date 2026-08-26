@@ -66,14 +66,16 @@ do not add a symptom/root frame to Ideas.
 ### Phase 4 — Epic Parent Selection
 
 **A parent epic is required for all new issues.** Query open Epic issues and
-rank likely matches. Present top ~5 suggestions plus "Specify other epic number".
-If the user provides another issue number, validate it is an open Epic;
-re-prompt until valid. Do **not** offer a "None / skip" option — an issue
-without a parent epic is invisible to sprint planning and prioritisation.
+rank likely matches. Present top ~5 suggestions, "Specify other epic number",
+and **"Create new epic (none of these fit)"** as explicit choices. If the user
+provides another issue number, validate it is an open Epic; re-prompt until
+valid. Do **not** offer a "None / skip" option — an issue without a parent epic
+is invisible to sprint planning and prioritisation.
 
-If no existing epic fits the new item, do not create the issue yet: invoke
-`calve-epics` Mode 2 to propose a new epic, confirm it with the user, and then
-proceed with that new epic as the parent. Allow at most one parent epic.
+If the user selects "Create new epic (none of these fit)", do not create the
+issue yet: invoke `calve-epics` Mode 2 to propose a new epic, confirm it with
+the user, and then proceed with that new epic as the parent. Allow at most one
+parent epic.
 
 ### Phase 5 — Build Title + Body
 

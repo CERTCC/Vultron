@@ -96,9 +96,9 @@ parent is wrong). Goal: land each on the epic that matches it.
      failure. Do **not** invent an epic on your own. When Mode 1 is invoked
      **directly** (e.g. by `update-plan`): leave the issue at root and record
      it as a candidate for Mode 2. When Mode 1 is invoked by a skill that
-     **requires** a parent (e.g. `plan-issue`, `new-item`, `bugfix`): report
-     no match back to the caller — the caller is responsible for asking the
-     user to select an existing epic or triggering Mode 2.
+     **requires** a parent (e.g. `plan-issue`, `bugfix`): report no match back
+     to the caller — the caller is responsible for asking the user to select an
+     existing epic or triggering Mode 2.
    - **Two or more plausible epics** → ask the user with `AskUserQuestion`,
      presenting the candidates with a one-line rationale each. Route to their
      choice.
