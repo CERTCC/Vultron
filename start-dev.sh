@@ -98,6 +98,7 @@ DOCKER_ARGS=(
     --name "$CONTAINER_NAME"
     --hostname "$CONTAINER_NAME"
     --env-file "$ENV_FILE"
+    --cpus "${SLOT_CPUS:-3}"
     -e LANG=C.UTF-8
     -e LC_ALL=C.UTF-8
     -e TERM=xterm-256color
