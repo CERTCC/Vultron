@@ -9,7 +9,7 @@ type: learning
 
 Concern #2334 identified that DEMOMA-22-005 cited ADR-0041 for a causal-ordering
 property that ADR-0041 does not establish. The solution was to write a normative
-decision record (ADR-0077) and two new spec groups.
+decision record (ADR-0078) and two new spec groups.
 
 ## Decision
 
@@ -32,11 +32,11 @@ Three options were evaluated:
 
 ## Artefacts produced
 
-- `docs/adr/0077-case-ledger-causal-ordering.md` — normative decision record
+- `docs/adr/0078-case-ledger-causal-ordering.md` — normative decision record
 - `specs/case-ledger-processing.yaml` (v1.2.0 → v1.3.0): CLP-14 (9 entries) and
   CLP-15 (5 entries)
-- `specs/multi-actor-demo.yaml`: DEMOMA-22-005 mis-citation fixed (ADR-0041 → ADR-0077)
-- `notes/case-ledger-authority.md`: forward reference to ADR-0077 added
+- `specs/multi-actor-demo.yaml`: DEMOMA-22-005 mis-citation fixed (ADR-0041 → ADR-0078)
+- `notes/case-ledger-authority.md`: forward reference to ADR-0078 added
 - Docs PR: <https://github.com/CERTCC/Vultron/pull/2678>
 - Implementation issue: #2679 (runtime enforcement + conformance tests)
 

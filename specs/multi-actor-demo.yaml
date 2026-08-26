@@ -3317,14 +3317,14 @@ groups:
       edge declared in that scenario's narrative appears in the observed case
       ledger, with the antecedent's log index preceding the consequent's.
     rationale: >-
-      The case ledger records `log_index` in causal order (ADR-0077,
+      The case ledger records `log_index` in causal order (ADR-0078,
       CLP-14-001) and the invariant harness already reads the per-scenario
       ledger dumps, so checking declared causality against observed causality
       needs no new instrumentation. This is what converts the narrative from
       documentation into a conformance check.
     adr:
     - ADR-0058
-    - ADR-0077
+    - ADR-0078
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
