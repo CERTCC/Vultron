@@ -621,7 +621,7 @@ reader-friendly rendering, not an independent source of truth.
 
 The document-boundary decision — why the replication mechanics live in a
 companion document rather than the main RFC — is recorded in
-`docs/adr/0069-ledger-replication-companion-spec.md` (tracked in issue #2494).
+`docs/adr/0077-ledger-replication-companion-spec.md` (tracked in issue #2494).
 
 ## Related
 
