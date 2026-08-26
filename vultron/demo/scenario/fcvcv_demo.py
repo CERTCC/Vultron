@@ -119,6 +119,11 @@ from vultron.demo.helpers.workflow import (
 
 logger = logging.getLogger(__name__)
 
+# AC-6 audit (#2203): wait_for_case_on_container calls in this module poll for
+# VulnerabilityCase object delivery (ADR-0041 seeding path). ADR-0037/ADR-0059
+# buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
+# all wait_for_case_on_container calls here remain necessary.
+
 # Default container base URLs — override via environment variables.
 # C1 uses the "coordinator" container, V1 uses "vendor", C2 uses "actor5",
 # and V2 (VendorDeployer) uses "actor6".

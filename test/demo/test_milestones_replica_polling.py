@@ -42,6 +42,9 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_pxa_state,
 )
 from vultron.demo.utils import DataLayerClient
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _CASE_ID = "urn:uuid:test-case-replica-0001"
 _RECEIVER_ID = "http://coordinator:7999/api/v2/actors/coordinator"
@@ -540,7 +543,7 @@ class _LateInitializedCaseClient:
 class TestWaitForInitializedCase:
     """wait_for_initialized_case polls the CaseActor's store until participants appear (ISSUE-2359)."""
 
-    def _run(self, client: _LateInitializedCaseClient) -> object:
+    def _run(self, client: _LateInitializedCaseClient) -> as_VulnerabilityCase:
         with patch(
             "vultron.demo.utils.case_actor_id_for_report",
             return_value=_IC_CASE_ACTOR_ID,
