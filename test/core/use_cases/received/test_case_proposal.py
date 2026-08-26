@@ -522,6 +522,45 @@ class TestAcceptCaseProposalReceivedUseCase:
         # Should not raise even without a valid inner_object_id
         AcceptCaseProposalReceivedUseCase(dl, event).execute()
 
+    def test_execute_uses_store_owner_when_no_receiving_actor_id(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the Accept.
+
+        Regression: the old fallback used request.actor_id (the CaseActor sender),
+        routing BT writes into the wrong store partition (silent data loss).
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            trusted_case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        activity = as_Accept(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": None})
+
+        AcceptCaseProposalReceivedUseCase(dl, event).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.trusted_case_actor_id == _CASE_ACTOR_URI, (
+            "Store-owner fallback must route the BT to the vendor's store"
+            " so the link update is not silently lost"
+        )
+
 
 @pytest.mark.spec("CP-06-002")
 @pytest.mark.spec("CP-06-004")
@@ -639,3 +678,42 @@ class TestRejectCaseProposalReceivedUseCase:
         assert any(
             "reject" in record.message.lower() for record in caplog.records
         ), "Expected a rejection log message"
+
+    def test_execute_uses_store_owner_when_no_receiving_actor_id(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the Reject.
+
+        Regression: the old fallback used request.actor_id (the CaseActor sender),
+        routing BT writes into the wrong store partition (silent data loss).
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            trusted_case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": None})
+
+        RejectCaseProposalReceivedUseCase(dl, event).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.proposal_rejected is True, (
+            "Store-owner fallback must route the BT to the vendor's store"
+            " so the rejection flag is not silently lost"
+        )
