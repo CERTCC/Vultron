@@ -394,10 +394,10 @@ class TestApplyPecTransition:
     def test_ac4_embargo_adherence_true_iff_signatory(self):
         """AC-4: no contradictory (embargoAdherence=true, emConsentState≠SIGNATORY) pair.
 
-        embargo_adherence is a separate flag managed independently; this test
-        verifies that the consent snapshot is coherent — once a participant
-        has been set to SIGNATORY via apply_pec_transition, the snapshot's
-        emConsentState is SIGNATORY (not a stale pre-consent value).
+        embargo_adherence is a @computed_field derived from consent.state
+        (ADR-0056, CM-18-008) — True iff consent.state == SIGNATORY.
+        Once a participant is set to SIGNATORY via apply_pec_transition,
+        the snapshot's emConsentState and embargo_adherence are coherent.
         """
         from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
