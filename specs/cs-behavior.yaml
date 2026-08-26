@@ -1764,16 +1764,20 @@ groups:
       The notify-published trigger endpoint MUST set only pxa_state=Pxa in the
       ParticipantStatus record. The D event (fix deployed) is participant-specific
       and distinct from the P event (public awareness); notify-published MUST NOT
-      also modify vfd_state.
+      also advance the d dimension.
     rationale: >-
       Conflating P and D transitions (as notify-published did by setting both
-      vfd_state=VFD and pxa_state=Pxa) causes non-deployer actors (Finders,
-      Reporters, Coordinators) to incorrectly acquire VFD state when they announce
-      public disclosure. The pxa (P event) is participant-agnostic; the VFD (D event)
-      is only valid for DEPLOYER-role actors who have separately completed deployment.
+      d.state=D and pxa_state=Pxa) causes non-deployer actors (Finders,
+      Reporters, Coordinators) to incorrectly acquire deployment state when they
+      announce public disclosure. Under the structural VFD split (Concern #2595),
+      the d dimension is None for non-DEPLOYER participants, making this invariant
+      structural rather than a guard check. The pxa (P event) is participant-agnostic;
+      the D event is only valid for DEPLOYER-role actors who have separately completed
+      deployment.
     verification: >-
       Integration tests in `test/demo/` confirm that notify-published sets only
-      pxa_state=Pxa in the ParticipantStatus record and leaves vfd_state unmodified.
+      pxa_state=Pxa in the ParticipantStatus record and leaves the vf and d
+      dimensions unmodified.
     testable: true
     preconditions:
     - description: Actor calls the notify-published trigger endpoint
@@ -1878,43 +1882,54 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A BT node or helper that writes a VFD state (CS_vfd) to a ParticipantStatus
-      snapshot MUST validate that the (current_vfd_state → target_vfd_state)
-      transition is permitted by the VFD state machine before persisting.
-      A same-state write is permitted (status confirmation). A backward move or
-      illegal jump (e.g. vfd → VFD skipping Vfd) MUST cause the node to return
-      Status.FAILURE without writing to the DataLayer.
+      A BT node or helper that advances a participant''s vendor-path (vf) or
+      deployer-path (d) dimension in a ParticipantStatus snapshot MUST validate
+      that the (current → target) transition is permitted by the respective
+      sub-machine (CS_vf for vendor path; CS_d for deployer path) before
+      persisting. A same-state write is permitted (status confirmation). A backward
+      move or illegal jump MUST cause the node to return Status.FAILURE without
+      writing to the DataLayer.
     rationale: >-
-      Upstream BT guards (e.g. CheckCSFixNotYetDeployed) are necessary but
-      insufficient: a guard that is too weak, missing, or bypassed allows an
-      invalid VFD state jump to reach the write node unchecked. Validating at
-      the write boundary makes illegal VFD transitions fail-closed regardless
-      of guard coverage. Source: concern #1896, which surfaced when the
-      CheckCSFixNotYetDeployed guard was too weak in issue #1825.
+      Upstream BT guards are necessary but insufficient: a guard that is too weak,
+      missing, or bypassed allows an invalid state jump to reach the write node
+      unchecked. Validating at the write boundary makes illegal transitions
+      fail-closed regardless of guard coverage. Source: concern #1896, which
+      surfaced when the CheckCSFixNotYetDeployed guard was too weak in issue #1825.
+      Under the structural VFD split (Concern #2595), the validation applies
+      independently to each dimension: is_valid_vf_transition() for the vendor
+      path and is_valid_d_transition() for the deployer path. A node that writes
+      both dimensions (VENDOR+DEPLOYER participants) must validate each independently.
       Scope: applies to local write nodes only. The received-wire path
       (add_participant_status_tree) uses a weaker monotonic-forward check
-      intentionally — remote peers may advance through multiple VFD steps
-      between status messages; strict adjacency applies only to local writes.
+      intentionally — remote peers may advance through multiple steps between
+      status messages; strict adjacency applies only to local writes.
     verification: >-
-      A unit test confirms that the VFD write boundary returns Status.FAILURE for
-      illegal jumps (e.g. vfd→VFD skipping Vfd) and that no ParticipantStatus
-      record is persisted for an invalid transition.
+      Unit tests confirm that vf-write and d-write boundaries each return
+      Status.FAILURE for illegal jumps and that no ParticipantStatus record is
+      persisted for an invalid transition on either dimension.
     testable: true
     preconditions:
-    - description: A non-None CS_vfd target state is passed to a ParticipantStatus write node
+    - description: >-
+        A non-None target vf state (for VENDOR path) or d state (for DEPLOYER path)
+        is passed to a ParticipantStatus write node
     steps:
     - order: 1
       actor: write_node
-      action: Read the participant's current VFD state from the DataLayer
-      expected: Current CS_vfd state available
+      action: >-
+        Read the participant''s current vf state (if VENDOR) or d state (if DEPLOYER)
+        from the DataLayer
+      expected: Current dimension state available; absent dimension is None (structural)
     - order: 2
       actor: write_node
       action: >-
-        If target == current, proceed. If is_valid_vfd_transition(current, target)
-        is True, proceed. Otherwise return Status.FAILURE.
+        For each non-None dimension: if target == current, proceed. If
+        is_valid_vf_transition(current, target) [vendor] or
+        is_valid_d_transition(current, target) [deployer] is True, proceed.
+        Otherwise return Status.FAILURE.
       expected: Only valid transitions or same-state writes reach the DataLayer
     postconditions:
-    - description: No ParticipantStatus with an illegal VFD jump is persisted
+    - description: >-
+        No ParticipantStatus with an illegal vf or d state jump is persisted
     relationships:
     - rel_type: implements
       spec_id: SDO-02-004

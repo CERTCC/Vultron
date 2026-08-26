@@ -312,7 +312,7 @@ superseded by structural `None`.
 When handlers process incoming Activities:
 
 - **RM state transitions** (e.g., `engage_case`, `defer_case`):
-  Update `ParticipantStatus.rm_state` for the **sending actor's**
+  Update `ParticipantStatus.rm` for the **sending actor's**
   `CaseParticipant`.
 - **VFD transitions** (e.g., a vendor signaling fix readiness):
   Advance `ParticipantStatus.vf` (for VENDOR actors) or `ParticipantStatus.d`
