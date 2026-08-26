@@ -1100,7 +1100,7 @@ groups:
   title: CaseLedger Causal Ordering — CaseActor Timestamp Invariants
   description: Normative requirements establishing that log_index order is the canonical
     causal order from the CaseActor's perspective, and the temporal invariants that
-    conformance tests can verify against any ledger. See ADR-0076 for the decision
+    conformance tests can verify against any ledger. See ADR-0077 for the decision
     record and rationale.
   specs:
   - id: CLP-14-001
@@ -1112,10 +1112,10 @@ groups:
       causal order; timestamp order is supporting evidence only.'
     rationale: The CaseActor is the single authoritative writer (CLP-01-003, ADR-0041).
       A single-writer regime produces a total order by construction, so no distributed
-      consensus mechanism is needed. ADR-0076 formalises this design intent as a normative
+      consensus mechanism is needed. ADR-0077 formalises this design intent as a normative
       requirement; DEMOMA-22-005 depends on it.
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: CLP-01-003
@@ -1131,7 +1131,7 @@ groups:
     rationale: A null entry timestamp makes invariant checks on ordering impossible
       and breaks any consumer that tries to order entries by time.
     adr:
-    - ADR-0076
+    - ADR-0077
     lint_suppress:
     - missing_story_reference
   - id: CLP-14-003
@@ -1145,7 +1145,7 @@ groups:
       entry N has a later log_index than entry N-1 but an earlier timestamp, observers
       cannot use timestamps as corroborating evidence of the order the CaseActor recorded.'
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
@@ -1160,7 +1160,7 @@ groups:
     rationale: A ledger mixing entries from multiple cases makes causal comparisons
       meaningless and breaks hash-chain verification (which is scoped per case).
     adr:
-    - ADR-0076
+    - ADR-0077
     lint_suppress:
     - missing_story_reference
   - id: CLP-14-005
@@ -1172,7 +1172,7 @@ groups:
       is causal-order position N, breaking any test or consumer that relies on log_index
       to determine ordering.
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: SYNC-01-002
@@ -1188,7 +1188,7 @@ groups:
       any entries. An entry predating the case indicates a clock error or commit-path
       bug; treating it as a protocol violation catches the defect at the boundary.
     adr:
-    - ADR-0076
+    - ADR-0077
     lint_suppress:
     - missing_story_reference
   - id: CLP-14-007
@@ -1202,10 +1202,10 @@ groups:
       indicates a participant clock error or a malformed assertion. Accepting it silently
       would produce ledger entries where the payload claims to have been published
       after the ledger envelope was stamped — a contradiction of the observation model
-      in ADR-0076. A small tolerance accommodates legitimate clock drift without rejecting
+      in ADR-0077. A small tolerance accommodates legitimate clock drift without rejecting
       well-formed messages from participants whose clocks are slightly ahead.
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
@@ -1220,7 +1220,7 @@ groups:
       history. Rejecting stale payloads limits the window in which a replayed or delayed
       assertion can be inserted into the canonical ledger.
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
@@ -1231,12 +1231,12 @@ groups:
       the staleness window (CLP-14-008) as configurable parameters so that deployments
       with known clock conditions can tune the thresholds.
     adr:
-    - ADR-0076
+    - ADR-0077
 - id: CLP-15
   title: Participant Assertion Timestamp Obligations
   description: Normative requirements on what well-behaved participants MUST do when
     emitting assertions to the CaseActor, so that the CaseActor's observation-order
-    model (ADR-0076, CLP-14) yields a ledger that faithfully reflects real-world causal
+    model (ADR-0077, CLP-14) yields a ledger that faithfully reflects real-world causal
     order within a single participant's event stream.
   specs:
   - id: CLP-15-001
@@ -1250,7 +1250,7 @@ groups:
       record the wrong causal order. The participant is responsible for correct ordering;
       the CaseActor cannot reconstruct causality it did not observe.
     adr:
-    - ADR-0076
+    - ADR-0077
     lint_suppress:
     - missing_story_reference
   - id: CLP-15-002
@@ -1264,7 +1264,7 @@ groups:
       CaseActor's perspective. This is a protocol violation on the participant's part,
       not a CaseActor failure.
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: CLP-15-001
@@ -1281,7 +1281,7 @@ groups:
       if the CaseActor's own entry timestamps are correct, the snapshot timestamps
       become evidence against the order recorded in the ledger.
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: CLP-15-001
@@ -1298,7 +1298,7 @@ groups:
       occurrence time allow CaseActors and auditors to detect anomalies like stale
       replays (CLP-14-008).
     adr:
-    - ADR-0076
+    - ADR-0077
   - id: CLP-15-005
     priority: MUST
     kind: protocol
@@ -1315,7 +1315,7 @@ groups:
       data to override the CaseActor's own observation — a violation of the single-writer
       authority model.
     adr:
-    - ADR-0076
+    - ADR-0077
     relationships:
     - rel_type: refines
       spec_id: CLP-01-003
