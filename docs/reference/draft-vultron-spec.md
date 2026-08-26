@@ -1149,11 +1149,14 @@ It is separable from the Authority capability set.
 - MUST deliver full case content only when the §6.4.7 gate is satisfied
 
 !!! note "Ledger replication scope"
-    Whether the full ledger replication protocol belongs in this specification or
-    in a companion document is unresolved (see Open Questions). The Hosting
-    requirement above is stable regardless: a Case Actor host must replicate the
-    ledger. What may move is the *detailed* replication mechanics — ordering,
-    hash-chaining, gap recovery — not the obligation.
+    The detailed replication mechanics (hash-chaining, gap detection, ordering
+    guarantees) are specified in a companion document,
+    `docs/reference/draft-vultron-replication-spec.md`, not in this RFC. See
+    ADR-0077. The single-hub / single-writer + fan-out model is the normative
+    replication architecture: one Case Actor holds exclusive write authority and
+    replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
+    Distributed consensus (multi-node CaseActor cluster) is a future extension
+    out of scope for this RFC.
 
 - *Source: `specs/sync-ledger-replication.yaml`; `specs/case-management.yaml`;
   `specs/received-status-handling.yaml`; `specs/vultron-protocol-spec.yaml` VP-17-001*
@@ -1537,9 +1540,10 @@ implementation. Other implementations are not required to use this structure.
    `https://certcc.github.io/Vultron/ns`; the JSON-LD context document is at
    `https://certcc.github.io/Vultron/ns/context.jsonld`. See §4.5 and ADR-0069.
    A permanent namespace URI may be registered in a future version.
-2. **Sync/replication** — Is the ledger replication protocol in scope for this
-   RFC, or a separate companion spec? The Hosting capability set obligation to
-   replicate is stable either way (§7.2); what may move is the detailed mechanics.
+2. ~~**Sync/replication**~~ — Resolved. Replication mechanics belong in a
+   companion document, not this RFC; the normative model (single-hub /
+   single-writer + fan-out) is stated in §7.2. See ADR-0077 and
+   `docs/reference/draft-vultron-replication-spec.md` (tracked in #2495).
 3. ~~**ActivityPub vs. bare AS2**~~ — Resolved for this version. §4.1 states the
    current normative floor as AS2 vocabulary only, with an informative note that
    a future version is expected to require full ActivityPub conformance for all
