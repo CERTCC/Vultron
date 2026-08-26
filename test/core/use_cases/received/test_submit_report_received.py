@@ -229,6 +229,49 @@ class TestSubmitReportCreatesCase:
             len(links) == 1
         ), "Expected exactly one VultronReportCaseLink after idempotent calls"
 
+    def test_absent_stamp_falls_back_to_store_owner(self):
+        """Absent receiving_actor_id falls back to dl.actor_id and writes VultronReportCaseLink.
+
+        Per resolve_receiving_actor_id (CLP-10-005): a missing stamp falls back
+        to dl.actor_id so the use case runs rather than silently dropping.
+        """
+        from vultron.core.models.case_actor import VultronCaseActor
+
+        vendor_id = self.VENDOR_ID
+        report = VultronReport(id_=self.REPORT_ID)
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=[vendor_id],
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=None,
+        )
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=vendor_id,
+        )
+        dl.save(report)
+        dl.save(VultronCaseActor(id_=vendor_id))
+
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        link = dl.read(link_id)
+        assert isinstance(link, VultronReportCaseLink), (
+            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
+            " and write a pending VultronReportCaseLink"
+        )
+        assert link.report_id == self.REPORT_ID
+
     def test_submit_report_skips_case_creation_when_not_in_to(self):
         """SubmitReportReceivedUseCase skips BT when receiving actor not in to.
 

@@ -194,6 +194,36 @@ class TestInviteToEmbargoRoutingGuard:
             f" ledger entry; found: {event_types}"
         )
 
+    def test_absent_stamp_falls_back_to_store_owner(self, make_payload):
+        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
+
+        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
+        None the store owner is used.  The store owner holds CASE_MANAGER role,
+        so the guarded commit fires and an invite_to_embargo_on_case ledger entry
+        is written.
+        """
+        dl, case_actor, case, embargo = self._setup()
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=self.CASE_ID,
+            actor=self.AUTHOR_ID,
+            id_=f"{self.CASE_ID}/proposals/absent-stamp",
+        )
+        dl.create(proposal)
+
+        event = make_payload(proposal, receiving_actor_id=None)
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "invite_to_embargo_on_case" in event_types, (
+            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
+            " and commit an invite_to_embargo_on_case ledger entry;"
+            f" found: {event_types}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tests: AcceptInviteToEmbargoOnCaseReceivedUseCase
@@ -270,6 +300,28 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         assert "accept_invite_to_embargo_on_case" not in event_types, (
             "Non-CaseActor must NOT write an accept_invite_to_embargo_on_case"
             f" ledger entry; found: {event_types}"
+        )
+
+    def test_absent_stamp_falls_back_to_store_owner(self, make_payload):
+        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
+
+        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
+        None the store owner is used.  The store owner holds CASE_MANAGER role,
+        so the guarded commit fires and an accept_invite_to_embargo_on_case
+        ledger entry is written.
+        """
+        dl, case_actor, case, accept = self._setup()
+
+        event = make_payload(accept, receiving_actor_id=None)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "accept_invite_to_embargo_on_case" in event_types, (
+            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
+            " and commit an accept_invite_to_embargo_on_case ledger entry;"
+            f" found: {event_types}"
         )
 
 
@@ -364,4 +416,32 @@ class TestRemoveEmbargoRoutingGuard:
         assert "remove_embargo_event_from_case" not in event_types, (
             "Non-CaseActor must NOT write a remove_embargo_event_from_case"
             f" ledger entry; found: {event_types}"
+        )
+
+    def test_absent_stamp_falls_back_to_store_owner(self, make_payload):
+        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
+
+        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
+        None the store owner is used.  The store owner holds CASE_MANAGER role,
+        so the guarded commit fires and a remove_embargo_event_from_case ledger
+        entry is written.
+        """
+        dl, case_actor, case, embargo = self._setup()
+
+        remove_activity = remove_embargo_from_case_activity(
+            embargo,
+            origin=self.CASE_ID,
+            actor=self.AUTHOR_ID,
+        )
+
+        event = make_payload(remove_activity, receiving_actor_id=None)
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "remove_embargo_event_from_case" in event_types, (
+            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
+            " and commit a remove_embargo_event_from_case ledger entry;"
+            f" found: {event_types}"
         )

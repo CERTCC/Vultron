@@ -283,3 +283,79 @@ class TestOwnershipTransferUseCases:
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
+
+    def test_offer_absent_stamp_falls_back_to_store_owner(self, make_payload):
+        """OfferCaseOwnershipTransferReceivedUseCase persists the offer when receiving_actor_id is absent.
+
+        Per resolve_receiving_actor_id (CLP-10-005): a missing stamp falls back
+        to dl.actor_id so the use case runs rather than silently dropping.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/actors/store-owner-offer-abs",
+        )
+
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_abs1",
+            name="OT Absent Stamp Offer",
+        )
+        activity = offer_case_ownership_transfer_activity(
+            case,
+            target="https://example.org/users/coordinator-abs1",
+            actor="https://example.org/users/vendor-abs1",
+        )
+        event = make_payload(activity, receiving_actor_id=None)
+
+        OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(activity.type_.value, activity.id_)
+        assert stored is not None, (
+            "Offer must be persisted even when receiving_actor_id is absent"
+            " (store owner used as fallback)"
+        )
+
+    def test_accept_absent_stamp_falls_back_to_store_owner(self, make_payload):
+        """AcceptCaseOwnershipTransferReceivedUseCase updates case when receiving_actor_id is absent.
+
+        Per resolve_receiving_actor_id (CLP-10-005): a missing stamp falls back
+        to dl.actor_id so the use case runs rather than silently dropping.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        coordinator_id = "https://example.org/users/coordinator-abs2"
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=coordinator_id,
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_abs2",
+            name="OT Absent Stamp Accept",
+            attributed_to="https://example.org/users/vendor-abs2",
+        )
+        dl.create(case)
+
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target=coordinator_id,
+            actor="https://example.org/users/vendor-abs2",
+            id_="https://example.org/activities/offer_ot_abs2",
+        )
+        dl.create(offer)
+
+        activity = accept_case_ownership_transfer_activity(
+            offer,
+            actor=coordinator_id,
+        )
+        event = make_payload(activity, receiving_actor_id=None)
+
+        AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+
+        updated_record = dl.get(case.type_.value, case.id_)
+        assert updated_record is not None
+        data = cast(Any, updated_record).get("data_", updated_record)
+        assert data.get("attributed_to") == coordinator_id, (
+            "Accept must update case.attributed_to even when receiving_actor_id"
+            " is absent (store owner used as fallback)"
+        )

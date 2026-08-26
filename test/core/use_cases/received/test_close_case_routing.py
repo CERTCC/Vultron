@@ -206,3 +206,24 @@ class TestCloseCaseLedgerRouting:
             " when the case-actor is both sender and receiver (AutoClose path);"
             f" found: {event_types}"
         )
+
+    def test_absent_stamp_falls_back_to_store_owner(self):
+        """Absent receiving_actor_id falls back to dl.actor_id (CASE_ACTOR_ID) and commits.
+
+        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
+        None the store owner is used.  The store owner holds CASE_MANAGER role,
+        so the guarded commit fires and a close_case ledger entry is written.
+        """
+        dl = _make_case_actor_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(receiving_actor_id=None),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "close_case" in event_types, (
+            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
+            " and commit a close_case ledger entry;"
+            f" found: {event_types}"
+        )
