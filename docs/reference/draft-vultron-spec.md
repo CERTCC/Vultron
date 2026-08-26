@@ -1567,7 +1567,7 @@ implementation. Other implementations are not required to use this structure.
 4. ~~**Background material depth**~~ — Resolved. §1.1 uses informative
    admonition blocks pointing to `docs/topics/background/` rather than
    inlining prose or creating a separate companion document. Full §1.1 prose
-   before external circulation is tracked as a follow-up implementation issue.
+   before external circulation is tracked in #2698.
 5. ~~**Finder removal ADR**~~ — Resolved. ADR-0078
    (`docs/adr/0078-retire-finder-role.md`) retires `CVDRole.FINDER`; Reporter is
    the protocol-salient role. Finder identity is metadata, not a protocol role.
