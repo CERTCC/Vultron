@@ -104,13 +104,9 @@ class AddNoteToCaseReceivedUseCase:
             logger.warning("add_note_to_case: missing note_id or case_id")
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "add_note_to_case: missing receiving_actor_id"
-                " — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         tree = create_add_note_to_case_received_tree(
             note_id=note_id,

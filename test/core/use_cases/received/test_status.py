@@ -297,6 +297,68 @@ class TestStatusUseCases:
         ]
         assert pstatus.id_ in status_ids
 
+    def test_add_participant_status_uses_store_owner_when_no_receiving_actor(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent the store owner processes the status.
+
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
+        dl.actor_id (vendor), so the status is appended rather than dropped.
+        """
+        import py_trees
+
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            vendor_id = "https://example.org/users/vendor-nostamp"
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
+
+            participant = as_CaseParticipant(
+                id_="https://example.org/cases/case_ps_nostamp/participants/p",
+                context="https://example.org/cases/case_ps_nostamp",
+                attributed_to=vendor_id,
+            )
+            pstatus = as_ParticipantStatus(
+                id_=(
+                    "https://example.org/cases/case_ps_nostamp"
+                    "/participants/p/statuses/s"
+                ),
+                context="https://example.org/cases/case_ps_nostamp",
+            )
+            case = as_VulnerabilityCase(
+                id_="https://example.org/cases/case_ps_nostamp",
+                name="PS No-Stamp Test",
+            )
+            case.case_participants.append(participant.id_)
+            case.actor_participant_index[vendor_id] = participant.id_
+            dl.create(participant)
+            dl.create(pstatus)
+            dl.create(case)
+
+            activity = add_status_to_participant_activity(
+                pstatus,
+                target=participant,
+                actor=vendor_id,
+                context=case,
+            )
+            event = make_payload(activity, receiving_actor_id=None)
+
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl, event
+            ).execute()
+
+            refreshed = dl.read(participant.id_)
+            assert refreshed is not None
+            refreshed = cast(as_CaseParticipant, refreshed)
+            status_ids = [
+                getattr(s, "id_", s) for s in refreshed.participant_statuses
+            ]
+            assert pstatus.id_ in status_ids, (
+                "Status must be appended even when receiving_actor_id is absent"
+                " (store-owner fallback, CLP-10-005)"
+            )
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
+
 
 # ---------------------------------------------------------------------------
 # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-2
@@ -687,3 +749,49 @@ class TestParticipantStatusLogEntryCascade:
         assert len(announce_ids) == 2
         assert all(actor == case_actor_id for actor in announce_actors)
         assert len(set(announce_payloads)) == 1
+
+    def test_absent_stamp_falls_back_to_store_owner(self, make_payload):
+        """Absent receiving_actor_id falls back to dl.actor_id (case_actor_id) and commits.
+
+        Per resolve_receiving_actor_id (CLP-10-005): when receiving_actor_id is
+        None the store owner is used.  The store owner holds CASE_MANAGER role,
+        so the guarded commit fires and an add_participant_status_to_participant
+        ledger entry is written.
+        """
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/st_le_abs"
+        dl, case_actor_id, participant, pstatus = self._make_dl(
+            case_id, actor_id
+        )
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=None)
+        sync_port = SyncActivityAdapter(dl)
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, VultronCaseLedgerEntry)
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1, (
+            "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
+            " and commit an add_participant_status_to_participant ledger entry"
+        )
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+            "add_participant_status_to_participant"
+        )

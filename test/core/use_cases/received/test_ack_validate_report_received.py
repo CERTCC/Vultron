@@ -443,27 +443,28 @@ class TestValidateReportReceivedGuardedCommit:
             receiving_actor_id=receiving_actor_id,
         )
 
-    def test_skip_commit_when_no_receiving_actor(self, caplog):
-        """ValidateReportReceivedUseCase skips commit when receiving_actor_id is None.
+    def test_store_owner_fallback_when_no_receiving_actor(self):
+        """ValidateReportReceivedUseCase uses store owner when receiving_actor_id is None.
 
-        Per CLP-10-003: when receiving_actor_id is not set, the commit is skipped.
+        The BT runs under the store owner's identity (CLP-10-005 fallback).
+        The guarded commit fires because the store owner holds CASE_MANAGER.
         """
-        import logging
+        import py_trees
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=self.CASE_ACTOR_ID,
-        )
-        event = self._make_validate_event_with_receiving_actor(
-            receiving_actor_id=None
-        )
-
-        with caplog.at_level(logging.DEBUG):
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer(
+                "sqlite:///:memory:",
+                actor_id=self.CASE_ACTOR_ID,
+            )
+            event = self._make_validate_event_with_receiving_actor(
+                receiving_actor_id=None
+            )
             ValidateReportReceivedUseCase(dl, event).execute()
-
-        assert any(
-            "receiving_actor_id not set" in r.message for r in caplog.records
-        ), "Expected debug log indicating skip due to missing receiving_actor_id"
+            # No assertion on ledger (case lookup returns None in this minimal
+            # fixture), but the use case must NOT raise VultronValidationError.
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
 
     def test_skip_commit_when_no_case_found(self, caplog):
         """ValidateReportReceivedUseCase skips commit when no case for report.

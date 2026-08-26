@@ -603,8 +603,10 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   *Source: CONCERN-2413*
 - **Verify Issue ACs Against Current Code Before Starting** — an issue may already
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
-  Check current `main` against all ACs before writing any code; if satisfied, close
-  the issue with a reference comment instead. *Sources: ISSUE-1510, ISSUE-1484*
+  The build and bugfix skills each enforce a pre-claim gate for this; see the
+  "Pre-claim AC verification gate" step in `.agents/skills/build/SKILL.md` Phase 2
+  and the "Pre-claim defect verification" step in `.agents/skills/bugfix/SKILL.md`
+  Phase 1. *Sources: ISSUE-1510, ISSUE-1484*
 - **Docs/Learn PRs That Fix a Bug Must Include `Closes #N`** — when a docs PR
   fixes a bug as a side effect, the closing footer is the only thing that
   closes the issue automatically. Without it the issue stays OPEN after merge.
@@ -880,11 +882,12 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   convert the field to a `>-` block scalar and use apostrophes freely.
   *Source: ISSUE-2393*
 - **Always Verify Every Acceptance Criterion Against `origin/main` Before
-  Implementing** — check each stated defect and AC in the issue body against
-  current `origin/main` HEAD before writing any code. A prior PR may have
-  partially fixed the issue without a `Closes #N` footer, leaving the issue
-  open but the code already changed. Implement only what is still broken.
-  *Source: ISSUE-1467, ISSUE-2290*
+  Implementing** — a prior PR may have partially satisfied an issue without a
+  `Closes #N` footer. Implement only what is still unmet. The pre-claim gates
+  in the build and bugfix skills enforce this check before branching; see
+  `.agents/skills/build/SKILL.md` Phase 2 § "Pre-claim AC verification gate"
+  and `.agents/skills/bugfix/SKILL.md` Phase 1 § "Pre-claim defect
+  verification". *Source: ISSUE-1467, ISSUE-2290*
 - **Sub-Agent Spec Splits: Re-Run the Violation Detection Script After the
   Parallel Pass** — after parallel sub-agents split compound spec requirements,
   re-run the compound-statement detection script. Agents frequently add new

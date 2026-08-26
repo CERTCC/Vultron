@@ -651,8 +651,9 @@ groups:
     priority: MUST
     kind: project
     statement: 'A received-side use case''s `execute()` method MUST do exactly three things: build one BT via a tree-factory
-      function in `vultron/core/behaviors/`, call `BTBridge.execute_with_setup()` exactly once with `actor_id=receiving_actor_id`
-      to run it, and handle the result (log/extract output per the existing Procedural Glue Exception). `execute()` MUST NOT
+      function in `vultron/core/behaviors/`, call `BTBridge.execute_with_setup()` exactly once with
+      `actor_id=resolve_receiving_actor_id(self._dl, request.receiving_actor_id)` to run it, and handle the result
+      (log/extract output per the existing Procedural Glue Exception). `execute()` MUST NOT
       perform any other domain-significant work — no direct DataLayer mutation, no second `execute_with_setup()` call, and
       no direct import or call of `create_guarded_commit_case_ledger_entry_tree` (or any other guarded-commit factory).'
     rationale: 'CLP-10-002/CLP-10-003 (ADR-0021) correctly require a pre-flight guard before committing, and correctly require
