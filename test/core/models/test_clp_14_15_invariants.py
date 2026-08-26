@@ -87,7 +87,7 @@ def test_clp_14_002_published_non_null_enforced_by_model():
             case_id=CASE_ID,
             log_object_id=OBJ_ID,
             event_type="test",
-            published=None,
+            published=None,  # type: ignore[arg-type]
         )
 
 
