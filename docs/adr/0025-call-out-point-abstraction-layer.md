@@ -214,6 +214,15 @@ There are three logical backend modes:
 Deterministic is the default everywhere. The p=0.5 tie-breaking direction is
 `AlwaysSucceed` (happy-path forward progress).
 
+**Security-significant gate exception (ADR-0076):** For call-out points whose
+permissive default enables unilateral state change or embargo consequences —
+e.g., `CaseOwnerApprovesStatusUpdate` in `StatusAdoptionGate` and
+`EmbargoTeardownAuthorizationGate` — the DETERMINISTIC default MUST be
+`RequireCaseOwnerApproval`, not `AlwaysSucceed`, regardless of stochastic p.
+The ceiling/floor rule applies only to simulation-domain nodes where a
+permissive default is a prototype-stage convenience, not a security risk.
+See `notes/call-out-configuration.md` and RSH-07.
+
 ### Domain bundle dataclasses
 
 Individual per-node factory kwargs on tree builders are replaced by a single
