@@ -13,9 +13,7 @@ informed: >-
   specs/multi-actor-demo.yaml DEMOMA-22-005
 ---
 
-# CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical
-
-Causal Order
+# CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order
 
 ## Context and Problem Statement
 
