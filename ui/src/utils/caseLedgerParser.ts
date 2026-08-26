@@ -20,33 +20,59 @@
 /**
  * The event verbs the ledger emits.
  *
- * The first eight are the original two-actor / fvv vocabulary. The final five
- * are added by the 2026-07 coordinator container scenarios (fcv, fvcv-*, fccv-*):
- *   - `submit_report` — the finder's explicit report submission (previously
- *     folded into the offer seed; now first-class, `object.type =
- *     VulnerabilityReport`).
- *   - `accept_case_manager_role` — an actor accepts the CM/coordinator role
- *     (pairs with `offer_case_manager_role`).
- *   - `offer_actor_to_case` / `offer_case_participant` /
- *     `accept_offer_case_participant` — the ADR-0026 suggest-actor handshake in
- *     the extension flow: a Coordinator recommends a participant, the CaseActor
- *     forwards it to the Case Owner, and the Case Owner approves. This precedes
- *     the regular `invite_actor_to_case` / `accept_invite_actor_to_case` join.
+ * **2026-08 vocabulary shift.** A merge from `main` changed the case-LIFECYCLE
+ * verbs while leaving the per-participant / note / embargo / invite verbs intact
+ * (see ui/CLAUDE.md §5–6). The mapping from the OLD vocabulary the earlier
+ * fixtures used:
+ *   - `offer_case_manager_role` → **`create_case`** — case bootstrap; same
+ *     `actorParticipantIndex` roster + `caseStatuses[0]` EM/PXA, `actor` = the
+ *     case-actor recorder. (`offer_case_manager_role` is no longer emitted.)
+ *   - `submit_report` → **`add_report_to_case`** — the finder's report; `actor`
+ *     is now the recorder/owner and the finder is `object.attributedTo`
+ *     (`object.type = VulnerabilityReport`).
+ *   - case-level EM/PXA (previously only embedded on participant statuses / the
+ *     offer) now also arrives as first-class **`add_case_status_to_case`**
+ *     (`emState`/`pxaState` directly on `object`, a `CaseStatus`).
+ *   - **`case_fully_closed`** — the derived "all participants closed" marker
+ *     (no `object`); the per-participant `close_case` nodes still show closure.
+ *   - **`engage_case`** — the owner formally engages the case (no machine change;
+ *     EM/PXA already seeded at create).
+ *   - **`add_case_participant`** — roster bookkeeping (`object.type =
+ *     CaseParticipant`); the actual join still renders via `accept_invite…`.
+ *   - **`reject_invite_actor_to_case`** — an invitee declines (fcv-reject);
+ *     `actor` = the rejecter, `object.object` = the invitee.
+ *   - **`accept_actor_recommendation`** — a leg of the ADR-0026 suggest-actor
+ *     handshake (fcvcv), folded into the "Actor Recommended" overlay.
+ *
+ * The ADR-0026 suggest-actor verbs (`offer_actor_to_case` /
+ * `offer_case_participant` / `accept_offer_case_participant`) and
+ * `accept_case_manager_role` are still emitted by some scenarios; their handlers
+ * are retained. `offer_case_manager_role` / `submit_report` are kept in the union
+ * for backward-compatible replay of older uploaded logs, but current fixtures no
+ * longer contain them.
  */
 export type LedgerEventType =
   | 'offer_case_manager_role'
+  | 'create_case'
   | 'validate_report'
   | 'add_note_to_case'
   | 'add_participant_status_to_participant'
+  | 'add_case_status_to_case'
   | 'remove_embargo_event_from_case'
   | 'close_case'
+  | 'case_fully_closed'
+  | 'engage_case'
   | 'invite_actor_to_case'
   | 'accept_invite_actor_to_case'
+  | 'reject_invite_actor_to_case'
+  | 'add_case_participant'
   | 'submit_report'
+  | 'add_report_to_case'
   | 'accept_case_manager_role'
   | 'offer_actor_to_case'
   | 'offer_case_participant'
   | 'accept_offer_case_participant'
+  | 'accept_actor_recommendation'
 
 /** A case-level status snapshot (`CaseStatus`): the global EM/PXA pair. */
 export interface CaseStatusSnapshot {
@@ -88,6 +114,11 @@ export interface As2Object {
   emConsentState?: string
   /** Case-level snapshot embedded on some participant-status entries. */
   caseStatus?: CaseStatusSnapshot | null
+
+  // CaseStatus fields — when the object IS a CaseStatus (add_case_status_to_case),
+  // the case-level EM/PXA sit directly on the object rather than under caseStatus.
+  emState?: string
+  pxaState?: string
 
   // VulnerabilityCase fields (offer / close entries):
   caseStatuses?: CaseStatusSnapshot[]
@@ -161,6 +192,10 @@ export function actorUrlToLaneId(url?: string | null): LaneId {
   if (url.includes('//coordinator:')) return 'coordinator'
   // `actor5:` hosts Vendor2 in the coordinator scenarios → reuse the vendor-2 lane.
   if (url.includes('//actor5:')) return 'vendor-2'
+  // `actor6:` hosts the VendorDeployer (V2/"vendor-deployer") in the fcvcv
+  // scenario → reuse the vendor-3 lane (same rationale as actor5→vendor-2: lane
+  // identity is keyed on the host, and this host runs the vendor fix lifecycle).
+  if (url.includes('//actor6:')) return 'vendor-3'
   // `//vendorN:` (N ≥ 2) → vendor-N; the bare `//vendor:` host → vendor-1.
   const numberedVendor = url.match(/\/\/vendor(\d+):/)
   if (numberedVendor) return `vendor-${parseInt(numberedVendor[1], 10)}`

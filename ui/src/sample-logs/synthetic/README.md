@@ -10,8 +10,8 @@ These committed fixtures live under `ui/src/sample-logs/` (they ship with the ap
 and are imported by the "Load …" buttons), NOT under the gitignored repo-root
 `devlogs/` (which is runtime output from the container demo).
 
-The committed `two-actor` sample is a clean happy path, so it never
-flags anything. This fixture deliberately includes several illegal transitions
+The committed `fv` sample (formerly `two-actor`) is a clean happy path, so it
+never flags anything. This fixture deliberately includes several illegal transitions
 across multiple state machines (RM, EM-terminate, and a case-level PXA jump),
 chosen so each illegal step lands in a handler that emits a node (a pure
 status-only violation would be logged but produce no visible node — see the
@@ -29,11 +29,20 @@ jumps surface via the `remove_embargo` handler instead, as at logIndex 5.)
 
 ## How to load it
 
-In the Log Replay demo, click the red **⚠️ Load Violation Sample** button — it
-imports `violations-case-ledger.jsonl` directly. (The green "Load Sample Case"
-button loads the happy-path two-actor sample; "Load FVV Case" loads the 3-party
-sample.) You can also **Select Log Files** and pick this file manually from
-`ui/src/sample-logs/synthetic/`.
+In the Log Replay demo, click the **⚠️ Violation Sample** button (Diagnostic
+group) — it imports `violations-case-ledger.jsonl` directly. (The **▶ FV — Finder
++ Vendor** button loads the happy-path sample; **▶ FVV — Finder + 2 Vendors**
+loads the 3-party sample; the scenario buttons are data-driven from the
+`SAMPLE_SCENARIOS` catalog in `App-logreplay.tsx`.) You can also **Select Log
+Files** and pick this file manually from `ui/src/sample-logs/synthetic/`.
+
+> **Vocabulary note (2026-08).** These synthetic fixtures are **hand-authored on
+> the pre-2026-08 bootstrap verb `offer_case_manager_role`** (see the table below),
+> not the current `create_case`. They were intentionally NOT regenerated — the
+> mapper retains the legacy `offer_case_manager_role` handler (it shares
+> `handleCreateCase` with `create_case`) precisely so hand-authored and older
+> uploaded logs still replay. The violation/inferred logic they exercise is
+> vocabulary-independent.
 
 ## Companion fixture: `inferred-multistep-case-ledger.jsonl`
 

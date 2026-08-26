@@ -621,29 +621,61 @@ function handleEntry(
   laneIndex: LaneIndexMap
 ): MapResult {
   switch (entry.eventType) {
+    // Case bootstrap. `create_case` is the current verb; `offer_case_manager_role`
+    // is the pre-2026-08 verb kept for replaying older uploaded logs. Both carry
+    // the same roster + CaseStatus shape and share one handler.
+    case 'create_case':
     case 'offer_case_manager_role':
-      return handleOffer(entry, participants, shadow, x, laneIndex)
+      return handleCreateCase(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
       return handleValidateReport(entry, participants, shadow, x, laneIndex)
     case 'add_note_to_case':
       return handleNote(entry, participants, shadow, x, laneIndex)
     case 'add_participant_status_to_participant':
       return handleParticipantStatus(entry, participants, shadow, x, laneIndex)
+    case 'add_case_status_to_case':
+      return handleCaseStatus(entry, participants, shadow, x, laneIndex)
     case 'remove_embargo_event_from_case':
       return handleRemoveEmbargo(entry, participants, shadow, x, laneIndex)
     case 'close_case':
       return handleCloseCase(entry, participants, shadow, x, laneIndex)
+    case 'case_fully_closed':
+      // Derived "all participants have closed" marker (no object, no machine
+      // change). The per-participant close_case nodes already depict closure, so
+      // this is log-only — it mirrors the protocol's derived fold over participant
+      // RM states (lifecycle.py `_all_participants_closed`), not a distinct action.
+      return { nodes: [], logLines: ['  ↳ case_fully_closed (all participants closed)'] }
+    case 'engage_case':
+      // The case owner formally engages the case. EM/PXA are already seeded at
+      // create_case, so there is no machine change to apply — log-only.
+      return { nodes: [], logLines: ['  ↳ engage_case (owner engaged the case)'] }
     case 'invite_actor_to_case':
       return handleInvite(entry, participants, shadow, x, laneIndex)
     case 'accept_invite_actor_to_case':
       return handleAcceptInvite(entry, participants, shadow, x, laneIndex)
+    case 'reject_invite_actor_to_case':
+      return handleRejectInvite(entry, participants, shadow, x, laneIndex)
+    case 'add_case_participant':
+      // Roster bookkeeping: the case manager records a participant on the case.
+      // The visible join renders via accept_invite; here we only ensure the lane
+      // exists (defensive for a subset ledger). Log-only, no column consumed.
+      return handleAddCaseParticipant(entry, participants, shadow, x, laneIndex)
     case 'submit_report':
-      return handleSubmitReport(entry, participants, shadow, x, laneIndex)
+    case 'add_report_to_case':
+      // `add_report_to_case` is the current verb (actor = recorder/owner, finder =
+      // object.attributedTo); `submit_report` is the older verb (actor = finder).
+      // handleReport resolves the finder lane from whichever is present.
+      return handleReport(entry, participants, shadow, x, laneIndex)
     case 'accept_case_manager_role':
       // The recorder (case-actor sub-actor) accepts the case-manager role it was
-      // offered at case creation. Bookkeeping that pairs with offer_case_manager_role
+      // offered at case creation. Bookkeeping that pairs with the case bootstrap
       // (already rendered as "Case Created"); no machine change, so log-only.
       return { nodes: [], logLines: ['  ↳ accept_case_manager_role (Case Manager role accepted)'] }
+    case 'accept_actor_recommendation':
+      // A leg of the ADR-0026 suggest-actor handshake (fcvcv): an actor accepts a
+      // recommendation to bring another actor onto the case. Folded into the
+      // "Actor Recommended" overlay (handleOfferActorToCase); log-only here.
+      return { nodes: [], logLines: ['  ↳ accept_actor_recommendation (recommendation accepted)'] }
     case 'offer_actor_to_case':
       // First leg of the ADR-0026 suggest-actor handshake (Coordinator recommends a
       // participant). Rendered as a single "Actor Recommended" node; the other two
@@ -662,9 +694,15 @@ function handleEntry(
   }
 }
 
-// --- offer_case_manager_role → case-created bootstrap ----------------------
+// --- create_case (or legacy offer_case_manager_role) → case-created bootstrap -
 
-function handleOffer(
+/**
+ * Case bootstrap. Handles the current `create_case` verb and the legacy
+ * `offer_case_manager_role` (identical roster/CaseStatus shape). Seeds the
+ * case-level EM/PXA and the per-participant report-receipt state, then emits the
+ * "Case Created" cluster in the caseactor recorder lane.
+ */
+function handleCreateCase(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
@@ -713,11 +751,16 @@ function handleOffer(
 
   // Report-receipt seed: the case RECEIVER/OWNER enters at RM.RECEIVED so the
   // later `validate_report` is a legal RECEIVED→VALID step (seeding at ACCEPTED
-  // would make `validate` illegal). The offer's case-object `attributedTo`
-  // identifies that receiver: the primary vendor in two-actor/fvv/fvcv-extension,
-  // but the COORDINATOR in fcv/fccv-extension (a coordinator can receive & own the
-  // case). Default to vendor-1 when attribution is absent (fvv's offer carries
-  // none and its receiver is the primary vendor).
+  // would make `validate` illegal). The receiver is the primary vendor in
+  // two-actor/fvv/fvcv-extension but the COORDINATOR in fcv/fccv-extension.
+  //
+  // Identifying the owner (2026-08): `create_case`'s `object.attributedTo` is the
+  // case-actor RECORDER, not the owner (the legacy `offer_case_manager_role` put
+  // the owner there). So we derive the owner from the roster instead: it is the
+  // single participant that is neither the finder nor the caseactor recorder
+  // (fv → vendor-1, fcv → coordinator). We still honor `object.attributedTo` when
+  // it names a genuine owner lane (legacy logs), falling back to the roster rule,
+  // then to vendor-1.
   //
   // GUARDED on `=== undefined` (not on seededRm): some ledgers (e.g. fvv) log
   // validate_report BEFORE the offer, so the receiver's RM may already have
@@ -725,8 +768,14 @@ function handleOffer(
   // when never touched, but always mark the lane seeded so later status snapshots
   // are treated as transitions (and validated), not re-seeded.
   const receiverLane: LaneId = (() => {
-    const id = actorUrlToLaneId(obj?.attributedTo)
-    return id === 'unknown' ? 'vendor-1' : id
+    const viaAttr = actorUrlToLaneId(obj?.attributedTo)
+    if (viaAttr !== 'unknown' && viaAttr !== 'caseactor' && viaAttr !== 'finder') {
+      return viaAttr
+    }
+    const owner = Array.from(roster).find(
+      (id) => id !== 'finder' && id !== 'caseactor' && id !== 'unknown'
+    )
+    return owner ?? 'vendor-1'
   })()
   if (shadow.rm[receiverLane] === undefined) shadow.rm[receiverLane] = 'RECEIVED'
   shadow.seededRm.add(receiverLane)
@@ -769,26 +818,31 @@ function handleOffer(
   return { nodes, logLines }
 }
 
-// --- submit_report → finder submits the report -----------------------------
+// --- add_report_to_case / submit_report → finder's report -------------------
 
 /**
- * The finder submits the vulnerability report (2026-07 scenarios; previously
- * folded into the offer seed). `object.type = VulnerabilityReport`, `actor` = the
- * finder. This is a demo-kind node (no machine slot of its own — the finder's
- * private RM traversal to ACCEPTED is seeded at case creation, CLAUDE.md §9), so
- * it emits a "Submit Report" decision node in the finder lane without touching the
- * shadow. Note this entry may arrive AFTER the offer (fcv/fvcv/fccv order it at
- * logIndex 1, one past the offer at 0), so the finder lane and its ACCEPTED seed
- * already exist; ensureParticipant is defensive.
+ * The finder's vulnerability report is added to the case. Two verb shapes:
+ *   - `add_report_to_case` (2026-08): `actor` = the recorder/owner, and the
+ *     finder is `object.attributedTo` (`object.type = VulnerabilityReport`).
+ *   - `submit_report` (legacy): `actor` = the finder directly.
+ * Either way the node belongs in the FINDER lane. This is a demo-kind node (no
+ * machine slot of its own — the finder's private RM traversal to ACCEPTED is
+ * seeded at case creation, CLAUDE.md §9), so it emits a "Submit Report" decision
+ * node without touching the shadow. The entry may arrive after case creation, so
+ * the finder lane and its ACCEPTED seed already exist; ensureParticipant is
+ * defensive.
  */
-function handleSubmitReport(
+function handleReport(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   _shadow: ShadowState,
   x: number,
   laneIndex: LaneIndexMap
 ): MapResult {
-  const laneId = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  // Prefer the report author (object.attributedTo = finder) for the current verb;
+  // fall back to the actor for the legacy submit_report shape.
+  const viaAttr = actorUrlToLaneId(entry.payloadSnapshot?.object?.attributedTo)
+  const laneId = viaAttr !== 'unknown' ? viaAttr : actorUrlToLaneId(entry.payloadSnapshot?.actor)
   ensureParticipant(participants, laneId, laneIndex)
   const reportName = entry.payloadSnapshot?.object?.name ?? 'vulnerability report'
   const nodes = synthesizeCluster(
@@ -937,10 +991,10 @@ function handleAcceptInvite(
   }
 
   // Report-receipt seed for the joining participant (mirrors the receiver seed in
-  // handleOffer). Guarded so a pre-existing status snapshot isn't regressed. Every
+  // handleCreateCase). Guarded so a pre-existing status snapshot isn't regressed. Every
   // joiner — vendor OR coordinator — receives & manages the report, so RM is seeded
   // for all. VFD (fix development) is seeded ONLY for a vendor joiner, matching
-  // handleOffer: a coordinator owns/manages but builds no fix, so its VFD is left
+  // handleCreateCase: a coordinator owns/manages but builds no fix, so its VFD is left
   // unseeded and surfaced verbatim from its own status snapshots (a generator signal
   // rather than a fabricated Vfd start).
   const isVendorJoiner = laneId.startsWith('vendor-')
@@ -970,6 +1024,67 @@ function handleAcceptInvite(
     false
   )
   return { nodes, logLines }
+}
+
+// --- reject_invite_actor_to_case → invitee declines -------------------------
+
+/**
+ * An invited actor declines the invitation (the fcv-reject scenario). The
+ * recorded `actor` is the rejecter; the wrapped `object` is the Invite, whose
+ * `object` is the invitee and whose `actor` is the inviter. We render a
+ * "Declined Invite" decision node in the rejecter's lane. No machine change — the
+ * rejecter never joins — so the lane is left not-joined (a rejecter that never
+ * produced a status won't have been made visible, so it simply doesn't appear as
+ * an ongoing lane).
+ */
+function handleRejectInvite(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  _shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  const laneId = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  ensureParticipant(participants, laneId, laneIndex)
+  if (laneId === 'unknown') {
+    return { nodes: [], logLines: ['  ↳ reject_invite: could not resolve rejecting actor'] }
+  }
+  const name = participants.get(laneId)?.name ?? laneId
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    laneId,
+    x,
+    'Declined Invite',
+    [`${name} declined the invitation to the case`, 'Reject(Invite) → inviter', 'Actor does not join the case'],
+    'Invite Declined',
+    () => [`${name} declined to join the case`],
+    false
+  )
+  return { nodes, logLines: [] }
+}
+
+// --- add_case_participant → roster bookkeeping (log-only) --------------------
+
+/**
+ * The case manager records a participant on the case roster (2026-08). The
+ * visible join renders via `accept_invite_actor_to_case`; this entry is
+ * bookkeeping, so it is log-only and consumes no column. We still ensure the
+ * lane exists defensively (subset ledgers), keyed off the recorded participant
+ * (`object.name`/`object.attributedTo` = the participant URL).
+ */
+function handleAddCaseParticipant(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  _shadow: ShadowState,
+  _x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  const obj = entry.payloadSnapshot?.object
+  const laneId = actorUrlToLaneId(obj?.attributedTo ?? obj?.name)
+  ensureParticipant(participants, laneId, laneIndex)
+  const label = laneId === 'unknown' ? 'a participant' : participants.get(laneId)?.name ?? laneId
+  return { nodes: [], logLines: [`  ↳ add_case_participant (${label} recorded on case roster)`] }
 }
 
 // --- validate_report → rm validate -----------------------------------------
@@ -1090,8 +1205,17 @@ function handleParticipantStatus(
   ensureParticipant(participants, laneId, laneIndex)
 
   const tokens = parseStatusName(obj?.name)
-  const rmNext = obj?.rmState ?? tokens.rm
-  const vfdNext = obj?.vfdState ?? tokens.vfd
+  // The case-actor recorder is the virtual CASE_MANAGER (§9): it has no report-
+  // management disposition of its own and stays at RM/VFD = 'N/A'. The 2026-08
+  // ledger attributes a case-management RM lifecycle to the case-actor sub-actor
+  // URL (e.g. fv logIndex 2–4: RECEIVED→VALID→ACCEPTED), but that merely mirrors
+  // the OWNER's progress — the owner's own participant lane (vendor/coordinator)
+  // already carries it. So we ignore RM/VFD on the caseactor lane to keep it N/A
+  // and avoid a spurious lifecycle in the recorder lane; case-level EM/PXA still
+  // apply below.
+  const isRecorder = laneId === 'caseactor'
+  const rmNext = isRecorder ? undefined : obj?.rmState ?? tokens.rm
+  const vfdNext = isRecorder ? undefined : obj?.vfdState ?? tokens.vfd
   const logLines: string[] = []
 
   // Track the changes this entry represents; pick a primary for the node label.
@@ -1256,6 +1380,104 @@ function handleParticipantStatus(
     decisionBullets,
     label,
     () => [`${subjectName} status update`, ...changes.map((c) => `${c.machine.toUpperCase()} → ${c.to}`)],
+    violation,
+    violationReasons.join(' ') || undefined,
+    inferred
+  )
+  return { nodes, logLines }
+}
+
+// --- add_case_status_to_case → case-level EM/PXA snapshot -------------------
+
+/**
+ * A first-class case-level status snapshot (2026-08). Unlike the embedded
+ * `caseStatus` on participant statuses / the case bootstrap, here the `object`
+ * IS the `CaseStatus`, so `emState`/`pxaState` sit directly on it. This is the
+ * case-level analog of `handleParticipantStatus`: apply the EM/PXA advances
+ * forward-only against the shadow (stale snapshots ignored, illegal jumps
+ * flagged), run the cross-machine embargo-viability check, and emit a node in the
+ * caseactor recorder lane only when something actually changed (otherwise the
+ * entry is a redundant re-snapshot → log-only, no column consumed).
+ */
+function handleCaseStatus(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  ensureParticipant(participants, 'caseactor', laneIndex)
+  const obj = entry.payloadSnapshot?.object
+  const tokens = parseStatusName(obj?.name)
+  const emNext = obj?.emState ?? tokens.em
+  const pxaNext = obj?.pxaState ?? tokens.pxa
+  const logLines: string[] = []
+
+  const changes: Array<{ machine: MachineName; from: string; to: string; trigger: string }> = []
+  let violation = false
+  const violationReasons: string[] = []
+  const inferredNotes: string[] = []
+
+  // PXA first, then EM — matches handleParticipantStatus so the embargo-viability
+  // check below sees this entry's publicity (shadow.pxaState just advanced).
+  const pxaChange = applyCaseLevelForward('pxa', shadow, pxaNext, logLines)
+  if (pxaChange) {
+    changes.push({ machine: 'pxa', from: pxaChange.from, to: pxaChange.to, trigger: pxaChange.trigger })
+    if (pxaChange.violation) {
+      violation = true
+      if (pxaChange.reason) violationReasons.push(pxaChange.reason)
+    }
+    if (pxaChange.inferredNote) inferredNotes.push(pxaChange.inferredNote)
+  }
+  const emChange = applyCaseLevelForward('em', shadow, emNext, logLines)
+  if (emChange) {
+    changes.push({ machine: 'em', from: emChange.from, to: emChange.to, trigger: emChange.trigger })
+    if (emChange.violation) {
+      violation = true
+      if (emChange.reason) violationReasons.push(emChange.reason)
+    }
+    if (emChange.inferredNote) inferredNotes.push(emChange.inferredNote)
+
+    const enteringNew = emChange.to === 'PROPOSED'
+    const enteringActive = emChange.to === 'ACTIVE' || emChange.to === 'REVISE'
+    const viabilityOk = enteringNew
+      ? canStartEmbargo(shadow.pxaState)
+      : enteringActive
+      ? embargoViable(shadow.pxaState)
+      : true
+    if (!viabilityOk) {
+      violation = true
+      violationReasons.push(
+        `Embargo entered ${emChange.to} while the case is at PXA ${shadow.pxaState}, but the ` +
+          `protocol forbids ${enteringNew ? 'proposing' : 'establishing/continuing'} an embargo ` +
+          `once the vulnerability is public, an exploit is public, or attacks are observed ` +
+          `(per the artifact's embargo-viability rule).`
+      )
+      logLines.push(
+        `  ↳ PROTOCOL VIOLATION: EM → ${emChange.to} not viable at PXA=${shadow.pxaState} (embargo-viability rule)`
+      )
+    }
+  }
+
+  // No meaningful change (redundant re-snapshot) → no node, no column.
+  if (changes.length === 0) return { nodes: [], logLines }
+
+  // Primary change for the label: PXA > EM (RM/VFD don't appear on a CaseStatus).
+  const order: MachineName[] = ['pxa', 'em']
+  const primary = changes.slice().sort((a, b) => order.indexOf(a.machine) - order.indexOf(b.machine))[0]
+  const label = TRIGGER_LABEL[`${primary.machine}:${primary.trigger}`] ?? 'Case Status Update'
+
+  const inferred = !violation && inferredNotes.length > 0 ? { note: inferredNotes.join(' ') } : undefined
+
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    'caseactor',
+    x,
+    label,
+    changes.map((c) => `${c.machine.toUpperCase()}: ${c.from} → ${c.to}`),
+    label,
+    () => ['Case status update', ...changes.map((c) => `${c.machine.toUpperCase()} → ${c.to}`)],
     violation,
     violationReasons.join(' ') || undefined,
     inferred

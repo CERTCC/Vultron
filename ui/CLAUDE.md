@@ -236,49 +236,91 @@ the real logs — it's the §9 deferral idea applied to replay.
 ### The case-ledger format (current)
 
 Each line is a `CaseLedgerEntry`: `{ logIndex, eventType, payloadSnapshot (an AS2
-activity), entryHash, prevLogHash, receivedAt, … }`. The mapper currently **handles
-8** `eventType` verbs: `offer_case_manager_role`, `validate_report`,
-`add_note_to_case`, `add_participant_status_to_participant`,
-`remove_embargo_event_from_case`, `close_case`, `invite_actor_to_case`,
-`accept_invite_actor_to_case`. **The 2026-07 container scenarios emit 5 MORE**
-(`submit_report`, `accept_case_manager_role`, `offer_actor_to_case`,
-`offer_case_participant`, `accept_offer_case_participant`) that are **not yet
-handled** — see "⏳ IN PROGRESS" below. The log records **state SNAPSHOTS, not transitions** — the mapper
-recovers the trigger by diffing each participant's snapshot against the previous one
-(RM/VFD via `object.rmState`/`vfdState`; EM/PXA via `caseStatus` /
-`caseStatuses[0]` structured fields). A status `name` like `"ACCEPTED VFD ACTIVE
-Pxa"` is a cross-check only — trust structured fields (the offer's CaseStatus
-`name="NONE pxa"` lies; its `emState` is ACTIVE).
+activity), entryHash, prevLogHash, receivedAt, … }`. The log records **state
+SNAPSHOTS, not transitions** — the mapper recovers the trigger by diffing each
+participant's snapshot against the previous one (RM/VFD via `object.rmState`/
+`vfdState`; EM/PXA via `caseStatus` / `caseStatuses[0]`, or — for
+`add_case_status_to_case` — `object.emState`/`pxaState` directly). A status `name`
+like `"ACCEPTED VFD ACTIVE Pxa"` is a cross-check only — trust structured fields
+(the bootstrap's CaseStatus `name="NONE pxa"` lies; its `emState` is ACTIVE).
 
-### ⏳ IN PROGRESS (2026-07): new container scenarios — mapper extension needed
+> **⚠️ 2026-08 VOCABULARY SHIFT (done — mapper updated).** A merge from `main`
+> changed the case-LIFECYCLE verbs (the per-participant/note/embargo/invite verbs
+> are unchanged). The mapper + parser were updated to the new vocabulary; the
+> committed fixtures were regenerated. Old→new mapping:
+> - `offer_case_manager_role` → **`create_case`** (same roster + CaseStatus shape;
+>   `handleCreateCase` handles both).
+> - `submit_report` → **`add_report_to_case`** (`actor` = recorder/owner, finder =
+>   `object.attributedTo`; `handleReport` handles both, node in the finder lane).
+> - case-level EM/PXA now also arrives as first-class **`add_case_status_to_case`**
+>   (`handleCaseStatus`; EM/PXA directly on `object`).
+> - **`case_fully_closed`**, **`engage_case`**, **`add_case_participant`**,
+>   **`accept_actor_recommendation`** — log-only (no machine change).
+> - **`reject_invite_actor_to_case`** — invitee declines (`handleRejectInvite`;
+>   "Declined Invite" node in the rejecter's lane).
+>
+> **Owner identification changed:** `create_case`'s `object.attributedTo` is the
+> case-actor RECORDER, not the owner. `handleCreateCase` now derives the owner as
+> the single roster host that is neither `finder` nor `caseactor` (fv → vendor-1,
+> fcv → coordinator).
+>
+> **Case-actor sub-actor now carries an RM lifecycle.** The new ledger attributes
+> the owner's case-management RM (RECEIVED→VALID→ACCEPTED) to the case-actor
+> sub-actor URL (→ `caseactor` lane). Since the owner's own participant lane
+> already carries that, `handleParticipantStatus` **ignores RM/VFD on the
+> `caseactor` lane** to keep it `N/A` per §9 (case-level EM/PXA still apply).
+>
+> **Parser:** `actor6:` host → `vendor-3` (the fcvcv "vendor-deployer", mirroring
+> `actor5`→`vendor-2`). `offer_case_manager_role`/`submit_report` are retained in
+> the union for replaying older uploaded logs, but current fixtures no longer emit
+> them.
+
+### ✅ MOSTLY DONE (superseded 2026-08): coordinator scenarios + vocabulary shift
+
+> **Status update (2026-08).** The GAP 1/2/3 work below (2026-07) was largely
+> completed: the coordinator scenarios (fcv, fvcv-*, fccv-*) render, `coordinator`/
+> `actor5` lanes exist, and the ADR-0026 suggest-actor overlay is in. Then a merge
+> from `main` changed the case-ledger VOCABULARY (see the "⚠️ 2026-08 VOCABULARY
+> SHIFT" box under §5) and added two scenarios (`fcv-reject`, `fcvcv`). The mapper
+> + parser were updated and all 9 fixtures regenerated. The GAP notes below are
+> retained as historical context; the handoff work (GAP 3) is still deferred.
+
+**How to (re)generate the logs** (Docker, on the user's real machine — not in
+this container): the exec bit on the script is not reliably preserved on OneDrive,
+so invoke via `bash`:
+`bash ./integration_tests/demo/run_multi_actor_integration_test.sh <s>` for `<s>`
+in `fv fvv fcv fcv-reject fvcv-extension fvcv-handoff fccv-extension fccv-handoff
+fcvcv` (the current 9; `devlogs/` accumulates old+new UUIDs across runs, so refresh
+fixtures from the NEWEST case-actor copy per scenario). If `EOFError: marshal data
+too short` appears, clear `__pycache__`/`*.pyc` (OneDrive-corrupted host `.pyc`
+leaking via the bind-mount) and retry.
 
 Allen standardized the container demos on an **F/V/C scenario-shape notation**
 (F=Finder, V=Vendor, C=Coordinator) with `-extension` vs `-handoff` variants
 (extension = original report receiver KEEPS case ownership and just recommends/
 invites others; handoff = original receiver TRANSFERS ownership to another actor).
-There are now **7 scenarios**, each a container demo that writes JSONL to the
-gitignored `devlogs/<scenario>/`. All 7 were generated locally (2026-07) and their
-logs inspected. **The Log Replay mapper does NOT yet handle them fully** — this is
-the next body of work.
+Each scenario is a container demo that writes JSONL to the gitignored
+`devlogs/<scenario>/`.
 
-**How to (re)generate the logs** (Docker, on the user's real machine — not in
-this container): `./integration_tests/demo/run_multi_actor_integration_test.sh <s>`
-for `<s>` in `fv fvv fcv fvcv-extension fvcv-handoff fccv-extension fccv-handoff`
-(sequential; each self-cleans volumes). If `EOFError: marshal data too short`
-appears, the OneDrive-synced tree corrupted host `.pyc` files that leak into the
-containers via the `../vultron:/app/vultron` bind-mount — clear `__pycache__`/`*.pyc`
-and retry (see §7).
+**Ground-truth survey (2026-08 regeneration — 9 scenarios; entry counts + actor
+hosts):** `actor5` = 2nd vendor host (→ `vendor-2`), `actor6` = vendor-deployer
+host (→ `vendor-3`). The `case-actor` recorder is co-hosted on the owner's host.
+| scenario | entries | actor hosts |
+|---|---|---|
+| `fv` | 22 | finder, vendor |
+| `fvv` | 32 | finder, vendor, actor5 |
+| `fcv` | 30 | finder, vendor, coordinator |
+| `fcv-reject` | 22 | finder, vendor, coordinator |
+| `fvcv-extension` | 44 | finder, vendor, coordinator, actor5 |
+| `fvcv-handoff` | 42 | finder, vendor, coordinator, actor5 |
+| `fccv-extension` | 42 | finder, vendor, coordinator, actor5 |
+| `fccv-handoff` | 41 | finder, vendor, coordinator, actor5 |
+| `fcvcv` | 57 | finder, vendor, coordinator, actor5, actor6 |
 
-**Ground-truth survey of the 7 scenarios' logs (entry counts + actor hosts):**
-| scenario | entries | actor hosts | notes |
-|---|---|---|---|
-| `fv` | 16 | finder, vendor | simplest; vendor self-manages case |
-| `fvv` | 24 | finder, vendor, actor5 | (actor5 = the 2nd vendor host) |
-| `fcv` | 22 | finder, vendor, **coordinator** | coordinator role introduced |
-| `fvcv-extension` | 33 | finder, vendor, coordinator, actor5 | richest event set |
-| `fvcv-handoff` | 30 | finder, vendor, coordinator, actor5 | ownership transfer |
-| `fccv-extension` | 31 | finder, vendor, coordinator, actor5 | |
-| `fccv-handoff` | 28 | finder, vendor, coordinator, actor5 | ownership transfer |
+**New scenarios (2026-08):** `fcv-reject` (fcv path where the invited vendor
+declines — `reject_invite_actor_to_case`) and `fcvcv` (five actors: finder,
+coordinator, vendor, 2nd coordinator, 2nd vendor/deployer). Both are wired to
+"Load …" buttons with a caveat badge and need visual verification.
 
 **GAP 1 — unhandled event verbs.** The mapper's `handleEntry` switch handles 8
 verbs; the new scenarios emit **5 more that currently hit the `default` branch and
@@ -476,9 +518,13 @@ view) rather than relying on `entryHash` dedup across differing copies.
 - **Two different log locations — don't confuse them:**
   - **`ui/src/sample-logs/`** — the COMMITTED sample ledgers the Log Replay
     "Load …" buttons import via `?raw`. In-tree (tracked in git), so a fresh clone
-    builds without needing the container demo. Contains `two-actor/` (happy path),
-    `synthetic/` (hand-authored violation + inferred-multistep fixtures + README),
-    and `fvv/` (finder + 2 vendors). Each button imports the **case-actor** copy.
+    builds without needing the container demo. Contains one dir per scenario —
+    `fv/` (happy path; formerly `two-actor/`), `fvv/`, `fcv/`, `fcv-reject/`,
+    `fvcv-extension/`, `fvcv-handoff/`, `fccv-extension/`, `fccv-handoff/`,
+    `fcvcv/`, plus `synthetic/` (hand-authored violation + inferred-multistep
+    fixtures + README). Each button imports the **case-actor** copy. Filenames are
+    per-run UUIDs, so regenerating means updating the `?raw` import paths in
+    `App-logreplay.tsx`.
   - **`devlogs/` (repo root)** — GITIGNORED runtime output. The container
     multi-actor demo bind-mounts and writes fresh `*-case-ledger.jsonl` here on
     every run (`DEVLOGS_DIR`, docker-compose-multi-actor.yml). NOT tracked; a fresh

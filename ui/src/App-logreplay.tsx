@@ -18,30 +18,39 @@ import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // them in-tree means a fresh clone builds without needing devlogs/, and no reliance
 // on Vite's `server.fs.allow` reaching outside ui/.
 //
-// two-actor: the happy-path sample (one shared ledger across finder/vendor/case-
-// actor; one copy suffices).
-import sampleLedgerRaw from './sample-logs/two-actor/urn_uuid_b9e6d36c-8f90-46bc-8bf7-a36446738f39-case-ledger.jsonl?raw'
+// All ledgers below were regenerated 2026-08 on the NEW case-ledger vocabulary
+// (create_case / add_report_to_case / add_case_status_to_case / case_fully_closed
+// / engage_case / add_case_participant / reject_invite / accept_actor_recommendation
+// — see ui/CLAUDE.md §5–6). Filenames are per-run UUIDs; when regenerating, copy
+// the newest case-actor copy from devlogs/<scenario>/ and update the path here.
+//
+// fv: the happy-path sample (Finder + Vendor; formerly "two-actor"). One shared
+// ledger across finder/vendor/case-actor; the case-actor copy suffices.
+import sampleLedgerRaw from './sample-logs/fv/urn_uuid_15d15384-9a33-4ae4-8d1a-34c0efc92bc4-case-ledger.jsonl?raw'
 // Hand-authored fixture with two deliberate protocol violations (RM re-validate,
 // EM re-terminate) to exercise the red ⚠️ violation flagging. See
 // sample-logs/synthetic/README.md for the entry-by-entry expected result.
 import violationLedgerRaw from './sample-logs/synthetic/violations-case-ledger.jsonl?raw'
 // Three-party container demo: finder + two vendors (vendor invites vendor2). These
 // logs are NOT verified for protocol validity — a good stress test for the
-// violation flagging. The case-actor copy is the coordinator's authoritative view
-// (all four folder copies carry the same 19 entries; they differ only per
-// perspective, so we load one copy rather than relying on entryHash dedup).
-import fvvLedgerRaw from './sample-logs/fvv/urn_uuid_4e4ee04a-6503-495d-ba34-50bcce4ebc18-case-ledger.jsonl?raw'
-// 2026-07 coordinator container scenarios (F/V/C notation: Finder/Vendor/
-// Coordinator, with -extension vs -handoff variants). Each is the case-actor
-// (authoritative) copy. fcv + the two -extension logs were hand-traced clean
-// against the protocol artifact; the two -handoff logs replay too but the case-
-// ownership TRANSFER is not yet depicted (deferred — see ui/CLAUDE.md §5), so the
-// CASE_OWNER migration shows only as role changes we don't yet render.
-import fcvLedgerRaw from './sample-logs/fcv/urn_uuid_c06ec856-0b70-4169-9a58-60326a9c1b13-case-ledger.jsonl?raw'
-import fvcvExtLedgerRaw from './sample-logs/fvcv-extension/urn_uuid_0c6ab883-7209-44d3-ad75-44d991c77119-case-ledger.jsonl?raw'
-import fccvExtLedgerRaw from './sample-logs/fccv-extension/urn_uuid_7bf543e9-42a6-4ce1-9017-0aed4cd4e923-case-ledger.jsonl?raw'
-import fvcvHandoffLedgerRaw from './sample-logs/fvcv-handoff/urn_uuid_8a4478fe-c269-4d3c-84d2-49e99c610e04-case-ledger.jsonl?raw'
-import fccvHandoffLedgerRaw from './sample-logs/fccv-handoff/urn_uuid_6603f0d3-5d54-48bb-b4de-e50889ef3c30-case-ledger.jsonl?raw'
+// violation flagging. The case-actor copy is the authoritative view.
+import fvvLedgerRaw from './sample-logs/fvv/urn_uuid_ae1cd883-a581-4ff8-854d-5049978f9d1e-case-ledger.jsonl?raw'
+// Coordinator container scenarios (F/V/C notation: Finder/Vendor/Coordinator, with
+// -extension vs -handoff variants). Each is the case-actor (authoritative) copy.
+// The -handoff logs replay but the case-ownership TRANSFER is not yet depicted
+// (deferred — see ui/CLAUDE.md §5), so the CASE_OWNER migration shows only as role
+// changes we don't yet render.
+import fcvLedgerRaw from './sample-logs/fcv/urn_uuid_cb1999cc-a443-4814-9a1e-c547eb4f97e9-case-ledger.jsonl?raw'
+import fvcvExtLedgerRaw from './sample-logs/fvcv-extension/urn_uuid_d7d50e80-fc30-4868-a30c-264bf50682aa-case-ledger.jsonl?raw'
+import fccvExtLedgerRaw from './sample-logs/fccv-extension/urn_uuid_bb5e990d-36dc-47df-bd01-82fb50cb08a8-case-ledger.jsonl?raw'
+import fvcvHandoffLedgerRaw from './sample-logs/fvcv-handoff/urn_uuid_3dc59246-014a-47bc-910f-ec5d31d34bf3-case-ledger.jsonl?raw'
+import fccvHandoffLedgerRaw from './sample-logs/fccv-handoff/urn_uuid_2addf5ae-8be3-4eaf-9e7e-0fb1a3dd4099-case-ledger.jsonl?raw'
+// New 2026-08 scenarios. fcv-reject: the fcv path where the invited vendor DECLINES
+// (reject_invite_actor_to_case). fcvcv: a five-actor case (finder, coordinator,
+// vendor, second coordinator, second vendor via actor6/vendor-3) — the richest set.
+// Both are freshly wired and not yet visually verified against a build.
+import fcvRejectLedgerRaw from './sample-logs/fcv-reject/urn_uuid_4fee1081-d1ea-4bf8-869d-7d6aad69bf3e-case-ledger.jsonl?raw'
+import fcvcvLedgerRaw from './sample-logs/fcvcv/urn_uuid_9a24ccaf-b2f1-4a83-859d-03fd5e04900b-case-ledger.jsonl?raw'
 
 // ---------------------------------------------------------------------------
 // Sample scenario catalog — drives the data-driven picker on the landing view.
@@ -69,8 +78,8 @@ interface SampleScenario {
 
 const SAMPLE_SCENARIOS: SampleScenario[] = [
   {
-    id: 'two-actor',
-    title: '▶ Two-Actor Case',
+    id: 'fv',
+    title: '▶ FV — Finder + Vendor',
     blurb: 'Finder + Vendor happy path. The simplest end-to-end case.',
     raw: sampleLedgerRaw,
     group: 'Core',
@@ -92,6 +101,15 @@ const SAMPLE_SCENARIOS: SampleScenario[] = [
     raw: fcvLedgerRaw,
     group: 'Coordinator',
     accent: '#00838f',
+  },
+  {
+    id: 'fcv-reject',
+    title: '▶ FCV — Vendor Declines',
+    blurb: 'The FCV path where the invited vendor declines the invitation.',
+    raw: fcvRejectLedgerRaw,
+    group: 'Coordinator',
+    accent: '#00838f',
+    note: 'New (2026-08) — not yet visually verified',
   },
   {
     id: 'fvcv-extension',
@@ -126,6 +144,15 @@ const SAMPLE_SCENARIOS: SampleScenario[] = [
     group: 'Coordinator',
     accent: '#6a1b9a',
     note: 'Ownership transfer not yet depicted (deferred)',
+  },
+  {
+    id: 'fcvcv',
+    title: '▶ FCVCV — Five Actors',
+    blurb: 'Finder, Coordinator, Vendor, 2nd Coordinator, 2nd Vendor (deployer).',
+    raw: fcvcvLedgerRaw,
+    group: 'Coordinator',
+    accent: '#00838f',
+    note: 'New (2026-08) — richest scenario; not yet visually verified',
   },
   {
     id: 'synthetic-violation',
@@ -550,7 +577,7 @@ function AppLogReplay() {
               borderRadius: '4px',
               marginTop: '0.5rem',
             }}>
-              devlogs/two-actor/*/urn_uuid_*-case-log.jsonl
+              devlogs/fv/case-actor/urn_uuid_*-case-ledger.jsonl
             </code>
           </div>
         </div>
