@@ -372,10 +372,11 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
         return case
 
     def _apply_transition(self, case: Any, current_em: EM) -> None:
-        """Apply EM → ACTIVE transition and persist; state-sync override on non-standard path.
+        """Apply EM → ACTIVE transition and persist; warn on non-standard path.
 
-        EMB-18-002: no is_valid_em_transition() warning-only guard; non-standard paths
-        are logged via an explicit state check and handled by the OBSERVED-mode service.
+        Uses an explicit state check instead of is_valid_em_transition() (EMB-18-002).
+        Non-standard paths log a warning and proceed as state-sync overrides;
+        the EM state write is delegated to WriteEmStateNode.
         """
         if current_em not in (EM.PROPOSED, EM.REVISE):
             self.logger.warning(
