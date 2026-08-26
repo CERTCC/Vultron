@@ -56,7 +56,8 @@ uv run pytest -v --tb=short
 - **Coverage tool**: [TODO] — no `pytest-cov` in `[dependency-groups].dev`; no coverage threshold configured
 - **Current reported coverage**: [TODO]
 - **Known gaps/flaky areas**:
-  - Architecture ratchet tests have `KNOWN_VIOLATIONS: frozenset()` — boundary is fully clean; a new violation causes immediate CI failure
+  - Core-boundary ratchet tests (`test_core_no_wire_imports.py`, `test_core_no_adapter_imports.py`) have `KNOWN_VIOLATIONS: frozenset()` — those boundaries are fully clean; a new violation causes immediate CI failure
+  - Wire-boundary ratchet test (`test_wire_no_core_model_imports.py`) has 32 `KNOWN_VIOLATIONS` entries — wire→core model imports awaiting migration to `from_core()` seam (ARCH-22-001)
   - Case-ledger invariant tests require `devlogs/` JSONL artifacts (skipped when absent)
   - Demo CI integration tests run against Docker Compose — not run in standard `uv run pytest`
   - **pytest-timeout 5 s per-test**: timeout fires per-test but pytest itself can abort the full suite if signal delivery is slow under load; the killed run looks like a passing run (no explicit failure reported) — run with `--timeout=0` to disable when diagnosing suite-level hangs
@@ -67,6 +68,7 @@ uv run pytest -v --tb=short
 - `pyproject.toml` `[tool.pytest.ini_options]`
 - `test/conftest.py`
 - `test/architecture/test_core_no_adapter_imports.py`
+- `test/architecture/test_wire_no_core_model_imports.py`
 - `test/architecture/test_no_bare_register_key_datalayer_nodes.py`
 - `test/ci/invariants/common.py` (and per-scenario `test/ci/invariants/test_*_invariants.py`)
 - `test/ci/invariants/universal_harness.py`

@@ -59,7 +59,8 @@ HTTP POST /inbox  (wire: AS2 JSON)
 
 ### 5) Known Architectural Risks
 
-- **Architecture boundary tests fully passing**: `KNOWN_VIOLATIONS` is `frozenset()` in both `test_core_no_adapter_imports.py` and `test_core_no_wire_imports.py` — all prior violations have been resolved
+- **Core-boundary ratchets fully passing**: `KNOWN_VIOLATIONS` is `frozenset()` in both `test_core_no_adapter_imports.py` and `test_core_no_wire_imports.py` — all prior core-boundary violations resolved
+- **Wire→core model imports — 32 known violations**: `test_wire_no_core_model_imports.py` tracks 32 wire modules that still import `vultron.core.models.*` directly; these are awaiting migration to the `as_Foo.from_core()` seam (ARCH-22-001)
 - **State machine leakage via transitions library**: `vultron/core/states/` wraps `transitions`; coupling to a third-party state machine library in core
 - **BT nodes hold mutable context via `blackboard`**: py-trees blackboard shared state can create implicit coupling between unrelated BT sub-trees
 - **Demo layer mixed into `vultron/demo/`**: some demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear
@@ -76,4 +77,5 @@ HTTP POST /inbox  (wire: AS2 JSON)
 - `vultron/adapters/driven/wire_render/as2.py`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_core_no_wire_imports.py`
+- `test/architecture/test_wire_no_core_model_imports.py`
 - `test/architecture/test_no_bare_register_key_datalayer_nodes.py`

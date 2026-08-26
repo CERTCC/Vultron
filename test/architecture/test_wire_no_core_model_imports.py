@@ -175,8 +175,9 @@ def test_all_known_violations_still_present() -> None:
     strict=True,
     reason=(
         "ARCH-22-003: Goal state — all wire→core model import violations resolved. "
-        "When the last entry is removed from KNOWN_VIOLATIONS this test XPASSes "
-        "and fails the build — delete this xfail marker and clear KNOWN_VIOLATIONS then."
+        "When the last actual wire→core model import is removed from the codebase, "
+        "_VIOLATIONS becomes frozenset() and this test XPASSes, failing the build — "
+        "delete this xfail marker and clear KNOWN_VIOLATIONS then."
     ),
 )
 def test_wire_core_model_import_boundary_goal() -> None:
@@ -184,8 +185,9 @@ def test_wire_core_model_import_boundary_goal() -> None:
 
     Spec: ARCH-22-003
 
-    This test is ``xfail(strict=True)`` while KNOWN_VIOLATIONS is non-empty.
-    Once the set is cleared to ``frozenset()`` the test XPASSes, which causes
+    This test is ``xfail(strict=True)`` while any wire module still imports
+    ``vultron.core.models``.  Once every actual violation is resolved,
+    ``_VIOLATIONS`` becomes ``frozenset()`` and the test XPASSes, which causes
     a strict-xfail CI failure and forces deletion of this marker.
     """
-    assert KNOWN_VIOLATIONS == frozenset()
+    assert _VIOLATIONS == frozenset()
