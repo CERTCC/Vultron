@@ -38,9 +38,13 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.polling import (
     _is_ownership_transfer_offer_for,
     find_ownership_transfer_offer_for_actor,
+    wait_for_initialized_case,
     wait_for_participant_pxa_state,
 )
 from vultron.demo.utils import DataLayerClient
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _CASE_ID = "urn:uuid:test-case-replica-0001"
 _RECEIVER_ID = "http://coordinator:7999/api/v2/actors/coordinator"
@@ -488,3 +492,103 @@ class TestVerifyPubliclyDisclosedPollsReporterPxa:
             case_id=_PXA_CASE_ID,
             actor_id=_PXA_RECEIVER_ID,
         )
+
+
+_IC_REPORT_ID = "urn:uuid:test-report-ic-0001"
+_IC_CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor-1"
+_IC_CASE_ID = "urn:uuid:test-case-ic-0001"
+_IC_PARTICIPANT_ID = "urn:uuid:test-participant-ic-0001"
+
+_IC_INITIALIZED_CASE = {
+    "id": _IC_CASE_ID,
+    "type": "VulnerabilityCase",
+    "case_participants": [
+        {"id": _IC_PARTICIPANT_ID, "type": "CaseParticipant"}
+    ],
+}
+_IC_EMPTY_CASE = {
+    "id": _IC_CASE_ID,
+    "type": "VulnerabilityCase",
+    "case_participants": [],
+}
+
+
+class _LateInitializedCaseClient:
+    """CaseActor container where the initialized case appears after *delay* GET calls."""
+
+    def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
+        return _real_dl_path(self.base_url, actor_id or self.actor_id, key)
+
+    def __init__(self, delay: int, empty_before_init: bool = False) -> None:
+        self.base_url = "http://coordinator:7999/api/v2"
+        self.actor_id = _IC_CASE_ACTOR_ID
+        self._delay = delay
+        self._empty_before_init = empty_before_init
+        self.calls = 0
+
+    def get(self, path: str) -> dict | None:
+        expected = self.dl_path(
+            "VulnerabilityCases/", actor_id=_IC_CASE_ACTOR_ID
+        )
+        if path == expected:
+            self.calls += 1
+            if self.calls <= self._delay:
+                if self._empty_before_init:
+                    return {_IC_CASE_ID: _IC_EMPTY_CASE}
+                return {}
+            return {_IC_CASE_ID: _IC_INITIALIZED_CASE}
+        return None
+
+
+class TestWaitForInitializedCase:
+    """wait_for_initialized_case polls the CaseActor's store until participants appear (ISSUE-2359)."""
+
+    def _run(self, client: _LateInitializedCaseClient) -> as_VulnerabilityCase:
+        with patch(
+            "vultron.demo.utils.case_actor_id_for_report",
+            return_value=_IC_CASE_ACTOR_ID,
+        ):
+            return wait_for_initialized_case(
+                client=cast(DataLayerClient, client),
+                report_id=_IC_REPORT_ID,
+                timeout_seconds=5.0,
+                poll_interval=0.05,
+            )
+
+    def test_returns_case_immediately_when_present(self):
+        """First poll finds an initialized case — returns it without retrying."""
+        client = _LateInitializedCaseClient(delay=0)
+        result = self._run(client)
+        assert result.id_ == _IC_CASE_ID
+        assert client.calls == 1
+
+    def test_returns_case_when_arrives_late(self):
+        """Polls until the case with participants appears."""
+        client = _LateInitializedCaseClient(delay=3)
+        result = self._run(client)
+        assert result.id_ == _IC_CASE_ID
+        assert client.calls > 3, "must have polled more than once"
+
+    def test_skips_cases_without_participants(self):
+        """A case dict present but with empty case_participants is not returned."""
+        client = _LateInitializedCaseClient(delay=2, empty_before_init=True)
+        result = self._run(client)
+        assert result.id_ == _IC_CASE_ID
+        assert (
+            client.calls > 2
+        ), "must have polled past the empty-participants case"
+
+    def test_raises_on_timeout_when_no_initialized_case(self):
+        """Raises AssertionError when no initialized case appears within timeout."""
+        client = _LateInitializedCaseClient(delay=10**6)
+        with pytest.raises(AssertionError, match="Timed out"):
+            with patch(
+                "vultron.demo.utils.case_actor_id_for_report",
+                return_value=_IC_CASE_ACTOR_ID,
+            ):
+                wait_for_initialized_case(
+                    client=cast(DataLayerClient, client),
+                    report_id=_IC_REPORT_ID,
+                    timeout_seconds=0.1,
+                    poll_interval=0.5,
+                )

@@ -88,6 +88,7 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
+    find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_attributed_to,
     wait_for_case_em_terminated,
@@ -95,7 +96,6 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
-    wait_for_object_stored,
     wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
@@ -115,6 +115,11 @@ from vultron.demo.helpers.workflow import (
 )
 
 logger = logging.getLogger(__name__)
+
+# AC-6 audit (#2203): wait_for_case_on_container calls in this module poll for
+# VulnerabilityCase object delivery (ADR-0041 seeding path). ADR-0037/ADR-0059
+# buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
+# all wait_for_case_on_container calls here remain necessary.
 
 # Default container base URLs.
 # C1 reuses the docker-compose "vendor" container; C2 reuses "coordinator";
@@ -233,7 +238,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_},
     )
 
     case = as_VulnerabilityCase.model_validate(
@@ -260,6 +265,7 @@ def _phase_ownership_handoff(
     c2: as_Actor,
     c2_in_c2: as_Actor,
     case: as_VulnerabilityCase,
+    finder: as_Actor,
 ) -> as_VulnerabilityCase:
     """C1 invites C2 then transfers case ownership to C2.
 
@@ -287,13 +293,15 @@ def _phase_ownership_handoff(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("C2 invite created: %s", invite.id_)
 
-    with demo_check("C2 invite delivered to C2's DataLayer"):
-        find_case_invite_for_actor(
+    invite_id = None
+    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
+        invite_id = find_case_invite_for_actor(
             client=c2_client,
             case_id=case.id_,
             invitee_id=c2.id_,
             timeout_seconds=90.0,
         )
+    logger.info("CaseActor Invite for C2: %s", invite_id)
 
     # C2 accepts the invite.
     with demo_step("C2 accepts the case invitation"):
@@ -301,7 +309,7 @@ def _phase_ownership_handoff(
             client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite.id_},
+            body={"invite_id": invite_id},
         )
 
     # Wait for C2's case replica.
@@ -315,7 +323,7 @@ def _phase_ownership_handoff(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID, C2_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_, c2.id_},
     )
     logger.info("C2 has joined the case")
 
@@ -340,16 +348,15 @@ def _phase_ownership_handoff(
         ownership_offer.id_,
     )
 
-    with demo_check(
-        "Ownership transfer offer delivered to C2's DataLayer (TRIG-11-001)"
+    ownership_offer_id = None
+    with demo_gate(
+        "CaseActor-forwarded Offer(VulnerabilityCase) delivered to C2 (TRIG-11-001)"
     ):
-        wait_for_object_stored(
+        ownership_offer_id = find_ownership_transfer_offer_for_actor(
             client=c2_client,
-            obj_id=ownership_offer.id_,
-            timeout_seconds=90.0,
+            case_id=case.id_,
+            transferee_id=c2.id_,
         )
-
-    ownership_offer_id = ownership_offer.id_
     logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
 
     # C2 accepts the ownership transfer (TRIG-11-002).
@@ -421,6 +428,7 @@ def _phase_c2_invites_vendor(
     offer: as_Offer,
     report: as_VulnerabilityReport,
     finder: as_Actor,
+    c1: as_Actor,
 ) -> None:
     """C2 (new CASE_OWNER) invites Vendor and Vendor joins the case (AC-2)."""
     logger.info("─" * 80)
@@ -500,10 +508,10 @@ def _phase_c2_invites_vendor(
         vendor_client=c1_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            C1_ACTOR_ID,
-            C2_ACTOR_ID,
-            VENDOR_ACTOR_ID,
+            finder.id_,
+            c1.id_,
+            c2.id_,
+            vendor.id_,
         },
         timeout_seconds=LATE_JOINER_TIMEOUT,
     )
@@ -587,10 +595,10 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                C1_ACTOR_ID,
-                C2_ACTOR_ID,
-                VENDOR_ACTOR_ID,
+                finder.id_,
+                c1.id_,
+                c2.id_,
+                vendor.id_,
             },
             timeout_seconds=p_timeout,
         )
@@ -1073,6 +1081,7 @@ def run_fccv_handoff_demo(
             c2=c2,
             c2_in_c2=c2_in_c2,
             case=case,
+            finder=finder,
         )
 
         _phase_c2_invites_vendor(
@@ -1089,6 +1098,7 @@ def run_fccv_handoff_demo(
             offer=offer,
             report=report,
             finder=finder,
+            c1=c1,
         )
 
         # Verify case active now that all participants have joined.

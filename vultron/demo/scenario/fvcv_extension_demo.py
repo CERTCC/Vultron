@@ -220,7 +220,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, VENDOR_ACTOR_ID},
+        expected_actor_ids={finder.id_, vendor.id_},
     )
 
     # Vendor1 invites Coordinator with COORDINATOR role only (not CASE_MANAGER).
@@ -268,9 +268,9 @@ def _phase_report_submission(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            VENDOR_ACTOR_ID,
-            COORDINATOR_ACTOR_ID,
+            finder.id_,
+            vendor.id_,
+            coordinator_in_coordinator.id_,
         },
     )
 
@@ -417,10 +417,10 @@ def _phase_coordinator_suggests_vendor2(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            VENDOR_ACTOR_ID,
-            COORDINATOR_ACTOR_ID,
-            VENDOR2_ACTOR_ID,
+            finder.id_,
+            vendor.id_,
+            coordinator_in_coordinator.id_,
+            vendor2.id_,
         },
         timeout_seconds=LATE_JOINER_TIMEOUT,
     )
@@ -503,10 +503,10 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                VENDOR_ACTOR_ID,
-                COORDINATOR_ACTOR_ID,
-                VENDOR2_ACTOR_ID,
+                finder.id_,
+                vendor.id_,
+                coordinator.id_,
+                vendor2.id_,
             },
             timeout_seconds=p_timeout,
         )

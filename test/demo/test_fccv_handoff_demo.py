@@ -910,6 +910,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
         offer = MagicMock()
         report = MagicMock()
         finder = self._actor("urn:test:finder")
+        c1 = self._actor("urn:test:c1")
         invite = MagicMock()
         invite.id_ = "urn:test:invite"
         # Matches the case_actor_id passed below: the phase now asserts the
@@ -974,6 +975,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                 offer=offer,
                 report=report,
                 finder=finder,
+                c1=c1,
             )
 
         assert (

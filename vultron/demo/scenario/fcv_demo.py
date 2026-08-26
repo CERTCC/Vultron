@@ -221,7 +221,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, COORDINATOR_ACTOR_ID},
+        expected_actor_ids={finder.id_, coordinator.id_},
     )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
@@ -317,9 +317,9 @@ def _phase_invite_vendor(
         vendor_client=coordinator_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            COORDINATOR_ACTOR_ID,
-            VENDOR_ACTOR_ID,
+            finder.id_,
+            coordinator_in_coordinator.id_,
+            vendor.id_,
         },
         timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
     )
@@ -358,6 +358,7 @@ def _phase_sync_verification(
     finder: as_Actor,
     coordinator: as_Actor,
     case: as_VulnerabilityCase,
+    vendor: as_Actor,
 ) -> None:
     """Verify LedgerFanout replication for Finder and Vendor replicas."""
     logger.info("─" * 80)
@@ -402,9 +403,9 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                COORDINATOR_ACTOR_ID,
-                VENDOR_ACTOR_ID,
+                finder.id_,
+                coordinator.id_,
+                vendor.id_,
             },
             timeout_seconds=p_timeout,
         )
@@ -827,6 +828,7 @@ def run_fcv_demo(
             finder=finder,
             coordinator=coordinator,
             case=case,
+            vendor=vendor_obj,
         )
 
         _phase_notes_exchange(

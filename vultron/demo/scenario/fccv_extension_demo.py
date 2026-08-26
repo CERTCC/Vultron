@@ -117,6 +117,11 @@ from vultron.demo.helpers.workflow import (
 
 logger = logging.getLogger(__name__)
 
+# AC-6 audit (#2203): wait_for_case_on_container calls in this module poll for
+# VulnerabilityCase object delivery (ADR-0041 seeding path). ADR-0037/ADR-0059
+# buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
+# all wait_for_case_on_container calls here remain necessary.
+
 # Default container base URLs.
 # C1 uses the docker-compose "coordinator" container; C2 uses "actor5"
 # (seeded as coordinator2 for this scenario).  Vendor uses "vendor".
@@ -235,7 +240,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_},
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
@@ -254,12 +259,15 @@ def _phase_report_submission(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("C2 invite created: %s", invite.id_)
 
-    # Deliver the invite to C2's inbox.
-    with demo_step("Delivering invite to C2's inbox"):
-        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, invite)
-
-    with demo_check("C2 invite stored in C2's DataLayer"):
-        verify_object_stored(c2_client, invite.id_)
+    # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
+    invite_id = None
+    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
+        invite_id = find_case_invite_for_actor(
+            client=c2_client,
+            case_id=case.id_,
+            invitee_id=c2.id_,
+        )
+    logger.info("CaseActor Invite for C2: %s", invite_id)
 
     # C2 accepts the invite.
     with demo_step("C2 accepts the case invitation"):
@@ -267,7 +275,7 @@ def _phase_report_submission(
             client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite.id_},
+            body={"invite_id": invite_id},
         )
 
     # Wait for C2's container to replicate the case.
@@ -281,7 +289,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID, C2_ACTOR_ID},
+        expected_actor_ids={finder.id_, c1.id_, c2.id_},
     )
 
     with demo_check(
@@ -415,10 +423,10 @@ def _phase_c2_suggests_vendor(
         vendor_client=c1_client,
         case_id=case.id_,
         expected_actor_ids={
-            FINDER_ACTOR_ID,
-            C1_ACTOR_ID,
-            C2_ACTOR_ID,
-            VENDOR_ACTOR_ID,
+            finder.id_,
+            c1_in_c1.id_,
+            c2_in_c2.id_,
+            vendor.id_,
         },
         timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
     )
@@ -456,6 +464,8 @@ def _phase_sync_verification(
     c1: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
+    c2_in_c2: as_Actor,
+    vendor: as_Actor,
 ) -> None:
     """Verify LedgerFanout replication for Finder, C2, and Vendor replicas."""
     logger.info("─" * 80)
@@ -499,10 +509,10 @@ def _phase_sync_verification(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_actor_ids={
-                FINDER_ACTOR_ID,
-                C1_ACTOR_ID,
-                C2_ACTOR_ID,
-                VENDOR_ACTOR_ID,
+                finder.id_,
+                c1.id_,
+                c2_in_c2.id_,
+                vendor.id_,
             },
             timeout_seconds=p_timeout,
         )
@@ -985,6 +995,8 @@ def run_fccv_extension_demo(
             c1,
             finder,
             case,
+            c2_in_c2,
+            vendor,
         )
         _phase_notes_exchange(
             finder_client=finder_client,
