@@ -1672,35 +1672,38 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An Actor self-reporting a fix-ready transition (f→F, vfd_state=VFd) via the
+      An Actor self-reporting a fix-ready transition (f→F, vf.state=VF) via the
       trigger path MUST hold CVDRole.VENDOR in the case; the transition MUST be
-      blocked (FAILURE) when CVDRole.VENDOR is absent.
+      blocked (FAILURE) when CVDRole.VENDOR is absent. Under the structural VFD
+      split (Concern #2595), this requirement is enforced at object-construction
+      time: only VENDOR participants have a non-None `vf` dimension, making
+      non-VENDOR actors structurally incapable of advancing the vendor path.
     rationale: >-
       Fix readiness (F event) represents that the actor has produced a fix. Only
       actors who develop or maintain the affected product (Vendors) can produce a
       fix; Deployers operate existing deployments and do not produce fixes. Finders,
       Reporters, and Coordinators likewise MUST NOT self-report fix readiness.
-      Without this guard, non-vendor actors can incorrectly advance their participant
-      VFD state, producing misleading case state records.
+      The structural split (ParticipantStatus.vf is None for non-VENDOR actors)
+      makes this a data-model invariant rather than a BT guard check.
     verification: >-
-      Integration tests in `test/demo/` confirm that the fix-ready trigger returns
-      FAILURE for actors without CVDRole.VENDOR and creates ParticipantStatus
-      with vfd_state=VFd only for VENDOR actors.
+      Unit tests confirm that constructing a ParticipantStatus with CVDRole.VENDOR
+      absent and vf non-None raises VultronValidationError; integration tests confirm
+      that the fix-ready trigger returns FAILURE for actors without CVDRole.VENDOR.
     testable: true
     preconditions:
-    - description: Actor requests vfd_state=VFd via the trigger path
+    - description: Actor requests f→F (vf.state=VF) via the trigger path
     steps:
     - order: 1
       actor: trigger
       action: Check that the requesting actor holds CVDRole.VENDOR in the case
-        participant record
+        participant record (equivalently, that vf is non-None)
       expected: Role check passes for VENDOR; FAILURE returned otherwise
     - order: 2
       actor: trigger
-      action: If role check passes, create ParticipantStatus with vfd_state=VFd
-      expected: Status record created; activity emitted to Case Manager
+      action: If role check passes, advance vf dimension to vf.state=VF
+      expected: ParticipantStatus updated; activity emitted to Case Manager
     postconditions:
-    - description: Only VENDOR actors may record vfd_state=VFd; all others receive FAILURE
+    - description: Only VENDOR actors may record vf.state=VF; all others receive FAILURE
     relationships:
     - rel_type: constrains
       spec_id: CSB-02-001
@@ -1713,36 +1716,39 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An Actor self-reporting a fix-deployed transition (d→D, vfd_state=VFD) via the
+      An Actor self-reporting a fix-deployed transition (d→D, d.state=D) via the
       trigger path MUST hold CVDRole.DEPLOYER in the case; the transition MUST be blocked
-      (FAILURE) when CVDRole.DEPLOYER is absent.
+      (FAILURE) when CVDRole.DEPLOYER is absent. Under the structural VFD split
+      (Concern #2595), this requirement is enforced at object-construction time: only
+      DEPLOYER participants have a non-None `d` dimension, making non-DEPLOYER actors
+      structurally incapable of advancing the deployer path.
     rationale: >-
       Fix deployment (D event) represents applying a fix in one's own environment.
       Only actors who are responsible for operating deployed instances (Deployers) can
       perform this action. A shipping-product Vendor who does not control downstream
-      deployment holds only CVDRole.VENDOR, not CVDRole.DEPLOYER, and MUST stop at VFd.
-      Without this guard, vendor-only actors reach VFD, misrepresenting the protocol's
-      distinction between fix availability and fix deployment.
+      deployment holds only CVDRole.VENDOR, not CVDRole.DEPLOYER, and has no `d`
+      dimension. The structural split makes this a data-model invariant rather than
+      a BT guard check.
     verification: >-
-      Integration tests in `test/demo/` confirm that the fix-deployed trigger returns
-      FAILURE for actors without CVDRole.DEPLOYER and creates ParticipantStatus
-      with vfd_state=VFD only for DEPLOYER actors.
+      Unit tests confirm that constructing a ParticipantStatus with CVDRole.DEPLOYER
+      absent and d non-None raises VultronValidationError; integration tests confirm
+      that the fix-deployed trigger returns FAILURE for actors without CVDRole.DEPLOYER.
     testable: true
     preconditions:
-    - description: Actor requests vfd_state=VFD via the trigger path
+    - description: Actor requests d→D (d.state=D) via the trigger path
     steps:
     - order: 1
       actor: trigger
       action: Check that the requesting actor holds CVDRole.DEPLOYER in the case
-        participant record
+        participant record (equivalently, that d is non-None)
       expected: Role check passes for DEPLOYER; FAILURE returned for VENDOR-only or
         any other non-DEPLOYER actor
     - order: 2
       actor: trigger
-      action: If role check passes, create ParticipantStatus with vfd_state=VFD
-      expected: Status record created; activity emitted to Case Manager
+      action: If role check passes, advance d dimension to d.state=D
+      expected: ParticipantStatus updated; activity emitted to Case Manager
     postconditions:
-    - description: Only DEPLOYER actors may record vfd_state=VFD; all others receive FAILURE
+    - description: Only DEPLOYER actors may record d.state=D; all others receive FAILURE
     relationships:
     - rel_type: constrains
       spec_id: CSB-03-001
@@ -1758,16 +1764,20 @@ groups:
       The notify-published trigger endpoint MUST set only pxa_state=Pxa in the
       ParticipantStatus record. The D event (fix deployed) is participant-specific
       and distinct from the P event (public awareness); notify-published MUST NOT
-      also modify vfd_state.
+      also advance the d dimension.
     rationale: >-
       Conflating P and D transitions (as notify-published did by setting both
-      vfd_state=VFD and pxa_state=Pxa) causes non-deployer actors (Finders,
-      Reporters, Coordinators) to incorrectly acquire VFD state when they announce
-      public disclosure. The pxa (P event) is participant-agnostic; the VFD (D event)
-      is only valid for DEPLOYER-role actors who have separately completed deployment.
+      d.state=D and pxa_state=Pxa) causes non-deployer actors (Finders,
+      Reporters, Coordinators) to incorrectly acquire deployment state when they
+      announce public disclosure. Under the structural VFD split (Concern #2595),
+      the d dimension is None for non-DEPLOYER participants, making this invariant
+      structural rather than a guard check. The pxa (P event) is participant-agnostic;
+      the D event is only valid for DEPLOYER-role actors who have separately completed
+      deployment.
     verification: >-
       Integration tests in `test/demo/` confirm that notify-published sets only
-      pxa_state=Pxa in the ParticipantStatus record and leaves vfd_state unmodified.
+      pxa_state=Pxa in the ParticipantStatus record and leaves the vf and d
+      dimensions unmodified.
     testable: true
     preconditions:
     - description: Actor calls the notify-published trigger endpoint
@@ -1778,12 +1788,12 @@ groups:
       expected: Public awareness recorded
     - order: 2
       actor: trigger
-      action: Leave vfd_state unchanged (do not set vfd_state=VFD)
-      expected: vfd_state reflects prior state; D event not triggered by P event
+      action: Leave vf and d dimensions unchanged (do not advance d.state=D)
+      expected: vf and d reflect prior state; D event not triggered by P event
     postconditions:
     - description: >-
-        ParticipantStatus records pxa_state=Pxa; vfd_state is not modified by
-        this trigger; actors wishing to report VFD must call notify-fix-deployed
+        ParticipantStatus records pxa_state=Pxa; vf and d dimensions are not modified by
+        this trigger; actors wishing to report fix deployment must call notify-fix-deployed
         separately (and must hold CVDRole.DEPLOYER per CSB-15-002)
     relationships:
     - rel_type: constrains
@@ -1800,59 +1810,59 @@ groups:
     kind: protocol
     statement: >-
       A DEPLOYER-only actor (holds CVDRole.DEPLOYER but not CVDRole.VENDOR)
-      attempting the d→D transition MUST be permitted to proceed when at least one
-      participant holding CVDRole.VENDOR in the same case has reached VFd state
-      (fix-ready). The DEPLOYER-only actor''s own participant VFD state prior to
-      the transition is vfd; the resulting ParticipantStatus snapshot records
-      vfd_state=VFD, reflecting deployment of an externally-produced fix.
+      attempting the d→D transition MUST be permitted to proceed only when at least
+      one participant holding CVDRole.VENDOR in the same case has reached vf.state=VF
+      (fix-ready). The DEPLOYER-only actor has vf=None (structural) and
+      d=DDimension(state=CS_d.d) prior to the transition; the transition advances
+      d.state to CS_d.D, reflecting deployment of an externally-produced fix.
     rationale: >-
-      A pure Deployer does not develop or supply the fix; V (vendor awareness)
-      and F (fix readiness) transitions carry no semantic meaning for a
-      DEPLOYER-only participant. The causal gate — requiring at least one VENDOR
-      to be at VFd or VFD — captures the real-world dependency: a Deployer can
-      only apply a fix that exists. Checking the DEPLOYER-only participant''s own
-      VFD state (as the existing CheckCSFixNotYetDeployed guard does) permanently
-      blocks d→D because the participant can never reach VFd through normal V and
-      F transitions. The vfd→VFD snapshot is semantically correct for a Deployer:
-      it records that the deployment event occurred; V and F are not separately
-      recorded because they do not apply to this actor.
+      Under the structural VFD split (Concern #2595), a DEPLOYER-only participant
+      has vf=None (structural absence) and d=DDimension (deployer path only). The
+      causal gate — requiring at least one VENDOR participant to have vf.state=VF —
+      captures the real-world dependency: a Deployer can only apply a fix that
+      exists. The previous model required checking the DEPLOYER-only participant''s
+      own vfd_state, which was permanently stuck at vfd because V and F transitions
+      did not apply. The split resolves this cleanly: the deployer''s d dimension
+      starts at CS_d.d and advances to CS_d.D when the causal gate passes; the vf
+      dimension is structurally absent throughout.
+      Note: this constraint is generic — "some VENDOR must be at VF" — because the
+      system does not yet track which specific vendor a given deployer depends on.
+      Finer-grained vendor-deployer dependency tracking is a separate Concern.
     verification: >-
-      Integration tests in `test/demo/` confirm that the fix-deployed trigger returns
-      FAILURE for a DEPLOYER-only actor when no VENDOR participant in the case is at
-      VFd or VFD (causal gate not satisfied), and creates ParticipantStatus with
-      vfd_state=VFD for a DEPLOYER-only actor when at least one VENDOR participant
-      is at VFd or VFD.
+      Integration tests confirm that the fix-deployed trigger returns FAILURE for a
+      DEPLOYER-only actor when no VENDOR participant in the case has vf.state=VF
+      (causal gate not satisfied), and advances d.state=D for a DEPLOYER-only actor
+      when at least one VENDOR participant has vf.state=VF.
     testable: true
     preconditions:
     - description: >-
-        Actor holds CVDRole.DEPLOYER but not CVDRole.VENDOR in the case;
-        at least one other participant holds CVDRole.VENDOR and has VFd or VFD
-        participant VFD state
+        Actor holds CVDRole.DEPLOYER but not CVDRole.VENDOR in the case (vf=None,
+        d=DDimension(state=CS_d.d)); at least one other participant holds
+        CVDRole.VENDOR and has vf.state=VF
     steps:
     - order: 1
       actor: trigger
       action: >-
-        Check that the requesting actor holds CVDRole.DEPLOYER; check that it
-        does not hold CVDRole.VENDOR; check that at least one participant in
-        the case holds CVDRole.VENDOR and has VFd or VFD state (causal gate)
+        Check that the requesting actor holds CVDRole.DEPLOYER and not CVDRole.VENDOR
+        (equivalently, d is non-None and vf is None); check that at least one
+        participant in the case holds CVDRole.VENDOR and has vf.state=VF (causal gate)
       expected: All checks pass; d→D transition allowed
     - order: 2
       actor: trigger
-      action: Create ParticipantStatus with vfd_state=VFD
+      action: Advance d dimension to d.state=D
       expected: >-
-        Status record created with vfd_state=VFD (prior state was vfd);
+        d.state=D (prior state was CS_d.d); vf remains None;
         activity emitted to Case Manager
     postconditions:
     - description: >-
-        DEPLOYER-only participant records vfd_state=VFD; at least one VENDOR
-        participant remains at VFd or VFD in the same case
+        DEPLOYER-only participant records d.state=D (vf=None throughout); at least
+        one VENDOR participant has vf.state=VF in the same case
     relationships:
     - rel_type: refines
       spec_id: CSB-15-002
       note: >-
         CSB-15-002 gates d→D on CVDRole.DEPLOYER; CSB-15-004 adds the causal
-        precondition for DEPLOYER-only actors whose own VFD state never reaches
-        VFd through V and F transitions
+        precondition requiring at least one VENDOR to have vf.state=VF first
     tags:
     - state-machine
     - protocol
@@ -1872,43 +1882,54 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A BT node or helper that writes a VFD state (CS_vfd) to a ParticipantStatus
-      snapshot MUST validate that the (current_vfd_state → target_vfd_state)
-      transition is permitted by the VFD state machine before persisting.
-      A same-state write is permitted (status confirmation). A backward move or
-      illegal jump (e.g. vfd → VFD skipping Vfd) MUST cause the node to return
-      Status.FAILURE without writing to the DataLayer.
+      A BT node or helper that advances a participant''s vendor-path (vf) or
+      deployer-path (d) dimension in a ParticipantStatus snapshot MUST validate
+      that the (current → target) transition is permitted by the respective
+      sub-machine (CS_vf for vendor path; CS_d for deployer path) before
+      persisting. A same-state write is permitted (status confirmation). A backward
+      move or illegal jump MUST cause the node to return Status.FAILURE without
+      writing to the DataLayer.
     rationale: >-
-      Upstream BT guards (e.g. CheckCSFixNotYetDeployed) are necessary but
-      insufficient: a guard that is too weak, missing, or bypassed allows an
-      invalid VFD state jump to reach the write node unchecked. Validating at
-      the write boundary makes illegal VFD transitions fail-closed regardless
-      of guard coverage. Source: concern #1896, which surfaced when the
-      CheckCSFixNotYetDeployed guard was too weak in issue #1825.
+      Upstream BT guards are necessary but insufficient: a guard that is too weak,
+      missing, or bypassed allows an invalid state jump to reach the write node
+      unchecked. Validating at the write boundary makes illegal transitions
+      fail-closed regardless of guard coverage. Source: concern #1896, which
+      surfaced when the CheckCSFixNotYetDeployed guard was too weak in issue #1825.
+      Under the structural VFD split (Concern #2595), the validation applies
+      independently to each dimension: is_valid_vf_transition() for the vendor
+      path and is_valid_d_transition() for the deployer path. A node that writes
+      both dimensions (VENDOR+DEPLOYER participants) must validate each independently.
       Scope: applies to local write nodes only. The received-wire path
       (add_participant_status_tree) uses a weaker monotonic-forward check
-      intentionally — remote peers may advance through multiple VFD steps
-      between status messages; strict adjacency applies only to local writes.
+      intentionally — remote peers may advance through multiple steps between
+      status messages; strict adjacency applies only to local writes.
     verification: >-
-      A unit test confirms that the VFD write boundary returns Status.FAILURE for
-      illegal jumps (e.g. vfd→VFD skipping Vfd) and that no ParticipantStatus
-      record is persisted for an invalid transition.
+      Unit tests confirm that vf-write and d-write boundaries each return
+      Status.FAILURE for illegal jumps and that no ParticipantStatus record is
+      persisted for an invalid transition on either dimension.
     testable: true
     preconditions:
-    - description: A non-None CS_vfd target state is passed to a ParticipantStatus write node
+    - description: >-
+        A non-None target vf state (for VENDOR path) or d state (for DEPLOYER path)
+        is passed to a ParticipantStatus write node
     steps:
     - order: 1
       actor: write_node
-      action: Read the participant's current VFD state from the DataLayer
-      expected: Current CS_vfd state available
+      action: >-
+        Read the participant''s current vf state (if VENDOR) or d state (if DEPLOYER)
+        from the DataLayer
+      expected: Current dimension state available; absent dimension is None (structural)
     - order: 2
       actor: write_node
       action: >-
-        If target == current, proceed. If is_valid_vfd_transition(current, target)
-        is True, proceed. Otherwise return Status.FAILURE.
+        For each non-None dimension: if target == current, proceed. If
+        is_valid_vf_transition(current, target) [vendor] or
+        is_valid_d_transition(current, target) [deployer] is True, proceed.
+        Otherwise return Status.FAILURE.
       expected: Only valid transitions or same-state writes reach the DataLayer
     postconditions:
-    - description: No ParticipantStatus with an illegal VFD jump is persisted
+    - description: >-
+        No ParticipantStatus with an illegal vf or d state jump is persisted
     relationships:
     - rel_type: implements
       spec_id: SDO-02-004
