@@ -135,9 +135,10 @@ not sufficient without the persist. See `notes/participant-embargo-consent.md`
 ## Compose Before Create: Node Discovery Gate
 
 Before writing any new BT emit, send, or state-transition node in this
-package, run the compose-before-create procedure from
-`.agents/skills/shared/compose-before-create.md`, then apply these
-BT-specific checks (BTND-07-005, BTND-07-009, BTND-07-010):
+package, run the BT Domain section of
+`.agents/skills/shared/compose-before-create.md` (node inventory grep,
+then return here), then apply these BT-specific checks
+(BTND-07-005, BTND-07-009, BTND-07-010):
 
 1. **Use the domain base class**: for emit/send nodes, subclass the
    appropriate base from the table below and override only `_call_factory()`

@@ -57,8 +57,20 @@ Demo helpers are strictly DRY — reuse `receiver_engages_case()`,
 inlining their bodies in a new scenario. See `vultron/demo/AGENTS.md`
 § "Extract Before Reuse" and DEMOMA-17-001.
 
-## BT Domain
+## BT Domain (`vultron/core/behaviors/`)
 
-For behavior tree nodes, see `vultron/core/behaviors/AGENTS.md`
-§ "Compose Before Create: Node Discovery Gate" for the domain base-class
-table and the AC-1 compliance requirements specific to BT work.
+For behavior tree nodes, run these searches first, then consult
+`vultron/core/behaviors/AGENTS.md` § "Compose Before Create: Node Discovery
+Gate" for the domain base-class table and AC-1 compliance requirements.
+
+**Node inventory** — search for existing nodes whose protocol state, domain,
+or semantic action overlaps with what you are about to implement:
+
+```bash
+grep -r "<target state value or action name>" vultron/core/behaviors/<domain>/nodes/
+graphify query "<action name or protocol state>"
+```
+
+If a match exists, compose or subclass — do not re-implement. After
+completing this inventory, apply the base-class and AC-1 checks from
+`vultron/core/behaviors/AGENTS.md`.

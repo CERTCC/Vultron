@@ -110,6 +110,9 @@ Invoke the `orient-agent` skill.
    the described file exists with the required content, the named function
    or class is present, the referenced behavior is implemented).
 
+   If **no** `- [ ] AC-N:` items are found in the issue body (prose-format
+   or free-form ACs), skip this gate and proceed directly to step 7.
+
    If **all** ACs are confirmed satisfied on `origin/main`:
 
    1. Post a reference comment on the issue citing the PR(s) that
@@ -141,8 +144,9 @@ Invoke the `orient-agent` skill.
 
    Abort immediately if this exits non-zero.
 
-8. Fetch the issue body and comments. Use the content as implementation
-   context throughout Phases 3–5.
+8. Fetch the issue body and comments (including any comments not yet
+   loaded in step 6). Use the full content as implementation context
+   throughout Phases 3–5.
 
 ### Phase 3 — Deepen Context
 
