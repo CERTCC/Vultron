@@ -64,6 +64,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         case_id: str,
         transferee_id: str,
         content: str | None = None,
+        attributed_to: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
@@ -71,6 +72,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.content = content
+        self.attributed_to = attributed_to
 
     def _call_factory(self) -> tuple[str, dict]:
         assert self.trigger_activity_factory is not None
@@ -88,6 +90,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             transferee_id=self.transferee_id,
             content=self.content,
             to=case_actor_id,
+            attributed_to=self.attributed_to,
         )
 
     def _on_success(self, activity_id: str, activity_dict: dict) -> None:

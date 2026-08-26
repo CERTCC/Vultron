@@ -93,6 +93,7 @@ from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
+    LATE_JOINER_TIMEOUT,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -240,7 +241,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
     )
 
     with demo_check(
@@ -350,7 +351,12 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=5,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            C1_ACTOR_ID,
+            V1_ACTOR_ID,
+            C2_ACTOR_ID,
+        },
     )
 
     with demo_check(
@@ -481,8 +487,14 @@ def _phase_c2_suggests_v2(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=6,
-        timeout_seconds=40.0,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            C1_ACTOR_ID,
+            V1_ACTOR_ID,
+            C2_ACTOR_ID,
+            V2_ACTOR_ID,
+        },
+        timeout_seconds=LATE_JOINER_TIMEOUT,
     )
     logger.info("✓ V2 joined case (6 participants)")
 
@@ -560,7 +572,13 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=6,
+            expected_actor_ids={
+                FINDER_ACTOR_ID,
+                C1_ACTOR_ID,
+                V1_ACTOR_ID,
+                C2_ACTOR_ID,
+                V2_ACTOR_ID,
+            },
             timeout_seconds=p_timeout,
         )
 

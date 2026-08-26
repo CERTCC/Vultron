@@ -1162,7 +1162,7 @@ class TestVerifyM1State:
         demo.wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
-            expected_count=3,
+            expected_actor_ids={finder.id_, vendor.id_},
         )
         demo.wait_for_finder_case(
             finder_client=finder_client,

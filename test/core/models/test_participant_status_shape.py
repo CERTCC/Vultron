@@ -39,7 +39,12 @@ modes raise.  Related: #2264 (RM.START substitution sites).
 import pytest
 
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension, VfdDimension
+from vultron.core.models.dimensions import (
+    PecDimension,
+    RmDimension,
+    VfdDimension,
+)
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
@@ -207,3 +212,49 @@ class TestParticipantStatusVfdStateHelper:
 
         with pytest.raises(VultronValidationError, match="no valid VFD state"):
             participant_status_vfd_state(_Bogus())
+
+
+# ---------------------------------------------------------------------------
+# AC-3 — embargo_adherence is a computed field derived from consent.state
+# ---------------------------------------------------------------------------
+
+
+class TestEmbargoAdherenceComputedField:
+    """``embargo_adherence`` is True iff consent.state == SIGNATORY (ADR-0056, CM-18-008)."""
+
+    def test_true_when_signatory(self):
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            consent=PecDimension(state=PEC.SIGNATORY),
+        )
+        assert status.embargo_adherence is True
+
+    @pytest.mark.parametrize(
+        "pec_state",
+        [PEC.NO_EMBARGO, PEC.INVITED, PEC.LAPSED, PEC.DECLINED],
+    )
+    def test_false_when_not_signatory(self, pec_state):
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            consent=PecDimension(state=pec_state),
+        )
+        assert status.embargo_adherence is False
+
+    def test_false_when_consent_is_none(self):
+        status = ParticipantStatus(context=_CONTEXT, consent=None)
+        assert status.embargo_adherence is False
+
+    def test_appears_in_model_dump(self):
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            consent=PecDimension(state=PEC.SIGNATORY),
+        )
+        dumped = status.model_dump()
+        assert "embargo_adherence" in dumped
+        assert dumped["embargo_adherence"] is True
+
+    def test_cannot_be_set_directly(self):
+        """embargo_adherence is read-only; direct assignment must raise."""
+        status = ParticipantStatus(context=_CONTEXT, consent=None)
+        with pytest.raises((AttributeError, ValueError)):
+            status.embargo_adherence = True  # type: ignore[misc]

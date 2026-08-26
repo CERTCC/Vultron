@@ -79,6 +79,7 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
+    PARTICIPANT_JOIN_TIMEOUT,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -217,7 +218,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, COORDINATOR_ACTOR_ID},
     )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
@@ -312,8 +313,12 @@ def _phase_invite_vendor(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_count=4,
-        timeout_seconds=20.0,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            COORDINATOR_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+        },
+        timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
     )
     logger.info("✓ M2: Vendor joined case (4 participants)")
 
@@ -393,7 +398,11 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=4,
+            expected_actor_ids={
+                FINDER_ACTOR_ID,
+                COORDINATOR_ACTOR_ID,
+                VENDOR_ACTOR_ID,
+            },
             timeout_seconds=p_timeout,
         )
 

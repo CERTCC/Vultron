@@ -86,6 +86,7 @@ from vultron.demo.helpers.verification import _check_participant_vfd_state_in
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
+    PARTICIPANT_JOIN_TIMEOUT,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
     wait_for_all_participants_rm_closed,
@@ -231,7 +232,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID},
     )
 
     # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
@@ -277,7 +278,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={FINDER_ACTOR_ID, C1_ACTOR_ID, C2_ACTOR_ID},
     )
 
     with demo_check(
@@ -410,8 +411,13 @@ def _phase_c2_suggests_vendor(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=5,
-        timeout_seconds=20.0,
+        expected_actor_ids={
+            FINDER_ACTOR_ID,
+            C1_ACTOR_ID,
+            C2_ACTOR_ID,
+            VENDOR_ACTOR_ID,
+        },
+        timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
     )
     logger.info("✓ M3: Vendor joined case (%d participants)", 5)
 
@@ -489,7 +495,12 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=5,
+            expected_actor_ids={
+                FINDER_ACTOR_ID,
+                C1_ACTOR_ID,
+                C2_ACTOR_ID,
+                VENDOR_ACTOR_ID,
+            },
             timeout_seconds=p_timeout,
         )
 

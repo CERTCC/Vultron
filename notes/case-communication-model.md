@@ -285,23 +285,28 @@ Recipient receives Activity:
 
 ### Reference Implementation
 
-`SvcInviteActorToCaseUseCase._prepare()` (`triggers/actor.py:146–166`) is the
-canonical reference:
+Use `_prepare_delegated_context()` (`triggers/_helpers.py`) as the canonical
+implementation.  All delegated-emit trigger use cases MUST call this helper
+(CM-24-005).  When the BT tree also needs `case_actor_id` separately (e.g.
+for the `cc:` routing in the invite flow), resolve it with a second
+`_find_case_actor_id()` call after the helper:
 
 ```python
-case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
-self._actor_id = case_actor_id if case_actor_id else owner_id   # CM-24-001/003
-self._case_actor_id = case_actor_id
-self._attributed_to = owner_id if case_actor_id else None        # CM-24-002/003
+# Delegated-message contract (CM-24-001..003)
+self._actor_id, self._attributed_to = _prepare_delegated_context(
+    self._dl, self._case.id_, requesting_actor_id
+)
+# case_actor_id needed separately when BT tree requires it (e.g. invite cc:)
+self._case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
 ```
 
 ### Delegated Flows (Exhaustive)
 
 | Trigger use case | Notes |
 |---|---|
-| `SvcInviteActorToCaseUseCase` | ✅ reference — correct |
-| `SvcOfferCaseOwnershipTransferUseCase` | ❌ as of CONCERN-2170 — tracked in #2173 |
-| Other delegated-emit trigger use cases | audit scope of the CM-24 impl issue |
+| `SvcInviteActorToCaseUseCase` | ✅ uses `_prepare_delegated_context()` |
+| `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
+| Other trigger use cases | audit complete — no other delegated-emit callsites |
 
 ### Shared-Helper Requirement (CM-24-005)
 

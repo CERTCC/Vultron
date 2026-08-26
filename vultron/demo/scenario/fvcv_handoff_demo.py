@@ -26,7 +26,6 @@ Spec: GitHub issue #1561.
 import logging
 import os
 import sys
-import time
 
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -78,9 +77,11 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
+    LATE_JOINER_TIMEOUT,
     find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
+    wait_for_case_attributed_to,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
@@ -146,52 +147,6 @@ def reset_containers(
         ("Vendor2", vendor2_client),
     ]
     _reset_containers(targets, reset_fn=reset_datalayer)
-
-
-# ---------------------------------------------------------------------------
-# Polling helpers
-# ---------------------------------------------------------------------------
-
-
-def _wait_for_case_attributed_to(
-    client: DataLayerClient,
-    case_id: str,
-    expected_attributed_to: str,
-    timeout_seconds: float = 20.0,
-    poll_interval: float = 0.5,
-) -> None:
-    """Poll until *case_id*'s ``attributed_to`` field equals *expected_attributed_to*.
-
-    Raises:
-        AssertionError: If the field does not match within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            case_data = client.get(client.dl_path(case_id))
-            if isinstance(case_data, dict):
-                attributed_to = case_data.get("attributedTo") or case_data.get(
-                    "attributed_to"
-                )
-                if isinstance(attributed_to, dict):
-                    attributed_to = attributed_to.get(
-                        "id"
-                    ) or attributed_to.get("id_")
-                if attributed_to == expected_attributed_to:
-                    logger.info(
-                        "Case %s attributed_to updated to %s",
-                        case_id,
-                        expected_attributed_to,
-                    )
-                    return
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for case {case_id!r} attributed_to={expected_attributed_to!r}"
-        f" on container {client.base_url}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +223,7 @@ def _phase_report_submission(
         wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
-            expected_count=3,
+            expected_actor_ids={finder.id_, vendor.id_},
         )
 
         with demo_check(
@@ -298,6 +253,7 @@ def _phase_report_submission(
 def _phase_ownership_handoff(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    finder: as_Actor,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     coordinator: as_Actor,
@@ -358,7 +314,11 @@ def _phase_ownership_handoff(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            finder.id_,
+            vendor.id_,
+            coordinator.id_,
+        },
     )
     logger.info("Coordinator has joined the case")
 
@@ -427,7 +387,7 @@ def _phase_ownership_handoff(
     with demo_check(
         "Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)"
     ):
-        _wait_for_case_attributed_to(
+        wait_for_case_attributed_to(
             client=vendor_client,
             case_id=case.id_,
             expected_attributed_to=coordinator.id_,
@@ -437,7 +397,7 @@ def _phase_ownership_handoff(
     with demo_check(
         "Case attributed_to updated to Coordinator on Coordinator's DataLayer"
     ):
-        _wait_for_case_attributed_to(
+        wait_for_case_attributed_to(
             client=coordinator_client,
             case_id=case.id_,
             expected_attributed_to=coordinator.id_,
@@ -459,6 +419,8 @@ def _phase_coordinator_invites_vendor2(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
     coordinator: as_Actor,
     coordinator_in_coordinator: as_Actor,
     case_actor_id: str,
@@ -467,7 +429,6 @@ def _phase_coordinator_invites_vendor2(
     case: as_VulnerabilityCase,
     offer: object,
     report: as_VulnerabilityReport,
-    finder: as_Actor,
 ) -> None:
     """Coordinator (new CASE_OWNER) invites Vendor2; Vendor2 runs RM triage."""
     logger.info("─" * 80)
@@ -547,8 +508,13 @@ def _phase_coordinator_invites_vendor2(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=5,
-        timeout_seconds=90.0,
+        expected_actor_ids={
+            finder.id_,
+            vendor.id_,
+            coordinator.id_,
+            vendor2.id_,
+        },
+        timeout_seconds=LATE_JOINER_TIMEOUT,
     )
     logger.info("✓ Vendor2 joined case (%d participants)", 5)
 
@@ -627,7 +593,12 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=5,
+            expected_actor_ids={
+                finder.id_,
+                vendor.id_,
+                coordinator.id_,
+                vendor2.id_,
+            },
             timeout_seconds=p_timeout,
         )
 
@@ -1133,6 +1104,7 @@ def run_fvcv_handoff_demo(
         case = _phase_ownership_handoff(
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
+            finder=finder,
             vendor=vendor,
             vendor_in_vendor=vendor_in_vendor,
             coordinator=coordinator,
@@ -1145,6 +1117,8 @@ def run_fvcv_handoff_demo(
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             vendor2_client=vendor2_client,
+            finder=finder,
+            vendor=vendor,
             coordinator=coordinator,
             coordinator_in_coordinator=coordinator_in_coordinator,
             case_actor_id=dynamic_case_actor_id,
@@ -1153,7 +1127,6 @@ def run_fvcv_handoff_demo(
             case=case,
             offer=offer,
             report=report,
-            finder=finder,
         )
 
         # Verify case active now that all participants have joined.

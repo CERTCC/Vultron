@@ -83,7 +83,7 @@ _LATE_JOINER_BASE = "http://late-joiner.test"
 
 
 @pytest.fixture
-def three_app_setup(monkeypatch):
+def three_app_setup():
     """Owner app + reporter app + late-joiner app wired for end-to-end delivery.
 
     Uses three isolated FastAPI app instances each with their own in-memory
@@ -106,7 +106,7 @@ def three_app_setup(monkeypatch):
          owner's app so that CaseActor deliveries are routed correctly.
       5. Yields the three ``IsolatedActorApp`` instances and their clients.
       6. On teardown restores the previous default emitter, closes DLs, and
-         reloads config to remove the patched env var.
+         restores config to remove the patched env vars.
 
     Yields:
         Tuple of (owner_iso, reporter_iso, late_joiner_iso,
@@ -116,65 +116,63 @@ def three_app_setup(monkeypatch):
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import get_config, reload_config
+    from vultron.config import config_override
 
-    # Patch the server base URL so the CaseActor is created with the owner's
-    # routable base URL.  Without this, CreateCaseActorNode reads the default
-    # http://localhost:7999 which produces IDs like
-    # http://localhost:7999/actors/case-actor-... and the owner's app returns
-    # 404 for /actors/ paths (it expects /api/v2/actors/).
-    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_OWNER_BASE}/api/v2")
-    # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
-    # (CP-08-002); in this single-owner test setup the owner IS the case-actor
-    # service, so we point it at the same base URL.
-    monkeypatch.setenv(
-        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", f"{_OWNER_BASE}/api/v2"
-    )
-    reload_config()
+    # config_override atomically sets env vars, reloads the cache, and
+    # restores both on exit — the ordering footgun (#2086) is impossible
+    # by construction (CFG-06-006).
+    with config_override(
+        # Patch the server base URL so the CaseActor is created with the
+        # owner's routable base URL.  Without this, CreateCaseActorNode reads
+        # the default http://localhost:7999 which produces IDs like
+        # http://localhost:7999/actors/case-actor-... and the owner's app
+        # returns 404 for /actors/ paths (it expects /api/v2/actors/).
+        VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
+        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # (CP-08-002); in this single-owner test setup the owner IS the
+        # case-actor service, so we point it at the same base URL.
+        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
+    ) as cfg:
+        router = _TestClientRouter()
+        owner_iso = create_isolated_actor_app(
+            base_url=_OWNER_BASE, router=router
+        )
+        reporter_iso = create_isolated_actor_app(
+            base_url=_REPORTER_BASE, router=router
+        )
+        late_joiner_iso = create_isolated_actor_app(
+            base_url=_LATE_JOINER_BASE, router=router
+        )
 
-    router = _TestClientRouter()
-    owner_iso = create_isolated_actor_app(base_url=_OWNER_BASE, router=router)
-    reporter_iso = create_isolated_actor_app(
-        base_url=_REPORTER_BASE, router=router
-    )
-    late_joiner_iso = create_isolated_actor_app(
-        base_url=_LATE_JOINER_BASE, router=router
-    )
+        # Register the patched base_url with the router so CaseActor deliveries
+        # (whose IDs now use http://owner-late-joiner.test/api/v2) route to
+        # the owner's ASGI app.
+        config_base_url = cfg.server.base_url.rstrip("/")
+        router.register(config_base_url, owner_iso.client)
 
-    # Register the patched base_url with the router so CaseActor deliveries
-    # (whose IDs now use http://owner-late-joiner.test/api/v2) route to
-    # the owner's ASGI app.
-    config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.client)
+        # Replace the module-level default emitter so outbox_handler calls from
+        # trigger endpoints use the router instead of HttpDeliveryAdapter (real
+        # HTTP with retry backoff).
+        previous_emitter = get_default_emitter()
+        configure_default_emitter(router)  # type: ignore[arg-type]
 
-    # Replace the module-level default emitter so outbox_handler calls from
-    # trigger endpoints use the router instead of HttpDeliveryAdapter (real
-    # HTTP with retry backoff).
-    previous_emitter = get_default_emitter()
-    configure_default_emitter(router)  # type: ignore[arg-type]
+        with owner_iso.client as owner_tc:
+            with reporter_iso.client as reporter_tc:
+                with late_joiner_iso.client as late_joiner_tc:
+                    yield (
+                        owner_iso,
+                        reporter_iso,
+                        late_joiner_iso,
+                        owner_tc,
+                        reporter_tc,
+                        late_joiner_tc,
+                    )
 
-    with owner_iso.client as owner_tc:
-        with reporter_iso.client as reporter_tc:
-            with late_joiner_iso.client as late_joiner_tc:
-                yield (
-                    owner_iso,
-                    reporter_iso,
-                    late_joiner_iso,
-                    owner_tc,
-                    reporter_tc,
-                    late_joiner_tc,
-                )
-
-    # Restore previous emitter to avoid polluting other tests.
-    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-    owner_iso.dl.close()
-    reporter_iso.dl.close()
-    late_joiner_iso.dl.close()
-    # Undo the env patches BEFORE reloading: monkeypatch's own undo runs after
-    # this teardown, so reloading first would re-cache this fixture's URLs into
-    # the module-level config for the rest of the session (#2086).
-    monkeypatch.undo()
-    reload_config()
+        # Restore previous emitter to avoid polluting other tests.
+        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+        owner_iso.dl.close()
+        reporter_iso.dl.close()
+        late_joiner_iso.dl.close()
 
 
 # ---------------------------------------------------------------------------

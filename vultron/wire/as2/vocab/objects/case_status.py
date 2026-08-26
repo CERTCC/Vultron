@@ -203,7 +203,7 @@ class as_ParticipantStatus(VultronAS2Object):
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
-    embargo_adherence: bool = True
+    embargo_adherence: bool = False
     em_consent_state: PEC | None = Field(
         default=None,
         validation_alias="emConsentState",
