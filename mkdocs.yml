@@ -17,6 +17,7 @@ nav:
       - 'topics/background/index.md'
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
+    - The Case Model: 'topics/case_model.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
