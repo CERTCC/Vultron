@@ -5,6 +5,12 @@ coordination case and how they relate to each other. It is intended
 to give developers and contributors a structural understanding of the
 implementation before reading source code or designing compatible systems.
 
+!!! note "Reference implementation"
+    Vultron is a reference implementation of the CVD coordination protocol.
+    Design decisions here — such as the single-writer `CaseActor` ledger model
+    — reflect that purpose. Future systems may distribute coordination
+    differently (see ADR-0077).
+
 ## The case as distributed shared state
 
 A Vultron **case** is a distributed coordination object. Multiple
@@ -32,19 +38,28 @@ anchor hash.
 | `case_statuses` | Append-only history of `CaseStatus` snapshots |
 | `active_embargo` | The currently active `EmbargoEvent` (at most one) |
 | `proposed_embargoes` | URIs of embargoes under negotiation |
-| `case_activity` | Log of Activity IDs associated with this case |
+| `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity |
 
-`VulnerabilityCase` does not carry RM state directly — that belongs to
-each participant via their `ParticipantStatus` history. Only embargo
-(EM) state and the case-wide public state (PXA) are recorded at the
-case level, through the `CaseStatus` history.
+`VulnerabilityCase` does not carry Report Management (RM) state directly — that
+belongs to each participant via their `ParticipantStatus` history. Only
+Embargo Management (EM) state and the case-wide
+Publication/eXploit/Active-attacks (PXA) state are recorded at the case level,
+through the `CaseStatus` history.
 
 ## `CaseActor`
 
-A `CaseActor` (defined in `vultron/core/models/case_actor.py`) is the
-ActivityStreams **Service** actor that manages a case's canonical ledger
-and acts as the coordination hub for all inter-participant messages.
+ActivityStreams 2.0 defines five actor types: Person, Organization, Group,
+Application, and **Service**. A `CaseActor` (defined in
+`vultron/core/models/case_actor.py`) is a **Service** actor — it represents
+software infrastructure, not a human or organizational CVD stakeholder.
+
+A `CaseActor` is also a `CaseParticipant` (via the `CaseActorParticipant`
+subtype, per ADR-0051): it holds both `CVDRole.COORDINATOR` and
+`CVDRole.CASE_MANAGER` and participates in the RM state machine like every
+other participant. What distinguishes it from human/organization participants
+is its function: it manages the canonical ledger and brokers all
+inter-participant messages.
 
 Each case has exactly one `CaseActor`. The actor holding the
 `CVDRole.CASE_MANAGER` role acts as the single-writer authority for
@@ -52,18 +67,16 @@ the canonical ledger. Embargo proposals, status updates, notes, and
 participant invitations all route through the `CaseActor` so that the
 ledger captures a causally-ordered record of the entire coordination.
 
-The `CaseActor` is **not** a CVD participant in the domain sense; it is
-the infrastructure peer that brokers between participants. Do not
-confuse it with the `CASE_OWNER` role (the human decision-maker who
-administers the case) or with the `CASE_MANAGER` role (the role that
-authorizes ledger writes).
+Do not confuse `CaseActor` with the `CASE_OWNER` role (the human
+decision-maker who administers the case) or with the `CASE_MANAGER`
+role (the role that authorizes ledger writes).
 
 ## `CaseParticipant`
 
 A `CaseParticipant` (defined in `vultron/core/models/case_participant.py`)
-is the per-case binding of an actor to their roles and protocol state.
-One `CaseParticipant` record exists for each actor engaged in a case.
-Because a single actor may participate in many cases and hold different
+binds an actor to their roles and protocol state within the context of a
+given case. One `CaseParticipant` record exists for each actor engaged in
+a case. Because a single actor may participate in many cases and hold different
 roles in each, `CaseParticipant` scopes an actor's obligations and
 history to a single coordination context.
 
@@ -71,7 +84,7 @@ history to a single coordination context.
 |---|---|
 | `case_roles` | `list[CVDRole]` — the roles this actor holds in this case |
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
-| `embargo_consent_state` | This participant's current PEC (Participant Embargo Consent) state |
+| `embargo_consent_state` | This participant's current Participant Embargo Consent (PEC) state |
 | `accepted_embargo_ids` | URIs of embargoes the participant has accepted |
 | `participant_case_name` | Optional human-readable name for this participant in this case |
 
@@ -95,10 +108,14 @@ in `VulnerabilityCase.case_statuses`.
 
 | Field | Description |
 |---|---|
-| `em` | `EmDimension` — the current EM state (None / Proposed / Active / Revise / eXited) |
-| `pxa` | `PxaDimension` — the current public state (Public / eXploit / Active-attacks) |
+| `em` | `EmDimension` — the current Embargo Management (EM) state (None / Proposed / Active / Revise / eXited) |
+| `pxa` | `PxaDimension` — the current Publication/eXploit/Active-attacks (PXA) state |
 | `context` | The URI of the case this status belongs to |
 | `attributed_to` | The actor who reported this status (optional) |
+
+!!! tip "Dimension state machines"
+    See [Process Models](process_models/index.md) for detailed explanations
+    of the EM and PXA state machines and their transition rules.
 
 ### `ParticipantStatus`
 
@@ -108,9 +125,9 @@ in `CaseParticipant.participant_statuses`.
 
 | Field | Description |
 |---|---|
-| `rm` | `RmDimension` — the participant's RM state (Start → Received → … → Closed) |
-| `vfd` | `VfdDimension` — Vendor/Deployer fix-path state (vfd → … → VFD) |
-| `consent` | `PecDimension` — this participant's embargo consent state |
+| `rm` | `RmDimension` — the participant's Report Management (RM) state (Start → Received → … → Closed) |
+| `vfd` | `VfdDimension` — Vendor/Fix/Deployed (VFD) fix-path state (vfd → … → VFD) |
+| `consent` | `PecDimension` — this participant's Participant Embargo Consent (PEC) state |
 | `cvd_role` | The CVD roles this participant held at the time of the snapshot |
 | `case_engagement` | Whether this participant is actively engaged |
 | `embargo_adherence` | Computed `True` iff `consent.state == SIGNATORY` (ADR-0056) |
@@ -122,18 +139,18 @@ in `CaseParticipant.participant_statuses`.
 
 Both `CaseStatus` and `ParticipantStatus` use **Dimension Objects**
 (per ADR-0036): small, immutable `BaseModel` instances that own exactly
-one state machine. This design allows each dimension (EM, PXA, RM, VFD,
-PEC) to be compared, serialized, and validated independently.
+one state machine. This design allows each dimension to be compared,
+serialized, and validated independently.
 
 Dimension objects are defined in `vultron/core/models/dimensions.py`:
 
-| Dimension | State machine | Used in |
-|---|---|---|
-| `EmDimension` | EM (None/Proposed/Active/Revise/eXited) | `CaseStatus` |
-| `PxaDimension` | PXA (public awareness, exploit, attacks) | `CaseStatus` |
-| `RmDimension` | RM (Start → Received → … → Closed) | `ParticipantStatus` |
-| `VfdDimension` | VFD (vfd → Vfd → VFd → VFD) | `ParticipantStatus` |
-| `PecDimension` | PEC (consent state: NO_EMBARGO / INVITED / SIGNATORY / LAPSED / DECLINED) | `ParticipantStatus` |
+| Dimension | Full name | State machine | Used in |
+|---|---|---|---|
+| `EmDimension` | Embargo Management (EM) | None/Proposed/Active/Revise/eXited | `CaseStatus` |
+| `PxaDimension` | Publication/eXploit/Active-attacks (PXA) | public awareness, exploit, active-attacks | `CaseStatus` |
+| `RmDimension` | Report Management (RM) | Start → Received → … → Closed | `ParticipantStatus` |
+| `VfdDimension` | Vendor/Fix/Deployed (VFD) | vfd → Vfd → VFd → VFD | `ParticipantStatus` |
+| `PecDimension` | Participant Embargo Consent (PEC) | NO_EMBARGO / INVITED / SIGNATORY / LAPSED / DECLINED | `ParticipantStatus` |
 
 ## `CVDRole`
 
@@ -143,14 +160,14 @@ more roles as `list[CVDRole]`.
 
 | Role | Meaning |
 |---|---|
-| `FINDER` | Discovered the vulnerability |
+| `FINDER` | Discovered the vulnerability (deprecated — see ADR-0078) |
 | `REPORTER` | Submitted the vulnerability report to others |
 | `VENDOR` | Supplies the affected product; has Vendor Fix Path obligations |
-| `DEPLOYER` | Deploys the vendor's fix; has VFD obligations |
+| `DEPLOYER` | Deploys the vendor's fix; has deployment obligations |
 | `COORDINATOR` | Neutral third party facilitating coordination |
 | `OBSERVER` | Base role — admitted via Invite/Accept; no VFD obligations (ADR-0057) |
 | `CASE_OWNER` | Human decision-maker who administers the case |
-| `CASE_MANAGER` | Service actor role — authorized to write to the canonical ledger |
+| `CASE_MANAGER` | Service actor role — authorized to write to the canonical ledger; delegated by CASE_OWNER |
 | `CVE_NUMBERING_AUTHORITY` | Holds CNA status; may assign CVE IDs directly |
 
 !!! warning "Do not use `CVDRolesFlag`"
@@ -216,6 +233,7 @@ classDiagram
     CaseParticipant "1" *--> "0..*" ParticipantStatus : participant_statuses
     CaseParticipant --> CVDRole : case_roles
     CaseActor ..> VulnerabilityCase : manages ledger for
+    CaseActor ..> CaseParticipant : registered as CaseActorParticipant
 ```
 
 A `VulnerabilityCase` aggregates:
@@ -223,10 +241,12 @@ A `VulnerabilityCase` aggregates:
 - One `CaseParticipant` per engaged actor, each with an append-only
   `ParticipantStatus` history
 - An append-only `CaseStatus` history recording EM and PXA state over time
+- An append-only case ledger (`CaseLedgerEntry` chain) anchored at `genesis_hash`
 
-The `CaseActor` service peer manages the canonical ledger for the case
-and brokers all inter-participant messages, but is not itself a
-`CaseParticipant` in the CVD sense.
+The `CaseActor` service peer manages the canonical ledger for the case and
+brokers all inter-participant messages. It participates as a
+`CaseActorParticipant`, holding both `CVDRole.COORDINATOR` and
+`CVDRole.CASE_MANAGER`.
 
 ## See also
 
@@ -237,6 +257,7 @@ and brokers all inter-participant messages, but is not itself a
 - ADR-0036: Per-Machine Dimension Objects for `CaseStatus` and
   `ParticipantStatus`
 - ADR-0041: CaseActor-Authoritative Case Initialization
+- ADR-0051: CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant
 - ADR-0057: Observer role (`CVDRole.OBSERVER`)
 - ADR-0078: Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient
   Role
