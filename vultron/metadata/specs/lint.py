@@ -700,7 +700,11 @@ def _check_phantom_spec_id_citations(
     return errors
 
 
-def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
+def lint(
+    spec_dir: Path,
+    adr_dir: Path | None = None,
+    registry: SpecRegistry | None = None,
+) -> int:
     """Validate the spec registry in ``spec_dir``.
 
     Hard errors cause exit code 1.  Advisory warnings are printed but do not
@@ -713,6 +717,9 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
             so that ``uv run spec-lint`` from the repository root picks up
             ``docs/adr/`` automatically.  To skip the ADR-reference check,
             pass a path that does not exist on disk.
+        registry: Pre-loaded :class:`SpecRegistry` instance.  When provided,
+            the ``load_registry(spec_dir)`` call is skipped, avoiding
+            redundant I/O in callers that already hold a loaded registry.
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
@@ -723,11 +730,12 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors: list[str] = []
     warnings: list[str] = []
 
-    try:
-        registry = load_registry(spec_dir)
-    except (ValidationError, ValueError) as exc:
-        print(f"[FATAL] Registry load failed:\n{exc}", file=sys.stderr)
-        return 1
+    if registry is None:
+        try:
+            registry = load_registry(spec_dir)
+        except (ValidationError, ValueError) as exc:
+            print(f"[FATAL] Registry load failed:\n{exc}", file=sys.stderr)
+            return 1
 
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(_check_prefix_consistency(registry))

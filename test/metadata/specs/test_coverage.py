@@ -227,13 +227,12 @@ def test_compute_uncovered_is_sorted(
 
 
 @pytest.mark.spec("SR-05-005")
-def test_compute_real_registry_has_nonzero_coverage():
+def test_compute_real_registry_has_nonzero_coverage(real_registry):
     """Smoke test: real registry + real test suite have at least one covered spec."""
     from vultron.metadata.specs.registry import find_repo_root
 
     repo_root = find_repo_root()
-    registry = load_registry(repo_root / "specs")
-    report = compute_protocol_coverage(registry, repo_root / "test")
+    report = compute_protocol_coverage(real_registry, repo_root / "test")
     assert report.covered_count > 0, (
         "No protocol-kind specs are covered — @pytest.mark.spec markers may "
         "have been stripped from the test suite."
