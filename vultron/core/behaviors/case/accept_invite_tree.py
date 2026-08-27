@@ -365,21 +365,24 @@ class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
             self._activity_bb = None
 
     def _read_invite_roles(self) -> list:
-        """Read roles from the Invite stored in DataLayer (CM-17-003).
+        """Read roles from the Invite embedded in the Accept activity (CM-17-003).
 
-        Resolves invite_id via the ``activity`` blackboard key, reads the
-        stored Invite, and coerces any ``roles`` strings to ``CVDRole``.
-        Returns an empty list when the invite carries no roles or cannot
-        be read.
+        Resolves roles from ``event.activity.object_`` — the raw wire Invite
+        carried inside the received ``Accept`` activity, as hydrated by the
+        wire extractor (``include_activity=True`` in the semantic registry).
+        This path is race-free: the roles arrive in the protocol message
+        itself, so no DataLayer lookup is needed or performed.
+
+        Returns an empty list when no roles are present.
         """
         event = self._activity_bb
         if event is None:
             return []
-        invite_id = getattr(event, "object_id", None)
-        if not invite_id or self.datalayer is None:
+        activity = getattr(event, "activity", None)
+        if activity is None:
             return []
-        invite = self.datalayer.read(invite_id)
-        raw_roles = getattr(invite, "roles", None)
+        invite_obj = getattr(activity, "object_", None)
+        raw_roles = getattr(invite_obj, "roles", None)
         if not raw_roles:
             return []
         try:

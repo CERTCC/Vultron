@@ -105,3 +105,50 @@ def test_apply_invite_accept_skips_missing_case(bridge, case_actor):
     )
 
     assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("CM-17-003")
+def test_apply_invite_accept_from_ledger_preserves_roles(
+    bridge, datalayer, case_actor, case_with_actor
+):
+    """CM-17-003: ledger path sets case_roles from payload_snapshot object.roles.
+
+    Before fix: stub CaseParticipant was created with no case_roles regardless
+    of what the payload_snapshot["object"]["roles"] contained (ISSUE-2719 Bug 1
+    sibling). After fix: roles are extracted and set on the participant.
+    """
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=1,
+            object_id="https://example.org/activities/accept-invite-with-roles",
+            event_type="accept_invite_actor_to_case",
+            payload_snapshot={
+                "actor": {"id": INVITEE_ACTOR_ID},
+                "object": {
+                    "id": "https://example.org/activities/invite-001",
+                    "type": "Invite",
+                    "roles": ["vendor"],
+                },
+            },
+            prev_log_hash="0" * 64,
+        )
+    )
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=ApplyInviteAcceptFromLedgerNode(name="ApplyInviteAccept"),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+    updated = datalayer.read(CASE_ID)
+    assert INVITEE_ACTOR_ID in updated.actor_participant_index
+
+    from vultron.enums.roles import CVDRole
+
+    participant_id = updated.actor_participant_index[INVITEE_ACTOR_ID]
+    participant = datalayer.read(participant_id)
+    assert participant is not None
+    assert CVDRole.VENDOR in participant.case_roles

@@ -15,6 +15,7 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/
   - vultron/core/use_cases/received/actor/
   - vultron/demo/scenario/fvcv_handoff_demo.py
+  - vultron/demo/scenario/fccv_handoff_demo.py
 ---
 
 # Ownership Transfer Protocol — Routing and Cascade Model
@@ -172,6 +173,13 @@ producing an unrecoverable hash-chain fork (ISSUE-2252).
 Remove the `post_to_inbox_and_wait` self-delivery block (lines ~427–434).
 The Accept now reaches the CaseActor automatically because
 `EmitAcceptCaseOwnershipTransferNode` addresses it there.
+
+### fccv_handoff_demo.py
+
+Same `post_to_inbox_and_wait` workaround pattern applied to
+`_phase_ownership_handoff`. Removed in PR #2735 (ISSUE-2719) — the Accept
+is addressed to the CaseActor per ADR-0042/ADR-0053 and delivered
+automatically, matching the `fvcv-handoff` pattern.
 
 After the Vendor1 offer-trigger returns, poll Coordinator's DataLayer with
 `find_ownership_transfer_offer_for_actor(coordinator_client, case_id, transferee_id=coordinator.id_)`

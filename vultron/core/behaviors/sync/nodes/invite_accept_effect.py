@@ -31,6 +31,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.enums.roles import validate_roles
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +94,22 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
+        obj_snapshot = snapshot.get("object")
+        raw_roles = (
+            obj_snapshot.get("roles")
+            if isinstance(obj_snapshot, dict)
+            else None
+        )
+        try:
+            case_roles = validate_roles(raw_roles) if raw_roles else []
+        except (ValueError, KeyError):
+            case_roles = []
+
         participant = CaseParticipant(
             id_=f"{case_id}/participants/{invitee_id.rstrip('/').rsplit('/', 1)[-1]}",
             attributed_to=invitee_id,
             context=case_id,
+            case_roles=case_roles,
         )
         if self.datalayer.read(participant.id_) is None:
             self.datalayer.create(participant)
