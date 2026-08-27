@@ -16,7 +16,15 @@ import unittest
 
 import vultron.bt.base.fuzzer as btz
 from vultron.bt.base import bt
-from vultron.bt.base.bt_node import BtNode, ConditionCheck, CountTicks
+from vultron.bt.base.bt_node import (
+    ActionNode,
+    BtNode,
+    ConditionCheck,
+    CountTicks,
+)
+from vultron.bt.base.composites import FallbackNode, SequenceNode
+from vultron.bt.base.decorators import Invert
+from vultron.bt.base.fuzzer import WeightedSuccess
 from vultron.bt.base.node_status import NodeStatus
 
 
@@ -242,6 +250,148 @@ class MyTestCase(unittest.TestCase):
             v = nodes[edge[1]]
 
             self.assertIn((u, v), graph.edges)
+
+
+class TestMermaidPrefixMap(unittest.TestCase):
+    def setUp(self):
+        BtNode._objcount = 0
+
+    def test_prefix_map_exists_on_btnode(self):
+        self.assertTrue(hasattr(BtNode, "_mermaid_prefix_map"))
+        self.assertIsInstance(BtNode._mermaid_prefix_map, dict)
+
+    def test_prefix_map_covers_known_prefixes(self):
+        pfx_map = BtNode._mermaid_prefix_map
+        # Each known prefix used by base node types must be in the map
+        for prefix in (">", "^", "z", "a", "c", "?"):
+            self.assertIn(prefix, pfx_map)
+
+    def test_to_mermaid_sequence_with_action_and_condition(self):
+        class MyCondition(ConditionCheck):
+            def func(self):
+                return True
+
+        class MyAction(ActionNode):
+            def func(self):
+                return True
+
+        class MySeq(SequenceNode):
+            _children = [MyCondition, MyAction]
+
+        root = MySeq()
+        output = root.to_mermaid()
+
+        # Verify preamble and postamble
+        self.assertTrue(output.startswith("```mermaid\ngraph TD\n"))
+        self.assertTrue(output.endswith("\n```"))
+
+        # Verify prefix symbols are applied
+        self.assertIn("&rarr; MySeq", output)  # SequenceNode ">"
+        self.assertIn("#11052; MyCondition", output)  # ConditionCheck "c"
+        self.assertIn("#9648; MyAction", output)  # ActionNode "a"
+
+        # Verify no raw prefix strings remain in node labels
+        for line in output.splitlines():
+            if "[" in line and "]" in line:
+                label_start = line.index("[")
+                label_end = line.rindex("]")
+                label = line[label_start:label_end]
+                self.assertNotIn(">_", label)
+                self.assertNotIn("a_", label)
+                self.assertNotIn("c_", label)
+
+    def test_to_mermaid_fallback_and_invert(self):
+        class MyCondition(ConditionCheck):
+            def func(self):
+                return True
+
+        class MyInvert(Invert):
+            _children = [MyCondition]
+
+        class MyFallback(FallbackNode):
+            _children = [MyCondition, MyInvert]
+
+        root = MyFallback()
+        output = root.to_mermaid()
+
+        self.assertIn("? MyFallback", output)  # FallbackNode "?"
+        self.assertIn("#8645; MyInvert", output)  # Invert "^"
+        self.assertIn("#11052; MyCondition", output)  # ConditionCheck "c"
+
+    def test_to_mermaid_weighted_success(self):
+        class MyAction(ActionNode):
+            def func(self):
+                return True
+
+        class MyWeighted(WeightedSuccess):
+            pass
+
+        class MySeq(SequenceNode):
+            _children = [MyAction, MyWeighted]
+
+        root = MySeq()
+        output = root.to_mermaid()
+
+        self.assertIn("#127922; MyWeighted", output)  # WeightedSuccess "z"
+
+    def test_to_mermaid_snapshot(self):
+        class MyCondition(ConditionCheck):
+            def func(self):
+                return True
+
+        class MyAction(ActionNode):
+            def func(self):
+                return True
+
+        class MySeq(SequenceNode):
+            _children = [MyCondition, MyAction]
+
+        root = MySeq()
+        expected = (
+            "```mermaid\n"
+            "graph TD\n"
+            '  MySeq_1["&rarr; MySeq"]\n'
+            '  MyCondition_2["#11052; MyCondition"]\n'
+            "  MySeq_1 --> MyCondition_2\n"
+            '  MyAction_3["#9648; MyAction"]\n'
+            "  MySeq_1 --> MyAction_3\n"
+            "```"
+        )
+        self.assertEqual(expected, root.to_mermaid())
+
+    def test_to_mermaid_leftright_flag(self):
+        class MyCondition(ConditionCheck):
+            def func(self):
+                return True
+
+        class MySeq(SequenceNode):
+            _children = [MyCondition]
+
+        root = MySeq()
+        output = root.to_mermaid(topdown=False)
+        self.assertIn("graph LR", output)
+        self.assertNotIn("graph TD", output)
+
+    def test_subclass_can_override_prefix_map(self):
+        # fixname() uses the *containing node's* _mermaid_prefix_map,
+        # so overriding the map on a non-leaf node changes how it renders
+        # its own children's names.
+        class MyCondition(ConditionCheck):
+            def func(self):
+                return True
+
+        class CustomSeq(SequenceNode):
+            _mermaid_prefix_map = dict(BtNode._mermaid_prefix_map)
+            _mermaid_prefix_map["c"] = "CHECK: "
+            _children = [MyCondition]
+
+        root = CustomSeq()
+        output = root.to_mermaid()
+
+        # CustomSeq's overridden map is used when rendering child labels
+        self.assertIn("CHECK: MyCondition", output)
+        # Root's own ">" prefix still resolves correctly
+        self.assertIn("&rarr; CustomSeq", output)
 
 
 if __name__ == "__main__":
