@@ -275,6 +275,24 @@ like `"ACCEPTED VFD ACTIVE Pxa"` is a cross-check only — trust structured fiel
 > the union for replaying older uploaded logs, but current fixtures no longer emit
 > them.
 
+> **🔧 2026-08-27 mapper fixes (two replay bugs found while reviewing the regenerated
+> fixtures).** Both were mapper-side (`caseLedgerParser`/`caseLedgerMapper`), NOT
+> generator or artifact problems:
+> 1. **VFD seed → base `vfd`, not `Vfd`.** `handleCreateCase` and `handleAcceptInvite`
+>    used to pre-seed a vendor's VFD at `Vfd` ("vendor is aware"), correct for the OLD
+>    two-actor format. The current generator logs vendors starting at base `vfd` and
+>    records `vendor_becomes_aware` (vfd→Vfd) as an explicit later snapshot, so the
+>    pre-seed made that genuine first `vfd` snapshot look like an illegal `Vfd→vfd`
+>    regression → spurious "VFD cannot reach vfd from Vfd" in fv/fvv/fvcv-*/fccv-*.
+>    Both seeds now use the machine initial `vfd`. Don't restore `Vfd`.
+> 2. **`close_case` attributed to the closer (`actor`), not `object.attributedTo`.**
+>    See §6 quirk #6 (rewritten). The "Close Case" node now renders in the closer's own
+>    lane and advances the closer's RM. Side effect: participants now actually reach
+>    `hasClosed` in replay (previously the RM-close was skipped because the subject
+>    resolved to the unseeded `caseactor` recorder), so consequence fan-out correctly
+>    stops feeding closed lanes. This fix is what makes the close-from-`RECEIVED`
+>    generator gap visible — see the "raise with Allen" quirk #3 (later in §5).
+
 ### ✅ MOSTLY DONE (superseded 2026-08): coordinator scenarios + vocabulary shift
 
 > **Status update (2026-08).** The GAP 1/2/3 work below (2026-07) was largely
@@ -400,6 +418,22 @@ build/lint (no node in-container).
    directly-invited coordinator shows an "Invite Sent" node while the recommended
    vendor does not (only Actor Recommended → Accept). See §6 quirk #8. Populating both
    would make the onboarding paths symmetric.
+3. **Close-from-`RECEIVED` — incomplete RM lifecycle for one participant per scenario
+   (2026-08, CONFIRMED, flagged as a real violation in the demo).** In
+   `fvcv-extension`, `fvcv-handoff`, `fccv-extension`, `fccv-handoff`, and `fcvcv`,
+   exactly ONE participant emits `close_case` while its RM is still `RECEIVED` — the
+   scenario never drives that actor through `validate → accept` (e.g. in
+   `fvcv-handoff` there is NO `validate_report` for the handed-off coordinator, so it
+   stays at `RECEIVED` and its close is illegal). Per [`rm.py`](../vultron/core/states/rm.py)
+   `RM_CLOSABLE = (INVALID, DEFERRED, ACCEPTED)` and ADR-0051 / CM-23-005
+   (`AllParticipantsRMClosedConditionNode`), `close` is legal only from a closable
+   disposition and EVERY participant (incl. the case manager) must reach `RM.CLOSED`
+   via that path — so this is a genuine generator/scenario gap, NOT a UI bug and NOT a
+   missing artifact transition. It hits whichever actor the scenario skips (coordinator
+   in fvcv-extension/fvcv-handoff/fccv-handoff; vendor-2/actor5 in fccv-extension/fcvcv),
+   not "all late joiners." The mapper now correctly surfaces it (see §6 quirk #6 + the
+   2026-08-27 mapper-fixes note earlier in §5). Originally-present participants (finder,
+   first vendor, original-owner coordinator) all reach `ACCEPTED` and close cleanly.
 
 ### ⚠️ Multi-Vendor demo — possible gaps surfaced by the coordinator JSONLs (2026-07, NOT yet acted on)
 
@@ -470,10 +504,18 @@ Quirks of the current sample the mapper handles explicitly (carry forward):
 5. **Notes lack `inReplyTo` linkage.** Both sample notes have `inReplyTo:null`, so
    question-vs-answer is a heuristic (first unanswered note = question; the next
    note by a *different* actor while one is pending = its answer).
-6. **`actor` ≠ subject.** On `offer_case_manager_role` / `close_case` the recorded
-   `actor` is the Case Actor while `object.attributedTo` is the vendor. The mapper
-   puts the decision node in the **actor/recorder** lane (caseactor) but reads
-   "whose machine" from `object.attributedTo`.
+6. **`actor` = the closer (2026-08).** On `close_case` the recorded `actor` is the
+   participant closing its OWN report (finder / vendor / coordinator) and
+   `object.attributedTo` is the case owner/recorder (in a handoff, the coordinator
+   who took ownership) — NOT the closer. So `handleCloseCase` places the "Close Case"
+   decision node in the **closer's own lane** and advances the **closer's** RM to
+   CLOSED (validated against the RM machine). It falls back to `object.attributedTo`
+   only when `actor` resolves to the recorder/unknown (legacy logs, which inverted
+   this: `actor` = Case Actor, `attributedTo` = the closed vendor). NOTE: this is a
+   REVERSAL of the pre-2026-08 convention — do not restore the old "read whose machine
+   from `attributedTo`" behavior. (The legacy `offer_case_manager_role` `actor`≠subject
+   quirk is now moot; that verb became `create_case`, whose owner derivation is
+   documented in the §5 vocabulary-shift box.)
 7. **Verb order isn't fixed (multi-vendor).** In `devlogs/fvv/`, `validate_report`
    is at `logIndex 0` — *before* the offer at `logIndex 1` (two-actor had the offer
    first). So the vendor may already be advanced (RM=VALID) by the time `handleOffer`
