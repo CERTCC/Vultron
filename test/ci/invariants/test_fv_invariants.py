@@ -65,6 +65,7 @@ globals().update(
         replicas_fixture="fv_replicas",
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_FV_EXPECTED_EVENT_TYPES,
+        narrative_path="docs/topics/scenarios/fv.md",
     )
 )
 
