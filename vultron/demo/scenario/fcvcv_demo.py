@@ -41,6 +41,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -100,6 +101,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -725,34 +727,50 @@ def _phase_fix_lifecycle(
     logger.info("─" * 80)
 
     # V1 advances to fix-ready (VFd).
-    actor_notifies_fix_ready(
-        client=v1_client,
-        actor=v1_in_v1,
-        case_id=case.id_,
-    )
-
-    with demo_check("V1 participant vfd_state transitions to VFd"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "v1 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=v1_client,
             case_id=case.id_,
             actor_id=v1.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=v1_client,
+            actor=v1_in_v1,
+            case_id=case.id_,
+        )
+        with demo_check("V1 participant vfd_state transitions to VFd"):
+            wait_for_participant_vfd_state(
+                client=v1_client,
+                case_id=case.id_,
+                actor_id=v1.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     # V2 advances to fix-ready (VFd).
-    actor_notifies_fix_ready(
-        client=v2_client,
-        actor=v2_in_v2,
-        case_id=case.id_,
-    )
-
-    with demo_check("V2 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "v2 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=v2_client,
             case_id=case.id_,
             actor_id=v2.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=v2_client,
+            actor=v2_in_v2,
+            case_id=case.id_,
+        )
+        with demo_check("V2 participant vfd_state transitions to VFd or VFD"):
+            wait_for_participant_vfd_state(
+                client=v2_client,
+                case_id=case.id_,
+                actor_id=v2.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     with demo_check("M5: C1 replica shows V1 and V2 CS include F (fix ready)"):
         wait_for_participant_vfd_state(
