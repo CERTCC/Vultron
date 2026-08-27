@@ -335,11 +335,14 @@ class TestResolveAndPersistStatusObjectNode:
         assert status_obj is not None
         assert status_obj.id_ == STATUS_ID
 
-    def test_persists_fallback_when_not_found(self, dl, bridge, status_obj):
+    def test_persists_fallback_when_not_found(self, dl, bridge):
         """Persists fallback object when status not in DataLayer."""
+        from vultron.core.models.participant_status import ParticipantStatus
+
+        fallback = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
         node = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID,
-            status_obj_fallback=status_obj,
+            status_obj_fallback=fallback,
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
