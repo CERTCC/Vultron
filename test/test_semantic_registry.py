@@ -329,21 +329,6 @@ _TRAILING_DASH_XFAIL_REASONS = {
         "event_phrase() fills it with '—', producing trailing dash. "
         "Tracked in #2745."
     ),
-    MessageSemantics.OFFER_CASE_PARTICIPANT: (
-        "SE-07-006: OFFER_CASE_PARTICIPANT phrase ends with {object}; "
-        "event_phrase() fills it with '—', producing trailing dash. "
-        "Tracked in #2615."
-    ),
-    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: (
-        "SE-07-006: OFFER_CASE_OWNERSHIP_TRANSFER phrase ends with {object}; "
-        "event_phrase() fills it with '—', producing trailing dash. "
-        "Tracked in #2615."
-    ),
-    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: (
-        "SE-07-006: ADD_PARTICIPANT_STATUS_TO_PARTICIPANT phrase ends with {object}; "
-        "event_phrase() fills it with '—', producing trailing dash. "
-        "Tracked in #2615."
-    ),
 }
 
 

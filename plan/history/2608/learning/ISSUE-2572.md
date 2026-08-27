@@ -1,7 +1,7 @@
 ---
 title: "freshen-branch.sh misreports 'already rooted' when origin/main ref is ambiguous"
 type: learning
-timestamp: "2026-08-25"
+timestamp: "2026-08-25T00:00:00Z"
 source: ISSUE-2572
 signal: tooling-issue
 ---
@@ -19,3 +19,5 @@ The fix should update `freshen-branch.sh` (and any other skill script that refer
 
 **How to reproduce**: have a local branch named `origin/main` in the repo and run
 `freshen-branch.sh` while the task branch is behind remote main.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.

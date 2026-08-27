@@ -11,14 +11,16 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Production-layer BT nodes for the fix development workflow.
+"""Production-layer BT action nodes for the fix development workflow.
 
-Four nodes implement the ``DevelopFixBT`` guard/action logic:
+Two action nodes implement the ``DevelopFixBT`` creation sequence:
 
-- :class:`CheckIsVendorRoleNode` — short-circuit: actor is not a vendor
-- :class:`CheckCSFixNotYetReady` — short-circuit: fix already ready
 - :class:`TransitionCStoFixReady` — persist VFD VFd snapshot
 - :class:`EmitCFActivity` — emit CF (Fix Readiness) to Case Actor
+
+The entry guard/condition nodes (``CheckIsVendorRoleNode``,
+``CheckCSFixNotYetReady``) live in :mod:`develop_fix_conditions` and are
+re-exported here for backward compatibility.
 
 The tree's RM guard, ``CheckRMStateAccepted``, lives in ``conditions.py``
 alongside the other RM-state condition nodes: three trees use it
@@ -42,181 +44,22 @@ if TYPE_CHECKING:
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    DataLayerConditionWithPorts,
-)
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_manager_id,
 )
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import VfdDimension
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
+from vultron.core.behaviors.report.nodes.develop_fix_conditions import (  # noqa: F401
+    CheckCSFixNotYetReady,
+    CheckIsVendorRoleNode,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vfd
-from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
-
-
-def _resolve_actor_roles(
-    datalayer: "CasePersistence",
-    case_id: str,
-    actor_id: str,
-    node_name: str,
-) -> list[CVDRole] | None:
-    """Return CVDRole list for *actor_id* in *case_id*, or None on error."""
-    case = datalayer.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
-        logger.warning(
-            "%s: case '%s' not found or wrong type", node_name, case_id
-        )
-        return None
-
-    participant_id = case.actor_participant_index.get(actor_id)
-    if participant_id is None:
-        logger.warning(
-            "%s: actor '%s' not in case '%s'", node_name, actor_id, case_id
-        )
-        return None
-
-    participant = datalayer.read(participant_id)
-    if not isinstance(participant, CaseParticipant):
-        logger.warning(
-            "%s: participant '%s' not found or wrong type",
-            node_name,
-            participant_id,
-        )
-        return None
-
-    return list(participant.roles) if participant.roles else []
-
-
-class CheckIsVendorRoleNode(DataLayerConditionWithPorts):
-    """Gate: actor MUST hold CVDRole.VENDOR to proceed with fix development.
-
-    Returns ``SUCCESS`` when the actor holds ``CVDRole.VENDOR`` — allowing
-    the fix-development workflow to continue.  Returns ``FAILURE`` for any
-    non-vendor actor so the Fallback short-circuits and reports SUCCESS to
-    the parent (non-vendors are excused from fix development).
-
-    Note: in the DevelopFixBT Fallback, SUCCESS here means "not a vendor,
-    skip fix development". FAILURE here means "is a vendor, proceed to inner
-    Sequence".  The semantics are those of a short-circuit guard:
-    non-vendors succeed early; vendors fall through to the creation sequence.
-
-    Per AC-7 (issue #1812).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        roles = _resolve_actor_roles(
-            self.datalayer, self._case_id, self._actor_id, self.name
-        )
-        if roles is None:
-            self.feedback_message = (
-                f"Could not resolve roles for actor '{self._actor_id}'"
-                f" in case '{self._case_id}'"
-            )
-            return Status.FAILURE
-
-        if CVDRole.VENDOR in roles:
-            self.logger.debug(
-                "%s: actor '%s' is a vendor — proceed to fix development",
-                self.name,
-                self._actor_id,
-            )
-            return Status.FAILURE
-
-        self.logger.debug(
-            "%s: actor '%s' is not a vendor — short-circuit SUCCESS",
-            self.name,
-            self._actor_id,
-        )
-        return Status.SUCCESS
-
-
-class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
-    """Short-circuit guard: fix already ready means nothing to do.
-
-    Returns ``SUCCESS`` when the actor's VFD state is already fix-ready
-    (``CS_vfd.VFd`` or ``CS_vfd.VFD``) — the Fallback short-circuits and
-    reports SUCCESS to the parent.  Returns ``FAILURE`` when fix is NOT yet
-    ready, allowing the inner Sequence to proceed.
-
-    Per AC-7 (issue #1812).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
-
-        participant_id = case.actor_participant_index.get(self._actor_id)
-        if participant_id is None:
-            self.logger.warning(
-                "%s: actor '%s' not in case '%s'",
-                self.name,
-                self._actor_id,
-                self._case_id,
-            )
-            return Status.FAILURE
-
-        _, vfd_state = resolve_participant_state_from_dl(
-            self.datalayer, participant_id
-        )
-
-        is_ready = VfdDimension(state=vfd_state).is_fix_ready()
-        if is_ready:
-            self.logger.debug(
-                "%s: VFD state=%s is fix-ready — short-circuit SUCCESS",
-                self.name,
-                vfd_state,
-            )
-            return Status.SUCCESS
-
-        self.logger.debug(
-            "%s: VFD state=%s is not fix-ready — proceed to creation",
-            self.name,
-            vfd_state,
-        )
-        return Status.FAILURE
 
 
 class TransitionCStoFixReady(DataLayerActionWithPorts):

@@ -1,7 +1,7 @@
 ---
 title: A ref annotation that admits `str` cannot record an inline-only requirement
 type: learning
-timestamp: 2026-08-22
+timestamp: "2026-08-22T00:00:00Z"
 source: ISSUE-2482
 signal: spec-gap
 ---
@@ -48,3 +48,5 @@ never generalised to "this declaring model requires this field inline".
 - General shape: `extra="ignore"` plus a spelling difference plus a
   best-effort consumer equals a defect that cannot be observed at the point it
   occurs. When any two of those three are present, the third is worth checking.
+
+**Promoted**: 2026-08-27 — already captured in specs/ (DL-08-001/002, PCR-01-003, CBT-01-003). Docs PR: <pending>.

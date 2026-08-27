@@ -74,6 +74,8 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | `vultron/core/behaviors/embargo/nodes/terminate.py` | Embargo termination BT nodes |
 | `vultron/core/behaviors/sync/nodes/event_conditions.py` | Sync event-condition BT nodes (extracted from `conditions.py`) |
 | `vultron/core/behaviors/bridge.py` | BT bridge node |
+| `vultron/demo/helpers/polling.py` | Causal-polling helpers for demo scenarios (`wait_for_initialized_case`, milestone polling); added by PR #2695 |
+| `test/demo/test_milestones_replica_polling.py` | Integration tests for milestone replica-polling helpers; added by PR #2695 |
 
 ### 6) Evidence
 

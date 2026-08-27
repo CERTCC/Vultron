@@ -763,6 +763,8 @@ class TestOwnerRolesComeFromActorConfig:
         assert roles == [CVDRole.CASE_OWNER]
 
 
+@pytest.mark.spec("CBT-01-008")
+@pytest.mark.spec("CBT-01-009")
 @pytest.mark.spec("CP-09-006")
 class TestADR0041ReporterParticipant:
     """ADR-0041 AC-2: reporter added as REPORTER at RM.ACCEPTED."""

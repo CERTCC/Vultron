@@ -143,6 +143,64 @@ groups:
     stories:
     - story_2022_088
     - story_2022_092
+  - id: CBT-01-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The bootstrap case snapshot MUST include the original report submitter's
+      participant record with an RM state of `RM.ACCEPTED`. The CaseActor MUST
+      set this state directly rather than inserting intermediate transitions
+      (`RM.START`, `RM.RECEIVED`, `RM.VALID`) that the CaseActor never
+      observed for the reporter.
+    rationale: >-
+      A report submitter can only be in `RM.ACCEPTED` at the time of submission:
+      reporting is the act of accepting that the vulnerability warrants
+      coordinated disclosure. A submitter who considered the item invalid would
+      not have filed a report, and one who had deferred or closed their
+      involvement would not be reporting at all. Because the CaseActor cannot
+      observe the reporter's internal state progression, inserting intermediate
+      RM records on the reporter's behalf would place unobserved events into the
+      canonical case ledger. The CaseActor MUST instead reflect the only state
+      the reporter could actually be in: `RM.ACCEPTED`.
+    verification: >-
+      Integration tests in `test/demo/test_case_proposal_round_trip.py`
+      confirm that after a valid bootstrap exchange the reporter's participant
+      record carries `RM.ACCEPTED` in the CaseActor's DataLayer, and that no
+      intermediate RM records (`RM.START`, `RM.RECEIVED`, `RM.VALID`) appear
+      for the reporter in that DataLayer.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-004
+    - rel_type: refines
+      spec_id: SM-04-001
+    stories:
+    - story_2022_013
+    - story_2022_038
+  - id: CBT-01-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST generate the bootstrap `Create(VulnerabilityCase)`
+      activity only after the `VulnerabilityCase` domain object has been fully
+      initialized — all participants set to their correct initial RM states,
+      all roles assigned. The activity MUST be a faithful record of a completed
+      initialization, not an intent message constructed before initialization
+      is finished.
+    rationale: >-
+      ActivityStreams 2.0 activities represent completed events, not intentions.
+      A `Create(VulnerabilityCase)` sent before the case is fully initialized
+      would misrepresent the state that existed at creation time. Receivers
+      replay the bootstrap snapshot as authoritative ledger content; if that
+      snapshot is incomplete, every replica is permanently wrong. Sequencing
+      the activity after initialization is the structural guarantee that the
+      bootstrap snapshot is always accurate.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-002
+    - rel_type: refines
+      spec_id: CBT-01-007
+    lint_suppress:
+    - missing_story_reference
 - id: CBT-02
   title: Post-Bootstrap Update Authority
   specs:
@@ -345,3 +403,35 @@ groups:
       Tests MUST verify that the reporter's RM state is advanced from `RM.START` to
       `RM.ACCEPTED` as part of the bootstrap sequence, confirming full case-management
       relationship establishment.
+  - id: CBT-05-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a receiver processes a bootstrap `Create(VulnerabilityCase)` and
+      finds that required participant data is absent or arrives as a bare URI
+      reference (in violation of CBT-01-007), the receiver MUST raise a
+      protocol error and reject the bootstrap. The receiver MUST NOT silently
+      skip the missing participant, infer participant state from domain
+      knowledge, or synthesize a participant record from information not
+      present in the bootstrap payload.
+    rationale: >-
+      Silent reconstruction of missing protocol data masks protocol bugs.
+      This system exists to demonstrate that the CVD protocol works correctly
+      end-to-end; when the protocol fails to deliver required data, that
+      failure MUST be visible so it can be diagnosed and fixed. A fallback
+      that fills in missing data "from domain knowledge" creates a false
+      impression that the protocol is functioning when it is not. Replicas
+      MUST be built exclusively from ledger content; if data is not in the
+      ledger, it did not happen.
+    verification: >-
+      Tests confirm that when a bootstrap `Create(VulnerabilityCase)` arrives
+      with a participant listed as a bare URI string rather than an inline
+      typed object, the receiver raises a protocol error and does not accept
+      the bootstrap.
+    relationships:
+    - rel_type: implements
+      spec_id: CBT-01-007
+    - rel_type: implements
+      spec_id: CBT-01-008
+    lint_suppress:
+    - missing_story_reference

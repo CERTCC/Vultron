@@ -1,7 +1,7 @@
 ---
 title: 1140 non-protocol-kind MUST requirements still lack verification fields
 type: learning
-timestamp: 2026-08-25
+timestamp: "2026-08-25T00:00:00Z"
 source: ISSUE-2467
 signal: concern
 ---
@@ -21,3 +21,5 @@ and is the majority of the original 1910-warning total from CONCERN-2382.
 Follow-up: consider a separate task or Epic to backfill non-protocol-kind
 requirements — especially `architecture` (69) and `process` (156) which are
 less numerous than `project` (915) and may be more actionable in a single pass.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.

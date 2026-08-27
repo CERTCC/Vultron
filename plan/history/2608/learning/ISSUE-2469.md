@@ -27,3 +27,5 @@ needs to interact with the BT blackboard (e.g., to write resolved actor data
 for downstream nodes to read), the seam should be promoted to a proper BT
 subtree at that point. The bundle infrastructure (ADR-0025 factory) is already
 in place to support this without changing call sites.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.
