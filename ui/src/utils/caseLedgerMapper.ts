@@ -1572,8 +1572,8 @@ function handleCloseCase(
   let violation = false
   let violationReason: string | undefined
   let rmNote: string | undefined
+  // (closerLane is never 'unknown' — the resolution above falls back to 'caseactor'.)
   if (
-    closerLane !== 'unknown' &&
     closerLane !== 'caseactor' &&
     shadow.seededRm.has(closerLane) &&
     shadow.rm[closerLane] !== 'CLOSED'
