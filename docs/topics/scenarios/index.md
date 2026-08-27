@@ -71,9 +71,8 @@ replica, which is the canonical causal order (ADR-0079).
 Diagnostic output on failure names the unsatisfied edge and the log indices
 that were observed, so the failure message is self-explanatory.
 
-Unobservable edges (`observable: false`) are counted and reported in the test
-summary but never cause a failure; the counts confirm that the narrative's
-full intent was evaluated.
+Unobservable edges (`observable: false`) are skipped during ordering checks
+and never cause a failure.
 
 ## Update-together rule (DEMOMA-22-006)
 

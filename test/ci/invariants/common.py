@@ -905,13 +905,11 @@ def check_causal_edges(
             "No authoritative log entries found; cannot check causal edges"
         ]
 
-    observable_count = 0
     violations: list[str] = []
 
     for edge in edges:
         if not edge.get("observable", True):
             continue
-        observable_count += 1
         antecedent = edge.get("antecedent", "")
         consequent = edge.get("consequent", "")
         consequent_actor = edge.get("consequent_actor", "")
