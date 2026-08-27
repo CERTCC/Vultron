@@ -91,7 +91,7 @@ protocol-level meanings that may differ from informal usage.
 
 !!! info "Terminology reference"
     Full definitions, including aliases to avoid, are in the
-    [Ubiquitous Language Glossary](glossary.md). The authoritative role
+    [Glossary](glossary.md). The authoritative role
     enumeration is `CVDRole` in `vultron/enums/roles.py`.
 
 Key terms used throughout this specification:
