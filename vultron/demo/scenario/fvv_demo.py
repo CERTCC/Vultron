@@ -396,7 +396,7 @@ def _phase_notes_exchange(
     vendor_in_vendor: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note, as_Note, as_Note]:
+) -> tuple[as_Note | None, as_Note | None, as_Note | None]:
     """Run a three-way note exchange among Finder, Vendor1, and Vendor2."""
     logger.info("─" * 80)
     logger.info("Phase 3: Notes exchange")
@@ -424,7 +424,7 @@ def _phase_notes_exchange(
             "Yes, disabling the affected component is an effective workaround. "
             "A patched version is expected within 30 days."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     vendor2_note = participant_adds_note_to_case(
@@ -437,7 +437,7 @@ def _phase_notes_exchange(
             "Vendor2 can confirm the issue affects our component. "
             "We will coordinate our fix timeline with Vendor1."
         ),
-        in_reply_to=reply_note.id_,
+        in_reply_to=reply_note.id_ if reply_note is not None else None,
     )
 
     logger.info(

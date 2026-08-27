@@ -466,7 +466,7 @@ def _phase_notes_exchange(
             "We have confirmed the issue and are developing a fix. "
             "Estimated patch availability: 14 days."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     participant_adds_note_to_case(
@@ -479,7 +479,7 @@ def _phase_notes_exchange(
             "All three parties engaged. Vendor fix expected in 14 days. "
             "Embargo holds until patch is deployed."
         ),
-        in_reply_to=vendor_reply.id_,
+        in_reply_to=vendor_reply.id_ if vendor_reply is not None else None,
     )
 
     logger.info(

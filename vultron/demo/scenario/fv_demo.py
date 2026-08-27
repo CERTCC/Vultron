@@ -239,7 +239,7 @@ def finder_asks_question(
     vendor: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
-) -> as_Note:
+) -> as_Note | None:
     """Scenario alias: finder adds a question note to the case.
 
     Maintained for backward compatibility; prefer
@@ -265,8 +265,8 @@ def vendor_replies_to_question(
     vendor: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
-    question_note: as_Note,
-) -> as_Note:
+    question_note: as_Note | None,
+) -> as_Note | None:
     """Scenario alias: vendor adds a reply note to the case.
 
     Maintained for backward compatibility; prefer
@@ -284,7 +284,7 @@ def vendor_replies_to_question(
             "workaround. A patched version is expected within 30 days. "
             "We will notify all case participants when it is available."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
 
@@ -497,7 +497,7 @@ def _phase_notes_exchange(
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
     report: as_VulnerabilityReport,
-) -> tuple[as_Note, as_Note, as_VulnerabilityCase, as_Actor]:
+) -> tuple[as_Note | None, as_Note | None, as_VulnerabilityCase, as_Actor]:
     """Run the question-and-reply note exchange and verify M3 state."""
     logger.info("─" * 80)
     logger.info("Phase 3: Notes exchange")
@@ -530,8 +530,10 @@ def _phase_notes_exchange(
             report_id=report.id_,
             receiver_actor_id=vendor.id_,
             reporter_actor_id=finder.id_,
-            question_note_id=question_note.id_,
-            reply_note_id=reply_note.id_,
+            question_note_id=(
+                question_note.id_ if question_note is not None else None
+            ),
+            reply_note_id=reply_note.id_ if reply_note is not None else None,
         )
         logger.info("Final case state (Vendor): %s", logfmt(final_case))
 

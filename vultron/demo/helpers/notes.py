@@ -24,7 +24,7 @@ from typing import Optional
 from vultron.demo.helpers.polling import wait_for_note_in_case
 from vultron.demo.utils import (
     DataLayerClient,
-    demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     verify_object_stored,
@@ -46,7 +46,7 @@ def participant_adds_note_to_case(
     note_name: str,
     note_content: str,
     in_reply_to: Optional[str] = None,
-) -> as_Note:
+) -> Optional[as_Note]:
     """Participant adds a note to a case via the ``add-note-to-case`` trigger.
 
     Models the AS2 ``Add(Note)`` action: the posting actor uses their own
@@ -66,11 +66,9 @@ def participant_adds_note_to_case(
 
     Returns:
         The ``as_Note`` fetched from the *watching_client* DataLayer after
-        confirmed delivery.
-
-    Raises:
-        AssertionError: If the trigger does not return a note ID, or if the
-            note does not appear in the case within the polling timeout.
+        confirmed delivery, or ``None`` when the trigger or delivery check
+        fails (failures are recorded in the demo accumulator via
+        ``demo_step``/``demo_gate``).
     """
     body: dict[str, object] = {
         "case_id": case.id_,
@@ -81,6 +79,7 @@ def participant_adds_note_to_case(
         body["in_reply_to"] = in_reply_to
 
     result: dict = {}
+    note_id: str | None = None
     with demo_step(f"Participant adds note '{note_name}' to case"):
         result = post_to_trigger(
             client=posting_client,
@@ -89,18 +88,21 @@ def participant_adds_note_to_case(
             body=body,
             path_prefix="demo",
         )
+        note_id = result.get("note", {}).get("id")
+        if note_id is None:
+            raise AssertionError(
+                "add-note-to-case trigger did not return a note ID"
+            )
 
-    note_id = result.get("note", {}).get("id")
     if note_id is None:
-        raise AssertionError(
-            "add-note-to-case trigger did not return a note ID"
-        )
+        return None
 
-    with demo_check("Note delivered to watching container"):
+    note: Optional[as_Note] = None
+    with demo_gate("Note delivered to watching container"):
         wait_for_note_in_case(watching_client, case.id_, note_id)
         verify_object_stored(watching_client, note_id)
+        logger.info("Note added to case: %s", note_id)
+        note_data = watching_client.get(watching_client.dl_path(note_id))
+        note = as_Note(**note_data)
 
-    logger.info("Note added to case: %s", note_id)
-
-    note_data = watching_client.get(watching_client.dl_path(note_id))
-    return as_Note(**note_data)
+    return note
