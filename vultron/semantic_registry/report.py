@@ -63,7 +63,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=ReportSubmissionPattern,
         event_class=SubmitReportReceivedEvent,
         use_case_class=SubmitReportReceivedUseCase,
-        phrase="{actor} submitted the report to {target}",
+        phrase="{actor} submitted the report",
         wire_activity_class=_RmSubmitReportActivity,
         include_activity=True,
     ),
