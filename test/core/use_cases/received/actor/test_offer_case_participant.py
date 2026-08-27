@@ -486,6 +486,7 @@ class TestRolesFromStoredOffer:
         )
         return dl, event
 
+    @pytest.mark.spec("CM-16-018")
     def test_invite_carries_roles_from_stored_offer(self):
         """Roles from the stored Offer are threaded into the emitted Invite.
 
@@ -518,6 +519,7 @@ class TestRolesFromStoredOffer:
             f"expected ['{CVDRole.VENDOR.value}'], got {invite_roles!r}"
         )
 
+    @pytest.mark.spec("CM-16-018")
     def test_participant_case_roles_vendor_after_full_round_trip(self):
         """Full round-trip: Accept(Invite) creates participant with VENDOR role.
 
