@@ -26,6 +26,12 @@ anyone seeking interoperability in the CVD ecosystem.
 
 ## So what *is* Vultron?
 
+!!! tip "Looking for the full answer?"
+
+    See [What Is Vultron?](topics/background/what-is-vultron.md) for an
+    in-depth explanation aimed at CVD practitioners and systems architects
+    evaluating whether to adopt the protocol.
+
 Vultron is:
 
 - A set of high-level processes representing the steps involved in coordinated
