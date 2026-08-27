@@ -107,8 +107,6 @@ No open entries.
 
 | Job name | Issue | Last blocked |
 |---|---|---|
-| `fcvcv Demo Integration` | #2733 | 2026-08-27 |
-| `fcvcv Invariant Harness` | #2733 | 2026-08-27 |
 | `fvcv-extension` | #2422 | 2026-08-26 |
 | `fccv-extension` | #2422 | 2026-08-26 |
 | `fv Demo Integration` | #2422 | 2026-08-20 |
@@ -148,6 +146,10 @@ No open entries.
 > `fcv-reject Invariant Harness`, `fv Invariant Harness` — these were
 > **deterministic** failures caused by the engage-case 422 (#2233, now fixed).
 > They are gone from this catalog because the fix lands with the PR for #2233.
+>
+> **Removed 2026-08-27:** `fcvcv Demo Integration`, `fcvcv Invariant Harness` — fixed by PR #2756
+> (`Closes #2733`). Root: `_phase_sync_verification` used `demo_check` for ledger coverage
+> waits; outer `wait_for_case_on_container` precondition was missing (SYNC-15-001, ADR-0058).
 >
 > **Removed 2026-08-24:** `fcvcv Demo Integration` — fixed by PR #2508 (`Closes #2376`).
 > Both race windows resolved: invite-path `engage-case` now gated on own RM.VALID
