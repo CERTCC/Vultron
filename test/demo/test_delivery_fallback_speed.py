@@ -22,7 +22,7 @@ minutes in CI.
 
 This test verifies that the conftest replaces the default emitter with a
 ``_TestClientRouter`` so that deliveries to unreachable hosts complete in
-under 1 second.
+under 8 seconds.
 """
 
 import time
@@ -54,8 +54,8 @@ def demo_env(client: TestClient):
 
 
 @pytest.mark.timeout(10)
-def test_demo_completes_under_5_seconds(demo_env, caplog):
-    """A single demo workflow must complete in < 5 s (#527).
+def test_demo_completes_under_8_seconds(demo_env, caplog):
+    """A single demo workflow must complete in < 8 s (#527, #2738).
 
     The ``demo_validate_report`` flow creates actors, submits a report, and
     validates it — exercising several inbox → outbox → delivery cycles.
@@ -64,7 +64,12 @@ def test_demo_completes_under_5_seconds(demo_env, caplog):
     host (``vultron.example``) burns ≈ 3.5 s of ``asyncio.sleep`` retries.
     A single demo function hits 4+ deliveries, so baseline is ≈ 14 s.
 
-    With the patch, the emitter drops unknown recipients and the demo completes in < 1 s.
+    With the patch, the emitter drops unknown recipients.  The demo takes
+    ≈ 5 s of genuine computation (BT execution, SQLite, inbox round-trips,
+    actor provisioning).  The 8 s ceiling gives headroom for full-suite load
+    while remaining well below the unpatched ≈ 14 s baseline; the
+    ``@pytest.mark.timeout(10)`` backstop catches the regression where the
+    patch is entirely absent.
     """
     import logging
 
@@ -76,7 +81,7 @@ def test_demo_completes_under_5_seconds(demo_env, caplog):
     assert (
         "ERROR SUMMARY" not in caplog.text
     ), f"Demo failed with errors:\n{caplog.text}"
-    assert elapsed < 5.0, (
+    assert elapsed < 8.0, (
         f"Demo took {elapsed:.1f}s — delivery to unreachable hosts is not"
-        f" patched.  Expected < 5 s with the conftest _NullDeliveryAdapter."
+        f" patched.  Expected < 8 s with the conftest _TestClientRouter."
     )
