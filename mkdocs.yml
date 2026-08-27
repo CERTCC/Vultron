@@ -84,6 +84,17 @@ nav:
       - Reward Functions: 'topics/future_work/reward_functions.md'
       - Ontology: 'topics/future_work/ontology.md'
       - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+    - Demo Scenarios:
+      - 'topics/scenarios/index.md'
+      - FV: 'topics/scenarios/fv.md'
+      - FVV: 'topics/scenarios/fvv.md'
+      - FCV: 'topics/scenarios/fcv.md'
+      - FCV-reject: 'topics/scenarios/fcv-reject.md'
+      - FCVCV: 'topics/scenarios/fcvcv.md'
+      - FVCV-extension: 'topics/scenarios/fvcv-extension.md'
+      - FVCV-handoff: 'topics/scenarios/fvcv-handoff.md'
+      - FCCV-extension: 'topics/scenarios/fccv-extension.md'
+      - FCCV-handoff: 'topics/scenarios/fccv-handoff.md'
   - How-to Guides:
       - 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
