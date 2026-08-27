@@ -101,7 +101,7 @@ class ResolveAndPersistStatusObjectNode(DataLayerActionWithPorts):
     portion (RSH-05).
 
     Otherwise tries the DataLayer first; if not found, uses
-    ``status_obj_fallback``, saves it, then re-reads the canonical record.
+    ``status_obj_fallback`` and saves it.
 
     Validates that the resolved object is a ParticipantStatus (has rm and
     vfd attributes).
@@ -164,14 +164,12 @@ class ResolveAndPersistStatusObjectNode(DataLayerActionWithPorts):
                 self.status_id,
                 ", ".join(filtered["refused"]),
             )
-            status_obj = self.datalayer.read(self.status_id) or status_obj
         else:
             status_obj = self.datalayer.read(self.status_id)
         if not hasattr(status_obj, "id_"):
             status_obj = self.status_obj_fallback
             if status_obj is not None:
                 self.datalayer.save(status_obj)
-                status_obj = self.datalayer.read(self.status_id) or status_obj
 
         if status_obj is None or not hasattr(status_obj, "id_"):
             self.feedback_message = f"Status '{self.status_id}' not found"
