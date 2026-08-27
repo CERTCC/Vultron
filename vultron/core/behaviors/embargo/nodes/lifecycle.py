@@ -402,6 +402,10 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+        except ValueError as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         em_before = result.em_before
         em_after = result.em_after
