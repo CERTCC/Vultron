@@ -260,9 +260,12 @@ Tree structure::
   receive path carries the correct role when forwarding
   `Offer(CaseParticipant)` to the Case Owner (BTND-03-004, AC-2).
 
-**Factory function**:
-`vultron.core.behaviors.report.create_report_to_others_tree`
-(module: `vultron/core/behaviors/report/report_to_others_tree.py`)
+**Factory function**: *(removed — see ADR-0047 and issue #1848)*
+
+The `create_report_to_others_tree` factory and its companion bundle and test
+files were removed in issue #1848. The production model uses a Sentinel
+capability instead (see `notes/bt-fuzzer-rm-reporting.md`
+§ "Sentinel supersession note").
 
 **Spec requirements**: BT-20-003 — see `specs/behavior-tree-integration.yaml`
 
