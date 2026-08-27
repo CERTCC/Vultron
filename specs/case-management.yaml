@@ -1509,6 +1509,34 @@ groups:
       `Offer(CaseParticipant)` to the Case Owner.
     rationale: Sending a duplicate transformed Offer would create a second pending decision
       for the same actor, leading to conflicting state if the Case Owner responds to both.
+  - id: CM-16-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CaseActor processes `Accept(Offer(CaseParticipant))` from the Case
+      Owner, the roles assigned to the new participant MUST be read from the stored
+      outgoing `Offer(CaseParticipant)` that the CaseActor constructed and sent —
+      not from the embedded `CaseParticipant` object inside the received `Accept`.
+    rationale: >-
+      The received `Accept` is untrusted: the accepting actor may have modified or
+      omitted roles, or sent only a bare ID reference. Reading roles from the
+      received `Accept` would allow a malicious or minimally-conformant acceptor to
+      substitute unauthorized roles. The stored `Offer` is the CaseActor's own
+      record of the intended participant roles and is the authoritative source of
+      truth.
+    verification: >-
+      Inspection of
+      `vultron/core/use_cases/received/actor/offer_case_participant.py`
+      (`AcceptOfferCaseParticipantReceivedUseCase.execute()`) confirms that roles
+      are read from the DataLayer-stored Offer activity (`self._dl.read(offer_id)`),
+      not from the embedded `CaseParticipant` in the received `Accept`.
+    adr:
+    - ADR-0026
+    relationships:
+    - rel_type: refines
+      spec_id: CM-16-006
+    lint_suppress:
+    - missing_story_reference
 - id: CM-17
   title: Invitation Flow — Enrichment and Roles
   specs:
