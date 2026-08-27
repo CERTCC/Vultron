@@ -358,3 +358,27 @@ object that may be only partially initialised (e.g., freshly constructed
 from a DataLayer read before all derived fields are available).
 
 Source: ISSUE-1455 — three call sites fixed across BT nodes and use cases.
+
+### Contrast: `NotImplementedError` from a Property Is a Programming Error
+
+`ValueError` and `NotImplementedError` look similar but have opposite
+implications at a port boundary:
+
+| Exception | Meaning | Correct response |
+|---|---|---|
+| `ValueError` | Property is implemented; current data state is invalid | Catch at the calling boundary; treat as absence |
+| `NotImplementedError` | Property has no implementation | **Do not catch** — let it propagate as an unambiguous adapter-incomplete signal |
+
+`getattr(obj, "actor_id", None)` suppresses only `AttributeError`. If
+`actor_id` is a property that raises `NotImplementedError`, the default
+is never returned and the exception propagates — by design. Catching it and
+converting it to `VultronValidationError("no receiving actor")` would produce
+a misleading diagnosis: callers see a data-problem error when the real issue
+is an unimplemented adapter.
+
+**Port contract rule** (from `CasePersistence.actor_id`, CM-01-001): a port
+property that callers rely on for routing MUST NOT raise `NotImplementedError`.
+Implementations that do are broken adapters, and the propagation of the
+exception is the correct signal for catching that during development and testing.
+
+Source: ISSUE-2668 — port contract clarified and regression test added.

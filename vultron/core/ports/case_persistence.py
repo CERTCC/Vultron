@@ -55,7 +55,15 @@ class CasePersistence(Protocol):
 
     @property
     def actor_id(self) -> str:
-        """The canonical URI of the actor whose store this is (ADR-0073)."""
+        """The canonical URI of the actor whose store this is (ADR-0073).
+
+        Implementations MUST return a non-empty string URI and MUST NOT raise
+        ``NotImplementedError``.  Callers such as ``resolve_receiving_actor_id``
+        treat a missing or non-string value as "no actor available" and raise
+        ``VultronValidationError`` — but they do not catch ``NotImplementedError``,
+        which is reserved as an unambiguous signal that the adapter is incomplete
+        (CM-01-001).
+        """
         ...
 
     def clone_for_actor(self, actor_id: str) -> "CasePersistence":
