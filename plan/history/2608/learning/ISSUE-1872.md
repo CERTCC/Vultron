@@ -1,9 +1,9 @@
 ---
 title: BT-10-002 did not fail to prevent the bug — it specified it
 type: learning
-timestamp: 2026-08-24
+timestamp: "2026-08-24T00:00:00Z"
 source: ISSUE-1872
-signal: decision-audit
+signal: design-question
 ---
 
 `BT-10-002` read:
@@ -57,3 +57,5 @@ MUST, and the code was correct with respect to it.
   about. Related: [[store-fidelity-vs-annotation-that-admits-a-uri]], where the
   invariant existed only in prose and the type system quietly permitted its
   violation.
+
+**Promoted**: 2026-08-27 — captured in AGENTS.md. Docs PR: <pending>.

@@ -1306,3 +1306,75 @@ def update(self) -> Status:
 ```
 
 <!-- Source: ISSUE-2258, ADR-0067 -->
+
+---
+
+## py_trees Class Registry: BT Subclasses Must Be Module-Level in Tests
+
+(CONCERN-2321, 2026-08-26)
+
+py_trees maintains a global class registry. When a `BT` subclass is defined
+**inside** a test function (as a local class), it is registered globally by
+class name. If two test functions define a local class with the same name (e.g.,
+`MyBT`), the second definition clobbers the first in the registry. Trees built
+from the first definition then resolve to the wrong class.
+
+**Rule**: All py_trees `BT` subclasses used in tests MUST be defined at
+**module level**, never inside test functions or fixtures.
+
+```python
+# ❌ WRONG — local class, clobbers registry if another test defines 'MyBT'
+def test_something():
+    class MyBT(py_trees.behaviours.Behaviour):
+        def update(self): return py_trees.common.Status.SUCCESS
+    ...
+
+# ✅ CORRECT — module-level definition, stable registry entry
+class _MyBT(py_trees.behaviours.Behaviour):
+    def update(self): return py_trees.common.Status.SUCCESS
+
+def test_something():
+    node = _MyBT()
+    ...
+```
+
+**Convention**: prefix module-level test-only classes with `_` to signal
+they are not part of the public test API.
+
+---
+
+## `_on_success()` Must Be Outside the Try Block
+
+(CONCERN-2321, 2026-08-26)
+
+In BT nodes that use the `BT-HELPER-01` pattern (helpers raise; `update()` catches),
+`_on_success()` or any success-path side-effect helper MUST be called **outside**
+the `try` block — after the logic that can raise has completed:
+
+```python
+# ❌ WRONG — _on_success() inside try block; exception from side-effect
+# is caught by the wrong handler
+def update(self) -> Status:
+    try:
+        result = self._do_work()
+        self._on_success(result)   # inside try — wrong
+        return Status.SUCCESS
+    except BtNodePreconditionError as e:
+        self.feedback_message = str(e)
+        return Status.FAILURE
+
+# ✅ CORRECT — success-path side-effect outside the try block
+def update(self) -> Status:
+    try:
+        result = self._do_work()
+    except BtNodePreconditionError as e:
+        self.feedback_message = str(e)
+        return Status.FAILURE
+    self._on_success(result)   # outside try — correct
+    return Status.SUCCESS
+```
+
+**Why it matters**: if `_on_success()` raises unexpectedly (e.g., DataLayer
+error), placing it inside the `try` block causes the `except BtNodePreconditionError`
+handler to swallow it silently, returning `FAILURE` with a misleading
+`feedback_message` rather than propagating the real error.

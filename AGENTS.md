@@ -453,6 +453,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   instead of the editable install. Always prefix with `PYTHONPATH=` to clear
   it: `PYTHONPATH= uv run spec-dump`. Same applies to any `uv run <entrypoint>`
   that touches `vultron.*` modules.
+- **`uv run` Pre-Commit Hooks Fail With "Permission Denied" — Use `UV_NO_SYNC=1`** —
+  when `/app/.venv/bin/adr-index` (or any devcontainer venv binary) is owned by
+  root, `uv run` tries to sync the venv before executing and fails immediately
+  with `Permission denied`. Prefix with `UV_NO_SYNC=1` to skip the sync step:
+  `UV_NO_SYNC=1 uv run spec-dump`. This is safe inside the devcontainer because
+  the venv is already built; it bypasses only the sync, not the execution. Apply
+  to any `uv run` command that fails at the sync step rather than the tool itself.
+  *Source: CONCERN-2321*
 - **Walrus Operator for Single-Assignment Guard Blocks** —
   `if (f := self._require_factory()) is not None: return f`.
 - **Silent `None` Returns and Fake `SUCCESS` Are the Same Bug** — raise
@@ -735,6 +743,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   reset on every tick; tests must also prevent cross-test contamination.
   See CONCERNS.md § "BT blackboard is process-global across BT runs".
   *Source: ISSUE-2232*
+- **`py_trees` BT Subclasses in Tests MUST Be Defined at Module Level** —
+  py_trees maintains a global class registry keyed by class name. A BT
+  subclass defined inside a test function is registered globally; if two test
+  functions define local classes with the same name (e.g. `class MyBT`), the
+  second registration clobbers the first. Trees built from the first definition
+  then silently resolve to the wrong class. Define all test-only BT subclasses
+  at module level, prefixed with `_` to mark them as non-public:
+  `class _MyBT(py_trees.behaviours.Behaviour): ...`. Never define them inside
+  test functions or fixtures. See also `notes/bt-pitfalls.md`.
+  *Source: CONCERN-2321*
 - **`caplog` Captures Fixture-Setup-Phase Records** — `caplog.set_level()` set
   in a fixture captures log records emitted during other fixtures' setup, not just
   the test body. Set it inside the test function to scope capture to the test
@@ -795,6 +813,33 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   ADR is `adr:`, which `spec-lint` validates against known ADR filenames. After
   adding any new key to a spec YAML, verify it appears in `PYTHONPATH= uv run
   spec-dump` output before treating it as persisted. *Source: ISSUE-2237*
+- **A Conflict-Free Merge Is Not a Working Merge — Run Tests After Every Catch-Up** —
+  git merges text; it cannot detect semantic breakage. When a branch retires an API,
+  `main`'s new callers merge cleanly and fail at runtime. Always run the full unit
+  tier after resolving conflicts — "0 conflicts" is no signal at all. Additionally:
+  when a conflict is in a file that was **split or renamed** on `main`, also check
+  the new location for changes your branch added to the old location; file splits do
+  not show up in conflict markers. For long-lived branches, sweep for each retired
+  API name in `vultron/` and `test/` via `grep` rather than waiting for failures.
+  *Source: ISSUE-2238*
+- **Re-Check ADR Number Immediately Before Merge — `adr-index` Enforces Uniqueness** —
+  ADR numbers are claimed from `docs/adr/index.md` at authoring time and must be
+  unique. A parallel PR can claim the same number between when you check and when
+  you merge. `adr-index` now has a uniqueness check that fails at commit/CI time if
+  two ADRs share a number. To avoid a blocked merge: re-read `docs/adr/index.md`
+  immediately before creating the commit that adds a new ADR; if the number is
+  already taken, increment and update the ADR filename and `index.md` entry.
+  *Source: CONCERN-2321*
+- **"CaseActor MUST …" Is Often a Specification Error — CaseActor Is a Role, Not a Component** —
+  `CaseActor` names a *role* (the participant holding `CVDRole.CASE_MANAGER`), not a
+  dedicated component. Anything per-case in a CaseActor's *identity* (e.g., a per-case
+  service URL derived from the case slug) is a category error: no container has registered
+  that identity, so any call to it answers 404. When a spec says "CaseActor MUST create X"
+  or "CaseActor MUST send Y", verify the requirement is using CaseActor as a role (whichever
+  actor holds CASE_MANAGER for this case) rather than as a singleton object. A spec that
+  mints an object to satisfy a role requirement will be faithfully implemented and
+  faithfully wrong. Grep the spec corpus for MUST requirements whose subject is a role name
+  to catch these before they hide defects. *Source: ISSUE-1872*
 - **A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug** —
   a test whose docstring says "falls back to X" or "defaults to X" for
   *malformed* (not absent) input is asserting the ARCH-15 violation as intended
@@ -918,6 +963,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `notes/datalayer-design.md`
   § "Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional".
   *Source: CONCERN-2219*
+- **PyYAML Parses Bare `on:` Mapping Key as Python `True`** — PyYAML (YAML 1.1)
+  resolves the bare token `on` as boolean `True` when it appears as a mapping key.
+  A GitHub Actions workflow file starting with `on:` is loaded by `yaml.safe_load()`
+  as `{True: {...}, 'name': '...', 'jobs': {...}}` — NOT `{'on': {...}}`. Any test
+  or tool that reads workflow YAML and queries the trigger block must use
+  `wf_data.get(True, wf_data.get("on", {}))`. If you use only `wf_data.get("on", {})`
+  the result is always `{}` and any `pytest.mark.parametrize` fixture over it
+  silently produces zero cases — all parametrized tests SKIP instead of FAIL.
+  *Source: ISSUE-2184*
 - **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
   — two distinct failure modes when a boolean field from the matrix (e.g.
   `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:

@@ -1,7 +1,7 @@
 ---
 title: "_EmitSingleActivityBase: _on_success() must live outside the try block"
 type: learning
-timestamp: "2026-08-25"
+timestamp: "2026-08-25T00:00:00Z"
 source: ISSUE-2582
 signal: design-question
 ---
@@ -37,3 +37,5 @@ here because the `except` always returns — Python (and pyright) handle this
 correctly without "possibly unbound" errors.
 
 Follow-up: #2609 (add test for `_on_success` raising after committed write).
+
+**Promoted**: 2026-08-27 — captured in notes/bt-pitfalls.md and AGENTS.md. Docs PR: <pending>.

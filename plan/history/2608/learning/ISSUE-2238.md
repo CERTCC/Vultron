@@ -56,3 +56,5 @@ comments without naming the mechanism.
 - #2238 (per-actor DataLayer isolation; where this was found)
 - #2456 (untyped report reaching the store — one of the real causes)
 - `TestDeliveryIsolation` covers the real round-trip with isolated actor apps
+
+**Promoted**: 2026-08-27 — GitHub #2533 closed with explanation. Docs PR: <pending>.

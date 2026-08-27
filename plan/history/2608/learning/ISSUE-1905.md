@@ -1,7 +1,7 @@
 ---
 title: "SE-07-006 render test discovered 3 more trailing-dash phrases"
 type: learning
-timestamp: "2026-08-25"
+timestamp: "2026-08-25T00:00:00Z"
 source: ISSUE-1905
 signal: concern
 ---
@@ -23,3 +23,5 @@ These are the same class of bug as #2150 (SUBMIT_REPORT / `{target}`).
 
 Tracked in GitHub issue #2615. All three marked `xfail(strict=True)` in
 `test/test_semantic_registry.py` pending a fix.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.

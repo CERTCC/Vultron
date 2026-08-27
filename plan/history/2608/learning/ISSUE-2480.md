@@ -17,3 +17,5 @@ check to rule out.
 
 Should be tracked as a Concern: either raise the threshold (e.g. 8s with a
 comment), mark it `@pytest.mark.flaky`, or make the demo scenario faster.
+
+**Promoted**: 2026-08-27 — captured in specs/received-status-handling.yaml RSH-05-015/16/17 and specs/case-bootstrap-trust.yaml CBT-01-008/09 and CBT-05-008, specs/state-machine.yaml SM-04-001, notes/bt-pitfalls.md, notes/flaky-tests.md, AGENTS.md. Concern issues #2736 #2737 filed. Docs PR: <pending>.

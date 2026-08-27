@@ -1,7 +1,7 @@
 ---
 title: "embargo_adherence @computed_field adds double-traversal in dimension_filter.py"
 type: learning
-timestamp: "2026-08-25"
+timestamp: "2026-08-25T00:00:00Z"
 source: ISSUE-2189
 signal: concern
 ---
@@ -14,3 +14,5 @@ For the current codebase this is micro-overhead, but it is a regression from the
 2. Reuse the already-computed consent-state from line 149: `consent.state == PEC.SIGNATORY`.
 
 This was identified by the efficiency review agent during the simplify phase of ISSUE-2189.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.
