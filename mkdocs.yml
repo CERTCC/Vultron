@@ -125,7 +125,7 @@ nav:
     - 'reference/index.md'
     - Protocol Architecture:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
-      - Ubiquitous Language: 'reference/glossary.md'
+      - Glossary: 'reference/glossary.md'
       - Draft Protocol Specification: 'reference/draft-vultron-spec.md'
     - Terms and Definitions: 'reference/terms.md'
     - Notation: 'reference/notation.md'
