@@ -18,6 +18,7 @@ It also provides a number of core node types that can be used to build a Behavio
 """
 
 import logging
+import re
 from copy import deepcopy
 from typing import Any, Iterable
 
@@ -46,6 +47,17 @@ class BtNode:
     _node_shape: str = "box"
     _children: Iterable | None = None
     _objcount: int = 0
+
+    # Maps name_pfx values to their Mermaid display symbols.
+    # Subclasses can override individual entries by redefining the dict.
+    _mermaid_prefix_map: dict[str, str] = {
+        ">": "&rarr; ",
+        "^": "#8645; ",
+        "z": "#127922; ",
+        "a": "#9648; ",
+        "c": "#11052; ",
+        "?": "? ",
+    }
 
     def __init__(self):
         BtNode._objcount += 1
@@ -248,8 +260,6 @@ class BtNode:
     def to_mermaid(self, depth=0, topdown=True) -> str:
         """Returns a string representation of the tree rooted at this node in mermaid format."""
 
-        import re
-
         if self._is_leaf_node:
             # this is a leaf node, we aren't doing anything with it
             return ""
@@ -264,15 +274,11 @@ class BtNode:
                 parts.append("graph LR")
 
         def fixname(nstr: str) -> str:
-            # see #2109 — prefix table should move to subclass attributes
-            nstr = re.sub(r"^>_", "&rarr; ", nstr)
-            nstr = re.sub(r"^\^_", "#8645; ", nstr)
-            nstr = re.sub(r"^z_", "#127922; ", nstr)
-            nstr = re.sub(r"^a_", "#9648; ", nstr)
-            nstr = re.sub(r"^c_", "#11052; ", nstr)
-            nstr = re.sub(r"^\?_", "? ", nstr)
+            for prefix, symbol in self._mermaid_prefix_map.items():
+                if nstr.startswith(f"{prefix}_"):
+                    nstr = symbol + nstr[len(prefix) + 1 :]
+                    break
             nstr = re.sub(r"_\d+$", "", nstr)
-
             return nstr
 
         name = fixname(self.name)

@@ -327,7 +327,7 @@ _TRAILING_DASH_XFAIL_REASONS = {
     MessageSemantics.SUBMIT_REPORT: (
         "SE-07-006: SUBMIT_REPORT phrase ends with {target}; "
         "event_phrase() fills it with '—', producing trailing dash. "
-        "Tracked in #2150."
+        "Tracked in #2745."
     ),
     MessageSemantics.OFFER_CASE_PARTICIPANT: (
         "SE-07-006: OFFER_CASE_PARTICIPANT phrase ends with {object}; "
