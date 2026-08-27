@@ -19,19 +19,10 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 from vultron.metadata.specs.lint import lint
-from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.render import main_llm_json
 
 _SPECS_DIR = Path(__file__).parents[3] / "specs"
-
-
-@pytest.fixture(scope="module")
-def real_registry():
-    """Load the actual specs/ directory once for all tests in this module."""
-    return load_registry(_SPECS_DIR)
 
 
 def test_real_specs_dir_exists():
@@ -53,9 +44,9 @@ def test_real_specs_cross_references(real_registry):
     )
 
 
-def test_real_specs_lint_no_hard_errors():
+def test_real_specs_lint_no_hard_errors(real_registry):
     """Full lint() returns exit code 0 (no hard errors) for specs/."""
-    exit_code = lint(_SPECS_DIR)
+    exit_code = lint(_SPECS_DIR, registry=real_registry)
     assert (
         exit_code == 0
     ), "spec-lint reported hard errors — run 'uv run spec-lint' to see details"

@@ -528,10 +528,11 @@ def test_render_for_kind_may_material_icon(general_registry):
 
 
 @pytest.mark.parametrize("kind", list(SpecKind))
-def test_render_for_kind_real_registry_produces_output(kind: SpecKind):
+def test_render_for_kind_real_registry_produces_output(
+    kind: SpecKind, real_registry
+):
     """Every SpecKind must render non-empty output from the real spec registry."""
-    registry = load_registry()
-    md = render_for_kind(kind.value, registry)
+    md = render_for_kind(kind.value, real_registry)
     assert len(md) > 0
     # At minimum one spec ID pattern should appear
     import re
