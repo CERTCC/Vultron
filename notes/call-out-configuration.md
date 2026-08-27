@@ -171,7 +171,6 @@ sub-module layout):
 | `PrioritizationCallOutBundle` | Report prioritization | `create_prioritize_subtree` |
 | `EmbargoCallOutBundle` | Embargo management | `create_manage_embargo_tree` |
 | `PublicationCallOutBundle` | Publication pipeline | `create_publication_tree`, `create_publish_artifact_tree` |
-| `ReportToOthersCallOutBundle` | Reporting to others | `create_report_to_others_tree` |
 | `DeployFixCallOutBundle` | Fix deployment | `create_deploy_fix_tree` |
 | `DeployMitigationCallOutBundle` | Mitigation deployment | `create_deploy_mitigation_tree` |
 | `AcquireExploitCallOutBundle` | Exploit acquisition | `create_acquire_exploit_tree`, `create_acquire_exploit_strategy_tree` |

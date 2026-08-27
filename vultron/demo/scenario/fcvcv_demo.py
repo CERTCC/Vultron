@@ -41,6 +41,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -100,6 +101,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -630,7 +632,13 @@ def _phase_notes_exchange(
     c2_in_c2: as_Actor,
     v2_in_v2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note, as_Note, as_Note, as_Note, as_Note]:
+) -> tuple[
+    as_Note | None,
+    as_Note | None,
+    as_Note | None,
+    as_Note | None,
+    as_Note | None,
+]:
     """Run a five-way note exchange among all participants."""
     logger.info("─" * 80)
     logger.info("Phase 4: Notes exchange")
@@ -656,7 +664,7 @@ def _phase_notes_exchange(
         note_content=(
             "Yes, disabling the affected module is an effective interim workaround."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     v1_note = participant_adds_note_to_case(
@@ -668,7 +676,7 @@ def _phase_notes_exchange(
         note_content=(
             "V1 has reproduced the issue. We will have a fix ready within 14 days."
         ),
-        in_reply_to=c1_reply.id_,
+        in_reply_to=c1_reply.id_ if c1_reply is not None else None,
     )
 
     c2_note = participant_adds_note_to_case(
@@ -680,7 +688,7 @@ def _phase_notes_exchange(
         note_content=(
             "C2 confirms V2 is engaged. Target disclosure in 30 days."
         ),
-        in_reply_to=v1_note.id_,
+        in_reply_to=v1_note.id_ if v1_note is not None else None,
     )
 
     v2_note = participant_adds_note_to_case(
@@ -693,7 +701,7 @@ def _phase_notes_exchange(
             "V2 confirms the issue affects our component. "
             "We will align our fix and deployment timeline with the 30-day target."
         ),
-        in_reply_to=c2_note.id_,
+        in_reply_to=c2_note.id_ if c2_note is not None else None,
     )
 
     logger.info(
@@ -725,34 +733,50 @@ def _phase_fix_lifecycle(
     logger.info("─" * 80)
 
     # V1 advances to fix-ready (VFd).
-    actor_notifies_fix_ready(
-        client=v1_client,
-        actor=v1_in_v1,
-        case_id=case.id_,
-    )
-
-    with demo_check("V1 participant vfd_state transitions to VFd"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "v1 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=v1_client,
             case_id=case.id_,
             actor_id=v1.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=v1_client,
+            actor=v1_in_v1,
+            case_id=case.id_,
+        )
+        with demo_check("V1 participant vfd_state transitions to VFd"):
+            wait_for_participant_vfd_state(
+                client=v1_client,
+                case_id=case.id_,
+                actor_id=v1.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     # V2 advances to fix-ready (VFd).
-    actor_notifies_fix_ready(
-        client=v2_client,
-        actor=v2_in_v2,
-        case_id=case.id_,
-    )
-
-    with demo_check("V2 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "v2 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=v2_client,
             case_id=case.id_,
             actor_id=v2.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=v2_client,
+            actor=v2_in_v2,
+            case_id=case.id_,
+        )
+        with demo_check("V2 participant vfd_state transitions to VFd or VFD"):
+            wait_for_participant_vfd_state(
+                client=v2_client,
+                case_id=case.id_,
+                actor_id=v2.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     with demo_check("M5: C1 replica shows V1 and V2 CS include F (fix ready)"):
         wait_for_participant_vfd_state(

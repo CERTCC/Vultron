@@ -39,6 +39,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -96,6 +97,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -546,7 +548,7 @@ def _phase_notes_exchange(
     c2_in_c2: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note, as_Note, as_Note, as_Note]:
+) -> tuple[as_Note | None, as_Note | None, as_Note | None, as_Note | None]:
     """Run a four-way note exchange among all participants."""
     logger.info("─" * 80)
     logger.info("Phase 4: Notes exchange")
@@ -572,7 +574,7 @@ def _phase_notes_exchange(
         note_content=(
             "Yes, disabling the affected module is an effective interim workaround."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     c2_note = participant_adds_note_to_case(
@@ -585,7 +587,7 @@ def _phase_notes_exchange(
             "We have confirmed that C2 and Vendor are engaged. "
             "Target disclosure in 30 days."
         ),
-        in_reply_to=c1_reply.id_,
+        in_reply_to=c1_reply.id_ if c1_reply is not None else None,
     )
 
     vendor_note = participant_adds_note_to_case(
@@ -598,7 +600,7 @@ def _phase_notes_exchange(
             "Vendor can confirm the issue affects our component. "
             "We will align our fix timeline with the 30-day target."
         ),
-        in_reply_to=c2_note.id_,
+        in_reply_to=c2_note.id_ if c2_note is not None else None,
     )
 
     logger.info(
@@ -621,65 +623,78 @@ def _phase_fix_lifecycle(
     )
     logger.info("─" * 80)
 
-    actor_notifies_fix_ready(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
+        )
+        actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor_in_vendor,
+            case_id=case.id_,
         )
 
-    with demo_check("M5: C1 replica shows Vendor CS includes F (fix ready)"):
-        wait_for_participant_vfd_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
-        )
-        _check_participant_vfd_state_in(
-            c1_client,
-            case.id_,
-            vendor.id_,
-            {CS_vfd.VFd, CS_vfd.VFD},
-            "M5: C1 replica fix ready",
-        )
-        _check_participant_vfd_state_in(
-            vendor_client,
-            case.id_,
-            vendor.id_,
-            {CS_vfd.VFd, CS_vfd.VFD},
-            "M5: Vendor replica fix ready",
-        )
+        with demo_check(
+            "Vendor participant vfd_state transitions to VFd or VFD"
+        ):
+            wait_for_participant_vfd_state(
+                client=vendor_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
-    with demo_check(
-        "M6: C1 replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
-    ):
-        wait_for_participant_vfd_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
-        )
-        _check_participant_vfd_state_in(
-            c1_client,
-            case.id_,
-            vendor.id_,
-            {CS_vfd.VFd},
-            "M6: C1 replica fix ready",
-        )
-        _check_participant_vfd_state_in(
-            vendor_client,
-            case.id_,
-            vendor.id_,
-            {CS_vfd.VFd},
-            "M6: Vendor replica fix ready",
-        )
+        with demo_check(
+            "M5: C1 replica shows Vendor CS includes F (fix ready)"
+        ):
+            wait_for_participant_vfd_state(
+                client=c1_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
+            _check_participant_vfd_state_in(
+                c1_client,
+                case.id_,
+                vendor.id_,
+                {CS_vfd.VFd, CS_vfd.VFD},
+                "M5: C1 replica fix ready",
+            )
+            _check_participant_vfd_state_in(
+                vendor_client,
+                case.id_,
+                vendor.id_,
+                {CS_vfd.VFd, CS_vfd.VFD},
+                "M5: Vendor replica fix ready",
+            )
+
+        with demo_check(
+            "M6: C1 replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
+        ):
+            wait_for_participant_vfd_state(
+                client=c1_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd},
+            )
+            _check_participant_vfd_state_in(
+                c1_client,
+                case.id_,
+                vendor.id_,
+                {CS_vfd.VFd},
+                "M6: C1 replica fix ready",
+            )
+            _check_participant_vfd_state_in(
+                vendor_client,
+                case.id_,
+                vendor.id_,
+                {CS_vfd.VFd},
+                "M6: Vendor replica fix ready",
+            )
 
 
 def _phase_publication(
