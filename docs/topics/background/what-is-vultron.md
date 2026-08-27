@@ -14,16 +14,18 @@
     [How-to Guides](../../howto/index.md).
 
 CVD is a multi-party coordination problem. When a vulnerability spans several
-vendors, a coordinator, and a national CERT, the parties typically coordinate
-via email threads, shared spreadsheets, and bespoke one-off integrations.
+vendors, a coordinator, and a national CSIRT, the parties typically rely on a
+patchwork of one-off tracking systems — bug trackers, bug bounty platforms,
+bespoke coordination services — that rarely integrate with each other, and
+when they do, only on a point-to-point basis.
 Every new coordination relationship requires custom effort, and there is no
 shared protocol: a system built for one organization's CVD workflow cannot
 interoperate with another's without explicit bilateral agreements.
 
 Vultron is a proposal for changing that. It is a federated, open-source
-protocol for CVD coordination — one that any tool, CERT, or vendor can
-implement to participate in ad-hoc coordination across organizational
-boundaries.
+protocol for CVD coordination — one that any tool, CSIRT, vendor, or service
+provider can implement to participate in ad-hoc coordination across
+organizational boundaries.
 
 ## Vultron as a Protocol in Four Senses
 
@@ -37,7 +39,7 @@ Vultron specifies a wire format based on
 [ActivityStreams 2.0](https://www.w3.org/TR/activitystreams-core/){:target="_blank"}
 for the messages that CVD participants exchange: report submissions, state
 change notifications, embargo proposals, and invitations. Any system can
-implement this wire format independently of the others.
+implement this wire format independently of other implementations.
 
 This is the *syntactic* layer: two systems speaking Vultron at this level can
 exchange structured data, even if they do not yet interpret it identically.
@@ -47,11 +49,15 @@ exchange structured data, even if they do not yet interpret it identically.
 Beyond the wire format, Vultron specifies *behavioral requirements*: given a
 current case state and a received message, what should a well-behaved
 participant do next? These requirements are captured as machine-readable specs
-in the RMB, EMB, and CSB families and illustrated as Behavior Trees in the
-[Behavior Logic](../behavior_logic/index.md) section.
+in the [RMB](../../reference/specs/protocol.md#rmb),
+[EMB](../../reference/specs/protocol.md#emb), and
+[CSB](../../reference/specs/protocol.md#csb) families and illustrated as
+Behavior Trees in the [Behavior Logic](../behavior_logic/index.md) section.
 
-**The protocol says what messages mean. The behavior logic says when to send
-them.**
+!!! note "Syntax describes meaning; behavior specifies timing"
+
+    The wire format says what messages *mean*. The behavioral requirements
+    say *when* to send them.
 
 For example: a participant whose report transitions to *Accepted* should emit
 a Report Accepted notification. Most of this is automatable; the reference
@@ -75,7 +81,9 @@ hands control back to a human, a policy engine, or an external service.
     Call-out points are *by design* — the protocol cannot decide for you
     whether to accept a report, how long an embargo should last, or whether
     an advisory is ready to publish. These are the judgment calls that
-    belong to your organization or your stakeholders.
+    belong to your organization or your stakeholders. Each can be fulfilled
+    by an automated policy with built-in defaults, left open to human
+    judgment, or handled by any hybrid of the two.
 
 ### 3. Diplomatic — Shared Vocabulary for Embargo and Trust
 
@@ -106,20 +114,21 @@ you gain interoperability with every other Vultron-compatible participant.
 
 A Vultron-compatible system operates at one or more conformance levels:
 
-| Level | Name | What it requires |
-|---|---|---|
-| **L1** | Syntax | Well-formed messages — correct wire format, valid AS2 structure |
-| **L2** | Semantic | Correct state transitions in response to received messages |
-| **L3** | Behavioral | The right observable outputs — right messages, right order, given state conditions |
+| Level | What it requires |
+|---|---|
+| **Syntax** | Well-formed messages — correct wire format, valid AS2 structure |
+| **Semantic** | Correct state transitions in response to received messages |
+| **Behavioral** | The right observable outputs — right messages, right order, given state conditions |
 
-The reference implementation (this repository) demonstrates L1–L3 compliance.
-You can run it as a test peer to verify your own implementation, or use it as
-a starting point and replace the components your organization already has.
+The reference implementation (this repository) demonstrates all three
+conformance levels. You can run it as a test peer to verify your own
+implementation, or use it as a starting point and replace the components
+your organization already has.
 
-An L1-only implementation can exchange structured data. An L2+ implementation
-participates correctly in shared case state. L3 is where the behavioral
-automation lives — where Vultron begins to reduce coordination overhead
-compared to email and bespoke tools.
+A Syntax-level implementation can exchange structured data. Semantic
+conformance means participating correctly in shared case state. Behavioral
+conformance is where the automation lives — where Vultron begins to reduce
+coordination overhead compared to ad-hoc tools.
 
 ## What Vultron Is Not
 

@@ -29,10 +29,11 @@ New findings → issues filed:
 Already-tracked findings (not re-filed):
 
 1. **vultron/core/behaviors/status/nodes/cs_dimension_filter.py:223** —
-   `FilterCsPxaDimensionNode` in-place mutation pattern. Already recorded in
-   `20260827-code-review-2109-deferred-preexisting.md` (item #4) and
-   `20260826-pre-existing-bugs-from-code-review-2204.md` (item #2).
+   `FilterCsPxaDimensionNode` in-place mutation pattern. Tracked as #2706.
 
 2. **vultron/core/behaviors/embargo/nodes/lifecycle.py:373** —
-   `SetEmbargoActiveNode` TOCTOU double-read. Already recorded in
-   `20260827-code-review-2109-deferred-preexisting.md` (item #2).
+   `SetEmbargoActiveNode` TOCTOU (concurrent double-emit of ledger entries
+   when idempotency check and `activate_embargo()` read `VulnerabilityCase`
+   independently). No dedicated issue yet; related to #2742 (ValueError escape
+   from `activate_embargo()`). Tracked in
+   `20260827-code-review-2109-deferred-preexisting.md` item #2.
