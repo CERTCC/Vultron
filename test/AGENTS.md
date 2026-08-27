@@ -324,8 +324,7 @@ def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
 ```
 
 Structure tests and FAILURE-path tests are unaffected.
-See `notes/bt-pitfalls.md` § "Integration Tests Must Use Deterministic
-Factories When BT Default Is Probabilistic".
+See "BT Factory Determinism" above.
 
 ---
 
@@ -444,3 +443,22 @@ spec entry. Run `spec-coverage` to discover which protocol IDs have no markers
 yet.
 
 See SR-05-004, SR-05-005.
+
+---
+
+## Dual-Path Consolidation Test Gap
+
+(ISSUE-1378, 2026-07-14)
+
+When consolidating two helpers with different lookup paths into one unified
+function, the new test suite MUST exercise each distinct path in isolation.
+
+In ISSUE-1378, `_resolve_case_manager_id` was consolidated from two helpers:
+a primary `actor_participant_index` path and a fallback `case_participants`
+path. All 6 initial tests only populated `case_participants`, leaving the
+primary index path entirely untested.
+
+**Pattern**: For a helper with N distinct lookup paths, write at least one
+test per path where that path is the *sole* source of truth — all other paths
+are left empty or unpopulated. "One test exercises both paths" means neither
+path is verified independently.

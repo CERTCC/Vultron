@@ -131,10 +131,9 @@ phase function, by nested block, or by an explicit sentinel" — is answered:
 failure; dependent steps follow the precondition assertion inside the same
 block. No sentinel variable, no return value, no modified calling convention.
 
-The causal-edge schema for scenario narratives (`docs/topics/scenarios/`) is
-still converging as scenarios are migrated (#2203, #2204). That work does not
-change this decision — it refines the oracle artifact — so the status is
-promoted to `accepted`.
+The causal-edge schema for scenario narratives (`docs/topics/scenarios/`) was
+finalised in PR #2204. The schema and its update-together rule are documented
+in `docs/topics/scenarios/index.md`, which is the authoritative source.
 
 ### Consequences
 

@@ -107,6 +107,8 @@ No open entries.
 
 | Job name | Issue | Last blocked |
 |---|---|---|
+| `fcvcv Demo Integration` | #2733 | 2026-08-27 |
+| `fcvcv Invariant Harness` | #2733 | 2026-08-27 |
 | `fvcv-extension` | #2422 | 2026-08-26 |
 | `fccv-extension` | #2422 | 2026-08-26 |
 | `fv Demo Integration` | #2422 | 2026-08-20 |

@@ -312,16 +312,16 @@ whether a new behavior must be a subtree, diagnosing layer-boundary violations
 (BT node calling use cases, importing from use_cases/), or auditing god nodes.
 
 **`bt-pitfalls.md`**
-Per-pitfall BT debugging notes: failure reason propagation, blackboard lookup
-semantics (`get()` vs attribute access, strict/lenient), idempotency patterns,
-role guards (`CheckIsCaseManagerNode`), `memory=False` partial-write semantics,
-blackboard key namespacing for concurrent executions (BTND-03-004), no-op path
-key clearing, `BTBridge.execute_with_setup` return value handling, ledger
-commit ordering, routing-gated state mutation, fan-out context handoff,
-and dual-path consolidation test gap patterns.
+Cross-cutting BT mechanics: failure reason propagation, blackboard lookup
+semantics (`get()` raises on unwritten READ keys), `memory=False` partial-write
+semantics, no-op path key clearing, blackboard key namespacing for concurrent
+executions (BTND-03-004), `BTBridge.execute_with_setup` return value handling,
+sentinel blackboard writes, and guard name / state-machine precondition
+alignment. Domain-specific pitfalls live in per-directory `AGENTS.md` files
+under `vultron/core/behaviors/`.
 **Load when**: debugging a BT that returns unexpected FAILURE/SUCCESS, auditing
-blackboard key race conditions, investigating idempotency failures, or
-reviewing BT subtree ordering for state-mutation safety.
+blackboard key race conditions, implementing a new BT node pattern, or
+investigating cross-cutting mechanics that span multiple BT domains.
 
 **`peer-broadcast-failure-semantics.md`**
 Fail-fast requirements for protocol-visible peer fan-out in BT paths:
