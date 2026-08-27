@@ -779,13 +779,16 @@ function handleCreateCase(
   })()
   if (shadow.rm[receiverLane] === undefined) shadow.rm[receiverLane] = 'RECEIVED'
   shadow.seededRm.add(receiverLane)
-  // VFD receipt (vfd→Vfd, "the vendor became aware and began fix development") is a
-  // VENDOR concept — seed it ONLY when the receiver is a vendor. A coordinator
-  // receiver owns the case but develops no fix, so we leave its VFD unseeded and
-  // let its own status snapshots seed it as-is; that surfaces any out-of-place
-  // coordinator VFD verbatim (a generator signal) instead of fabricating a Vfd start.
+  // VFD baseline: seed the vendor receiver at the machine's INITIAL state `vfd`
+  // (NOT `Vfd`). The current generator logs the vendor starting at base `vfd` and
+  // records `vendor_becomes_aware` (vfd→Vfd) explicitly as a later status snapshot,
+  // so pre-seeding `Vfd` here would make that genuine first `vfd` snapshot look like
+  // an illegal Vfd→vfd regression. (The old two-actor format started the vendor
+  // already fix-aware, which is why this used to seed `Vfd`.) Seed for vendors only —
+  // a coordinator receiver owns the case but develops no fix, so its VFD is left
+  // unseeded and surfaced verbatim from its own status snapshots.
   if (receiverLane.startsWith('vendor-')) {
-    if (shadow.vfd[receiverLane] === undefined) shadow.vfd[receiverLane] = 'Vfd'
+    if (shadow.vfd[receiverLane] === undefined) shadow.vfd[receiverLane] = 'vfd'
     shadow.seededVfd.add(receiverLane)
   }
   // The Finder enters CVD already at RM.ACCEPTED (validated/prioritized privately
@@ -810,7 +813,7 @@ function handleCreateCase(
     (lane) =>
       lane.id === receiverLane
         ? lane.id.startsWith('vendor-')
-          ? ['Report received', 'RM seeded → RECEIVED', 'VFD seeded → Vfd']
+          ? ['Report received', 'RM seeded → RECEIVED', 'VFD seeded → vfd']
           : ['Report received', 'RM seeded → RECEIVED']
         : ['Case announced', 'RM (private) → ACCEPTED', 'Participant record created'],
     false
@@ -995,8 +998,10 @@ function handleAcceptInvite(
   // joiner — vendor OR coordinator — receives & manages the report, so RM is seeded
   // for all. VFD (fix development) is seeded ONLY for a vendor joiner, matching
   // handleCreateCase: a coordinator owns/manages but builds no fix, so its VFD is left
-  // unseeded and surfaced verbatim from its own status snapshots (a generator signal
-  // rather than a fabricated Vfd start).
+  // unseeded and surfaced verbatim from its own status snapshots. The vendor VFD seed
+  // is the machine's INITIAL state `vfd` (NOT `Vfd`): the generator logs the joining
+  // vendor's `vendor_becomes_aware` (vfd→Vfd) explicitly, so seeding `Vfd` would make
+  // that genuine first snapshot look like an illegal Vfd→vfd regression.
   const isVendorJoiner = laneId.startsWith('vendor-')
   if (!shadow.seededRm.has(laneId)) {
     shadow.rm[laneId] = 'RECEIVED'
@@ -1004,13 +1009,13 @@ function handleAcceptInvite(
     logLines.push(`  ↳ seeded ${laneId} RM = RECEIVED (invite accepted)`)
   }
   if (isVendorJoiner && !shadow.seededVfd.has(laneId)) {
-    shadow.vfd[laneId] = 'Vfd'
+    shadow.vfd[laneId] = 'vfd'
     shadow.seededVfd.add(laneId)
   }
 
   const name = participants.get(laneId)?.name ?? laneId
   const decisionBullets = isVendorJoiner
-    ? [`${name} accepted the invitation to the case`, 'RM seeded → RECEIVED', 'VFD seeded → Vfd']
+    ? [`${name} accepted the invitation to the case`, 'RM seeded → RECEIVED', 'VFD seeded → vfd']
     : [`${name} accepted the invitation to the case`, 'RM seeded → RECEIVED']
   const nodes = synthesizeCluster(
     entry,
@@ -1528,7 +1533,7 @@ function handleRemoveEmbargo(
   return { nodes, logLines }
 }
 
-// --- close_case → case-level close (per-participant closes arrive via status) -
+// --- close_case → a participant closes its own report --------------------------
 
 function handleCloseCase(
   entry: CaseLedgerEntry,
@@ -1537,43 +1542,71 @@ function handleCloseCase(
   x: number,
   laneIndex: LaneIndexMap
 ): MapResult {
-  ensureParticipant(participants, 'caseactor', laneIndex)
   const logLines: string[] = []
 
-  // The per-participant RM→CLOSED transitions arrive as their own status
-  // snapshots; close_case is the case manager's case-level close. If a future
-  // ledger omits those snapshots, close the subject's RM here as a fallback.
-  const subjectUrl = entry.payloadSnapshot?.object?.attributedTo
-  const subjectLane = actorUrlToLaneId(subjectUrl)
+  // Identify the CLOSER. Under the 2026-08 vocabulary the recorded `actor` is the
+  // participant closing its own report (finder / vendor / coordinator), while
+  // `object.attributedTo` is the case owner/recorder — NOT the closer (in a handoff
+  // it is the coordinator who took ownership). So the decision node belongs in the
+  // CLOSER's own lane, and it is the closer's RM that advances to CLOSED. Legacy
+  // logs inverted this (`actor` = the case-actor recorder, `attributedTo` = the
+  // closed participant); we fall back to `attributedTo` only when `actor` resolves
+  // to the recorder or is absent.
+  const actorLane = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  const attrLane = actorUrlToLaneId(entry.payloadSnapshot?.object?.attributedTo)
+  const closerLane: LaneId =
+    actorLane !== 'unknown' && actorLane !== 'caseactor'
+      ? actorLane
+      : attrLane !== 'unknown' && attrLane !== 'caseactor'
+      ? attrLane
+      : 'caseactor'
+  ensureParticipant(participants, closerLane, laneIndex)
+
+  // Advance the closer's RM to CLOSED. The per-participant RM→CLOSED transition
+  // rides on this event (the current generator emits no separate CLOSED status
+  // snapshot). Validate it against the RM machine: `close` is legal only from a
+  // closable disposition (ACCEPTED / DEFERRED / INVALID). A close from an un-disposed
+  // state (e.g. RECEIVED) is a genuine protocol violation — it surfaces the
+  // late-joiner RM-lifecycle gap where invited/handed-off participants close without
+  // ever validating/accepting (a generator-side issue; see ui/CLAUDE.md).
   let violation = false
   let violationReason: string | undefined
-  if (subjectLane !== 'unknown' && shadow.seededRm.has(subjectLane) && shadow.rm[subjectLane] !== 'CLOSED') {
-    const src = shadow.rm[subjectLane]
+  let rmNote: string | undefined
+  if (
+    closerLane !== 'unknown' &&
+    closerLane !== 'caseactor' &&
+    shadow.seededRm.has(closerLane) &&
+    shadow.rm[closerLane] !== 'CLOSED'
+  ) {
+    const src = shadow.rm[closerLane]
     if (isLegalTransition('rm', src, 'close')) {
-      shadow.rm[subjectLane] = 'CLOSED'
-      logLines.push(`  ↳ close_case: ${subjectLane} RM ${src} → CLOSED`)
+      shadow.rm[closerLane] = 'CLOSED'
+      rmNote = `RM: ${src} → CLOSED`
+      logLines.push(`  ↳ close_case: ${closerLane} RM ${src} → CLOSED`)
     } else {
       violation = true
       violationReason =
         `The RM machine has no "close" transition from ${src}. ` +
-        `A case can only be closed from ACCEPTED, DEFERRED, or INVALID — ` +
+        `A report can only be closed from ACCEPTED, DEFERRED, or INVALID — ` +
         `closing from ${src} skips the required disposition of the report.`
+      rmNote = `RM: ${src} → CLOSED (illegal)`
       logLines.push(
-        `  ↳ PROTOCOL VIOLATION: rm "close" illegal from "${src}" (subject=${subjectLane}); forcing CLOSED`
+        `  ↳ PROTOCOL VIOLATION: rm "close" illegal from "${src}" (subject=${closerLane}); forcing CLOSED`
       )
-      shadow.rm[subjectLane] = 'CLOSED'
+      shadow.rm[closerLane] = 'CLOSED'
     }
   }
 
+  const closerName = participants.get(closerLane)?.name ?? closerLane
   const nodes = synthesizeCluster(
     entry,
     participants,
-    'caseactor',
+    closerLane,
     x,
     'Close Case',
-    ['VulnerabilityCase closed', `EM: ${shadow.emState}`, 'Case archived in ledger'],
+    [`${closerName} closed the case`, ...(rmNote ? [rmNote] : []), `EM: ${shadow.emState}`],
     'Case Closed',
-    () => ['Case closed by Case Manager'],
+    () => [`${closerName} closed the case`],
     violation,
     violationReason
   )
