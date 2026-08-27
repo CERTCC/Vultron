@@ -403,6 +403,9 @@ def _upgrade_participant_to_accepted(
     dl.read() returns core-typed objects for ParticipantStatus).
     """
     logger = logging.getLogger(__name__)
+    # Idempotency guard: already at target state, nothing to do (#2763).
+    if latest_rm == RM.ACCEPTED:
+        return
     # SM-04-001: guard before writing — RM.INVALID cannot advance to ACCEPTED
     # without first re-validating (INVALID → VALID → ACCEPTED).  START and
     # RECEIVED are bootstrap-forward jumps that remain valid because the

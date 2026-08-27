@@ -362,6 +362,96 @@ class TestBootstrapReporterUpgradesFromStart:
 
 
 # ---------------------------------------------------------------------------
+# _upgrade_participant_to_accepted must be a silent no-op on RM.ACCEPTED
+# (issue #2763)
+# ---------------------------------------------------------------------------
+
+
+class TestUpgradeParticipantIdempotencyWhenAlreadyAccepted:
+    """``_upgrade_participant_to_accepted`` must be a silent no-op when already at RM.ACCEPTED.
+
+    Regression for #2763: when ``latest_rm == RM.ACCEPTED``,
+    ``is_valid_rm_transition(RM.ACCEPTED, RM.ACCEPTED)`` is ``False`` (no
+    self-loop).  Before the fix, the SM-04-001 guard fired a misleading
+    ``WARNING``, filling logs on every ledger replay and masking genuine
+    SM-04-001 violations.
+
+    The function must:
+    - log nothing at WARNING or above,
+    - write no new DataLayer record,
+
+    when called with ``latest_rm == RM.ACCEPTED``.
+    """
+
+    _ACTOR_ID = "https://finder.example.org/actors/finder-2763"
+    _CASE_ID = "https://example.org/cases/case-2763"
+    _PARTICIPANT_ID = f"{_CASE_ID}/participants/finder-2763"
+
+    @pytest.fixture()
+    def dl(self):
+        return SqliteDataLayer("sqlite:///:memory:", actor_id=self._ACTOR_ID)
+
+    @pytest.fixture()
+    def participant_at_accepted(self, dl):
+        """Participant already at RM.ACCEPTED stored in the DataLayer."""
+        status = ParticipantStatus(
+            rm=RmDimension(state=RM.ACCEPTED),
+            context=self._CASE_ID,
+            attributed_to=self._ACTOR_ID,
+        )
+        participant = VultronParticipant(
+            id_=self._PARTICIPANT_ID,
+            attributed_to=self._ACTOR_ID,
+            context=self._CASE_ID,
+            participant_statuses=[status],
+        )
+        dl.create(participant)
+        return participant
+
+    def test_no_warning_and_no_extra_status_when_already_accepted(
+        self, dl, participant_at_accepted, caplog
+    ):
+        """No WARNING logged and no extra status written on idempotent replay (#2763).
+
+        SM-04-001 guard must not fire when ``latest_rm == RM.ACCEPTED`` —
+        the participant is already at the target state, so there is no
+        illegal transition.
+        """
+        import logging
+
+        from vultron.core.behaviors.case.nodes.participant.common import (
+            _upgrade_participant_to_accepted,
+        )
+
+        with caplog.at_level(logging.WARNING):
+            _upgrade_participant_to_accepted(
+                dl=dl,
+                existing=participant_at_accepted,
+                participant_id=self._PARTICIPANT_ID,
+                case_id=self._CASE_ID,
+                reporter_actor_id=self._ACTOR_ID,
+                latest_rm=RM.ACCEPTED,
+            )
+
+        warning_messages = [
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        ]
+        assert not warning_messages, (
+            "No WARNING must be logged when participant is already at "
+            f"RM.ACCEPTED; got: {warning_messages!r} (#2763)"
+        )
+
+        stored = dl.read(self._PARTICIPANT_ID)
+        assert stored is not None
+        statuses = getattr(stored, "participant_statuses", [])
+        assert len(statuses) == 1, (
+            "No extra status must be written when participant is already "
+            f"at RM.ACCEPTED; got {len(statuses)} status(es) (#2763)"
+        )
+        assert statuses[0].rm.state == RM.ACCEPTED
+
+
+# ---------------------------------------------------------------------------
 # RM-regression guard must not go inert on a shape mismatch (issue #2232)
 # ---------------------------------------------------------------------------
 
