@@ -55,16 +55,12 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     demo_check,
     demo_gate,
     demo_step,
-    post_to_inbox_and_wait,
     post_to_trigger,
     ref_id,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
-    verify_object_stored,
 )
-
-# post_to_inbox_and_wait is retained for self-delivery (CONCERN-1653 exception).
 from vultron.demo.helpers.actions import (
     actor_closes_case,
     actor_notifies_fix_ready,
@@ -376,15 +372,9 @@ def _phase_ownership_handoff(
             accept_ownership.id_,
         )
 
-    # Deliver the Accept to C2's own inbox so AcceptCaseOwnershipTransfer-
-    # ReceivedUseCase runs locally and sets case.attributed_to = C2 on C2's
-    # replica.  C1's copy updates when C2's outbox delivers the Accept to C1's
-    # inbox (same pattern as FVCV-handoff).
-    with demo_step("Delivering ownership Accept to C2's own inbox"):
-        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, accept_ownership)
-    with demo_check("Ownership Accept stored in C2's DataLayer"):
-        verify_object_stored(c2_client, accept_ownership.id_)
-
+    # C2's outbox delivers the Accept to the CaseActor automatically (ADR-0042,
+    # ADR-0053).  The CaseActor processes it and propagates the change via ledger
+    # sync — same pattern as FVCV-handoff which has no manual delivery step here.
     # Verify C1's case now shows C2 as attributed_to.
     with demo_check(
         "Case attributed_to updated to C2 on C1's DataLayer (AC-1)"
