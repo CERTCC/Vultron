@@ -71,12 +71,10 @@ class TestResolveAndPersistStatusObjectNode:
 
     def test_uses_fallback_when_missing_from_dl(self, bridge):
         """Fallback object is persisted and resolved when ID absent from DL."""
-        from vultron.wire.as2.vocab.objects.case_status import (
-            as_ParticipantStatus,
-        )
+        from vultron.core.models.participant_status import ParticipantStatus
         from .conftest import CASE_ID
 
-        fallback = as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+        fallback = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
         node = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID, status_obj_fallback=fallback
         )
