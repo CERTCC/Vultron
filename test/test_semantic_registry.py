@@ -323,13 +323,7 @@ def test_no_phrase_uses_unknown_slots(entry):
 # ---------------------------------------------------------------------------
 
 
-_TRAILING_DASH_XFAIL_REASONS = {
-    MessageSemantics.SUBMIT_REPORT: (
-        "SE-07-006: SUBMIT_REPORT phrase ends with {target}; "
-        "event_phrase() fills it with '—', producing trailing dash. "
-        "Tracked in #2745."
-    ),
-}
+_TRAILING_DASH_XFAIL_REASONS: dict[MessageSemantics, str] = {}
 
 
 @pytest.mark.spec("SE-07-006")
