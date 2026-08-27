@@ -24,7 +24,7 @@ from typing import Optional
 from vultron.demo.helpers.polling import wait_for_note_in_case
 from vultron.demo.utils import (
     DataLayerClient,
-    demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     verify_object_stored,
@@ -66,8 +66,9 @@ def participant_adds_note_to_case(
 
     Returns:
         The ``as_Note`` fetched from the *watching_client* DataLayer after
-        confirmed delivery, or ``None`` when the trigger fails (the failure is
-        recorded in the demo accumulator via ``demo_step``).
+        confirmed delivery, or ``None`` when the trigger or delivery check
+        fails (failures are recorded in the demo accumulator via
+        ``demo_step``/``demo_gate``).
     """
     body: dict[str, object] = {
         "case_id": case.id_,
@@ -96,11 +97,12 @@ def participant_adds_note_to_case(
     if note_id is None:
         return None
 
-    with demo_check("Note delivered to watching container"):
+    note: Optional[as_Note] = None
+    with demo_gate("Note delivered to watching container"):
         wait_for_note_in_case(watching_client, case.id_, note_id)
         verify_object_stored(watching_client, note_id)
+        logger.info("Note added to case: %s", note_id)
+        note_data = watching_client.get(watching_client.dl_path(note_id))
+        note = as_Note(**note_data)
 
-    logger.info("Note added to case: %s", note_id)
-
-    note_data = watching_client.get(watching_client.dl_path(note_id))
-    return as_Note(**note_data)
+    return note

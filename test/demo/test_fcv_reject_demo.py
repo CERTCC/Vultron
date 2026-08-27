@@ -89,3 +89,30 @@ class TestParticipantAddsNoteNoNoteId:
                 note_content="test content",
             )
         assert result is None
+
+    def test_delivery_timeout_returns_none(self):
+        """demo_gate swallows wait_for_note_in_case timeout — function must return None, not raise."""
+        mock_client, mock_actor, mock_case = _make_note_fixtures()
+        with (
+            patch(
+                "vultron.demo.helpers.notes.post_to_trigger",
+                return_value={
+                    "note": {"id": "http://example.test/notes/note-1"}
+                },
+            ),
+            patch(
+                "vultron.demo.helpers.notes.wait_for_note_in_case",
+                side_effect=AssertionError(
+                    "note not found in case after timeout"
+                ),
+            ),
+        ):
+            result = participant_adds_note_to_case(
+                posting_client=mock_client,
+                watching_client=mock_client,
+                poster=mock_actor,
+                case=mock_case,
+                note_name="test-note",
+                note_content="test content",
+            )
+        assert result is None
