@@ -29,6 +29,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -48,6 +49,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     assert_demo_success,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     reset_datalayer,
@@ -82,6 +84,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_finder_case,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -393,7 +396,7 @@ def _phase_notes_exchange(
     vendor_in_vendor: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note, as_Note, as_Note]:
+) -> tuple[as_Note | None, as_Note | None, as_Note | None]:
     """Run a three-way note exchange among Finder, Vendor1, and Vendor2."""
     logger.info("─" * 80)
     logger.info("Phase 3: Notes exchange")
@@ -421,7 +424,7 @@ def _phase_notes_exchange(
             "Yes, disabling the affected component is an effective workaround. "
             "A patched version is expected within 30 days."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     vendor2_note = participant_adds_note_to_case(
@@ -434,7 +437,7 @@ def _phase_notes_exchange(
             "Vendor2 can confirm the issue affects our component. "
             "We will coordinate our fix timeline with Vendor1."
         ),
-        in_reply_to=reply_note.id_,
+        in_reply_to=reply_note.id_ if reply_note is not None else None,
     )
 
     logger.info(
@@ -460,33 +463,53 @@ def _phase_fix_lifecycle(
     )
     logger.info("─" * 80)
 
-    actor_notifies_fix_ready(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor1 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor_in_vendor,
+            case_id=case.id_,
+        )
+        with demo_check(
+            "Vendor1 participant vfd_state transitions to VFd or VFD"
+        ):
+            wait_for_participant_vfd_state(
+                client=vendor_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
-    actor_notifies_fix_ready(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor2 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor2 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor2_client,
             case_id=case.id_,
             actor_id=vendor2.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=vendor2_client,
+            actor=vendor2_in_vendor2,
+            case_id=case.id_,
+        )
+        with demo_check(
+            "Vendor2 participant vfd_state transitions to VFd or VFD"
+        ):
+            wait_for_participant_vfd_state(
+                client=vendor2_client,
+                case_id=case.id_,
+                actor_id=vendor2.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     with demo_check(
         "M4: Finder replica shows both vendors CS include F (fix ready)"

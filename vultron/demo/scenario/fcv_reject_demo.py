@@ -51,6 +51,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     case_actor_id_on,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     reset_datalayer,
@@ -80,6 +81,7 @@ from vultron.demo.helpers.polling import (
     resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
+    wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
@@ -288,17 +290,16 @@ def _phase_invite_vendor_reject(
 
     # Participant count remains 3: Coordinator + Finder + CaseActor.
     # Vendor must NOT appear as a 4th participant.
-    with demo_check(
-        "Participant count stays at 3 (Vendor not added after rejection)"
+    #
+    # Gate on the rejection being committed before checking participant count.
+    # The rejection is self-contained on the CaseActor (CLP-10-006) — no
+    # participant-effect Announce is sent, so the entry is only visible in the
+    # CaseActor's own store.  Using demo_gate here ensures that the participant
+    # count check is skipped (rather than run against stale state) if the
+    # CaseActor has not yet committed the rejection entry.
+    with demo_gate(
+        "reject_invite_actor_to_case committed (causal gate before participant count check)"
     ):
-        # Give the CaseActor time to process the Reject then confirm stability.
-        #
-        # Read the CaseActor's own store: the rejection is self-contained on the
-        # CaseActor — it records that the invitee declined and has no participant
-        # effect to announce (CLP-10-006) — so no replica ever receives this
-        # entry.  Before ADR-0073 the coordinator and the CaseActor it self-hosts
-        # shared one store, which is why reading the coordinator's own replica
-        # used to find it.
         wait_for_event_type_in_ledger(
             client=coordinator_client,
             case_id=case.id_,
@@ -307,12 +308,56 @@ def _phase_invite_vendor_reject(
                 coordinator_client, str(case.id_)
             ),
         )
-        wait_for_case_participants(
-            vendor_client=coordinator_client,
-            case_id=case.id_,
-            expected_actor_ids={finder.id_, coordinator.id_},
-        )
+        with demo_check(
+            "Participant count stays at 3 (Vendor not added after rejection)"
+        ):
+            wait_for_case_participants(
+                vendor_client=coordinator_client,
+                case_id=case.id_,
+                expected_actor_ids={finder.id_, coordinator.id_},
+            )
     logger.info("✓ M2: Vendor rejected invite — participant count stable at 3")
+
+
+def _phase_sync_verification(
+    finder_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+) -> None:
+    """Wait for Finder to replicate all Phase 2 ledger entries before Phase 3.
+
+    Mirrors the sync-verification phase in ``fv_demo.py`` (SYNC-15-001).  The
+    Finder must hold the case and all coordinator-committed ledger entries
+    before the notes exchange begins; without this gate the
+    ``add-note-to-case`` trigger on the Finder container may fail because the
+    Finder's DataLayer has not yet received the case replica or the
+    post-rejection ledger tail from the CaseActor fan-out.
+    """
+    logger.info("─" * 80)
+    logger.info("Phase 2.5: Finder ledger sync verification")
+    logger.info("─" * 80)
+
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
+        coordinator_entries = _get_log_entries_for_case(
+            coordinator_client, case.id_
+        )
+        if coordinator_entries:
+            coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
+            coord_tail_index: int = coord_tail["log_index"]
+            logger.info(
+                "Waiting for Finder to replicate coordinator entries (0…%d)",
+                coord_tail_index,
+            )
+            with demo_gate("Finder ledger coverage (pre-notes sync)"):
+                wait_for_contiguous_ledger_coverage(
+                    client=finder_client,
+                    case_id=case.id_,
+                    expected_tail_index=coord_tail_index,
+                )
 
 
 def _phase_notes_exchange(
@@ -350,7 +395,7 @@ def _phase_notes_exchange(
             "We will proceed with Finder-only disclosure. "
             "Embargo will be terminated and we will publish."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     logger.info(
@@ -570,6 +615,12 @@ def run_fcv_reject_demo(
             coordinator_in_coordinator=coordinator_in_coordinator,
             coordinator=_coordinator,
             vendor=vendor_obj,
+            case=case,
+        )
+
+        _phase_sync_verification(
+            finder_client=finder_client,
+            coordinator_client=coordinator_client,
             case=case,
         )
 

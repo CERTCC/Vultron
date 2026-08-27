@@ -101,6 +101,7 @@ globals().update(
         replicas_fixture="fccv_extension_replicas",
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_FCCV_EXTENSION_EXPECTED_EVENT_TYPES,
+        narrative_path="docs/topics/scenarios/fccv-extension.md",
     )
 )
 

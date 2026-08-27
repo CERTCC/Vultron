@@ -367,8 +367,8 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   pass `TriggerActivityAdapter(dl)` to every use case in chained integration tests.
 - **Routing Prerequisites Must Be Resolved Before State Mutation** — resolve Case
   Manager ID in a read-only guard node BEFORE state-mutation node. See BT-19-001,
-  BT-19-002. [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Routing-Gated
-  State Mutation".
+  BT-19-002. See
+  `vultron/core/behaviors/embargo/AGENTS.md` § "Routing-Gated State Mutation".
 - **Superseded Notes Sections Are Archived via `append-history note`** — stale
   sections (or whole files) go to `plan/history/YYMM/note/` with source ID
   `NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
@@ -495,9 +495,11 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `if bridge.execute_with_setup(...) == Status.FAILURE: raise VultronBTError(...)`.
   See [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Ledger Commit Must Precede Outbox Write** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  see [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md)
+  § "Ledger Commit Must Precede Outbox Write".
 - **`disposition="rejected"` for Local-Only Correlation Markers** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  see [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md)
+  § "Use `disposition=\"rejected\"` for Local-Only Ledger Correlation Markers".
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **`ActivityPattern.target_` Is Always Permissive Unless `strict=True`** —
@@ -517,8 +519,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Pre-Build Dedup Sets Before Fallback Loops** — `seen = set(d.values())`
   before the loop; O(n×m) → O(n+m).
 - **Consolidated Helper Needs One Test Per Distinct Lookup Path** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Dual-Path
-  Consolidation Test Gap".
+  see `test/AGENTS.md` § "Dual-Path Consolidation Test Gap".
 - **Domain Sweep Audit: Catalog → Code, Then Factory Injection, Then
   `register_key`** — see
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).
@@ -533,8 +534,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   and record a Sentinel stub. See
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).
 - **BT Integration Tests Must Use Deterministic Factories When the Default Is
-  Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism" and
-  [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism".
 - **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor** —
   FAILURE/exception when no routable CaseActor. See PCR-08-011.
 - **Module Split: Re-Import Moved Names for `monkeypatch` Compatibility** —

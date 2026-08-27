@@ -245,22 +245,31 @@ bidirectional-equality pattern.
 
 ---
 
-## Demo Script Lifecycle Logging: `demo_step` / `demo_check`
+## Demo Script Lifecycle Logging: `demo_step` / `demo_check` / `demo_gate`
 
-All demo scripts use two context managers defined in `vultron/demo/utils.py`
-for structured lifecycle logging:
+All demo scripts use three context managers defined in `vultron/demo/utils.py`
+for structured lifecycle logging and failure accumulation. All three suppress
+exceptions into the `_demo_failures` accumulator (no re-raise); call
+`assert_demo_success()` at the end of each scenario to surface failures
+(DEMOCI-01-003, DEMOCI-01-004).
 
 - **`demo_step(description)`**: Wraps a workflow step. Logs `🚥 description`
   at INFO on entry, `🟢 description` on clean exit, `🔴 description` at ERROR
-  on exception (and re-raises).
-- **`demo_check(description)`**: Wraps a side-effect verification block. Logs
-  `📋 description` at INFO on entry, `✅ description` on success,
-  `❌ description` at ERROR on exception (and re-raises).
+  on exception. On exception, accumulates the failure and continues after the
+  block.
+- **`demo_check(description)`**: Wraps a standalone side-effect verification.
+  Logs `📋 description` at INFO on entry, `✅ description` on success,
+  `❌ description` at ERROR on exception. On exception, accumulates and
+  continues — subsequent steps outside the block always run. Use when a
+  verification failure should not skip dependent work.
+- **`demo_gate(description)`**: Causal precondition gate. Logs `🚧 description`
+  on entry, `🔓` on success, `🔒` on failure. On exception, Python immediately
+  exits the `with` body — steps inside the gate that follow the failing assertion
+  are skipped. Execution continues after the gate block. Use when continuing
+  after a precondition failure would produce meaningless secondary failures.
+  See ADR-0058.
 
-Import these from `vultron.demo.utils` in every demo script. Use them
-consistently to wrap numbered workflow steps and verification blocks so that
-log output clearly shows progress and failure location during test runs and
-live demos.
+Import these from `vultron.demo.utils` in every demo script.
 
 **Pattern**:
 
@@ -270,9 +279,15 @@ with demo_step("1. Create vulnerability report"):
 
 with demo_check("1a. Verify report persisted"):
     assert dl.get(report.as_id) is not None
+
+with demo_gate("2. Case seeded before notes phase"):
+    wait_for_case_on_container(client, case_id)
+    with demo_step("2a. Add note"):   # skipped if gate fails
+        add_note(...)
 ```
 
-**Cross-reference**: `test/demo/test_demo_context_managers.py` (18 tests).
+**Cross-reference**: `test/demo/test_demo_context_managers.py` (18 tests);
+ADR-0058 for the causal-gate design rationale.
 
 ---
 

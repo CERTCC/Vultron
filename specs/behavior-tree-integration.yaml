@@ -999,10 +999,10 @@ groups:
       mechanism to populate them. Planning of #1252 surfaced that the identification step belongs in a Sentinel
       capability (see #1147/#1143) that periodically or event-triggered inspects the case and asynchronously
       fires suggest-actor-to-case for each uninvited candidate. The downstream accept/invite/bootstrap cascade already
-      works; no inline BT loop is required. The tick-driven `create_report_to_others_tree` module from #1311 is an
-      implementation artifact of the intermediate design and is tracked for removal in a follow-on Task (see
+      works; no inline BT loop is required. The tick-driven `create_report_to_others_tree` module from #1311 was an
+      implementation artifact of the intermediate design and has been removed (see issue #1848, ADR-0047, and
       notes/bt-fuzzer-rm-reporting.md § "Sentinel supersession note").
-    tracking_issue: '#1311 (partial implementation, superseded); #1252 (planning — closed; sentinel approach adopted)'
+    tracking_issue: '#1311 (partial implementation, superseded); #1252 (planning — closed; sentinel approach adopted); #1848 (removal — closed by PR)'
     adr:
     - ADR-0029
     - ADR-0047
