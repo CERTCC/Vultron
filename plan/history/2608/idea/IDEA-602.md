@@ -26,10 +26,10 @@ Identified 4 stale/inaccurate existing pages and 4 missing message-type flows. D
 
 ## Implementation issues
 
-- Issue A (size:M): Fix accuracy errors in existing howto pages
-- Issue B (size:S): New howto page — CaseProposal flow (ADR-0023)
-- Issue C (size:M): New howto pages — ledger replication + Announce(VulnerabilityCase)
-- Issue D (size:S): New howto page — role delegation (OfferCaseParticipantRole, ADR-0039)
-- Issue E (size:M): Implement ADR-0053 compliance in demo layer
+- #2785 (size:M): Fix accuracy errors in existing howto pages
+- #2786 (size:S): New howto page — CaseProposal flow (ADR-0023)
+- #2787 (size:M): New howto pages — ledger replication + Announce(VulnerabilityCase)
+- #2788 (size:S): New howto page — role delegation (OfferCaseParticipantRole, ADR-0039)
+- #2789 (size:M): Implement ADR-0053 compliance in demo layer
 
-PR: (pending)
+PR: <https://github.com/CERTCC/Vultron/pull/2784>
