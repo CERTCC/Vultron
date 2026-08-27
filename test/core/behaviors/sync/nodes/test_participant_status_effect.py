@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 """Regression tests for ApplyParticipantStatusFromLedgerNode.
 
-Covers the critical round-trip serialization bug: a CORE ParticipantStatus
-appended directly to as_CaseParticipant.participant_statuses was serialized with
-default field values by Pydantic because the declared list element type
-(WireParticipantStatus) governed serialization rather than the actual runtime
-type.  The fix reads the saved status back from the DataLayer (which
-reconstructs it as the vocabulary-typed wire-format class) before appending.
+Covers the participant-status round-trip: a ratcheted ParticipantStatus is saved
+to the DataLayer and then appended directly to the participant record.  The node
+uses the in-memory ``status_obj`` rather than re-reading from the DataLayer,
+since ParticipantStatus has no reference fields that rehydrate_fields would
+expand (ADR-0034 makes the read-back vestigial).
 
 See: specs/multi-actor-demo.yaml DEMOMA-07-003 step 3.
 """
