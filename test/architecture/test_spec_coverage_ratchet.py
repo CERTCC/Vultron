@@ -32,10 +32,12 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # Set from the actual uncovered count after issue #2116 (1200 - 253 = 947).
 # Advanced to 948 when CSB-15-004 (DEPLOYER-only VFD causal gate) was added
 # on main without a @pytest.mark.spec marker (merged into this branch).
+# Lowered to 946 after xfail test with @pytest.mark.spec("CSB-15-004") was
+# added, reducing the uncovered count from 948 to 946 (Bug #2607).
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 948
+MAX_UNCOVERED_PROTOCOL_SPECS = 946
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
