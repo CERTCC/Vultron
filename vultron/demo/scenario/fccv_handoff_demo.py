@@ -548,34 +548,34 @@ def _phase_sync_verification(
     logger.info("Phase 4: Replica synchronization verification")
     logger.info("─" * 80)
 
-    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-    if c1_entries:
-        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-        c1_tail_index: int = c1_tail["log_index"]
-        c1_tail_hash: str = c1_tail["entry_hash"]
-        logger.info(
-            "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
-            c1_tail_hash[:16],
-            c1_tail_index,
-        )
-        for replica_client, label in [
-            (finder_client, "Finder"),
-            (c2_client, "C2"),
-            (vendor_client, "Vendor"),
-        ]:
-            with demo_check(
-                f"{label} ledger coverage (sync-verification phase)"
-            ):
-                # Temporal (EDF-06-006): Vendor joins Phase 3 so needs extra
-                # ledger catch-up time; causal-gate migration in #2202.
-                timeout = 45.0 if label == "Vendor" else 15.0
-                wait_for_contiguous_ledger_coverage(
-                    client=replica_client,
-                    case_id=case.id_,
-                    expected_tail_index=c1_tail_index,
-                    timeout_seconds=timeout,
-                )
-            logger.info("  %s ledger synchronized", label)
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(client=finder_client, case_id=case.id_)
+        c1_entries = _get_log_entries_for_case(c1_client, case.id_)
+        if c1_entries:
+            c1_tail = max(c1_entries, key=lambda e: e["log_index"])
+            c1_tail_index: int = c1_tail["log_index"]
+            c1_tail_hash: str = c1_tail["entry_hash"]
+            logger.info(
+                "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
+                c1_tail_hash[:16],
+                c1_tail_index,
+            )
+            for replica_client, label in [
+                (finder_client, "Finder"),
+                (c2_client, "C2"),
+                (vendor_client, "Vendor"),
+            ]:
+                with demo_gate(
+                    f"{label} ledger coverage (sync-verification phase)"
+                ):
+                    timeout = 45.0 if label == "Vendor" else 15.0
+                    wait_for_contiguous_ledger_coverage(
+                        client=replica_client,
+                        case_id=case.id_,
+                        expected_tail_index=c1_tail_index,
+                        timeout_seconds=timeout,
+                    )
+                logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, c2_client, vendor_client):
         # Temporal (EDF-06-006): Vendor is a late joiner — allow extra time

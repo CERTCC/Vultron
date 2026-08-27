@@ -215,6 +215,11 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
 
     monkeypatch.setattr(
         fcvcv_demo_module,
+        "wait_for_case_on_container",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        fcvcv_demo_module,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -298,6 +303,11 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     case = MagicMock()
     case.id_ = _CASE_ID
 
+    monkeypatch.setattr(
+        fcvcv_demo_module,
+        "wait_for_case_on_container",
+        lambda *a, **kw: None,
+    )
     monkeypatch.setattr(
         fcvcv_demo_module,
         "_get_log_entries_for_case",
