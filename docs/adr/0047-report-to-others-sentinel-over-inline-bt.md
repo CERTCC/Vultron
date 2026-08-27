@@ -61,9 +61,10 @@ capability shape taxonomy (ADR-0024), avoids coupling external I/O latency
 into the BT tick loop, and the downstream trigger cascade already handles the
 rest. No inline BT loop is needed.
 
-The `create_report_to_others_tree` module from #1311 is an implementation
-artifact of the intermediate Production Collapse 3 design and is tracked for
-removal (see `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession note").
+The `create_report_to_others_tree` module from #1311 was an implementation
+artifact of the intermediate Production Collapse 3 design and has been removed
+by issue #1848 (see `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession
+note").
 
 ### Consequences
 
@@ -76,8 +77,8 @@ removal (see `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession note").
 - Bad, because the Sentinel architecture (#1143) has open design questions
   (invocation model, authentication, per-case vs global) that must be resolved
   before a concrete implementation can be built
-- Neutral, because the tick-driven `create_report_to_others_tree` module must
-  be removed to avoid confusion; tests and bundles go with it
+- Neutral, because the tick-driven `create_report_to_others_tree` module has
+  been removed (issue #1848); tests and bundles were removed with it
 
 ## More Information
 

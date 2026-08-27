@@ -18,6 +18,14 @@ relevant_packages:
 
 ## Reporting to Other Parties
 
+> **Removal notice (2026-08-26, issue #1848):** The
+> `create_report_to_others_tree` factory and its companion bundle and test
+> files were removed (ADR-0047). All **Factory-fn placement** entries below
+> that reference `vultron.core.behaviors.report.create_report_to_others_tree`
+> are superseded — that module no longer exists. The production party-discovery
+> model uses a Sentinel capability instead; see § "Sentinel supersession note"
+> below.
+
 These nodes belong to the `MaybeReportToOthers` sequence tree
 (`vultron/bt/report_management/_behaviors/report_to_others.py`), which
 models the process of identifying and notifying additional stakeholders
