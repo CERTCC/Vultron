@@ -25,7 +25,8 @@ Submodules:
 - ``rm_transitions``: Report-management transition action nodes
 - ``case_creation``: Case creation and Create(Case) activity nodes
 - ``participant``: Case participant RM transition action nodes
-- ``develop_fix``: Fix-development guard/action nodes (DevelopFixBT)
+- ``develop_fix_conditions``: Fix-development guard/condition nodes
+- ``develop_fix``: Fix-development action nodes and emit base (DevelopFixBT)
 - ``deploy_fix``: Fix-deployment guard/action nodes (DeployFixBT)
 - ``emit``: Outbound report activity emission nodes
 - ``storage``: Idempotent storage nodes for inbound report objects
@@ -59,10 +60,12 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
-    CheckCSFixNotYetReady,
-    CheckIsVendorRoleNode,
     EmitCFActivity,
     TransitionCStoFixReady,
+)
+from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
+    CheckCSFixNotYetReady,
+    CheckIsVendorRoleNode,
 )
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
@@ -113,10 +116,11 @@ __all__ = [
     # participant
     "TransitionParticipantRMtoAccepted",
     "TransitionParticipantRMtoDeferred",
-    # develop_fix
-    "_EmitParticipantStatusActivityBase",
+    # develop_fix_conditions
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",
+    # develop_fix
+    "_EmitParticipantStatusActivityBase",
     "TransitionCStoFixReady",
     "EmitCFActivity",
     # deploy_fix

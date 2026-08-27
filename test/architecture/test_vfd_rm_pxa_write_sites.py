@@ -77,8 +77,8 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # PREDICATE — deploy_fix.py: VfdDimension.is_fix_deployed() / is_fix_ready()
         ("report/nodes/deploy_fix.py", "VfdDimension"),
         ("report/nodes/deploy_fix.py", "VfdDimension"),
-        # PREDICATE — develop_fix.py: VfdDimension.is_fix_ready()
-        ("report/nodes/develop_fix.py", "VfdDimension"),
+        # PREDICATE — develop_fix_conditions.py: VfdDimension.is_fix_ready()
+        ("report/nodes/develop_fix_conditions.py", "VfdDimension"),
         # RM-TRACKED — rm_transitions.py: the single report-phase RM write.
         # Was three near-identical sites (RM.VALID / RM.INVALID / RM.CLOSED);
         # collapsed to one `_ReportPhaseRMTransition._write_latch` in ISSUE-2548
