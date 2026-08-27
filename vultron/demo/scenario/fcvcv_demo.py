@@ -552,36 +552,38 @@ def _phase_sync_verification(
     logger.info("Phase 3: Replica synchronization verification (M1)")
     logger.info("─" * 80)
 
-    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-    if c1_entries:
-        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-        c1_tail_index: int = c1_tail["log_index"]
-        c1_tail_hash: str = c1_tail["entry_hash"]
-        logger.info(
-            "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
-            c1_tail_hash[:16],
-            c1_tail_index,
-        )
-        for replica_client, label in [
-            (finder_client, "Finder"),
-            (v1_client, "V1"),
-            (c2_client, "C2"),
-            # V2 is a late joiner that must catch up from genesis; allow extra
-            # time for the full history to be delivered (LedgerFanout late-joiner).
-            (v2_client, "V2"),
-        ]:
-            # V2 joins after Phase 1 completes, so it has more entries to sync.
-            timeout = 45.0 if label == "V2" else 30.0
-            with demo_gate(
-                f"{label} ledger coverage (sync-verification phase)"
-            ):
-                wait_for_contiguous_ledger_coverage(
-                    client=replica_client,
-                    case_id=case.id_,
-                    expected_tail_index=c1_tail_index,
-                    timeout_seconds=timeout,
-                )
-            logger.info("  %s ledger synchronized", label)
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(client=finder_client, case_id=case.id_)
+        c1_entries = _get_log_entries_for_case(c1_client, case.id_)
+        if c1_entries:
+            c1_tail = max(c1_entries, key=lambda e: e["log_index"])
+            c1_tail_index: int = c1_tail["log_index"]
+            c1_tail_hash: str = c1_tail["entry_hash"]
+            logger.info(
+                "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
+                c1_tail_hash[:16],
+                c1_tail_index,
+            )
+            for replica_client, label in [
+                (finder_client, "Finder"),
+                (v1_client, "V1"),
+                (c2_client, "C2"),
+                # V2 is a late joiner that must catch up from genesis; allow extra
+                # time for the full history to be delivered (LedgerFanout late-joiner).
+                (v2_client, "V2"),
+            ]:
+                # V2 joins after Phase 1 completes, so it has more entries to sync.
+                timeout = 45.0 if label == "V2" else 30.0
+                with demo_gate(
+                    f"{label} ledger coverage (sync-verification phase)"
+                ):
+                    wait_for_contiguous_ledger_coverage(
+                        client=replica_client,
+                        case_id=case.id_,
+                        expected_tail_index=c1_tail_index,
+                        timeout_seconds=timeout,
+                    )
+                logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, v1_client, c2_client, v2_client):
         # V2 is a late joiner — allow extra time for participant index propagation.
