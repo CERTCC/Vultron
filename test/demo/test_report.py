@@ -585,13 +585,6 @@ class TestEventPhraseBehavioural:
             result
         ), f"Un-substituted slot in event_phrase('offer_actor_to_case'): {result!r}"
 
-    @pytest.mark.xfail(
-        reason=(
-            "SE-07-006: submit_report {target} slot not yet populated by runtime"
-            " — tracked in #2150"
-        ),
-        strict=True,
-    )
     def test_actor_target_phrase_no_dangling_dash(self):
         """Actor+target phrase: both slots filled; no dangling em-dash."""
         result = event_phrase("submit_report")
