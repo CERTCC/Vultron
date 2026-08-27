@@ -72,6 +72,27 @@ groups:
     kind: project
     statement: Workflow or tooling PRs SHOULD update maintainer-facing documentation in the same PR; when this is not feasible,
       the PR MUST include a linked follow-up docs issue before merge.
+  - id: PD-03-007
+    priority: MUST
+    kind: project
+    statement: >-
+      When an implementation or bug-fix PR changes behavior, interfaces, or architecture described in
+      `docs/`, the PR MUST include the corresponding `docs/` updates or a linked follow-up
+      `type:Concern` issue. Inline update is preferred for edits to existing pages, adding a single
+      new page, or rewriting a single existing page. A deferred Concern is acceptable only when the
+      required update would simultaneously rewrite multiple `docs/` pages.
+    rationale: >-
+      Docs drift is invisible until it compounds. Updating docs alongside a change costs less than
+      reconstructing context in a future session. Source: CONCERN-2513.
+  - id: PD-03-008
+    priority: SHOULD
+    kind: project
+    statement: >-
+      Agents SHOULD invoke the `check-docs-sync` skill after implementation is complete and validated
+      but before the PR opens, to identify and apply any required `docs/` updates in the same PR.
+    rationale: >-
+      The `check-docs-sync` skill embeds the docs-sync check in `build`, `bugfix`, and `learn` as a
+      reusable shared phase. Source: CONCERN-2513.
 - id: PD-04
   title: Documentation Build Validation
   specs:
