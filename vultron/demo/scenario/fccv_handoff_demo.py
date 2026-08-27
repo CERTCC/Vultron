@@ -33,6 +33,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -52,6 +53,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     case_actor_id_on,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_inbox_and_wait,
     post_to_trigger,
@@ -86,6 +88,7 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
+    find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_attributed_to,
     wait_for_case_em_terminated,
@@ -93,7 +96,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
-    wait_for_object_stored,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -112,6 +115,11 @@ from vultron.demo.helpers.workflow import (
 )
 
 logger = logging.getLogger(__name__)
+
+# AC-6 audit (#2203): wait_for_case_on_container calls in this module poll for
+# VulnerabilityCase object delivery (ADR-0041 seeding path). ADR-0037/ADR-0059
+# buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
+# all wait_for_case_on_container calls here remain necessary.
 
 # Default container base URLs.
 # C1 reuses the docker-compose "vendor" container; C2 reuses "coordinator";
@@ -285,13 +293,15 @@ def _phase_ownership_handoff(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("C2 invite created: %s", invite.id_)
 
-    with demo_check("C2 invite delivered to C2's DataLayer"):
-        find_case_invite_for_actor(
+    invite_id = None
+    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
+        invite_id = find_case_invite_for_actor(
             client=c2_client,
             case_id=case.id_,
             invitee_id=c2.id_,
             timeout_seconds=90.0,
         )
+    logger.info("CaseActor Invite for C2: %s", invite_id)
 
     # C2 accepts the invite.
     with demo_step("C2 accepts the case invitation"):
@@ -299,7 +309,7 @@ def _phase_ownership_handoff(
             client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite.id_},
+            body={"invite_id": invite_id},
         )
 
     # Wait for C2's case replica.
@@ -338,16 +348,15 @@ def _phase_ownership_handoff(
         ownership_offer.id_,
     )
 
-    with demo_check(
-        "Ownership transfer offer delivered to C2's DataLayer (TRIG-11-001)"
+    ownership_offer_id = None
+    with demo_gate(
+        "CaseActor-forwarded Offer(VulnerabilityCase) delivered to C2 (TRIG-11-001)"
     ):
-        wait_for_object_stored(
+        ownership_offer_id = find_ownership_transfer_offer_for_actor(
             client=c2_client,
-            obj_id=ownership_offer.id_,
-            timeout_seconds=90.0,
+            case_id=case.id_,
+            transferee_id=c2.id_,
         )
-
-    ownership_offer_id = ownership_offer.id_
     logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
 
     # C2 accepts the ownership transfer (TRIG-11-002).
@@ -702,61 +711,74 @@ def _phase_fix_lifecycle(
     )
     logger.info("─" * 80)
 
-    actor_notifies_fix_ready(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
+        )
+        actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor_in_vendor,
+            case_id=case.id_,
         )
 
-    with demo_check("Finder replica shows Vendor CS includes F (fix ready)"):
-        wait_for_participant_vfd_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
-        )
-        wait_for_participant_vfd_state(
-            client=finder_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
-        )
-        verify_fix_ready(
-            receiver_client=c1_client,
-            reporter_client=finder_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-        )
+        with demo_check(
+            "Vendor participant vfd_state transitions to VFd or VFD"
+        ):
+            wait_for_participant_vfd_state(
+                client=vendor_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
-    with demo_check(
-        "Finder replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
-    ):
-        wait_for_participant_vfd_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
-        )
-        wait_for_participant_vfd_state(
-            client=finder_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
-        )
-        verify_fix_ready(
-            receiver_client=c1_client,
-            reporter_client=finder_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-        )
+        with demo_check(
+            "Finder replica shows Vendor CS includes F (fix ready)"
+        ):
+            wait_for_participant_vfd_state(
+                client=c1_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
+            wait_for_participant_vfd_state(
+                client=finder_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
+            verify_fix_ready(
+                receiver_client=c1_client,
+                reporter_client=finder_client,
+                case_id=case.id_,
+                receiver_actor_id=vendor.id_,
+            )
+
+        with demo_check(
+            "Finder replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
+        ):
+            wait_for_participant_vfd_state(
+                client=c1_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd},
+            )
+            wait_for_participant_vfd_state(
+                client=finder_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd},
+            )
+            verify_fix_ready(
+                receiver_client=c1_client,
+                reporter_client=finder_client,
+                case_id=case.id_,
+                receiver_actor_id=vendor.id_,
+            )
 
 
 def _phase_publication(

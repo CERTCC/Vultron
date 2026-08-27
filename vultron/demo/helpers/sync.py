@@ -233,9 +233,29 @@ def verify_replica_state(
     )
     auth_tail = max(auth_entries, key=lambda e: e["log_index"])
     replica_tail = max(replica_entries, key=lambda e: e["log_index"])
-    assert auth_tail["entry_hash"] == replica_tail["entry_hash"], (
+    # Compare at the replica's current tail index: the auth actor may have
+    # received additional entries during coverage-wait loops (fanout race).
+    # Coverage was already verified by wait_for_contiguous_ledger_coverage
+    # before this call, so comparing at the replica's tail is sufficient to
+    # verify hash-chain integrity up to the point the replica has reached.
+    compare_index = replica_tail["log_index"]
+    auth_entry_by_index = {e["log_index"]: e for e in auth_entries}
+    auth_at_compare = auth_entry_by_index.get(compare_index)
+    assert auth_at_compare is not None, (
+        f"Auth has no entry at index {compare_index} — "
+        "replica is ahead of auth or coverage check is stale"
+    )
+    if auth_tail["log_index"] > compare_index:
+        logger.debug(
+            "Auth has grown to index %d during coverage wait; "
+            "comparing at replica's current tail index %d",
+            auth_tail["log_index"],
+            compare_index,
+        )
+    assert auth_at_compare["entry_hash"] == replica_tail["entry_hash"], (
         f"Replica log tail hash {replica_tail['entry_hash']!r} != "
-        f"authoritative log tail hash {auth_tail['entry_hash']!r} — "
+        f"authoritative log tail hash at index {compare_index} "
+        f"{auth_at_compare['entry_hash']!r} — "
         "hash-chain replication integrity failure"
     )
     logger.info(

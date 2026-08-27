@@ -301,9 +301,15 @@ bash .agents/skills/shared/add-to-project.sh "${IMPL_NUMBER}"
 parent Epic (`EPIC_NUMBER` non-empty) is already on the right glacier — leave
 it at its inherited tier. But an impl issue with **no** parent epic should not
 be left flat at Someday: invoke the **`calve-epics`** skill (Mode 1) to route
-it onto the epic it matches, inheriting that epic's Schedule tier. If no epic
-fits, `calve-epics` leaves it at root as a calving candidate — do not mint a
-new epic inline here.
+it onto the epic it matches, inheriting that epic's Schedule tier.
+
+**A parent epic is mandatory.** If `calve-epics` Mode 1 finds no match, do
+**not** leave the issue at root. Instead use `AskUserQuestion` to present the
+full list of open epics and require the user to select the best fit. If the
+user determines a new epic is warranted, run `calve-epics` Mode 2 to propose
+and confirm it before closing this skill. An impl issue without a parent epic
+is invisible to prioritisation and blocks future sprint planning — never ship
+one orphaned.
 
 ### Phase 8b — Add Implementation Issue References to Docs PR (Ideas and Concerns only)
 

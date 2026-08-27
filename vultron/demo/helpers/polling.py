@@ -1311,6 +1311,77 @@ def wait_for_case_attributed_to(
     )
 
 
+def wait_for_initialized_case(
+    client: DataLayerClient,
+    report_id: str,
+    timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
+    poll_interval: float = 0.5,
+) -> as_VulnerabilityCase:
+    """Poll the CaseActor's store until a VulnerabilityCase with participants appears.
+
+    After ``ProposeReportCaseToActorNode`` runs during report validation the
+    CaseActor creates the canonical ``VulnerabilityCase`` with vendor, reporter,
+    and CaseActor as initial participants.  A one-shot read races this creation;
+    this helper polls instead, giving the BT time to complete.
+
+    The CaseActor URI is derived from *report_id* via
+    :func:`~vultron.demo.utils.case_actor_id_for_report`.
+
+    Args:
+        client: DataLayerClient for the container that hosts the CaseActor.
+        report_id: URI of the report whose proposal created the case.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The first ``as_VulnerabilityCase`` found with non-empty
+        ``case_participants``.
+
+    Raises:
+        AssertionError: If no initialized VulnerabilityCase appears within
+            *timeout_seconds*.
+
+    Spec: ISSUE-2359 / ADR-0041.
+    """
+    from vultron.demo.utils import case_actor_id_for_report  # noqa: PLC0415
+
+    case_actor_id = case_actor_id_for_report(report_id)
+    found: list[as_VulnerabilityCase] = []
+
+    def _check() -> bool:
+        try:
+            cases_by_id: dict = client.get(
+                client.dl_path("VulnerabilityCases/", actor_id=case_actor_id)
+            )
+            for case_raw in cases_by_id.values():
+                try:
+                    case = as_VulnerabilityCase(**case_raw)
+                    if case.case_participants:
+                        found.append(case)
+                        logger.info(
+                            "Initialized VulnerabilityCase found in CaseActor"
+                            " store %s: %s",
+                            case_actor_id,
+                            case.id_,
+                        )
+                        return True
+                except Exception:  # noqa: BLE001
+                    continue
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for initialized VulnerabilityCase in CaseActor"
+        f" store {case_actor_id!r} at {client.base_url}",
+        swallow_exceptions=True,
+    )
+    return found[0]
+
+
 def wait_for_pending_inbox_quiescent(
     client: DataLayerClient,
     case_id: str,

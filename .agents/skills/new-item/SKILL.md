@@ -2,7 +2,7 @@
 name: new-item
 description: >
   Create or update a single GitHub Idea or Concern issue from freeform input,
-  with type inference, duplicate checks, and optional Epic parent wiring. Use
+  with type inference, duplicate checks, and mandatory Epic parent wiring. Use
   when a developer wants to quickly capture a new planning item as type:Idea or
   type:Concern.
 ---
@@ -65,9 +65,16 @@ do not add a symptom/root frame to Ideas.
 
 ### Phase 4 — Epic Parent Selection
 
-Query open Epic issues and rank likely matches. Present top ~5 suggestions, plus
-"Specify other epic" and "None". If user provides another issue number, validate
-it is an open Epic; re-prompt until valid or none selected. Allow at most one
+**A parent epic is required for all new issues.** Query open Epic issues and
+rank likely matches. Present top ~5 suggestions, "Specify other epic number",
+and **"Create new epic (none of these fit)"** as explicit choices. If the user
+provides another issue number, validate it is an open Epic; re-prompt until
+valid. Do **not** offer a "None / skip" option — an issue without a parent epic
+is invisible to sprint planning and prioritisation.
+
+If the user selects "Create new epic (none of these fit)", do not create the
+issue yet: invoke `calve-epics` Mode 2 to propose a new epic, confirm it with
+the user, and then proceed with that new epic as the parent. Allow at most one
 parent epic.
 
 ### Phase 5 — Build Title + Body
