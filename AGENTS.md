@@ -487,9 +487,11 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `if bridge.execute_with_setup(...) == Status.FAILURE: raise VultronBTError(...)`.
   See [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Ledger Commit Must Precede Outbox Write** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  see [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md)
+  § "Ledger Commit Must Precede Outbox Write".
 - **`disposition="rejected"` for Local-Only Correlation Markers** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  see [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md)
+  § "Use `disposition=\"rejected\"` for Local-Only Ledger Correlation Markers".
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **`ActivityPattern.target_` Is Always Permissive Unless `strict=True`** —
@@ -524,8 +526,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   and record a Sentinel stub. See
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).
 - **BT Integration Tests Must Use Deterministic Factories When the Default Is
-  Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism" and
-  [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism".
 - **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor** —
   FAILURE/exception when no routable CaseActor. See PCR-08-011.
 - **Module Split: Re-Import Moved Names for `monkeypatch` Compatibility** —
