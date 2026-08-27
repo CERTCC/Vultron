@@ -656,3 +656,27 @@ class TestResolveReceivingActorId:
         """``getattr`` default path: a stub port with no ``actor_id``."""
         with pytest.raises(VultronValidationError):
             resolve_receiving_actor_id(cast(SqliteDataLayer, object()), None)
+
+    def test_propagates_not_implemented_from_actor_id_property(
+        self,
+    ) -> None:
+        """A stub whose ``actor_id`` raises ``NotImplementedError`` propagates it.
+
+        ``NotImplementedError`` from a property getter is a programming error
+        (the adapter is incomplete), not a data-availability problem.  It must
+        not be silently converted to ``VultronValidationError`` — callers need
+        the unambiguous signal that the adapter is broken, not a misleading
+        "no receiving actor" diagnosis (CM-01-001 port contract).
+        """
+
+        class _StubWithRaisingActorId:
+            @property
+            def actor_id(self) -> str:
+                raise NotImplementedError(
+                    "actor_id not implemented on this stub"
+                )
+
+        with pytest.raises(NotImplementedError):
+            resolve_receiving_actor_id(
+                cast(SqliteDataLayer, _StubWithRaisingActorId()), None
+            )
