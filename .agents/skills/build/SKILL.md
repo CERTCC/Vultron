@@ -273,7 +273,18 @@ that clearly belongs with it, apply the following:
    task (and therefore the same epic) where it was discovered — this keeps it
    visible in the epic tree and off the `no:parent-issue` orphan list.
 
-### Phase 7 — Pre-PR Code Review
+### Phase 7 — Docs Sync Check
+
+Invoke the `check-docs-sync` skill to identify any `docs/` updates required
+by this implementation (PD-03-008). This check runs when the diff is stable,
+before code review begins.
+
+- **Small updates** (single page edit, addition, or rewrite): apply inline
+  in this PR.
+- **Large updates** (simultaneous multi-page rewrite): file a `type:Concern`
+  issue; do not block the PR.
+
+### Phase 8 — Pre-PR Code Review
 
 Invoke the `code-review` agent against the current branch diff vs `main`.
 
@@ -296,7 +307,7 @@ be empty if changes are unstaged. Stage all changed files first (`git add`),
 then pass `git diff --cached` as the diff source for the review, or do a
 draft commit and use `git diff main...HEAD` normally.
 
-### Phase 8 — Open PR and Finalize
+### Phase 9 — Open PR and Finalize
 
 1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
    Update the `size:` label on the Issue.
