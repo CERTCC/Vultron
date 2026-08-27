@@ -27,7 +27,6 @@ specs/sync-ledger-replication.yaml SYNC-02-002.
 from __future__ import annotations
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
 
@@ -250,29 +249,12 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
             return Status.FAILURE
         status_obj = ratcheted
 
-        # Saved unconditionally: the read-back below is what actually reaches
-        # ``participant_statuses``, so skipping the save when the object already
-        # exists locally would silently discard the RM ratchet applied above and
-        # append the un-ratcheted status instead — regressing the replica's RM
-        # while the ratchet's own log line claims the opposite (RSH-05-007,
-        # SYNC-02-002).
+        # Saved unconditionally: ``status_obj`` carries the RM ratchet applied
+        # above; skipping the save would silently discard that ratchet,
+        # regressing the replica's RM visibility (RSH-05-007, SYNC-02-002).
         self.datalayer.save(status_obj)
 
-        # Read back from the DataLayer so the stored canonical record is used
-        # (ADR-0034: dl.read() returns core-typed objects).
-        status_from_dl = self.datalayer.read(status_id)
-        if status_from_dl is None:
-            self.logger.warning(
-                "%s: status '%s' not readable from DataLayer after"
-                " save — skipping participant update",
-                self.name,
-                status_id,
-            )
-            return Status.SUCCESS
-
-        participant.add_participant_status(
-            cast(ParticipantStatus, status_from_dl)
-        )
+        participant.add_participant_status(status_obj)
         self.datalayer.save(participant)
 
         self.logger.info(
