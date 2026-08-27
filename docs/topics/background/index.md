@@ -12,6 +12,12 @@
     For technical reference, see [Reference](../../reference/index.md).
     If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
+!!! tip "New to Vultron?"
+
+    If you want a concise overview of what Vultron is, why it exists, and
+    whether it is relevant to your organization, start with
+    [What Is Vultron?](what-is-vultron.md).
+
 The CVD process
 addresses a human coordination problem that spans individuals and
 organizations. As we wrote in [*The CERT* *Guide to Coordinated
