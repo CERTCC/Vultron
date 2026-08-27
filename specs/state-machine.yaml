@@ -79,6 +79,21 @@ groups:
     priority: MUST
     kind: architecture
     statement: Runtime state changes MUST be guarded by an explicit precondition check before the state value is written
+    rationale: >-
+      The precondition check MUST be contextually appropriate — it verifies that
+      the intended transition is valid for the specific domain situation, not merely
+      that it passes a strict adjacency test. For example, when the CaseActor sets
+      a reporter participant to `RM.ACCEPTED` at bootstrap time, the guard does not
+      check strict RM adjacency (the reporter's intermediate states were never
+      observed and MUST NOT be inserted into the ledger); it checks instead that
+      the transition is a legitimate bootstrap-forward move — which is valid because
+      a report submitter can only be at `RM.ACCEPTED` at the time of submission
+      (see CBT-01-008). Treating `is_valid_rm_transition` as the only acceptable
+      precondition form would block valid bootstrap paths while blocking invalid
+      state bypasses is the actual goal.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-008
   - id: SM-04-002
     priority: MUST
     kind: architecture

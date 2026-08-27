@@ -1,7 +1,7 @@
 ---
 title: "Untracked pre-existing concerns found during #2481 code review"
 type: learning
-timestamp: "2026-08-26"
+timestamp: "2026-08-26T00:00:00Z"
 source: ISSUE-2481
 signal: concern
 ---
@@ -31,3 +31,5 @@ related to tracked issue #2469.
 
 Action: create one Concern issue per untracked item above before the next build
 session that touches `vultron/core/behaviors/status/` or `call_out/`.
+
+**Promoted**: 2026-08-27 — GitHub Concern issues #2739 #2740 filed. Pre-existing issues #2704-#2711 already tracked. Docs PR: <pending>.

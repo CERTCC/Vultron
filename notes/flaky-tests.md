@@ -26,6 +26,7 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
+| `test/demo/test_delivery_fallback_speed.py::test_demo_completes_under_5_seconds` | #2738 | 2026-08-26 |
 
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that

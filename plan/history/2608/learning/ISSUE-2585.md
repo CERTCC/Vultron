@@ -30,3 +30,5 @@ Primary categories with no-match specs:
 **Follow-on work needed**: author new user stories for the 223 remaining specs, or
 determine that they are genuinely internal implementation details that need no
 story traceability. See the gap list in the issue filed against SR-11.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.

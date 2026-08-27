@@ -1,7 +1,7 @@
 ---
 title: "Issue #2488 already satisfied by PR #2502 — missing Closes footer"
 type: learning
-timestamp: "2026-08-26"
+timestamp: "2026-08-26T00:00:00Z"
 source: ISSUE-2488
 signal: process-issue
 ---
@@ -24,3 +24,5 @@ was already in flight, and the two issues were never linked.
 **Takeaway**: Before implementing, verify every AC against `origin/main`.
 If all ACs pass, close with a reference comment — no PR needed.
 (AGENTS.md pitfall: "Verify Issue ACs Against Current Code Before Starting")
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.

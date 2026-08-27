@@ -29,3 +29,5 @@ All have been filed or linked:
 
 The most critical is #2704 (SYNC-12-001 violation — ledger commit before effect
 application can complete).
+
+**Promoted**: 2026-08-27 — GitHub Concern issues #2739 #2740 filed. Pre-existing issues #2704-#2711 already tracked. Docs PR: <pending>.

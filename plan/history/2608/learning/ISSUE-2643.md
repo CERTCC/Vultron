@@ -1,7 +1,7 @@
 ---
 title: "issueType: null in GraphQL requires content-based fallback"
 type: learning
-timestamp: "2026-08-26"
+timestamp: "2026-08-26T00:00:00Z"
 source: ISSUE-2643
 signal: process-issue
 ---
@@ -20,3 +20,5 @@ halting on the null.
 This is distinct from a genuinely unrecognized type (e.g., a string value
 not in the supported set). A null type signals "no type set in GitHub" — it
 does not signal an unsupported type.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.

@@ -31,3 +31,5 @@ and is not affected.
 list, making all parametrized test cases SKIP instead of FAIL. The
 `test_qualifying_workflows_found` assertion in the notification test catches
 this specifically.
+
+**Promoted**: 2026-08-27 — captured in AGENTS.md. Docs PR: <pending>.

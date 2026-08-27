@@ -280,9 +280,10 @@ groups:
   description: >
     An inbound `Add(ParticipantStatus, CaseParticipant)` carries a snapshot of
     several independent state machines (`rm`, `vfd`, `em`, `pxa`, `consent`).
+    An inbound `Add(CaseStatus, Case)` carries independent EM and PXA dimensions.
     These requirements govern adjudicating each dimension on its own rather
     than accepting or discarding the snapshot as a unit.
-    Derived from ISSUE-2235 and epic ISSUE-2229 (Postel's maxim / liberal
+    Derived from ISSUE-2235, ISSUE-2256, and epic ISSUE-2229 (Postel's maxim / liberal
     accept).
   specs:
   - id: RSH-05-001
@@ -551,6 +552,75 @@ groups:
       against an older consumer. Logging preserves auditability without
       blocking a structurally valid override. Field-name validation (RSH-05-013)
       is the data-integrity guard; `producer_type` is an audit hint only.
+  - id: RSH-05-015
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(CaseStatus, Case)` MUST adjudicate the EM
+      and PXA dimensions of the reported case status independently. An
+      unacceptable value in one dimension MUST NOT cause the value reported in
+      the other dimension to be discarded.
+    rationale: >
+      EM and PXA are independent state machines within CaseStatus (parallel to
+      RM, VFD, EM, PXA in ParticipantStatus). A value that is unacceptable in
+      EM carries no information about PXA and vice versa. Discarding the whole
+      snapshot destroys state the receiver has no grounds to refuse. Liberal
+      accept (ISSUE-2229): accept everything acceptable.
+    verification: >
+      Unit tests for `add_case_status_tree` confirm that an unacceptable EM
+      value does not discard an accepted PXA value from the same CaseStatus
+      snapshot, and vice versa.
+    note: >
+      Implemented by `FilterCsEmDimensionNode` and `FilterCsPxaDimensionNode`
+      in `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired
+      as precondition guards of `add_case_status_tree`. See ISSUE-2256.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-016
+    priority: MUST
+    kind: protocol
+    statement: >
+      When an EM or PXA dimension of a received `CaseStatus` is refused, the
+      receiver MUST record the case's current value for that dimension alongside
+      the accepted value from the other dimension, as a single `CaseStatus`.
+    rationale: >
+      The recorded status must remain a coherent snapshot of the receiver's
+      view of the case. Omitting the refused dimension would leave it undefined;
+      recording the asserted value would adopt a claim the receiver just refused.
+      This is the CaseStatus parallel to RSH-05-002 for ParticipantStatus.
+    verification: >
+      Unit tests confirm that when the EM dimension is refused, the resulting
+      recorded `CaseStatus` carries the case's current EM state, not the
+      asserted EM state.
+    note: >
+      Implemented by `FilterCsEmDimensionNode` carrying forward `current_em`
+      and `FilterCsPxaDimensionNode` carrying forward `current_pxa` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-017
+    priority: MUST
+    kind: protocol
+    statement: >
+      A received `CaseStatus` in which every refused dimension leaves the
+      resulting snapshot indistinguishable from the case's current state MUST
+      be refused in full: nothing is appended and no canonical ledger entry is
+      committed.
+    rationale: >
+      Such an assertion carries no acceptable information. Appending it would
+      grow the case's status history and the hash chain without recording any
+      state change. This is the CaseStatus parallel to RSH-05-005 for
+      ParticipantStatus.
+    verification: >
+      Unit tests confirm that a `CaseStatus` where both EM and PXA are refused
+      and the result is indistinguishable from current state is rejected in full
+      with no ledger entry committed.
+    note: >
+      Implemented by `FinalizeCsFilterNode.update()` returning `Status.FAILURE`
+      when `(filtered.em.state, filtered.pxa.state) == (current.em.state,
+      current.pxa.state)`.
+    lint_suppress:
+    - missing_story_reference
 
 - id: RSH-06
   title: RM Anomaly Notification Policy (non-adjacent jumps and backward regressions)

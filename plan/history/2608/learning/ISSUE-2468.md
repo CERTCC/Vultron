@@ -21,3 +21,5 @@ a new bug.
 **Takeaway:** When adding a new lint gate, run it against the live codebase before
 committing and fix any pre-existing violations in the same PR — a gate that
 immediately fails CI on merge is not useful.
+
+**Promoted**: 2026-08-27 — archived (already in specs/notes/AGENTS.md or tracked as GitHub issue). Docs PR: <pending>.

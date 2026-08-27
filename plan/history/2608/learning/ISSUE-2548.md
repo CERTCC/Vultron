@@ -1,7 +1,7 @@
 ---
 title: '"case creator/owner" names two different actors under ADR-0041'
 type: learning
-timestamp: 2026-08-25
+timestamp: "2026-08-25T00:00:00Z"
 source: ISSUE-2548
 signal: spec-contradiction
 ---
@@ -48,3 +48,5 @@ is amended in place to say which actor is which, and now also names `CASE_MANAGE
   the wording gap here is what let the two ideas drift.
 - Related: [[a-spec-can-assert-the-premise-that-causes-the-bug]] — same failure
   mode, where the spec text is the thing that needs fixing.
+
+**Promoted**: 2026-08-27 — already captured in specs/ (DL-08-001/002, PCR-01-003, CBT-01-003). Docs PR: <pending>.
