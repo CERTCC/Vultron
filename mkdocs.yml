@@ -15,6 +15,7 @@ nav:
     - 'topics/index.md'
     - Background:
       - 'topics/background/index.md'
+      - What Is Vultron?: 'topics/background/what-is-vultron.md'
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
     - Process Models:
