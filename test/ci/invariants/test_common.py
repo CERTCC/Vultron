@@ -1049,3 +1049,109 @@ class TestCheckPerActorReplicaDivergence:
         violations = check_per_actor_replica_divergence(replicas)
         assert violations
         assert "vendor" in violations[0]
+
+
+# ---------------------------------------------------------------------------
+# CLP-14 timestamp invariants (check_clp14_timestamp_invariants)
+# ---------------------------------------------------------------------------
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+def _ts_chain_entry(
+    log_index: int,
+    published: str | None = None,
+    event_type: str = "noop",
+) -> dict:
+    entry = _entry(
+        log_index,
+        _SHA256(f"ts:{log_index}"),
+        GENESIS_HASH,
+        event_type=event_type,
+    )
+    if published is not None:
+        entry["published"] = published
+    return entry
+
+
+_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+_T1 = _T0 + timedelta(minutes=1)
+_T2 = _T1 + timedelta(minutes=1)
+
+
+class TestCheckClp14TimestampInvariants:
+    def _replicas(self, entries: list[dict]) -> dict[str, list[dict]]:
+        return {"case-actor": entries}
+
+    def _valid_entries(self) -> list[dict]:
+        return [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(1, published=_T1.isoformat()),
+            _ts_chain_entry(2, published=_T2.isoformat()),
+        ]
+
+    @pytest.mark.spec("CLP-14-002")
+    def test_clp14_002_detects_null_published(self):
+        entries = self._valid_entries()
+        entries[1].pop("published")
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-002" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-003")
+    def test_clp14_003_detects_timestamp_regression(self):
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(1, published=_T2.isoformat()),
+            _ts_chain_entry(2, published=_T1.isoformat()),  # regression
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-003" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-005")
+    def test_clp14_005_detects_duplicate_log_index(self):
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(
+                0, published=_T1.isoformat()
+            ),  # duplicate logIndex=0
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-005" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-006")
+    def test_clp14_006_detects_entry_before_case_creation(self):
+        before_case = (_T0 - timedelta(minutes=5)).isoformat()
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(1, published=before_case),
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-006" in v for v in violations)
+
+    def test_valid_entries_produce_no_violations(self):
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(self._valid_entries())
+        )
+        assert not violations
+
+    def test_empty_replicas_produces_no_violations(self):
+        violations = common.check_clp14_timestamp_invariants(
+            {"case-actor": []}
+        )
+        assert not violations

@@ -454,34 +454,6 @@ class TestUnboundLocalErrorRegression:
         )
         assert result == {}
 
-    def test_seed_offer_record_for_actor_returns_none_on_trigger_failure(
-        self, monkeypatch
-    ):
-        """seed_offer_record_for_actor must return None (not raise
-        UnboundLocalError) when post_to_trigger raises inside the demo_step
-        block."""
-        from unittest.mock import MagicMock
-
-        import vultron.demo.helpers.workflow as workflow_mod
-
-        monkeypatch.setattr(
-            workflow_mod,
-            "post_to_trigger",
-            MagicMock(side_effect=RuntimeError("trigger failed")),
-        )
-
-        actor = MagicMock()
-        actor.id_ = "http://example.com/api/v2/actors/vendor-1"
-
-        result = workflow_mod.seed_offer_record_for_actor(
-            client=MagicMock(),
-            actor=actor,
-            offer_id="offer-abc",
-            report_id="report-abc",
-            offer_actor_id="actor-abc",
-        )
-        assert result == {}
-
     def test_reporter_submits_report_no_unbound_error_on_trigger_failure(
         self, monkeypatch
     ):

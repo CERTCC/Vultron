@@ -159,10 +159,6 @@ def test_clp_14_006_entry_not_before_case_creation():
     assert e.published >= case_published
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="CLP-14-007: future-timestamp SHOULD rejection not implemented. Tracked by #2679.",
-)
 @pytest.mark.spec("CLP-14-007")
 def test_clp_14_007_future_timestamp_payload_rejected():
     """CaseActor SHOULD reject payload assertions timestamped implausibly far in the future."""
@@ -171,20 +167,17 @@ def test_clp_14_007_future_timestamp_payload_rejected():
     )
 
     far_future = datetime(2099, 1, 1, tzinfo=timezone.utc).isoformat()
-    with pytest.raises(VultronCanonicalEntryError):
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _validate_canonical_entry(
             case_id=CASE_ID,
             actor_id=ACTOR_ID,
             disposition="recorded",
             event_type="test",
             payload_snapshot=_minimal_payload(published=far_future),
+            case_published=T0,
         )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="CLP-14-008: stale-timestamp SHOULD rejection not implemented. Tracked by #2679.",
-)
 @pytest.mark.spec("CLP-14-008")
 def test_clp_14_008_stale_timestamp_payload_rejected():
     """CaseActor SHOULD reject payload assertions timestamped implausibly far in the past."""
@@ -192,14 +185,16 @@ def test_clp_14_008_stale_timestamp_payload_rejected():
         _validate_canonical_entry,
     )
 
-    far_past = datetime(2000, 1, 1, tzinfo=timezone.utc).isoformat()
-    with pytest.raises(VultronCanonicalEntryError):
+    far_past = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    case_created = datetime(1999, 1, 1, tzinfo=timezone.utc)
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-008"):
         _validate_canonical_entry(
             case_id=CASE_ID,
             actor_id=ACTOR_ID,
             disposition="recorded",
             event_type="test",
-            payload_snapshot=_minimal_payload(published=far_past),
+            payload_snapshot=_minimal_payload(published=far_past.isoformat()),
+            case_published=case_created,
         )
 
 

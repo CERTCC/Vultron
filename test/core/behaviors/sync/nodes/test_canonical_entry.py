@@ -21,6 +21,8 @@ guard *through* ``CreateLogEntryNode`` stay in ``test_chain.py``; these call
 the validator directly.
 """
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from test.core.behaviors.sync.nodes.conftest import (
@@ -191,4 +193,162 @@ def test_validate_canonical_entry_allows_case_actor_for_native_init(
         disposition="recorded",
         payload_snapshot=snapshot,
         event_type=event_type,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CLP-14 timestamp invariant tests
+# ---------------------------------------------------------------------------
+
+_CASE_PUBLISHED = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+_ENTRY_PUBLISHED = datetime(2026, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+
+
+def _ts_snapshot(published: str | datetime | None = _ENTRY_PUBLISHED) -> dict:
+    snap: dict = {
+        "type": "Add",
+        "actor": OWNER_ACTOR_ID,
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/n1",
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+    if published is not None:
+        snap["published"] = (
+            published.isoformat()
+            if isinstance(published, datetime)
+            else published
+        )
+    return snap
+
+
+def _call_with_ts(
+    snapshot: dict,
+    *,
+    case_published: datetime = _CASE_PUBLISHED,
+    prev_entry_published: datetime | None = None,
+    future_tolerance: timedelta | None = None,
+    staleness_window: timedelta | None = None,
+) -> None:
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=OWNER_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=snapshot,
+        event_type="note_added",
+        case_published=case_published,
+        prev_entry_published=prev_entry_published,
+        future_tolerance=future_tolerance,
+        staleness_window=staleness_window,
+    )
+
+
+@pytest.mark.spec("CLP-14-002")
+def test_clp14_002_rejects_missing_published():
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-002"):
+        _call_with_ts(_ts_snapshot(published=None))
+
+
+@pytest.mark.spec("CLP-14-002")
+def test_clp14_002_rejects_malformed_published():
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-002"):
+        _call_with_ts(_ts_snapshot(published="not-a-date"))
+
+
+@pytest.mark.spec("CLP-14-002")
+def test_clp14_002_accepts_valid_iso_published():
+    _call_with_ts(_ts_snapshot())
+
+
+@pytest.mark.spec("CLP-14-002")
+def test_clp14_002_accepts_datetime_object_published():
+    snap = _ts_snapshot()
+    snap["published"] = _ENTRY_PUBLISHED
+    _call_with_ts(snap)
+
+
+@pytest.mark.spec("CLP-14-006")
+def test_clp14_006_rejects_entry_before_case():
+    before_case = _CASE_PUBLISHED - timedelta(seconds=1)
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-006"):
+        _call_with_ts(_ts_snapshot(published=before_case))
+
+
+@pytest.mark.spec("CLP-14-006")
+def test_clp14_006_accepts_entry_equal_to_case_published():
+    _call_with_ts(_ts_snapshot(published=_CASE_PUBLISHED))
+
+
+@pytest.mark.spec("CLP-14-003")
+def test_clp14_003_rejects_timestamp_regression():
+    prev = _ENTRY_PUBLISHED + timedelta(seconds=10)
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-003"):
+        _call_with_ts(_ts_snapshot(), prev_entry_published=prev)
+
+
+@pytest.mark.spec("CLP-14-003")
+def test_clp14_003_accepts_non_decreasing_timestamp():
+    prev = _ENTRY_PUBLISHED - timedelta(seconds=1)
+    _call_with_ts(_ts_snapshot(), prev_entry_published=prev)
+
+
+@pytest.mark.spec("CLP-14-003")
+def test_clp14_003_accepts_equal_timestamps():
+    _call_with_ts(_ts_snapshot(), prev_entry_published=_ENTRY_PUBLISHED)
+
+
+@pytest.mark.spec("CLP-14-007")
+def test_clp14_007_rejects_future_timestamp():
+    far_future = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
+        _call_with_ts(
+            _ts_snapshot(published=far_future),
+            case_published=_CASE_PUBLISHED,
+            future_tolerance=timedelta(minutes=5),
+        )
+
+
+@pytest.mark.spec("CLP-14-007")
+def test_clp14_007_skipped_when_tolerance_is_none():
+    far_future = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    _call_with_ts(
+        _ts_snapshot(published=far_future),
+        case_published=_CASE_PUBLISHED,
+        future_tolerance=None,
+        staleness_window=None,
+    )
+
+
+@pytest.mark.spec("CLP-14-008")
+def test_clp14_008_rejects_stale_timestamp():
+    stale = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-008"):
+        _call_with_ts(
+            _ts_snapshot(published=stale),
+            case_published=stale - timedelta(days=1),
+            staleness_window=timedelta(days=7),
+        )
+
+
+@pytest.mark.spec("CLP-14-008")
+def test_clp14_008_skipped_when_window_is_none():
+    stale = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    _call_with_ts(
+        _ts_snapshot(published=stale),
+        case_published=stale - timedelta(days=1),
+        future_tolerance=None,
+        staleness_window=None,
+    )
+
+
+def test_clp14_timestamp_checks_skipped_when_case_published_is_none():
+    """Omitting case_published bypasses all timestamp checks."""
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=OWNER_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=_ts_snapshot(published=None),
+        event_type="note_added",
     )

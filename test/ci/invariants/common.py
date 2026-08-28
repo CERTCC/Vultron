@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -952,3 +953,114 @@ def check_causal_edges(
             )
 
     return violations
+
+
+def _parse_ts(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value)
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _clp14_005_unique_indices(sorted_entries: list[dict]) -> list[str]:
+    seen: set[int] = set()
+    violations: list[str] = []
+    for entry in sorted_entries:
+        idx = log_index(entry)
+        if idx in seen:
+            violations.append(f"CLP-14-005: duplicate logIndex={idx}")
+        else:
+            seen.add(idx)
+    return violations
+
+
+def _clp14_002_build_ts_entries(
+    sorted_entries: list[dict],
+) -> tuple[list[str], list[tuple[int, datetime]]]:
+    violations: list[str] = []
+    ts_entries: list[tuple[int, datetime]] = []
+    for entry in sorted_entries:
+        idx = log_index(entry)
+        raw = entry.get("published")
+        if raw is None:
+            violations.append(
+                f"CLP-14-002: logIndex={idx} "
+                f"eventType={event_type(entry)!r} has null published"
+            )
+            continue
+        dt = _parse_ts(raw)
+        if dt is None:
+            violations.append(
+                f"CLP-14-002: logIndex={idx} published "
+                f"{raw!r} is not a valid ISO 8601 timestamp"
+            )
+        else:
+            ts_entries.append((idx, dt))
+    return violations, ts_entries
+
+
+def _clp14_003_monotone(ts_entries: list[tuple[int, datetime]]) -> list[str]:
+    violations: list[str] = []
+    for i in range(1, len(ts_entries)):
+        prev_idx, prev_ts = ts_entries[i - 1]
+        curr_idx, curr_ts = ts_entries[i]
+        if curr_ts < prev_ts:
+            violations.append(
+                f"CLP-14-003: logIndex={curr_idx} published {curr_ts} "
+                f"regresses before logIndex={prev_idx} published {prev_ts}"
+            )
+    return violations
+
+
+def _clp14_006_no_predate_case(
+    sorted_entries: list[dict],
+    ts_entries: list[tuple[int, datetime]],
+) -> list[str]:
+    case_ts: datetime | None = None
+    for entry in sorted_entries:
+        if event_type(entry) == "create_case":
+            raw = entry.get("published")
+            if raw is not None:
+                case_ts = _parse_ts(raw)
+            break
+    if case_ts is None:
+        return []
+    return [
+        f"CLP-14-006: logIndex={idx} published {ts} "
+        f"predates case creation {case_ts}"
+        for idx, ts in ts_entries
+        if ts < case_ts
+    ]
+
+
+def check_clp14_timestamp_invariants(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """Check CLP-14-001–CLP-14-006 timestamp invariants against ledger entries.
+
+    CLP-14-002: every entry must have a non-null ``published`` timestamp.
+    CLP-14-003: ``published`` values must be monotonically non-decreasing by
+                ``logIndex``.
+    CLP-14-005: ``logIndex`` values must be unique within the ledger.
+    CLP-14-006: no entry may predate the case-creation entry
+                (``eventType == "create_case"``).
+
+    Entries without a ``published`` field are flagged for CLP-14-002 and
+    skipped for ordering checks so the violation list stays focused.
+    """
+    auth = auth_entries(replicas)
+    if not auth:
+        return []
+    sorted_entries = sorted(auth, key=log_index)
+    v002, ts_entries = _clp14_002_build_ts_entries(sorted_entries)
+    return (
+        _clp14_005_unique_indices(sorted_entries)
+        + v002
+        + _clp14_003_monotone(ts_entries)
+        + _clp14_006_no_predate_case(sorted_entries, ts_entries)
+    )
