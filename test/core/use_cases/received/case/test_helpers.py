@@ -694,7 +694,7 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
     reason=(
         "CBT-05-008: receiver MUST raise a protocol error for a bare-URI "
         "participant — NOT fall back to domain-knowledge inference. "
-        "Tracked by #2736."
+        "Tracked by #2808."
     ),
 )
 @pytest.mark.spec("CBT-05-008")
