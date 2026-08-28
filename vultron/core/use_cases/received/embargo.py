@@ -30,6 +30,9 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 from vultron.core.states.cs import (
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
@@ -387,6 +390,148 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
+    def _commit_lapse_ledger_entry(
+        self,
+        *,
+        case_id: str,
+        invite_id: str,
+        embargo_id: str,
+        accepting_actor_id: str,
+        receiving_actor_id: str,
+        has_pec_change: bool,
+    ) -> None:
+        # CM-28-009: only commit when a PEC transition was actually applied to
+        # keep the entry idempotent — a repeated late-Accept does not double-log.
+        if not has_pec_change:
+            return
+        from vultron.core.behaviors.bridge import BTBridge
+
+        tree = create_commit_log_entry_tree(
+            case_id=case_id,
+            object_id=invite_id or case_id,
+            event_type="invite_to_embargo_on_case_lapsed",
+            payload_snapshot={
+                "type": "Lapse",
+                "actor": accepting_actor_id,
+                "context": case_id,
+                "object": {
+                    "type": "Invite",
+                    "id": invite_id or case_id,
+                    "object": {"type": "EmbargoEvent", "id": embargo_id},
+                },
+            },
+        )
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+            sync_port=self._sync_port,
+        )
+
+    def _handle_emb17_routing(
+        self,
+        *,
+        case_id: str,
+        embargo_id: str,
+        accepting_actor_id: str,
+        receiving_actor_id: str,
+        service: "EmbargoLifecycle",
+    ) -> None:
+        """EMB-17: late-Accept compatibility routing after a lapse is detected."""
+        _fresh_case = self._dl.read(case_id)
+        em_state = (
+            _fresh_case.current_status.em.state
+            if isinstance(_fresh_case, VulnerabilityCase)
+            else EM.NONE
+        )
+        active_embargo_id = (
+            _as_id(_fresh_case.active_embargo)
+            if isinstance(_fresh_case, VulnerabilityCase)
+            else None
+        )
+
+        if em_state == EM.ACTIVE and active_embargo_id == embargo_id:
+            # AC-2 of #2213: current embargo still matches — honor.
+            service.record_participant_consent(
+                case_id=case_id,
+                actor_id=accepting_actor_id,
+                pec_trigger=PEC_Trigger.INVITE,
+                embargo_id=embargo_id,
+            )
+            service.accept_embargo_invite(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                actor_id=accepting_actor_id,
+                transition_mode=TransitionMode.OBSERVED,
+            )
+            logger.info(
+                "accept_invite_to_embargo_on_case: late Accept honored"
+                " for actor '%s' on case '%s' (embargo '%s' still active;"
+                " EMB-17-001)",
+                accepting_actor_id,
+                case_id,
+                embargo_id,
+            )
+
+        elif em_state in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
+            # AC-3 of #2213: stale embargo — re-invite with current embargo.
+            if (
+                self._trigger_activity is not None
+                and active_embargo_id
+                and accepting_actor_id
+            ):
+                from vultron.core.use_cases.triggers._helpers import (
+                    _prepare_delegated_context,
+                )
+
+                actor_id, _ = _prepare_delegated_context(
+                    self._dl, case_id, receiving_actor_id
+                )
+                new_invite_id, _ = self._trigger_activity.propose_embargo(
+                    embargo_id=active_embargo_id,
+                    case_id=case_id,
+                    actor=actor_id,
+                    to=[accepting_actor_id],
+                )
+                add_activity_to_outbox(actor_id, new_invite_id, self._dl)
+                service.record_participant_consent(
+                    case_id=case_id,
+                    actor_id=accepting_actor_id,
+                    pec_trigger=PEC_Trigger.INVITE,
+                    embargo_id=active_embargo_id,
+                )
+                logger.info(
+                    "accept_invite_to_embargo_on_case: late Accept for"
+                    " stale embargo '%s' on case '%s' — re-invited actor"
+                    " '%s' to current embargo '%s' (EMB-17-002)",
+                    embargo_id,
+                    case_id,
+                    accepting_actor_id,
+                    active_embargo_id,
+                )
+            else:
+                logger.warning(
+                    "accept_invite_to_embargo_on_case: late Accept for"
+                    " stale embargo on case '%s' — trigger_activity"
+                    " unavailable, re-invite not emitted",
+                    case_id,
+                )
+
+        else:
+            # AC-4 of #2213: EM EXITED or NONE — ack no-op.
+            service.record_participant_consent(
+                case_id=case_id,
+                actor_id=accepting_actor_id,
+                pec_trigger=PEC_Trigger.RESET,
+            )
+            logger.info(
+                "accept_invite_to_embargo_on_case: late Accept for case"
+                " '%s' with EM '%s' — ack no-op; actor '%s' stays in"
+                " case (EMB-17-003)",
+                case_id,
+                em_state,
+                accepting_actor_id,
+            )
+
     def execute(self) -> None:
         from py_trees.common import Status
 
@@ -451,108 +596,23 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         )
 
         if lapse_result.is_lapsed:
-            # EMB-17: late-Accept compatibility routing.
-            # Re-read case to get fresh EM state after any lapse side-effects.
-            _fresh_case = self._dl.read(case_id)
-            em_state = (
-                _fresh_case.current_status.em.state
-                if isinstance(_fresh_case, VulnerabilityCase)
-                else EM.NONE
+            # CM-28-009: author a distinct ledger entry for the lapse event
+            # (CM-28-005) then route via EMB-17 compatibility branches.
+            self._commit_lapse_ledger_entry(
+                case_id=case_id,
+                invite_id=invite_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
+                receiving_actor_id=receiving_actor_id,
+                has_pec_change=bool(lapse_result.participant_changes),
             )
-            active_embargo_id = (
-                _as_id(_fresh_case.active_embargo)
-                if isinstance(_fresh_case, VulnerabilityCase)
-                else None
+            self._handle_emb17_routing(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
+                receiving_actor_id=receiving_actor_id,
+                service=service,
             )
-
-            if em_state == EM.ACTIVE and active_embargo_id == embargo_id:
-                # AC-2 of #2213: current embargo still matches — honor.
-                # Re-invite (DECLINED → INVITED) so accept_embargo_invite can
-                # safely apply ACCEPT (INVITED → SIGNATORY).
-                service.record_participant_consent(
-                    case_id=case_id,
-                    actor_id=accepting_actor_id,
-                    pec_trigger=PEC_Trigger.INVITE,
-                    embargo_id=embargo_id,
-                )
-                service.accept_embargo_invite(
-                    case_id=case_id,
-                    embargo_id=embargo_id,
-                    actor_id=accepting_actor_id,
-                    transition_mode=TransitionMode.OBSERVED,
-                )
-                logger.info(
-                    "accept_invite_to_embargo_on_case: late Accept honored"
-                    " for actor '%s' on case '%s' (embargo '%s' still active;"
-                    " EMB-17-001)",
-                    accepting_actor_id,
-                    case_id,
-                    embargo_id,
-                )
-
-            elif em_state in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
-                # AC-3 of #2213: stale embargo — re-invite with current embargo.
-                # Stale Accept is NOT recorded.
-                if (
-                    self._trigger_activity is not None
-                    and active_embargo_id
-                    and accepting_actor_id
-                ):
-                    from vultron.core.use_cases.triggers._helpers import (
-                        _prepare_delegated_context,
-                    )
-
-                    actor_id, _ = _prepare_delegated_context(
-                        self._dl, case_id, receiving_actor_id
-                    )
-                    new_invite_id, _ = self._trigger_activity.propose_embargo(
-                        embargo_id=active_embargo_id,
-                        case_id=case_id,
-                        actor=actor_id,
-                        to=[accepting_actor_id],
-                    )
-                    add_activity_to_outbox(actor_id, new_invite_id, self._dl)
-                    # Transition PEC DECLINED → INVITED to reflect re-invite.
-                    service.record_participant_consent(
-                        case_id=case_id,
-                        actor_id=accepting_actor_id,
-                        pec_trigger=PEC_Trigger.INVITE,
-                        embargo_id=active_embargo_id,
-                    )
-                    logger.info(
-                        "accept_invite_to_embargo_on_case: late Accept for"
-                        " stale embargo '%s' on case '%s' — re-invited actor"
-                        " '%s' to current embargo '%s' (EMB-17-002)",
-                        embargo_id,
-                        case_id,
-                        accepting_actor_id,
-                        active_embargo_id,
-                    )
-                else:
-                    logger.warning(
-                        "accept_invite_to_embargo_on_case: late Accept for"
-                        " stale embargo on case '%s' — trigger_activity"
-                        " unavailable, re-invite not emitted",
-                        case_id,
-                    )
-
-            else:
-                # AC-4 of #2213: EM EXITED or NONE — ack no-op.
-                # PEC should be NO_EMBARGO (reset by embargo termination cascade
-                # or by lapse on NONE); ensure it is reset if still DECLINED.
-                service.record_participant_consent(
-                    case_id=case_id,
-                    actor_id=accepting_actor_id,
-                    pec_trigger=PEC_Trigger.RESET,
-                )
-                logger.info(
-                    "accept_invite_to_embargo_on_case: late Accept for case"
-                    " '%s' with EM '%s' — ack no-op; actor '%s' stays in"
-                    " case (EMB-17-003)",
-                    case_id,
-                    em_state,
-                    accepting_actor_id,
-                )
             return
 
         # Normal path (invite still open): record acceptance via BT.

@@ -124,6 +124,7 @@ class TestDetectAndApplyLapse:
 
         # Verify persistence
         case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
         participant_id = case.actor_participant_index[_INVITEE]
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant)
@@ -153,6 +154,7 @@ class TestDetectAndApplyLapse:
         assert result.participant_changes == []
 
         case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
         participant_id = case.actor_participant_index[_INVITEE]
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant)
@@ -528,3 +530,53 @@ class TestLateAcceptHandling:
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
         assert fresh_case.current_status.em.state == EM.ACTIVE
+
+    def test_lapse_creates_distinct_ledger_entry(self, make_payload):
+        """Late Accept after lapse creates a ledger entry distinct from Reject (CM-28-009)."""
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea6"
+        embargo_id = "https://example.org/cases/ea6/embargos/e6"
+
+        case, embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p6",
+        )
+        dl.create(proposal)
+
+        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        # A CaseLedgerEntry with event_type "invite_to_embargo_on_case_lapsed"
+        # must exist (CM-28-005, CM-28-009).
+        ledger_entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        ]
+        lapse_entries = [
+            e
+            for e in ledger_entries
+            if e.event_type == "invite_to_embargo_on_case_lapsed"
+        ]
+        assert lapse_entries, (
+            "Expected a CaseLedgerEntry with event_type"
+            " 'invite_to_embargo_on_case_lapsed' but none found"
+        )
+        lapse_entry = lapse_entries[0]
+        # Entry must be distinguishable from an explicit Reject
+        assert lapse_entry.event_type != "reject_invite_to_embargo_on_case"
+        # payloadSnapshot must be non-empty (CLP-07-001)
+        assert lapse_entry.payload_snapshot
