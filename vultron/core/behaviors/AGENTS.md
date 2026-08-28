@@ -164,18 +164,22 @@ Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
 
 ---
 
-## EM State Reads and Writes Must Use Canonical Nodes
+## EM State Reads Must Use ReadEmStateNode; Writes Route Through EmbargoLifecycle
 
-**Never read or write `case.current_status.em` inline inside a BT node.**
-All EM state reads MUST go through `ReadEmStateNode`; all writes through
-`WriteEmStateNode`. Both live in
-`vultron/core/behaviors/embargo/nodes/em_state.py`.
+**Never read `case.current_status.em` inline inside a BT node.**
+All EM state reads MUST go through `ReadEmStateNode`
+(`vultron/core/behaviors/embargo/nodes/em_state.py`).
+
+**Never write `case.current_status.em` directly inside a BT node** (EMB-18-001).
+All EM state writes MUST route through `EmbargoLifecycle`
+(`vultron/core/services/embargo_lifecycle.py`) — the service owns the write.
 
 Direct field access (`case.current_status.em.state`) bypasses the canonical
-channel: the read or write is invisible to the BT audit trail and creates
-paths where state can diverge from what the canonical nodes report.
-`ReadEmStateNode` was introduced specifically to centralize this read (AC-1,
-issue #1474).
+channel: the read is invisible to the BT audit trail and creates paths where
+state can diverge from what the canonical nodes report.
+`ReadEmStateNode` was introduced to centralize EM reads (AC-1, issue #1474);
+`WriteEmStateNode` was retired in issue #2712 — all writes now go through the
+service.
 
 **Pattern for reading EM state in an action node:**
 

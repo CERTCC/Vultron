@@ -233,6 +233,7 @@ def _phase_report_submission(
         receiver_client=c1_client,
         receiver=c1_in_c1,
         offer=offer,
+        timeout_seconds=60.0,
     )
 
     # Wait for the initial participants (Finder + C1 + CaseActor) before
@@ -352,37 +353,38 @@ def _phase_c2_suggests_vendor(
 
     # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)
     # to C1 (CASE_OWNER).  Poll C1's DataLayer for the offer.
-    cp_offer_id = None
-    with demo_check(
+    # All dependent steps (case_actor lookup and approve) are nested inside
+    # demo_gate so they are skipped if the offer never arrives (ADR-0058).
+    with demo_gate(
         "Offer(CaseParticipant) for Vendor arrived in C1's DataLayer"
     ):
         cp_offer_id = find_cp_offer_for_case(
             client=c1_client,
             case_id=case.id_,
         )
-    logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
+        logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
-    # Find the CaseActor's participant ID so we can route the Accept back.
-    case_actor_id = find_case_actor_participant_id(c1_client, case.id_)
-    if case_actor_id is None:
-        raise AssertionError(
-            "CaseActor participant not found in case — cannot route Accept"
-        )
-    logger.info("CaseActor participant ID: %s", case_actor_id)
+        # Find the CaseActor's participant ID so we can route the Accept back.
+        case_actor_id = find_case_actor_participant_id(c1_client, case.id_)
+        if case_actor_id is None:
+            raise AssertionError(
+                "CaseActor participant not found in case — cannot route Accept"
+            )
+        logger.info("CaseActor participant ID: %s", case_actor_id)
 
-    # Step M4 (ADR-0026 CM-16-006): C1 approves the recommendation.
-    with demo_step(
-        "C1 approves actor recommendation (accept-actor-recommendation)"
-    ):
-        post_to_trigger(
-            client=c1_client,
-            actor_id=c1_in_c1.id_,
-            behavior="accept-actor-recommendation",
-            body={
-                "cp_offer_id": cp_offer_id,
-                "case_actor_id": case_actor_id,
-            },
-        )
+        # Step M4 (ADR-0026 CM-16-006): C1 approves the recommendation.
+        with demo_step(
+            "C1 approves actor recommendation (accept-actor-recommendation)"
+        ):
+            post_to_trigger(
+                client=c1_client,
+                actor_id=c1_in_c1.id_,
+                behavior="accept-actor-recommendation",
+                body={
+                    "cp_offer_id": cp_offer_id,
+                    "case_actor_id": case_actor_id,
+                },
+            )
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
     # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor.  Poll

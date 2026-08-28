@@ -67,7 +67,7 @@ groups:
   - id: TRIG-02-006
     priority: MUST_NOT
     kind: protocol
-    statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002): add-note-to-case, close-case, seed-offer-record, sync-log-entry'
+    statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002): add-note-to-case, close-case, sync-log-entry'
   - id: TRIG-02-007
     priority: SHOULD
     kind: protocol

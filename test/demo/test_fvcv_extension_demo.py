@@ -953,3 +953,172 @@ class TestFvcvExtensionCausalGates:
             )
 
         coverage_wait_called.assert_not_called()
+
+    def test_accept_not_called_when_cp_offer_gate_fails(self):
+        """demo_gate skips accept-actor-recommendation when find_cp_offer_for_case times out."""
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor-in-vendor")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2-in-vendor2")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        mock_post_to_trigger = MagicMock()
+
+        with (
+            patch.object(
+                demo,
+                "find_cp_offer_for_case",
+                side_effect=AssertionError(
+                    "timed out polling for Offer(CaseParticipant)"
+                ),
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(demo, "post_to_trigger", mock_post_to_trigger),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "run_invite_path_rm_triage"),
+        ):
+            demo._phase_coordinator_suggests_vendor2(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                case=case,
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=finder,
+            )
+
+        accept_calls = [
+            c
+            for c in mock_post_to_trigger.call_args_list
+            if c.kwargs.get("behavior") == "accept-actor-recommendation"
+        ]
+        assert not accept_calls, (
+            "accept-actor-recommendation must not be called when "
+            f"cp_offer gate fails: {accept_calls}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Timeout propagation — ISSUE-2811
+# ---------------------------------------------------------------------------
+
+
+class TestFvcvExtensionRmTriageTimeout:
+    """_phase_report_submission must forward timeout_seconds=60.0 to
+    run_direct_path_rm_triage so the causal gate (ADR-0058) does not race
+    under 4-container CI load (ISSUE-2811)."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def test_phase_report_submission_passes_60s_timeout_to_rm_triage(self):
+        """Regression: fvcv_extension CI timed out at 20 s default (ISSUE-2811)."""
+        import contextlib
+
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        invite = MagicMock()
+        invite.id_ = "urn:test:invite"
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvcv",
+                return_value=(finder, vendor, coordinator, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[vendor_in_vendor, coordinator_in_coordinator],
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(
+                demo, "run_direct_path_rm_triage", return_value=case
+            ) as mock_rm_triage,
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={"activity": {"id": invite.id_}},
+            ),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "verify_case_active"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = invite
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=self._client(),
+                vendor_client=self._client(),
+                coordinator_client=self._client(),
+                vendor2_client=self._client(),
+                finder_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+            )
+
+        _call = mock_rm_triage.call_args
+        assert _call is not None
+        assert _call.kwargs.get("timeout_seconds") == 60.0, (
+            "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
+            "the 20-second default races under 4-container CI load (ISSUE-2811)"
+        )

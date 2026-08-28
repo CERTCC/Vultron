@@ -100,6 +100,21 @@ class VultronOutboxObjectIntegrityError(VultronError):
         super().__init__(message)
 
 
+class VultronProtocolViolationError(VultronError):
+    """Raised when an inbound protocol message violates a mandatory requirement.
+
+    The inbound mirror of :exc:`VultronOutboxObjectIntegrityError`.  While
+    that class catches outbound integrity failures (sending a bare URI when an
+    inline object is required), this class catches inbound structural
+    violations — messages received that break a MUST-level spec requirement.
+
+    First use: CBT-05-008 — bootstrap ``Create(VulnerabilityCase)`` carrying a
+    participant as a bare URI string rather than a fully inline typed object.
+    Receivers MUST raise this error and reject the bootstrap rather than
+    silently synthesising participant state from domain knowledge.
+    """
+
+
 class CvdStateModelError(VultronError):
     """Base class for errors in the CVD state model."""
 

@@ -66,8 +66,8 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("case/case_proposal_received_tree.py", "RmDimension"),
         ("case/case_proposal_received_tree.py", "RmDimension"),
         # BOOTSTRAP — participant/common.py: initial accepted-status builder
-        ("case/nodes/participant/common.py", "RmDimension"),
-        ("case/nodes/participant/common.py", "RmDimension"),
+        # (two entries removed: _ensure_reporter_participant and
+        #  _upgrade_participant_to_accepted deleted in #2808)
         ("case/nodes/participant/common.py", "RmDimension"),
         ("case/nodes/participant/common.py", "RmDimension"),
         ("case/nodes/participant/common.py", "VfdDimension"),
