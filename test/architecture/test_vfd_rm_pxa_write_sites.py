@@ -60,7 +60,10 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # PROTECTED — CreateParticipantStatusNode (trigger + received paths)
         ("case/nodes/participant/status.py", "PxaDimension"),
         ("case/nodes/participant/status.py", "RmDimension"),
-        ("case/nodes/participant/status.py", "VfdDimension"),
+        ("case/nodes/participant/status.py", "VfDimension"),
+        ("case/nodes/participant/status.py", "VfDimension"),
+        ("case/nodes/participant/status.py", "DDimension"),
+        ("case/nodes/participant/status.py", "DDimension"),
         # BOOTSTRAP — case_proposal_received_tree: seeds RM.RECEIVED/VALID/ACCEPTED
         ("case/case_proposal_received_tree.py", "RmDimension"),
         ("case/case_proposal_received_tree.py", "RmDimension"),
@@ -70,24 +73,30 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         #  _upgrade_participant_to_accepted deleted in #2808)
         ("case/nodes/participant/common.py", "RmDimension"),
         ("case/nodes/participant/common.py", "RmDimension"),
-        ("case/nodes/participant/common.py", "VfdDimension"),
+        ("case/nodes/participant/common.py", "VfDimension"),
+        ("case/nodes/participant/common.py", "DDimension"),
         # BOOTSTRAP — owner.py: initial owner RM state seeding
         ("case/nodes/participant/owner.py", "RmDimension"),
         ("case/nodes/participant/owner.py", "RmDimension"),
-        # PREDICATE — deploy_fix.py: VfdDimension.is_fix_deployed() / is_fix_ready()
-        ("report/nodes/deploy_fix.py", "VfdDimension"),
-        ("report/nodes/deploy_fix.py", "VfdDimension"),
-        # PREDICATE — develop_fix_conditions.py: VfdDimension.is_fix_ready()
-        ("report/nodes/develop_fix_conditions.py", "VfdDimension"),
+        # PREDICATE — deploy_fix.py: DDimension.is_fix_deployed()
+        ("report/nodes/deploy_fix.py", "DDimension"),
+        ("report/nodes/deploy_fix.py", "DDimension"),
+        # PREDICATE — develop_fix_conditions.py: VfDimension.is_fix_ready()
+        ("report/nodes/develop_fix_conditions.py", "VfDimension"),
         # RM-TRACKED — rm_transitions.py: the single report-phase RM write.
         # Was three near-identical sites (RM.VALID / RM.INVALID / RM.CLOSED);
         # collapsed to one `_ReportPhaseRMTransition._write_latch` in ISSUE-2548
         # so the latch has exactly one construction site (ARCH-15-004).
         ("report/nodes/rm_transitions.py", "RmDimension"),
         # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
+        # Two VfDimension sites: refusal carry-forward + omission carry-forward (ADR-0075)
+        # Two DDimension sites: refusal carry-forward + omission carry-forward (ADR-0075)
         ("status/nodes/_adjudication.py", "PxaDimension"),
         ("status/nodes/_adjudication.py", "RmDimension"),
-        ("status/nodes/_adjudication.py", "VfdDimension"),
+        ("status/nodes/_adjudication.py", "VfDimension"),
+        ("status/nodes/_adjudication.py", "VfDimension"),
+        ("status/nodes/_adjudication.py", "DDimension"),
+        ("status/nodes/_adjudication.py", "DDimension"),
         # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
@@ -95,7 +104,7 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
     ]
 )
 
-_TARGET_NAMES = {"VfdDimension", "RmDimension", "PxaDimension"}
+_TARGET_NAMES = {"VfDimension", "DDimension", "RmDimension", "PxaDimension"}
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
 

@@ -278,6 +278,8 @@ class TestSnapshotObjectWireReconstitutable:
 _AC8_ALLOW_LISTED: frozenset[str] = frozenset(
     {
         "rmState",
+        "vfState",
+        "dState",
         "vfdState",
         "emState",
         "pxaState",

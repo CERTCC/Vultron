@@ -20,14 +20,16 @@ from typing import TYPE_CHECKING, cast
 
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.dimensions import (
+    DDimension,
     PecDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 from vultron.core.models.participant_status import (
     ParticipantStatus,
+    participant_status_d_state,
     participant_status_rm_state,
-    participant_status_vfd_state,
+    participant_status_vf_state,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -37,7 +39,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import (
@@ -154,7 +156,16 @@ def _get_or_create_accepted_status(
             id_=existing.id_,
             context=existing.context,
             rm=RmDimension(state=existing.rm.state),
-            vfd=VfdDimension(state=existing.vfd.state),
+            vf=(
+                VfDimension(state=existing.vf.state)
+                if existing.vf is not None
+                else None
+            ),
+            d=(
+                DDimension(state=existing.d.state)
+                if existing.d is not None
+                else None
+            ),
             attributed_to=getattr(existing, "attributed_to", actor_id),
             cvd_role=existing.cvd_role,
             consent=(
@@ -192,16 +203,15 @@ def _get_or_create_accepted_status(
 def resolve_participant_state_from_dl(
     dl: CasePersistence,
     participant_id: str,
-) -> tuple[RM, CS_vfd]:
-    """Return (current_rm, current_vfd) from the participant's latest status.
+) -> tuple[RM, CS_vf | None, CS_d | None]:
+    """Return (current_rm, current_vf, current_d) from the participant's latest status.
 
-    ``(RM.START, CS_vfd.vfd)`` is returned only when the participant genuinely
+    ``(RM.START, None, None)`` is returned only when the participant genuinely
     has no recorded status — never as a fallback for a status that could not be
-    read.  Substituting an initial state on an unreadable status silently reset
-    a participant's ladder (#2264, a symptom of #2232); a shape mismatch now
-    raises instead (ARCH-15-001, ARCH-15-002).  Both dimensions go through
-    their canonical reader: leaving VFD on the old ``hasattr``/``isinstance``
-    degrade would have kept the identical defect alive one dimension over.
+    read.  A shape mismatch raises instead (ARCH-15-001, ARCH-15-002).
+
+    ``current_vf`` is ``None`` for non-VENDOR participants; ``current_d`` is
+    ``None`` for non-DEPLOYER participants.
 
     Raises:
         VultronValidationError: when the latest status is not core-shaped.
@@ -215,9 +225,10 @@ def resolve_participant_state_from_dl(
             latest = statuses[-1]
             return (
                 participant_status_rm_state(latest),
-                participant_status_vfd_state(latest),
+                participant_status_vf_state(latest),
+                participant_status_d_state(latest),
             )
-    return RM.START, CS_vfd.vfd
+    return RM.START, None, None
 
 
 def _queue_participant_add_notification(

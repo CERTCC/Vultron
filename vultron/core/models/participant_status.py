@@ -27,7 +27,7 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -35,9 +35,10 @@ from vultron.errors import VultronValidationError
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
+    DDimension,
     PecDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 
 
@@ -91,8 +92,11 @@ class ParticipantStatus(CoreObject):
     ``case_status`` embeds the participant's perspective on the case-level
     state (em and pxa) via a nested :class:`CaseStatus` object.
 
-    ``rm``, ``vfd``, and ``consent`` are dimension objects that own the RM,
-    VFD, and PEC state machines respectively (ADR-0036, SDO-03-002).
+    ``rm``, ``vf``, ``d``, and ``consent`` are dimension objects that own the
+    RM, VF, D, and PEC state machines respectively (ADR-0036, ADR-0075,
+    SDO-03-002).  ``vf`` is non-None for VENDOR participants; ``d`` is
+    non-None for DEPLOYER participants; a participant with both roles carries
+    both.
     """
 
     model_config = ConfigDict(alias_generator=to_camel)
@@ -104,7 +108,8 @@ class ParticipantStatus(CoreObject):
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     rm: RmDimension = Field(default_factory=RmDimension)
-    vfd: VfdDimension = Field(default_factory=VfdDimension)
+    vf: VfDimension | None = None
+    d: DDimension | None = None
     case_engagement: bool = True
     consent: PecDimension | None = None
 
@@ -121,10 +126,10 @@ class ParticipantStatus(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _migrate_flat_fields(cls, data: Any) -> Any:
-        """Accept legacy flat ``rm_state``/``vfd_state``/``em_consent_state`` wire-format inputs.
+        """Accept legacy flat ``rm_state``/``vf_state``/``d_state``/``em_consent_state`` inputs.
 
-        Handles both snake_case (``rm_state``) and camelCase alias (``rmState``) keys
-        since ``model_validator(mode='before')`` runs before alias normalization.
+        Handles both snake_case and camelCase alias keys since this runs before
+        alias normalization.
         """
         if not isinstance(data, dict):
             return data
@@ -135,15 +140,16 @@ class ParticipantStatus(CoreObject):
             rm_raw = data.pop("rmState", _SENTINEL)
         if rm_raw is not _SENTINEL and rm_raw is not None and "rm" not in data:
             data["rm"] = {"state": rm_raw}
-        vfd_raw = data.pop("vfd_state", _SENTINEL)
-        if vfd_raw is _SENTINEL:
-            vfd_raw = data.pop("vfdState", _SENTINEL)
-        if (
-            vfd_raw is not _SENTINEL
-            and vfd_raw is not None
-            and "vfd" not in data
-        ):
-            data["vfd"] = {"state": vfd_raw}
+        vf_raw = data.pop("vf_state", _SENTINEL)
+        if vf_raw is _SENTINEL:
+            vf_raw = data.pop("vfState", _SENTINEL)
+        if vf_raw is not _SENTINEL and vf_raw is not None and "vf" not in data:
+            data["vf"] = {"state": vf_raw}
+        d_raw = data.pop("d_state", _SENTINEL)
+        if d_raw is _SENTINEL:
+            d_raw = data.pop("dState", _SENTINEL)
+        if d_raw is not _SENTINEL and d_raw is not None and "d" not in data:
+            data["d"] = {"state": d_raw}
         pec_raw = data.pop("em_consent_state", _SENTINEL)
         if pec_raw is _SENTINEL:
             pec_raw = data.pop("emConsentState", _SENTINEL)
@@ -151,6 +157,30 @@ class ParticipantStatus(CoreObject):
             data["consent"] = (
                 {"state": pec_raw} if pec_raw is not None else None
             )
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _enforce_role_dimension_invariant(cls, data: Any) -> Any:
+        """Auto-initialise vf/d dimensions based on cvd_role (ADR-0075).
+
+        Runs after ``_migrate_flat_fields`` so that vf/d dict entries from
+        flat ``vf_state``/``d_state`` inputs are already populated before the
+        role check fires.  Uses ``mode="before"`` (ADR-0064) to avoid
+        recursive validation that ``mode="after"`` self-assignment would cause
+        under ``validate_assignment=True``.
+
+        VENDOR role → vf must be non-None (auto-set to initial state when absent).
+        DEPLOYER role → d must be non-None (auto-set to initial state when absent).
+        """
+        if not isinstance(data, dict):
+            return data
+        roles_raw = data.get("cvd_role") or data.get("cvdRole") or []
+        roles = coerce_cvd_roles(roles_raw)
+        if CVDRole.VENDOR in roles and data.get("vf") is None:
+            data["vf"] = {}
+        if CVDRole.DEPLOYER in roles and data.get("d") is None:
+            data["d"] = {}
         return data
 
     @field_serializer("cvd_role")
@@ -213,43 +243,57 @@ def participant_status_rm_state(status: object) -> RM:
     return state
 
 
-def participant_status_vfd_state(status: object) -> CS_vfd:
-    """Return the VFD state of a single ``ParticipantStatus``.
+def participant_status_vf_state(status: object) -> CS_vf | None:
+    """Return the VF state of a single ``ParticipantStatus``, or None.
 
-    The VFD-dimension twin of :func:`participant_status_rm_state`, with the
-    same contract and for the same reason: core :class:`ParticipantStatus`
-    carries a nested ``vfd: VfdDimension`` while the wire projection carries a
-    flat ``vfd_state``, so reading ``vfd`` off a wire-shaped status yields
-    ``None``.  Substituting the initial state (``CS_vfd.vfd``) silently reset a
-    participant's vendor-fix ladder exactly the way ``RM.START`` reset the RM
-    ladder (#2264, a symptom of #2232).
+    Returns ``None`` when the participant has no ``vf`` dimension (i.e. is not
+    a VENDOR participant).  Raises when ``vf`` is present but malformed.
 
     Args:
         status: A single participant status object.
 
     Returns:
-        The :class:`CS_vfd` state recorded on *status*.
+        The :class:`CS_vf` state, or ``None`` for non-VENDOR participants.
 
     Raises:
-        VultronValidationError: when *status* exposes no usable ``vfd``
-            dimension — typically because it is a wire-shaped status that
-            should have been normalised at the wire→core boundary.
+        VultronValidationError: when *status* has a ``vf`` attribute but it
+            carries no valid VF state — typically a shape mismatch.
     """
-    vfd = getattr(status, "vfd", None)
-    if vfd is None:
+    vf = getattr(status, "vf", None)
+    if vf is None:
+        return None
+    state = getattr(vf, "state", None)
+    if not isinstance(state, CS_vf):
         raise VultronValidationError(
-            f"ParticipantStatus {getattr(status, 'id_', status)!r} has no"
-            f" 'vfd' dimension (got a {type(status).__name__}). Core"
-            " ParticipantStatus uses a nested 'vfd: VfdDimension'; the wire"
-            " shape uses a flat 'vfd_state'. Convert at the wire→core boundary"
-            " (as_ParticipantStatus.to_core()) instead of reading the wire"
-            " shape here. See issue #2232."
+            f"ParticipantStatus {getattr(status, 'id_', status)!r} has a 'vf'"
+            f" dimension with no valid VF state (got {state!r})."
         )
-    state = getattr(vfd, "state", None)
-    if not isinstance(state, CS_vfd):
+    return state
+
+
+def participant_status_d_state(status: object) -> CS_d | None:
+    """Return the D state of a single ``ParticipantStatus``, or None.
+
+    Returns ``None`` when the participant has no ``d`` dimension (i.e. is not
+    a DEPLOYER participant).  Raises when ``d`` is present but malformed.
+
+    Args:
+        status: A single participant status object.
+
+    Returns:
+        The :class:`CS_d` state, or ``None`` for non-DEPLOYER participants.
+
+    Raises:
+        VultronValidationError: when *status* has a ``d`` attribute but it
+            carries no valid D state — typically a shape mismatch.
+    """
+    d = getattr(status, "d", None)
+    if d is None:
+        return None
+    state = getattr(d, "state", None)
+    if not isinstance(state, CS_d):
         raise VultronValidationError(
-            f"ParticipantStatus {getattr(status, 'id_', status)!r} has a 'vfd'"
-            f" dimension with no valid VFD state (got {state!r}). See issue"
-            " #2232."
+            f"ParticipantStatus {getattr(status, 'id_', status)!r} has a 'd'"
+            f" dimension with no valid D state (got {state!r})."
         )
     return state

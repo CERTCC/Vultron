@@ -17,7 +17,7 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
 from vultron.adapters.utils import strip_id_prefix
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -229,7 +229,7 @@ def _seed_action_rules_data(dl):
             as_ParticipantStatus(
                 context=_URN_CASE_ID,
                 rm_state=RM.ACCEPTED,
-                vfd_state=CS_vfd.VFd,
+                vf_state=CS_vf.VF,
             )
         ],
     )
@@ -266,7 +266,8 @@ def test_get_action_rules_returns_200_with_expected_fields(
         "role",
         "rm_state",
         "em_state",
-        "vfd_state",
+        "vf_state",
+        "d_state",
         "pxa_state",
         "cs_state",
         "actions",

@@ -36,9 +36,6 @@ from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DeployFixCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckDeployerRoleNode,
-)
 from vultron.core.behaviors.report.deploy_fix_tree import (
     create_deploy_fix_tree,
 )
@@ -58,10 +55,10 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension, VfdDimension
+from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -148,14 +145,16 @@ def _seed_status(
     case_id: str,
     actor_id: str,
     rm: RM = RM.ACCEPTED,
-    vfd: CS_vfd = CS_vfd.VFd,
+    vf: CS_vf | None = CS_vf.VF,
+    d: CS_d | None = None,
 ) -> None:
-    """Seed a ParticipantStatus record with the given RM and VFD states."""
+    """Seed a ParticipantStatus record with the given RM, vf, and d states."""
     status = ParticipantStatus(
         context=case_id,
         attributed_to=actor_id,
         rm=RmDimension(state=rm),
-        vfd=VfdDimension(state=vfd),
+        vf=VfDimension(state=vf) if vf is not None else None,
+        d=DDimension(state=d) if d is not None else None,
     )
     bt_scenario.dl.create(status)
 
@@ -220,18 +219,17 @@ def test_should_stay_deferred_arm_composition():
 
 
 def test_deploy_if_ready_arm_composition():
-    """_DeployFixIfReady arm: 3 guards + 2 call-outs + transition + emit."""
+    """_DeployFixIfReady arm: 2 guards + 2 call-outs + transition + emit (CheckDeployerRoleNode removed per #2664)."""
     tree = create_deploy_fix_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
     arm = tree.children[2]
     assert isinstance(arm, py_trees.composites.Sequence)
-    assert len(arm.children) == 7
-    assert isinstance(arm.children[0], CheckDeployerRoleNode)
-    assert isinstance(arm.children[1], CheckRMStateAccepted)
-    assert isinstance(arm.children[2], CheckCSFixNotYetDeployed)
-    assert arm.children[3].name == "PrioritizeDeployment"
-    assert arm.children[4].name == "DeployFix"
-    assert isinstance(arm.children[5], TransitionCStoFixDeployed)
-    assert isinstance(arm.children[6], EmitCDActivity)
+    assert len(arm.children) == 6
+    assert isinstance(arm.children[0], CheckRMStateAccepted)
+    assert isinstance(arm.children[1], CheckCSFixNotYetDeployed)
+    assert arm.children[2].name == "PrioritizeDeployment"
+    assert arm.children[3].name == "DeployFix"
+    assert isinstance(arm.children[4], TransitionCStoFixDeployed)
+    assert isinstance(arm.children[5], EmitCDActivity)
 
 
 def test_monitor_arm_composition():
@@ -269,9 +267,9 @@ def test_default_call_out_children_are_deterministic():
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
     # PrioritizeDeployment p=0.90 → AlwaysSucceed
-    assert isinstance(deploy_arm.children[3], AlwaysSucceed)
+    assert isinstance(deploy_arm.children[2], AlwaysSucceed)
     # DeployFix p=0.10 → AlwaysFail
-    assert isinstance(deploy_arm.children[4], AlwaysFail)
+    assert isinstance(deploy_arm.children[3], AlwaysFail)
     # MonitoringRequirement p=0.70 → AlwaysSucceed
     assert isinstance(monitor_arm.children[0], AlwaysSucceed)
     # MonitorDeployment p=1.0 → AlwaysSucceed
@@ -309,8 +307,8 @@ def _marker_factory(label: str):
 
 # (field, label, arm_index, child_index within arm)
 _CALL_OUT_SEAMS = [
-    ("prioritize_deployment_factory", "PD", 2, 3),
-    ("deploy_fix_factory", "DF", 2, 4),
+    ("prioritize_deployment_factory", "PD", 2, 2),
+    ("deploy_fix_factory", "DF", 2, 3),
     ("monitoring_requirement_factory", "MR", 3, 0),
     ("monitor_deployment_factory", "MD", 3, 1),
 ]
@@ -370,8 +368,8 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
     )
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
-    assert isinstance(deploy_arm.children[3], PrioritizeDeployment)
-    assert isinstance(deploy_arm.children[4], DeployFix)
+    assert isinstance(deploy_arm.children[2], PrioritizeDeployment)
+    assert isinstance(deploy_arm.children[3], DeployFix)
     assert isinstance(monitor_arm.children[0], MonitoringRequirement)
     assert isinstance(monitor_arm.children[1], MonitorDeployment)
 
@@ -387,7 +385,9 @@ class TestCSinStateFixDeployed:
         bt_scenario: BTTestScenario,
         case_with_deployer: VultronCase,
     ) -> None:
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFD)
+        _seed_status(
+            bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.D
+        )
         result = bt_scenario.run(
             CSinStateFixDeployed(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID),
             actor_id=DEPLOYER_ACTOR_ID,
@@ -399,7 +399,7 @@ class TestCSinStateFixDeployed:
         bt_scenario: BTTestScenario,
         case_with_deployer: VultronCase,
     ) -> None:
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result = bt_scenario.run(
             CSinStateFixDeployed(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID),
             actor_id=DEPLOYER_ACTOR_ID,
@@ -434,7 +434,7 @@ class TestCheckCSFixNotYetDeployed:
         case_with_deployer: VultronCase,
     ) -> None:
         """SUCCESS only for VFd (fix ready, not yet deployed)."""
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result = bt_scenario.run(
             CheckCSFixNotYetDeployed(
                 case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID
@@ -443,18 +443,19 @@ class TestCheckCSFixNotYetDeployed:
         )
         assert result.status == Status.SUCCESS
 
-    @pytest.mark.parametrize("vfd", [CS_vfd.vfd, CS_vfd.Vfd])
+    @pytest.mark.parametrize("vf,d", [(None, None), (CS_vf.Vf, None)])
     def test_failure_when_fix_not_ready(
         self,
         bt_scenario: BTTestScenario,
         case_with_deployer: VultronCase,
-        vfd: CS_vfd,
+        vf: CS_vf | None,
+        d: CS_d | None,
     ) -> None:
         """FAILURE when fix is not yet ready — d→D requires VFd source.
 
         Guards against an invalid vfd/Vfd → VFD state-machine jump.
         """
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=vfd)
+        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=vf, d=d)
         result = bt_scenario.run(
             CheckCSFixNotYetDeployed(
                 case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID
@@ -468,7 +469,9 @@ class TestCheckCSFixNotYetDeployed:
         bt_scenario: BTTestScenario,
         case_with_deployer: VultronCase,
     ) -> None:
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFD)
+        _seed_status(
+            bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.D
+        )
         result = bt_scenario.run(
             CheckCSFixNotYetDeployed(
                 case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID
@@ -573,7 +576,7 @@ class TestTransitionCStoFixDeployed:
         bt_scenario: BTTestScenario,
         case_with_deployer: VultronCase,
     ) -> None:
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result_out: dict = {}
         node = TransitionCStoFixDeployed(
             case_id=CASE_ID,
@@ -611,7 +614,9 @@ class TestTransitionCStoFixDeployed:
         """
         import logging
 
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+        _seed_status(
+            bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.d
+        )
         node = TransitionCStoFixDeployed(
             case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, result_out={}
         )
@@ -629,13 +634,13 @@ class TestTransitionCStoFixDeployed:
         ]
         assert narrative, "Expected a CS narrative line at INFO"
         message = narrative[0].getMessage()
-        assert f"Actor '{DEPLOYER_ACTOR_ID}' CS: VFd → VFD" in message
+        assert f"Actor '{DEPLOYER_ACTOR_ID}' CS: d → D" in message
         assert "(fix deployed)" in message
 
         detail = [
             r
             for r in caplog.records
-            if "VFd → VFD (fix deployed)" in r.getMessage()
+            if "d → D (fix deployed)" in r.getMessage()
             and r.name.endswith("TransitionCStoFixDeployed")
         ]
         assert detail, "Expected the node's own detail line"
@@ -649,7 +654,7 @@ class TestEmitCDActivity:
         bt_scenario: BTTestScenario,
         case_with_deployer_and_case_manager: VultronCase,
     ) -> None:
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result_out: dict = {}
         transition_node = TransitionCStoFixDeployed(
             case_id=CASE_ID,
@@ -684,7 +689,7 @@ class TestEmitCDActivity:
         bt_scenario: BTTestScenario,
         case_with_deployer: VultronCase,
     ) -> None:
-        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result_out: dict = {}
         transition_node = TransitionCStoFixDeployed(
             case_id=CASE_ID,
@@ -716,7 +721,9 @@ def test_early_exit_when_fix_already_deployed(
     The deploy arm's TransitionCStoFixDeployed must NOT run (no duplicate
     status). We assert SUCCESS and that no new VFD status was appended.
     """
-    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFD)
+    _seed_status(
+        bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.D
+    )
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VultronCase)
     participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
@@ -779,7 +786,7 @@ def test_full_deploy_arm_completes_and_emits_cd(
     (its ``deploy_fix_factory`` is AlwaysFail, so the arm never reaches the
     transition/emit nodes).
     """
-    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VultronCase)
     participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
@@ -800,7 +807,9 @@ def test_full_deploy_arm_completes_and_emits_cd(
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
     assert len(participant.participant_statuses) == before + 1
-    assert participant.participant_statuses[-1].vfd.state == CS_vfd.VFD
+    last_status = participant.participant_statuses[-1]
+    assert last_status.d is not None
+    assert last_status.d.state == CS_d.D
 
     # EmitCDActivity queued a CD activity to the deployer's outbox.
     outbox = bt_scenario.dl.outbox_list()
@@ -817,7 +826,7 @@ def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(
     (before the transition/emit nodes), so no VFD status is written, and the
     overall SUCCESS comes from the always-succeeding monitor arm.
     """
-    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VultronCase)
     participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]

@@ -60,7 +60,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -240,7 +240,6 @@ def demo_status_workflow(
         participant_status = as_ParticipantStatus(
             context=participant.id_,
             rm_state=RM.RECEIVED,
-            vfd_state=CS_vfd.vfd,
             attributed_to=finder.id_,
             em_consent_state=PEC.NO_EMBARGO,
             cvd_role=[CVDRole.FINDER],

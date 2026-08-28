@@ -18,7 +18,7 @@
 Orchestrates the full VFDPxa lifecycle across separate Finder, Vendor1,
 and Vendor2 containers with no coordinator.  Vendor1 creates the case and
 invites both Finder and Vendor2; each vendor has an independent fix path
-(CS_vfd).  Vendor2's DataLayer is verified as a LedgerFanout replica of the
+(CS_vf/CS_d).  Vendor2's DataLayer is verified as a LedgerFanout replica of the
 authoritative Vendor1 state.
 
 Spec: D5-5 (GitHub issue #1265).
@@ -28,7 +28,7 @@ import logging
 import os
 import sys
 
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -85,7 +85,7 @@ from vultron.demo.helpers.polling import (
     wait_for_event_type_in_ledger,
     wait_for_finder_case,
     wait_for_participant_rm_state,
-    wait_for_participant_vfd_state,
+    wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -481,14 +481,12 @@ def _phase_fix_lifecycle(
             actor=vendor_in_vendor,
             case_id=case.id_,
         )
-        with demo_check(
-            "Vendor1 participant vfd_state transitions to VFd or VFD"
-        ):
-            wait_for_participant_vfd_state(
+        with demo_check("Vendor1 participant vf_state transitions to VF"):
+            wait_for_participant_vf_state(
                 client=vendor_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
 
     with demo_gate(
@@ -505,30 +503,28 @@ def _phase_fix_lifecycle(
             actor=vendor2_in_vendor2,
             case_id=case.id_,
         )
-        with demo_check(
-            "Vendor2 participant vfd_state transitions to VFd or VFD"
-        ):
-            wait_for_participant_vfd_state(
+        with demo_check("Vendor2 participant vf_state transitions to VF"):
+            wait_for_participant_vf_state(
                 client=vendor2_client,
                 case_id=case.id_,
                 actor_id=vendor2.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
 
     with demo_check(
         "M4: Finder replica shows both vendors CS include F (fix ready)"
     ):
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={CS_vf.VF},
         )
         verify_fix_ready(
             receiver_client=vendor_client,
@@ -540,17 +536,17 @@ def _phase_fix_lifecycle(
     with demo_check(
         "M5: Finder replica shows both vendors CS include F (fix ready) — vendors stop at VFd"
     ):
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
         verify_fix_ready(
             receiver_client=vendor_client,
@@ -612,17 +608,17 @@ def _phase_publication(
             client=finder_client,
             case_id=case.id_,
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
         verify_publicly_disclosed(
             receiver_client=vendor_client,

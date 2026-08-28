@@ -33,11 +33,15 @@ Closes #2236.
 """
 
 from vultron.core.states.cs import (
+    CS_d,
     CS_pxa,
+    CS_vf,
     CS_vfd,
+    D_FIX_DEPLOYED,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
+    VF_FIX_READY,
     VFD_FIX_READY,
 )
 from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
@@ -51,6 +55,58 @@ from vultron.core.states.rm import RM
 RM_STATES_CONSISTENT_WITH_FIX: frozenset[RM] = frozenset(
     {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
 )
+
+
+def violation_rm_vf_entailment(rm: RM, vf: CS_vf) -> str | None:
+    """Return an error string if (rm, vf) violates the fix-readiness entailment.
+
+    Fix readiness (F bit set: CS_vf.VF) can only be asserted when the vendor
+    has accepted the report (RM ∈ {ACCEPTED, DEFERRED, CLOSED}).
+
+    Returns:
+        None when the combination is valid.
+        A descriptive error string when the entailment is violated.
+
+    Source: rm_em_cs.md § "Fix Readiness"
+    Spec: CSB-18-001
+    """
+    if vf not in VF_FIX_READY:
+        return None
+    if rm in RM_STATES_CONSISTENT_WITH_FIX:
+        return None
+    return (
+        f"Cross-machine entailment violated: VF={vf.name!r} (F bit set)"
+        f" requires RM ∈ {{ACCEPTED, DEFERRED, CLOSED}},"
+        f" but RM={rm.name!r}."
+        " Fix readiness cannot precede RM.ACCEPTED"
+        " (rm_em_cs.md § Fix Readiness)."
+    )
+
+
+def violation_rm_d_entailment(rm: RM, d: CS_d) -> str | None:
+    """Return an error string if (rm, d) violates the fix-deployment entailment.
+
+    Fix deployment (D bit set: CS_d.D) implies fix readiness, which requires
+    RM ∈ {ACCEPTED, DEFERRED, CLOSED}.
+
+    Returns:
+        None when the combination is valid.
+        A descriptive error string when the entailment is violated.
+
+    Source: rm_em_cs.md § "Fix Deployment"
+    Spec: CSB-18-001
+    """
+    if d not in D_FIX_DEPLOYED:
+        return None
+    if rm in RM_STATES_CONSISTENT_WITH_FIX:
+        return None
+    return (
+        f"Cross-machine entailment violated: D={d.name!r} (D bit set)"
+        f" requires RM ∈ {{ACCEPTED, DEFERRED, CLOSED}},"
+        f" but RM={rm.name!r}."
+        " Fix deployment cannot precede RM.ACCEPTED"
+        " (rm_em_cs.md § Fix Deployment)."
+    )
 
 
 def violation_rm_vfd_entailment(rm: RM, vfd: CS_vfd) -> str | None:

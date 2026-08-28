@@ -15,15 +15,16 @@ from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.dimensions import (
+    DDimension,
     EmDimension,
     PecDimension,
     PxaDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.participant_status import coerce_cvd_roles
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
@@ -380,12 +381,24 @@ def _coerce_rm(raw: object) -> RM:
     return RM.START
 
 
-def _coerce_vfd(raw: object) -> CS_vfd:
-    if isinstance(raw, CS_vfd):
+def _coerce_vf(raw: object) -> CS_vf | None:
+    if raw is None:
+        return None
+    if isinstance(raw, CS_vf):
         return raw
     if isinstance(raw, str):
-        return CS_vfd[raw]
-    return CS_vfd.vfd
+        return CS_vf[raw]
+    return None
+
+
+def _coerce_d(raw: object) -> CS_d | None:
+    if raw is None:
+        return None
+    if isinstance(raw, CS_d):
+        return raw
+    if isinstance(raw, str):
+        return CS_d[raw]
+    return None
 
 
 def _coerce_pec_or_none(raw: object) -> PEC | None:
@@ -465,8 +478,17 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                 rm=RmDimension(
                     state=_coerce_rm(getattr(obj, "rm_state", None))
                 ),
-                vfd=VfdDimension(
-                    state=_coerce_vfd(getattr(obj, "vfd_state", None))
+                vf=(
+                    VfDimension(
+                        state=_coerce_vf(getattr(obj, "vf_state", None))
+                    )
+                    if getattr(obj, "vf_state", None) is not None
+                    else None
+                ),
+                d=(
+                    DDimension(state=_coerce_d(getattr(obj, "d_state", None)))
+                    if getattr(obj, "d_state", None) is not None
+                    else None
                 ),
                 consent=(
                     PecDimension(state=pec_val)

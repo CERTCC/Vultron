@@ -148,21 +148,21 @@ def demo_notify_fix_ready(
 
     Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
     """
-    from vultron.core.states.cs import CS_vfd
+    from vultron.core.states.cs import CS_vf
 
     with domain_error_translation():
-        # VFD hypercube: vfd → Vfd is the only valid first hop from the
-        # initial state; Vfd → VFd is the second hop. Both must be emitted
+        # VF hypercube: vf → Vf is the only valid first hop from the
+        # initial state; Vf → VF is the second hop. Both must be emitted
         # in order so ValidateTriggerTransitionsNode passes each step.
         svc.add_participant_status(
             actor_id=actor_id,
             case_id=body.case_id,
-            vfd_state=CS_vfd.Vfd,
+            vf_state=CS_vf.Vf,
         )
         result = svc.add_participant_status(
             actor_id=actor_id,
             case_id=body.case_id,
-            vfd_state=CS_vfd.VFd,
+            vf_state=CS_vf.VF,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
@@ -192,13 +192,13 @@ def demo_notify_fix_deployed(
 
     Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
     """
-    from vultron.core.states.cs import CS_vfd
+    from vultron.core.states.cs import CS_d
 
     with domain_error_translation():
         result = svc.add_participant_status(
             actor_id=actor_id,
             case_id=body.case_id,
-            vfd_state=CS_vfd.VFD,
+            d_state=CS_d.D,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result

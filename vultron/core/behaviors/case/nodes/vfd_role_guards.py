@@ -15,17 +15,17 @@
 
 """VFD role-guard condition nodes for the add-participant-status trigger.
 
-Nodes enforce CVD protocol correctness for self-reported VFD transitions
-(CSB-15-001, CSB-15-002) and received-side status authorization (RSH-01-002):
+Nodes enforce CVD protocol correctness for received-side status authorization
+(RSH-01-002):
 
-- :class:`CheckVendorRoleNode` — gates f→F (vfd_state=VFd): actor MUST hold
-  ``CVDRole.VENDOR``
-- :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
-  ``CVDRole.DEPLOYER``
-- :class:`CheckNotSoleObserverVfdNode` — gates v→V (vfd_state=Vfd): actor
+- :class:`CheckNotSoleObserverVfdNode` — gates v→V (vf_state=Vf): actor
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
 - :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
   sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
+
+Note: :class:`CheckVendorRoleNode` and :class:`CheckDeployerRoleNode` were
+removed in #2664; their role is now enforced structurally through the
+VF/D dimension split (ADR-0075).
 """
 
 import logging
@@ -82,7 +82,7 @@ def _resolve_actor_roles(
 
 
 class CheckVendorRoleNode(DataLayerConditionWithPorts):
-    """Gate f→F (vfd_state=VFd): actor MUST hold CVDRole.VENDOR.
+    """Gate vf→VF: actor MUST hold CVDRole.VENDOR.
 
     Returns ``SUCCESS`` when the executing actor holds ``CVDRole.VENDOR`` in
     their ``CaseParticipant.roles`` for the given case.  Returns ``FAILURE``
@@ -135,7 +135,7 @@ class CheckVendorRoleNode(DataLayerConditionWithPorts):
 
 
 class CheckDeployerRoleNode(DataLayerConditionWithPorts):
-    """Gate d→D (vfd_state=VFD): actor MUST hold CVDRole.DEPLOYER.
+    """Gate d→D: actor MUST hold CVDRole.DEPLOYER.
 
     Returns ``SUCCESS`` when the executing actor holds ``CVDRole.DEPLOYER`` in
     their ``CaseParticipant.roles`` for the given case.  A vendor-only actor
@@ -192,7 +192,7 @@ class CheckDeployerRoleNode(DataLayerConditionWithPorts):
 
 
 class CheckNotSoleObserverVfdNode(DataLayerConditionWithPorts):
-    """Gate v→V (vfd_state=Vfd): actor MUST NOT hold OBSERVER as their only role.
+    """Gate v→V (vf_state=Vf): actor MUST NOT hold OBSERVER as their only role.
 
     Returns ``FAILURE`` when the actor's ``case_roles`` list is exactly
     ``[CVDRole.OBSERVER]``, blocking the VFD vendor-awareness transition.

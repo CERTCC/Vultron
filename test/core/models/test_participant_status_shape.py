@@ -40,17 +40,19 @@ import pytest
 
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
+    DDimension,
     PecDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.models.participant_status import (
     ParticipantStatus,
+    participant_status_d_state,
     participant_status_rm_state,
-    participant_status_vfd_state,
+    participant_status_vf_state,
 )
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.errors import VultronValidationError
 
@@ -171,47 +173,52 @@ class TestParticipantStatusRmStateHelper:
             participant_status_rm_state(_Bogus())
 
 
-class TestParticipantStatusVfdStateHelper:
-    """``participant_status_vfd_state`` is the canonical VFD-dimension reader.
+class TestParticipantStatusVfStateHelper:
+    """``participant_status_vf_state`` is the canonical VF-dimension reader."""
 
-    The VFD dimension had the identical degrade (``getattr(status, "vfd", None)``
-    → substitute ``CS_vfd.vfd``) sitting a few lines from the RM one, so fixing
-    only RM would have left the same defect alive one dimension over (#2232).
-    """
-
-    def test_returns_state_for_core_shaped_status(self):
+    def test_returns_state_for_core_shaped_vendor_status(self):
         status = ParticipantStatus(
-            context=_CONTEXT, vfd=VfdDimension(state=CS_vfd.Vfd)
+            context=_CONTEXT, vf=VfDimension(state=CS_vf.Vf)
         )
-        assert participant_status_vfd_state(status) is CS_vfd.Vfd
+        assert participant_status_vf_state(status) is CS_vf.Vf
 
-    def test_returns_initial_state_when_unset(self):
-        """A core status defaults its VFD dimension — that is not an error."""
+    def test_returns_none_when_no_vf_dimension(self):
+        """A non-vendor status has no vf dimension — returns None, not an error."""
         status = ParticipantStatus(context=_CONTEXT)
-        assert participant_status_vfd_state(status) is CS_vfd.vfd
+        assert participant_status_vf_state(status) is None
 
-    def test_raises_on_wire_shaped_status(self):
-        """A flat ``vfd_state`` status has no ``vfd`` — that must raise."""
-        from vultron.wire.as2.vocab.objects.case_status import (
-            as_ParticipantStatus,
-        )
-
-        wire_status = as_ParticipantStatus(
-            context=_CONTEXT, vfd_state=CS_vfd.Vfd
-        )
-        assert getattr(wire_status, "vfd", None) is None
-
-        with pytest.raises(VultronValidationError, match="'vfd' dimension"):
-            participant_status_vfd_state(wire_status)
-
-    def test_raises_when_vfd_carries_no_vfd_state(self):
-        """A present-but-unusable ``vfd`` must raise rather than substitute."""
+    def test_raises_when_vf_carries_no_valid_state(self):
+        """A present-but-unusable ``vf`` must raise rather than substitute."""
 
         class _Bogus:
-            vfd = object()
+            vf = object()
 
-        with pytest.raises(VultronValidationError, match="no valid VFD state"):
-            participant_status_vfd_state(_Bogus())
+        with pytest.raises(VultronValidationError, match="'vf' dimension"):
+            participant_status_vf_state(_Bogus())
+
+
+class TestParticipantStatusDStateHelper:
+    """``participant_status_d_state`` is the canonical D-dimension reader."""
+
+    def test_returns_state_for_core_shaped_deployer_status(self):
+        status = ParticipantStatus(
+            context=_CONTEXT, d=DDimension(state=CS_d.D)
+        )
+        assert participant_status_d_state(status) is CS_d.D
+
+    def test_returns_none_when_no_d_dimension(self):
+        """A non-deployer status has no d dimension — returns None, not an error."""
+        status = ParticipantStatus(context=_CONTEXT)
+        assert participant_status_d_state(status) is None
+
+    def test_raises_when_d_carries_no_valid_state(self):
+        """A present-but-unusable ``d`` must raise rather than substitute."""
+
+        class _Bogus:
+            d = object()
+
+        with pytest.raises(VultronValidationError, match="'d' dimension"):
+            participant_status_d_state(_Bogus())
 
 
 # ---------------------------------------------------------------------------

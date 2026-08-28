@@ -32,7 +32,7 @@ import logging
 import os
 import sys
 
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -93,7 +93,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
-    wait_for_participant_vfd_state,
+    wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -716,30 +716,28 @@ def _phase_fix_lifecycle(
             case_id=case.id_,
         )
 
-        with demo_check(
-            "Vendor participant vfd_state transitions to VFd or VFD"
-        ):
-            wait_for_participant_vfd_state(
+        with demo_check("Vendor participant vf_state transitions to VF"):
+            wait_for_participant_vf_state(
                 client=vendor_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
 
         with demo_check(
             "Finder replica shows Vendor CS includes F (fix ready)"
         ):
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=c1_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=finder_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
             verify_fix_ready(
                 receiver_client=c1_client,
@@ -751,17 +749,17 @@ def _phase_fix_lifecycle(
         with demo_check(
             "Finder replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
         ):
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=c1_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd},
+                expected_states={CS_vf.VF},
             )
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=finder_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd},
+                expected_states={CS_vf.VF},
             )
             verify_fix_ready(
                 receiver_client=c1_client,
@@ -830,17 +828,17 @@ def _phase_publication(
             client=finder_client,
             case_id=case.id_,
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=c1_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
         verify_publicly_disclosed(
             receiver_client=c1_client,

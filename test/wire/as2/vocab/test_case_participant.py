@@ -217,13 +217,13 @@ class TestParticipantStatusProperty(unittest.TestCase):
     def setUp(self):
         from datetime import datetime, timezone
 
-        from vultron.core.states.cs import CS_vfd
+        from vultron.core.states.cs import CS_vf
         from vultron.core.states.rm import RM
         from vultron.wire.as2.vocab.objects.case_status import (
             as_ParticipantStatus,
         )
 
-        self.CS_vfd = CS_vfd
+        self.CS_vf = CS_vf
         self.RM = RM
         self.as_ParticipantStatus = as_ParticipantStatus
         self.dt = datetime
@@ -236,22 +236,22 @@ class TestParticipantStatusProperty(unittest.TestCase):
     ):
         """Bug #659: tiebreaker must prefer append-order over timestamp.
 
-        Initial vfd status is created locally with ``published=now()``.
-        A subsequently appended VFd status carries a sender-supplied
+        Initial vf status is created locally with ``published=now()``.
+        A subsequently appended Vf status carries a sender-supplied
         ``published`` that may be *earlier* than the local initial value
         (clock skew, batched processing, etc.). The property must still
-        return the appended VFd entry.
+        return the appended Vf entry.
         """
         appended = self.as_ParticipantStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             rm_state=self.RM.ACCEPTED,
-            vfd_state=self.CS_vfd.VFd,
+            vf_state=self.CS_vf.Vf,
             published=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
             updated=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
         )
         # Construct participant with empty list so the validator creates
-        # the initial vfd with published=now() (which will be > appended's).
+        # the initial status with published=now() (which will be > appended's).
         participant = as_CaseParticipant(
             attributed_to=self.actor_id, context=self.case_id
         )
@@ -261,7 +261,7 @@ class TestParticipantStatusProperty(unittest.TestCase):
         latest = participant.participant_status
         self.assertIsNotNone(latest)
         assert latest is not None  # narrow for type checker
-        self.assertEqual(self.CS_vfd.VFd, latest.vfd_state)
+        self.assertEqual(self.CS_vf.Vf, latest.vf_state)
         self.assertEqual(self.RM.ACCEPTED, latest.rm_state)
 
     def test_returns_none_when_empty(self):

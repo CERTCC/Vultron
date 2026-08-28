@@ -52,7 +52,7 @@ import pytest
 
 import vultron.demo.helpers.notes as notes_module
 import vultron.demo.utils as demo_utils
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import wait_for_case_participants
@@ -228,9 +228,7 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     import vultron.demo.helpers.verification as verification_module
     from vultron.demo.helpers.polling import _wait_for_participant_status_field
 
-    ps = as_ParticipantStatus(
-        context=_CASE_ID, rm_state=RM.RECEIVED, vfd_state=CS_vfd.vfd
-    )
+    ps = as_ParticipantStatus(context=_CASE_ID, rm_state=RM.RECEIVED)
     participant = as_CaseParticipant(
         id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],
@@ -267,9 +265,9 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
 # ===========================================================================
 
 
-def _make_participant(vfd: CS_vfd, rm: RM) -> as_CaseParticipant:
-    """Build a minimal CaseParticipant with given vfd and rm state."""
-    ps = as_ParticipantStatus(context=_CASE_ID, vfd_state=vfd, rm_state=rm)
+def _make_participant(vf: CS_vf | None, rm: RM) -> as_CaseParticipant:
+    """Build a minimal CaseParticipant with given vf and rm state."""
+    ps = as_ParticipantStatus(context=_CASE_ID, vf_state=vf, rm_state=rm)
     return as_CaseParticipant(
         id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],
@@ -278,19 +276,19 @@ def _make_participant(vfd: CS_vfd, rm: RM) -> as_CaseParticipant:
 
 
 def test_verify_fix_ready_fails_if_rm_not_engaged(monkeypatch):
-    """verify_fix_ready must raise when vfd_state=VFd but rm_state=RECEIVED.
+    """verify_fix_ready must raise when vf_state=VF but rm_state=RECEIVED.
 
     CS.F entails RM in {ACCEPTED, DEFERRED, CLOSED}.  Before the fix,
-    ``verify_fix_ready`` only checked ``vfd_state`` and did not verify the
-    required RM invariant, so a participant at RM.RECEIVED with VFd CS state
+    ``verify_fix_ready`` only checked ``vf_state`` and did not verify the
+    required RM invariant, so a participant at RM.RECEIVED with VF=VF CS state
     would pass the milestone check without having engaged with the report.
     """
     import vultron.demo.helpers.milestones as milestones_module
     import vultron.demo.helpers.verification as verification_module
     from vultron.demo.helpers.milestones import verify_fix_ready
 
-    # Participant has fix-ready CS state (VFd) but has not yet engaged (RECEIVED)
-    participant = _make_participant(vfd=CS_vfd.VFd, rm=RM.RECEIVED)
+    # Participant has fix-ready CS state (VF=VF) but has not yet engaged (RECEIVED)
+    participant = _make_participant(vf=CS_vf.VF, rm=RM.RECEIVED)
 
     # _check_participant_vfd_state_in and _check_participant_rm_state_in live
     # in verification.py and call _fetch_participant from that module's namespace.

@@ -34,17 +34,20 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
+    DDimension,
     EmDimension,
     PecDimension,
     PxaDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 from vultron.core.states.cs import (
+    CS_d,
     CS_pxa,
-    CS_vfd,
+    CS_vf,
+    is_valid_d_transition,
     is_valid_pxa_transition,
-    is_valid_vfd_transition,
+    is_valid_vf_transition,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -105,7 +108,8 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         case_id: str,
         actor_id: str,
         rm_state: "RM | None",
-        vfd_state: "CS_vfd | None",
+        vf_state: "CS_vf | None",
+        d_state: "CS_d | None",
         pxa_state: "CS_pxa | None",
         result_out: dict,
         name: str | None = None,
@@ -114,51 +118,49 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         self._case_id = case_id
         self._actor_id = actor_id
         self._rm_state = rm_state
-        self._vfd_state = vfd_state
+        self._vf_state = vf_state
+        self._d_state = d_state
         self._pxa_state = pxa_state
         self._result_out = result_out
 
-    def _check_vfd_preconditions(
-        self, current_vfd: CS_vfd, participant_obj: object
+    def _check_vf_precondition(
+        self, current_vf: CS_vf | None
     ) -> "Status | None":
-        """CSB-16-001 / CSB-15-001/002: validate VFD transition and role before writing."""
-        if self._vfd_state is not None and self._vfd_state != current_vfd:
-            if not is_valid_vfd_transition(current_vfd, self._vfd_state):
-                self.logger.warning(
-                    "%s: invalid VFD transition %s → %s for actor '%s'",
-                    self.name,
-                    current_vfd,
-                    self._vfd_state,
-                    self._actor_id,
-                )
-                self.feedback_message = f"Invalid VFD transition {current_vfd!r} → {self._vfd_state!r}"
-                return Status.FAILURE
-        actor_roles = (
-            participant_obj.roles  # type: ignore[attr-defined]
-            if isinstance(participant_obj, CaseParticipant)
-            else []
-        )
-        if self._vfd_state == CS_vfd.VFd and CVDRole.VENDOR not in actor_roles:
-            self.logger.warning(
-                "%s: actor '%s' lacks VENDOR role required for VFd (CSB-15-001)",
-                self.name,
-                self._actor_id,
-            )
-            self.feedback_message = (
-                "VENDOR role required for VFd target (CSB-15-001)"
-            )
-            return Status.FAILURE
-        if (
-            self._vfd_state == CS_vfd.VFD
-            and CVDRole.DEPLOYER not in actor_roles
+        """CSB-16-001: validate VF transition before writing."""
+        if self._vf_state is None or current_vf is None:
+            return None
+        if self._vf_state != current_vf and not is_valid_vf_transition(
+            current_vf, self._vf_state
         ):
             self.logger.warning(
-                "%s: actor '%s' lacks DEPLOYER role required for VFD (CSB-15-002)",
+                "%s: invalid VF transition %s → %s for actor '%s'",
                 self.name,
+                current_vf,
+                self._vf_state,
                 self._actor_id,
             )
             self.feedback_message = (
-                "DEPLOYER role required for VFD target (CSB-15-002)"
+                f"Invalid VF transition {current_vf!r} → {self._vf_state!r}"
+            )
+            return Status.FAILURE
+        return None
+
+    def _check_d_precondition(self, current_d: CS_d | None) -> "Status | None":
+        """CSB-16-001: validate D transition before writing."""
+        if self._d_state is None or current_d is None:
+            return None
+        if self._d_state != current_d and not is_valid_d_transition(
+            current_d, self._d_state
+        ):
+            self.logger.warning(
+                "%s: invalid D transition %s → %s for actor '%s'",
+                self.name,
+                current_d,
+                self._d_state,
+                self._actor_id,
+            )
+            self.feedback_message = (
+                f"Invalid D transition {current_d!r} → {self._d_state!r}"
             )
             return Status.FAILURE
         return None
@@ -214,12 +216,16 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        current_rm, current_vfd = resolve_participant_state_from_dl(
+        current_rm, current_vf, current_d = resolve_participant_state_from_dl(
             dl, participant_id
         )
         participant_obj = dl.read(participant_id)
 
-        guard = self._check_vfd_preconditions(current_vfd, participant_obj)
+        guard = self._check_vf_precondition(current_vf)
+        if guard is not None:
+            return guard
+
+        guard = self._check_d_precondition(current_d)
         if guard is not None:
             return guard
 
@@ -255,6 +261,19 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             else None
         )
 
+        # Build vf/d dimensions: use requested state if provided, else carry current forward.
+        vf_dim: VfDimension | None = None
+        if self._vf_state is not None:
+            vf_dim = VfDimension(state=self._vf_state)
+        elif current_vf is not None:
+            vf_dim = VfDimension(state=current_vf)
+
+        d_dim: DDimension | None = None
+        if self._d_state is not None:
+            d_dim = DDimension(state=self._d_state)
+        elif current_d is not None:
+            d_dim = DDimension(state=current_d)
+
         status = ParticipantStatus(
             context=self._case_id,
             attributed_to=self._actor_id,
@@ -265,13 +284,8 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                     else current_rm
                 )
             ),
-            vfd=VfdDimension(
-                state=(
-                    self._vfd_state
-                    if self._vfd_state is not None
-                    else current_vfd
-                )
-            ),
+            vf=vf_dim,
+            d=d_dim,
             consent=consent_dim,
             cvd_role=status_roles,
             case_status=case_status,
@@ -299,24 +313,17 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             self._actor_id,
             self._case_id,
         )
-        self._log_transitions(current_rm, current_vfd, pxa_before)
+        self._log_transitions(current_rm, current_vf, current_d, pxa_before)
         return Status.SUCCESS
 
     def _log_transitions(
         self,
         rm_before: RM,
-        vfd_before: CS_vfd,
+        vf_before: CS_vf | None,
+        d_before: CS_d | None,
         pxa_before: CS_pxa | None,
     ) -> None:
-        """Emit narrative INFO lines for the dimensions this node advanced.
-
-        The RM/CS dimension changes carried by the snapshot are the protocol
-        story (SL-04-001); the helpers suppress no-op writes.
-
-        This node is a second per-participant RM write path alongside
-        ``update_participant_rm_state()`` (used by e.g. the leave-case
-        RM → CLOSED nodes), so it must log the RM line itself.
-        """
+        """Emit narrative INFO lines for the dimensions this node advanced."""
         if self._rm_state is not None:
             log_rm_transition(
                 self.logger,
@@ -325,13 +332,21 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 rm_before,
                 self._rm_state,
             )
-        if self._vfd_state is not None:
+        if self._vf_state is not None and vf_before is not None:
             log_cs_transition(
                 self.logger,
                 self._actor_id,
                 self._case_id,
-                vfd_before,
-                self._vfd_state,
+                vf_before,
+                self._vf_state,
+            )
+        if self._d_state is not None and d_before is not None:
+            log_cs_transition(
+                self.logger,
+                self._actor_id,
+                self._case_id,
+                d_before,
+                self._d_state,
             )
         if self._pxa_state is not None and pxa_before is not None:
             log_cs_transition(
