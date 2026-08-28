@@ -155,10 +155,6 @@ _SYNC_PORT_SEMANTICS = frozenset(
 
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
-        # ADD_CASE_STATUS_TO_CASE needs trigger_activity so that
-        # ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate) can dispatch TerminateEmbargo
-        # activities when P/X/A is set (RSH-03-001, ADR-0046).
-        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         MessageSemantics.OFFER_ACTOR_TO_CASE,
         MessageSemantics.OFFER_CASE_PARTICIPANT,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
@@ -181,7 +177,6 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACK_REPORT,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
-        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
@@ -205,3 +200,60 @@ _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
 # ports) so the CaseActor can assign the proposing actor its configured CVD
 # roles (CFG-07-002, CFG-07-004).  Separate set for the same reason as above.
 _CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})
+
+# Status-authorization call-out seam (ADR-0076, RSH-07-003):
+# ADD_CASE_STATUS_TO_CASE and ADD_PARTICIPANT_STATUS_TO_PARTICIPANT both
+# carry a StatusAuthorizationCallOutBundle injection point.  The adapter
+# wires STATUS_AUTHORIZATION_PERMISSIVE (explicit trusted/demo configuration)
+# so the EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed
+# without a live Case Owner approval round-trip.  Production deployments that
+# implement the full Offer/Accept/Reject round-trip would inject a different
+# bundle here.
+_STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
+    {
+        # ADD_CASE_STATUS_TO_CASE also needs trigger_activity so that
+        # ThreatTerminationBranchNode can dispatch TerminateEmbargo when
+        # P/X/A is set (RSH-03-001, ADR-0046).
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+    }
+)
+
+_STATUS_AUTH_SYNC_TRIGGER_SEMANTICS = frozenset(
+    {
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+    }
+)
+
+
+def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE for ADD_CASE_STATUS_TO_CASE.
+
+    Wires the permissive authorization bundle (RSH-07-003, ADR-0076) so the
+    EmbargoTeardownAuthorizationGate succeeds in this adapter's trusted/demo
+    deployment context.
+    """
+    from vultron.core.behaviors.call_out.bundles.status_authorization import (
+        STATUS_AUTHORIZATION_PERMISSIVE,
+    )
+
+    return {
+        **_trigger_activity_port_factory(dl),
+        "call_out": STATUS_AUTHORIZATION_PERMISSIVE,
+    }
+
+
+def _status_auth_sync_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Inject sync_port + trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE for ADD_PARTICIPANT_STATUS.
+
+    Wires the permissive authorization bundle (RSH-07-003, ADR-0076) so the
+    StatusAdoptionGate succeeds for non-CASE_OWNER senders in this adapter's
+    trusted/demo deployment context.
+    """
+    from vultron.core.behaviors.call_out.bundles.status_authorization import (
+        STATUS_AUTHORIZATION_PERMISSIVE,
+    )
+
+    return {
+        **_sync_and_trigger_port_factory(dl),
+        "call_out": STATUS_AUTHORIZATION_PERMISSIVE,
+    }

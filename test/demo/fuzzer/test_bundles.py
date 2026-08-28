@@ -257,6 +257,7 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "CLOSE_REPORT_DETERMINISTIC",
         "CLOSE_REPORT_STOCHASTIC",
         "STATUS_AUTHORIZATION_DETERMINISTIC",
+        "STATUS_AUTHORIZATION_PERMISSIVE",
         "STATUS_AUTHORIZATION_STOCHASTIC",
     ]
     for name in expected_classes + expected_singletons:
