@@ -40,6 +40,7 @@ Scaffold (#746); full operations (#747)
 """
 
 import logging
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
@@ -123,6 +124,7 @@ class EmbargoLifecycleResult(BaseModel):
     participant_changes: list[ParticipantPECChange] = Field(
         default_factory=list
     )
+    is_lapsed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -768,6 +770,114 @@ class EmbargoLifecycle:
             case_embargo_changed=False,
             pec_reset=False,
             participant_changes=participant_changes,
+        )
+
+    def detect_and_apply_lapse(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+        now: datetime,
+    ) -> EmbargoLifecycleResult:
+        """Lazily enforce RSVP deadline: apply DECLINE if invite has lapsed.
+
+        Reads the participant record for *actor_id* in *case_id*.  If the
+        participant is in ``INVITED`` state and ``invite_rsvp_deadline`` is
+        set and ``now >= invite_rsvp_deadline``, applies ``PEC_Trigger.DECLINE``
+        and returns a result with ``is_lapsed=True``.
+
+        Idempotent: if the participant is already ``DECLINED`` (or any state
+        other than ``INVITED``), no PEC transition is applied.  The result
+        still carries ``is_lapsed=True`` when the deadline has passed, so the
+        caller can branch on whether the invite window closed without
+        re-deriving it.
+
+        Args:
+            case_id: ID of the VulnerabilityCase.
+            actor_id: ID of the actor whose participant record to check.
+            now: Current UTC datetime used for deadline comparison.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` with ``is_lapsed`` reflecting
+            whether the deadline has passed.
+        """
+        case = self._persistence.read(case_id)
+        if not isinstance(case, VulnerabilityCase):
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+
+        em_state = case.current_status.em.state
+
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            logger.debug(
+                "detect_and_apply_lapse: actor '%s' has no participant"
+                " record in case '%s' — skipping",
+                actor_id,
+                case_id,
+            )
+            return EmbargoLifecycleResult(
+                em_before=em_state,
+                em_after=em_state,
+                case_changed=False,
+                case_embargo_changed=False,
+                pec_reset=False,
+                is_lapsed=False,
+            )
+
+        participant = self._persistence.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            return EmbargoLifecycleResult(
+                em_before=em_state,
+                em_after=em_state,
+                case_changed=False,
+                case_embargo_changed=False,
+                pec_reset=False,
+                is_lapsed=False,
+            )
+
+        deadline = participant.invite_rsvp_deadline
+        is_lapsed = deadline is not None and now >= deadline
+
+        if not is_lapsed:
+            return EmbargoLifecycleResult(
+                em_before=em_state,
+                em_after=em_state,
+                case_changed=False,
+                case_embargo_changed=False,
+                pec_reset=False,
+                is_lapsed=False,
+            )
+
+        # Deadline has passed — apply DECLINE if still in INVITED state.
+        # Idempotent: DECLINED and other terminal states are left unchanged.
+        participant_changes: list[ParticipantPECChange] = []
+        if participant.embargo_consent_state == PEC.INVITED.value:
+            pec_before = participant.embargo_consent_state
+            participant.apply_pec_transition(PEC_Trigger.DECLINE)
+            self._persistence.save(participant)
+            participant_changes.append(
+                ParticipantPECChange(
+                    participant_id=participant_id,
+                    pec_before=pec_before,
+                    pec_after=participant.embargo_consent_state,
+                )
+            )
+            logger.info(
+                "Invite lapsed for actor '%s' on case '%s'"
+                " (deadline=%s, PEC INVITED → DECLINED)",
+                actor_id,
+                case_id,
+                deadline,
+            )
+
+        return EmbargoLifecycleResult(
+            em_before=em_state,
+            em_after=em_state,
+            case_changed=False,
+            case_embargo_changed=False,
+            pec_reset=False,
+            participant_changes=participant_changes,
+            is_lapsed=True,
         )
 
     # ------------------------------------------------------------------
