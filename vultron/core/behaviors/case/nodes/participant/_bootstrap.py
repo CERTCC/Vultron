@@ -13,59 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Bootstrap participant BT node.
+"""Bootstrap participant BT node module — intentionally empty.
 
-Separated from participant_add.py to keep that module under the BTND-07-004
-500-line limit.  This node is only used during Create(VulnerabilityCase)
-bootstrap flows, not during normal report-receive flows.
+``EnsureReporterParticipantAtAcceptedNode`` was removed when CBT-05-008 was
+implemented.  Receivers now raise ``VultronProtocolViolationError`` on
+bare-URI participants rather than synthesising state from domain knowledge
+(#2736, #2808).
 """
-
-from py_trees.common import Status
-
-from vultron.core.behaviors.case.nodes.participant.common import (
-    _ensure_reporter_participant,
-)
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.report_case_link import VultronReportCaseLink
-
-
-class EnsureReporterParticipantAtAcceptedNode(DataLayerActionWithPorts):
-    """BT leaf node that seeds or upgrades the reporter participant to RM.ACCEPTED.
-
-    Called from ``CreateCaseReceivedUseCase._handle_bootstrap`` via BTBridge
-    after a ``Create(VulnerabilityCase)`` bootstrap.  When participants arrive
-    as bare string IDs, ``_store_embedded_participants`` cannot create records
-    for them.  This node ensures the reporter's participant record exists at
-    ``RM.ACCEPTED`` — inferred from the fact that they submitted a report (#589,
-    #624).
-
-    Args:
-        link: The ``VultronReportCaseLink`` associating the report to the case.
-        case_obj: The bootstrapped ``VulnerabilityCase`` domain object.
-        case_id: ID of the case (for log context).
-    """
-
-    def __init__(
-        self,
-        link: VultronReportCaseLink,
-        case_obj: VulnerabilityCase,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.link = link
-        self.case_obj = case_obj
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        _ensure_reporter_participant(
-            self.datalayer,
-            self.link,
-            self.case_obj,
-            self.case_id,
-        )
-        return Status.SUCCESS

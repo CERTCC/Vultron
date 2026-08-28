@@ -1,7 +1,3 @@
-from vultron.core.behaviors.case.nodes.participant.common import (
-    _ensure_reporter_participant,
-    _upgrade_participant_to_accepted,
-)
 from vultron.core.use_cases.received.case._helpers import (
     _find_report_case_link,
     _check_participant_embargo_acceptance,
@@ -31,8 +27,6 @@ __all__ = [
     "_find_report_case_link",
     "_check_participant_embargo_acceptance",
     "_store_embedded_participants",
-    "_ensure_reporter_participant",
-    "_upgrade_participant_to_accepted",
     "CreateCaseReceivedUseCase",
     "UpdateCaseReceivedUseCase",
     "EngageCaseReceivedUseCase",
