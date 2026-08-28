@@ -22,21 +22,39 @@ relatively simple and the sequence diagram is easier to read.
 ```mermaid
 sequenceDiagram
     actor A as Current Case Owner
+    participant CA as Case Actor
     actor B as Potential Case Owner
-    participant C as Case
-    A ->> B: Offer(object=Case)
+    A ->> CA: Offer(object=Case)
+    note over CA: Record offer; forward to transferee
+    CA ->>+ B: Offer(object=Case)
     note over B: Consider offer
-    activate B
     alt Accept Offer
-        B -->> A: Accept(object=Offer)
-        A ->> C: Update(object=Case)
-        note over C: Case has new owner
+        B -->> CA: Accept(object=Offer)
+        CA ->> CA: Update(object=Case, new owner=B)
+        note over CA: Case has new owner; broadcast
     else Reject Offer
-        B -->> A: Reject(object=Offer)
-        note over C: Case ownership unchanged
+        B -->> CA: Reject(object=Offer)
+        note over CA: Case ownership unchanged
     end
     deactivate B
 ```
+
+!!! info "CaseActor routing (ADR-0053, CM-21-005, CM-21-006)"
+
+    Per ADR-0053, both the `Offer` and the `Accept` MUST be routed through the
+    **Case Actor**, not sent directly between the current and prospective owners.
+    The current owner sends `Offer(VulnerabilityCase)` to the Case Actor's inbox;
+    the Case Actor forwards it to the transferee. The transferee addresses their
+    `Accept` or `Reject` to the Case Actor, which then applies the role change and
+    broadcasts the result to all participants.
+
+!!! note "Demo shortcut"
+
+    The current demo implementation sends the `Offer` and `Accept` directly
+    between actors (peer-to-peer), bypassing the Case Actor. The sequence diagram
+    above reflects the normative protocol target. BT nodes for ownership transfer
+    are already correct (see PR #2044); the demo routing will be aligned in a
+    follow-up issue.
 
 ## Offer Case Ownership Transfer
 
