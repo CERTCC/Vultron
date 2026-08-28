@@ -1,6 +1,6 @@
 """Tests for vultron.wire.as2.extractor."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 import pytest
@@ -299,3 +299,100 @@ def test_extract_intent_participant_status_vf_state():
     s = cast(Any, event).status
     assert s is not None
     assert s.vf.state == CS_vf.Vf
+
+
+# ---------------------------------------------------------------------------
+# RSVP deadline extraction for InviteToEmbargoOnCase (issue #2211)
+# ---------------------------------------------------------------------------
+
+
+def _make_embargo_invite(end_time=None):
+    """Build an as_Invite(as_EmbargoEvent) with optional activity-level end_time."""
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    embargo = as_EmbargoEvent(
+        context="https://example.org/cases/1",
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=90),
+    )
+    case = as_VulnerabilityCase(id_="https://example.org/cases/1")
+    kwargs = {
+        "object_": embargo,
+        "context": case,
+        "actor": "https://example.org/alice",
+    }
+    if end_time is not None:
+        kwargs["end_time"] = end_time
+    return as_Invite(**kwargs)
+
+
+@pytest.mark.spec("CM-27-001")
+def test_invite_rsvp_deadline_extracted_when_present():
+    """AC-2: activity-level end_time is extracted as rsvp_deadline on the event."""
+    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    invite = _make_embargo_invite(end_time=deadline)
+    event = extract_event(invite)
+
+    assert hasattr(event, "rsvp_deadline")
+    ev = cast(Any, event)
+    assert ev.rsvp_deadline is not None
+    # rsvp_deadline carries the invite end_time, NOT the nested embargo end_time
+    assert ev.rsvp_deadline == deadline.astimezone(timezone.utc)
+
+
+@pytest.mark.spec("CM-27-001")
+def test_invite_rsvp_deadline_absent_when_no_end_time():
+    """AC-7 (absent): no end_time on invite → rsvp_deadline is None."""
+    invite = _make_embargo_invite(end_time=None)
+    event = extract_event(invite)
+
+    assert hasattr(event, "rsvp_deadline")
+    assert cast(Any, event).rsvp_deadline is None
+
+
+@pytest.mark.spec("CM-27-001")
+def test_invite_rsvp_deadline_distinct_from_embargo_end_time():
+    """AC-2: invite.end_time and invite.object_.end_time are distinct fields."""
+    rsvp = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    invite = _make_embargo_invite(end_time=rsvp)
+    event = extract_event(invite)
+
+    # The nested embargo's end_time is on the activity's object_, not rsvp_deadline
+    ev = cast(Any, event)
+    assert ev.rsvp_deadline == rsvp.astimezone(timezone.utc)
+    # The embargo expiry is on event.activity.object_.end_time (90 days out)
+    embargo_end_time = getattr(
+        getattr(ev.activity, "object_", None), "end_time", None
+    )
+    assert embargo_end_time is not None
+    assert embargo_end_time != ev.rsvp_deadline
+
+
+@pytest.mark.spec("EP-07-003")
+def test_invite_rsvp_deadline_clamped_when_below_floor():
+    """AC-5: sub-floor rsvp_deadline is clamped up (not rejected)."""
+    # end_time is in the past / far below the 72h floor
+    past_deadline = datetime.now(tz=timezone.utc) - timedelta(hours=1)
+    invite = _make_embargo_invite(end_time=past_deadline)
+    event = extract_event(invite)
+
+    ev = cast(Any, event)
+    assert ev.rsvp_deadline is not None
+    # Clamped up: deadline is >= now (was in the past)
+    assert ev.rsvp_deadline > datetime.now(tz=timezone.utc)
+
+
+@pytest.mark.spec("EP-07-002")
+def test_invite_rsvp_deadline_none_when_naive_end_time():
+    """AC-7 (inbound naive): naive end_time on invite is ignored → rsvp_deadline is None."""
+    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    invite = _make_embargo_invite(end_time=naive_deadline)
+    event = extract_event(invite)
+
+    assert hasattr(event, "rsvp_deadline")
+    assert cast(Any, event).rsvp_deadline is None

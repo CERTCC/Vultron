@@ -9,13 +9,19 @@ For a single-call convenience wrapper that performs pattern matching and
 registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 """
 
+import logging
+from datetime import datetime, timezone
+
 from vultron.core.models.events import MessageSemantics, VultronEvent
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
     _to_domain_obj,
 )
+from vultron.wire.as2.factories.embargo import _DEFAULT_MIN_RSVP_WINDOW
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
+logger = logging.getLogger(__name__)
 
 
 def extract_intent(
@@ -68,6 +74,29 @@ def extract_intent(
         actor_id,
         origin,
     )
+
+    # AC-2/AC-3/AC-5 (issue #2211): extract activity-level end_time as
+    # rsvp_deadline for event classes that carry it.  Applies UTC normalization
+    # and clamps sub-floor values up to the default minimum window (EP-07-003).
+    if "rsvp_deadline" in event_class.model_fields:
+        raw_end_time = getattr(activity, "end_time", None)
+        if (
+            isinstance(raw_end_time, datetime)
+            and raw_end_time.tzinfo is not None
+        ):
+            floor = datetime.now(tz=timezone.utc) + _DEFAULT_MIN_RSVP_WINDOW
+            if raw_end_time < floor:
+                logger.info(
+                    "extract_intent: inbound rsvp_deadline %s is below floor"
+                    " %s; clamped to floor (EP-07-003)",
+                    raw_end_time.isoformat(),
+                    floor.isoformat(),
+                )
+                raw_end_time = floor
+            extra_kwargs["rsvp_deadline"] = raw_end_time.astimezone(
+                timezone.utc
+            )
+
     return event_class(
         semantic_type=semantics,
         activity_id=activity.id_,

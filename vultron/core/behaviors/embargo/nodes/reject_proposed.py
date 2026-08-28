@@ -25,10 +25,7 @@ Extracted from lifecycle.py to keep that module under the BTND-07-004
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import (
-    ReadEmStateNode,
-    WriteEmStateNode,
-)
+from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -116,16 +113,6 @@ class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
 
         self._result_out["lifecycle_result"] = result
         self._result_out["em_after"] = result.em_after
-
-        if result.em_after != em_before:
-            write_node = WriteEmStateNode(
-                case_id=self._case_id_value, result_out=self._result_out
-            )
-            write_node.datalayer = self.datalayer
-            write_status = write_node.update()
-            if write_status != Status.SUCCESS:
-                self.feedback_message = write_node.feedback_message
-                return Status.FAILURE
 
         return Status.SUCCESS
 

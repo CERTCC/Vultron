@@ -23,6 +23,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Sequence, cast
 
 from pydantic import ValidationError
@@ -60,9 +61,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
+
+
 def em_propose_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
+    rsvp_deadline: datetime | None = None,
+    min_rsvp_window: timedelta = _DEFAULT_MIN_RSVP_WINDOW,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(as_EmbargoEvent) — the EP/EV message.
@@ -73,15 +79,37 @@ def em_propose_embargo_activity(
         embargo: The ``as_EmbargoEvent`` being proposed.
         context: The ``VulnerabilityCase`` (or its URI) for which the
             embargo is being proposed.
+        rsvp_deadline: Optional RSVP-by deadline set on the activity-level
+            ``end_time`` (CM-27-001, ADR-0065). MUST be timezone-aware and
+            at least ``min_rsvp_window`` in the future (EP-07-002).
+        min_rsvp_window: Minimum time between now and the deadline; defaults
+            to 72 hours (EP-07-002). Pass ``ActorConfig.min_rsvp_window``
+            from the caller to apply the configured floor.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Invite`` whose ``object_`` is the embargo event.
+        An ``as_Invite`` whose ``object_`` is the embargo event, with
+        ``end_time`` set to *rsvp_deadline* when provided.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or
+            if *rsvp_deadline* is naive or below the minimum window.
     """
+    if rsvp_deadline is not None:
+        if rsvp_deadline.tzinfo is None:
+            raise VultronActivityConstructionError(
+                "em_propose_embargo_activity: rsvp_deadline must be"
+                " timezone-aware (naive datetime rejected per EP-07-002)"
+            )
+        floor = datetime.now(tz=timezone.utc) + min_rsvp_window
+        if rsvp_deadline < floor:
+            raise VultronActivityConstructionError(
+                f"em_propose_embargo_activity: rsvp_deadline"
+                f" {rsvp_deadline.isoformat()} is below the minimum"
+                f" window floor {floor.isoformat()} (EP-07-002)"
+            )
+        kwargs.setdefault("end_time", rsvp_deadline)
     try:
         return _EmProposeEmbargoActivity(
             object_=embargo, context=context, **kwargs

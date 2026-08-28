@@ -55,7 +55,6 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
-    SeedOfferRecordRequest,
     SyncLogEntryRequest,
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
@@ -275,58 +274,6 @@ def demo_close_case(
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
-
-
-@router.post(
-    "/{actor_id}/demo/seed-offer-record",
-    status_code=status.HTTP_201_CREATED,
-    summary="[Demo] Seed a VultronOfferRecord on this actor's DataLayer.",
-    description=(
-        "Demo-only scaffold. "
-        "Seeds a ``VultronOfferRecord`` (and a ``VulnerabilityReport`` stub "
-        "if one does not already exist) on this actor's DataLayer so that "
-        "invited actors can call ``validate-report`` using the original "
-        "offer ID (CM-11-002 triage cycle). "
-        "In a real deployment the offer record is created by the adapter "
-        "layer at report submission time and is only available on the "
-        "original receiving actor. "
-        "Only available in ``RunMode.PROTOTYPE``. "
-        "Spec: TRIG-09-001."
-    ),
-    operation_id="actors_demo_seed_offer_record",
-)
-def demo_seed_offer_record(
-    actor_id: str,  # noqa: ARG001
-    body: SeedOfferRecordRequest,
-    dl: DataLayer = Depends(get_trigger_dl),
-) -> dict[str, Any]:
-    """Seed a VultronOfferRecord (+ VulnerabilityReport stub) for invited actors.
-
-    Implements: TRIG-09-001, CM-11-002.
-    """
-    from vultron.core.models.offer_record import VultronOfferRecord
-    from vultron.core.models.report import VulnerabilityReport
-
-    with domain_error_translation():
-        offer_record = VultronOfferRecord(
-            offer_id=body.offer_id,
-            report_id=body.report_id,
-            offer_actor_id=body.offer_actor_id,
-        )
-        existing = dl.read(offer_record.id_)
-        if existing is None:
-            dl.save(offer_record)
-
-        report_existing = dl.read(body.report_id)
-        if report_existing is None:
-            report_stub = VulnerabilityReport(id_=body.report_id)
-            dl.save(report_stub)
-
-    return {
-        "offer_record_id": offer_record.id_,
-        "report_id": body.report_id,
-        "seeded": existing is None,
-    }
 
 
 @router.post(

@@ -228,6 +228,7 @@ def _phase_report_submission(
         receiver_client=c1_client,
         receiver=c1_in_c1,
         offer=offer,
+        timeout_seconds=60.0,
     )
 
     # Wait for initial participants (Finder + C1 + CaseActor).
