@@ -437,33 +437,34 @@ def _phase_c2_suggests_v2(
 
     # CaseActor processes Offer(Actor, Case) and forwards
     # Offer(CaseParticipant) to C1.  Poll C1's DataLayer for the offer.
-    cp_offer_id = None
-    with demo_check("Offer(CaseParticipant) for V2 arrived in C1's DataLayer"):
+    # All dependent steps (case_actor lookup and approve) are nested inside
+    # demo_gate so they are skipped if the offer never arrives (ADR-0058).
+    with demo_gate("Offer(CaseParticipant) for V2 arrived in C1's DataLayer"):
         cp_offer_id = find_cp_offer_for_case(
             client=c1_client,
             case_id=case.id_,
         )
         logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
-    # Find the CaseActor's participant ID so we can route the Accept back.
-    case_actor_id = find_case_actor_participant_id(c1_client, case.id_)
-    if case_actor_id is None:
-        raise AssertionError(
-            "CaseActor participant not found in case — cannot route Accept"
-        )
-    logger.info("CaseActor participant ID: %s", case_actor_id)
+        # Find the CaseActor's participant ID so we can route the Accept back.
+        case_actor_id = find_case_actor_participant_id(c1_client, case.id_)
+        if case_actor_id is None:
+            raise AssertionError(
+                "CaseActor participant not found in case — cannot route Accept"
+            )
+        logger.info("CaseActor participant ID: %s", case_actor_id)
 
-    # C1 approves the recommendation (CM-16-006).
-    with demo_step("C1 approves actor recommendation"):
-        post_to_trigger(
-            client=c1_client,
-            actor_id=c1_in_c1.id_,
-            behavior="accept-actor-recommendation",
-            body={
-                "cp_offer_id": cp_offer_id,
-                "case_actor_id": case_actor_id,
-            },
-        )
+        # C1 approves the recommendation (CM-16-006).
+        with demo_step("C1 approves actor recommendation"):
+            post_to_trigger(
+                client=c1_client,
+                actor_id=c1_in_c1.id_,
+                behavior="accept-actor-recommendation",
+                body={
+                    "cp_offer_id": cp_offer_id,
+                    "case_actor_id": case_actor_id,
+                },
+            )
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
     # CaseActor sends Invite to V2.  Poll V2's DataLayer for the arriving
