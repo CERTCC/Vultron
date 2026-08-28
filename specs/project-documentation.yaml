@@ -88,11 +88,13 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      Agents SHOULD invoke the `check-docs-sync` skill after implementation is complete and validated
-      but before the PR opens, to identify and apply any required `docs/` updates in the same PR.
+      Agents SHOULD invoke the `check-docs-sync` skill after the PR is pushed (while CI runs in the
+      cloud), before the finalize steps (archive-history, learnings), to identify and apply any
+      required `docs/` updates in the same PR.
     rationale: >-
-      The `check-docs-sync` skill embeds the docs-sync check in `build`, `bugfix`, and `learn` as a
-      reusable shared phase. Source: CONCERN-2513.
+      Running docs-sync after pushing lets CI and docs work proceed in parallel, reducing total
+      wall-clock time. The `check-docs-sync` skill is embedded in `build`, `bugfix`, and `learn`.
+      Source: CONCERN-2513.
 - id: PD-04
   title: Documentation Build Validation
   specs:

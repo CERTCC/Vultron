@@ -31,21 +31,20 @@ Submodules:
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
   AppendStatusAndSaveParticipantNode)
-- ``rm_validation``: All-or-nothing RM guards for the append sequence
-  (ValidateRMTransitionNode, CheckParticipantRMNotClosedNode)
+- ``rm_validation``: RM transition guard for the append sequence
+  (ValidateRMTransitionNode)
 - ``lifecycle``: Public disclosure and auto-close emit lifecycle nodes
   (_PublicDisclosureSkipConditionNode, PublicDisclosureBranchNode,
   ThreatTerminationBranchNode, EmitAddCaseStatusToSelfNode, EmitCloseCaseNode)
 - ``rm_anomaly``: RM transition anomaly notification (EmitRMGapNoteNode)
-- ``case_status``: Idempotency guard, EM/PXA transition validation, and
-  append nodes for the AddCaseStatusToCase workflow
+- ``case_status``: Idempotency guard and append nodes for the
+  AddCaseStatusToCase workflow
 """
 
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
-    ValidateCaseStatusTransitionNode,
 )
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     BB_CASE_STATUS_DIM_FILTER,
@@ -70,7 +69,6 @@ from vultron.core.behaviors.status.nodes.append import (
     SkipIfIdempotentNode,
 )
 from vultron.core.behaviors.status.nodes.rm_validation import (
-    CheckParticipantRMNotClosedNode,
     ValidateRMTransitionNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
@@ -99,7 +97,6 @@ __all__ = [
     "AppendStatusAndSaveParticipantNode",
     "SkipIfIdempotentNode",
     # rm_validation
-    "CheckParticipantRMNotClosedNode",
     "ValidateRMTransitionNode",
     # lifecycle
     "_PublicDisclosureSkipConditionNode",
@@ -115,6 +112,5 @@ __all__ = [
     "FilterCsEmDimensionNode",
     "FilterCsPxaDimensionNode",
     "FinalizeCsFilterNode",
-    "ValidateCaseStatusTransitionNode",
     "AppendCaseStatusToCaseNode",
 ]

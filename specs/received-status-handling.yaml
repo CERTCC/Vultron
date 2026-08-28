@@ -304,9 +304,9 @@ groups:
     note: >
       Implemented by `FilterParticipantStatusDimensionsNode` in
       `vultron/core/behaviors/status/nodes/dimension_filter.py`, wired as a
-      precondition guard of `add_participant_status_tree`. It supersedes
-      `CheckParticipantRMNotClosedNode`, whose all-or-nothing RM refusal was
-      the defect reported in ISSUE-2235.
+      precondition guard of `add_participant_status_tree`. It supersedes and
+      replaced `CheckParticipantRMNotClosedNode` (now removed), whose
+      all-or-nothing RM refusal was the defect reported in ISSUE-2235.
     stories:
     - story_2022_045
     - story_2022_088

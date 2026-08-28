@@ -71,7 +71,7 @@ AddParticipantStatusBT (Sequence)
 ├─ AppendParticipantStatusNode          ← records the accepted portion
 ├─ StatusAdoptionGate (Fallback)         ← NEW
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
-│   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (AlwaysSucceed)
+│   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (RequireCaseOwnerApproval)
 ├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
 └─ EmitRMGapNoteNode                    ← NEW: Add(Note,Case) on RM anomaly (RSH-06-004, ADR-0067)
 ```
@@ -79,7 +79,7 @@ AddParticipantStatusBT (Sequence)
 ### Per-dimension partial accept (RSH-05, ADR-0061)
 
 `FilterParticipantStatusDimensionsNode` replaced the former
-`CheckParticipantRMNotClosedNode` guard. The old guard — and
+`CheckParticipantRMNotClosedNode` guard (now removed). The old guard — and
 `ValidateRMTransitionNode` inside the append subtree — refused a whole
 `ParticipantStatus` snapshot when its `rm` dimension was unacceptable, which
 discarded the accepted `vfd`/`pxa` values *and* aborted this Sequence before
@@ -213,12 +213,12 @@ AddCaseStatusToCaseBT (Sequence)
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
 ├─ AppendCaseStatusToCaseNode           ← records accepted portion
-├─ EmbargoTeardownAuthorizationGate     ← call-out (AlwaysSucceed default)
+├─ EmbargoTeardownAuthorizationGate     ← call-out (RequireCaseOwnerApproval)
 └─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
-`ValidateCaseStatusTransitionNode` (the former all-or-nothing guard) is
-retained in the module and tested but is no longer wired into this tree.
+`ValidateCaseStatusTransitionNode` (the former all-or-nothing guard) has been
+removed; per-dimension filter nodes are its replacement.
 
 ### Three-node design
 
@@ -265,16 +265,17 @@ in `_RECOGNIZED_OVERRIDE_PRODUCERS` per RSH-05-014.
 ```text
 AddCaseStatusToCaseBT (Sequence) — effect nodes only
 ├─ AppendCaseStatusToCaseNode           ← canonical write
-├─ EmbargoTeardownAuthorizationGate     ← Evaluator call-out (AlwaysSucceed default)
+├─ EmbargoTeardownAuthorizationGate     ← Evaluator call-out (RequireCaseOwnerApproval)
 └─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
 ### EmbargoTeardownAuthorizationGate
 
 An Evaluator call-out that gates the entire side-effects block. Default:
-`AlwaysSucceed`. A production implementation can replace this with a policy
-check (e.g., require CASE_OWNER confirmation before executing teardown even
-when the canonical write was authorized).
+`RequireCaseOwnerApproval` (conservative: blocks until Case Owner approves,
+RSH-07-002, ADR-0076). An implementation MAY configure a permissive backend
+(e.g., `AlwaysSucceed` via `STATUS_AUTHORIZATION_PERMISSIVE`) for trusted or
+demo deployments (RSH-07-003).
 
 Note: the self-addressed `Add(CaseStatus)` path arrives with the CaseActor as
 sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires

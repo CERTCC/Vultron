@@ -426,8 +426,10 @@ groups:
     verification: >-
       Tests confirm that when a bootstrap `Create(VulnerabilityCase)` arrives
       with a participant listed as a bare URI string rather than an inline
-      typed object, the receiver raises a protocol error and does not accept
-      the bootstrap.
+      typed object, the receiver raises `VultronProtocolViolationError` and
+      does not accept the bootstrap. The validation step runs before any
+      DataLayer writes so bootstrap is atomic: either the full payload is
+      valid and committed, or nothing is written.
     relationships:
     - rel_type: implements
       spec_id: CBT-01-007

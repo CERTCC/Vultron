@@ -5,10 +5,6 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from vultron.core.behaviors.case.nodes.participant.common import (  # noqa: F401
-    _ensure_reporter_participant,
-    _upgrade_participant_to_accepted,
-)
 from vultron.core.behaviors.case.update_support import (
     find_excluded_actor_ids,
 )
@@ -148,8 +144,6 @@ def _store_embedded_participants(
     """
     participants = getattr(case_obj, "case_participants", []) or []
     for participant_ref in participants:
-        if isinstance(participant_ref, str):
-            continue
         pid = getattr(participant_ref, "id_", None)
         if pid is None:
             continue

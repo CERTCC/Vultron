@@ -100,9 +100,7 @@ def test_no_direct_calls_to_guarded_commit_outside_lifecycle() -> None:
 #: ``precondition_guards``, never in ``effect_nodes``.
 REJECTION_VALIDATORS = {
     "ValidateRMTransitionNode",
-    "ValidateCaseStatusTransitionNode",
     "CheckCaseStatusIdempotencyNode",
-    "CheckParticipantRMNotClosedNode",
     "FinalizeCsFilterNode",
 }
 

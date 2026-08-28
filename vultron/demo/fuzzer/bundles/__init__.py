@@ -84,6 +84,7 @@ from vultron.demo.fuzzer.bundles.publication import (
 )
 from vultron.demo.fuzzer.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
+    STATUS_AUTHORIZATION_PERMISSIVE,
     STATUS_AUTHORIZATION_STOCHASTIC,
     StatusAuthorizationCallOutBundle,
 )
@@ -120,6 +121,7 @@ __all__ = [
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
     "STATUS_AUTHORIZATION_DETERMINISTIC",
+    "STATUS_AUTHORIZATION_PERMISSIVE",
     "VALIDATION_DETERMINISTIC",
     # Stochastic singletons
     "ACTOR_DISCOVERY_STOCHASTIC",

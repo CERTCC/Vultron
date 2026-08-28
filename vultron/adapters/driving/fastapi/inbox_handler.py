@@ -52,11 +52,15 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F40
     _sync_and_trigger_port_factory,
     _submit_report_port_factory,
     _case_proposal_port_factory,
+    _status_auth_trigger_port_factory,
+    _status_auth_sync_trigger_port_factory,
     _SYNC_PORT_SEMANTICS,
     _TRIGGER_ACTIVITY_PORT_SEMANTICS,
     _SYNC_AND_TRIGGER_PORT_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
     _CASE_PROPOSAL_SEMANTICS,
+    _STATUS_AUTH_TRIGGER_SEMANTICS,
+    _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
 )
 
 # Re-export pending-queue helpers so existing callers and tests that
@@ -108,6 +112,8 @@ def make_dispatcher() -> ActivityDispatcher:
         _SYNC_AND_TRIGGER_PORT_SEMANTICS,
         _SUBMIT_REPORT_SEMANTICS,
         _CASE_PROPOSAL_SEMANTICS,
+        _STATUS_AUTH_TRIGGER_SEMANTICS,
+        _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -141,6 +147,18 @@ def make_dispatcher() -> ActivityDispatcher:
     )
     port_factories.update(
         {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
+    )
+    port_factories.update(
+        {
+            sem: _status_auth_trigger_port_factory
+            for sem in _STATUS_AUTH_TRIGGER_SEMANTICS
+        }
+    )
+    port_factories.update(
+        {
+            sem: _status_auth_sync_trigger_port_factory
+            for sem in _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS
+        }
     )
     d = get_dispatcher(
         use_case_map=_use_case_map(),

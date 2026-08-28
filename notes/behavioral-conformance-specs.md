@@ -180,7 +180,7 @@ Some ECA rules are not just "do A when B" but "do A *before* B." These use
   when the CS PXA state is pXa or pXA (exploit public without public awareness),
   the next CS event MUST be P. This is normatively specified but **not yet
   enforced in BT paths** — `cs_invariants.required_next_cs_events()` is not
-  called from `ValidateCaseStatusTransitionNode`. See #2524.
+  wired into any receive path. See #2524.
 - **CS history validity** (CSB-17-004, CSB-17-005): complete CS histories must
   be one of 70 valid histories; incomplete histories must be valid prefixes.
   Normatively specified but **not yet enforced** — `cs_invariants.is_valid_cs_history()`

@@ -115,9 +115,10 @@ Actor re-adjudicating, not a regression, and are applied unchanged.
   is process-global and not cleared between executions. Both keys are therefore
   written on every tick (with `None` when inapplicable) and matched by object ID
   on read. This is a real hazard, not a hypothetical one.
-- Neutral, because `CheckParticipantRMNotClosedNode` remains in the codebase,
-  marked deprecated with a pointer to its replacement, rather than being
-  removed.
+- Neutral, because `CheckParticipantRMNotClosedNode` was removed (along with
+  `ValidateCaseStatusTransitionNode`, its CaseStatus counterpart) per the
+  project's no-backwards-compat-shims policy. Both nodes are superseded by
+  their respective per-dimension filter replacements.
 
 ## Validation
 

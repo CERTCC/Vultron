@@ -11,11 +11,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for the StatusAuthorizationCallOutBundle (issue #1843, ADR-0046).
+"""Tests for the StatusAuthorizationCallOutBundle (issue #1843, ADR-0046, ADR-0076).
 
 Covers the two-seam status-authorization call-out bundle:
 
-- Core bundle dataclass + DETERMINISTIC singleton (both seams AlwaysSucceed).
+- Core bundle dataclass + DETERMINISTIC singleton (both seams RequireCaseOwnerApprovalNode).
+- Core PERMISSIVE singleton (both seams AlwaysSucceed — explicit override only).
 - Demo STOCHASTIC singleton (both seams AlmostAlwaysSucceed, p=0.90).
 - Core / demo package re-exports (BT-23-005).
 - Both tree builders accept the ``call_out`` bundle in their signature and
@@ -31,6 +32,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
+    STATUS_AUTHORIZATION_PERMISSIVE,
     StatusAuthorizationCallOutBundle,
 )
 
@@ -71,15 +73,48 @@ def test_deterministic_fields_satisfy_protocol():
         assert isinstance(val, CallOutBackendFactory)
 
 
-@pytest.mark.spec("RSH-02-002")
-def test_deterministic_both_seams_always_succeed():
-    """DETERMINISTIC: both seam factories build nodes that tick SUCCESS."""
+@pytest.mark.spec("RSH-07-001")
+@pytest.mark.spec("RSH-07-002")
+def test_deterministic_both_seams_require_case_owner_approval():
+    """DETERMINISTIC: both seam factories build RequireCaseOwnerApprovalNode nodes that tick FAILURE."""
+    from vultron.core.behaviors.call_out.nodes import (
+        RequireCaseOwnerApprovalNode,
+    )
+
     for f in dataclasses.fields(STATUS_AUTHORIZATION_DETERMINISTIC):
         factory = getattr(STATUS_AUTHORIZATION_DETERMINISTIC, f.name)
+        node = factory("probe")
+        assert isinstance(node, RequireCaseOwnerApprovalNode)
+        node.tick_once()
+        assert node.status == Status.FAILURE
+
+
+@pytest.mark.spec("RSH-07-003")
+def test_permissive_both_seams_always_succeed():
+    """PERMISSIVE: both seam factories build nodes that tick SUCCESS (explicit override)."""
+    for f in dataclasses.fields(STATUS_AUTHORIZATION_PERMISSIVE):
+        factory = getattr(STATUS_AUTHORIZATION_PERMISSIVE, f.name)
         node = factory("probe")
         assert isinstance(node, py_trees.behaviour.Behaviour)
         node.tick_once()
         assert node.status == Status.SUCCESS
+
+
+def test_permissive_is_instance_of_bundle():
+    assert isinstance(
+        STATUS_AUTHORIZATION_PERMISSIVE, StatusAuthorizationCallOutBundle
+    )
+
+
+def test_require_case_owner_approval_node_returns_failure():
+    """RequireCaseOwnerApprovalNode always returns FAILURE (ADR-0076)."""
+    from vultron.core.behaviors.call_out.nodes import (
+        RequireCaseOwnerApprovalNode,
+    )
+
+    node = RequireCaseOwnerApprovalNode("probe")
+    node.tick_once()
+    assert node.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +127,7 @@ def test_core_bundles_init_re_exports():
 
     assert hasattr(bundles, "StatusAuthorizationCallOutBundle")
     assert hasattr(bundles, "STATUS_AUTHORIZATION_DETERMINISTIC")
+    assert hasattr(bundles, "STATUS_AUTHORIZATION_PERMISSIVE")
 
 
 def test_demo_bundles_init_re_exports():
@@ -99,6 +135,7 @@ def test_demo_bundles_init_re_exports():
 
     assert hasattr(bundles, "StatusAuthorizationCallOutBundle")
     assert hasattr(bundles, "STATUS_AUTHORIZATION_DETERMINISTIC")
+    assert hasattr(bundles, "STATUS_AUTHORIZATION_PERMISSIVE")
     assert hasattr(bundles, "STATUS_AUTHORIZATION_STOCHASTIC")
 
 

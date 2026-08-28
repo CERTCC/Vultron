@@ -34,6 +34,7 @@ import py_trees
 
 from vultron.core.behaviors.call_out.bundles.status_authorization import (  # noqa: F401
     STATUS_AUTHORIZATION_DETERMINISTIC,
+    STATUS_AUTHORIZATION_PERMISSIVE,
     StatusAuthorizationCallOutBundle,
 )
 
@@ -63,5 +64,6 @@ STATUS_AUTHORIZATION_STOCHASTIC = StatusAuthorizationCallOutBundle(
 __all__ = [
     "StatusAuthorizationCallOutBundle",
     "STATUS_AUTHORIZATION_DETERMINISTIC",
+    "STATUS_AUTHORIZATION_PERMISSIVE",
     "STATUS_AUTHORIZATION_STOCHASTIC",
 ]
