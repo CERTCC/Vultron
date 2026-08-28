@@ -592,3 +592,33 @@ class TestWaitForInitializedCase:
                     timeout_seconds=0.1,
                     poll_interval=0.5,
                 )
+
+    def test_timeout_message_reveals_construction_error(self):
+        """Bug #2769: timeout message names the actual exception, not just a generic timeout.
+
+        When as_VulnerabilityCase(**case_raw) raises on every tick, the
+        AssertionError on timeout must include the exception type and message
+        so callers can diagnose schema breakage rather than chasing a slow poll.
+        """
+        client = _LateInitializedCaseClient(delay=0)
+        with (
+            patch(
+                "vultron.demo.utils.case_actor_id_for_report",
+                return_value=_IC_CASE_ACTOR_ID,
+            ),
+            patch(
+                "vultron.demo.helpers.polling.as_VulnerabilityCase",
+                side_effect=TypeError("simulated schema breakage"),
+            ),
+            pytest.raises(AssertionError) as exc_info,
+        ):
+            wait_for_initialized_case(
+                client=cast(DataLayerClient, client),
+                report_id=_IC_REPORT_ID,
+                timeout_seconds=0.1,
+                poll_interval=0.5,
+            )
+        assert "simulated schema breakage" in str(exc_info.value), (
+            "timeout message must include the actual TypeError, "
+            f"got: {exc_info.value}"
+        )

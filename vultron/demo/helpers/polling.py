@@ -1349,26 +1349,20 @@ def wait_for_initialized_case(
     found: list[as_VulnerabilityCase] = []
 
     def _check() -> bool:
-        try:
-            cases_by_id: dict = client.get(
-                client.dl_path("VulnerabilityCases/", actor_id=case_actor_id)
-            )
-            for case_raw in cases_by_id.values():
-                try:
-                    case = as_VulnerabilityCase(**case_raw)
-                    if case.case_participants:
-                        found.append(case)
-                        logger.info(
-                            "Initialized VulnerabilityCase found in CaseActor"
-                            " store %s: %s",
-                            case_actor_id,
-                            case.id_,
-                        )
-                        return True
-                except Exception:  # noqa: BLE001
-                    continue
-        except Exception:  # noqa: BLE001
-            pass
+        cases_by_id: dict = client.get(
+            client.dl_path("VulnerabilityCases/", actor_id=case_actor_id)
+        )
+        for case_raw in cases_by_id.values():
+            case = as_VulnerabilityCase(**case_raw)
+            if case.case_participants:
+                found.append(case)
+                logger.info(
+                    "Initialized VulnerabilityCase found in CaseActor"
+                    " store %s: %s",
+                    case_actor_id,
+                    case.id_,
+                )
+                return True
         return False
 
     _poll_until(
@@ -1379,6 +1373,9 @@ def wait_for_initialized_case(
         f" store {case_actor_id!r} at {client.base_url}",
         swallow_exceptions=True,
     )
+    assert (
+        found
+    ), "invariant: _poll_until returns only when _check returned True"
     return found[0]
 
 
