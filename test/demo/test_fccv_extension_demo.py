@@ -572,3 +572,66 @@ class TestFccvExtensionCausalGates:
             )
 
         coverage_wait_called.assert_not_called()
+
+    def test_accept_not_called_when_cp_offer_gate_fails(self):
+        """demo_gate skips accept-actor-recommendation when find_cp_offer_for_case times out."""
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        c1_in_c1 = self._actor("urn:test:c1-in-c1")
+        c2_in_c2 = self._actor("urn:test:c2-in-c2")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor-in-vendor")
+        finder = self._actor("urn:test:finder")
+        case = self._case()
+
+        mock_post_to_trigger = MagicMock()
+
+        with (
+            patch.object(
+                demo,
+                "find_cp_offer_for_case",
+                side_effect=AssertionError(
+                    "timed out polling for Offer(CaseParticipant)"
+                ),
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(demo, "post_to_trigger", mock_post_to_trigger),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "run_invite_path_rm_triage"),
+        ):
+            demo._phase_c2_suggests_vendor(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                c1_in_c1=c1_in_c1,
+                c2_in_c2=c2_in_c2,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=finder,
+            )
+
+        accept_calls = [
+            c
+            for c in mock_post_to_trigger.call_args_list
+            if c.kwargs.get("behavior") == "accept-actor-recommendation"
+        ]
+        assert not accept_calls, (
+            "accept-actor-recommendation must not be called when "
+            f"cp_offer gate fails: {accept_calls}"
+        )
