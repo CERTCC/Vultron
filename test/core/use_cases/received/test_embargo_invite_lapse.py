@@ -66,7 +66,7 @@ def _make_active_embargo_case(
         name="Lapse Test Case",
         attributed_to=_COORD,
     )
-    case.current_status.em_state = EM.ACTIVE
+    case.append_case_status(em_state=EM.ACTIVE)
     embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
     case.set_embargo(embargo_id)
 
@@ -253,7 +253,7 @@ class TestInviteStoresDeadline:
         case = as_VulnerabilityCase(
             id_=case_id, name="Store Deadline", attributed_to=_COORD
         )
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
 
         invitee_cp = WireCP(
@@ -414,8 +414,8 @@ class TestLateAcceptHandling:
             invitee_deadline=_PAST,
         )
         # Simulate EM EXITED (embargo terminated, PEC reset)
-        case.current_status.em_state = EM.EXITED
-        case.active_embargo = None
+        case.append_case_status(em_state=EM.EXITED)
+        case.set_embargo(None)
         dl.save(case)
 
         proposal = em_propose_embargo_activity(
@@ -450,7 +450,7 @@ class TestLateAcceptHandling:
         case = as_VulnerabilityCase(
             id_=case_id, name="Normal Accept", attributed_to=_COORD
         )
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
 
         invitee_cp = WireCP(
@@ -495,7 +495,7 @@ class TestLateAcceptHandling:
         case = as_VulnerabilityCase(
             id_=case_id, name="No Deadline Accept", attributed_to=_COORD
         )
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
 
         invitee_cp = WireCP(
