@@ -23,7 +23,10 @@ defaults for the local actor without importing from the demo or adapter layers.
 ``vultron/config/``.
 
 Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
+RSVP window fields per ``specs/embargo-policy.yaml`` EP-07-001, EP-07-002.
 """
+
+from datetime import timedelta
 
 from pydantic import (
     BaseModel,
@@ -80,6 +83,23 @@ class ActorConfig(BaseModel):
             "{this}/actors/case-actor. Required for actors that create cases; "
             "absence makes the proposal-sending nodes fail rather than guess "
             "(CP-08-001, CP-04-003)."
+        ),
+    )
+
+    min_rsvp_window: timedelta = Field(
+        default=timedelta(hours=72),
+        description=(
+            "Minimum time between now and an RSVP deadline on an outbound "
+            "Invite(EmbargoEvent). Outbound invites below this floor are "
+            "refused at construction time (EP-07-002). Inbound invites below "
+            "this floor are clamped up to the floor (EP-07-003). Default: 72 h."
+        ),
+    )
+    default_rsvp_window: timedelta = Field(
+        default=timedelta(days=7),
+        description=(
+            "Fallback RSVP window used when no explicit deadline is provided "
+            "on an outbound Invite(EmbargoEvent) (EP-07-001). Default: 7 days."
         ),
     )
 

@@ -26,7 +26,6 @@ from vultron.core.behaviors.embargo.nodes import (
     UpdateParticipantEmbargoPecNode,
     ValidateCaseExistsNode,
     ValidateEmbargoRevisionStateNode,
-    WriteEmStateNode,
 )
 
 __all__ = [
@@ -51,5 +50,4 @@ __all__ = [
     "UpdateParticipantEmbargoPecNode",
     "ValidateCaseExistsNode",
     "ValidateEmbargoRevisionStateNode",
-    "WriteEmStateNode",
 ]

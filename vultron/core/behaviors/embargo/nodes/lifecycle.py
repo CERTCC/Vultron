@@ -17,10 +17,7 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import (
-    ReadEmStateNode,
-    WriteEmStateNode,
-)
+from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (  # noqa: F401
     ReadProposedEmbargoIdNode,
     RejectProposedEmbargoLifecycleNode,
@@ -105,11 +102,9 @@ class ValidateEmbargoRevisionStateNode(DataLayerActionWithPorts):
 class _EmbargoLifecycleNode(DataLayerActionWithPorts):
     """Base node for EmbargoLifecycle strict-mode transitions.
 
-    Orchestrates the em_state read/compute/write cycle via named BT nodes
-    (AC-1 of issue #1474):
     1. ``ReadEmStateNode`` reads ``em_state`` → ``result_out["em_before"]``.
-    2. The subclass ``_transition()`` calls the service with ``em_before``.
-    3. ``WriteEmStateNode`` writes ``result_out["em_after"]`` back to the case.
+    2. The subclass ``_transition()`` calls the service; the service writes
+       the EM state update directly (EMB-18-001).
     """
 
     def __init__(
@@ -157,17 +152,6 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts):
 
         self._result_out["lifecycle_result"] = result
         self._result_out["em_after"] = result.em_after
-
-        # AC-1: write em_state via named BT node, not inline service code.
-        if result.em_after != em_before:
-            write_node = WriteEmStateNode(
-                case_id=self._case_id(), result_out=self._result_out
-            )
-            write_node.datalayer = self.datalayer
-            write_status = write_node.update()
-            if write_status != Status.SUCCESS:
-                self.feedback_message = write_node.feedback_message
-                return Status.FAILURE
 
         return Status.SUCCESS
 
