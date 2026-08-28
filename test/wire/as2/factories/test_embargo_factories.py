@@ -23,6 +23,8 @@ Spec coverage:
 - AF-04-002: All factory functions re-exported from factories/__init__.py.
 """
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from vultron.wire.as2.factories import (
@@ -102,6 +104,72 @@ def test_em_propose_embargo_invalid_raises():
             embargo="not-an-embargo"  # type: ignore[arg-type]
         )
     assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# em_propose_embargo_activity — RSVP deadline (AC-1, AC-4; issue #2211)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-27-001")
+def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
+    """AC-1: rsvp_deadline is placed on activity-level end_time."""
+    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        rsvp_deadline=deadline,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time == deadline
+
+
+@pytest.mark.spec("CM-27-001")
+def test_em_propose_embargo_no_rsvp_deadline_end_time_is_none(sample_embargo):
+    """AC-7 (absent): no rsvp_deadline → end_time not set on activity."""
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time is None
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_rsvp_below_min_window_raises(sample_embargo):
+    """AC-4: deadline below minimum window raises VultronActivityConstructionError."""
+    deadline = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=deadline,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_naive_deadline_raises(sample_embargo):
+    """AC-3 (outbound): naive rsvp_deadline raises VultronActivityConstructionError."""
+    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    with pytest.raises(
+        VultronActivityConstructionError, match="timezone-aware"
+    ):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=naive_deadline,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_custom_min_window_respected(sample_embargo):
+    """AC-4: custom min_rsvp_window is enforced."""
+    deadline = datetime.now(tz=timezone.utc) + timedelta(hours=25)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=deadline,
+            min_rsvp_window=timedelta(days=2),
+            actor=_ACTOR_URI,
+        )
 
 
 # ---------------------------------------------------------------------------

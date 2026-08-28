@@ -150,10 +150,14 @@ sender a way to get their own invite discarded.
 - A test that a late `Accept` with an incompatible embargo produces a fresh
   invite rather than a rejection, and that case participation survives.
 
-This ADR is `accepted-provisional`: the direction is ratified, but nothing
-implements it yet. Details — in particular the floor value and the exact
-compatibility predicate for a late `Accept` — are expected to converge once the
-implementation Tasks land. Revise this ADR in place if they do not hold.
+This ADR is `accepted-provisional`: the direction is ratified. The wire layer
+is now implemented (PR #2816, issues #2211/#2712): `em_propose_embargo_activity()`
+accepts `rsvp_deadline` on `Invite.end_time`; `InviteToEmbargoOnCaseReceivedEvent`
+exposes `rsvp_deadline` with UTC normalisation; sub-floor values are clamped
+on receipt; `ActorConfig` carries `min_rsvp_window` (72h) and
+`default_rsvp_window` (7d). Remaining: CaseActor lazy-evaluation enforcement
+(Part 3 of the decision) and the late-`Accept` compatibility predicate (Part 4).
+Revise this ADR to `accepted` once those land.
 
 ## Pros and Cons of the Options
 

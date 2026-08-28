@@ -1133,18 +1133,18 @@ def test_reject_embargo_invite_observed_revise_pxa_bypasses_guard(
 
 
 # ---------------------------------------------------------------------------
-# #1474 AC-1: caller_owns_em_io guard tests
+# Issue #2712: service always writes em_state (caller_owns_em_io removed)
 # ---------------------------------------------------------------------------
 
 
-class TestCallerOwnsEmIo:
-    """When em_before is supplied, the service skips its own em_state read/write."""
+class TestServiceAlwaysWritesEmState:
+    """Service always writes em_state — caller_owns_em_io pattern retired (#2712)."""
 
-    def test_propose_does_not_write_em_state_when_em_before_supplied(
+    def test_propose_writes_em_state_when_em_before_supplied(
         self,
         owner_and_dl: tuple[as_Service, SqliteDataLayer],
     ) -> None:
-        """propose_embargo does not mutate em_state when em_before is supplied."""
+        """propose_embargo always writes em_state even when em_before is supplied."""
         owner, dl = owner_and_dl
         case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
         embargo = _make_embargo(dl, case.id_)
@@ -1159,36 +1159,14 @@ class TestCallerOwnsEmIo:
         )
 
         assert result.em_after == EM.PROPOSED
-        # Service must NOT have written em_state; it stays at the initial value
-        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.current_status.em.state == EM.NONE
-
-    def test_propose_still_writes_em_state_on_legacy_path(
-        self,
-        owner_and_dl: tuple[as_Service, SqliteDataLayer],
-    ) -> None:
-        """propose_embargo writes em_state when em_before is not supplied (legacy)."""
-        owner, dl = owner_and_dl
-        case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
-        embargo = _make_embargo(dl, case.id_)
-
-        lifecycle = EmbargoLifecycle(persistence=dl)
-        result = lifecycle.propose_embargo(
-            case_id=case.id_,
-            embargo_id=embargo.id_,
-            actor_id=owner.id_,
-            transition_mode=TransitionMode.STRICT,
-        )
-
-        assert result.em_after == EM.PROPOSED
         refreshed = cast(VulnerabilityCase, dl.read(case.id_))
         assert refreshed.current_status.em.state == EM.PROPOSED
 
-    def test_reject_does_not_write_em_state_when_em_before_supplied(
+    def test_reject_writes_em_state_when_em_before_supplied(
         self,
         owner_and_dl: tuple[as_Service, SqliteDataLayer],
     ) -> None:
-        """reject_embargo_invite does not mutate em_state when em_before is supplied."""
+        """reject_embargo_invite always writes em_state even when em_before is supplied."""
         owner, dl = owner_and_dl
         case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
         embargo = _make_embargo(dl, case.id_)
@@ -1204,13 +1182,13 @@ class TestCallerOwnsEmIo:
 
         assert result.em_after == EM.NONE
         refreshed = cast(VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.current_status.em.state == EM.PROPOSED
+        assert refreshed.current_status.em.state == EM.NONE
 
-    def test_terminate_does_not_write_em_state_when_em_before_supplied(
+    def test_terminate_writes_em_state_when_em_before_supplied(
         self,
         owner_and_dl: tuple[as_Service, SqliteDataLayer],
     ) -> None:
-        """terminate_active_embargo does not mutate em_state when em_before is supplied."""
+        """terminate_active_embargo always writes em_state even when em_before is supplied."""
         owner, dl = owner_and_dl
         case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
         embargo = _make_embargo(dl, case.id_)
@@ -1227,4 +1205,4 @@ class TestCallerOwnsEmIo:
 
         assert result.em_after == EM.EXITED
         refreshed = cast(VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.current_status.em.state == EM.ACTIVE
+        assert refreshed.current_status.em.state == EM.EXITED
