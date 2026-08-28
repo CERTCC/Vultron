@@ -1027,6 +1027,12 @@ def _clp14_006_no_predate_case(
             raw = entry.get("published")
             if raw is not None:
                 case_ts = _parse_ts(raw)
+                if case_ts is None:
+                    idx = log_index(entry)
+                    return [
+                        f"CLP-14-006: unevaluated — create_case logIndex={idx} "
+                        f"has malformed published {raw!r} (CLP-14-002)"
+                    ]
             break
     if case_ts is None:
         return []
@@ -1052,6 +1058,13 @@ def check_clp14_timestamp_invariants(
 
     Entries without a ``published`` field are flagged for CLP-14-002 and
     skipped for ordering checks so the violation list stays focused.
+
+    Authority note: this harness checks ``CaseLedgerEntry.published`` — the
+    trusted *commit* timestamp written by the ledger layer — not the
+    ``payloadSnapshot.published`` field checked by ``_validate_entry_timestamps``
+    at commit time.  The two fields can diverge: a payload whose claimed
+    ``published`` predates the case may pass this harness if its commit
+    timestamp does not, and vice versa.
     """
     auth = auth_entries(replicas)
     if not auth:

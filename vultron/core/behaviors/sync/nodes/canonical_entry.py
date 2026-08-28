@@ -172,6 +172,20 @@ def _validate_entry_timestamps(
     future_tolerance: timedelta | None,
     staleness_window: timedelta | None,
 ) -> None:
+    """Enforce CLP-14 timestamp invariants at commit time.
+
+    Checks ``payloadSnapshot.published`` — the AS2 activity's *claimed*
+    timestamp, not the ``CaseLedgerEntry.published`` commit timestamp.
+    The conformance harness (``check_clp14_timestamp_invariants``) is
+    authoritative over the commit timestamp; this guard fires earlier,
+    at the boundary between wire receipt and ledger commit.
+    """
+    if not case_published.tzinfo:
+        case_published = case_published.replace(tzinfo=timezone.utc)
+    if prev_entry_published is not None and not prev_entry_published.tzinfo:
+        prev_entry_published = prev_entry_published.replace(
+            tzinfo=timezone.utc
+        )
     raw_published = payload_snapshot.get("published")
     if raw_published is None:  # CLP-14-002
         raise VultronCanonicalEntryError(
