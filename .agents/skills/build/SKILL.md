@@ -269,7 +269,7 @@ that clearly belongs with it, apply the following:
    with evidence (failing command/output, clean-base proof, causality check,
    blocked/unblocked impact), wire structured blockers, add a handoff comment,
    and record the Bug link as a learning file in `plan/incoming/learnings/`.
-   Set `--parent "${CURRENT_TASK_NUMBER}"` so the bug is wired under the same
+   Set `--parent "${ISSUE_NUMBER}"` so the bug is wired under the same
    task (and therefore the same epic) where it was discovered — this keeps it
    visible in the epic tree and off the `no:parent-issue` orphan list.
 
@@ -315,9 +315,16 @@ draft commit and use `git diff main...HEAD` normally.
    returns the PR URL. Use the returned URL in the `archive-history` call
    below.
 
-3. Post `[ADVISORY]` findings as a PR comment (if any).
+3. Invoke `check-docs-sync` while CI runs in the cloud. Apply any small docs
+   updates inline and commit them before finalizing:
 
-4. Invoke `archive-history`:
+   ```text
+   Commit message: docs: sync docs/ for issue #<N>
+   ```
+
+4. Post `[ADVISORY]` findings as a PR comment (if any).
+
+5. Invoke `archive-history`:
 
    ```text
    TYPE    = implementation
@@ -326,11 +333,11 @@ draft commit and use `git diff main...HEAD` normally.
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
 
-5. Run the **upward-reflection checklist** per
+6. Run the **upward-reflection checklist** per
    `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
    as a learning file. Do not write completion summaries here.
 
-6. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
+7. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 
 ## Constraints
 
