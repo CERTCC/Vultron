@@ -353,11 +353,7 @@ Do **not** reference `plan/incoming/learnings/` from durable docs.
    Fix all errors.
 2. If a requirement conflict cannot be resolved, create a learning file in
    `plan/incoming/learnings/` and **stop before committing**.
-3. Invoke `check-docs-sync` to confirm all `docs/` updates have been applied
-   (PD-03-008). Because `learn` already handles `docs/` inline in Phase 5,
-   this is a consistency check — if the skill identifies additional pages,
-   apply them before committing.
-4. Stage and commit (branch was created at the end of Phase 3):
+3. Stage and commit (branch was created at the end of Phase 3):
 
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
@@ -382,6 +378,12 @@ Do **not** reference `plan/incoming/learnings/` from durable docs.
    `create-pr` performs the rebase on `origin/main`, runs linters, pushes, and
    returns the PR URL. Use the returned URL when filling in the `Docs PR:`
    field in the archive bodies (Phase 9).
+
+4. Invoke `check-docs-sync` while CI runs in the cloud to confirm all `docs/`
+   updates have been applied (PD-03-008). Because `learn` already handles
+   `docs/` inline in Phase 5, this is a consistency check — if the skill
+   identifies additional pages, apply them and push an additional commit before
+   Phase 9.
 
 ### Phase 9 — Archive Entries and Close Issues
 

@@ -209,9 +209,6 @@ Once the plan is confirmed:
    rules from `completeness-doctrine.md`.
 
 5. **Finalize**:
-   - Invoke `check-docs-sync` to identify any `docs/` updates required by
-     the fix (PD-03-007). Apply small updates inline; file a `type:Concern`
-     issue for large updates. Do not block the PR on large updates.
    - Invoke `archive-history`:
 
      ```text
@@ -236,6 +233,10 @@ Once the plan is confirmed:
      issue_number: <N>
      ```
 
+   - Invoke `check-docs-sync` while CI runs in the cloud to identify any
+     `docs/` updates required by the fix (PD-03-007). Apply small updates
+     inline and commit them; file a `type:Concern` issue for large updates.
+     Do not block the PR on large updates.
    - Invoke `commit` if any learning files were created in
      `plan/incoming/learnings/` outside the PR branch.
 

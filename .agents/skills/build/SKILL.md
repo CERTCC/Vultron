@@ -269,22 +269,11 @@ that clearly belongs with it, apply the following:
    with evidence (failing command/output, clean-base proof, causality check,
    blocked/unblocked impact), wire structured blockers, add a handoff comment,
    and record the Bug link as a learning file in `plan/incoming/learnings/`.
-   Set `--parent "${CURRENT_TASK_NUMBER}"` so the bug is wired under the same
+   Set `--parent "${ISSUE_NUMBER}"` so the bug is wired under the same
    task (and therefore the same epic) where it was discovered — this keeps it
    visible in the epic tree and off the `no:parent-issue` orphan list.
 
-### Phase 7 — Docs Sync Check
-
-Invoke the `check-docs-sync` skill to identify any `docs/` updates required
-by this implementation (PD-03-008). This check runs when the diff is stable,
-before code review begins.
-
-- **Small updates** (single page edit, addition, or rewrite): apply inline
-  in this PR.
-- **Large updates** (simultaneous multi-page rewrite): file a `type:Concern`
-  issue; do not block the PR.
-
-### Phase 8 — Pre-PR Code Review
+### Phase 7 — Pre-PR Code Review
 
 Invoke the `code-review` agent against the current branch diff vs `main`.
 
@@ -307,7 +296,7 @@ be empty if changes are unstaged. Stage all changed files first (`git add`),
 then pass `git diff --cached` as the diff source for the review, or do a
 draft commit and use `git diff main...HEAD` normally.
 
-### Phase 9 — Open PR and Finalize
+### Phase 8 — Open PR and Finalize
 
 1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
    Update the `size:` label on the Issue.
@@ -326,9 +315,16 @@ draft commit and use `git diff main...HEAD` normally.
    returns the PR URL. Use the returned URL in the `archive-history` call
    below.
 
-3. Post `[ADVISORY]` findings as a PR comment (if any).
+3. Invoke `check-docs-sync` while CI runs in the cloud. Apply any small docs
+   updates inline and commit them before finalizing:
 
-4. Invoke `archive-history`:
+   ```text
+   Commit message: docs: sync docs/ for issue #<N>
+   ```
+
+4. Post `[ADVISORY]` findings as a PR comment (if any).
+
+5. Invoke `archive-history`:
 
    ```text
    TYPE    = implementation
@@ -337,11 +333,11 @@ draft commit and use `git diff main...HEAD` normally.
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
 
-5. Run the **upward-reflection checklist** per
+6. Run the **upward-reflection checklist** per
    `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
    as a learning file. Do not write completion summaries here.
 
-6. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
+7. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 
 ## Constraints
 

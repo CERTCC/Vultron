@@ -4,7 +4,8 @@ description: >
   Three-question docs-sync check: identifies docs/ pages that need updating
   after an implementation or bug-fix change, applies small updates inline
   (PD-03-007), and files a type:Concern issue for large multi-page rewrites.
-  Invoked by build (Phase 7), bugfix (Phase 4 finalize), and learn (Phase 8).
+  Invoked after the PR is pushed (while CI runs), by build (Phase 8), bugfix
+  (Phase 4 finalize), and learn (Phase 8).
 ---
 
 # Skill: Check Docs Sync
@@ -14,16 +15,17 @@ Normative requirement: `specs/project-documentation.yaml` **PD-03-007**.
 
 ## When to invoke
 
-After implementation is complete and validated (diff is stable), before the
-PR opens. Invoked by `build` (Phase 7), `bugfix` (Phase 4 finalize), and
-`learn` (Phase 8) for consistency.
+After the PR is pushed (CI starts in the cloud), while CI runs in parallel
+locally. Apply any small docs updates and commit them before the finalize steps
+(archive-history, learnings). Invoked by `build` (Phase 8), `bugfix` (Phase 4
+finalize), and `learn` (Phase 8) for consistency.
 
 ## Procedure
 
 ### Step 1 — Identify changed areas
 
 ```bash
-git diff main...HEAD --name-only
+git diff origin/main...HEAD --name-only
 ```
 
 Look at the changed files and identify the functional areas affected:
@@ -75,57 +77,43 @@ genuine multi-page rewrites that would bloat the PR beyond its original scope.
 For each small update:
 
 1. Write the change to the target `docs/` file.
-2. Invoke `build-docs` to validate the build passes:
+2. Invoke `format-markdown` to lint the updated file before building.
+3. Invoke `build-docs` to validate the build passes, tee-ing output to a temp
+   file so full context is available on failure:
 
    ```bash
-   uv run mkdocs build --strict 2>&1 | tail -20
+   UV_NO_SYNC=1 uv run mkdocs build --strict 2>&1 | tee /tmp/mkdocs-build.log | tail -20
+   # On failure with insufficient tail output: grep /tmp/mkdocs-build.log
    ```
 
-3. Fix any linting or build errors before proceeding.
+4. Fix any linting or build errors before proceeding.
 
 ### Step 4 — File Concern for large updates
 
-For each large update (multi-page rewrite needed), file a `type:Concern`
-issue citing PD-03-007:
+For each large update (multi-page rewrite needed), invoke the `new-item` skill
+to file a `type:Concern` issue. Provide these details as context:
 
-```bash
-CONCERN_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Concern)
-ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "docs: update <area> pages after <change>" \
-  --body "$(cat <<'EOF'
-## Context
+- **Type**: Concern
+- **Title**: `docs: update <area> pages after <change>`
+- **Context**: what implementation change requires the docs update
+- **Required docs updates**: each page that needs updating with what to change
+- **Source**: PD-03-007 — implementation PR must include docs updates or a
+  linked Concern; deferred only when multiple pages require simultaneous rewrite
+- **Deferred from PR**: `<PR_URL>` (fill in after the PR opens)
+- **Suggested label**: `size:M`
 
-<Describe what implementation change requires the docs update.>
-
-## Required docs updates
-
-<List each page that needs updating with a description of what to change.>
-
-## Source
-
-PD-03-007: When an implementation or bug-fix PR changes behavior, interfaces,
-or architecture described in `docs/`, the PR MUST include the corresponding
-`docs/` updates or a linked follow-up `type:Concern` issue. A deferred Concern
-is acceptable only when the required update would simultaneously rewrite
-multiple `docs/` pages.
-
-Deferred from PR: <PR_URL — fill in after PR opens>
-EOF
-)"
-  --issue-type-id "${CONCERN_TYPE_ID}" \
-  --label "size:M")
-bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}"
-```
+`new-item` handles duplicate detection, parent epic selection, and creation.
 
 Record the Concern issue number for inclusion in the PR description:
-`Docs deferred: #<N>` (add to the PR body before it opens).
+`Docs deferred: #<N>` (add to the PR body after the PR opens).
 
 ### Step 5 — Report
 
 Return a summary of what was done:
 
-- List each `docs/` page updated inline (file path + short description)
-- List each Concern issue filed for large updates (issue number + title)
+- List each `docs/` page updated inline (file path + short description of what changed)
+- List each Concern issue filed for large updates: issue number, title, and 1–2
+  sentences describing what the concern entails and why the update was deferred
 - If no `docs/` updates were needed, state that explicitly
 
 ## Constraints
