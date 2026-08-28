@@ -1,4 +1,4 @@
-# Vultronic Capabilities
+# Capability Model
 
 ## Overview
 
@@ -312,6 +312,6 @@ A timer check could be either shape: a Retriever that the BT polls each tick, or
 
 1. **Read the capability hierarchy above.** Find a domain that matches your expertise or your organization's existing tooling.
 2. **Identify the shape.** Ask: will Vultron call me (Evaluator, Retriever, Composer, or Actuator), or will I watch something and call Vultron (Sentinel)?
-3. **Check the GitHub issues.** Several capabilities already have open idea issues under [epic #1147](https://github.com/CERTCC/Vultron/issues/1147). If one fits, comment on it. If your capability is not listed, file a new `type:Idea` issue.
+3. **Check the GitHub issues.** Several capabilities already have open idea issues under [epic #1147](https://github.com/CERTCC/Vultron/issues/1147). If one fits, comment on it. If your capability is not listed, file a new issue with the `idea` label.
 4. **Design the interface.** Even though the formal calling convention is not finalized, you can design the JSON input/output contract for your capability now. Focus on: what context does Vultron need to give you, and what structured answer do you need to return?
 5. **Build and test with the stochastic layer.** The Vultron demo layer uses probabilistic stub nodes for every call-out point. You can replace a stub with a real service and test it against the existing BT structure.
