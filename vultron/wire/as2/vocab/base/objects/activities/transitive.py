@@ -55,7 +55,9 @@ class as_TransitiveActivity(Activity):
             parts.extend(("using", name_of(self.instrument)))
 
         if parts:
-            self.name = " ".join([str(part) for part in parts])
+            object.__setattr__(
+                self, "name", " ".join([str(part) for part in parts])
+            )
 
         return self
 

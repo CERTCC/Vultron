@@ -380,11 +380,13 @@ class TestInviteRolesAndEmbargoEnrichment:
                 context=case.id_,
             )
             dl.create(embargo)
-            case.active_embargo = embargo.id_
-            case.current_status.em_state = EM.ACTIVE
+            object.__setattr__(case, "active_embargo", embargo.id_)
+            case.append_case_status(em_state=EM.ACTIVE)
             dl.save(case)
         elif with_embargo:
-            case.active_embargo = f"{case.id_}/embargo/e1"
+            object.__setattr__(
+                case, "active_embargo", f"{case.id_}/embargo/e1"
+            )
             dl.save(case)
         return actor, invitee, dl, case
 
@@ -455,8 +457,8 @@ class TestInviteRolesAndEmbargoEnrichment:
         dl.create(embargo)
         from vultron.core.states.em import EM
 
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.save(case)
 
         request = InviteActorToCaseTriggerRequest(

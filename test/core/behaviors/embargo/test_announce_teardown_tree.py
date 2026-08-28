@@ -144,7 +144,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         case, _, dl = make_case_with_manager("atrt2", em_state=EM.PROPOSED)
         _, embargo = make_case_and_embargo("atrt2")
         dl.create(embargo)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         case.proposed_embargoes.append(embargo.id_)
         dl.save(case)
         factory = _make_factory()

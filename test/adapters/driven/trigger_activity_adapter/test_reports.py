@@ -13,6 +13,7 @@
 
 """Unit tests for TriggerActivityAdapter report-domain methods."""
 
+import json
 import pytest
 
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -54,8 +55,8 @@ class TestSubmitReport:
         )
 
         assert offer_id
-        assert isinstance(offer_dict, dict)
-        assert "id" in offer_dict
+        assert isinstance(offer_dict, str)
+        assert "id" in json.loads(offer_dict)
 
     def test_persists_offer_activity(self, adapter, dl):
         report = _make_report(dl)
@@ -185,7 +186,7 @@ class TestCloseReport:
         )
 
         assert reject_id
-        assert isinstance(reject_dict, dict)
+        assert isinstance(reject_dict, str)
 
     def test_persists_reject_activity(self, adapter, dl):
         offer_id = _make_offer(adapter, dl)
@@ -210,7 +211,7 @@ class TestInvalidateReport:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_tentative_reject_activity(self, adapter, dl):
         offer_id = _make_offer(adapter, dl)

@@ -15,6 +15,7 @@
 
 """Trigger-side behavior tree for create-case workflow."""
 
+import json
 from collections.abc import Callable
 from typing import Any
 
@@ -78,7 +79,7 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
 
     def __init__(
         self,
-        activity_builder: Callable[[str], tuple[str, dict[str, Any]]],
+        activity_builder: Callable[[str], tuple[str, str]],
         result_out: dict[str, Any],
         name: str | None = None,
     ) -> None:
@@ -123,7 +124,7 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self._set_output("activity_id", activity_id)
-        self._result_out["activity"] = activity_dict
+        self._result_out["activity"] = json.loads(activity_dict)
         return Status.SUCCESS
 
 
@@ -133,7 +134,7 @@ def create_case_trigger_bt(
     case_content: str,
     report_id: str | None,
     result_out: dict[str, Any],
-    activity_builder: Callable[[str], tuple[str, dict[str, Any]]],
+    activity_builder: Callable[[str], tuple[str, str]],
 ) -> py_trees.behaviour.Behaviour:
     """Return trigger-side BT for case creation + outbound Create activity."""
     return py_trees.composites.Sequence(

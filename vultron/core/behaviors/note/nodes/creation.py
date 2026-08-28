@@ -15,6 +15,7 @@
 
 """Creation-oriented note BT nodes."""
 
+import json
 from typing import Any
 
 from py_trees.common import Status
@@ -53,7 +54,7 @@ class CreateNoteNode(DataLayerActionWithPorts):
         assert self.trigger_activity_factory is not None
 
         try:
-            note_id, note_dict = self.trigger_activity_factory.create_note(
+            note_id, note_blob = self.trigger_activity_factory.create_note(
                 name=self.note_name,
                 content=self.note_content,
                 context_id=self.case_id,
@@ -61,7 +62,7 @@ class CreateNoteNode(DataLayerActionWithPorts):
                 in_reply_to=self.in_reply_to,
             )
             self.result_out["note_id"] = note_id
-            self.result_out["note_dict"] = note_dict
+            self.result_out["note_dict"] = json.loads(note_blob)
             self.feedback_message = f"Created note '{note_id}'"
             self.logger.info(f"{self.name}: {self.feedback_message}")
             return Status.SUCCESS

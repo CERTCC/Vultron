@@ -198,7 +198,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3/embargo_proposals/1",
         )
         # Start from PROPOSED — the standard pre-condition for activation.
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
@@ -545,8 +545,9 @@ def _make_pxa_case(
         name="PXA Guard Test",
         attributed_to=coordinator_id,
     )
-    case.current_status.em_state = em_state
-    case.current_status.pxa_state = CS_pxa[pxa_state_name]
+    case.append_case_status(
+        em_state=em_state, pxa_state=CS_pxa[pxa_state_name]
+    )
     embargo = as_EmbargoEvent(
         id_=embargo_id, content="PXA test embargo", context=case_id
     )
@@ -766,7 +767,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         case = as_VulnerabilityCase(
             id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
         )
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         dl.create(case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",

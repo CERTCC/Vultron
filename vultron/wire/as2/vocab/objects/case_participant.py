@@ -143,9 +143,9 @@ class as_CaseParticipant(VultronAS2Object):
             return self
 
         if hasattr(self.attributed_to, "name"):
-            self.name = self.attributed_to.name
+            object.__setattr__(self, "name", self.attributed_to.name)
         else:
-            self.name = str(self.attributed_to)
+            object.__setattr__(self, "name", str(self.attributed_to))
 
         return self
 
@@ -156,25 +156,33 @@ class as_CaseParticipant(VultronAS2Object):
             return self
 
         # participant status is empty, so initialize it with a default status
-        self.participant_statuses = [
-            as_ParticipantStatus(
-                context=self.context or self.id_,
-                attributed_to=self.attributed_to,
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
+        object.__setattr__(
+            self,
+            "participant_statuses",
+            [
+                as_ParticipantStatus(
+                    context=self.context or self.id_,
+                    attributed_to=self.attributed_to,
+                    em_consent_state=coerce_em_consent_state(
+                        self.embargo_consent_state
+                    ),
+                    cvd_role=coerce_cvd_roles(self.case_roles),
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
-            ),
-        ]
+            ],
+        )
         return self
 
     def _sync_latest_status_metadata(self) -> None:
         if not self.participant_statuses:
             return
         latest = self.participant_statuses[-1]
-        latest.cvd_role = coerce_cvd_roles(self.case_roles)
-        latest.em_consent_state = coerce_em_consent_state(
-            self.embargo_consent_state
+        object.__setattr__(
+            latest, "cvd_role", coerce_cvd_roles(self.case_roles)
+        )
+        object.__setattr__(
+            latest,
+            "em_consent_state",
+            coerce_em_consent_state(self.embargo_consent_state),
         )
 
     @property
@@ -260,7 +268,7 @@ class as_CaseParticipant(VultronAS2Object):
                 raise KeyError(
                     f"Role {role} was already present in participant.case_roles"
                 )
-        self.case_roles = list(roles)
+        object.__setattr__(self, "case_roles", list(roles))
         self._sync_latest_status_metadata()
 
     def remove_role(
@@ -291,7 +299,7 @@ class as_CaseParticipant(VultronAS2Object):
                 raise KeyError(
                     f"Role {role} was not present to delete from participant.case_roles"
                 )
-        self.case_roles = list(roles)
+        object.__setattr__(self, "case_roles", list(roles))
         self._sync_latest_status_metadata()
 
     def has_role(self, role: CVDRole) -> bool:

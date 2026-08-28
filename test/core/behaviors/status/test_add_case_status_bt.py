@@ -304,7 +304,9 @@ class TestAddCaseStatusTree:
         case = as_VulnerabilityCase(id_=CASE_ID, name="EM PXA Split")
         # The case auto-seeds an initial CaseStatus (pxa=pxa by default).
         # Set PXA=Pxa so the asserted pxa=pxa is a real regression.
-        cast(as_CaseStatus, case.case_statuses[0]).pxa_state = CS_pxa.Pxa
+        object.__setattr__(
+            cast(as_CaseStatus, case.case_statuses[0]), "pxa_state", CS_pxa.Pxa
+        )
         dl.create(case)
 
         # Sender asserts EM NONE→PROPOSED (valid) + PXA Pxa→pxa (stale regression)
@@ -500,7 +502,7 @@ class TestThreatTerminationBranchNode:
 
     def _make_status_with_pxa(self, pxa_state: CS_pxa) -> as_CaseStatus:
         s = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        s.pxa_state = pxa_state
+        object.__setattr__(s, "pxa_state", pxa_state)
         return s
 
     def _setup_dl_with_embargo(self, dl, pxa_state: CS_pxa):
@@ -519,8 +521,8 @@ class TestThreatTerminationBranchNode:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -681,8 +683,8 @@ class TestAddCaseStatusTreeSeam2:
         # Build case with ACTIVE em_state before storing in DataLayer
         case = as_VulnerabilityCase(id_=CASE_ID, name="Seam2 Guard Case")
         case.add_participant(cm_participant)
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.Pxa
         )
@@ -779,8 +781,8 @@ class TestRegressionCSPTeardownPath:
         )
         case = as_VulnerabilityCase(id_=CASE_ID, name="Regression Case")
         case.add_participant(cm_participant)
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -851,12 +853,12 @@ class TestRegressionCSPTeardownPath:
         dl_old.save(case_old)
 
         cs_old = as_CaseStatus()
-        cs_old.pxa_state = CS_pxa.Pxa
+        object.__setattr__(cs_old, "pxa_state", CS_pxa.Pxa)
         ps_with_cs = as_ParticipantStatus(
             id_=f"{CASE_ID}/participants/vendor/statuses/s1",
             context=CASE_ID,
         )
-        ps_with_cs.case_status = cs_old
+        object.__setattr__(ps_with_cs, "case_status", cs_old)
 
         old_node = PublicDisclosureBranchNode(
             status_obj=ps_with_cs,

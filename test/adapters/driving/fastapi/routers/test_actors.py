@@ -154,7 +154,9 @@ def test_post_inbox_returns_400_when_activity_addressed_to_other_actor(
 
     note = as_Note(content="not for you")
     activity = as_Create(object_=note, actor=other_id)
-    activity.to = other_id  # explicitly addressed to a different actor
+    object.__setattr__(
+        activity, "to", other_id
+    )  # explicitly addressed to a different actor
 
     payload = jsonable_encoder(activity, exclude_none=True)
     resp = client_actors.post(
@@ -171,7 +173,7 @@ def test_post_inbox_returns_202_when_activity_addressed_to_actor(
 
     note = as_Note(content="this is for you")
     activity = as_Create(object_=note, actor=actor.id_)
-    activity.to = actor.id_
+    object.__setattr__(activity, "to", actor.id_)
 
     payload = jsonable_encoder(activity, exclude_none=True)
     resp = client_actors.post(

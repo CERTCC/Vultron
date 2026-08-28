@@ -56,8 +56,8 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             id_="https://example.org/cases/case_aem1/embargo_events/e1",
             context=case.id_,
         )
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
 
         activity = announce_embargo_activity(
@@ -137,7 +137,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             attributed_to=actor_id,
         )
         # Simulate receiver-side: participant's consent state is SIGNATORY
-        participant.embargo_consent_state = PEC.SIGNATORY
+        object.__setattr__(participant, "embargo_consent_state", PEC.SIGNATORY)
         dl.create(participant)
 
         embargo = as_EmbargoEvent(
@@ -153,8 +153,8 @@ class TestResetEmbargoConsentWithInlineParticipants:
             name="Inline Participant Regression Test",
             attributed_to=actor_id,
         )
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         case.case_participants.append(participant)  # inline object, not str
         case.actor_participant_index[actor_id] = participant_id
         dl.create(case)
@@ -209,7 +209,9 @@ class TestResetEmbargoConsentWithInlineParticipants:
             context=case_id,
             attributed_to=actor_id,
         )
-        participant.embargo_consent_state = PEC.SIGNATORY.value
+        object.__setattr__(
+            participant, "embargo_consent_state", PEC.SIGNATORY.value
+        )
         dl.create(participant)
 
         # Wire-layer case stored in DataLayer; dl.read() returns core type (ADR-0034).
@@ -265,7 +267,7 @@ class TestPxaEmbargoIneligible:
         case = as_VulnerabilityCase(id_=self.CASE_ID, name="PXA Test")
         # Modify the auto-created default CaseStatus in-place so that
         # current_status returns this PXA state when the case is read back.
-        case.current_status.pxa_state = pxa_state
+        case.append_case_status(pxa_state=pxa_state)
         dl.create(case)
         return dl
 
@@ -307,7 +309,7 @@ class TestPxaEmbargoIneligible:
 
         mock_case = MagicMock()
         mock_case.type_ = "VulnerabilityCase"
-        mock_case.case_participants = []
+        object.__setattr__(mock_case, "case_participants", [])
         mock_case.case_statuses = []
         type(mock_case).current_status = PropertyMock(
             side_effect=ValueError("no materialized CaseStatus")

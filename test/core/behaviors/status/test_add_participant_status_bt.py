@@ -721,8 +721,8 @@ class TestPublicDisclosureBranchNode:
         # ``context`` is required by core CaseStatus; omitting it made the
         # nested status unprojectable to the core shape (#2232).
         cs = as_CaseStatus(context=CASE_ID)
-        cs.pxa_state = CS_pxa.Pxa  # public-aware
-        status_obj.case_status = cs
+        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
+        object.__setattr__(status_obj, "case_status", cs)
         populated_dl.save(status_obj)
 
         node = PublicDisclosureBranchNode(
@@ -756,16 +756,16 @@ class TestPublicDisclosureBranchNode:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         populated_dl.create(embargo)
         populated_dl.save(case)
 
         # ``context`` is required by core CaseStatus; omitting it made the
         # nested status unprojectable to the core shape (#2232).
         cs = as_CaseStatus(context=CASE_ID)
-        cs.pxa_state = CS_pxa.Pxa  # public-aware
-        status_obj.case_status = cs
+        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
+        object.__setattr__(status_obj, "case_status", cs)
         populated_dl.save(status_obj)
 
         # ACTOR_ID holds CASE_OWNER role (see `participant` fixture)

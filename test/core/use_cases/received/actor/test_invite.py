@@ -358,8 +358,8 @@ class TestInviteActorUseCases:
             content="Active embargo",
             context=case.id_,
         )
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
@@ -656,7 +656,7 @@ class TestInviteActorUseCases:
             name="TEST-LATE-JOIN-BACKFILL",
             attributed_to=case_actor_id,
         )
-        case_actor.context = case.id_
+        object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
@@ -804,7 +804,7 @@ class TestInviteActorUseCases:
             name="TEST-LATE-JOIN-RESUME",
             attributed_to=case_actor_id,
         )
-        case_actor.context = case.id_
+        object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
@@ -947,7 +947,7 @@ class TestInviteActorUseCases:
             name="TEST-LATE-JOIN-NO-MARKER",
             attributed_to=case_actor_id,
         )
-        case_actor.context = case.id_
+        object.__setattr__(case_actor, "context", case.id_)
         participant = VultronParticipant(
             id_=f"{case.id_}/participants/late-joiner-nomarker",
             attributed_to=invitee_id,
@@ -964,14 +964,22 @@ class TestInviteActorUseCases:
             context=case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case.case_participants = [
-            participant.id_,
-            case_manager_participant.id_,
-        ]
-        case.actor_participant_index = {
-            invitee_id: participant.id_,
-            case_actor_id: case_manager_participant.id_,
-        }
+        object.__setattr__(
+            case,
+            "case_participants",
+            [
+                participant.id_,
+                case_manager_participant.id_,
+            ],
+        )
+        object.__setattr__(
+            case,
+            "actor_participant_index",
+            {
+                invitee_id: participant.id_,
+                case_actor_id: case_manager_participant.id_,
+            },
+        )
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
@@ -1059,7 +1067,7 @@ class TestInviteActorUseCases:
             name="TEST-LATE-JOIN-NO-ANNOUNCE",
             attributed_to=case_actor_id,
         )
-        case_actor.context = case.id_
+        object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),

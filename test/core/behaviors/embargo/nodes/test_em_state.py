@@ -93,7 +93,7 @@ class TestReadEmStateNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("rsn3", em_state=EM.NONE)
-        case.active_embargo = None
+        case.set_embargo(None)
         dl.create(case)
         setup_blackboard(dl)
 

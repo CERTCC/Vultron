@@ -70,7 +70,7 @@ def _make_case_with_case_manager(dl, actor_id, em_state=EM.PROPOSED):
         name="Proposal Index Test",
         attributed_to=actor_id,
     )
-    case.current_status.em_state = em_state
+    case.append_case_status(em_state=em_state)
     dl.create(case)
 
     case_manager = as_Service(name="CaseManager")

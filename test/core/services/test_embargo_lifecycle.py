@@ -80,7 +80,7 @@ def _make_case(
         name="Test embargo case",
         attributed_to=owner_id,
     )
-    case.current_status.em_state = em_state
+    case.append_case_status(em_state=em_state)
 
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
@@ -90,8 +90,10 @@ def _make_case(
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
     participants: list[CaseParticipant] = [owner_participant]
-    case.case_participants = [owner_participant.id_]
-    case.actor_participant_index = {owner_id: owner_participant.id_}
+    object.__setattr__(case, "case_participants", [owner_participant.id_])
+    object.__setattr__(
+        case, "actor_participant_index", {owner_id: owner_participant.id_}
+    )
 
     for pid in extra_participant_ids or []:
         p = FinderParticipant(
@@ -217,7 +219,7 @@ def test_propose_embargo_active_to_revise_cascades_pec(
     )
     # Set both participants to SIGNATORY (active embargo consent)
     for p in participants:
-        p.embargo_consent_state = PEC.SIGNATORY
+        object.__setattr__(p, "embargo_consent_state", PEC.SIGNATORY)
         dl.save(p)
 
     embargo = _make_embargo(dl, case.id_)
@@ -373,7 +375,7 @@ def test_accept_embargo_invite_owner_strict_valid(
 
     # Seed owner to INVITED so ACCEPT transition is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -409,7 +411,7 @@ def test_accept_embargo_invite_non_owner_strict(
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
     finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    finder_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(finder_p, "embargo_consent_state", PEC.INVITED)
     dl.save(finder_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -471,7 +473,7 @@ def test_accept_embargo_invite_observed_already_active_syncs_embargo(
     case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
     old_embargo = _make_embargo(dl, case.id_)
     # Simulate active_embargo pointing at a different (old) embargo
-    case.active_embargo = old_embargo.id_
+    object.__setattr__(case, "active_embargo", old_embargo.id_)
     dl.save(case)
 
     new_embargo = _make_embargo(dl, case.id_)
@@ -502,7 +504,7 @@ def test_accept_embargo_invite_idempotent(
 
     # Seed as INVITED so first ACCEPT is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -541,7 +543,7 @@ def test_reject_embargo_invite_owner_proposed_to_none(
 
     # Seed owner to INVITED so DECLINE transition is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -596,7 +598,7 @@ def test_reject_embargo_invite_non_owner_strict(
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
     finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    finder_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(finder_p, "embargo_consent_state", PEC.INVITED)
     dl.save(finder_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -667,12 +669,14 @@ def test_terminate_active_embargo_strict_active_to_exited(
     )
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    object.__setattr__(case, "active_embargo", embargo.id_)
     dl.save(case)
 
     # Set owner PEC to SIGNATORY to verify it gets reset
     owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_participant.embargo_consent_state = PEC.SIGNATORY
+    object.__setattr__(
+        owner_participant, "embargo_consent_state", PEC.SIGNATORY
+    )
     dl.save(owner_participant)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -701,7 +705,7 @@ def test_terminate_active_embargo_strict_revise_to_exited(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    object.__setattr__(case, "active_embargo", embargo.id_)
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -736,7 +740,7 @@ def test_terminate_active_embargo_strict_invalid_em_state_raises(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    object.__setattr__(case, "active_embargo", embargo.id_)
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -754,7 +758,7 @@ def test_terminate_active_embargo_observed_invalid_no_raise(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    object.__setattr__(case, "active_embargo", embargo.id_)
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -783,7 +787,7 @@ def test_record_participant_consent_accept_trigger(
 
     # Set owner participant to INVITED so ACCEPT is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -813,7 +817,7 @@ def test_record_participant_consent_decline_trigger(
 
     # Seed as LAPSED (SIGNATORY → LAPSED after revise) with accepted embargo
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.LAPSED
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.LAPSED)
     owner_p.accepted_embargo_ids = [embargo.id_]
     dl.save(owner_p)
 
@@ -866,7 +870,7 @@ def test_record_participant_consent_illegal_trigger_raises(
     embargo = _make_embargo(dl, case.id_)
 
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.SIGNATORY
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.SIGNATORY)
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -903,7 +907,7 @@ def test_propose_embargo_strict_raises_when_pxa_set(
     """STRICT propose raises when any of P/X/A is set (EMB-01-002)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
-    case.current_status.pxa_state = pxa_state
+    case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
@@ -943,7 +947,7 @@ def test_propose_embargo_observed_bypasses_pxa_guard(
     """OBSERVED mode bypasses P/X/A guard and syncs to PROPOSED."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
-    case.current_status.pxa_state = pxa_state
+    case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
@@ -966,13 +970,13 @@ def test_accept_embargo_invite_strict_raises_when_pxa_set(
     """STRICT accept raises when any of P/X/A is set (EMB-02-002)."""
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
-    case.current_status.pxa_state = pxa_state
+    case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
     # Seed owner to INVITED so the PEC transition would be valid
     owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
-    owner_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -993,7 +997,7 @@ def test_accept_embargo_invite_strict_allowed_when_pxa_clear(
     embargo = _make_embargo(dl, case.id_)
 
     owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
-    owner_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -1014,7 +1018,7 @@ def test_accept_embargo_invite_observed_bypasses_pxa_guard(
     """OBSERVED mode bypasses P/X/A guard and syncs to ACTIVE."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
-    case.current_status.pxa_state = pxa_state
+    case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
@@ -1040,14 +1044,14 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
     case, _ = _make_case(
         dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.PROPOSED
     )
-    case.current_status.pxa_state = pxa_state
+    case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
     finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    finder_p.embargo_consent_state = PEC.INVITED
+    object.__setattr__(finder_p, "embargo_consent_state", PEC.INVITED)
     dl.save(finder_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -1076,7 +1080,7 @@ def test_reject_embargo_invite_strict_revise_pxa_raises(
     """STRICT reject from REVISE+PXA raises (EMB-04-002: must terminate, not revert)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
-    case.current_status.pxa_state = pxa_state
+    case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
@@ -1095,7 +1099,7 @@ def test_reject_embargo_invite_strict_proposed_pxa_allowed(
     """STRICT reject from PROPOSED+PXA is allowed (PROPOSED→NO_EMBARGO, no active embargo)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
-    case.current_status.pxa_state = CS_pxa.Pxa  # public aware
+    case.append_case_status(pxa_state=CS_pxa.Pxa)  # public aware
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
@@ -1117,7 +1121,7 @@ def test_reject_embargo_invite_observed_revise_pxa_bypasses_guard(
     """OBSERVED reject from REVISE+PXA bypasses the guard (state-sync)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
-    case.current_status.pxa_state = pxa_state
+    case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
@@ -1192,7 +1196,7 @@ class TestServiceAlwaysWritesEmState:
         owner, dl = owner_and_dl
         case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
         embargo = _make_embargo(dl, case.id_)
-        case.active_embargo = embargo.id_
+        object.__setattr__(case, "active_embargo", embargo.id_)
         dl.save(case)
 
         lifecycle = EmbargoLifecycle(persistence=dl)

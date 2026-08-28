@@ -58,8 +58,8 @@ def make_case_and_embargo(
         id_=f"https://example.org/cases/case_{case_suffix}/embargo_events/e1",
         context=case.id_,
     )
-    case.active_embargo = embargo.id_
-    case.current_status.em_state = em_state
+    object.__setattr__(case, "active_embargo", embargo.id_)
+    case.append_case_status(em_state=em_state)
     return case, embargo
 
 

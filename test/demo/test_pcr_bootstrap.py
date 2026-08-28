@@ -337,7 +337,9 @@ def _bootstrap_case_for_participant(
     assert (
         case_obj is not None
     ), f"case {case_id!r} not readable from the owner's own store"
-    case_obj.active_embargo = f"{case_id}/embargoes/bootstrap-embargo"
+    object.__setattr__(
+        case_obj, "active_embargo", f"{case_id}/embargoes/bootstrap-embargo"
+    )
 
     # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
     # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking

@@ -76,7 +76,9 @@ class as_EmbargoEvent(as_Event):
             parts.append(f"start: {start_iso}")
         if self.end_time:
             parts.append(f"end: {end_iso}")
-        self.name = " ".join([str(part) for part in parts])
+        object.__setattr__(
+            self, "name", " ".join([str(part) for part in parts])
+        )
         return self
 
     @classmethod

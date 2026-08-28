@@ -55,7 +55,7 @@ class TestEmbargoTermRevise:
             context=case.id_,
         )
         # Start from PROPOSED — the standard pre-condition for activation.
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         dl.create(case)
         dl.create(embargo)
 
@@ -146,7 +146,7 @@ class TestEmbargoTermRevise:
             context=case.id_,
         )
         case.proposed_embargoes.append(embargo.id_)
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
@@ -196,8 +196,8 @@ class TestEmbargoTermRevise:
             id_="https://example.org/cases/case_rem2/embargo_events/e2",
             context=case.id_,
         )
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
@@ -245,8 +245,8 @@ class TestEmbargoTermRevise:
             id_="https://example.org/cases/case_rem3/embargo_events/e3",
             context=case.id_,
         )
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.PROPOSED
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.PROPOSED)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(

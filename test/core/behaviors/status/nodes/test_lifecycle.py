@@ -131,16 +131,16 @@ def _make_dl_with_em_state(
     """Return a populated SqliteDataLayer for skip-condition unit tests."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
-    case.current_status.em_state = em_state
+    case.append_case_status(em_state=em_state)
 
     if with_proposed_embargo or with_embargo:
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
-        case.proposed_embargoes = [embargo.id_]
+        object.__setattr__(case, "proposed_embargoes", [embargo.id_])
         dl.create(embargo)
 
     if with_active_embargo or with_embargo:
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
-        case.active_embargo = embargo.id_
+        object.__setattr__(case, "active_embargo", embargo.id_)
         try:
             dl.create(embargo)
         except Exception:
@@ -267,11 +267,11 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
 
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
         case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
-        case.attributed_to = (
-            ACTOR_ID  # required by EmbargoLifecycle.is_owner check
-        )
-        case.current_status.em_state = EM.PROPOSED
-        case.proposed_embargoes = [embargo.id_]
+        object.__setattr__(
+            case, "attributed_to", ACTOR_ID
+        )  # required by EmbargoLifecycle.is_owner check
+        case.append_case_status(em_state=EM.PROPOSED)
+        object.__setattr__(case, "proposed_embargoes", [embargo.id_])
 
         participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,

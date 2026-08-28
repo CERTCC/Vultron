@@ -46,13 +46,6 @@ def add_vendor_participant_to_case() -> as_Add:
     _case = case()
 
     shortname = _vendor.id_.split("/")[-1]
-    _vendor_participant = as_CaseParticipant(
-        id_=f"{_case.id_}/participants/{shortname}",
-        name=_vendor.name,
-        attributed_to=_vendor.id_,
-        context=_case.id_,
-        case_roles=[CVDRole.VENDOR],
-    )
 
     _pstatus = as_ParticipantStatus(
         context=_case.id_,
@@ -60,7 +53,14 @@ def add_vendor_participant_to_case() -> as_Add:
         rm_state=RM.RECEIVED,
         vfd_state=CS_vfd.Vfd,
     )
-    _vendor_participant.participant_statuses = [_pstatus]
+    _vendor_participant = as_CaseParticipant(
+        id_=f"{_case.id_}/participants/{shortname}",
+        name=_vendor.name,
+        attributed_to=_vendor.id_,
+        context=_case.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[_pstatus],
+    )
 
     activity = add_participant_to_case_activity(
         _vendor_participant,

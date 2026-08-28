@@ -95,7 +95,7 @@ def _rehydrate_nested_object_field(
         rehydrated_nested = rehydrate(
             obj_with_object.object_, dl=dl, depth=depth + 1
         )
-        obj_with_object.object_ = rehydrated_nested
+        object.__setattr__(obj_with_object, "object_", rehydrated_nested)
         return rehydrated_nested
     except ValueError:
         # Nested object not found in the local DataLayer — common in
@@ -195,7 +195,7 @@ def rehydrate(
     rehydrated = _cast_to_vocabulary_type(obj)
 
     if rehydrated_nested is not None and hasattr(rehydrated, "object_"):
-        cast(Any, rehydrated).object_ = rehydrated_nested
+        object.__setattr__(rehydrated, "object_", rehydrated_nested)
         logger.debug(
             "Preserved rehydrated nested object of type %s.",
             rehydrated_nested.__class__.__name__,

@@ -401,7 +401,7 @@ class TestEmbargoTriggerToField:
             embargo, context=self.case.id_, actor=self.finder.id_
         )
         self.dl.create(proposal)
-        self.case.current_status.em_state = EM.PROPOSED
+        object.__setattr__(self.case.current_status, "em_state", EM.PROPOSED)
         self.case.proposed_embargoes.append(embargo.id_)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
@@ -431,7 +431,7 @@ class TestEmbargoTriggerToField:
         embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
-        self.case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(self.case.current_status, "em_state", EM.ACTIVE)
         self.dl.save(self.case)
 
         request = TerminateEmbargoTriggerRequest(
@@ -461,7 +461,7 @@ class TestEmbargoTriggerToField:
             embargo, context=self.case.id_, actor=self.finder.id_
         )
         self.dl.create(proposal)
-        self.case.current_status.em_state = EM.PROPOSED
+        object.__setattr__(self.case.current_status, "em_state", EM.PROPOSED)
         self.case.proposed_embargoes.append(embargo.id_)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
@@ -490,7 +490,7 @@ class TestEmbargoTriggerToField:
         embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
-        self.case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(self.case.current_status, "em_state", EM.ACTIVE)
         self.dl.save(self.case)
 
         request = ProposeEmbargoRevisionTriggerRequest(

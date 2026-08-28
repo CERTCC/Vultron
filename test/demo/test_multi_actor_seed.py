@@ -461,7 +461,7 @@ class TestSeedVendorParticipantRMState:
 
         case_obj = MagicMock()
         case_obj.id_ = "https://example.org/cases/test-case"
-        case_obj.actor_participant_index = {}
+        object.__setattr__(case_obj, "actor_participant_index", {})
 
         dl = MagicMock()
         dl.create.return_value = None

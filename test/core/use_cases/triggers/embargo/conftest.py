@@ -55,12 +55,18 @@ def _build_active_embargo_case(
         embargo_consent_state=PEC.INVITED,
     )
 
-    case.case_participants = [owner_participant.id_, participant.id_]
-    case.actor_participant_index = {
-        owner_id: owner_participant.id_,
-        participant_id: participant.id_,
-    }
-    case.current_status.em_state = EM.ACTIVE
+    object.__setattr__(
+        case, "case_participants", [owner_participant.id_, participant.id_]
+    )
+    object.__setattr__(
+        case,
+        "actor_participant_index",
+        {
+            owner_id: owner_participant.id_,
+            participant_id: participant.id_,
+        },
+    )
+    case.append_case_status(em_state=EM.ACTIVE)
     case.proposed_embargoes.append(embargo.id_)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     case.set_embargo(embargo.id_)
@@ -101,15 +107,23 @@ def _build_proposed_embargo_case_no_owner_attribution(
         embargo_consent_state=PEC.INVITED,
     )
 
-    case.case_participants = [
-        case_manager_participant.id_,
-        actor_participant.id_,
-    ]
-    case.actor_participant_index = {
-        case_manager_id: case_manager_participant.id_,
-        actor_id: actor_participant.id_,
-    }
-    case.current_status.em_state = EM.PROPOSED
+    object.__setattr__(
+        case,
+        "case_participants",
+        [
+            case_manager_participant.id_,
+            actor_participant.id_,
+        ],
+    )
+    object.__setattr__(
+        case,
+        "actor_participant_index",
+        {
+            case_manager_id: case_manager_participant.id_,
+            actor_id: actor_participant.id_,
+        },
+    )
+    case.append_case_status(em_state=EM.PROPOSED)
     case.proposed_embargoes.append(embargo.id_)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
 
@@ -129,7 +143,7 @@ def _build_exited_case(
         name="Exited embargo case",
         attributed_to=owner_id,
     )
-    case.current_status.em_state = EM.EXITED
+    case.append_case_status(em_state=EM.EXITED)
     dl.create(case)
     return case
 
@@ -147,10 +161,12 @@ def _build_no_embargo_case_with_case_manager(
         embargo_consent_state=PEC.NO_EMBARGO,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
-    case.case_participants = [owner_participant.id_]
-    case.actor_participant_index = {owner_id: owner_participant.id_}
-    case.current_status.em_state = EM.NONE
-    case.active_embargo = None
+    object.__setattr__(case, "case_participants", [owner_participant.id_])
+    object.__setattr__(
+        case, "actor_participant_index", {owner_id: owner_participant.id_}
+    )
+    case.append_case_status(em_state=EM.NONE)
+    object.__setattr__(case, "active_embargo", None)
     dl.create(case)
     dl.create(owner_participant)
     return case
@@ -174,9 +190,11 @@ def _build_active_embargo_case_with_case_manager(
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
-    case.case_participants = [owner_participant.id_]
-    case.actor_participant_index = {actor_id: owner_participant.id_}
-    case.current_status.em_state = EM.ACTIVE
+    object.__setattr__(case, "case_participants", [owner_participant.id_])
+    object.__setattr__(
+        case, "actor_participant_index", {actor_id: owner_participant.id_}
+    )
+    case.append_case_status(em_state=EM.ACTIVE)
     case.proposed_embargoes.append(embargo.id_)
     case.set_embargo(embargo.id_)
 

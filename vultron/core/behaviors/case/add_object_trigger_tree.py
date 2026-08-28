@@ -15,6 +15,7 @@
 
 """Trigger-side behavior tree for add-object-to-case workflows."""
 
+import json
 from collections.abc import Callable
 from typing import Any
 
@@ -33,7 +34,7 @@ class _BuildAddObjectActivityNode(DataLayerActionWithPorts):
 
     def __init__(
         self,
-        activity_builder: Callable[[], tuple[str, dict[str, Any]]],
+        activity_builder: Callable[[], tuple[str, str]],
         result_out: dict[str, Any],
         name: str | None = None,
     ) -> None:
@@ -60,14 +61,14 @@ class _BuildAddObjectActivityNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self._set_output("activity_id", activity_id)
-        self._result_out["activity"] = activity_dict
+        self._result_out["activity"] = json.loads(activity_dict)
         return Status.SUCCESS
 
 
 def add_object_trigger_bt(
     *,
     result_out: dict[str, Any],
-    activity_builder: Callable[[], tuple[str, dict[str, Any]]],
+    activity_builder: Callable[[], tuple[str, str]],
 ) -> py_trees.behaviour.Behaviour:
     """Return trigger-side BT for Add(object,target=case) + outbox queueing."""
     return py_trees.composites.Sequence(

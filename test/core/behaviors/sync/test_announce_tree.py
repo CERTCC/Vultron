@@ -219,7 +219,7 @@ def _make_case_with_em_active(
     case = as_VulnerabilityCase(
         id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
     )
-    case.current_status.em_state = EM.ACTIVE
+    case.append_case_status(em_state=EM.ACTIVE)
     datalayer.create(case)
     return case
 
@@ -257,7 +257,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         case = as_VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.current_status.em_state = EM.EXITED  # effect already applied
+        case.append_case_status(em_state=EM.EXITED)  # effect already applied
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0)
         datalayer.save(
@@ -296,7 +296,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         case = as_VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.current_status.em_state = EM.EXITED
+        case.append_case_status(em_state=EM.EXITED)
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)

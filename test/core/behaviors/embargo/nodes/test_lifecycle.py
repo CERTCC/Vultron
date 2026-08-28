@@ -181,7 +181,7 @@ class TestTerminateEmbargoBT:
         """BT returns FAILURE when the case has no active embargo."""
         case, _, dl = _make_case_with_manager("teb4", em_state=EM.NONE)
         case_obj = cast(as_VulnerabilityCase, dl.read(case.id_))
-        case_obj.active_embargo = None
+        object.__setattr__(case_obj, "active_embargo", None)
         dl.save(case_obj)
 
         factory = _make_factory()
@@ -206,7 +206,9 @@ class TestTerminateEmbargoBT:
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/vendor",
         )
-        participant.embargo_consent_state = PEC.SIGNATORY.value
+        object.__setattr__(
+            participant, "embargo_consent_state", PEC.SIGNATORY.value
+        )
         case_obj = cast(as_VulnerabilityCase, dl.read(case.id_))
         case_obj.case_participants.append(participant.id_)
         dl.save(case_obj)
@@ -368,7 +370,7 @@ class TestValidateEmbargoRevisionStateNode:
             actor_id=ACTOR_ID,
         )
         case, _ = make_case_and_embargo("rev3", em_state=EM.NONE)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         status, result_out = self._run_node(dl, case.id_)
@@ -413,7 +415,7 @@ class TestValidateEmbargoRevisionStateNode:
             actor_id=ACTOR_ID,
         )
         case, _ = make_case_and_embargo("rev6", em_state=EM.NONE)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         _, result_out = self._run_node(dl, case.id_)
@@ -470,7 +472,7 @@ class TestValidateEmbargoRevisionStateNode:
         from vultron.core.models.case import VulnerabilityCase
 
         mock_case = MagicMock(spec=VulnerabilityCase)
-        mock_case.case_participants = []
+        object.__setattr__(mock_case, "case_participants", [])
         mock_case.case_statuses = []
         type(mock_case).current_status = PropertyMock(
             side_effect=ValueError("no materialized CaseStatus")
@@ -528,7 +530,7 @@ class TestSetEmbargoActiveNode:
             actor_id=ACTOR_ID,
         )
         case, embargo = make_case_and_embargo("sea1", em_state=EM.PROPOSED)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         status = self._run(dl, case.id_, embargo.id_)
@@ -548,7 +550,7 @@ class TestSetEmbargoActiveNode:
         case, embargo = make_case_and_embargo(
             "sea-narrative", em_state=EM.PROPOSED
         )
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         with caplog.at_level(logging.INFO):
@@ -579,7 +581,7 @@ class TestSetEmbargoActiveNode:
         case, embargo = make_case_and_embargo(
             "sea-detail", em_state=EM.PROPOSED
         )
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         with caplog.at_level(logging.DEBUG):
@@ -599,7 +601,7 @@ class TestSetEmbargoActiveNode:
             actor_id=ACTOR_ID,
         )
         case, embargo = make_case_and_embargo("sea2", em_state=EM.ACTIVE)
-        case.active_embargo = embargo.id_
+        object.__setattr__(case, "active_embargo", embargo.id_)
         dl.create(case)
 
         status = self._run(dl, case.id_, embargo.id_)
@@ -622,7 +624,7 @@ class TestSetEmbargoActiveNode:
             actor_id=ACTOR_ID,
         )
         case, embargo = make_case_and_embargo("sea3", em_state=EM.PROPOSED)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         _setup_blackboard_simple(dl)
@@ -674,7 +676,7 @@ class TestSetEmbargoActiveNode:
             actor_id=ACTOR_ID,
         )
         case, embargo = make_case_and_embargo("sea5", em_state=EM.NONE)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         _setup_blackboard_simple(dl)
@@ -702,8 +704,8 @@ class TestSetEmbargoActiveNode:
         from vultron.core.models.case import VulnerabilityCase
 
         mock_case = MagicMock(spec=VulnerabilityCase)
-        mock_case.case_participants = []
-        mock_case.active_embargo = None
+        object.__setattr__(mock_case, "case_participants", [])
+        object.__setattr__(mock_case, "active_embargo", None)
         type(mock_case).current_status = PropertyMock(
             side_effect=ValueError("no materialized CaseStatus")
         )
@@ -741,7 +743,7 @@ class TestSetEmbargoActiveNode:
             actor_id=ACTOR_ID,
         )
         case, embargo = make_case_and_embargo("sea-ac1", em_state=EM.PROPOSED)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         _setup_blackboard_simple(dl)

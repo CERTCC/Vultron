@@ -133,7 +133,9 @@ def _case_for_wire(
         )
         return case
     try:
-        case.active_embargo = _to_wire(stored, as_EmbargoEvent)
+        case = case.model_copy(
+            update={"active_embargo": _to_wire(stored, as_EmbargoEvent)}
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "_case_for_wire: could not project active_embargo '%s' of case"
