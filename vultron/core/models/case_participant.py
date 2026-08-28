@@ -34,6 +34,7 @@ model validators:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
@@ -81,6 +82,7 @@ class CaseParticipant(CoreObject):
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
     embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
     participant_case_name: NonEmptyString | None = None
+    invite_rsvp_deadline: datetime | None = None
 
     @model_validator(mode="before")
     @classmethod

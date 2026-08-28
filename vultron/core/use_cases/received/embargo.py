@@ -1,8 +1,10 @@
 """Use cases for embargo management activities."""
 
 import logging
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     AddEmbargoEventToCaseReceivedEvent,
@@ -12,6 +14,7 @@ from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -23,11 +26,17 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.services.embargo_lifecycle import (
+    EmbargoLifecycle,
+    TransitionMode,
+)
 from vultron.core.states.cs import (
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
     is_pxa_public_aware,
 )
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -81,6 +90,28 @@ def _record_embargo_proposal_index(
         return
     case.pending_embargo_proposal_index[embargo_id] = proposal_id
     dl.save(case)
+
+
+def _store_invite_deadline(
+    dl: CasePersistence,
+    case_id: str,
+    actor_id: str,
+    rsvp_deadline: datetime,
+) -> None:
+    """Store RSVP deadline on the participant record for lazy lapse detection."""
+    case = dl.read(case_id)
+    if not isinstance(case, VulnerabilityCase):
+        return
+    participant_id = case.actor_participant_index.get(actor_id)
+    if not participant_id:
+        return
+    participant = dl.read(participant_id)
+    if not isinstance(participant, CaseParticipant):
+        return
+    if participant.invite_rsvp_deadline == rsvp_deadline:
+        return
+    participant.invite_rsvp_deadline = rsvp_deadline
+    dl.save(participant)
 
 
 class CreateEmbargoEventReceivedUseCase:
@@ -334,6 +365,14 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 self._dl, case_id, embargo_id, invite_id
             )
 
+        # Store RSVP deadline on the invitee's participant record so
+        # detect_and_apply_lapse() can check it without reading the stored
+        # invite activity (CM-28, EP-07-001).
+        if case_id and request.rsvp_deadline:
+            _store_invite_deadline(
+                self._dl, case_id, invitee_id, request.rsvp_deadline
+            )
+
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
@@ -402,6 +441,121 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 )
             return
 
+        # Lazy lapse detection (AC-2 of #2212, CM-28, EP-07-001).
+        now = datetime.now(tz=timezone.utc)
+        service = EmbargoLifecycle(persistence=self._dl)
+        lapse_result = service.detect_and_apply_lapse(
+            case_id=case_id,
+            actor_id=accepting_actor_id,
+            now=now,
+        )
+
+        if lapse_result.is_lapsed:
+            # EMB-17: late-Accept compatibility routing.
+            # Re-read case to get fresh EM state after any lapse side-effects.
+            _fresh_case = self._dl.read(case_id)
+            em_state = (
+                _fresh_case.current_status.em.state
+                if isinstance(_fresh_case, VulnerabilityCase)
+                else EM.NONE
+            )
+            active_embargo_id = (
+                _as_id(_fresh_case.active_embargo)
+                if isinstance(_fresh_case, VulnerabilityCase)
+                else None
+            )
+
+            if em_state == EM.ACTIVE and active_embargo_id == embargo_id:
+                # AC-2 of #2213: current embargo still matches — honor.
+                # Re-invite (DECLINED → INVITED) so accept_embargo_invite can
+                # safely apply ACCEPT (INVITED → SIGNATORY).
+                service.record_participant_consent(
+                    case_id=case_id,
+                    actor_id=accepting_actor_id,
+                    pec_trigger=PEC_Trigger.INVITE,
+                    embargo_id=embargo_id,
+                )
+                service.accept_embargo_invite(
+                    case_id=case_id,
+                    embargo_id=embargo_id,
+                    actor_id=accepting_actor_id,
+                    transition_mode=TransitionMode.OBSERVED,
+                )
+                logger.info(
+                    "accept_invite_to_embargo_on_case: late Accept honored"
+                    " for actor '%s' on case '%s' (embargo '%s' still active;"
+                    " EMB-17-001)",
+                    accepting_actor_id,
+                    case_id,
+                    embargo_id,
+                )
+
+            elif em_state in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
+                # AC-3 of #2213: stale embargo — re-invite with current embargo.
+                # Stale Accept is NOT recorded.
+                if (
+                    self._trigger_activity is not None
+                    and active_embargo_id
+                    and accepting_actor_id
+                ):
+                    from vultron.core.use_cases.triggers._helpers import (
+                        _prepare_delegated_context,
+                    )
+
+                    actor_id, _ = _prepare_delegated_context(
+                        self._dl, case_id, receiving_actor_id
+                    )
+                    new_invite_id, _ = self._trigger_activity.propose_embargo(
+                        embargo_id=active_embargo_id,
+                        case_id=case_id,
+                        actor=actor_id,
+                        to=[accepting_actor_id],
+                    )
+                    add_activity_to_outbox(actor_id, new_invite_id, self._dl)
+                    # Transition PEC DECLINED → INVITED to reflect re-invite.
+                    service.record_participant_consent(
+                        case_id=case_id,
+                        actor_id=accepting_actor_id,
+                        pec_trigger=PEC_Trigger.INVITE,
+                        embargo_id=active_embargo_id,
+                    )
+                    logger.info(
+                        "accept_invite_to_embargo_on_case: late Accept for"
+                        " stale embargo '%s' on case '%s' — re-invited actor"
+                        " '%s' to current embargo '%s' (EMB-17-002)",
+                        embargo_id,
+                        case_id,
+                        accepting_actor_id,
+                        active_embargo_id,
+                    )
+                else:
+                    logger.warning(
+                        "accept_invite_to_embargo_on_case: late Accept for"
+                        " stale embargo on case '%s' — trigger_activity"
+                        " unavailable, re-invite not emitted",
+                        case_id,
+                    )
+
+            else:
+                # AC-4 of #2213: EM EXITED or NONE — ack no-op.
+                # PEC should be NO_EMBARGO (reset by embargo termination cascade
+                # or by lapse on NONE); ensure it is reset if still DECLINED.
+                service.record_participant_consent(
+                    case_id=case_id,
+                    actor_id=accepting_actor_id,
+                    pec_trigger=PEC_Trigger.RESET,
+                )
+                logger.info(
+                    "accept_invite_to_embargo_on_case: late Accept for case"
+                    " '%s' with EM '%s' — ack no-op; actor '%s' stays in"
+                    " case (EMB-17-003)",
+                    case_id,
+                    em_state,
+                    accepting_actor_id,
+                )
+            return
+
+        # Normal path (invite still open): record acceptance via BT.
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
         # accepting_actor_id is threaded into the tree as a node constructor arg
         # so RecordParticipantAcceptanceNode records acceptance for the correct
