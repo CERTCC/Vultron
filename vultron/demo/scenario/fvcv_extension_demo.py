@@ -286,6 +286,28 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
+    # Drain the CaseActor's outbox before Phase 2 starts (ADR-0026, ADR-0058,
+    # issue #2819).
+    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+    if vendor_entries:
+        vendor_tail_index: int = max(
+            vendor_entries, key=lambda e: e["log_index"]
+        )["log_index"]
+        for replica_client, label in [
+            (finder_client, "Finder"),
+            (coordinator_client, "Coordinator"),
+        ]:
+            with demo_gate(
+                f"{label} ledger coverage (Phase 1 drain before Phase 2)"
+            ):
+                wait_for_contiguous_ledger_coverage(
+                    client=replica_client,
+                    case_id=case.id_,
+                    expected_tail_index=vendor_tail_index,
+                    timeout_seconds=30.0,
+                )
+            logger.info("  %s Phase 1 ledger synchronized", label)
+
     case = as_VulnerabilityCase.model_validate(
         vendor_client.get(vendor_client.dl_path(case.id_))
     )
@@ -349,6 +371,7 @@ def _phase_coordinator_suggests_vendor2(
         cp_offer_id = find_cp_offer_for_case(
             client=vendor_client,
             case_id=case.id_,
+            timeout_seconds=40.0,
         )
         logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
