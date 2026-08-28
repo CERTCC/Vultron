@@ -125,7 +125,7 @@ def _make_case_with_case_manager(
         as_ParticipantStatus as WireParticipantStatus,
     )
 
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(name="Test Case", attributed_to=actor_id)
 
     actor_participant = as_CaseParticipant(
         attributed_to=actor_id,

@@ -300,9 +300,11 @@ def case_no_participant(dl):
 
 
 @pytest.fixture
-def case_with_case_manager(dl):
+def case_with_case_manager(dl, actor):
     """A bare case with a single CASE_MANAGER participant, no other participants."""
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-WITH-CM")
+    case_obj = as_VulnerabilityCase(
+        name="TEST-CASE-WITH-CM", attributed_to=actor.id_
+    )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj
@@ -310,7 +312,9 @@ def case_with_case_manager(dl):
 
 @pytest.fixture
 def case_with_embargo(dl, actor):
-    case_obj = as_VulnerabilityCase(name="EMBARGO-CASE-001")
+    case_obj = as_VulnerabilityCase(
+        name="EMBARGO-CASE-001", attributed_to=actor.id_
+    )
     embargo = as_EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     case_obj.set_embargo(embargo.id_)

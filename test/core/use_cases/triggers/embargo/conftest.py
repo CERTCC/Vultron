@@ -8,6 +8,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
@@ -79,8 +80,19 @@ def _build_proposed_embargo_case_no_owner_attribution(
     actor_id: str,
     case_manager_id: str,
 ) -> tuple[as_VulnerabilityCase, as_Invite, str]:
-    """Build a PROPOSED embargo case with ``attributed_to=None``."""
+    """Build a PROPOSED embargo case with ``attributed_to=None``.
+
+    The case deliberately has no attributed_to (so _is_case_owner returns False
+    for any actor).  A genesis_hash is set explicitly using case_manager_id so
+    the ledger chain can bootstrap for EmitCaseStatusUpdateNode (RSH-04-002/004).
+    """
     case = as_VulnerabilityCase(name="No-attribution proposed embargo case")
+    # Set genesis_hash explicitly without setting attributed_to, so the
+    # _is_case_owner fail-closed check (attributed_to=None) can still be tested.
+    assert case.published is not None
+    case.genesis_hash = compute_genesis_hash(
+        case.id_, case.published, case_manager_id
+    )
 
     embargo = as_EmbargoEvent(context=case.id_)
     proposal = em_propose_embargo_activity(

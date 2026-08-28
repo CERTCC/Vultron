@@ -242,9 +242,11 @@ def client_triggers(dl):
 
 
 @pytest.fixture
-def case_without_participant(dl):
+def case_without_participant(dl, actor):
     """A as_VulnerabilityCase with a Case Manager but no participant for the actor."""
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
+    case_obj = as_VulnerabilityCase(
+        name="TEST-CASE-NO-PARTICIPANT", attributed_to=actor.id_
+    )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj
@@ -253,7 +255,9 @@ def case_without_participant(dl):
 @pytest.fixture
 def case_with_embargo(dl, actor):
     """A as_VulnerabilityCase with an active as_EmbargoEvent."""
-    case_obj = as_VulnerabilityCase(name="EMBARGO-CASE-001")
+    case_obj = as_VulnerabilityCase(
+        name="EMBARGO-CASE-001", attributed_to=actor.id_
+    )
     embargo = as_EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     case_obj.set_embargo(embargo.id_)
