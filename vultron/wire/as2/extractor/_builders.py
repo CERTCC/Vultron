@@ -479,15 +479,15 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     state=_coerce_rm(getattr(obj, "rm_state", None))
                 ),
                 vf=(
-                    VfDimension(
-                        state=_coerce_vf(getattr(obj, "vf_state", None))
-                    )
-                    if getattr(obj, "vf_state", None) is not None
+                    VfDimension(state=_vf)
+                    if (_vf := _coerce_vf(getattr(obj, "vf_state", None)))
+                    is not None
                     else None
                 ),
                 d=(
-                    DDimension(state=_coerce_d(getattr(obj, "d_state", None)))
-                    if getattr(obj, "d_state", None) is not None
+                    DDimension(state=_d)
+                    if (_d := _coerce_d(getattr(obj, "d_state", None)))
+                    is not None
                     else None
                 ),
                 consent=(

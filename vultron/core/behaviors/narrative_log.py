@@ -30,7 +30,7 @@ inventory and ``specs/structured-logging.yaml`` SL-04-001, SL-04-006.
 
 import logging
 
-from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 
@@ -95,8 +95,8 @@ def cs_event_label(
         return NO_CHANGE_LABEL
 
     labels: list[str] = []
-    if hasattr(after.value, "_fields"):
-        # CS_pxa: regular Enum whose value is a NamedTuple
+    if isinstance(after, (CS_pxa, CS_vfd)):
+        # CS_pxa / CS_vfd: Enum whose value is a NamedTuple with named fields
         for field, new_value in zip(
             after.value._fields, after.value, strict=True
         ):

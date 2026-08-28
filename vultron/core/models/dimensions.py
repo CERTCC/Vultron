@@ -345,7 +345,7 @@ class VfDimension(ValidatedAssignmentMixin, BaseModel):
         new_state = _apply_transition(
             self.state, trigger, _vf_transitions, "VfDimension"
         )
-        return self.model_copy(update={"state": CS_vf(new_state)})
+        return self.model_copy(update={"state": CS_vf(str(new_state))})
 
     def is_vendor_aware(self) -> bool:
         return self.state in VF_VENDOR_AWARE
@@ -381,7 +381,7 @@ class DDimension(ValidatedAssignmentMixin, BaseModel):
         new_state = _apply_transition(
             self.state, trigger, _d_transitions, "DDimension"
         )
-        return self.model_copy(update={"state": CS_d(new_state)})
+        return self.model_copy(update={"state": CS_d(str(new_state))})
 
     def is_fix_deployed(self) -> bool:
         return self.state in D_FIX_DEPLOYED
