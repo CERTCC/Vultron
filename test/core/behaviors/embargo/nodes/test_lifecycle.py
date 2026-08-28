@@ -727,7 +727,7 @@ class TestSetEmbargoActiveNode:
 
         Patch EmbargoLifecycle.activate_embargo() and confirm it is invoked
         during the PROPOSED → ACTIVE transition, proving that EM writes route
-        through the service layer (not inline mutation or WriteEmStateNode).
+        through the service layer (not inline mutation) (EMB-18-001).
         """
         from unittest.mock import patch
 

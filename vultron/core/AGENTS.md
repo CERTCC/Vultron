@@ -167,31 +167,19 @@ directly. Editing `__init__.py` for individual entry additions defeats the
 purpose of the split (reducing merge conflicts) and risks silently corrupting
 the ordering invariant that keeps the `UNKNOWN` fallback last.
 
-### `caller_owns_em_io` Guard: BT/Service Layer Handoff for EM State
+### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001, retired in #2712)
 
-When a BT node needs to read EM state before calling a service and write it
-after, use a `caller_owns_em_io` bool to distinguish two paths:
+The `caller_owns_em_io` guard and the `WriteEmStateNode` BT node are **retired**.
+Do not reintroduce them.
 
-- **BT path** (`em_before` passed): caller already read EM state and will write
-  it via named BT nodes. Service skips its own DataLayer read/write.
-- **Legacy path** (`em_before=None`): service reads and writes internally.
+**Current rule:** `EmbargoLifecycle` service methods always read `em_before` from
+the DataLayer when not supplied and always write `em_after` back. BT nodes call
+service methods directly; they never assign `case.current_status.em` inline.
 
-```python
-caller_owns_em_io = em_before is not None
-if not caller_owns_em_io:
-    em_before = EM(case.current_status.em_state)
-assert em_before is not None  # narrows EM | None → EM for mypy
-# ...compute em_after...
-if not caller_owns_em_io and em_after != em_before:
-    case.current_status.em_state = em_after
-    case_mutated = True
-```
+See also `vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
+Canonical Nodes".
 
-The `assert em_before is not None` after the conditional is required for mypy
-to narrow the type; without it mypy keeps the `EM | None` union and flags
-downstream uses.
-
-<!-- Source: ISSUE-1474 -->
+<!-- Source: ISSUE-1474; pattern retired ISSUE-2712 -->
 
 ---
 

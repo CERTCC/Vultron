@@ -293,23 +293,21 @@ class TestAttachEmbargoToCaseNodeAC1:
     """AC-1 regression for AttachEmbargoToCaseNode (issue #2583)."""
 
     @pytest.mark.spec("EMB-18-001")
-    def test_em_write_delegates_to_write_em_state_node(
+    def test_em_write_routes_through_embargo_lifecycle(
         self,
         bt_scenario: BTTestScenario,
         actor_id: str,
         case_obj: VultronCase,
     ) -> None:
-        """AC-1 (issue #2583): EM write is delegated to WriteEmStateNode.
+        """AC-1 (issue #2712): EM write routes through EmbargoLifecycle.activate_embargo.
 
-        When WriteEmStateNode.update() is patched to return FAILURE the
-        node must propagate FAILURE — proving the inline write was replaced
-        by delegation.
+        When activate_embargo raises VultronError the node returns FAILURE —
+        proving the EM write is delegated to the service layer.
         """
         from unittest.mock import patch
 
-        from vultron.core.behaviors.embargo.nodes.em_state import (
-            WriteEmStateNode,
-        )
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+        from vultron.errors import VultronInvalidStateTransitionError
 
         embargo = EmbargoEvent(
             end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
@@ -324,7 +322,9 @@ class TestAttachEmbargoToCaseNodeAC1:
         )
 
         with patch.object(
-            WriteEmStateNode, "update", return_value=Status.FAILURE
+            EmbargoLifecycle,
+            "activate_embargo",
+            side_effect=VultronInvalidStateTransitionError("forced failure"),
         ):
             result = bt_scenario.run(
                 AttachEmbargoToCaseNode(),

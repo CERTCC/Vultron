@@ -1,9 +1,15 @@
 """Per-semantic inbound domain event types for embargo activities."""
 
+import logging
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Literal, cast
+
+from pydantic import field_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase as VultronCase
@@ -102,6 +108,31 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    rsvp_deadline: datetime | None = None
+
+    @field_validator("rsvp_deadline", mode="before")
+    @classmethod
+    def _validate_rsvp_deadline(cls, v: object) -> datetime | None:
+        if v is None:
+            return None
+        if not isinstance(v, datetime):
+            raise ValueError(
+                f"rsvp_deadline must be a datetime, got {type(v).__name__}"
+            )
+        if v.tzinfo is None:
+            raise ValueError(
+                "rsvp_deadline must be timezone-aware"
+                " (naive datetime rejected per EP-07-002)"
+            )
+        return v.astimezone(timezone.utc)
+
+    @property
+    def case_id(self) -> str | None:
+        return self.context_id
+
+    @property
+    def case(self) -> "VultronCase | None":
+        return cast("VultronCase | None", self.context)
 
 
 class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):

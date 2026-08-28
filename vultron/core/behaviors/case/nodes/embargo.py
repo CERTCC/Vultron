@@ -34,7 +34,6 @@ from datetime import datetime, timedelta, timezone
 import isodate  # type: ignore[import-untyped]
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import WriteEmStateNode
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -48,7 +47,6 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronError
@@ -271,39 +269,19 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
     def _propose_with_em_io(self, case_id: str, embargo_id: str) -> Status:
-        """Run propose_embargo with ReadEmStateNode / WriteEmStateNode (AC-1)."""
+        """Run propose_embargo via EmbargoLifecycle service."""
         assert (
             self.datalayer is not None
         )  # caller guards; here for type narrowing
         assert self.actor_id is not None
 
-        from vultron.core.behaviors.embargo.nodes.em_state import (
-            ReadEmStateNode,
-            WriteEmStateNode,
-        )
-
-        em_result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(case_id=case_id, result_out=em_result_out)
-        read_node.datalayer = self.datalayer
-        if read_node.update() != Status.SUCCESS:
-            self.logger.error(
-                "%s: Failed to read em_state for case '%s': %s",
-                self.name,
-                case_id,
-                read_node.feedback_message,
-            )
-            return Status.FAILURE
-        em_before = em_result_out["em_before"]
-        assert isinstance(em_before, EM)
-
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            result = lifecycle.propose_embargo(
+            lifecycle.propose_embargo(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 actor_id=self.actor_id,
                 transition_mode=TransitionMode.STRICT,
-                em_before=em_before,
             )
         except VultronError as exc:
             self.logger.error(
@@ -314,21 +292,6 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
                 exc,
             )
             return Status.FAILURE
-
-        if result.em_after != em_before:
-            em_result_out["em_after"] = result.em_after
-            write_node = WriteEmStateNode(
-                case_id=case_id, result_out=em_result_out
-            )
-            write_node.datalayer = self.datalayer
-            if write_node.update() != Status.SUCCESS:
-                self.logger.error(
-                    "%s: Failed to write em_state for case '%s': %s",
-                    self.name,
-                    case_id,
-                    write_node.feedback_message,
-                )
-                return Status.FAILURE
 
         return Status.SUCCESS
 
@@ -381,16 +344,22 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
 
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
-            stored_case.active_embargo = embargo_id
-            self.datalayer.save(stored_case)
-            # AC-1: delegate EM state write to WriteEmStateNode.
-            result_out: dict[str, object] = {"em_after": EM.ACTIVE}
-            write_node = WriteEmStateNode(
-                case_id=case_id, result_out=result_out
-            )
-            write_node.datalayer = self.datalayer
-            if write_node.update() != Status.SUCCESS:
-                self.feedback_message = write_node.feedback_message
+            lifecycle = EmbargoLifecycle(persistence=self.datalayer)
+            try:
+                lifecycle.activate_embargo(
+                    case_id=case_id,
+                    embargo_id=embargo_id,
+                    actor_id=self.actor_id,
+                )
+            except VultronError as exc:
+                self.feedback_message = str(exc)
+                self.logger.error(
+                    "%s: Failed to activate embargo '%s' on case '%s': %s",
+                    self.name,
+                    embargo_id,
+                    case_id,
+                    exc,
+                )
                 return Status.FAILURE
             self.logger.info(
                 "Attached embargo '%s' to case '%s' as active_embargo",
