@@ -1071,6 +1071,63 @@ class TestAddParticipantStatusTree:
             len(outbox) == 0
         ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
 
+    @pytest.mark.spec("RSH-07-001")
+    @pytest.mark.spec("RSH-01-002")
+    def test_non_owner_blocked_by_require_case_owner_approval_default(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """Non-CASE_OWNER sender with default DETERMINISTIC bundle → blocked by RequireCaseOwnerApproval.
+
+        RSH-07-001: the default status_adoption_gate_factory is RequireCaseOwnerApproval,
+        not AlwaysSucceed.  A non-owner sender must not get their status adopted
+        without explicit Case Owner authorization.
+        """
+        from vultron.core.behaviors.call_out.nodes import (
+            RequireCaseOwnerApprovalNode,
+        )
+
+        bridge = self._bridge_with_factory(populated_dl)
+        cm_status_id = f"{STATUS_ID}/cm-default"
+        cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
+        populated_dl.create(cm_status)
+        # CASE_MANAGER_ID is NOT CASE_OWNER — CheckIsCaseOwnerNode returns FAILURE → call-out fires
+        cm_activity = add_status_to_participant_activity(
+            status=cm_status,
+            target=as_CaseParticipant(
+                id_=CM_PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=CASE_MANAGER_ID,
+            ),
+            actor=CASE_MANAGER_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(cm_activity)
+        # Default DETERMINISTIC bundle — RequireCaseOwnerApproval is wired
+        cm_tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        # Verify RequireCaseOwnerApprovalNode is wired as the call-out
+        def _collect_nodes(node):
+            result_inner = [node]
+            for child in getattr(node, "children", []):
+                result_inner.extend(_collect_nodes(child))
+            return result_inner
+
+        all_nodes = _collect_nodes(cm_tree)
+        assert any(
+            isinstance(n, RequireCaseOwnerApprovalNode) for n in all_nodes
+        ), "RequireCaseOwnerApprovalNode must be present in the tree when using DETERMINISTIC bundle"
+
+        result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
+        assert (
+            result.status == Status.FAILURE
+        ), "Non-CASE_OWNER sender must be blocked by RequireCaseOwnerApproval (RSH-07-001)"
+        outbox = populated_dl.outbox_list()
+        assert (
+            len(outbox) == 0
+        ), "RequireCaseOwnerApproval blocked — no Add(CaseStatus) must be in outbox"
+
     @pytest.mark.spec("RSH-01-004")
     @pytest.mark.spec("RSH-03-003")
     def test_no_side_effects_execute_directly_rsh_01_004(
@@ -1370,12 +1427,32 @@ class TestEmitAddCaseStatusToSelfNode:
 
 
 class TestStatusAuthorizationCallOutBundle:
+    @pytest.mark.spec("RSH-07-001")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_deterministic_singleton_approves_by_default(
-        self, populated_bridge
-    ):
-        """STATUS_AUTHORIZATION_DETERMINISTIC has AlwaysSucceed factory."""
+    def test_deterministic_singleton_blocks_by_default(self, populated_bridge):
+        """STATUS_AUTHORIZATION_DETERMINISTIC has RequireCaseOwnerApprovalNode factory (ADR-0076)."""
+        from vultron.core.behaviors.call_out.nodes import (
+            RequireCaseOwnerApprovalNode,
+        )
+
         node = STATUS_AUTHORIZATION_DETERMINISTIC.status_adoption_gate_factory(
+            "CaseOwnerApprovesStatusUpdate"
+        )
+        assert isinstance(node, RequireCaseOwnerApprovalNode)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("RSH-07-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_permissive_singleton_approves(self, populated_bridge):
+        """STATUS_AUTHORIZATION_PERMISSIVE has AlwaysSucceed factory (explicit override)."""
+        from vultron.core.behaviors.call_out.bundles.status_authorization import (
+            STATUS_AUTHORIZATION_PERMISSIVE,
+        )
+
+        node = STATUS_AUTHORIZATION_PERMISSIVE.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"
         )
         result = populated_bridge.execute_with_setup(

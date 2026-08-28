@@ -13,9 +13,16 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Call-out bundle for the received-side status authorization domain (BT-23).
 
-Provides :class:`StatusAuthorizationCallOutBundle` and the pre-built core
-DETERMINISTIC singleton :data:`STATUS_AUTHORIZATION_DETERMINISTIC`.  The matching
-STOCHASTIC singleton lives in the simulation layer
+Provides :class:`StatusAuthorizationCallOutBundle` and the two pre-built core
+singletons:
+
+- :data:`STATUS_AUTHORIZATION_DETERMINISTIC` — conservative default; both gates
+  use :class:`~vultron.core.behaviors.call_out.nodes.RequireCaseOwnerApprovalNode`
+  (ADR-0076, RSH-07-001, RSH-07-002).
+- :data:`STATUS_AUTHORIZATION_PERMISSIVE` — explicit override for demos and
+  trusted-participant deployments; both gates use ``AlwaysSucceed`` (RSH-07-003).
+
+The matching STOCHASTIC singleton lives in the simulation layer
 (:data:`vultron.demo.fuzzer.bundles.status_authorization.STATUS_AUTHORIZATION_STOCHASTIC`).
 
 The two fields back the two authorization gates of the received-side
@@ -30,20 +37,18 @@ CaseStatus canonicalization model (ADR-0046):
   ``ThreatTerminationBranchNode`` (embargo teardown) after the canonical write
   (RSH-02).
 
-Ceiling/floor mapping (BT-23-002):
-
-- ``status_adoption_gate_factory`` — CaseOwnerApprovesStatusUpdate → AlwaysSucceed
-  (all status updates adopted automatically until a real policy engine is wired
-  in; RSH-01-002)
-- ``embargo_teardown_authorization_gate_factory``  — EmbargoTeardownAuthorizationGate → AlwaysSucceed
-  (teardown side-effects execute by default; RSH-02-002)
+Security-significant gate exception (ADR-0076): both gates control unilateral
+state change, so the DETERMINISTIC default MUST be ``RequireCaseOwnerApproval``
+(most restrictive), not ``AlwaysSucceed``.  Permissive behavior requires an
+explicit ``STATUS_AUTHORIZATION_PERMISSIVE`` override (RSH-07-003).
 
 References
 ----------
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - ADR-0046: ``docs/adr/0046-received-status-authorization.md``
+- ADR-0076: ``docs/adr/0076-security-significant-gates-default-require-case-owner-approval.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-23;
-  ``specs/received-status-handling.yaml`` RSH-01, RSH-02
+  ``specs/received-status-handling.yaml`` RSH-01, RSH-02, RSH-07
 - Notes: ``notes/received-status-authorization.md``,
   ``notes/call-out-configuration.md``
 """
@@ -54,12 +59,19 @@ from dataclasses import dataclass, field
 
 import py_trees
 
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import (
+    AlwaysSucceed,
+    RequireCaseOwnerApprovalNode,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 
 def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
     return AlwaysSucceed(name)
+
+
+def _require_case_owner_approval(name: str) -> py_trees.behaviour.Behaviour:
+    return RequireCaseOwnerApprovalNode(name)
 
 
 @dataclass(frozen=True)
@@ -77,22 +89,34 @@ class StatusAuthorizationCallOutBundle:
       :func:`~vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`
       (EmbargoTeardownAuthorizationGate).
 
-    Both default to ``AlwaysSucceed`` so existing behavior is unchanged until a
-    real policy engine or human-in-the-loop backend is injected (BT-23-002).
+    Both default to ``RequireCaseOwnerApprovalNode`` (conservative: blocks
+    until Case Owner approves).  Use :data:`STATUS_AUTHORIZATION_PERMISSIVE`
+    for demos and trusted-participant deployments (RSH-07-003, ADR-0076).
     """
 
     status_adoption_gate_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=_require_case_owner_approval  # type: ignore[assignment]
     )
     embargo_teardown_authorization_gate_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=_require_case_owner_approval  # type: ignore[assignment]
     )
 
 
 STATUS_AUTHORIZATION_DETERMINISTIC = StatusAuthorizationCallOutBundle()
-"""Deterministic bundle: both seams use AlwaysSucceed (BT-23-001, BT-23-002)."""
+"""Conservative deterministic bundle: both seams use RequireCaseOwnerApprovalNode (ADR-0076, RSH-07-001, RSH-07-002)."""
+
+STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(
+    status_adoption_gate_factory=_always_succeed,  # type: ignore[arg-type]
+    embargo_teardown_authorization_gate_factory=_always_succeed,  # type: ignore[arg-type]
+)
+"""Permissive bundle: both seams use AlwaysSucceed.
+
+MUST be explicitly configured — never the default (RSH-07-003, ADR-0076).
+Suitable for demos and trusted-participant deployments only.
+"""
 
 __all__ = [
     "StatusAuthorizationCallOutBundle",
     "STATUS_AUTHORIZATION_DETERMINISTIC",
+    "STATUS_AUTHORIZATION_PERMISSIVE",
 ]
