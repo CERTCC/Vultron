@@ -572,3 +572,114 @@ class TestFccvExtensionCausalGates:
             )
 
         coverage_wait_called.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression test — ISSUE-2811 timeout fix
+# ---------------------------------------------------------------------------
+
+
+class TestFccvExtensionRmTriageTimeout:
+    """_phase_report_submission must forward timeout_seconds=60.0 to
+    run_direct_path_rm_triage so the causal gate (ADR-0058) does not race
+    under 4-container CI load (ISSUE-2811)."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_phase_report_submission_passes_60s_timeout_to_rm_triage(self):
+        """Regression: fccv_extension CI timed out at 20 s default (ISSUE-2811)."""
+        import contextlib
+
+        finder = self._actor("urn:test:finder")
+        c1 = self._actor("urn:test:c1")
+        c2 = self._actor("urn:test:c2")
+        vendor = self._actor("urn:test:vendor")
+        c1_in_c1 = self._actor("urn:test:c1")
+        c2_in_c2 = self._actor("urn:test:c2")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        invite = MagicMock()
+        invite.id_ = "urn:test:invite"
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fccv",
+                return_value=(finder, c1, c2, vendor),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[c1_in_c1, c2_in_c2],
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(
+                demo, "run_direct_path_rm_triage", return_value=case
+            ) as mock_rm_triage,
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo,
+                "post_to_trigger",
+                return_value={"activity": {"id": invite.id_}},
+            ),
+            patch.object(demo, "post_to_inbox_and_wait"),
+            patch.object(demo, "verify_object_stored"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "verify_case_active"),
+            patch.object(
+                demo,
+                "demo_gate",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_ta.model_validate.return_value = invite
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=self._client(),
+                c1_client=self._client(),
+                c2_client=self._client(),
+                vendor_client=self._client(),
+                finder_id=None,
+                c1_id=None,
+                c2_id=None,
+                vendor_id=None,
+            )
+
+        _call = mock_rm_triage.call_args
+        assert _call is not None
+        assert _call.kwargs.get("timeout_seconds") == 60.0, (
+            "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
+            "the 20-second default races under 4-container CI load (ISSUE-2811)"
+        )
