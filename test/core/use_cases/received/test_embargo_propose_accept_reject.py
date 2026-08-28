@@ -171,16 +171,13 @@ class TestEmbargoProposalLifecycle:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_em3",
             name="EM Accept Test",
             attributed_to=coordinator_id,
@@ -193,7 +190,7 @@ class TestEmbargoProposalLifecycle:
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
         proposal = em_propose_embargo_activity(
             embargo,
-            context=case,
+            context=case.id_,
             actor="https://example.org/users/vendor",
             id_="https://example.org/cases/case_em3/embargo_proposals/1",
         )
@@ -205,7 +202,7 @@ class TestEmbargoProposalLifecycle:
 
         accept = em_accept_embargo_activity(
             proposal,
-            context=case,
+            context=case.id_,
             actor=coordinator_id,
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
@@ -283,18 +280,16 @@ class TestEmbargoProposalLifecycle:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/coordinator",
         )
         coordinator_id = "https://example.org/users/coordinator"
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_em5",
             name="EM Accept Participant Test",
+            attributed_to=coordinator_id,
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em5/embargo_events/e5",
@@ -309,7 +304,7 @@ class TestEmbargoProposalLifecycle:
         case.add_participant(participant)
         proposal = em_propose_embargo_activity(
             embargo,
-            context=case,
+            context=case.id_,
             actor="https://example.org/users/vendor",
             id_="https://example.org/cases/case_em5/embargo_proposals/1",
         )
@@ -320,7 +315,7 @@ class TestEmbargoProposalLifecycle:
 
         accept = em_accept_embargo_activity(
             proposal,
-            context=case,
+            context=case.id_,
             actor=coordinator_id,
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
@@ -536,11 +531,8 @@ def _make_pxa_case(
     """Return (case, embargo, proposal) with pxa_state set."""
     from vultron.core.states.cs import CS_pxa
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
 
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="PXA Guard Test",
         attributed_to=coordinator_id,
@@ -701,7 +693,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
 
         accept = em_accept_embargo_activity(
-            proposal, context=case, actor=self.COORD_ID
+            proposal, context=case.id_, actor=self.COORD_ID
         )
         event = make_payload(accept, receiving_actor_id=self.COORD_ID)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
@@ -734,7 +726,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
 
         accept = em_accept_embargo_activity(
-            proposal, context=case, actor=self.COORD_ID
+            proposal, context=case.id_, actor=self.COORD_ID
         )
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(accept, receiving_actor_id=self.COORD_ID)
@@ -752,9 +744,6 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -764,7 +753,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         case_id = f"{self.CASE_ID}/clear"
         coordinator_id = self.COORD_ID
 
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
         )
         case.append_case_status(em_state=EM.PROPOSED)
@@ -777,14 +766,14 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo,
-            context=case,
+            context=case.id_,
             actor=coordinator_id,
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)
 
         accept = em_accept_embargo_activity(
-            proposal, context=case, actor=coordinator_id
+            proposal, context=case.id_, actor=coordinator_id
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()

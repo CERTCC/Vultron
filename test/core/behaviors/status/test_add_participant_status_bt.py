@@ -68,6 +68,7 @@ from vultron.core.behaviors.status.nodes import (
     VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -155,8 +156,10 @@ def case_manager_participant():
 
 @pytest.fixture
 def case(participant, case_manager_participant):
-    """as_VulnerabilityCase with vendor and Case Manager participants."""
-    obj = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    """VulnerabilityCase with vendor and Case Manager participants."""
+    obj = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    )
     obj.add_participant(participant)
     obj.add_participant(case_manager_participant)
     return obj
@@ -756,7 +759,7 @@ class TestPublicDisclosureBranchNode:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
-        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
         populated_dl.create(embargo)
         populated_dl.save(case)
@@ -1540,7 +1543,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Fix1 Regression", attributed_to=CASE_MANAGER_ID
         )
         case.add_participant(cm_participant)
@@ -1625,7 +1628,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Fix1 Full Reject", attributed_to=CASE_MANAGER_ID
         )
         case.add_participant(cm_participant)

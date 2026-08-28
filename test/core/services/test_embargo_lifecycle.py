@@ -71,12 +71,12 @@ def _make_case(
     owner_id: str,
     extra_participant_ids: list[str] | None = None,
     em_state: EM = EM.NONE,
-) -> tuple[as_VulnerabilityCase, list[CaseParticipant]]:
-    """Create a as_VulnerabilityCase with an owner participant.
+) -> tuple[VulnerabilityCase, list[CaseParticipant]]:
+    """Create a VulnerabilityCase with an owner participant.
 
     Returns the case and the list of CaseParticipant objects created.
     """
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         name="Test embargo case",
         attributed_to=owner_id,
     )
@@ -90,10 +90,8 @@ def _make_case(
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
     participants: list[CaseParticipant] = [owner_participant]
-    object.__setattr__(case, "case_participants", [owner_participant.id_])
-    object.__setattr__(
-        case, "actor_participant_index", {owner_id: owner_participant.id_}
-    )
+    case.case_participants = [owner_participant.id_]
+    case.actor_participant_index = {owner_id: owner_participant.id_}
 
     for pid in extra_participant_ids or []:
         p = FinderParticipant(
@@ -473,7 +471,7 @@ def test_accept_embargo_invite_observed_already_active_syncs_embargo(
     case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
     old_embargo = _make_embargo(dl, case.id_)
     # Simulate active_embargo pointing at a different (old) embargo
-    object.__setattr__(case, "active_embargo", old_embargo.id_)
+    case.active_embargo = old_embargo.id_
     dl.save(case)
 
     new_embargo = _make_embargo(dl, case.id_)
@@ -669,7 +667,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
     )
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
-    object.__setattr__(case, "active_embargo", embargo.id_)
+    case.active_embargo = embargo.id_
     dl.save(case)
 
     # Set owner PEC to SIGNATORY to verify it gets reset
@@ -705,7 +703,7 @@ def test_terminate_active_embargo_strict_revise_to_exited(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
     embargo = _make_embargo(dl, case.id_)
-    object.__setattr__(case, "active_embargo", embargo.id_)
+    case.active_embargo = embargo.id_
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -740,7 +738,7 @@ def test_terminate_active_embargo_strict_invalid_em_state_raises(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     embargo = _make_embargo(dl, case.id_)
-    object.__setattr__(case, "active_embargo", embargo.id_)
+    case.active_embargo = embargo.id_
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -758,7 +756,7 @@ def test_terminate_active_embargo_observed_invalid_no_raise(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     embargo = _make_embargo(dl, case.id_)
-    object.__setattr__(case, "active_embargo", embargo.id_)
+    case.active_embargo = embargo.id_
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -1196,7 +1194,7 @@ class TestServiceAlwaysWritesEmState:
         owner, dl = owner_and_dl
         case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
         embargo = _make_embargo(dl, case.id_)
-        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.active_embargo = embargo.id_
         dl.save(case)
 
         lifecycle = EmbargoLifecycle(persistence=dl)

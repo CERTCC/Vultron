@@ -24,6 +24,9 @@ from vultron.wire.as2.factories import (
     add_embargo_to_case_activity,
     remove_embargo_from_case_activity,
 )
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class TestEmbargoTermRevise:
@@ -37,17 +40,15 @@ class TestEmbargoTermRevise:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/coord",
         )
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_em1",
             name="EM Test Case",
+            attributed_to="https://example.org/users/coord",
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em1/embargo_events/e1",
@@ -61,7 +62,7 @@ class TestEmbargoTermRevise:
 
         activity = add_embargo_to_case_activity(
             embargo,
-            target=case,
+            target=as_VulnerabilityCase(id_=case.id_),
             actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
@@ -83,17 +84,15 @@ class TestEmbargoTermRevise:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/coord",
         )
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_em1_warn",
             name="EM Warn Test Case",
+            attributed_to="https://example.org/users/coord",
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em1_warn/embargo_events/e1",
@@ -106,7 +105,7 @@ class TestEmbargoTermRevise:
 
         activity = add_embargo_to_case_activity(
             embargo,
-            target=case,
+            target=as_VulnerabilityCase(id_=case.id_),
             actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
@@ -129,17 +128,15 @@ class TestEmbargoTermRevise:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/coord",
         )
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem1",
             name="Remove Embargo Proposed",
+            attributed_to="https://example.org/users/coord",
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem1/embargo_events/e1",
@@ -151,7 +148,7 @@ class TestEmbargoTermRevise:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=case,
+            origin=as_VulnerabilityCase(id_=case.id_),
             actor="https://example.org/users/coord",
         )
         event = make_payload(
@@ -162,7 +159,7 @@ class TestEmbargoTermRevise:
 
         updated = dl.read(case.id_)
         assert updated is not None
-        updated = cast(as_VulnerabilityCase, updated)
+        updated = cast(VulnerabilityCase, updated)
         assert embargo.id_ not in [
             e if isinstance(e, str) else getattr(e, "id_", None)
             for e in updated.proposed_embargoes
@@ -177,9 +174,6 @@ class TestEmbargoTermRevise:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
@@ -188,21 +182,22 @@ class TestEmbargoTermRevise:
             "sqlite:///:memory:",
             actor_id="https://example.org/users/coord",
         )
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem2",
             name="Remove Embargo ACTIVE→EXITED",
+            attributed_to="https://example.org/users/coord",
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem2/embargo_events/e2",
             context=case.id_,
         )
-        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=case,
+            origin=as_VulnerabilityCase(id_=case.id_),
             actor="https://example.org/users/coord",
         )
         event = make_payload(
@@ -226,9 +221,6 @@ class TestEmbargoTermRevise:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
@@ -237,21 +229,22 @@ class TestEmbargoTermRevise:
             "sqlite:///:memory:",
             actor_id="https://example.org/users/coord",
         )
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem3",
             name="Remove Embargo unusual state override",
+            attributed_to="https://example.org/users/coord",
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem3/embargo_events/e3",
             context=case.id_,
         )
-        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.PROPOSED)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=case,
+            origin=as_VulnerabilityCase(id_=case.id_),
             actor="https://example.org/users/coord",
         )
         event = make_payload(

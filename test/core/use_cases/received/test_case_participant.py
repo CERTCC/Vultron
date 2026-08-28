@@ -230,11 +230,9 @@ class TestCaseParticipantUseCases:
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
+        from vultron.core.models.case import VulnerabilityCase
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer(
@@ -242,9 +240,10 @@ class TestCaseParticipantUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         actor_id = "https://example.org/users/coordinator"
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/caseRM1",
             name="TEST-REMOVE-INDEX",
+            attributed_to=actor_id,
         )
         participant = as_CaseParticipant(
             id_="https://example.org/cases/caseRM1/participants/coord",
@@ -260,13 +259,13 @@ class TestCaseParticipantUseCases:
         remove_activity = as_Remove(
             actor="https://example.org/users/owner",
             object_=participant,
-            target=case,
+            target=case.id_,
         )
 
         event = make_payload(remove_activity)
 
         RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         assert actor_id not in case.actor_participant_index

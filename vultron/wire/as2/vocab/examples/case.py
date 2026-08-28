@@ -47,15 +47,16 @@ from vultron.wire.as2.factories import (
 
 
 def create_case() -> as_Create:
-    _case = case(random_id=True)
-    _case.add_report(_REPORT.id_)
     participant = as_CaseParticipant(
         case_roles=[CVDRole.VENDOR],
         attributed_to=_VENDOR.id_,
         name=_VENDOR.name,
-        context=_case.id_,
     )
-    _case.add_participant(participant)
+    _case = case(
+        random_id=True,
+        vulnerability_reports=[_REPORT.id_],
+        case_participants=[participant],
+    )
 
     activity = create_case_activity(
         _case,

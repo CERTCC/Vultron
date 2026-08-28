@@ -42,7 +42,8 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 
@@ -106,7 +107,9 @@ def populated_dl(dl, participant, status_obj):
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    )
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
     dl.create(case)
@@ -130,17 +133,19 @@ def _make_dl_with_em_state(
 ) -> SqliteDataLayer:
     """Return a populated SqliteDataLayer for skip-condition unit tests."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    )
     case.append_case_status(em_state=em_state)
 
     if with_proposed_embargo or with_embargo:
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
-        object.__setattr__(case, "proposed_embargoes", [embargo.id_])
+        case.proposed_embargoes = [embargo.id_]
         dl.create(embargo)
 
     if with_active_embargo or with_embargo:
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
-        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.active_embargo = embargo.id_
         try:
             dl.create(embargo)
         except Exception:
@@ -266,12 +271,11 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
-        object.__setattr__(
-            case, "attributed_to", ACTOR_ID
-        )  # required by EmbargoLifecycle.is_owner check
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+        )
         case.append_case_status(em_state=EM.PROPOSED)
-        object.__setattr__(case, "proposed_embargoes", [embargo.id_])
+        case.proposed_embargoes = [embargo.id_]
 
         participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,

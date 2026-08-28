@@ -25,7 +25,8 @@ from vultron.core.behaviors.case.nodes.case_participant_received import (
     RemoveCaseParticipantFromCaseReceivedNode,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 
@@ -50,7 +51,9 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    return as_VulnerabilityCase(id_=CASE_ID, name="CP Node Test Case")
+    return VulnerabilityCase(
+        id_=CASE_ID, name="CP Node Test Case", attributed_to=ACTOR_ID
+    )
 
 
 @pytest.fixture

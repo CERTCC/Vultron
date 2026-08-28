@@ -16,7 +16,7 @@ compatibility (#2213)."""
 from datetime import datetime, timedelta, timezone
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.case import VulnerabilityCase as CoreCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
@@ -34,9 +34,11 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant as WireCP,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+
+CoreCase = VulnerabilityCase
 
 _NOW = datetime(2026, 8, 28, 12, 0, 0, tzinfo=timezone.utc)
 _PAST = _NOW - timedelta(days=1)
@@ -61,7 +63,7 @@ def _make_active_embargo_case(
 
     Returns (case, embargo, invitee_participant_id).
     """
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="Lapse Test Case",
         attributed_to=_COORD,
@@ -250,7 +252,7 @@ class TestInviteStoresDeadline:
         case_id = "https://example.org/cases/store1"
         embargo_id = "https://example.org/cases/store1/embargos/e1"
 
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=case_id, name="Store Deadline", attributed_to=_COORD
         )
         case.append_case_status(em_state=EM.PROPOSED)
@@ -272,7 +274,7 @@ class TestInviteStoresDeadline:
         # Propose with a deadline
         invite = em_propose_embargo_activity(
             embargo=embargo,
-            context=case,
+            context=case.id_,
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
@@ -299,7 +301,7 @@ class TestInviteStoresDeadline:
 def _make_accept_event(proposal, case, accepting_actor_id: str, make_payload):
     accept = em_accept_embargo_activity(
         proposal=proposal,
-        context=case,
+        context=case.id_,
         actor=accepting_actor_id,
     )
     return make_payload(accept, receiving_actor_id=_COORD)
@@ -324,7 +326,7 @@ class TestLateAcceptHandling:
 
         proposal = em_propose_embargo_activity(
             embargo=embargo,
-            context=case,
+            context=case.id_,
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
@@ -366,7 +368,7 @@ class TestLateAcceptHandling:
         # Proposal was for the stale embargo
         stale_proposal = em_propose_embargo_activity(
             embargo=stale_embargo,
-            context=case,
+            context=case.id_,
             actor=_COORD,
             id_=f"{case_id}/proposals/stale",
         )
@@ -420,7 +422,7 @@ class TestLateAcceptHandling:
 
         proposal = em_propose_embargo_activity(
             embargo=embargo,
-            context=case,
+            context=case.id_,
             actor=_COORD,
             id_=f"{case_id}/proposals/p3",
         )
@@ -447,7 +449,7 @@ class TestLateAcceptHandling:
         embargo_id = "https://example.org/cases/ea4/embargos/e4"
 
         # Set up case with PROPOSED EM and vendor participant
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=case_id, name="Normal Accept", attributed_to=_COORD
         )
         case.append_case_status(em_state=EM.PROPOSED)
@@ -470,7 +472,7 @@ class TestLateAcceptHandling:
 
         proposal = em_propose_embargo_activity(
             embargo=embargo,
-            context=case,
+            context=case.id_,
             actor=_INVITEE,
             id_=f"{case_id}/proposals/p4",
         )
@@ -492,7 +494,7 @@ class TestLateAcceptHandling:
         case_id = "https://example.org/cases/ea5"
         embargo_id = "https://example.org/cases/ea5/embargos/e5"
 
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=case_id, name="No Deadline Accept", attributed_to=_COORD
         )
         case.append_case_status(em_state=EM.PROPOSED)
@@ -515,7 +517,7 @@ class TestLateAcceptHandling:
 
         proposal = em_propose_embargo_activity(
             embargo=embargo,
-            context=case,
+            context=case.id_,
             actor=_INVITEE,
             id_=f"{case_id}/proposals/p5",
         )
@@ -549,7 +551,7 @@ class TestLateAcceptHandling:
 
         proposal = em_propose_embargo_activity(
             embargo=embargo,
-            context=case,
+            context=case.id_,
             actor=_COORD,
             to=[_INVITEE],
             id_=f"{case_id}/proposals/p6",

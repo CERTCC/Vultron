@@ -50,7 +50,8 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -211,7 +212,7 @@ def offer(report):
 # ---------------------------------------------------------------------------
 
 
-def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
     case_actor = as_Service(name=f"Case Actor for {case.name}")
     dl.create(case_actor)
@@ -242,9 +243,11 @@ def client_triggers(dl):
 
 
 @pytest.fixture
-def case_without_participant(dl):
-    """A as_VulnerabilityCase with a Case Manager but no participant for the actor."""
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
+def case_without_participant(dl, actor):
+    """A VulnerabilityCase with a Case Manager but no participant for the actor."""
+    case_obj = VulnerabilityCase(
+        name="TEST-CASE-NO-PARTICIPANT", attributed_to=actor.id_
+    )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj
@@ -252,8 +255,10 @@ def case_without_participant(dl):
 
 @pytest.fixture
 def case_with_embargo(dl, actor):
-    """A as_VulnerabilityCase with an active as_EmbargoEvent."""
-    case_obj = as_VulnerabilityCase(name="EMBARGO-CASE-001")
+    """A VulnerabilityCase with an active as_EmbargoEvent."""
+    case_obj = VulnerabilityCase(
+        name="EMBARGO-CASE-001", attributed_to=actor.id_
+    )
     embargo = as_EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     case_obj.set_embargo(embargo.id_)
@@ -265,8 +270,8 @@ def case_with_embargo(dl, actor):
 
 @pytest.fixture
 def case_with_proposal(dl, actor):
-    """A as_VulnerabilityCase with a pending EmProposeEmbargoActivity in EM.PROPOSED state."""
-    case_obj = as_VulnerabilityCase(
+    """A VulnerabilityCase with a pending EmProposeEmbargoActivity in EM.PROPOSED state."""
+    case_obj = VulnerabilityCase(
         name="PROPOSAL-CASE-001",
         attributed_to=actor.id_,
     )

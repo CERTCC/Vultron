@@ -79,6 +79,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -125,7 +126,7 @@ def _make_case_with_case_manager(
         as_ParticipantStatus as WireParticipantStatus,
     )
 
-    case = as_VulnerabilityCase(name="Test Case")
+    case = VulnerabilityCase(name="Test Case", attributed_to=actor_id)
 
     actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
@@ -168,8 +169,8 @@ def _make_case_with_case_manager(
 
 def _make_two_actor_case(
     dl, vendor_id: str, finder_id: str
-) -> as_VulnerabilityCase:
-    """Create a as_VulnerabilityCase with vendor and finder — no CASE_MANAGER.
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase with vendor and finder — no CASE_MANAGER.
 
     Both ``case_participants`` and ``actor_participant_index`` are kept in
     sync via ``add_participant()``.  Participant objects are stored in the
@@ -179,7 +180,7 @@ def _make_two_actor_case(
     Use ``_make_case_with_case_manager`` for tests that need PCR-08-001
     routing or an ``EngageCaseTriggerRequest``/``AddParticipantStatusTriggerRequest``.
     """
-    case = as_VulnerabilityCase(name="Test Case")
+    case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
     vendor_participant = as_CaseParticipant(
         id_=f"{case.id_}/participants/vendor",
         attributed_to=vendor_id,
@@ -327,7 +328,7 @@ class TestCaseTriggerToField:
 
     def test_engage_case_raises_when_no_case_manager(self):
         """SvcEngageCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
-        case_solo = as_VulnerabilityCase(name="Solo Case")
+        case_solo = VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
         )
@@ -401,7 +402,7 @@ class TestEmbargoTriggerToField:
             embargo, context=self.case.id_, actor=self.finder.id_
         )
         self.dl.create(proposal)
-        object.__setattr__(self.case.current_status, "em_state", EM.PROPOSED)
+        self.case.append_case_status(em_state=EM.PROPOSED)
         self.case.proposed_embargoes.append(embargo.id_)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
@@ -431,7 +432,7 @@ class TestEmbargoTriggerToField:
         embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
-        object.__setattr__(self.case.current_status, "em_state", EM.ACTIVE)
+        self.case.append_case_status(em_state=EM.ACTIVE)
         self.dl.save(self.case)
 
         request = TerminateEmbargoTriggerRequest(
@@ -461,7 +462,7 @@ class TestEmbargoTriggerToField:
             embargo, context=self.case.id_, actor=self.finder.id_
         )
         self.dl.create(proposal)
-        object.__setattr__(self.case.current_status, "em_state", EM.PROPOSED)
+        self.case.append_case_status(em_state=EM.PROPOSED)
         self.case.proposed_embargoes.append(embargo.id_)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
@@ -490,7 +491,7 @@ class TestEmbargoTriggerToField:
         embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
-        object.__setattr__(self.case.current_status, "em_state", EM.ACTIVE)
+        self.case.append_case_status(em_state=EM.ACTIVE)
         self.dl.save(self.case)
 
         request = ProposeEmbargoRevisionTriggerRequest(

@@ -23,7 +23,8 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 
@@ -75,7 +76,9 @@ def populated_dl(dl, participant, status_obj):
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    )
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
     dl.create(case)
