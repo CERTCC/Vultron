@@ -33,8 +33,6 @@ from vultron.core.behaviors.helpers import (
     read_rm_states,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import (
     RM,
     is_monotonic_rm_forward,
@@ -199,95 +197,5 @@ class ValidateRMTransitionNode(DataLayerConditionWithPorts):
                 "from_rm": current_rm,
                 "to_rm": new_rm_state,
             },
-        )
-        return Status.FAILURE
-
-
-class CheckParticipantRMNotClosedNode(DataLayerConditionWithPorts):
-    """Pre-flight guard: FAILURE when participant is in RM.CLOSED with no prior
-    status match.
-
-    .. deprecated:: RSH-05
-
-        Superseded by
-        :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`,
-        which subsumes this terminal-``RM.CLOSED`` check and no longer discards
-        the other dimensions of the snapshot along with ``rm``.  Do not wire
-        this node back into ``add_participant_status_tree`` — an all-or-nothing
-        RM guard there is exactly the defect in ISSUE-2235.  Retained for
-        callers that want the narrow check in isolation.
-
-    Rejects CLOSED→CLOSED rewrites before the commit runs (CLP-10-006).
-
-    When ``status_id`` is supplied and the participant is CLOSED, returns
-    SUCCESS if ``status_id`` is already in ``participant.participant_statuses``
-    (idempotent delivery of a VALID→CLOSED update whose trigger side already
-    appended the status).  Returns FAILURE only for genuine CLOSED→CLOSED
-    rewrite attempts (status not yet in participant's list).
-
-    Returns SUCCESS when the participant has no current status, the current
-    RM state is not CLOSED, or the incoming status was already appended.
-    """
-
-    def __init__(
-        self,
-        participant_id: str,
-        status_id: str = "",
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.participant_id = participant_id
-        self.status_id = status_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        participant = self.datalayer.read(self.participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.logger.debug(
-                "%s: participant '%s' not found — allowing (no terminal check)",
-                self.name,
-                self.participant_id,
-            )
-            return Status.SUCCESS
-
-        current_status = getattr(participant, "participant_status", None)
-        if current_status is None:
-            return Status.SUCCESS
-
-        states = read_rm_states(self, current_status)
-        if states is None:
-            return Status.FAILURE
-        (current_rm,) = states
-        if current_rm != RM.CLOSED:
-            return Status.SUCCESS
-
-        # Participant is CLOSED. Allow if the incoming status was already
-        # appended by the trigger side (idempotent re-delivery of VALID→CLOSED).
-        if self.status_id:
-            existing_ids = [
-                _as_id(s)
-                for s in getattr(participant, "participant_statuses", [])
-            ]
-            if self.status_id in existing_ids:
-                self.logger.debug(
-                    "%s: participant '%s' is CLOSED but status '%s' already"
-                    " in participant_statuses — allowing idempotent commit",
-                    self.name,
-                    self.participant_id,
-                    self.status_id,
-                )
-                return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Participant '{self.participant_id}' is already in terminal"
-            " RM.CLOSED — rejecting status update (DEMOMA-07-003)"
-        )
-        self.logger.info(
-            "%s: %s",
-            self.name,
-            self.feedback_message,
         )
         return Status.FAILURE

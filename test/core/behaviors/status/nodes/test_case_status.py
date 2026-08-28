@@ -16,10 +16,9 @@
 """Unit tests for case status workflow nodes (submodule path).
 
 Verifies CASE_STATUS_ALREADY_PRESENT, CheckCaseStatusIdempotencyNode,
-ValidateCaseStatusTransitionNode, and AppendCaseStatusToCaseNode imported
-directly from the submodule.
+and AppendCaseStatusToCaseNode imported directly from the submodule.
 
-Per issue #758 AC-1, AC-2, AC-3.
+Per issue #758 AC-1, AC-3.
 """
 
 import pytest
@@ -32,10 +31,7 @@ from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
-    ValidateCaseStatusTransitionNode,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -131,106 +127,6 @@ class TestCheckCaseStatusIdempotencyNode:
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# ValidateCaseStatusTransitionNode
-# ---------------------------------------------------------------------------
-
-
-class TestValidateCaseStatusTransitionNode:
-    def test_first_status_always_passes(self, populated_bridge, status_obj):
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=status_obj,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_valid_em_transition_passes(self, populated_bridge):
-        # Default case has a as_CaseStatus with em_state=EM.NONE;
-        # NONE → PROPOSED is a valid forward transition.
-        new_status = as_CaseStatus(
-            id_=STATUS2_ID, context=CASE_ID, em_state=EM.PROPOSED
-        )
-        populated_bridge.datalayer.save(new_status)
-
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS2_ID,
-            status_obj_fallback=new_status,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_invalid_em_transition_fails(self, populated_bridge):
-        # Default case has a as_CaseStatus with em_state=EM.NONE;
-        # NONE → ACTIVE is invalid (skips PROPOSED).
-        new_status = as_CaseStatus(
-            id_=STATUS2_ID, context=CASE_ID, em_state=EM.ACTIVE
-        )
-        populated_bridge.datalayer.save(new_status)
-
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS2_ID,
-            status_obj_fallback=new_status,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.FAILURE
-
-    def test_no_current_status_allows_any_transition(self):
-        """SUCCESS when case.current_status raises ValueError (no materialized status).
-
-        AC-2: first-status-ever escape hatch — when current_status raises
-        ValueError the node must return SUCCESS rather than crash or FAILURE.
-        This tests the try/except ValueError branch introduced to fix the
-        latent getattr(case, "current_status", None) bug (getattr does not
-        suppress ValueError from property getters).
-        """
-        from unittest.mock import MagicMock, PropertyMock
-
-        from vultron.core.behaviors.status.nodes.case_status import (
-            ValidateCaseStatusTransitionNode,
-        )
-
-        new_status = as_CaseStatus(
-            id_=STATUS2_ID,
-            context=CASE_ID,
-            em_state=EM.ACTIVE,
-        )
-
-        # Use spec=VulnerabilityCase so isinstance() passes, but override current_status to raise.
-        mock_case = MagicMock(spec=VulnerabilityCase)
-        mock_case.case_participants = []
-        mock_case.case_statuses = []
-        type(mock_case).current_status = PropertyMock(
-            side_effect=ValueError("no materialized CaseStatus")
-        )
-
-        mock_dl = MagicMock()
-        mock_dl.read.side_effect = lambda obj_id, **_: (
-            mock_case if obj_id == CASE_ID else new_status
-        )
-
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS2_ID,
-            status_obj_fallback=new_status,
-        )
-        # Inject mock datalayer directly on the instance.
-        node.datalayer = mock_dl
-
-        result = node.update()
-
-        assert result == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------

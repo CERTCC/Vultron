@@ -31,7 +31,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.append import (
-    CheckParticipantRMNotClosedNode,
     CheckStatusNotAlreadyAppendedNode,
     LoadParticipantNode,
     ResolveAndPersistStatusObjectNode,
@@ -339,70 +338,3 @@ class TestValidateRMTransitionNode:
         assert (
             anomaly is None
         ), f"Expected no anomaly for adjacent transition, got {anomaly}"
-
-
-# ---------------------------------------------------------------------------
-# CheckParticipantRMNotClosedNode
-# ---------------------------------------------------------------------------
-
-
-class TestCheckParticipantRMNotClosedNode:
-    def test_open_participant_succeeds(self, populated_dl):
-        """Participant not in CLOSED state → SUCCESS."""
-        bridge = BTBridge(datalayer=populated_dl)
-        node = CheckParticipantRMNotClosedNode(participant_id=PARTICIPANT_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_missing_participant_succeeds(self, bridge):
-        """Participant not found in DataLayer → SUCCESS (no terminal check)."""
-        node = CheckParticipantRMNotClosedNode(
-            participant_id="https://example.org/missing/participant"
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    @pytest.mark.spec("RSH-05-006")
-    def test_closed_participant_fails(self, populated_dl):
-        """Participant already in RM.CLOSED without prior status match → FAILURE."""
-        closed_status = as_ParticipantStatus(
-            id_="https://example.org/cases/case-01/statuses/c1",
-            context=CASE_ID,
-            rm_state=RM.CLOSED,
-        )
-        populated_dl.create(closed_status)
-        p = populated_dl.read(PARTICIPANT_ID)
-        p.participant_statuses.append(closed_status)
-        populated_dl.save(p)
-
-        bridge = BTBridge(datalayer=populated_dl)
-        node = CheckParticipantRMNotClosedNode(
-            participant_id=PARTICIPANT_ID, status_id=STATUS_ID
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    def test_closed_participant_with_matching_status_succeeds(
-        self, populated_dl
-    ):
-        """Participant CLOSED but status already appended → SUCCESS (idempotent)."""
-        status = populated_dl.read(STATUS_ID)
-        closed_status = as_ParticipantStatus(
-            id_="https://example.org/cases/case-01/statuses/c1",
-            context=CASE_ID,
-            rm_state=RM.CLOSED,
-        )
-        populated_dl.create(closed_status)
-        p = populated_dl.read(PARTICIPANT_ID)
-        # STATUS_ID appended first, then CLOSED last — so participant_status
-        # (= participant_statuses[-1]) is CLOSED, but STATUS_ID is present.
-        p.participant_statuses.append(status)
-        p.participant_statuses.append(closed_status)
-        populated_dl.save(p)
-
-        bridge = BTBridge(datalayer=populated_dl)
-        node = CheckParticipantRMNotClosedNode(
-            participant_id=PARTICIPANT_ID, status_id=STATUS_ID
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
