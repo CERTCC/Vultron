@@ -21,6 +21,9 @@ from vultron.core.use_cases._helpers import (
 )
 
 if TYPE_CHECKING:
+    from vultron.core.behaviors.call_out.bundles.status_authorization import (
+        StatusAuthorizationCallOutBundle,
+    )
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -52,10 +55,12 @@ class AddCaseStatusToCaseReceivedUseCase:
         dl: CasePersistence,
         request: AddCaseStatusToCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        call_out: "StatusAuthorizationCallOutBundle | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddCaseStatusToCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._call_out = call_out
 
     def execute(self) -> None:
         request = self._request
@@ -75,7 +80,10 @@ class AddCaseStatusToCaseReceivedUseCase:
             CASE_STATUS_ALREADY_PRESENT,
         )
 
-        tree = add_case_status_tree(request=request)
+        call_out_kwargs = (
+            {"call_out": self._call_out} if self._call_out is not None else {}
+        )
+        tree = add_case_status_tree(request=request, **call_out_kwargs)
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
@@ -158,11 +166,13 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         request: AddParticipantStatusToParticipantReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        call_out: "StatusAuthorizationCallOutBundle | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddParticipantStatusToParticipantReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
+        self._call_out = call_out
 
     def execute(self) -> None:
         request = self._request
@@ -185,9 +195,13 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         # Resolve case_id for the guarded-commit subtree (pre-flight lookup).
         case_id = self._resolve_case_id_for_log_cascade()
 
+        call_out_kwargs = (
+            {"call_out": self._call_out} if self._call_out is not None else {}
+        )
         tree = add_participant_status_tree(
             request=request,
             case_id=case_id,
+            **call_out_kwargs,
         )
         bridge = BTBridge(
             datalayer=self._dl,

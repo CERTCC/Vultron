@@ -71,6 +71,7 @@ from vultron.core.behaviors.call_out.bundles.publication import (
 )
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
+    STATUS_AUTHORIZATION_PERMISSIVE,
     StatusAuthorizationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.bundles.validation import (
@@ -107,5 +108,6 @@ __all__ = [
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
     "STATUS_AUTHORIZATION_DETERMINISTIC",
+    "STATUS_AUTHORIZATION_PERMISSIVE",
     "VALIDATION_DETERMINISTIC",
 ]

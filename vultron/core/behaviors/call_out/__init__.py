@@ -33,11 +33,16 @@ simulation artifacts and are injected explicitly via ``call_out=`` by demo /
 test code.
 """
 
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import (
+    AlwaysFail,
+    AlwaysSucceed,
+    RequireCaseOwnerApprovalNode,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 __all__ = [
     "CallOutBackendFactory",
     "AlwaysSucceed",
     "AlwaysFail",
+    "RequireCaseOwnerApprovalNode",
 ]

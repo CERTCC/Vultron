@@ -39,6 +39,7 @@ from vultron.core.behaviors.call_out import (
     AlwaysSucceed,
     CallOutBackendFactory,
 )
+from vultron.core.behaviors.call_out.nodes import RequireCaseOwnerApprovalNode
 from vultron.core.behaviors.call_out.bundles import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     ASSIGN_CVE_ID_DETERMINISTIC,
@@ -125,6 +126,34 @@ class TestAlwaysFail:
         assert AlwaysFail().name == "AlwaysFail"
 
 
+class TestRequireCaseOwnerApprovalNode:
+    def test_update_returns_failure(self):
+        node = RequireCaseOwnerApprovalNode("CaseOwnerApprovesStatusUpdate")
+        assert all(node.update() == Status.FAILURE for _ in range(50))
+
+    def test_tick_sets_failure_status(self):
+        node = RequireCaseOwnerApprovalNode("n")
+        node.tick_once()
+        assert node.status == Status.FAILURE
+
+    def test_success_rate_attribute(self):
+        assert RequireCaseOwnerApprovalNode.success_rate == 0.0
+
+    def test_is_py_trees_behaviour(self):
+        assert isinstance(
+            RequireCaseOwnerApprovalNode("n"), py_trees.behaviour.Behaviour
+        )
+
+    def test_name_passthrough(self):
+        assert RequireCaseOwnerApprovalNode("MyNode").name == "MyNode"
+
+    def test_default_name_is_class_name(self):
+        assert (
+            RequireCaseOwnerApprovalNode().name
+            == "RequireCaseOwnerApprovalNode"
+        )
+
+
 def test_core_nodes_do_not_subclass_weighted_behavior():
     """Core nodes are deterministic — not the demo WeightedBehavior family.
 
@@ -133,6 +162,10 @@ def test_core_nodes_do_not_subclass_weighted_behavior():
     """
     assert AlwaysSucceed.__module__ == "vultron.core.behaviors.call_out.nodes"
     assert AlwaysFail.__module__ == "vultron.core.behaviors.call_out.nodes"
+    assert (
+        RequireCaseOwnerApprovalNode.__module__
+        == "vultron.core.behaviors.call_out.nodes"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -141,9 +174,10 @@ def test_core_nodes_do_not_subclass_weighted_behavior():
 
 
 def test_core_nodes_satisfy_backend_factory_protocol():
-    """Both core node classes are valid CallOutBackendFactory callables."""
+    """All core node classes are valid CallOutBackendFactory callables."""
     assert isinstance(AlwaysSucceed, CallOutBackendFactory)
     assert isinstance(AlwaysFail, CallOutBackendFactory)
+    assert isinstance(RequireCaseOwnerApprovalNode, CallOutBackendFactory)
 
 
 def test_demo_and_core_nodes_share_the_factory_contract():
@@ -164,16 +198,27 @@ def test_demo_and_core_nodes_share_the_factory_contract():
 # ---------------------------------------------------------------------------
 
 
+_CORE_DETERMINISTIC_NODE_TYPES = (
+    AlwaysSucceed,
+    AlwaysFail,
+    RequireCaseOwnerApprovalNode,
+)
+
+
 @pytest.mark.parametrize("bundle", _DETERMINISTIC_BUNDLES)
 def test_bundle_factories_build_core_deterministic_nodes(bundle):
-    """Every field of each DETERMINISTIC bundle builds a core AlwaysSucceed/Fail
-    node that honours the CallOutBackendFactory contract."""
+    """Every field of each DETERMINISTIC bundle builds a core deterministic node
+    that honours the CallOutBackendFactory contract.
+
+    Accepted types: AlwaysSucceed, AlwaysFail, or RequireCaseOwnerApprovalNode
+    (security-significant gates default to RequireCaseOwnerApprovalNode per ADR-0076).
+    """
     fields = _factory_fields(bundle)
     assert fields, f"{type(bundle).__name__} has no factory fields"
     for factory in fields:
         assert isinstance(factory, CallOutBackendFactory)
         node = factory("probe")
-        assert isinstance(node, (AlwaysSucceed, AlwaysFail))
+        assert isinstance(node, _CORE_DETERMINISTIC_NODE_TYPES)
         assert node.name == "probe"
 
 
