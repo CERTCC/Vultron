@@ -251,16 +251,20 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        current = case.current_status
+        try:
+            current = case.current_status
+        except (ValueError, IndexError):
+            self.feedback_message = (
+                f"Case '{self.case_id}' has no materialized CaseStatus"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             em=EmDimension(state=current.em.state),
             pxa=PxaDimension(state=current.pxa.state),
         )
-        self.datalayer.save(new_status)
-        case.add_case_status(new_status)
-        self.datalayer.save(case)
 
         status_dict: dict[str, Any] = new_status.model_dump(
             mode="json",
@@ -297,6 +301,11 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+
+        # Persist only after the ledger commit succeeds to avoid phantom state.
+        self.datalayer.save(new_status)
+        case.add_case_status(new_status)
+        self.datalayer.save(case)
 
         self.logger.info(
             "%s: committed CaseStatus '%s' for case '%s'",

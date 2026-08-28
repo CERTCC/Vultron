@@ -60,6 +60,18 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         self.status_obj = status_obj
         self.case_id = case_id
 
+    def _case_status_from_datalayer(self) -> object:
+        """Read case.current_status from the DataLayer; returns None on any miss."""
+        if self.datalayer is None or not self.case_id:
+            return None
+        case_obj = self.datalayer.read(self.case_id)
+        if not isinstance(case_obj, VulnerabilityCase):
+            return None
+        try:
+            return case_obj.current_status
+        except (ValueError, IndexError):
+            return None
+
     def _threat_present(self) -> bool:
         """Return True if pxa state has at least one of P, X, or A set."""
         from vultron.core.states.cs import CS_pxa
@@ -67,6 +79,15 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         case_status: object = getattr(self.status_obj, "case_status", None)
         if case_status is None:
             case_status = self.status_obj
+
+        # When status_obj carries no PXA info, fall back to the case's own
+        # current_status (e.g. after EmitCaseStatusUpdateNode has written it).
+        if case_status is None or (
+            not hasattr(case_status, "pxa")
+            and not hasattr(case_status, "pxa_state")
+        ):
+            case_status = self._case_status_from_datalayer()
+
         if case_status is None:
             return False
         if hasattr(case_status, "pxa"):
@@ -107,8 +128,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
     embargo.
 
     Does NOT gate on sender role (RSH-03-002) — authorization was
-    already verified at StatusAdoptionGate.  The self-addressed ``Add(CaseStatus)``
-    arrives with the CaseActor as sender, not the original peer.
+    already verified at StatusAdoptionGate before this node is reached.
 
     Delegates to ``terminate_embargo_bt`` (BT-19-002).  Skips silently
     (returns SUCCESS) when teardown conditions are not met.
