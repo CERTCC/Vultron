@@ -1353,10 +1353,7 @@ def wait_for_initialized_case(
             client.dl_path("VulnerabilityCases/", actor_id=case_actor_id)
         )
         for case_raw in cases_by_id.values():
-            try:
-                case = as_VulnerabilityCase(**case_raw)
-            except Exception:  # noqa: BLE001
-                continue
+            case = as_VulnerabilityCase(**case_raw)
             if case.case_participants:
                 found.append(case)
                 logger.info(
