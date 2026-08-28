@@ -96,17 +96,25 @@ class AlwaysFail(py_trees.behaviour.Behaviour):
 
 
 class RequireCaseOwnerApprovalNode(py_trees.behaviour.Behaviour):
-    """Conservative approval gate: blocks until Case Owner explicitly approves.
-
-    Represents the Offer/Accept/Reject round-trip described in ADR-0076.
-    Returns ``FAILURE`` to indicate that approval has not yet been obtained,
-    which blocks any downstream state adoption or side-effect execution.
+    """Conservative approval gate: blocking stub pending full round-trip.
 
     This is the DETERMINISTIC default for security-significant authorization
-    gates (RSH-07-001, RSH-07-002, ADR-0076). A permissive override
-    (``STATUS_AUTHORIZATION_PERMISSIVE``) is available for demos and
-    trusted-participant deployments but MUST be explicitly configured
-    (RSH-07-003).
+    gates (RSH-07-001, RSH-07-002, ADR-0076). Always returns ``FAILURE`` to
+    block any downstream state adoption or side-effect execution until the
+    Case Owner explicitly approves.
+
+    .. note::
+        This is a **blocking stub**. ADR-0076 specifies that the full
+        implementation should perform an Offer/Accept/Reject round-trip with
+        the Case Owner (send ``Offer`` carrying the pending action, wait for
+        ``Accept`` or ``Reject``, return ``SUCCESS``/``FAILURE`` accordingly).
+        That round-trip is tracked in a follow-on issue. Until then, this node
+        permanently blocks non-owner state adoption — the correct conservative
+        posture for a security-significant gate.
+
+    A permissive override (``STATUS_AUTHORIZATION_PERMISSIVE``) is available
+    for demos and trusted-participant deployments but MUST be explicitly
+    configured (RSH-07-003).
     """
 
     #: Read-only rate interface parity with the simulation backends.
