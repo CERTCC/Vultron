@@ -689,6 +689,38 @@ class TestSetEmbargoActiveNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.NONE
 
+    def test_returns_failure_when_current_status_raises_value_error(self):
+        """FAILURE when case.current_status raises ValueError (no materialized status).
+
+        Regression test for issue #2742: activate_embargo() calls
+        case.current_status.em.state internally when em_before is not provided.
+        A ValueError from an empty case_statuses list must be caught and mapped
+        to Status.FAILURE, not propagate as an uncaught exception.
+        """
+        from unittest.mock import MagicMock, PropertyMock
+
+        from vultron.core.models.case import VulnerabilityCase
+
+        mock_case = MagicMock(spec=VulnerabilityCase)
+        mock_case.case_participants = []
+        mock_case.active_embargo = None
+        type(mock_case).current_status = PropertyMock(
+            side_effect=ValueError("no materialized CaseStatus")
+        )
+
+        mock_dl = MagicMock()
+        mock_dl.read.return_value = mock_case
+
+        node = SetEmbargoActiveNode(
+            case_id="https://example.org/cases/any",
+            embargo_id="https://example.org/cases/any/embargo_events/e1",
+        )
+        node.datalayer = mock_dl
+
+        result = node.update()
+
+        assert result == py_trees.common.Status.FAILURE
+
     @pytest.mark.spec("EMB-18-001")
     def test_em_write_goes_through_embargo_lifecycle(self):
         """EMB-18-001: EM write is delegated to EmbargoLifecycle.activate_embargo().
