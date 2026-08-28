@@ -45,10 +45,10 @@ EmbargoTeardownAuthorizationGate; ``add_participant_status_tree`` does not execu
 ``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
 ``pxa`` independently before the commit, so an unacceptable value in one
 dimension no longer discards the accepted dimensions or aborts the Sequence
-before the StatusAdoptionGate emit (RSH-05, ISSUE-2235).  It replaces the former
-``CheckParticipantRMNotClosedNode`` guard, subsuming the terminal-``RM.CLOSED``
-check: a wholly refused assertion still returns FAILURE here, before any
-canonical ledger entry is committed.
+before the StatusAdoptionGate emit (RSH-05, ISSUE-2235).  It replaced the
+former ``CheckParticipantRMNotClosedNode`` guard (now removed), subsuming the
+terminal-``RM.CLOSED`` check: a wholly refused assertion still returns FAILURE
+here, before any canonical ledger entry is committed.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-05.
