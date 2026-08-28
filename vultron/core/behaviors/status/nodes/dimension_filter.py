@@ -88,8 +88,8 @@ def _accepted_wire_patch(
     """Return the adjudicated dimension values keyed by their wire aliases.
 
     The canonical ledger's ``payload_snapshot['object']`` is the *sender's*
-    wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfdState``, nested
-    ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
+    wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfState``/``dState``,
+    nested ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
     override is therefore published as a **patch** rather than a replacement
     object: patching leaves the snapshot's shape exactly as the non-override
     path produces it and rewrites only what was adjudicated (RSH-05-004,
@@ -99,7 +99,7 @@ def _accepted_wire_patch(
     rendered = port.render(filtered)
     return {
         k: rendered[k]
-        for k in ("rmState", "vfdState", "caseStatus")
+        for k in ("rmState", "vfState", "dState", "caseStatus")
         if k in rendered
     }
 

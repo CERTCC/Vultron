@@ -164,11 +164,12 @@ class ParticipantStatus(CoreObject):
     def _enforce_role_dimension_invariant(cls, data: Any) -> Any:
         """Auto-initialise vf/d dimensions based on cvd_role (ADR-0075).
 
-        Runs after ``_migrate_flat_fields`` so that vf/d dict entries from
-        flat ``vf_state``/``d_state`` inputs are already populated before the
-        role check fires.  Uses ``mode="before"`` (ADR-0064) to avoid
-        recursive validation that ``mode="after"`` self-assignment would cause
-        under ``validate_assignment=True``.
+        Pydantic v2 runs mode='before' validators in reverse definition order,
+        so this validator fires *before* _migrate_flat_fields.  Flat keys
+        (``vf_state``/``vfState``, ``d_state``/``dState``) are therefore
+        detected here and excluded from the empty-dict seed; _migrate_flat_fields
+        will hydrate them on its subsequent pass.  Uses ``mode="before"``
+        (ADR-0064) to avoid recursive validation under ``validate_assignment=True``.
 
         VENDOR role → vf must be non-None (auto-set to initial state when absent).
         DEPLOYER role → d must be non-None (auto-set to initial state when absent).
@@ -177,9 +178,22 @@ class ParticipantStatus(CoreObject):
             return data
         roles_raw = data.get("cvd_role") or data.get("cvdRole") or []
         roles = coerce_cvd_roles(roles_raw)
-        if CVDRole.VENDOR in roles and data.get("vf") is None:
+        # Pydantic v2 runs mode='before' validators in reverse definition order,
+        # so this validator fires before _migrate_flat_fields. Skip seeding when
+        # a flat key is already present — _migrate_flat_fields will hydrate it.
+        vf_absent = (
+            data.get("vf") is None
+            and data.get("vf_state") is None
+            and data.get("vfState") is None
+        )
+        if CVDRole.VENDOR in roles and vf_absent:
             data["vf"] = {}
-        if CVDRole.DEPLOYER in roles and data.get("d") is None:
+        d_absent = (
+            data.get("d") is None
+            and data.get("d_state") is None
+            and data.get("dState") is None
+        )
+        if CVDRole.DEPLOYER in roles and d_absent:
             data["d"] = {}
         return data
 

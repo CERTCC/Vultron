@@ -332,20 +332,20 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 rm_before,
                 self._rm_state,
             )
-        if self._vf_state is not None and vf_before is not None:
+        if self._vf_state is not None:
             log_cs_transition(
                 self.logger,
                 self._actor_id,
                 self._case_id,
-                vf_before,
+                vf_before if vf_before is not None else CS_vf.vf,
                 self._vf_state,
             )
-        if self._d_state is not None and d_before is not None:
+        if self._d_state is not None:
             log_cs_transition(
                 self.logger,
                 self._actor_id,
                 self._case_id,
-                d_before,
+                d_before if d_before is not None else CS_d.d,
                 self._d_state,
             )
         if self._pxa_state is not None and pxa_before is not None:
