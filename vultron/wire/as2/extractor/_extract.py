@@ -10,19 +10,18 @@ registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from vultron.core.models.events import MessageSemantics, VultronEvent
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
     _to_domain_obj,
 )
+from vultron.wire.as2.factories.embargo import _DEFAULT_MIN_RSVP_WINDOW
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
 
 
 def extract_intent(

@@ -362,13 +362,15 @@ def test_invite_rsvp_deadline_distinct_from_embargo_end_time():
     invite = _make_embargo_invite(end_time=rsvp)
     event = extract_event(invite)
 
-    # The nested embargo's end_time is on the object_, not on rsvp_deadline
+    # The nested embargo's end_time is on the activity's object_, not rsvp_deadline
     ev = cast(Any, event)
     assert ev.rsvp_deadline == rsvp.astimezone(timezone.utc)
-    # The embargo expiry is separately accessible via the nested object
-    embargo_end_time = getattr(event.object_, "end_time", None)
-    if embargo_end_time is not None:
-        assert embargo_end_time != ev.rsvp_deadline
+    # The embargo expiry is on event.activity.object_.end_time (90 days out)
+    embargo_end_time = getattr(
+        getattr(ev.activity, "object_", None), "end_time", None
+    )
+    assert embargo_end_time is not None
+    assert embargo_end_time != ev.rsvp_deadline
 
 
 @pytest.mark.spec("EP-07-003")
@@ -383,3 +385,14 @@ def test_invite_rsvp_deadline_clamped_when_below_floor():
     assert ev.rsvp_deadline is not None
     # Clamped up: deadline is >= now (was in the past)
     assert ev.rsvp_deadline > datetime.now(tz=timezone.utc)
+
+
+@pytest.mark.spec("EP-07-002")
+def test_invite_rsvp_deadline_none_when_naive_end_time():
+    """AC-7 (inbound naive): naive end_time on invite is ignored → rsvp_deadline is None."""
+    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    invite = _make_embargo_invite(end_time=naive_deadline)
+    event = extract_event(invite)
+
+    assert hasattr(event, "rsvp_deadline")
+    assert cast(Any, event).rsvp_deadline is None
