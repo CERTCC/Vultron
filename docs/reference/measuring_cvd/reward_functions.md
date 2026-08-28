@@ -2,13 +2,18 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
+!!! note "Historical context — 2026-08-28"
+    This page reflects aspirational research directions identified in the 2022 Vultron
+    technical reports. No reward-function implementation exists in the codebase;
+    this remains open future work.
+
 Further optimization of the Vultron Protocol can be studied with the
 development of reward functions to evaluate preferences for certain
 CVD case histories
 over others.
 In [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"},
 we provided a method to measure skill (${\alpha}_d$) in CVD based on a partial order over the CVD success criteria that make up the CS process, as outlined in
-[Defining CVD Success](../background/cvd_success.md).
+[Defining CVD Success](../../topics/background/cvd_success.md).
 While not yet a fully-realized reward function, we feel that the ${\alpha}_d$ skill measure has potential as the basis
 of a reward function for the CS model.
 
@@ -16,7 +21,7 @@ The following sections describe two additional reward functions.
 
 ## A Reward Function for Minimizing RM Strings
 
-In [RM State Transitions](../process_models/rm/index.md#rm-state-transitions), we described a grammar that generates
+In [RM State Transitions](../../topics/process_models/rm/index.md#rm-state-transitions), we described a grammar that generates
 RM histories.
 The state machine can generate arbitrarily long histories because of the cycles in the state machine graph;
 however, we observed that human Participants in any real CVD case would likely check the amount of churn.
@@ -79,7 +84,7 @@ information as part of the case.
 ## A Reward Function for Minimizing EM Strings
 
 Similarly, the EM process also has the potential to generate arbitrarily long histories,
-as shown in [A Regular Grammar for EM](../process_models/em/index.md).
+as shown in [A Regular Grammar for EM](../../topics/process_models/em/index.md).
 Again, reliance on humans to resolve this shortcoming may be acceptable for now;
 however, looking to the future, we can imagine a reward function to be optimized.
 The EM reward function might include the following:

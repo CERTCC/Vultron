@@ -2,6 +2,18 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
+!!! note "Historical context — 2026-08-28"
+    This page reflects the actor-discovery problem as described in the 2022 Vultron
+    technical reports. The problem remains open and unimplemented in Vultron.
+    Related tracking:
+
+    - [#1189](https://github.com/CERTCC/Vultron/issues/1189) — ActivityPub/WebFinger-compatible
+      directory service
+    - [#2068](https://github.com/CERTCC/Vultron/issues/2068) — Design and build a full
+      ActivityPub service for Vultron
+    - [#2469](https://github.com/CERTCC/Vultron/issues/2469) — Actor discovery Retriever
+      call-out seam (added to the BT; backend implementation remains future work)
+
 The idea of CVD embargoes implies a means of dividing the world into
 
 1. those who belong in the embargo
