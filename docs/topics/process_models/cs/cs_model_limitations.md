@@ -1,6 +1,11 @@
 # Limitations and Future Work
 
-{% include-markdown "../../includes/not_normative.md" %}
+{% include-markdown "../../../includes/not_normative.md" %}
+
+!!! note "Historical context — 2026-08-28"
+    This page reflects open research questions identified in the 2021/2022 Vultron
+    technical reports. These theoretical limitations of the CS model remain valid;
+    the reference implementation does not resolve them.
 
 This section highlights some limitations of the current work and lays
 out a path for improving on those limitations in future work. Broadly,
@@ -13,7 +18,7 @@ the opportunities for expanding the model include
 
 - options for modeling attacker behavior
 
-- modeling multiple agents
+- modeling multiple actors
 
 - gathering more data about CVD in the world
 
@@ -25,8 +30,8 @@ the opportunities for expanding the model include
 ## State Explosion
 
 Although our discussion of MPCVD in
-[Possible Histories](../../reference/measuring_cvd/possible_histories.md) and
-[Benchmarking](../../reference/measuring_cvd/benchmarking.md) highlights one area in which the number
+[Possible Histories](../../../reference/measuring_cvd/possible_histories.md) and
+[Benchmarking](../../../reference/measuring_cvd/benchmarking.md) highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
 could arise in the context of VM efforts even within normal
 CVD cases. Our
@@ -86,7 +91,7 @@ MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
-As described in [Reasoning Over Histories](../../reference/measuring_cvd/reasoning_over_histories.md),
+As described in [Reasoning Over Histories](../../../reference/measuring_cvd/reasoning_over_histories.md),
 some ambiguity remains regarding
 preferences for elements of $\mathbb{D}$. These preferences would need
 to be addressed before the model can achieve a total order over
@@ -146,7 +151,16 @@ is reasonable from the perspective of a vendor or system owner.
 Furthermore, if attacks were easily predicted, we would be having a very
 different conversation.
 
-## Modeling Multiple Agents
+## Modeling Multiple Actors
+
+!!! note "Terminology and implementation note — 2026-08-28"
+    The original text used "agents" in the academic multi-agent systems sense.
+    In current Vultron vocabulary, the protocol-level participants are called
+    **Actors** (URI-identified federated peers); "agent" is now reserved for
+    LLM-based agentic AI systems. The reference implementation in `vultron/demo/`
+    realizes multi-Actor protocol simulation using Behavior Trees. Full
+    agent-based modeling for outcome research analysis — the deeper study of
+    strategy interactions described below — remains future work.
 
 We agree with the reviewer who suggested that an agent-based model could
 allow deeper examination of the interactions between stakeholders in
@@ -167,7 +181,7 @@ they arise.
 
 ## Gather Data About CVD
 
-[Benchmarking](../../reference/measuring_cvd/benchmarking.md)
+[Benchmarking](../../../reference/measuring_cvd/benchmarking.md)
 discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
@@ -191,7 +205,7 @@ past observations.
 
 While there is a modeling choice about using the uniformity assumption
 versus observations from past CVD (see
-[Benchmarking](../../reference/measuring_cvd/benchmarking.md)), the model does not depend on whether the
+[Benchmarking](../../../reference/measuring_cvd/benchmarking.md)), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
@@ -206,7 +220,7 @@ Not all events $\sigma \in \Sigma$, and therefore not all desiderata
 $d \in \mathbb{D}$, will be observable by all interested parties. But in
 many cases at least some are, which can still help to infer reasonable
 limits on the others, as shown in
-[Observing Skill](../../reference/measuring_cvd/observing_skill.md).
+[Observing Skill](../../../reference/measuring_cvd/observing_skill.md).
 
 Vendors are in a good position to observe most of the events in each
 case. This is even more so if they have good sources of threat
@@ -220,7 +234,7 @@ parties, for the reasons described in the timing discussion above.
 
 ## CVD Action Rules Are Not Algorithms
 
-The [CVD Action Rules](../other_uses/action_rules.md) are not algorithms. We do not propose
+The [CVD Action Rules](../../other_uses/action_rules.md) are not algorithms. We do not propose
 them as a set of required actions for every CVD case. However, following Atul Gawande's
 lead, we offer them as a mechanism to generate CVD checklists:
 
@@ -236,7 +250,7 @@ lead, we offer them as a mechanism to generate CVD checklists:
 ## MPCVD Criteria Do Not Account for Equitable Resilience
 
 The proposed criteria for MPCVD in
-[Benchmarking](../../reference/measuring_cvd/benchmarking.md) fail to account for either user
+[Benchmarking](../../../reference/measuring_cvd/benchmarking.md) fail to account for either user
 populations or their relative importance. For example, suppose an
 MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total
