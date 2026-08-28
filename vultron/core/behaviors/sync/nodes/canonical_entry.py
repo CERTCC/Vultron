@@ -28,6 +28,7 @@ Spec: CLP-07, CLP-12.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from vultron.errors import VultronCanonicalEntryError
@@ -98,6 +99,18 @@ _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
 )
 
 
+def _parse_published(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value)
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
 def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
     activity_type = snapshot.get("type") or snapshot.get("type_")
     return (
@@ -150,6 +163,72 @@ def _bare_inline_object_path(
     return None
 
 
+def _validate_entry_timestamps(
+    *,
+    event_type: str,
+    payload_snapshot: dict[str, Any],
+    case_published: datetime,
+    prev_entry_published: datetime | None,
+    future_tolerance: timedelta | None,
+    staleness_window: timedelta | None,
+) -> None:
+    """Enforce CLP-14 timestamp invariants at commit time.
+
+    Checks ``payloadSnapshot.published`` — the AS2 activity's *claimed*
+    timestamp, not the ``CaseLedgerEntry.published`` commit timestamp.
+    The conformance harness (``check_clp14_timestamp_invariants``) is
+    authoritative over the commit timestamp; this guard fires earlier,
+    at the boundary between wire receipt and ledger commit.
+    """
+    if not case_published.tzinfo:
+        case_published = case_published.replace(tzinfo=timezone.utc)
+    if prev_entry_published is not None and not prev_entry_published.tzinfo:
+        prev_entry_published = prev_entry_published.replace(
+            tzinfo=timezone.utc
+        )
+    raw_published = payload_snapshot.get("published")
+    if raw_published is None:  # CLP-14-002
+        raise VultronCanonicalEntryError(
+            f"{event_type}: CLP-14-002 — payloadSnapshot.published is required"
+        )
+    entry_published = _parse_published(raw_published)
+    if entry_published is None:  # CLP-14-002 (malformed)
+        raise VultronCanonicalEntryError(
+            f"{event_type}: CLP-14-002 — payloadSnapshot.published is not a "
+            "valid ISO 8601 timestamp"
+        )
+    if entry_published < case_published:  # CLP-14-006
+        raise VultronCanonicalEntryError(
+            f"{event_type}: CLP-14-006 — entry published {entry_published} "
+            f"predates case created {case_published}"
+        )
+    if (  # CLP-14-003
+        prev_entry_published is not None
+        and entry_published < prev_entry_published
+    ):
+        raise VultronCanonicalEntryError(
+            f"{event_type}: CLP-14-003 — entry published {entry_published} "
+            f"regresses before previous entry {prev_entry_published}"
+        )
+    now = datetime.now(tz=timezone.utc)
+    if (
+        future_tolerance is not None
+        and entry_published > now + future_tolerance
+    ):
+        raise VultronCanonicalEntryError(  # CLP-14-007
+            f"{event_type}: CLP-14-007 — entry published {entry_published} "
+            f"exceeds future tolerance of {future_tolerance}"
+        )
+    if (
+        staleness_window is not None
+        and entry_published < now - staleness_window
+    ):
+        raise VultronCanonicalEntryError(  # CLP-14-008
+            f"{event_type}: CLP-14-008 — entry published {entry_published} "
+            f"exceeds staleness window of {staleness_window}"
+        )
+
+
 def _validate_canonical_entry(
     *,
     case_id: str,
@@ -158,6 +237,10 @@ def _validate_canonical_entry(
     disposition: str,
     payload_snapshot: dict[str, Any],
     event_type: str,
+    case_published: datetime | None = None,
+    prev_entry_published: datetime | None = None,
+    future_tolerance: timedelta | None = timedelta(minutes=5),
+    staleness_window: timedelta | None = timedelta(days=7),
 ) -> None:
     # Runs before idempotency check so malformed entries never reach the
     # equivalence lookup (CLP-07). Relaxed for non-recorded dispositions.
@@ -209,4 +292,16 @@ def _validate_canonical_entry(
     if context != case_id:
         raise VultronCanonicalEntryError(
             f"{event_type}: payloadSnapshot.context must equal the case URI"
+        )
+
+    # CLP-14 timestamp invariants: gated on caller providing case_published so
+    # callers without temporal context can opt out by omitting the argument.
+    if case_published is not None:
+        _validate_entry_timestamps(
+            event_type=event_type,
+            payload_snapshot=payload_snapshot,
+            case_published=case_published,
+            prev_entry_published=prev_entry_published,
+            future_tolerance=future_tolerance,
+            staleness_window=staleness_window,
         )
