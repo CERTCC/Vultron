@@ -334,7 +334,7 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-deployed
   "to": ["http://vendor:7999/api/v2/actors/{ca-uuid}"],
   "object": {
     "type": "ParticipantStatus",
-    "vfd_state": "VFd",
+    "vf_state": "Vf",
     "attributed_to": "http://vendor:7999/api/v2/actors/vendor"
   },
   "target": {
