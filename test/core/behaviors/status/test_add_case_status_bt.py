@@ -33,6 +33,7 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_PERMISSIVE,
     StatusAuthorizationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
@@ -227,7 +228,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
         bridge = BTBridge(datalayer=populated_dl)
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -318,7 +321,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
 
@@ -945,7 +950,9 @@ class TestCaseLedgerEntryCreation:
             update={"activity": activity}
         )
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID_2254, activity=event
