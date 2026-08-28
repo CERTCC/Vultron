@@ -87,6 +87,7 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.verification import _check_participant_vfd_state_in
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    drain_phase1_ledger,
     find_case_actor_participant_id,
     PARTICIPANT_JOIN_TIMEOUT,
     find_case_invite_for_actor,
@@ -261,23 +262,22 @@ def _phase_report_submission(
     logger.info("C2 invite created: %s", invite.id_)
 
     # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
-    invite_id = None
     with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
         invite_id = find_case_invite_for_actor(
             client=c2_client,
             case_id=case.id_,
             invitee_id=c2.id_,
         )
-    logger.info("CaseActor Invite for C2: %s", invite_id)
+        logger.info("CaseActor Invite for C2: %s", invite_id)
 
-    # C2 accepts the invite.
-    with demo_step("C2 accepts the case invitation"):
-        post_to_trigger(
-            client=c2_client,
-            actor_id=c2_in_c2.id_,
-            behavior="accept-case-invite",
-            body={"invite_id": invite_id},
-        )
+        # C2 accepts the invite.
+        with demo_step("C2 accepts the case invitation"):
+            post_to_trigger(
+                client=c2_client,
+                actor_id=c2_in_c2.id_,
+                behavior="accept-case-invite",
+                body={"invite_id": invite_id},
+            )
 
     # Wait for C2's container to replicate the case.
     with demo_check("C2's DataLayer received case replica"):
@@ -306,25 +306,14 @@ def _phase_report_submission(
 
     # Drain the CaseActor's outbox before Phase 2 starts (ADR-0026, ADR-0058,
     # issue #2819).
-    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-    if c1_entries:
-        c1_tail_index: int = max(c1_entries, key=lambda e: e["log_index"])[
-            "log_index"
-        ]
-        for replica_client, label in [
+    drain_phase1_ledger(
+        auth_client=c1_client,
+        case_id=case.id_,
+        replica_pairs=[
             (finder_client, "Finder"),
             (c2_client, "C2"),
-        ]:
-            with demo_gate(
-                f"{label} ledger coverage (Phase 1 drain before Phase 2)"
-            ):
-                wait_for_contiguous_ledger_coverage(
-                    client=replica_client,
-                    case_id=case.id_,
-                    expected_tail_index=c1_tail_index,
-                    timeout_seconds=30.0,
-                )
-            logger.info("  %s Phase 1 ledger synchronized", label)
+        ],
+    )
 
     case = as_VulnerabilityCase.model_validate(
         c1_client.get(c1_client.dl_path(case.id_))
