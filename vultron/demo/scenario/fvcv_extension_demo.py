@@ -341,37 +341,38 @@ def _phase_coordinator_suggests_vendor2(
 
     # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)
     # to Vendor1 (CASE_OWNER).  Poll Vendor1's DataLayer for the offer.
-    cp_offer_id = None
-    with demo_check(
+    # All dependent steps (case_actor lookup and approve) are nested inside
+    # demo_gate so they are skipped if the offer never arrives (ADR-0058).
+    with demo_gate(
         "Offer(CaseParticipant) for Vendor2 arrived in Vendor1's DataLayer"
     ):
         cp_offer_id = find_cp_offer_for_case(
             client=vendor_client,
             case_id=case.id_,
         )
-    logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
+        logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
-    # Find the CaseActor's participant ID so we can route the Accept back.
-    case_actor_id = find_case_actor_participant_id(vendor_client, case.id_)
-    if case_actor_id is None:
-        raise AssertionError(
-            "CaseActor participant not found in case — cannot route Accept"
-        )
-    logger.info("CaseActor participant ID: %s", case_actor_id)
+        # Find the CaseActor's participant ID so we can route the Accept back.
+        case_actor_id = find_case_actor_participant_id(vendor_client, case.id_)
+        if case_actor_id is None:
+            raise AssertionError(
+                "CaseActor participant not found in case — cannot route Accept"
+            )
+        logger.info("CaseActor participant ID: %s", case_actor_id)
 
-    # Step M4 (ADR-0026 CM-16-006): Vendor1 approves the recommendation.
-    with demo_step(
-        "Vendor1 approves actor recommendation (accept-actor-recommendation)"
-    ):
-        post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
-            behavior="accept-actor-recommendation",
-            body={
-                "cp_offer_id": cp_offer_id,
-                "case_actor_id": case_actor_id,
-            },
-        )
+        # Step M4 (ADR-0026 CM-16-006): Vendor1 approves the recommendation.
+        with demo_step(
+            "Vendor1 approves actor recommendation (accept-actor-recommendation)"
+        ):
+            post_to_trigger(
+                client=vendor_client,
+                actor_id=vendor_in_vendor.id_,
+                behavior="accept-actor-recommendation",
+                body={
+                    "cp_offer_id": cp_offer_id,
+                    "case_actor_id": case_actor_id,
+                },
+            )
     logger.info("Vendor1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
     # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor2.  Per
