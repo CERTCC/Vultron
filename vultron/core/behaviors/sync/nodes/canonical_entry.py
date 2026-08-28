@@ -68,6 +68,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
     ("Add", "CaseParticipant"),
+    # CaseActor-authored synthetic lapse event (CM-28-009, ADR-0065 §5).
+    # Distinct from ("Reject", "Invite") which records an explicit refusal.
+    ("Lapse", "Invite"),
 )
 # Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
 # CLP-12-002 this MUST be a superset of every pair the CaseActor emits during
@@ -87,6 +90,8 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Accept", "Offer"),
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
+        # CaseActor-authored synthetic lapse event (CM-28-009, ADR-0065 §5)
+        ("Lapse", "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)
         ("Create", "VulnerabilityCase"),
         ("Add", "VulnerabilityReport"),
