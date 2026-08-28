@@ -22,6 +22,10 @@ The matching ``<DOMAIN>_STOCHASTIC`` singletons live in the simulation layer
 (``vultron.demo.fuzzer.bundles``); core never imports them.
 """
 
+from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+    ACTOR_DISCOVERY_DETERMINISTIC,
+    ActorDiscoveryCallOutBundle,
+)
 from vultron.core.behaviors.call_out.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     AcquireExploitCallOutBundle,
@@ -65,10 +69,6 @@ from vultron.core.behaviors.call_out.bundles.publication import (
     PUBLICATION_DETERMINISTIC,
     PublicationCallOutBundle,
 )
-from vultron.core.behaviors.call_out.bundles.report_to_others import (
-    REPORT_TO_OTHERS_DETERMINISTIC,
-    ReportToOthersCallOutBundle,
-)
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
@@ -80,6 +80,7 @@ from vultron.core.behaviors.call_out.bundles.validation import (
 
 __all__ = [
     # Bundle classes
+    "ActorDiscoveryCallOutBundle",
     "AcquireExploitCallOutBundle",
     "AssignCveIdCallOutBundle",
     "DevelopFixCallOutBundle",
@@ -91,10 +92,10 @@ __all__ = [
     "EmbargoCallOutBundle",
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
-    "ReportToOthersCallOutBundle",
     "StatusAuthorizationCallOutBundle",
     "ValidationCallOutBundle",
     # Deterministic singletons
+    "ACTOR_DISCOVERY_DETERMINISTIC",
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
     "ASSIGN_CVE_ID_DETERMINISTIC",
     "DEVELOP_FIX_DETERMINISTIC",
@@ -105,7 +106,6 @@ __all__ = [
     "EMBARGO_DETERMINISTIC",
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
-    "REPORT_TO_OTHERS_DETERMINISTIC",
     "STATUS_AUTHORIZATION_DETERMINISTIC",
     "VALIDATION_DETERMINISTIC",
 ]

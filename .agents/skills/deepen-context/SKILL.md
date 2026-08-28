@@ -86,6 +86,29 @@ Read from `docs/reference/codebase/` based on task scope:
 
 ### Step 4 — Scan the codebase
 
+**Compose-before-create (blocking pre-coding step — all domain types):**
+Load `.agents/skills/shared/compose-before-create.md` and apply the
+per-subsystem search targets for every subsystem the task touches. Use the
+focus hints to determine which subsystems are in scope, then run the
+corresponding searches before reading any target implementation file:
+
+| Focus hint keyword | Subsystem to search |
+|---|---|
+| use cases, handler, trigger | `vultron/core/use_cases/` |
+| wire layer, AS2, pattern, activity | `vultron/wire/as2/` |
+| adapter, FastAPI, delivery, emitter | `vultron/adapters/` |
+| BT, behavior tree, node, blackboard | `vultron/core/behaviors/` |
+| demo, scenario, helper | `vultron/demo/helpers/` |
+
+Do not read any target implementation file until this search is complete. If
+an existing artifact covers the requirement, compose or subclass it — do not
+re-implement.
+
+**BT integration (BTC-01-001, BTND-07-005):** After the compose-before-create
+scan, also apply the base-class and AC-1 compliance checks from
+`vultron/core/behaviors/AGENTS.md` § "Compose Before Create: Node Discovery
+Gate".
+
 If `graphify-out/graph.json` exists, use the graph as the primary search tool:
 
 - `graphify query "<focus hint or concept>"` — broad orientation: which files,

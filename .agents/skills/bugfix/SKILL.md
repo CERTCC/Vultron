@@ -51,8 +51,45 @@ If this fails, stop and investigate before proceeding.
      --issue-type-id "${BUG_TYPE_ID}")
    ```
 
+   Immediately after creation, route the new issue onto the epic forest:
+   invoke `calve-epics` Mode 1 on `${ISSUE_NUMBER}`. If `calve-epics` reports
+   no matching epic, present an `AskUserQuestion` with the top 5 closest open
+   epics plus "Specify other epic number". **A parent epic is required** —
+   do not proceed to Phase 2 until the issue is wired to a parent.
+
 3. Invoke `orient-agent` to load baseline context.
 4. Fetch the issue body and comments.
+
+4.5. **Pre-claim defect verification** — before claiming, verify the
+     described defect still exists on `origin/main` HEAD:
+
+     Search for the specific symptom, anti-pattern, or code path described
+     in the issue body (grep, `git log -S "<key term>" -- <file>`, or
+     graphify query). If the defect cannot be reproduced on `origin/main`,
+     it may have been fixed by a prior PR that lacked a `Closes #N` footer.
+
+     If the defect is absent from `origin/main`:
+
+     1. Post a reference comment identifying any PR that likely fixed it:
+
+        ```bash
+        gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+        The described defect is not present on `origin/main`. It appears to
+        have been fixed by #<PR> without a `Closes #N` footer. Closing.
+        EOF
+        )"
+        ```
+
+     2. Close the issue:
+
+        ```bash
+        gh issue close <N> --repo CERTCC/Vultron
+        ```
+
+     3. **Stop.** Do not claim, branch, or investigate further.
+
+     If the defect is confirmed present, proceed to step 5 and claim.
+
 5. Claim the issue:
 
    ```bash
@@ -144,6 +181,12 @@ Ask: **"Proceed with this plan, redirect, or narrow scope?"**
 ## Phase 4 — Implement
 
 Once the plan is confirmed:
+
+0. **Compose-before-create gate (blocking)**: before writing any new code,
+   load `.agents/skills/shared/compose-before-create.md` and apply the
+   per-subsystem search patterns for every subsystem the fix touches (use
+   cases, wire handlers, adapters, demo helpers). If an existing artifact
+   covers the requirement, compose or subclass it — do not re-implement.
 
 1. **Write a failing test first** — confirm it fails before fixing.
 

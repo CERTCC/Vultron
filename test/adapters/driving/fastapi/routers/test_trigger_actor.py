@@ -21,7 +21,10 @@ Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest
+
+from test.conftest import seed_case_actor_replica
 from fastapi import FastAPI, status
+from fastapi import Path as FastAPIPath
 from fastapi.testclient import TestClient
 
 from vultron.adapters.driving.fastapi.routers import (
@@ -35,6 +38,7 @@ from vultron.adapters.driving.fastapi.deps import (
 import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -56,16 +60,41 @@ class _NoopEmitter:
         pass
 
 
+def _store_for(actor_id: str) -> SqliteDataLayer:
+    """Open the addressed actor's own store, as the real dependencies do.
+
+    ``get_trigger_service`` builds its ``TriggerService`` from the store of the
+    actor named in the URL, so an override that hands every request one fixed
+    store is not a stand-in for the routing — it is a shared multi-tenant store,
+    the thing ADR-0073 removes. Two of these endpoints are addressed to an actor
+    other than the ``dl`` fixture's, and with one store they read an invitation
+    the accepting actor had never received (#2548, DL-07-009).
+
+    Engines are cached on ``(db_url, actor slug)``, so this returns the same
+    underlying store as the ``dl`` fixture for that fixture's actor and a
+    genuinely separate one for anybody else.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+
 @pytest.fixture
 def client_triggers(dl):
     _outbox_handler._default_emitter = _NoopEmitter()
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
-    app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
+
+    def _service(actor_id: str = FastAPIPath(...)) -> TriggerService:
+        store = _store_for(actor_id)
+        return TriggerService(
+            store, trigger_activity=TriggerActivityAdapter(store)
+        )
+
+    def _dl_for_path(actor_id: str = FastAPIPath(...)) -> SqliteDataLayer:
+        return _store_for(actor_id)
+
+    app.dependency_overrides[get_trigger_service] = _service
+    app.dependency_overrides[get_trigger_dl] = _dl_for_path
+    app.dependency_overrides[get_canonical_actor_dl] = _dl_for_path
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -73,10 +102,26 @@ def client_triggers(dl):
 
 
 @pytest.fixture
-def other_actor(dl):
-    """Create and persist a second actor for suggest-actor tests."""
+def other_actor_and_dl(dl):
+    """A second actor **and its own store** (ADR-0073).
+
+    What this actor knows lives here, not in the inviter's store: an invitation
+    addressed to it is something it received. The inviter's store gets the actor
+    record too, because an inviter must know the actor it is inviting.
+    """
     other = as_Service(name="Other Actor")
+    other_dl = _store_for(other.id_)
+    other_dl.clear_all()
+    other_dl.create(other)
     dl.create(other)
+    yield other, other_dl
+    other_dl.close()
+
+
+@pytest.fixture
+def other_actor(other_actor_and_dl):
+    """Create and persist a second actor for suggest-actor tests."""
+    other, _ = other_actor_and_dl
     return other
 
 
@@ -145,14 +190,21 @@ def case_obj_with_case_actor(dl, actor):
 
 
 @pytest.fixture
-def invite(dl, actor, case_obj, other_actor):
-    """Create and persist an RmInviteToCaseActivity for accept-case-invite tests."""
+def invite(other_actor_and_dl, actor, case_obj):
+    """Persist an RmInviteToCaseActivity in the *invitee's* store.
+
+    The invitee is the actor that accepts or rejects, and the accept/reject
+    trigger runs against its own store — the one it received the invitation into.
+    Seeding the inviter's store instead only worked while the two shared one
+    store (#2548, DL-07-009).
+    """
+    other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
-        other_actor,
+        other,
         target=VulnerabilityCaseStub(id_=case_obj.id_),
         actor=actor.id_,
     )
-    dl.create(invite_activity)
+    other_dl.create(invite_activity)
     return invite_activity
 
 
@@ -221,7 +273,7 @@ def test_trigger_suggest_actor_to_case_ignores_unknown_fields(
 def test_trigger_suggest_actor_to_case_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/suggest-actor-to-case",
         json={
@@ -237,7 +289,7 @@ def test_trigger_suggest_actor_to_case_unknown_actor_returns_404(
 def test_trigger_suggest_actor_to_case_unknown_case_returns_404(
     client_triggers, actor, other_actor
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
@@ -248,10 +300,23 @@ def test_trigger_suggest_actor_to_case_unknown_case_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_suggest_actor_to_case_unknown_suggested_actor_returns_404(
+def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
     client_triggers, actor, case_obj
 ):
-    """TB-01-003: Unknown suggested_actor_id returns HTTP 404."""
+    """An undeliverable ``suggested_actor_id`` is a validation error, not a 404.
+
+    This asserted 404 under HTTP-03-005, but that rule is about a missing
+    resource *of this API*, and a recommended peer's own actor record is not
+    one: the whole point of a recommendation is to name an actor the case does
+    not have, and under per-actor storage a peer's record lives in the store of
+    whichever actor knows it (ADR-0073 decision 5). Refusing therefore refused
+    every genuinely remote candidate (#2548, fcvcv).
+
+    A ``urn:uuid:`` id is still refused — just for the real reason. That id is
+    the address delivery POSTs to, so it must be an absolute http(s) URI; saying
+    422 here reports the actual defect in the request rather than blaming a
+    resource that was never expected to be local.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
         json={
@@ -259,7 +324,22 @@ def test_trigger_suggest_actor_to_case_unknown_suggested_actor_returns_404(
             "suggested_actor_id": "urn:uuid:nonexistent-actor",
         },
     )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert "deliverable actor URI" in resp.json()["detail"]["message"]
+
+
+def test_trigger_suggest_actor_to_case_unrecorded_remote_peer_is_accepted(
+    client_triggers, actor, case_obj
+):
+    """A deliverable peer URI with no local record proceeds (ADR-0073)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/suggest-actor-to-case",
+        json={
+            "case_id": case_obj.id_,
+            "suggested_actor_id": "http://vendor.example:7999/api/v2/actors/v1",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
 
 
 # ===========================================================================
@@ -330,7 +410,7 @@ def test_trigger_accept_case_invite_ignores_unknown_fields(
 def test_trigger_accept_case_invite_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/accept-case-invite",
         json={"invite_id": "urn:uuid:any-invite"},
@@ -343,7 +423,7 @@ def test_trigger_accept_case_invite_unknown_actor_returns_404(
 def test_trigger_accept_case_invite_unknown_invite_returns_404(
     client_triggers, other_actor
 ):
-    """TB-01-003: Unknown invite_id returns HTTP 404."""
+    """HTTP-03-005: Unknown invite_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{other_actor.id_}/trigger/accept-case-invite",
         json={"invite_id": "urn:uuid:nonexistent-invite"},
@@ -419,7 +499,7 @@ def test_trigger_reject_case_invite_ignores_unknown_fields(
 def test_trigger_reject_case_invite_unknown_actor_returns_404(
     client_triggers,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/reject-case-invite",
         json={"invite_id": "urn:uuid:any-invite"},
@@ -432,7 +512,7 @@ def test_trigger_reject_case_invite_unknown_actor_returns_404(
 def test_trigger_reject_case_invite_unknown_invite_returns_404(
     client_triggers, other_actor
 ):
-    """TB-01-003: Unknown invite_id returns HTTP 404."""
+    """HTTP-03-005: Unknown invite_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{other_actor.id_}/trigger/reject-case-invite",
         json={"invite_id": "urn:uuid:nonexistent-invite"},
@@ -574,6 +654,12 @@ def case_for_invite(dl, actor):
     dl.create(case)
     dl.create(owner_participant)
     dl.create(case_manager_participant)
+    # The Invite is authored as the CaseActor and committed to its ledger, so the
+    # tree runs in the CaseActor's store — which needs the case for its genesis
+    # anchor (CLP-08-001/002).
+    seed_case_actor_replica(
+        dl, case_actor.id_, case, owner_participant, case_manager_participant
+    )
     case_actor_with_context = as_Service(
         id_=case_actor.id_,
         name="Case Actor for Invite",
@@ -656,7 +742,7 @@ def test_trigger_invite_actor_to_case_missing_invitee_id_returns_422(
 def test_trigger_invite_actor_to_case_unknown_actor_returns_404(
     client_triggers_invite,
 ):
-    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
     resp = client_triggers_invite.post(
         "/actors/nonexistent-actor/trigger/invite-actor-to-case",
         json={
@@ -670,7 +756,7 @@ def test_trigger_invite_actor_to_case_unknown_actor_returns_404(
 def test_trigger_invite_actor_to_case_unknown_case_returns_404(
     client_triggers_invite, actor, other_actor
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
         json={
@@ -681,10 +767,27 @@ def test_trigger_invite_actor_to_case_unknown_case_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_invite_actor_to_case_unknown_invitee_returns_404(
+def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
     client_triggers_invite, actor, case_for_invite
 ):
-    """TB-01-003: Unknown invitee_id returns HTTP 404."""
+    """An invitee with no local record is invited by URI, not refused.
+
+    This asserted HTTP 404, citing an id in the ``TB`` topic that is not in the
+    spec corpus at all — and could not be, since that topic covers pytest and
+    ``pyproject.toml`` — so the behaviour had no normative basis. The id is not
+    reproduced here: ``_check_phantom_spec_id_citations`` rejects a phantom id
+    wherever it appears in a Python file, prose included, and rightly so.
+
+    A local record is not required: it was read and discarded, delivery derives
+    the invitee's inbox from its URI alone, and under per-actor storage a peer's
+    record lives in its own store (ADR-0073 decision 5) — so refusing meant
+    refusing every cross-node invitee. The injectable ActorDiscoveryCallOutBundle
+    seam (ADR-0025) handles the gap; with the DETERMINISTIC default it logs at
+    DEBUG rather than WARNING (AKM-05-002).
+
+    Not a HTTP-03-005 case either: that rule is about a missing resource *of
+    this API*, and a peer's own actor record is not one.
+    """
     case, _ = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
@@ -693,4 +796,5 @@ def test_trigger_invite_actor_to_case_unknown_invitee_returns_404(
             "invitee_id": "urn:uuid:nonexistent-invitee",
         },
     )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    assert resp.status_code != status.HTTP_404_NOT_FOUND
+    assert resp.status_code < 500, resp.text

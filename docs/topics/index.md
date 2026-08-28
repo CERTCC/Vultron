@@ -17,6 +17,7 @@ This section provides an overview of the Vultron Protocol, including:
 <div class="grid cards" markdown>
 
 - :material-information-outline: [Background](background/index.md)
+- :material-file-tree-outline: [The Case Model](case_model.md)
 - :material-shape-outline: [Process Models](process_models/index.md)
 - :material-cube-unfolded: [Formal Protocol overview](../reference/formal_protocol/index.md) — in [Reference](../reference/index.md)
 - :material-arrow-decision-auto-outline: [Behavior Logic](behavior_logic/index.md)

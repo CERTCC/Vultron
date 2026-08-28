@@ -26,6 +26,7 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
+| `test/demo/test_delivery_fallback_speed.py::test_demo_completes_under_5_seconds` | #2738 | 2026-08-26 |
 
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
@@ -107,8 +108,8 @@ No open entries.
 
 | Job name | Issue | Last blocked |
 |---|---|---|
-| `fvcv-extension` | — | 2026-07-31 |
-| `fccv-extension` | — | 2026-07-31 |
+| `fvcv-extension` | #2422 | 2026-08-26 |
+| `fccv-extension` | #2422 | 2026-08-26 |
 | `fv Demo Integration` | #2422 | 2026-08-20 |
 | `fv Invariant Harness` | #2422 | 2026-08-20 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
@@ -116,12 +117,15 @@ No open entries.
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
-> `fv Demo Integration` / `fv Invariant Harness` now point to #2422 (vendor
-> RM.RECEIVED timeout at M3, cascading `notify-fix-ready` 422 from cross-machine
-> entailment guard, then vfd_state timeouts at M4/M5/M6).  Same async race-window
-> class as #2376 (fcvcv, coordinator/engage-case).  Invariant Harness fails as a
+> `fv Demo Integration` / `fv Invariant Harness` / `fvcv-extension` / `fccv-extension`
+> all point to #2422 (vendor RM.RECEIVED timeout at M3, cascading `notify-fix-ready`
+> 422 from cross-machine entailment guard, then vfd_state timeouts at M4/M5/M6).
+> Same async race-window class as #2376 (fcvcv, coordinator/engage-case).
+> Root fix: wrap `actor_notifies_fix_ready` in `demo_gate` polling
+> `wait_for_participant_rm_state(expected_states={RM.ACCEPTED,DEFERRED,CLOSED})`
+> across all 8 affected scenario files (ADR-0058).  Invariant Harness fails as a
 > downstream consequence of incomplete devlogs.  First confirmed 2026-08-20 on
-> PR #2419.
+> PR #2419.  Fix landed in PR resolving #2422 (2026-08-26).
 >
 >
 > `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` now point to
@@ -143,6 +147,10 @@ No open entries.
 > `fcv-reject Invariant Harness`, `fv Invariant Harness` — these were
 > **deterministic** failures caused by the engage-case 422 (#2233, now fixed).
 > They are gone from this catalog because the fix lands with the PR for #2233.
+>
+> **Removed 2026-08-27:** `fcvcv Demo Integration`, `fcvcv Invariant Harness` — fixed by PR #2756
+> (`Closes #2733`). Root: `_phase_sync_verification` used `demo_check` for ledger coverage
+> waits; outer `wait_for_case_on_container` precondition was missing (SYNC-15-001, ADR-0058).
 >
 > **Removed 2026-08-24:** `fcvcv Demo Integration` — fixed by PR #2508 (`Closes #2376`).
 > Both race windows resolved: invite-path `engage-case` now gated on own RM.VALID

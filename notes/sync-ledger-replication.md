@@ -446,10 +446,17 @@ Because replayed entries flow through the *same* receive path, buffering also
 makes the `Reject → replay` recovery order-robust for free — no separate
 redesign of the replay loop was needed. A companion fix made
 `SyncActivityAdapter.send_reject_log_entry` enqueue against the explicit
-receiving `actor_id` (via `add_activity_to_outbox` / `record_outbox_item`)
-instead of the DL's own scope (`outbox_append`), matching
-`send_announce_log_entry` so a reject is delivered correctly even from a
-shared/differently-scoped DataLayer.
+receiving `actor_id` rather than assuming the DL it was handed already belonged to
+that actor, matching `send_announce_log_entry`.
+
+**Updated by ADR-0073.** `record_outbox_item` is gone: every call site passed the
+executing actor's own id, so with a mandatory actor scope it was exactly
+`outbox_append`. There is also no shared or differently-scoped DataLayer to be
+delivered *from* — a store is always some actor's own (DL-07-001/002). Enqueuing
+for another actor now means opening that actor's store explicitly, via
+`clone_for_actor` / `store_for_actor` (DL-07-005), and then calling
+`outbox_append` on it. ARCH-13-004, which required the two identities to agree,
+was retired because only one of them still exists.
 
 ## Pre-SYNC-13 Upgrade Path
 
@@ -603,8 +610,7 @@ implementation references for the ledger replication protocol.
 
 A separate **external-facing companion document** (suitable for reviewers
 outside the project alongside the main Vultron protocol RFC) covers the same
-protocol mechanics — see `docs/reference/draft-vultron-replication-spec.md`
-(tracked in issue #2495).
+protocol mechanics — see `docs/reference/draft-vultron-replication-spec.md`.
 
 The external companion and the internal SYNC spec cover the same protocol but
 serve different audiences. When the SYNC spec requirements change, the companion
@@ -614,7 +620,7 @@ reader-friendly rendering, not an independent source of truth.
 
 The document-boundary decision — why the replication mechanics live in a
 companion document rather than the main RFC — is recorded in
-`docs/adr/0069-ledger-replication-companion-spec.md` (tracked in issue #2494).
+`docs/adr/0077-ledger-replication-companion-spec.md` (tracked in issue #2494).
 
 ## Related
 

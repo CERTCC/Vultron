@@ -166,7 +166,7 @@ narrowing (e.g., activities loaded from DataLayer records that predate the
 
 ```text
 WARNING  Outbound <Type> activity '<id>' has a bare string object_ '<uri>'.
-         Attempting DataLayer expansion (MV-09-001 violation).
+         Attempting DataLayer expansion (AKM-03-001 violation).
 ```
 
 If this warning appears in logs, trace back to the activity builder that
@@ -235,3 +235,57 @@ def test_outbox_accepts_inline_object(dl, actor, report):
     # Should not raise
     deliver_outbound_activity(activity, dl)
 ```
+
+---
+
+## AKM-05: Actor Addressing and Discovery
+
+### URI sufficiency for addressing (AKM-05-001)
+
+A deliverable `http(s)` URI is sufficient to address an outbound activity.
+Holding a fully resolved `CoreActor` record for the peer is an enrichment
+concern, not a precondition for protocol participation. The absence of a local
+record MUST NOT block invite, suggest-actor, or ownership-transfer flows.
+
+This was settled by the per-actor storage migration (ADR-0073): a peer's
+`CoreActor` record lives in *its* store, so the inviter almost never has a local
+copy in a real deployment. Requiring one effectively refused every cross-node
+invitee.
+
+### Injectable discovery seam (AKM-05-002)
+
+When `_record_named_peer` encounters a peer URI with no local record, it calls
+the injected `ActorDiscoveryCallOutBundle` (Retriever shape, ADR-0024/ADR-0025)
+before minting a minimal `CoreActor`. The seam is injectable at the use-case
+constructor level:
+
+```python
+SvcInviteActorToCaseUseCase(dl, request, call_out=my_bundle).execute()
+```
+
+**Default** (`ACTOR_DISCOVERY_DETERMINISTIC`): `resolve_actor_factory` is
+`AlwaysSucceed` — logs at DEBUG, never emits a WARNING. This is the correct
+default because the URI is already sufficient; enrichment is optional.
+
+**Production backend**: inject a bundle whose `resolve_actor_factory` performs a
+real lookup (WebFinger-style or actor profile fetch). A FAILURE result from the
+backend logs a WARNING but still proceeds — the invite is not blocked.
+
+### Seam placement: use-case level, not BT node
+
+`_record_named_peer` is called from `_prepare()` in the three affected use
+cases, not from a BT node. This was a deliberate design decision:
+
+- Creating a `CoreActor` record does not affect protocol-observable state (no
+  activity emitted, no RM/EM/CS transition). BT-15-001 ("any action that affects
+  protocol-observable state MUST be in a BT node") therefore does not apply.
+- Keeping the seam in `_prepare()` avoids calling a BT node procedurally from
+  outside a tick context.
+
+If a real directory service later requires async semantics or BT blackboard
+interaction, the seam should be promoted to a proper BT subtree at that point.
+The bundle infrastructure (ADR-0025 factory pattern) is already in place to
+support this without changing call sites.
+
+See `plan/incoming/learnings/20260826-actor-discovery-seam-location.md` for the
+full rationale recorded at decision time.

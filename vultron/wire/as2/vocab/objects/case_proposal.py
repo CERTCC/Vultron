@@ -26,7 +26,7 @@ Spec: ``specs/case-proposal.yaml`` CP-01-001 through CP-01-006.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+from typing import ClassVar, TypeAlias
 
 from pydantic import Field
 
@@ -42,6 +42,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 class as_CaseProposal(VultronAS2Object):
     """Wire representation of a CaseProposal object (CP-01-001).
+
+    Declares ``object_`` in :attr:`inline_required_refs`, so persistence keeps
+    the report inline rather than collapsing it to its id (CP-01-004; #2482).
 
     A vendor actor creates this object to request that a dedicated
     case-actor service initialise a new :class:`VulnerabilityCase`.
@@ -65,7 +68,14 @@ class as_CaseProposal(VultronAS2Object):
             which the proposal is addressed (CP-01-005).
         summary: Optional human-readable description of the proposal
             (CP-01-006).
+        offer_id: Optional URI of the ``Offer(VulnerabilityReport)`` this
+            proposal descends from, with ``offer_actor_id`` naming its sender
+            (CP-01-007).
     """
+
+    # CP-01-004 / AKM-03-001: the report is carried, not referenced. Declared
+    # here so persistence keeps it inline; see VultronAS2Object's docstring.
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
     type_: VO_type = Field(
         default=VO_type.CASE_PROPOSAL,
@@ -80,8 +90,16 @@ class as_CaseProposal(VultronAS2Object):
     )
 
     # CP-01-004: fully inline as_VulnerabilityReport; URI references not permitted
-    # at the wire boundary.  ActivityStreamRequiredRef allows the DataLayer to
-    # store/restore the dehydrated string ID; _rehydrate_fields expands it back.
+    # at the wire boundary.  ``ActivityStreamRequiredRef`` still admits ``str`` in
+    # its union, so the annotation alone does not carry CP-01-004 —
+    # ``inline_required_refs`` below is what makes it hold through storage.
+    #
+    # This comment used to claim the DataLayer could "store/restore the
+    # dehydrated string ID; _rehydrate_fields expands it back".  It cannot, and
+    # that premise was #2482: ingress stores only the first level of nesting, so
+    # the report never got a record of its own and there was nothing for the
+    # re-read to expand.  The id came back bare and every consequence of the
+    # report degraded to a silent best-effort skip.
     object_: ActivityStreamRequiredRef[as_VulnerabilityReport] = Field(
         ...,
         validation_alias="object",
@@ -100,6 +118,34 @@ class as_CaseProposal(VultronAS2Object):
     summary: NonEmptyString | None = Field(
         default=None,
         description="Optional human-readable description of the proposal.",
+    )
+
+    # CP-01-007: provenance of the report this proposal is about.
+    #
+    # The CaseActor commits the canonical `add_report_to_case` ledger entry, and
+    # invited actors rebuild their `VultronOfferRecord` from that entry's
+    # snapshot (ADR-0035 DL-06-002, SYNC-02-002). The CaseActor cannot look the
+    # offer up: the `OfferRecord` lives in the store of the actor that received
+    # the Offer, and a co-located CaseActor has its own store and no read into a
+    # sibling's (ADR-0073, PCR-01-003). So the offer travels here, on the
+    # proposal, for the same reason and by the same rule as the report itself
+    # (CP-01-004).
+    #
+    # Without it the snapshot carried no `offerId`, every invited actor's
+    # `ApplyOfferReportFromLedgerNode` logged "no offerId — skipping
+    # (non-fatal)", and `validate-report` answered `404 Offer not found` to an
+    # invitee that had done everything right (#2548).
+    offer_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerId",
+        serialization_alias="offerId",
+        description="URI of the Offer(VulnerabilityReport) this proposal descends from.",
+    )
+    offer_actor_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerActorId",
+        serialization_alias="offerActorId",
+        description="URI of the actor that sent the Offer named by offer_id.",
     )
 
 

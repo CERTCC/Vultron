@@ -45,10 +45,12 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+)
 from vultron.core.behaviors.report.nodes.develop_fix import (
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
-    CheckRMStateAccepted,
     EmitCFActivity,
     TransitionCStoFixReady,
 )

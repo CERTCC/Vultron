@@ -24,7 +24,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
-    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
@@ -36,7 +35,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     RejectEmbargoRequest,
     TerminateEmbargoRequest,
 )
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -60,21 +59,20 @@ def trigger_propose_embargo(
     body: ProposeEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the propose-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
         result = svc.propose_embargo(
             actor_id, body.case_id, body.end_time, body.note
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -96,19 +94,18 @@ def trigger_accept_embargo(
     body: AcceptEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the accept-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
         result = svc.accept_embargo(actor_id, body.case_id, body.proposal_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -130,19 +127,18 @@ def trigger_reject_embargo(
     body: RejectEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the reject-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
         result = svc.reject_embargo(actor_id, body.case_id, body.proposal_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -166,21 +162,20 @@ def trigger_propose_embargo_revision(
     body: ProposeEmbargoRevisionRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the propose-embargo-revision behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
         result = svc.propose_embargo_revision(
             actor_id, body.case_id, body.end_time, body.note
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -203,17 +198,16 @@ def trigger_terminate_embargo(
     body: TerminateEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the terminate-embargo behavior for the given actor.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     with domain_error_translation():
         result = svc.terminate_embargo(actor_id, body.case_id)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result

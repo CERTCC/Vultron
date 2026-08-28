@@ -13,29 +13,28 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Narrow outbound ports for core domain use cases and BT nodes.
+"""Narrow outbound port for core domain use cases and BT nodes.
 
 :class:`CasePersistence` covers the methods called by
 ``vultron/core/`` use cases — excluding inbox/outbox queues, health,
 diagnostics, and low-level storage primitives (``update``, ``delete``,
 ``clear_*``, ``count_all``) that belong to the adapter layer.
 
-:class:`CaseOutboxPersistence` extends :class:`CasePersistence` for the
-small number of use cases and BT nodes that also enqueue outbound activities.
-Declaring ``CaseOutboxPersistence`` on a ``Received`` use case is an
-architectural smell — it signals that the handler mixes inbound processing
-with outbound broadcast.
+:class:`CaseOutboxPersistence` is defined in
+``vultron/core/ports/case_outbox`` and re-exported here for backward
+compatibility.
 
 ``SqliteDataLayer`` satisfies both Protocols structurally with no declaration
 needed (Python structural subtyping).
 
 See also:
     - ``specs/datalayer.yaml`` DL-03-001, DL-03-002
+    - ``vultron/core/ports/case_outbox.py`` for :class:`CaseOutboxPersistence`
     - GitHub issue #403
 """
 
 from collections.abc import Iterable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.protocol_pair import ProtocolPair
@@ -53,6 +52,28 @@ class CasePersistence(Protocol):
     ``SqliteDataLayer`` satisfies this Protocol structurally — no declaration
     needed.
     """
+
+    @property
+    def actor_id(self) -> str:
+        """The canonical URI of the actor whose store this is (ADR-0073).
+
+        Implementations MUST return a non-empty string URI and MUST NOT raise
+        ``NotImplementedError``.  Callers such as ``resolve_receiving_actor_id``
+        treat a missing or non-string value as "no actor available" and raise
+        ``VultronValidationError`` — but they do not catch ``NotImplementedError``,
+        which is reserved as an unambiguous signal that the adapter is incomplete
+        (CM-01-001).
+        """
+        ...
+
+    def clone_for_actor(self, actor_id: str) -> "CasePersistence":
+        """Return the store belonging to *actor_id*.
+
+        The only way to reach a store other than this one, and deliberately
+        explicit: ADR-0073 makes cross-actor access something a caller must
+        name rather than something a forgotten filter grants by accident.
+        """
+        ...
 
     def create(self, record: "StorableRecord | PersistableModel") -> None: ...
 
@@ -89,23 +110,29 @@ class CasePersistence(Protocol):
     def delete(self, table: str, id_: str) -> bool: ...
 
 
-class CaseOutboxPersistence(CasePersistence, Protocol):
-    """CasePersistence extended for use cases that enqueue outbound activities.
+# Re-export CaseOutboxPersistence for backward compatibility.
+# CaseOutboxPersistence is now the canonical definition; existing callers of
+# `from vultron.core.ports.case_persistence import CaseOutboxPersistence`
+# continue to work without changes.
+#
+# The __getattr__ pattern (PEP 562) is used rather than a direct module-level
+# import to avoid a circular dependency: case_outbox imports CasePersistence
+# from this module, so a top-level `from case_outbox import ...` here would
+# form a cycle that breaks when case_outbox.py is loaded first.
+if TYPE_CHECKING:
+    from vultron.core.ports.case_outbox import (
+        CaseOutboxPersistence,
+    )  # noqa: F401
 
-    Only use cases and BT nodes that call ``record_outbox_item`` or
-    ``outbox_append`` declare this type. If a ``ReceivedUseCase`` declares
-    ``CaseOutboxPersistence``, that is a signal that it mixes received-message
-    handling with outbound broadcast — an architectural smell worth
-    investigating.
+__all__ = ["CasePersistence", "CaseOutboxPersistence"]
 
-    ``SqliteDataLayer`` satisfies this Protocol structurally — no declaration
-    needed.
-    """
 
-    def record_outbox_item(self, actor_id: str, activity_id: str) -> None: ...
+def __getattr__(name: str) -> type:
+    if name == "CaseOutboxPersistence":
+        from vultron.core.ports.case_outbox import (
+            CaseOutboxPersistence,
+        )  # noqa: F811
 
-    def outbox_append(self, activity_id: str) -> None: ...
-
-    def outbox_list(self) -> list[str]: ...
-
-    def outbox_list_for_actor(self, actor_id: str) -> list[str]: ...
+        globals()[name] = CaseOutboxPersistence
+        return CaseOutboxPersistence
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

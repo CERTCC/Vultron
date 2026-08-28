@@ -23,16 +23,33 @@ groups:
     statement: >-
       Participants SHOULD track the state of other Participants in a case to inform their
       own decision making
+    stories:
+    - story_2022_031
+    - story_2022_032
+    - story_2022_061
+    - story_2022_074
+    - story_2022_075
+    - story_2022_087
+    - story_2022_088
+    - story_2022_092
+    - story_2022_093
   - id: VP-01-002
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD track the RM states of the other Participants in the case
+    stories:
+    - story_2022_061
+    - story_2022_074
+    - story_2022_075
+    - story_2022_088
   - id: VP-01-003
     priority: MUST_NOT
     kind: protocol
     statement: >-
       Correct operation of the protocol MUST NOT depend on perfect information across all
       Participants
+    stories:
+    - story_2022_106
 - id: VP-02
   title: 'Report Management (RM): Receiving Reports'
   specs:
@@ -42,16 +59,41 @@ groups:
     statement: >-
       Coordinators MUST have a formally documented, publicly available mechanism for receiving
       reports
+    verification: >-
+      Inspection of `vultron/core/use_cases/received/` confirms that a
+      report-reception use-case handler is defined for participant actors.
+    stories:
+    - story_2022_001
+    - story_2022_003
+    - story_2022_009
+    - story_2022_021
+    - story_2022_022
+    - story_2022_028
+    - story_2022_038
+    - story_2022_076
   - id: VP-02-002
     priority: MUST
     kind: protocol
     statement: >-
       Participants MUST assign Valid cases a higher processing priority than
       Received (untriaged) cases and Closed cases in their case-management workflow.
+    verification: >-
+      Integration tests in `test/demo/test_workflow_rm_triage.py` confirm that
+      the RM triage workflow only advances to Accepted from the Valid state,
+      enforcing priority ordering over Received and Closed cases.
+    stories:
+    - story_2022_086
   - id: VP-02-003
     priority: MUST
     kind: protocol
     statement: Participants initiating CVD with others MUST do so from the Accepted state
+    verification: >-
+      Integration tests in `test/demo/test_initialize_case_demo.py` confirm
+      that `RmInviteToCaseActivity` is only emitted when the initiating
+      participant's RM state is Accepted.
+    stories:
+    - story_2022_006
+    - story_2022_013
   - id: VP-02-004
     priority: MUST_NOT
     kind: protocol
@@ -62,18 +104,28 @@ groups:
     statement: >-
       Vendors SHOULD have a clearly defined and publicly available mechanism for receiving
       reports
+    stories:
+    - story_2022_001
+    - story_2022_003
+    - story_2022_009
+    - story_2022_022
   - id: VP-02-006
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD subject each Received report to a validation process resulting in
       a valid or invalid designation
+    stories:
+    - story_2022_006
+    - story_2022_101
   - id: VP-02-007
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD have a clearly defined process for validating reports in the Received
       state
+    stories:
+    - story_2022_101
   - id: VP-02-008
     priority: SHOULD
     kind: protocol
@@ -84,6 +136,8 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD proceed only after validating the reports they receive
+    stories:
+    - story_2022_101
   - id: VP-02-010
     priority: SHOULD
     kind: protocol
@@ -96,6 +150,9 @@ groups:
     statement: >-
       Once a Vendor confirms that a reported vulnerability affects one or more of their products
       or services, the Vendor SHOULD designate the report as Valid
+    stories:
+    - story_2022_103
+    - story_2022_111
   - id: VP-02-012
     priority: SHOULD
     kind: protocol
@@ -108,24 +165,35 @@ groups:
     statement: >-
       Participants SHOULD provide Reporters an opportunity to update their report with additional
       information before closing it
+    stories:
+    - story_2022_103
   - id: VP-02-014
     priority: SHOULD
     kind: protocol
     statement: >-
       For Valid reports, the Participant SHOULD perform a prioritization evaluation to decide
       whether to accept or defer the report
+    stories:
+    - story_2022_006
+    - story_2022_086
+    - story_2022_087
   - id: VP-02-015
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD create a case from reports entering the Valid state to track the
       report's progress through the CVD process
+    stories:
+    - story_2022_012
+    - story_2022_111
   - id: VP-02-016
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD have a bias toward accepting rather than deferring Valid cases up
       to their work capacity limits
+    stories:
+    - story_2022_006
   - id: VP-02-017
     priority: SHOULD
     kind: protocol
@@ -142,6 +210,9 @@ groups:
     statement: >-
       CVD Participants SHOULD announce their RM state transitions to the other Participants
       in a case
+    stories:
+    - story_2022_062
+    - story_2022_107
   - id: VP-02-020
     priority: SHOULD
     kind: protocol
@@ -152,6 +223,8 @@ groups:
     statement: >-
       Participants SHOULD act in accordance with their own policy and process when deciding
       when to transition RM states
+    stories:
+    - story_2022_006
   - id: VP-02-022
     priority: SHOULD_NOT
     kind: protocol
@@ -168,12 +241,20 @@ groups:
     statement: >-
       Vendors SHOULD communicate their prioritization choices when making either a defer or
       accept transition out of the Valid, Deferred, or Accepted states
+    stories:
+    - story_2022_086
+    - story_2022_087
   - id: VP-02-025
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY perform a more technical report validation process before exiting the
       Received state
+    stories:
+    - story_2022_077
+    - story_2022_101
+    - story_2022_102
+    - story_2022_111
   - id: VP-02-026
     priority: MAY
     kind: protocol
@@ -190,6 +271,8 @@ groups:
     statement: >-
       Participants MAY choose to perform a shallow technical analysis on Valid reports to
       prioritize further effort
+    stories:
+    - story_2022_102
   - id: VP-02-029
     priority: MAY
     kind: protocol
@@ -222,6 +305,8 @@ groups:
     priority: MAY
     kind: protocol
     statement: Participants MAY re-prioritize Accepted or Deferred cases
+    stories:
+    - story_2022_086
   - id: VP-02-035
     priority: MAY
     kind: protocol
@@ -235,48 +320,78 @@ groups:
     statement: >-
       Participants MUST be in RM Accepted to send a Report Submission ($RS$) message to someone
       else
+    verification: >-
+      A unit test confirms that the RS message precondition guard raises an
+      error when the sender's RM state is not Accepted.
+    stories:
+    - story_2022_002
+    - story_2022_012
   - id: VP-03-002
     priority: MUST
     kind: protocol
     statement: >-
       Vendor Recipients receiving a new Report Submission MUST transition their CVD Case State
       to Vendor Aware ($q^{cs} \xrightarrow{\mathbf{V}} Vfd\cdots$)
+    verification: >-
+      Integration tests in `test/demo/test_receive_report_demo.py` confirm
+      that processing an RS message sets the recipient vendor's CS state to
+      the Vendor Aware substates.
+    stories:
+    - story_2022_002
+    - story_2022_038
   - id: VP-03-003
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD send $RI$ when the report validation process ends in an invalid
       determination
+    stories:
+    - story_2022_101
+    - story_2022_109
   - id: VP-03-004
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD send $RV$ when the report validation process ends in a valid determination
+    stories:
+    - story_2022_101
   - id: VP-03-005
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD send $RD$ when the report prioritization process ends in a deferred
       decision
+    stories:
+    - story_2022_062
   - id: VP-03-006
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD send $RA$ when the report prioritization process ends in an accept
       decision
+    stories:
+    - story_2022_062
   - id: VP-03-007
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD send $RC$ when the report is closed
+    stories:
+    - story_2022_062
   - id: VP-03-008
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD send $RE$ regardless of state when any error is encountered
+    stories:
+    - story_2022_007
+    - story_2022_008
+    - story_2022_077
   - id: VP-03-009
     priority: SHOULD
     kind: protocol
     statement: >-
       Recipients SHOULD send $RK$ in acknowledgment of any $R*$ message except $RK$ itself
+    stories:
+    - story_2022_016
   - id: VP-03-010
     priority: SHOULD
     kind: protocol
@@ -290,12 +405,28 @@ groups:
     statement: >-
       Recipients SHOULD acknowledge $RE$ messages ($RK$) and inquire ($GI$) as to the nature
       of the error
+    stories:
+    - story_2022_077
   - id: VP-03-012
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants whose state changes in the RM, EM, or CVD Case State Models SHOULD send
       a message to other Participants for each transition
+    stories:
+    - story_2022_039
+    - story_2022_041
+    - story_2022_049
+    - story_2022_060
+    - story_2022_061
+    - story_2022_062
+    - story_2022_069
+    - story_2022_075
+    - story_2022_081
+    - story_2022_082
+    - story_2022_098
+    - story_2022_107
+    - story_2022_109
   - id: VP-03-013
     priority: MAY
     kind: protocol
@@ -307,26 +438,45 @@ groups:
     priority: MUST
     kind: protocol
     statement: Every accepted embargo MUST have a non-null end_time; embargoes without a specified endpoint MUST NOT be accepted.
+    verification: >-
+      Inspection of `vultron/core/models/embargo_event.py` confirms that
+      `end_time` is a required `datetime` field with no `None` default, and a
+      unit test confirms that embargo acceptance fails when `end_time` is absent.
     relationships:
     - rel_type: refines
       spec_id: VP-05-001
+    stories:
+    - story_2022_014
   - id: VP-04-002
     priority: MUST
     kind: protocol
     statement: A CVD case SHALL NOT have more than one active embargo at a time
+    verification: >-
+      Inspection of `vultron/core/states/em.py` confirms the EM state machine
+      has at most one active-embargo state at any time, enforcing the
+      single-active-embargo invariant.
+    stories:
+    - story_2022_014
   - id: VP-04-003
     priority: MAY
     kind: protocol
     statement: An embargo MAY be proposed
+    stories:
+    - story_2022_010
+    - story_2022_014
   - id: VP-04-004
     priority: MAY
     kind: protocol
     statement: Once proposed, an embargo MAY be accepted or rejected
+    stories:
+    - story_2022_010
   - id: VP-04-005
     priority: MAY
     kind: protocol
     statement: >-
       Once accepted, revisions MAY be proposed, which MAY in turn be accepted or rejected
+    stories:
+    - story_2022_014
 - id: VP-05
   title: Embargo Principles
   specs:
@@ -334,6 +484,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: An embargo SHALL specify an unambiguous date and time as its endpoint
+    verification: >-
+      Inspection of `vultron/core/models/embargo_event.py` confirms that
+      `end_time` is typed as `datetime` (not a date-only or free-form string),
+      enforcing an unambiguous endpoint at the model level.
+    stories:
+    - story_2022_010
+    - story_2022_074
   - id: VP-05-002
     priority: SHOULD
     kind: protocol
@@ -345,16 +502,36 @@ groups:
     priority: MUST
     kind: protocol
     statement: An embargo SHALL begin at the moment it is accepted
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that the EM state transitions to Active with the acceptance timestamp as
+      the effective start, not a future date.
+    stories:
+    - story_2022_014
+    - story_2022_074
   - id: VP-05-004
     priority: MUST
     kind: protocol
     statement: >-
       Adding Participants to an existing embargo SHALL NOT constitute release or publication
       so long as those Participants accept the terms of the embargo
+    verification: >-
+      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
+      that inviting a participant to a case with an Active embargo leaves the
+      EM state unchanged.
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: VP-05-005
     priority: MUST
     kind: protocol
     statement: Embargo termination SHALL NOT be construed as an obligation to publish
+    verification: >-
+      Inspection of `vultron/core/states/em.py` confirms that the
+      embargo-termination transition does not trigger any publication action
+      or CS state change.
+    stories:
+    - story_2022_020
   - id: VP-05-006
     priority: SHOULD_NOT
     kind: protocol
@@ -363,52 +540,88 @@ groups:
       until all proposed embargoes have been explicitly rejected, no proposed embargo has
       been explicitly accepted in a timely manner, the expiration date/time of an accepted
       embargo has passed, or an accepted embargo has been terminated prior to expiration
+    stories:
+    - story_2022_017
+    - story_2022_023
+    - story_2022_025
+    - story_2022_026
+    - story_2022_058
+    - story_2022_059
+    - story_2022_070
+    - story_2022_071
   - id: VP-05-007
     priority: SHOULD
     kind: protocol
     statement: >-
       Embargo participation SHOULD be limited to the smallest possible set of individuals
       and organizations needed to adequately address the vulnerability report
+    stories:
+    - story_2022_023
+    - story_2022_026
+    - story_2022_042
+    - story_2022_072
   - id: VP-05-008
     priority: SHOULD
     kind: protocol
     statement: >-
       Embargo duration SHOULD be limited to the shortest duration possible to adequately address
       the vulnerability report
+    stories:
+    - story_2022_078
   - id: VP-05-009
     priority: SHOULD
     kind: protocol
     statement: Embargoes SHOULD be of short duration, from a few days to a few months
+    stories:
+    - story_2022_078
   - id: VP-05-010
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants stopping work on a case SHOULD notify remaining Participants of their intent
       to adhere to or disregard any existing embargo associated with the case
+    stories:
+    - story_2022_066
+    - story_2022_067
+    - story_2022_068
   - id: VP-05-011
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD continue to comply with any active embargoes to which they have
       been a party, even if they stop work on the case
+    stories:
+    - story_2022_066
+    - story_2022_067
   - id: VP-05-012
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants who leave an Active embargo SHOULD be removed by the remaining Participants
       from further communication about the case
+    stories:
+    - story_2022_066
+    - story_2022_068
   - id: VP-05-013
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD consider other Participants' history of cooperation when evaluating
       the terms of a proposed embargo
+    stories:
+    - story_2022_027
+    - story_2022_094
+    - story_2022_095
+    - story_2022_096
   - id: VP-05-014
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Participants SHOULD NOT publish information about the vulnerability when there is an
       active embargo
+    stories:
+    - story_2022_015
+    - story_2022_025
   - id: VP-05-015
     priority: MAY
     kind: protocol
@@ -441,6 +654,11 @@ groups:
     statement: >-
       Participants MAY publish information about the vulnerability when there is no active
       embargo
+    stories:
+    - story_2022_020
+    - story_2022_037
+    - story_2022_080
+    - story_2022_083
 - id: VP-06
   title: Embargo Negotiation
   specs:
@@ -452,6 +670,8 @@ groups:
       about the vulnerability is already known to the public ($q^{cs} \in \cdots P \cdots$),
       an exploit is publicly available ($q^{cs} \in \cdots X \cdot$), or the vulnerability
       is being actively exploited ($q^{cs} \in \cdots A$)
+    stories:
+    - story_2022_007
   - id: VP-06-002
     priority: SHOULD_NOT
     kind: protocol
@@ -469,6 +689,8 @@ groups:
       Participants SHOULD explicitly accept or reject embargo proposals within the
       period defined in their VDP or within 14 calendar days of receipt, whichever
       is shorter.
+    stories:
+    - story_2022_014
   - id: VP-06-004b
     priority: SHOULD_NOT
     kind: protocol
@@ -482,6 +704,8 @@ groups:
     statement: >-
       Participants SHOULD make reasonable attempts to retry embargo negotiations when prior
       proposals have been rejected or otherwise failed to achieve acceptance
+    stories:
+    - story_2022_014
   - id: VP-06-006
     priority: SHOULD
     kind: protocol
@@ -493,6 +717,13 @@ groups:
     statement: >-
       Submitting a report when an embargo proposal is pending ($q^{em} \in P$) SHALL be construed
       as the Sender's acceptance of the proposed terms
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that sending RS while EM is in the Proposed state causes EM to advance
+      to Active.
+    stories:
+    - story_2022_014
+    - story_2022_002
   - id: VP-06-008
     priority: MAY
     kind: protocol
@@ -567,12 +798,27 @@ groups:
     statement: >-
       If neither Sender nor Receiver proposes an embargo and no policy defaults apply, no
       embargo SHALL exist
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that EM initializes and remains in the None state when neither party has
+      a default policy and no proposal is made.
+    stories:
+    - story_2022_004
+    - story_2022_079
   - id: VP-07-002
     priority: MUST
     kind: protocol
     statement: >-
       A Receiver's default embargo specified in its vulnerability disclosure policy SHALL
       be treated as an initial embargo proposal
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that a receiver with a policy-defined default embargo presents it as a
+      Proposed embargo upon receiving a report.
+    stories:
+    - story_2022_004
+    - story_2022_009
+    - story_2022_014
   - id: VP-07-003
     priority: MUST
     kind: protocol
@@ -580,24 +826,48 @@ groups:
       If the Receiver has declared a default embargo in its vulnerability disclosure policy
       and the Sender proposes nothing to the contrary, the Receiver's default embargo SHALL
       be considered as an accepted proposal
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that EM advances to Active using the receiver's default when the sender
+      makes no counter-proposal.
+    stories:
+    - story_2022_005
+    - story_2022_079
   - id: VP-07-004
     priority: MUST
     kind: protocol
     statement: >-
       If the Sender proposes an embargo longer than the Receiver's default, the Receiver's
       default SHALL be taken as accepted and the Sender's proposal taken as a proposed revision
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that the shorter receiver-default embargo is accepted and the sender's
+      longer proposal is stored as a pending revision.
+    stories:
+    - story_2022_005
+    - story_2022_079
   - id: VP-07-005
     priority: MUST
     kind: protocol
     statement: >-
       If the Sender proposes an embargo shorter than the Receiver's default, the Sender's
       proposal SHALL be taken as accepted and the Receiver's default taken as a proposed revision
+    verification: >-
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
+      that the sender's shorter proposal is accepted and the receiver's default
+      is stored as a pending revision.
+    stories:
+    - story_2022_005
+    - story_2022_079
   - id: VP-07-006
     priority: SHOULD
     kind: protocol
     statement: >-
       Report Recipients SHOULD post a default embargo period as part of their Vulnerability
       Disclosure Policy to set expectations with potential Reporters
+    stories:
+    - story_2022_009
+    - story_2022_010
   - id: VP-07-007
     priority: SHOULD
     kind: protocol
@@ -650,6 +920,14 @@ groups:
     statement: >-
       When inviting a new Participant to a case with an existing embargo, the inviting Participant
       SHALL propose the existing embargo to the invited Participant
+    verification: >-
+      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
+      that the invite payload carries the existing embargo terms when an Active
+      embargo is in place.
+    stories:
+    - story_2022_013
+    - story_2022_052
+    - story_2022_053
   - id: VP-08-002
     priority: SHOULD
     kind: protocol
@@ -660,22 +938,43 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD follow consensus agreement to decide embargo terms
+    stories:
+    - story_2022_046
+    - story_2022_078
+    - story_2022_079
   - id: VP-08-004
     priority: SHOULD
     kind: protocol
     statement: All known Vendors of affected software SHOULD be included as Participants
+    stories:
+    - story_2022_013
+    - story_2022_032
+    - story_2022_052
+    - story_2022_053
+    - story_2022_063
+    - story_2022_082
+    - story_2022_092
+    - story_2022_093
+    - story_2022_097
+    - story_2022_104
   - id: VP-08-005
     priority: SHOULD
     kind: protocol
     statement: >-
       A newly invited Participant to a case with an existing embargo SHOULD accept the existing
       embargo
+    stories:
+    - story_2022_052
   - id: VP-08-006
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       The inviting Participant SHOULD NOT share the vulnerability report with a newly invited
       Participant unless the new Participant has accepted the existing embargo
+    stories:
+    - story_2022_023
+    - story_2022_026
+    - story_2022_044
   - id: VP-08-007
     priority: SHOULD
     kind: protocol
@@ -694,6 +993,11 @@ groups:
     statement: >-
       Participants in a case with an existing embargo SHOULD notify Vendors with a longer
       default embargo policy
+    stories:
+    - story_2022_032
+    - story_2022_052
+    - story_2022_092
+    - story_2022_093
   - id: VP-08-010
     priority: SHOULD
     kind: protocol
@@ -701,32 +1005,53 @@ groups:
       Participants known to leak or provide vulnerability information to adversaries as a
       matter of policy or historical fact SHOULD be treated similar to Participants with brief
       disclosure policies
+    stories:
+    - story_2022_027
+    - story_2022_094
+    - story_2022_096
   - id: VP-08-011
     priority: MAY
     kind: protocol
     statement: >-
       When consensus fails to reach agreement on embargo terms, Participants MAY appoint a
       case lead to resolve conflicts
+    stories:
+    - story_2022_051
   - id: VP-08-012
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY engage a third-party Coordinator to act as a neutral case lead to resolve
       conflicts between Participants
+    stories:
+    - story_2022_047
+    - story_2022_053
+    - story_2022_097
   - id: VP-08-013
     priority: MAY
     kind: protocol
     statement: Third-party Coordinators MAY be included as Participants
+    stories:
+    - story_2022_013
   - id: VP-08-014
     priority: MAY
     kind: protocol
     statement: Other parties MAY be included as Participants when necessary and appropriate
+    stories:
+    - story_2022_063
+    - story_2022_064
+    - story_2022_065
+    - story_2022_082
+    - story_2022_097
+    - story_2022_099
   - id: VP-08-015
     priority: MAY
     kind: protocol
     statement: >-
       The inviting Participant MAY interpret a potential Participant's default embargo policy
       in accordance with default acceptance strategies
+    stories:
+    - story_2022_054
   - id: VP-08-016
     priority: MAY
     kind: protocol
@@ -738,6 +1063,9 @@ groups:
     statement: >-
       Participants in an MPCVD case MAY delay notifying potential Participants with short
       default embargo policies until their policy aligns with the agreed embargo
+    stories:
+    - story_2022_024
+    - story_2022_033
   - id: VP-08-018
     priority: MAY
     kind: protocol
@@ -762,6 +1090,9 @@ groups:
     statement: >-
       Participants MAY decline to participate in future CVD cases involving parties with a
       history of violating previous embargoes
+    stories:
+    - story_2022_027
+    - story_2022_094
 - id: VP-09
   title: Embargo Early Termination
   specs:
@@ -771,6 +1102,14 @@ groups:
     statement: >-
       Embargoes SHALL terminate immediately when information about the vulnerability becomes
       public ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that the EM state transitions to Terminated when the CS state advances
+      to include public awareness.
+    stories:
+    - story_2022_015
+    - story_2022_020
+    - story_2022_069
   - id: VP-09-002
     priority: SHOULD
     kind: protocol
@@ -783,6 +1122,8 @@ groups:
     statement: >-
       Embargoes SHOULD terminate early when there is evidence that the vulnerability is being
       actively exploited by adversaries ($q^{cs} \in \{\cdots A\}$)
+    stories:
+    - story_2022_018
   - id: VP-09-004
     priority: SHOULD
     kind: protocol
@@ -801,6 +1142,8 @@ groups:
     statement: >-
       Embargoes MAY terminate early when there is evidence that adversaries are aware of the
       technical details of the vulnerability
+    stories:
+    - story_2022_018
   - id: VP-09-007
     priority: MAY
     kind: protocol
@@ -822,6 +1165,13 @@ groups:
       If no new embargo has been proposed or agreement has not been reached following a case
       merge, the earliest of the previously accepted embargo dates SHALL be adopted for the
       merged case
+    verification: >-
+      Inspection of `vultron/core/` confirms that the case-merge handler
+      selects the earliest `end_time` across all merging embargo agreements
+      when no new embargo has been proposed.
+    stories:
+    - story_2022_104
+    - story_2022_105
   - id: VP-10-002
     priority: MUST
     kind: protocol
@@ -830,18 +1180,36 @@ groups:
       the inherited date, the CASE_MANAGER of that child case SHALL notify the
       CASE_MANAGERs of all sibling child cases before the earlier end time takes
       effect, documenting the rationale in the case ledger.
+    verification: >-
+      Inspection of `vultron/core/use_cases/` confirms that the case-split
+      handler emits a notification to sibling case managers before any earlier
+      child-case embargo end time takes effect.
+    stories:
+    - story_2022_104
+    - story_2022_046
+    - story_2022_045
   - id: VP-10-003
     priority: MUST
     kind: protocol
     statement: >-
       Participants in a child case SHALL communicate any subsequently agreed changes from
       the inherited embargo to the Participants of the other child cases
+    verification: >-
+      Integration tests in `test/demo/` confirm that embargo revision
+      activities on a child case are forwarded to all sibling child-case
+      participants.
+    stories:
+    - story_2022_104
+    - story_2022_041
   - id: VP-10-004
     priority: SHOULD
     kind: protocol
     statement: >-
       A new embargo SHOULD be proposed when any two or more CVD cases are to be merged and
       multiple parties have agreed to different embargo terms prior to the merger
+    stories:
+    - story_2022_104
+    - story_2022_105
   - id: VP-10-005
     priority: SHOULD
     kind: protocol
@@ -873,18 +1241,39 @@ groups:
     statement: >-
       Participants SHALL NOT negotiate embargoes where the vulnerability or its exploit is
       public or attacks are known to have occurred
+    verification: >-
+      Inspection of `vultron/core/states/em.py` confirms that EM guard
+      conditions block new embargo proposals when the CS state includes
+      P, X, or A substates.
+    stories:
+    - story_2022_018
+    - story_2022_019
   - id: VP-11-002
     priority: MUST
     kind: protocol
     statement: >-
       If information about the vulnerability or an exploit has been made public, Participants
       SHALL terminate the embargo ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that the EM state transitions to Terminated when a CP or CX message is
+      received.
+    stories:
+    - story_2022_007
+    - story_2022_018
   - id: VP-11-003
     priority: MUST
     kind: protocol
     statement: >-
       Participants SHALL initiate embargo termination upon becoming aware of publicly available
       information about the vulnerability or its exploit code
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CP or CX event automatically triggers the ET
+      embargo-termination transition.
+    stories:
+    - story_2022_008
+    - story_2022_019
   - id: VP-11-004
     priority: SHOULD
     kind: protocol
@@ -897,18 +1286,24 @@ groups:
     statement: >-
       Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the nature of any error
       reported by an incoming $EE$ message
+    stories:
+    - story_2022_008
   - id: VP-11-006
     priority: SHOULD
     kind: protocol
     statement: >-
       If attacks are known to have occurred, Participants SHOULD terminate the embargo ($q^{cs}
       \in \cdots A$)
+    stories:
+    - story_2022_019
   - id: VP-11-007
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD initiate embargo termination upon becoming aware of attacks against
       an otherwise unpublished vulnerability
+    stories:
+    - story_2022_019
   - id: VP-11-008
     priority: SHOULD
     kind: protocol
@@ -936,12 +1331,22 @@ groups:
       Vendor Awareness ($CV$) messages SHOULD be sent only by Participants with direct knowledge
       of the notification (i.e., either the Participant who sent the report to the Vendor
       or the Vendor upon receipt of the report)
+    stories:
+    - story_2022_037
+    - story_2022_069
+    - story_2022_081
+    - story_2022_100
+    - story_2022_107
+    - story_2022_108
+    - story_2022_110
   - id: VP-12-002
     priority: SHOULD
     kind: protocol
     statement: >-
       Once attacks are observed ($q^{cs} \in \cdots A$), fix development SHOULD
       accelerate.
+    stories:
+    - story_2022_019
   - id: VP-12-002b
     priority: SHOULD
     kind: protocol
@@ -1018,6 +1423,12 @@ groups:
       A Participant's closure or deferral ($q^{rm} \in \{C, D\}$) of a report while an embargo
       remains active ($q^{em} \in \{A, R\}$) and while other Participants remain engaged SHALL
       NOT automatically terminate the embargo
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that RM Closed or Deferred transitions leave the EM Active state
+      unchanged.
+    stories:
+    - story_2022_067
   - id: VP-13-010
     priority: MAY
     kind: protocol
@@ -1080,24 +1491,50 @@ groups:
     statement: >-
       Once Public Awareness has happened ($q^{cs} \in \cdots P \cdots$), new embargoes SHALL
       NOT be sought and any existing embargo SHALL terminate
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CP event both blocks new embargo proposals and terminates any
+      Active embargo.
+    stories:
+    - story_2022_020
+    - story_2022_108
   - id: VP-14-002
     priority: MUST
     kind: protocol
     statement: >-
       Once Exploit Publication has occurred ($q^{cs} \in \cdots X \cdot$), new embargoes SHALL
       NOT be sought and any existing embargo SHALL terminate
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CX event both blocks new embargo proposals and terminates any
+      Active embargo.
+    stories:
+    - story_2022_018
   - id: VP-14-003
     priority: MUST
     kind: protocol
     statement: >-
       Once Attacks have been observed ($q^{cs} \in \cdots A$), new embargoes SHALL NOT be
       sought
+    verification: >-
+      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
+      that a CA event blocks all new embargo proposal activities.
+    stories:
+    - story_2022_019
   - id: VP-14-004
     priority: MUST
     kind: protocol
     statement: >-
       Participants MUST treat attacks as an event that could occur at any time and adapt their
       process as needed in light of available information
+    verification: >-
+      Inspection of `vultron/core/states/cs.py` confirms the CS state machine
+      accepts the `a` transition from any pre-attack CS state, and integration
+      tests in `test/demo/test_manage_embargo_demo.py` confirm a CA message
+      triggers the EM guard correctly.
+    stories:
+    - story_2022_019
+    - story_2022_086
   - id: VP-14-005
     priority: SHOULD
     kind: protocol
@@ -1116,6 +1553,8 @@ groups:
     statement: >-
       Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), new embargo negotiations
       SHOULD NOT start and proposed but not-yet-agreed-to embargoes SHOULD be rejected
+    stories:
+    - story_2022_025
   - id: VP-14-008
     priority: SHOULD
     kind: protocol
@@ -1141,12 +1580,16 @@ groups:
       Exploit Publishers who are Participants in pre-public CVD cases ($q^{cs} \in \cdots
       p \cdots$) SHOULD comply with the protocol, especially when they also fulfill other
       roles (e.g., Finder, Reporter, Coordinator, Vendor)
+    stories:
+    - story_2022_080
   - id: VP-14-012
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Exploit Publishers SHOULD NOT release exploit code while an embargo is active ($q^{em}
       \in \{A, R\}$)
+    stories:
+    - story_2022_080
   - id: VP-14-013
     priority: SHOULD
     kind: protocol
@@ -1159,6 +1602,9 @@ groups:
     statement: >-
       In MPCVD cases where some Vendors reach Fix Ready before others, Participants MAY propose
       an embargo extension to allow trailing Vendors to catch up before publication
+    stories:
+    - story_2022_080
+    - story_2022_105
 - id: VP-15
   title: Implementation Guidance
   specs:
@@ -1168,6 +1614,8 @@ groups:
     statement: >-
       Vultron Protocol messages SHOULD use well-defined format specifications (e.g., JSON
       Schema, protobuf, XSD)
+    stories:
+    - story_2022_106
   - id: VP-15-002
     priority: SHOULD
     kind: protocol
@@ -1176,6 +1624,12 @@ groups:
       for inter-participant communication
     scope:
     - production
+    stories:
+    - story_2022_034
+    - story_2022_035
+    - story_2022_036
+    - story_2022_090
+    - story_2022_106
   - id: VP-15-003
     priority: SHOULD
     kind: protocol
@@ -1184,6 +1638,8 @@ groups:
       data in transit
     scope:
     - production
+    stories:
+    - story_2022_034
   - id: VP-15-004
     priority: MAY
     kind: protocol
@@ -1192,6 +1648,9 @@ groups:
       data in transit
     scope:
     - production
+    stories:
+    - story_2022_089
+    - story_2022_091
   - id: VP-15-005
     priority: MAY
     kind: protocol
@@ -1199,6 +1658,8 @@ groups:
       Vultron Protocol implementations MAY use encryption to protect sensitive data at rest
     scope:
     - production
+    stories:
+    - story_2022_089
 - id: VP-16
   title: Embargo Representation Privacy
   specs:
@@ -1208,18 +1669,27 @@ groups:
     statement: >-
       Vulnerability details MUST NOT appear in embargo representation data (e.g., embargo
       scheduling or notification messages)
+    stories:
+    - story_2022_023
+    - story_2022_070
+    - story_2022_071
   - id: VP-16-002
     priority: SHOULD
     kind: protocol
     statement: >-
       A case or vulnerability identifier SHOULD appear in embargo representation data along
       with an indication that it relates to an embargo expiration
+    stories:
+    - story_2022_030
+    - story_2022_045
   - id: VP-16-003
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Case or vulnerability identifiers SHOULD NOT carry any information that reveals potentially
       sensitive details about the vulnerability
+    stories:
+    - story_2022_030
 - id: VP-17
   title: CaseActor Write Authority
   specs:
@@ -1233,9 +1703,16 @@ groups:
       state changes flow through the actor's consistency checks and persistence layer.
       The CS participant-specific axes (RM, VFD) are owned by each participant's
       `CaseParticipant` record and are intentionally excluded from this restriction.
+    verification: >-
+      Inspection of `vultron/core/models/case_actor.py` confirms that
+      canonical case state is encapsulated within the CaseActor, and
+      integration tests in `test/demo/` confirm no use-case handler writes
+      to canonical state outside the actor boundary.
     relationships:
     - rel_type: refines
       spec_id: VP-02-001
+    lint_suppress:
+    - missing_story_reference
   - id: VP-17-002
     priority: MUST_NOT
     kind: protocol
@@ -1264,10 +1741,18 @@ groups:
       The ledger record provides the audit trail and ordering guarantees for all case
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
       idempotency controls.
+    verification: >-
+      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
+      that every accepted participant message produces a CaseLedgerEntry and an
+      `Announce(CaseLedgerEntry)` broadcast before delivery to other
+      participants.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
       note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
+    stories:
+    - story_2022_045
+    - story_2022_041
   - id: VP-18-002
     priority: MUST_NOT
     kind: protocol
@@ -1288,6 +1773,13 @@ groups:
     rationale: >-
       Mediation through the CaseActor ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
+    verification: >-
+      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
+      that no participant receives a case-state update before the CaseActor has
+      committed the corresponding CaseLedgerEntry.
     relationships:
     - rel_type: refines
       spec_id: VP-18-001
+    stories:
+    - story_2022_045
+    - story_2022_106

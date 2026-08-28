@@ -60,7 +60,7 @@ HTTP POST /inbox  (wire: AS2 JSON)
 | BTBridge | `vultron/core/behaviors/bridge.py` | Handler-to-BT execution interface: setup blackboard, execute tree, capture result; serialises concurrent BT executions with a lock |
 | Factory function per object type | `vultron/wire/as2/factories/` | Construct outbound AS2 activities from domain objects in one place; use `wire_cls.from_core()` — never `model_dump()` + `model_validate()` |
 | DataLayer auto-rehydration | `vultron/adapters/driven/datalayer_sqlite/datalayer.py` | `dl.read()` reconstructs fully typed domain objects via `CORE_VOCABULARY`; expands dehydrated `object_`/`target`/list-ref fields |
-| `CasePersistence` / `DataLayer` split | `vultron/core/ports/case_persistence.py`, `vultron/core/ports/datalayer.py` | Narrow core-facing port (`CasePersistence`) vs. full adapter port (`DataLayer`); `ActorScopedDataLayer` adds inbox/outbox queue methods |
+| `CasePersistence` / `CaseOutboxPersistence` / `DataLayer` split | `vultron/core/ports/case_persistence.py`, `vultron/core/ports/case_outbox.py`, `vultron/core/ports/datalayer.py` | Narrow core-facing port (`CasePersistence`) vs. outbox-extended port (`CaseOutboxPersistence`) vs. full adapter port (`DataLayer`); `ActorScopedDataLayer` adds inbox/outbox queue methods |
 | Backward-compat shim (`datalayer_sqlite.py`) | `vultron/adapters/driven/datalayer_sqlite.py` | Re-export from split subpackage; callers do not update imports when internals split |
 | `pydantic-settings` layered config | `vultron/config/app.py` | Merge YAML file + env vars + defaults in a single `AppConfig` object |
 
@@ -80,6 +80,7 @@ HTTP POST /inbox  (wire: AS2 JSON)
 - `vultron/adapters/driving/fastapi/main.py`
 - `vultron/core/ports/datalayer.py`
 - `vultron/core/ports/case_persistence.py`
+- `vultron/core/ports/case_outbox.py`
 - `vultron/core/ports/use_case.py`
 - `vultron/core/dispatcher.py`
 - `vultron/core/behaviors/bridge.py`

@@ -27,13 +27,18 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.dimensions import EmDimension
-from vultron.core.states.em import EM, is_valid_em_transition
+from vultron.core.services.embargo_lifecycle import (
+    EmbargoLifecycle,
+    TransitionMode,
+)
+from vultron.core.states.em import EM
+from vultron.core.models.case import case_addressees
 from vultron.core.use_cases._helpers import (
     _as_id,
     reset_case_participant_embargo_consent,
     _resolve_case_manager_id,
 )
+from vultron.errors import VultronNotFoundError
 
 
 class HasEmbargoActiveNode(DataLayerConditionWithPorts):
@@ -78,10 +83,10 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
 class ClearActiveEmbargoNode(DataLayerActionWithPorts):
     """Apply EM → EXITED transition and clear active_embargo.
 
-    Reads the current EM state via ``ReadEmStateNode``, transitions
-    ``em_state`` to EXITED, clears ``active_embargo = None``, and persists
-    both fields in a single ``datalayer.save()`` (batched write — AC-3 of
-    issue #1554).
+    Reads the current EM state via ``ReadEmStateNode``, then delegates the
+    transition to ``EmbargoLifecycle.terminate_active_embargo()`` in OBSERVED
+    mode (EMB-18-001).  The service performs a single ``datalayer.save()``
+    covering both the EM state change and ``active_embargo = None``.
 
     Handles idempotency: returns SUCCESS without modifying state when EM is
     already EXITED.  Logs a WARNING for non-standard transitions (state-sync
@@ -116,7 +121,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        if not is_valid_em_transition(current_em, EM.EXITED):
+        if current_em not in (EM.ACTIVE, EM.REVISE):
             self.logger.warning(
                 "%s: EM transition %s → EXITED is not a standard machine"
                 " transition for case '%s'; applying state-sync override",
@@ -125,19 +130,24 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
                 self.case_id,
             )
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.feedback_message = f"Case '{self.case_id}' not found"
+        # EMB-18-001: route EM exit through EmbargoLifecycle.terminate_active_embargo().
+        # OBSERVED mode allows state-sync override for non-standard EM transitions.
+        lifecycle = EmbargoLifecycle(persistence=self.datalayer)
+        try:
+            result = lifecycle.terminate_active_embargo(
+                case_id=self.case_id,
+                actor_id=self.actor_id,
+                transition_mode=TransitionMode.OBSERVED,
+            )
+        except VultronNotFoundError as exc:
+            self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        case.current_status.em = EmDimension(state=EM.EXITED)
-        case.active_embargo = None
-        self.datalayer.save(case)
-
+        em_after = result.em_after
         self.feedback_message = (
             f"Cleared active embargo on case '{self.case_id}'"
-            f" (EM {current_em} → EXITED)"
+            f" (EM {current_em} → {em_after})"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         # SL-04-001/SL-04-006: embargo teardown is a protocol milestone.
@@ -146,7 +156,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
             self.actor_id or "<unknown>",
             self.case_id,
             current_em,
-            EM.EXITED,
+            em_after,
         )
         return Status.SUCCESS
 
@@ -239,48 +249,23 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
             entry = _require_log_entry(self._activity, self.name)
             case_id = entry.case_id
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.feedback_message = f"Case '{case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        current_em = case.current_status.em.state
-
-        if current_em == EM.EXITED:
+        # AC-1: delegate EM state read/write to canonical nodes.
+        clear_node = ClearActiveEmbargoNode(case_id=case_id)
+        clear_node.datalayer = self.datalayer
+        clear_node.actor_id = self.actor_id
+        if clear_node.update() != Status.SUCCESS:
             self.feedback_message = (
-                f"Case '{case_id}' EM already EXITED — idempotent no-op"
+                f"Case '{case_id}' not found — teardown skipped"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        if not is_valid_em_transition(current_em, EM.EXITED):
-            self.logger.warning(
-                "%s: EM transition %s → EXITED is not a standard machine"
-                " transition for case '%s'; applying state-sync override",
-                self.name,
-                current_em,
-                case_id,
-            )
+        reset_node = ResetParticipantConsentNode(case_id=case_id)
+        reset_node.datalayer = self.datalayer
+        reset_node.update()
 
-        case.current_status.em = EmDimension(state=EM.EXITED)
-        case.active_embargo = None
-        reset_case_participant_embargo_consent(self.datalayer, case)
-        self.datalayer.save(case)
-
-        self.feedback_message = (
-            f"Embargo teardown applied on case '{case_id}'"
-            f" (EM {current_em} → EXITED)"
-        )
+        self.feedback_message = f"Embargo teardown applied on case '{case_id}'"
         self.logger.debug("%s: %s", self.name, self.feedback_message)
-        # SL-04-001/SL-04-006: embargo teardown is a protocol milestone.
-        log_em_transition(
-            self.logger,
-            self.actor_id or "<unknown>",
-            case_id,
-            current_em,
-            EM.EXITED,
-        )
         return Status.SUCCESS
 
 
@@ -311,6 +296,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._embargo_id = embargo_id
+        self._recipients: list[str] = []
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
@@ -345,6 +331,22 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
+        # Recipients are every *other* participant, not the Case Manager.  This
+        # node runs inside `remove_embargo_from_case_tree`, whose ledger commit
+        # is gated on CASE_MANAGER, so the executing actor *is* the manager —
+        # addressing the announce to the manager addressed it to itself and the
+        # teardown reached nobody.  The Case Manager is still resolved above,
+        # because "the case has a manager" remains the precondition for
+        # announcing canonical case state at all.
+        self._recipients = case_addressees(case, self.actor_id or "")
+        if not self._recipients:
+            self.feedback_message = (
+                f"No other participants on case '{self._case_id}'"
+                " — Announce(EmbargoEvent) skipped"
+            )
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
         return self._embargo_id, case_manager_id
 
     def _call_factory(
@@ -355,7 +357,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            to=[case_manager_id],
+            to=self._recipients,
         )
 
     def _on_outbox_write_failure(

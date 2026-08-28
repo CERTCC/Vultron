@@ -43,7 +43,10 @@ _HELPERS_LOGGER = "vultron.core.use_cases._helpers"
 
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture()
@@ -183,7 +186,7 @@ def indexed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
 class TestInvitedPathBootstrap:
     """update_participant_rm_state when actor indexed but participant absent.
 
-    Regression for ISSUE-2216: after MV-09-001 fix, invited actors reach
+    Regression for ISSUE-2216: after AKM-03-001 fix, invited actors reach
     RM.VALID but engage-case returns 422 because the CaseParticipant object
     was never hydrated into the invitee's local DL.
     """

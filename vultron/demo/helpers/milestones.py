@@ -75,7 +75,7 @@ def verify_case_active(
         AssertionError: If any invariant is violated.
     """
     # Coordinator side
-    case_data = receiver_client.get(f"/datalayer/{case_id}")
+    case_data = receiver_client.get(receiver_client.dl_path(case_id))
     assert (
         case_data
     ), f"verify_case_active: receiver case {case_id!r} not found"
@@ -110,7 +110,7 @@ def verify_case_active(
     # participant count can reach its target a few tens of milliseconds before
     # the reporter's Create(VulnerabilityCase) has been processed.
     wait_for_case_on_container(reporter_client, case_id)
-    reporter_case_data = reporter_client.get(f"/datalayer/{case_id}")
+    reporter_case_data = reporter_client.get(reporter_client.dl_path(case_id))
     if not reporter_case_data:
         raise AssertionError(
             f"verify_case_active: reporter does not have case replica for"
@@ -348,7 +348,7 @@ def verify_publicly_disclosed(
         ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         assert (
             case_data
         ), f"verify_publicly_disclosed {label}: case {case_id!r} not found"
@@ -417,7 +417,7 @@ def verify_case_closed(
         ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
-        case_data = client.get(f"/datalayer/{case_id}")
+        case_data = client.get(client.dl_path(case_id))
         assert (
             case_data
         ), f"verify_case_closed {label}: case {case_id!r} not found"

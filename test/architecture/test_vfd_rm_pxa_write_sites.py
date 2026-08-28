@@ -77,16 +77,19 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # PREDICATE — deploy_fix.py: VfdDimension.is_fix_deployed() / is_fix_ready()
         ("report/nodes/deploy_fix.py", "VfdDimension"),
         ("report/nodes/deploy_fix.py", "VfdDimension"),
-        # PREDICATE — develop_fix.py: VfdDimension.is_fix_ready()
-        ("report/nodes/develop_fix.py", "VfdDimension"),
-        # RM-TRACKED — rm_transitions.py: RM.VALID / RM.INVALID / RM.CLOSED writes
-        ("report/nodes/rm_transitions.py", "RmDimension"),
-        ("report/nodes/rm_transitions.py", "RmDimension"),
+        # PREDICATE — develop_fix_conditions.py: VfdDimension.is_fix_ready()
+        ("report/nodes/develop_fix_conditions.py", "VfdDimension"),
+        # RM-TRACKED — rm_transitions.py: the single report-phase RM write.
+        # Was three near-identical sites (RM.VALID / RM.INVALID / RM.CLOSED);
+        # collapsed to one `_ReportPhaseRMTransition._write_latch` in ISSUE-2548
+        # so the latch has exactly one construction site (ARCH-15-004).
         ("report/nodes/rm_transitions.py", "RmDimension"),
         # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
         ("status/nodes/_adjudication.py", "PxaDimension"),
         ("status/nodes/_adjudication.py", "RmDimension"),
         ("status/nodes/_adjudication.py", "VfdDimension"),
+        # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
+        ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
         ("sync/nodes/participant_status_effect.py", "RmDimension"),
     ]

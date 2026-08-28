@@ -59,7 +59,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """OfferCaseParticipantRoleReceivedUseCase persists the offer activity."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -72,7 +75,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """Repeated execution of OfferCaseParticipantRoleReceivedUseCase is a no-op."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -82,20 +88,30 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         stored = dl.get(offer.type_.value, offer.id_)
         assert stored is not None
 
-    def test_offer_case_participant_role_skips_when_no_receiving_actor(
+    def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
     ):
-        """OfferCaseParticipantRoleReceivedUseCase skips when receiving_actor_id is None."""
+        """When receiving_actor_id is absent the store owner processes the offer."""
+        import py_trees
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        offer = self._make_offer()
-        event = make_payload(offer, receiving_actor_id=None)
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer(
+                "sqlite:///:memory:",
+                actor_id=self._CASE_ACTOR_URI,
+            )
+            offer = self._make_offer()
+            event = make_payload(offer, receiving_actor_id=None)
 
-        OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
+            OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is None
+            # The BT runs under the store owner's identity; the tree stores the
+            # offer idempotently regardless of receiving_actor_id stamp.
+            stored = dl.get(offer.type_.value, offer.id_)
+            assert stored is not None
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
 
     def test_offer_case_participant_role_coordinator_persists(
         self, make_payload
@@ -103,7 +119,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """OfferCaseParticipantRoleReceivedUseCase works for any CVDRole, not just CASE_MANAGER."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
         offer = self._make_offer(role=CVDRole.COORDINATOR)
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -119,7 +138,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         from unittest.mock import MagicMock
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
@@ -167,7 +189,11 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         """AcceptCaseParticipantRoleReceivedUseCase persists the Accept activity."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The Accept is authored by the case actor and received by the vendor
+        # that made the offer, so this is the *vendor's* own store: with no
+        # receiving_actor_id on the payload, the receiving actor resolves to
+        # whoever owns the store we hand in (ADR-0073).
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
             offer, actor=self._CASE_ACTOR_URI
@@ -183,7 +209,11 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         """Repeated AcceptCaseParticipantRoleReceivedUseCase execution is a no-op."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The Accept is authored by the case actor and received by the vendor
+        # that made the offer, so this is the *vendor's* own store: with no
+        # receiving_actor_id on the payload, the receiving actor resolves to
+        # whoever owns the store we hand in (ADR-0073).
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
             offer, actor=self._CASE_ACTOR_URI
@@ -202,7 +232,11 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         """AcceptCaseParticipantRoleReceivedUseCase logs acceptance at INFO level."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The Accept is authored by the case actor and received by the vendor
+        # that made the offer, so this is the *vendor's* own store: with no
+        # receiving_actor_id on the payload, the receiving actor resolves to
+        # whoever owns the store we hand in (ADR-0073).
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
             offer, actor=self._CASE_ACTOR_URI

@@ -30,6 +30,11 @@ groups:
     rationale: >
       StatusAdoptionGate of ADR-0046 — separates the "record the claim" step from the
       "adopt the claim as canonical" decision.
+    verification: Inspection of `vultron/core/behaviors/status/` confirms `add_participant_status_tree` positions
+      `StatusAdoptionGate` after `AppendParticipantStatusNode` and before any canonicalization step.
+    stories:
+    - story_2022_046
+    - story_2022_088
   - id: RSH-01-002
     priority: MUST
     kind: protocol
@@ -40,6 +45,11 @@ groups:
     rationale: >
       CASE_OWNER reports are authoritative by definition (gospel bypass).
       Non-owner reports pass through a configurable approval gate per ADR-0046.
+    verification: Inspection of `vultron/core/behaviors/status/` confirms `StatusAdoptionGate` is a Fallback node with
+      `CheckIsCaseOwnerNode` as first child and `CaseOwnerApprovesStatusUpdate` as second child.
+    stories:
+    - story_2022_046
+    - story_2022_088
   - id: RSH-01-003
     priority: MUST
     kind: protocol
@@ -50,6 +60,8 @@ groups:
     rationale: >
       The self-addressed Add(CaseStatus) threads the two gates together without
       coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
+    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm a self-addressed
+      `Add(CaseStatus, VulnerabilityCase)` is emitted when `StatusAdoptionGate` passes.
     note: >
       Implementation pattern for obtaining the `CaseStatus` ID: read the
       `ParticipantStatus` record by `participant_status_id`, extract the
@@ -58,6 +70,9 @@ groups:
       duplicate), then pass the resulting `case_status.id_` to the factory.
       If `.case_status` is absent on the `ParticipantStatus`, the node MUST
       return FAILURE (ISSUE-1841).
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-01-004
     priority: MUST_NOT
     kind: protocol
@@ -86,16 +101,36 @@ groups:
     rationale: >
       EmbargoTeardownAuthorizationGate of ADR-0046 — provides a hook to gate side-effect execution
       independently of the canonical write authorization.
+    verification: Inspection of `vultron/core/behaviors/status/` confirms `EmbargoTeardownAuthorizationGate` is positioned
+      after `AppendCaseStatusToCaseNode` and before `ThreatTerminationBranchNode` in `add_case_status_tree`.
+    stories:
+    - story_2022_023
+    - story_2022_026
   - id: RSH-02-002
     priority: MUST
     kind: protocol
     statement: >
-      The default backend for `EmbargoTeardownAuthorizationGate` MUST be `AlwaysSucceed`,
-      preserving existing behavior until a real policy engine is wired in.
+      The default backend for `EmbargoTeardownAuthorizationGate` MUST be
+      `RequireCaseOwnerApproval` — an Evaluator that performs an
+      Offer/Accept/Reject round-trip with the Case Owner before permitting
+      teardown side-effects. A permissive backend (e.g., `AlwaysSucceed`) MAY
+      be configured for trusted-participant or demo deployments but MUST be
+      explicitly configured. See RSH-07.
     rationale: >
-      Prototype-stage default per ADR-0025 ceiling/floor rule. Changing the
-      default would alter existing demo behavior.
+      Conservative default for a security-significant gate per ADR-0025
+      (security-significant gate exception) and ADR-0076. The prior default
+      of `AlwaysSucceed` was a prototype-stage convenience; production-ready
+      posture requires explicit operator opt-in for permissive behavior.
+      Belt-and-suspenders: even though `StatusAdoptionGate` (RSH-07-001) has
+      already obtained Case Owner approval before the self-addressed
+      `Add(CaseStatus)` arrives here, an operator constructing
+      `add_case_status_tree` outside the self-addressed pattern would otherwise
+      inherit a permissive teardown gate with no explicit opt-in.
+    verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
+      `EmbargoTeardownAuthorizationGate` is `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
 
+    lint_suppress:
+    - missing_story_reference
 - id: RSH-03
   title: ThreatTerminationBranchNode
   description: >
@@ -113,6 +148,12 @@ groups:
       All three flags signal a breach of the conditions that justify an active
       embargo. Covering only CS.P (as the prior `PublicDisclosureBranchNode`
       did) leaves exploit and attack signals without a teardown trigger.
+    verification: Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py` confirm `ThreatTerminationBranchNode`
+      triggers embargo teardown when `CaseStatus` carries CS.P, CS.X, or CS.A.
+    stories:
+    - story_2022_018
+    - story_2022_019
+    - story_2022_081
   - id: RSH-03-002
     priority: MUST_NOT
     kind: protocol
@@ -135,7 +176,11 @@ groups:
       The node belongs in the tree that writes canonical state. Its presence
       in `add_participant_status_tree` predates the two-seam design and must
       be migrated as part of implementing RSH-01 and RSH-02.
+    verification: Inspection of `vultron/core/behaviors/status/` confirms `PublicDisclosureBranchNode` is absent from
+      `add_participant_status_tree` and `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
 
+    stories:
+    - story_2022_081
 - id: RSH-04
   title: CaseStatus Emission Authority and Outbound Emit Invariant
   description: >
@@ -158,6 +203,11 @@ groups:
       CaseActor holds the CASE_MANAGER role and is the authoritative writer of
       canonical case state (ADR-0046, CLP-09). Allowing participants to emit
       Add(CaseStatus) directly would bypass the two-seam authorization model.
+    verification: Inspection of `vultron/core/behaviors/status/` confirms only the CASE_MANAGER emits `Add(CaseStatus)`
+      directly; unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` cover the non-owner path.
+    stories:
+    - story_2022_045
+    - story_2022_046
   - id: RSH-04-002
     priority: MUST
     kind: protocol
@@ -171,6 +221,11 @@ groups:
       entries in `Announce(CaseLedgerEntry)` messages. A mutation without a
       subsequent ledger write leaves participant replicas with a stale EM state
       (observed in fv/fcv/fvv CI scenarios — see CONCERN-1667).
+    verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates EM state is
+      immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
+    stories:
+    - story_2022_014
+    - story_2022_045
   - id: RSH-04-003
     priority: MUST
     kind: protocol
@@ -182,6 +237,11 @@ groups:
       PXA state is participant-agnostic and shared across the case. The
       rationale mirrors RSH-04-002: omitting the ledger write leaves replicas
       stale and breaks the Avoid Surprise principle.
+    verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates PXA state is
+      immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
+    stories:
+    - story_2022_045
+    - story_2022_081
   - id: RSH-04-004
     priority: MUST
     kind: protocol
@@ -201,6 +261,8 @@ groups:
       causality: the ledger write should precede the announce, not be triggered
       by a self-addressed inbox message. DRY: one shared node, not N inline
       patches per BT tree factory.
+    verification: Inspection of `vultron/core/behaviors/` confirms `EmitCaseStatusUpdateNode` writes directly to
+      `case.case_statuses` and emits `Announce(CaseLedgerEntry)` without routing through `add_case_status_tree`.
     note: >
       Implementation tracked in ISSUE-2175 (implement EmitCaseStatusUpdateNode,
       size:M). A follow-on refactor of `EmitAddCaseStatusToSelfNode` is tracked
@@ -210,14 +272,18 @@ groups:
       place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
       ledger writes as well. That refactor is blocked-by the impl issue.
 
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: RSH-05
   title: Per-Dimension Partial Accept (liberal accept)
   description: >
     An inbound `Add(ParticipantStatus, CaseParticipant)` carries a snapshot of
     several independent state machines (`rm`, `vfd`, `em`, `pxa`, `consent`).
+    An inbound `Add(CaseStatus, Case)` carries independent EM and PXA dimensions.
     These requirements govern adjudicating each dimension on its own rather
     than accepting or discarding the snapshot as a unit.
-    Derived from ISSUE-2235 and epic ISSUE-2229 (Postel's maxim / liberal
+    Derived from ISSUE-2235, ISSUE-2256, and epic ISSUE-2229 (Postel's maxim / liberal
     accept).
   specs:
   - id: RSH-05-001
@@ -233,12 +299,17 @@ groups:
       unacceptable in one dimension carries no information about the others, so
       discarding the whole snapshot destroys state the receiver has no grounds
       to refuse. Liberal accept (ISSUE-2229): accept everything acceptable.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm an unacceptable
+      `rm` value does not discard accepted VFD and PXA values from the same status snapshot.
     note: >
       Implemented by `FilterParticipantStatusDimensionsNode` in
       `vultron/core/behaviors/status/nodes/dimension_filter.py`, wired as a
       precondition guard of `add_participant_status_tree`. It supersedes
       `CheckParticipantRMNotClosedNode`, whose all-or-nothing RM refusal was
       the defect reported in ISSUE-2235.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-002
     priority: MUST
     kind: protocol
@@ -251,6 +322,11 @@ groups:
       view of the participant. Omitting the refused dimension would leave it
       undefined; recording the asserted value would adopt a claim the receiver
       just refused.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
+      confirm the refused dimension is replaced by the current value in the recorded `ParticipantStatus`.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-003
     priority: MUST
     kind: protocol
@@ -262,6 +338,11 @@ groups:
       EmbargoTeardownAuthorizationGate owns embargo teardown (RSH-01-004). Aborting the StatusAdoptionGate sequence
       on a refused dimension silently skipped teardown — the concrete failure
       reported in ISSUE-2235.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
+      confirm a refused dimension does not suppress the self-addressed `Add(CaseStatus)` StatusAdoptionGate emit.
+    stories:
+    - story_2022_023
+    - story_2022_088
   - id: RSH-05-004
     priority: MUST
     kind: protocol
@@ -274,6 +355,8 @@ groups:
       the receiver refused, and each replica would apply it. Recording the
       accepted portion is also what makes the refusal visible: the canonical
       entry differs from what the sender asserted.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm the canonical
+      `CaseLedgerEntry` contains accepted dimension values, not the raw asserted values.
     note: >
       Implemented via the `ledger_payload_object_override` blackboard contract
       read by `CommitCaseLedgerEntryNode`. The guard runs before
@@ -283,6 +366,9 @@ groups:
       The override is a *patch* — `{"object_id": ..., "fields": {...}}` keyed by
       wire alias — merged onto the snapshot's existing `object`, not a
       replacement object. See RSH-05-009 for why.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-005
     priority: MUST
     kind: protocol
@@ -295,6 +381,10 @@ groups:
       Such an assertion carries no acceptable information. Appending it would
       grow the participant's status history and the hash chain without
       recording any state change.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a wholly
+      refused status update is not appended and commits no canonical ledger entry.
+    stories:
+    - story_2022_045
   - id: RSH-05-006
     priority: MUST
     kind: protocol
@@ -306,6 +396,11 @@ groups:
       A vendor that has closed its report management workflow may still deploy
       a fix (VFD) or observe public disclosure (PXA). Freezing the whole
       snapshot at RM closure discards real protocol state.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a participant
+      at `RM.CLOSED` still has accepted VFD dimension values recorded.
+    stories:
+    - story_2022_088
+    - story_2022_107
   - id: RSH-05-007
     priority: MUST
     kind: protocol
@@ -322,6 +417,11 @@ groups:
       has already observed. Lateral moves at the same rank
       (`VALID` <-> `INVALID`) are re-adjudication, not regression, and are
       applied unchanged.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm applying an
+      `Announce(CaseLedgerEntry)` never moves a replica's RM state backward on the RM progress scale.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-008
     priority: SHOULD
     kind: protocol
@@ -351,11 +451,16 @@ groups:
       because core MUST NOT import `vultron.wire` to convert (ADR-0009,
       ADR-0017). Publishing a field patch instead makes shape preservation
       structural rather than a property the guard has to remember to maintain.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm adjudicated
+      ledger entries retain the same wire field shape as unadjudicated entries, with only dimension values patched.
     note: >
       The merge is one level deep, so a patched `caseStatus.pxaState` keeps the
       nested object's own `id` and remaining fields. A patched alias also drops
       any stale snake_case twin of the same field, so a consumer that prefers
       the snake_case spelling cannot read the value the receiver refused.
+    stories:
+    - story_2022_045
+    - story_2022_106
   - id: RSH-05-010
     priority: MUST
     kind: protocol
@@ -370,12 +475,16 @@ groups:
       only writes on its active path leaves the key at its previous value on
       every no-op tick. `CommitCaseLedgerEntryNode` would then apply that stale
       patch to a different payload snapshot. BT-17-003.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a stale
+      `ledger_payload_object_override` from a prior tick is cleared before the next tick executes.
     note: >
       Pattern: call the unconditional clear (e.g. `self._publish((), None)`) as
       the first statement in `update()`, before any conditional branch. Once
       the producer node is migrated to the typed-Ports base class (ISSUE-1808),
       the base class SHOULD auto-clear declared output ports in `initialise()`,
       making this obligation structural.
+    lint_suppress:
+    - missing_story_reference
   - id: RSH-05-011
     priority: MUST
     kind: protocol
@@ -389,6 +498,10 @@ groups:
       source node in the dict enables targeted audit logging and per-producer
       diagnostics without out-of-band context. RSH-05-014 uses `producer_type`
       to emit a warning on unrecognized producers without failing the commit.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm every
+      `ledger_payload_object_override` dict includes a `producer_type` field identifying the source node.
+    stories:
+    - story_2022_074
   - id: RSH-05-012
     priority: MUST
     kind: protocol
@@ -401,11 +514,15 @@ groups:
       alias applied to the canonical snapshot would abort the commit, blocking
       the receive-side BT. Declaring this as a producer obligation means callers
       can validate at construction time rather than catching a runtime failure.
+    verification: Inspection of `vultron/core/behaviors/case/nodes/lifecycle.py` confirms `CommitCaseLedgerEntryNode`
+      validates `fields` keys against the `_SNAKE_TWINS` dict and hard-fails on unrecognized wire aliases.
     note: >
       The recognized aliases are those defined in `_SNAKE_TWINS` in
       `vultron/core/behaviors/case/nodes/lifecycle.py` — the module-level dict
       that maps each camelCase wire alias to its snake_case twin for
       `CommitCaseLedgerEntryNode`.
+    stories:
+    - story_2022_045
   - id: RSH-05-013
     priority: MUST
     kind: protocol
@@ -419,6 +536,10 @@ groups:
       and the invariant harness would then apply. Data integrity requires a hard
       stop; the correct response is to fix the producer (RSH-05-012), not to log
       and continue.
+    verification: Unit tests in `test/core/behaviors/case/nodes/test_lifecycle.py` confirm `CommitCaseLedgerEntryNode` raises
+      a hard failure (not a warning) when `fields` contains a key not present in `_SNAKE_TWINS`.
+    stories:
+    - story_2022_045
   - id: RSH-05-014
     priority: SHOULD
     kind: protocol
@@ -431,6 +552,75 @@ groups:
       against an older consumer. Logging preserves auditability without
       blocking a structurally valid override. Field-name validation (RSH-05-013)
       is the data-integrity guard; `producer_type` is an audit hint only.
+  - id: RSH-05-015
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CaseActor receiving an `Add(CaseStatus, Case)` MUST adjudicate the EM
+      and PXA dimensions of the reported case status independently. An
+      unacceptable value in one dimension MUST NOT cause the value reported in
+      the other dimension to be discarded.
+    rationale: >
+      EM and PXA are independent state machines within CaseStatus (parallel to
+      RM, VFD, EM, PXA in ParticipantStatus). A value that is unacceptable in
+      EM carries no information about PXA and vice versa. Discarding the whole
+      snapshot destroys state the receiver has no grounds to refuse. Liberal
+      accept (ISSUE-2229): accept everything acceptable.
+    verification: >
+      Unit tests for `add_case_status_tree` confirm that an unacceptable EM
+      value does not discard an accepted PXA value from the same CaseStatus
+      snapshot, and vice versa.
+    note: >
+      Implemented by `FilterCsEmDimensionNode` and `FilterCsPxaDimensionNode`
+      in `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired
+      as precondition guards of `add_case_status_tree`. See ISSUE-2256.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-016
+    priority: MUST
+    kind: protocol
+    statement: >
+      When an EM or PXA dimension of a received `CaseStatus` is refused, the
+      receiver MUST record the case's current value for that dimension alongside
+      the accepted value from the other dimension, as a single `CaseStatus`.
+    rationale: >
+      The recorded status must remain a coherent snapshot of the receiver's
+      view of the case. Omitting the refused dimension would leave it undefined;
+      recording the asserted value would adopt a claim the receiver just refused.
+      This is the CaseStatus parallel to RSH-05-002 for ParticipantStatus.
+    verification: >
+      Unit tests confirm that when the EM dimension is refused, the resulting
+      recorded `CaseStatus` carries the case's current EM state, not the
+      asserted EM state.
+    note: >
+      Implemented by `FilterCsEmDimensionNode` carrying forward `current_em`
+      and `FilterCsPxaDimensionNode` carrying forward `current_pxa` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-017
+    priority: MUST
+    kind: protocol
+    statement: >
+      A received `CaseStatus` in which every refused dimension leaves the
+      resulting snapshot indistinguishable from the case's current state MUST
+      be refused in full: nothing is appended and no canonical ledger entry is
+      committed.
+    rationale: >
+      Such an assertion carries no acceptable information. Appending it would
+      grow the case's status history and the hash chain without recording any
+      state change. This is the CaseStatus parallel to RSH-05-005 for
+      ParticipantStatus.
+    verification: >
+      Unit tests confirm that a `CaseStatus` where both EM and PXA are refused
+      and the result is indistinguishable from current state is rejected in full
+      with no ledger entry committed.
+    note: >
+      Implemented by `FinalizeCsFilterNode.update()` returning `Status.FAILURE`
+      when `(filtered.em.state, filtered.pxa.state) == (current.em.state,
+      current.pxa.state)`.
+    lint_suppress:
+    - missing_story_reference
 
 - id: RSH-06
   title: RM Anomaly Notification Policy (non-adjacent jumps and backward regressions)
@@ -457,10 +647,15 @@ groups:
       non-adjacent forward jump would leave the receiver's replica permanently
       wrong, because the sender will not resend intermediate transitions it
       never reported. Liberal accept (ISSUE-2229): accept everything acceptable.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
+      confirm a non-adjacent forward RM jump is accepted (not refused) without any dimension being discarded.
     note: >
       Implemented by `FilterParticipantStatusDimensionsNode._rm_is_acceptable()`
       in the production path and by `ValidateRMTransitionNode` in the standalone
       path. Both paths MUST accept with the same policy.
+    stories:
+    - story_2022_074
+    - story_2022_088
   - id: RSH-06-002
     priority: MUST
     kind: protocol
@@ -473,9 +668,14 @@ groups:
       RM is monotonic: a sender cannot un-validate, un-accept, or un-close a
       report. A backward assertion indicates either a protocol error or a
       divergent replica state; neither should update the receiver's record.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a backward
+      RM regression refuses only the `rm` dimension while leaving other dimensions unaffected.
     note: >
       The refusal is per-dimension only (RSH-05-001). Other dimensions of the
       same status snapshot are still adjudicated and accepted if valid.
+    stories:
+    - story_2022_074
+    - story_2022_088
   - id: RSH-06-003
     priority: MUST
     kind: protocol
@@ -488,6 +688,11 @@ groups:
       Because CVD is inherently asynchronous, protocol anomalies are detected
       at receipt time (t₁ > t₀ when the event occurred). Silent handling makes
       diagnosis impossible for both parties and breaks protocol observability.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm both anomaly
+      types emit a WARNING log naming the sender, the before/after `rm` states, and the anomaly type.
+    stories:
+    - story_2022_074
+    - story_2022_077
   - id: RSH-06-004
     priority: SHOULD
     kind: protocol
@@ -521,3 +726,75 @@ groups:
       automated remediation process. The request for clarification is only
       meaningful if the recipient can identify what they are being asked to
       clarify.
+    verification: Inspection of `vultron/core/behaviors/status/` confirms `EmitRMGapNoteNode` constructs the note payload
+      with the sender's ID, before/after `rm` states, and an anomaly-type description.
+    stories:
+    - story_2022_039
+    - story_2022_074
+    - story_2022_077
+
+- id: RSH-07
+  title: Conservative Default Authorization Policy for Status Gates
+  description: >
+    Both StatusAdoptionGate and EmbargoTeardownAuthorizationGate MUST default to
+    `RequireCaseOwnerApproval` — an Evaluator that performs an Offer/Accept/Reject
+    round-trip with the Case Owner before allowing PXA assertion adoption or
+    embargo teardown side-effects. Permissive backends are valid but MUST be
+    explicitly configured.
+    Derived from CONCERN-2092 and ADR-0076.
+  specs:
+  - id: RSH-07-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      The default backend for the `CaseOwnerApprovesStatusUpdate` Evaluator
+      call-out in `StatusAdoptionGate` MUST be `RequireCaseOwnerApproval` —
+      an Evaluator that sends an `Offer` to the Case Owner and waits for
+      `Accept` or `Reject` before allowing the PXA assertion to be adopted
+      as canonical case state.
+    rationale: >
+      A permissive default (e.g., `AlwaysSucceed`) means any admitted
+      participant — including a hostile or malfunctioning Observer admitted
+      as a sentinel — can force PXA adoption and thereby trigger embargo
+      teardown without any Case Owner confirmation. The default posture must
+      be conservative; permissive behavior requires explicit opt-in. See ADR-0076.
+    verification: >
+      Inspection of `StatusAuthorizationCallOutBundle` confirms
+      `status_adoption_gate_factory` defaults to `RequireCaseOwnerApproval`,
+      not `AlwaysSucceed`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      The default backend for `EmbargoTeardownAuthorizationGate` MUST be
+      `RequireCaseOwnerApproval`. See also RSH-02-002.
+    rationale: >
+      Belt-and-suspenders: both gates default conservatively. See RSH-02-002
+      rationale and ADR-0076 for full justification.
+    verification: >
+      Inspection of `StatusAuthorizationCallOutBundle` confirms
+      `embargo_teardown_authorization_gate_factory` defaults to
+      `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-003
+    priority: MAY
+    kind: protocol
+    statement: >
+      An implementation MAY configure a permissive backend (e.g.,
+      `AlwaysSucceed`) for `CaseOwnerApprovesStatusUpdate` or
+      `EmbargoTeardownAuthorizationGate` in deployments where all admitted
+      participants are trusted and the operational overhead of Case Owner
+      approval is unacceptable. Any such configuration MUST be explicit and
+      documented.
+    rationale: >
+      Demo and trusted-participant deployments legitimately need automated
+      sentinel behavior without ceremony. The conservative posture applies by
+      default; permissive is an explicit operator choice with documented
+      consequences. Other valid alternative backends include role-differentiated
+      policy, probabilistic approval, and any `CallOutBackendFactory`-conformant
+      implementation. See ADR-0076.
+    lint_suppress:
+    - missing_story_reference

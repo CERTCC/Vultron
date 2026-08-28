@@ -58,8 +58,13 @@ def _clear_blackboard():
     py_trees.blackboard.Blackboard.storage.clear()
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
+    """The store of *actor_id*, defaulting to the case actor.
+
+    The canonical ledger these tests assert on belongs to the case actor, and the
+    commit is gated on its CASE_MANAGER role, so that is the store the tree runs in.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 def _make_case_actor_dl() -> SqliteDataLayer:
@@ -200,4 +205,24 @@ class TestCloseCaseLedgerRouting:
             "Expected a CaseLedgerEntry with event_type='close_case'"
             " when the case-actor is both sender and receiver (AutoClose path);"
             f" found: {event_types}"
+        )
+
+    def test_absent_stamp_uses_store_owner_for_commit(self):
+        """When receiving_actor_id is absent the store owner processes the Leave.
+
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
+        dl.actor_id (CASE_ACTOR_ID here), so the guarded commit fires and the
+        ``close_case`` ledger entry IS written.
+        """
+        dl = _make_case_actor_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(receiving_actor_id=None),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "close_case" in event_types, (
+            "Store-owner fallback (CaseActor) MUST write a close_case"
+            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
         )

@@ -65,6 +65,15 @@ use of the deterministic bundle is a **happy-path demonstration** in which the
 protocol makes forward progress. Scenarios that need to exercise failure paths
 should use a pessimistic bundle or inject an explicit `AlwaysFail` factory.
 
+**Security-significant gate exception (ADR-0076, ADR-0025 amended):** For
+call-out points whose permissive default enables unilateral state change or
+embargo consequences — e.g., `CaseOwnerApprovesStatusUpdate` in
+`StatusAdoptionGate` and `EmbargoTeardownAuthorizationGate` — the
+DETERMINISTIC default MUST be `RequireCaseOwnerApproval`, not `AlwaysSucceed`,
+regardless of stochastic p. The ceiling/floor rule applies only to
+simulation-domain nodes where permissiveness is a prototype-stage convenience.
+See RSH-07-001 and RSH-07-002.
+
 Currently there are four `p=0.5` nodes (all default to `AlwaysSucceed`):
 
 | Node | Domain | Rationale |
@@ -162,7 +171,6 @@ sub-module layout):
 | `PrioritizationCallOutBundle` | Report prioritization | `create_prioritize_subtree` |
 | `EmbargoCallOutBundle` | Embargo management | `create_manage_embargo_tree` |
 | `PublicationCallOutBundle` | Publication pipeline | `create_publication_tree`, `create_publish_artifact_tree` |
-| `ReportToOthersCallOutBundle` | Reporting to others | `create_report_to_others_tree` |
 | `DeployFixCallOutBundle` | Fix deployment | `create_deploy_fix_tree` |
 | `DeployMitigationCallOutBundle` | Mitigation deployment | `create_deploy_mitigation_tree` |
 | `AcquireExploitCallOutBundle` | Exploit acquisition | `create_acquire_exploit_tree`, `create_acquire_exploit_strategy_tree` |

@@ -27,8 +27,13 @@ from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
 from vultron.core.models.report import VultronReport
-from vultron.core.models.dimensions import EmDimension, RmDimension
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PecDimension,
+    RmDimension,
+)
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -109,6 +114,31 @@ def test_participant_status_from_core_materializes_case_status_reference():
     assert isinstance(round_tripped.case_status, CoreCaseStatus)
     assert round_tripped.case_status.id_ == core_case_status.id_
     assert round_tripped.case_status.em.state == core_case_status.em.state
+
+
+def test_participant_status_embargo_adherence_survives_wire_round_trip():
+    """embargo_adherence is correctly projected through from_core() and round-tripped via to_core() (ADR-0056)."""
+    core_signatory = CoreParticipantStatus(
+        id_="https://example.org/cases/1/participants/vendor/status/1",
+        attributed_to="https://example.org/actors/vendor",
+        context="https://example.org/cases/1",
+        consent=PecDimension(state=PEC.SIGNATORY),
+    )
+    wire = as_ParticipantStatus.from_core(core_signatory)
+    assert wire.embargo_adherence is True
+
+    round_tripped = wire.to_core()
+    assert round_tripped.embargo_adherence is True
+
+    core_no_consent = CoreParticipantStatus(
+        id_="https://example.org/cases/1/participants/vendor/status/2",
+        attributed_to="https://example.org/actors/vendor",
+        context="https://example.org/cases/1",
+        consent=None,
+    )
+    wire_no_consent = as_ParticipantStatus.from_core(core_no_consent)
+    assert wire_no_consent.embargo_adherence is False
+    assert wire_no_consent.to_core().embargo_adherence is False
 
 
 def test_case_participant_round_trips_between_core_and_wire():

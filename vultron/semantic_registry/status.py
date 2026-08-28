@@ -78,7 +78,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=AddParticipantStatusToParticipantPattern,
         event_class=AddParticipantStatusToParticipantReceivedEvent,
         use_case_class=AddParticipantStatusToParticipantReceivedUseCase,
-        phrase="{actor} updated the participant status for {object}",
+        phrase="{actor} updated {object}'s participant status",
         wire_activity_class=_AddStatusToParticipantActivity,
         include_activity=True,
     ),

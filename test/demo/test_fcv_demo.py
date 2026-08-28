@@ -142,9 +142,9 @@ class TestResetContainersFcv:
 
         reset_mock.assert_has_calls(
             [
-                call(client=finder_client, init=False),
-                call(client=coordinator_client, init=False),
-                call(client=vendor_client, init=False),
+                call(client=finder_client),
+                call(client=coordinator_client),
+                call(client=vendor_client),
             ]
         )
 
@@ -421,6 +421,7 @@ class TestFcvMilestoneAssertions:
         case = self._case()
 
         with (
+            patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready"),
             patch.object(demo, "wait_for_participant_vfd_state"),
             patch.object(demo, "verify_fix_ready") as mock_m5,
@@ -441,6 +442,55 @@ class TestFcvMilestoneAssertions:
                 case=case,
             )
         mock_m5.assert_called()
+
+    def test_phase_fix_lifecycle_gates_on_rm_accepted(self):
+        """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
+        from vultron.core.states.rm import RM
+
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        coordinator = self._actor("urn:test:coordinator")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        case = self._case()
+
+        call_order = []
+        rm_calls = []
+
+        def _rm_wait(*a, **kw):
+            rm_calls.append(kw)
+            call_order.append("rm_wait")
+
+        with (
+            patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
+            patch.object(
+                demo,
+                "actor_notifies_fix_ready",
+                side_effect=lambda *a, **kw: call_order.append("fix_ready"),
+            ),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_fix_ready"),
+        ):
+            demo._phase_fix_lifecycle(
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                coordinator=coordinator,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+            )
+
+        assert (
+            rm_calls
+        ), "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
+        assert all(
+            c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
+            for c in rm_calls
+        ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
+        assert "rm_wait" in call_order and "fix_ready" in call_order
+        assert call_order.index("rm_wait") < call_order.index(
+            "fix_ready"
+        ), "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""
@@ -658,3 +708,75 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
             f"run_invite_path_rm_triage (index {triage_idx}). "
             f"Call order: {call_order} — Bug #2135 (CLP-08-005)"
         )
+
+
+class TestFcvCausalGates:
+    """Verify causal demo_gate sites skip dependent steps on timeout.
+
+    Each test simulates an async-commit timeout at the precondition and
+    confirms the dependent step is never reached.
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
+        self,
+    ):
+        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
+        finder_client = self._client()
+        coordinator_client = self._client()
+        vendor_client = self._client()
+        finder = self._actor("urn:test:finder")
+        coordinator = self._actor("urn:test:coordinator")
+        vendor = self._actor("urn:test:vendor")
+        case = self._case()
+
+        coverage_wait_called = MagicMock()
+
+        with (
+            patch.object(
+                demo,
+                "_get_log_entries_for_case",
+                return_value=[
+                    {"log_index": 5, "entry_hash": "abc123def456789a"}
+                ],
+            ),
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=AssertionError(
+                    "timed out waiting for case on container"
+                ),
+            ),
+            patch.object(
+                demo,
+                "wait_for_contiguous_ledger_coverage",
+                side_effect=coverage_wait_called,
+            ),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "verify_replica_state"),
+        ):
+            demo._phase_sync_verification(
+                finder_client=finder_client,
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                finder=finder,
+                coordinator=coordinator,
+                case=case,
+                vendor=vendor,
+            )
+
+        coverage_wait_called.assert_not_called()

@@ -76,7 +76,12 @@ class TestBootstrapCreateReporterParticipant:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._FINDER_ID,
+        )
 
     @pytest.fixture()
     def seeded_dl(self, dl):
@@ -130,7 +135,7 @@ class TestBootstrapCreateReporterParticipant:
         activity = create_case_activity(
             case_with_string_participants, actor=self._VENDOR_ID
         )
-        return make_payload(activity)
+        return make_payload(activity, receiving_actor_id=self._FINDER_ID)
 
     def test_reporter_participant_created_after_bootstrap(
         self, seeded_dl, create_event
@@ -183,6 +188,7 @@ class TestBootstrapCreateReporterParticipant:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-05-007")
 class TestBootstrapReporterUpgradesFromStart:
     """Bootstrap Create upgrades an existing RM.START participant to RM.ACCEPTED.
 
@@ -202,7 +208,12 @@ class TestBootstrapReporterUpgradesFromStart:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._FINDER_ID,
+        )
 
     @pytest.fixture()
     def base_dl(self, dl):
@@ -246,7 +257,7 @@ class TestBootstrapReporterUpgradesFromStart:
 
     def _create_event(self, make_payload, case):
         activity = create_case_activity(case, actor=self._VENDOR_ID)
-        return make_payload(activity)
+        return make_payload(activity, receiving_actor_id=self._FINDER_ID)
 
     def _pre_seed_participant(self, dl, rm_state: RM) -> VultronParticipant:
         """Store a finder participant at the given rm_state before bootstrap."""
@@ -324,6 +335,30 @@ class TestBootstrapReporterUpgradesFromStart:
             f"(it is already beyond ACCEPTED); got {len(statuses)} (#624)"
         )
         assert statuses[0].rm.state == RM.CLOSED
+
+    def test_reporter_participant_noop_if_at_invalid(
+        self, base_dl, make_payload, case_with_string_participants
+    ):
+        """Reporter participant at RM.INVALID must not be upgraded to ACCEPTED.
+
+        RM.INVALID is a validation-failure branch: the report was determined
+        invalid.  Bypassing re-validation by jumping directly to RM.ACCEPTED
+        violates SM-04-001 (explicit precondition guard before state write).
+        The participant must remain at RM.INVALID (#2481).
+        """
+        self._pre_seed_participant(base_dl, RM.INVALID)
+        event = self._create_event(make_payload, case_with_string_participants)
+
+        CreateCaseReceivedUseCase(base_dl, event).execute()
+
+        stored = base_dl.read(self._FINDER_PARTICIPANT_ID)
+        assert stored is not None
+        statuses = getattr(stored, "participant_statuses", [])
+        assert len(statuses) == 1, (
+            "Reporter participant at RM.INVALID must not gain extra statuses "
+            f"(upgrade to ACCEPTED must be blocked); got {len(statuses)} (#2481)"
+        )
+        assert statuses[0].rm.state == RM.INVALID
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +448,12 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
 
     @pytest.fixture()
     def dl(self):
-        return SqliteDataLayer("sqlite:///:memory:")
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            # The *receiving* actor's own store (ADR-0041 AC-5): a received
+            # Create(VulnerabilityCase) is applied to the receiver's replica.
+            actor_id=self._ACTOR_ID,
+        )
 
     def _wire_case(self, rm_state: RM) -> as_VulnerabilityCase:
         """A received-shaped case carrying one wire participant at *rm_state*."""
@@ -551,3 +591,57 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
 
         assert result is None
         assert "cannot be projected" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# CBT-05-008: Bare-URI participant MUST raise a protocol error, not silently
+# fall back to domain-knowledge inference.  Tracked by #2736.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CBT-05-008: receiver MUST raise a protocol error for a bare-URI "
+        "participant — NOT fall back to domain-knowledge inference. "
+        "Tracked by #2736."
+    ),
+)
+@pytest.mark.spec("CBT-05-008")
+def test_bootstrap_bare_uri_participant_raises_protocol_error(make_payload):
+    """Bootstrap with a bare-URI participant MUST raise a protocol error."""
+    _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt05008"
+    _FINDER_ID = "https://finder.example.org/actors/finder-cbt05008"
+    _CASE_ID = "https://example.org/cases/case-cbt05008"
+    _REPORT_ID = "https://example.org/reports/report-cbt05008"
+    _FINDER_PARTICIPANT_ID = f"{_CASE_ID}/participants/finder-cbt05008"
+    _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-cbt05008"
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
+    report = VultronReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
+    dl.create(report)
+    link = VultronReportCaseLink(
+        report_id=_REPORT_ID,
+        trusted_case_creator_id=_VENDOR_ID,
+    )
+    dl.save(link)
+    case_actor_participant = as_CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=_VENDOR_PARTICIPANT_ID,
+        attributed_to=_VENDOR_ID,
+        context=_CASE_ID,
+    )
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID,
+        name="CBT-05-008 bare URI test",
+        case_participants=[
+            case_actor_participant,
+            _FINDER_PARTICIPANT_ID,  # bare string — protocol violation
+        ],
+    )
+    case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
+    case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
+    activity = create_case_activity(case, actor=_VENDOR_ID)
+    event = make_payload(activity, receiving_actor_id=_FINDER_ID)
+    with pytest.raises(Exception):  # MUST raise a protocol error
+        CreateCaseReceivedUseCase(dl, event).execute()

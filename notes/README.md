@@ -89,13 +89,29 @@ post-P75-2 architectural findings.
 DataLayer backends, or planning domain/wire layer decoupling.
 
 **`datalayer-design.md`**
-DataLayer architecture notes: `DataLayer` vs. `CasePersistence` narrowing,
+DataLayer architecture notes: **per-actor storage isolation (ADR-0073)** — one
+store per hosted actor, holding only that actor's knowledge, resolved by
+`get_datalayer(actor_id)`; `DataLayer` vs. `CasePersistence` narrowing,
 deprecated `get()`/`by_type()` methods, `CaseOutboxPersistence` as a smell
 marker, auto-rehydration contract (`dl.read()` MUST return typed objects),
 storage record re-evaluation, and vocabulary registry entanglement. Operating
 rules are in `vultron/core/ports/AGENTS.md`.
 **Load when**: working on `DataLayer` adapters, `CasePersistence` protocol,
-rehydration of nested objects, or storage record migration.
+resolving which store a read or write belongs to, rehydration of nested
+objects, or storage record migration.
+
+**`wire-artifact-immutability.md`**
+Design principle for wire Activity immutability: received artifacts MUST be
+frozen at receipt (A/B split — A = frozen ledger snapshot, B = separately
+constructed hydrated routing copy); emitted blobs MUST be frozen by the factory
+and used unchanged as both `payloadSnapshot` and delivery payload; ports are
+dumb relays (no adapter enrichment). Covers the orthogonality of lenient field
+types (`validate_assignment=False`) and post-construction immutability
+(`frozen=True`). Spec requirements: `VM-08-002`, `VM-08-003`.
+**Load when**: implementing or reviewing the inbound pipeline (inbox freeze
+point), outbound factory/port interfaces (`TriggerActivityPort`,
+`SyncActivityPort`), `CaseLedgerEntry.payloadSnapshot` construction, or
+auditing `outbox_delivery.py` for enrichment mutations. Source: CONCERN-2545.
 
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.
@@ -296,16 +312,16 @@ whether a new behavior must be a subtree, diagnosing layer-boundary violations
 (BT node calling use cases, importing from use_cases/), or auditing god nodes.
 
 **`bt-pitfalls.md`**
-Per-pitfall BT debugging notes: failure reason propagation, blackboard lookup
-semantics (`get()` vs attribute access, strict/lenient), idempotency patterns,
-role guards (`CheckIsCaseManagerNode`), `memory=False` partial-write semantics,
-blackboard key namespacing for concurrent executions (BTND-03-004), no-op path
-key clearing, `BTBridge.execute_with_setup` return value handling, ledger
-commit ordering, routing-gated state mutation, fan-out context handoff,
-and dual-path consolidation test gap patterns.
+Cross-cutting BT mechanics: failure reason propagation, blackboard lookup
+semantics (`get()` raises on unwritten READ keys), `memory=False` partial-write
+semantics, no-op path key clearing, blackboard key namespacing for concurrent
+executions (BTND-03-004), `BTBridge.execute_with_setup` return value handling,
+sentinel blackboard writes, and guard name / state-machine precondition
+alignment. Domain-specific pitfalls live in per-directory `AGENTS.md` files
+under `vultron/core/behaviors/`.
 **Load when**: debugging a BT that returns unexpected FAILURE/SUCCESS, auditing
-blackboard key race conditions, investigating idempotency failures, or
-reviewing BT subtree ordering for state-mutation safety.
+blackboard key race conditions, implementing a new BT node pattern, or
+investigating cross-cutting mechanics that span multiple BT domains.
 
 **`peer-broadcast-failure-semantics.md`**
 Fail-fast requirements for protocol-visible peer fan-out in BT paths:
@@ -581,6 +597,13 @@ scenario, and the spec-test sync rule.
 **Load when**: modifying the demo CI workflow (`demo-integration.yml`),
 adding or changing a scenario's expected event types, or debugging a silent
 invariant harness failure in CI.
+
+**`demo-ci-diagnostics.md`**
+Diagnostic runbook for Demo Integration CI failures: the 3-layer diagnostic
+model, a per-invariant diagnostic map, the local Docker run workflow, and how
+to read the CI artifacts (including the per-actor ledger dumps).
+**Load when**: triaging a red `Demo Integration` or `Invariant Harness` job,
+or reproducing a scenario failure locally.
 
 **`demo-ci-scenario-coverage.md`**
 Coverage matrix mapping all 8 demo scenarios to the distinct protocol

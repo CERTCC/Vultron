@@ -21,9 +21,15 @@ No HTTP framework imports permitted here.
 
 import logging
 from typing import Any, cast
+from urllib.parse import urlparse
 
 import py_trees.behaviour
+from py_trees.common import Status
 
+from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+    ACTOR_DISCOVERY_DETERMINISTIC,
+    ActorDiscoveryCallOutBundle,
+)
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_actor_recommendation_trigger_bt,
     accept_case_invite_trigger_bt,
@@ -34,9 +40,11 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor import CoreActor
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
+    _prepare_delegated_context,
     resolve_actor,
     resolve_case,
 )
@@ -50,7 +58,7 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +70,32 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
     (SenderSideBT / PCR-08-001).
     """
 
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+    ) -> None:
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        self._actor_discovery_call_out = call_out
+
     def _prepare(self) -> None:
         request = cast(SuggestActorToCaseTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        suggested_raw = self._dl.read(request.suggested_actor_id)
-        if suggested_raw is None:
-            raise VultronNotFoundError("Actor", request.suggested_actor_id)
+        # The recommended actor is a peer by definition — the whole point of a
+        # recommendation is to name an actor the *case* does not yet have. Under
+        # ADR-0073 its record is in the store of whoever knows it, so demanding
+        # one here refused every genuinely remote candidate.
+        _record_named_peer(
+            self._dl,
+            request.suggested_actor_id,
+            "suggested_actor_id",
+            self._actor_discovery_call_out,
+        )
 
         self._suggested_actor_id = request.suggested_actor_id
         self._suggested_roles = (
@@ -125,12 +150,93 @@ class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
         )
 
     def _handle_result(self) -> None:
+        # See the note in `vultron/core/behaviors/store_scope.py`: a CaseActor
+        # id is a public delivery address, and CodeQL reads it as a secret only
+        # because `VultronReportCaseLink.trusted_case_actor_id` is one of the
+        # fields it can reach this line from.
         logger.info(
             "Actor '%s' accepted actor recommendation offer '%s' → CaseActor '%s'",
             self._actor_id,
             self._cp_offer_id,
-            self._case_actor_id,
+            self._case_actor_id,  # codeql[py/clear-text-logging-sensitive-data]
         )
+
+
+def _require_deliverable_actor_uri(actor_id: str, field: str) -> None:
+    """Raise ``VultronValidationError`` unless *actor_id* is a deliverable URI.
+
+    A peer actor id is not an opaque name — it is the URL outbound delivery
+    POSTs its inbox to.  Only an absolute ``http``/``https`` URI with a netloc
+    can be that, so anything else is rejected here rather than minted into a
+    participant that no delivery attempt can ever reach.
+
+    Args:
+        actor_id: The candidate peer actor URI.
+        field: Name of the request field it came from, for the message.
+    """
+    parsed = urlparse(actor_id)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return
+    raise VultronValidationError(
+        f"{field} '{actor_id}' is not a deliverable actor URI: a named peer"
+        " must be an absolute http(s) URI, because that URI is where the"
+        " message about it is delivered"
+    )
+
+
+def _record_named_peer(
+    dl: Any,
+    actor_id: str,
+    field: str,
+    call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+) -> None:
+    """Record *actor_id* as a peer this actor now knows, if not already known.
+
+    Being named by URI is enough: a peer's record lives in the store of
+    whichever actor knows it (ADR-0073 decision 5), and in a real deployment the
+    peer is on another node whose record will never be here.  Refusing with
+    "Actor '…' not found" therefore refused every cross-node peer — which is
+    what made ``suggest-actor-to-case`` answer 404 for a vendor that existed and
+    was reachable, just not locally recorded (#2548, fcvcv).
+
+    Recording it is the honest Actor Knowledge Model move: this actor has now
+    been told about that peer, so it legitimately knows it.  What it does not
+    have is the peer's details; the Retriever call-out in *call_out* is the
+    injectable seam for a real directory service (ADR-0024, ADR-0025).
+
+    Minting from an unvalidated string would accept anything, though, so the id
+    has to be a deliverable URI first: it *is* the address outbound delivery
+    posts to, and a typo'd or relative id becomes an unreachable participant
+    that fails much later, in the delivery retry loop, with no trace back here.
+
+    Args:
+        dl: The acting actor's own DataLayer.
+        actor_id: The peer's canonical URI, as named by the request.
+        field: Name of the request field it came from, for the messages.
+        call_out: Actor-discovery call-out bundle; defaults to
+            :data:`ACTOR_DISCOVERY_DETERMINISTIC` (``AlwaysSucceed``).
+            Inject a directory-service backend to resolve actor details.
+    """
+    if dl.read(actor_id) is not None:
+        return
+    _require_deliverable_actor_uri(actor_id, field)
+    backend = call_out.resolve_actor_factory("ResolveActorDetails")
+    status = backend.update()
+    if status != Status.SUCCESS:
+        logger.warning(
+            "actor discovery returned %s for %s '%s' — recording minimal peer"
+            " (only URI known, not details)",
+            status.name,
+            field,
+            actor_id,
+        )
+    else:
+        logger.debug(
+            "actor discovery succeeded for %s '%s' — recording peer",
+            field,
+            actor_id,
+        )
+    dl.create(CoreActor(id_=actor_id))
 
 
 class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
@@ -141,27 +247,49 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
     ``_prepare()`` so the BT queues the invite in the Case Actor's outbox.
     """
 
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+    ) -> None:
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        self._actor_discovery_call_out = call_out
+
     def _prepare(self) -> None:
         request = cast(InviteActorToCaseTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
         owner_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        invitee_raw = self._dl.read(request.invitee_id)
-        if invitee_raw is None:
-            raise VultronNotFoundError("Actor", request.invitee_id)
+        # An invitee is a peer named by URI; see ``_record_named_peer``.
+        #
+        # This record is *not* what keeps the outbound Invite deliverable. The
+        # Invite is queued in the **Case Actor's** outbox, whose store is not
+        # this one (ADR-0073), so a record written here was never readable at
+        # rehydration time and the Invite went out carrying a bare string —
+        # which delivery then refused for AKM-03-001, silently, after its
+        # retries. Carrying the invitee is now the model's own declared
+        # contract: ``_RmInviteToCaseActivity.inline_required_refs``
+        # (DL-08-003). What this write buys is knowledge, not deliverability.
+        _record_named_peer(
+            self._dl,
+            request.invitee_id,
+            "invitee_id",
+            self._actor_discovery_call_out,
+        )
 
         self._invitee_id = request.invitee_id
         self._suggested_roles = request.roles
 
-        case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
-        self._actor_id = case_actor_id if case_actor_id else owner_id
-        # When case_actor_id is None (no dedicated CaseActor), the Invite is
-        # sent without cc: so no self-delivery occurs and no CaseLedgerEntry
-        # is committed — by design (ADR-0021: no CaseActor → no canonical
-        # ledger).
-        self._case_actor_id = case_actor_id
-        self._attributed_to = owner_id if case_actor_id else None
+        # Delegated-message contract (CM-24-001..003)
+        self._actor_id, self._attributed_to = _prepare_delegated_context(
+            self._dl, self._case.id_, owner_id
+        )
+        # case_actor_id also needed for invite BT routing (ADR-0021: no
+        # CaseActor → no cc: → no self-delivery → no CaseLedgerEntry commit)
+        self._case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return invite_actor_to_case_trigger_bt(
@@ -257,26 +385,50 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
     """Offer case ownership to another actor (trigger-side path).
 
     Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    requesting actor to ``transferee_id`` (TRIG-11-001).
+    CaseActor's identity on behalf of the offering actor (CM-24-001, TRIG-11-001).
     """
+
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+    ) -> None:
+        super().__init__(dl=dl, request=request, trigger_activity=trigger_activity)  # type: ignore[arg-type]
+        self._actor_discovery_call_out = call_out
 
     def _prepare(self) -> None:
         request = cast(OfferCaseOwnershipTransferTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
-        self._actor_id = actor.id_
+        offering_actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
-        if self._dl.read(request.transferee_id) is None:
-            raise VultronNotFoundError("Actor", request.transferee_id)
+        # A transferee is a peer named by URI — the same reasoning as an invitee
+        # or a recommended actor; see ``_record_named_peer``. Handing ownership
+        # to an actor on another node is the normal case, and that node's record
+        # will never be in this store.
+        _record_named_peer(
+            self._dl,
+            request.transferee_id,
+            "transferee_id",
+            self._actor_discovery_call_out,
+        )
 
         self._transferee_id = request.transferee_id
         self._content = request.content
+
+        # Delegated-message contract: emit from CaseActor identity (CM-24-001..003)
+        self._actor_id, self._attributed_to = _prepare_delegated_context(
+            self._dl, self._case.id_, offering_actor_id
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return offer_case_ownership_transfer_trigger_bt(
             case_id=self._case.id_,
             transferee_id=self._transferee_id,
             content=self._content,
+            attributed_to=self._attributed_to,
             captured=self._captured,
         )
 

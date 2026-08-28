@@ -1,6 +1,6 @@
 ---
 title: "Draft: Vultron Protocol Specification"
-version: "2026.08.07"
+version: "2026.08.26"
 status: draft
 description: >
   Working draft outline of the Vultron Protocol specification, organized as
@@ -14,10 +14,11 @@ description: >
 !!! warning "Working Draft — not ready for external circulation"
     Completeness is uneven, deliberately so:
 
-    - **§4 (Syntactic), §5 (Semantic), §6 (Behavioral), §7 (Conformance)** carry
-      drafted normative content, grounded in `specs/` and the implementation.
-      Requirements stated there are intended to be read as normative.
-    - **§1–§3, §8–§10 and the Annexes** remain outline: bullet points and source
+    - **§4 (Semantic), §5 (Syntactic), §6–§11 (Behavioral), §12 (Conformance)**
+      carry drafted normative content, grounded in `specs/` and the
+      implementation. Requirements stated there are intended to be read as
+      normative.
+    - **§1–§3, §13–§15 and the Annexes** remain outline: bullet points and source
       pointers indicating where material will be drawn from.
 
     Where this document and the implementation disagree, the implementation is
@@ -39,10 +40,24 @@ shared state tracking.
 
 ### 1.1 Background and Motivation
 
-- CVD as a multi-party coordination problem
-- Why a protocol (vs. ad-hoc process) is needed
-- Scope: MPCVD (multi-party CVD) as the target
-- *Source: `docs/topics/background/`*
+Coordinated Vulnerability Disclosure (CVD) is a multi-party coordination
+problem: once a vulnerability is discovered, parties who know about it must
+decide what to do, who else needs to know, and when. Ad-hoc email and informal
+handoffs do not scale across organizations or supply chains. Vultron provides
+a formal protocol to address that coordination gap at MPCVD scale.
+
+!!! info "Background prose not yet drafted inline"
+    The following pages cover what §1.1 will draw from in a future revision:
+
+    - [CVD as a Coordination Problem](../topics/background/index.md) — what
+      CVD is, why MPCVD is just CVD at scale, and what we mean by *protocol*
+    - [What Does Success Mean in CVD?](../topics/background/cvd_success.md) —
+      the 12 ordering preferences that define CVD quality outcomes
+    - [The Need for Interoperability](../topics/background/interoperability.md) —
+      why syntactic and semantic interoperability are both required
+
+    For a practitioner-level introduction to CVD, see the
+    [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD).
 
 ### 1.2 Design Goals
 
@@ -71,11 +86,20 @@ shared state tracking.
 
 ### 2.1 Core Terms
 
-- Vulnerability, Report, Case, Participant, Actor
-- Reporter, Vendor, Coordinator, Deployer, Observer
-- Case Owner vs. Case Participant
-- *Source: `docs/reference/glossary.md`; `vultron/enums/roles.py` (`CVDRole`);
-  `docs/_acronyms/index.md`*
+The Vultron protocol uses a precise vocabulary where terms carry specific
+protocol-level meanings that may differ from informal usage.
+
+!!! info "Terminology reference"
+    Full definitions, including aliases to avoid, are in the
+    [Glossary](glossary.md). The authoritative role
+    enumeration is `CVDRole` in `vultron/enums/roles.py`.
+
+Key terms used throughout this specification:
+
+- **Vulnerability**, **Report**, **Case**, **Participant**, **Actor**
+- **Reporter**, **Vendor**, **Coordinator**, **Deployer**, **Observer** —
+  process roles (§12.3.1)
+- **Case Owner**, **Case Manager** — protocol authority roles (§12.3.2)
 
 ### 2.2 Protocol Terms
 
@@ -83,8 +107,8 @@ shared state tracking.
 - State, Transition, Event
 - Embargo, Publication
 - **Protocol shorthand** — the two-letter codes (`RS`, `EP`, `CV`, …) naming
-  protocol messages by meaning rather than by wire form. Introduced in §5 and
-  mapped to AS2 wire forms in §5.7. Readers encountering a shorthand before §5
+  protocol messages by meaning rather than by wire form. Introduced in §4 and
+  mapped to AS2 wire forms in §4.7. Readers encountering a shorthand before §4
   may treat it as an opaque label for a message type.
 - *Source: `docs/reference/formal_protocol/index.md`;
   `docs/reference/formal_protocol/messages.md`; `docs/reference/glossary.md`*
@@ -116,11 +140,11 @@ The protocol tracks coordination state across four dimensions:
     aware, exploit public, attacks observed). CS is the pair `(VFD, PXA)`.
 
     This document says "four dimensions" when discussing what is tracked, and
-    "five state machines" when discussing what must be implemented (§6, §7.2).
-    Both counts are correct; they count different things.
+    "five state machines" when discussing what must be implemented (§6–§11,
+    §12.2). Both counts are correct; they count different things.
 
 RM, EM, and CS were present in the original protocol design. PEC emerged
-during implementation (see §6.4) and is fully normative.
+during implementation (see §9) and is fully normative.
 
 - *Source: `docs/topics/process_models/`; `vultron/core/states/`*
 
@@ -130,7 +154,7 @@ during implementation (see §6.4) and is fully normative.
 - PEC captures whether each individual participant has consented to the active
   embargo — EM and PEC are orthogonal: EM says whether a case has an embargo,
   PEC says whether a given participant has agreed to it
-- State transitions in one dimension can trigger obligations in others (see §6.5)
+- State transitions in one dimension can trigger obligations in others (see §10)
 - *Source: `docs/topics/process_models/model_interactions/`, `notes/protocol-event-cascades.md`,
   `notes/participant-embargo-consent.md`*
 
@@ -138,7 +162,7 @@ during implementation (see §6.4) and is fully normative.
 
 - Roles are not exclusive; a participant may hold multiple roles
 - N = |Participants|, not |Roles|
-- Two distinct categories of roles are used in this protocol (see §7.3 for the
+- Two distinct categories of roles are used in this protocol (see §12.3 for the
   full taxonomy):
   - **Operational/domain roles** — what an actor *does* within a case (Reporter,
     Vendor, Coordinator, Deployer, CNA, Observer). These determine which
@@ -151,221 +175,19 @@ during implementation (see §6.4) and is fully normative.
 
 ---
 
-## 4. Syntactic Layer — Wire Format [N]
-
-### 4.1 Base Vocabulary
-
-- Vultron messages are ActivityStreams 2.0 Activities
-- Required fields: `type`, `actor`, `object`, `id`
-- Extended types defined by the Vultron vocabulary namespace
-  (`https://certcc.github.io/Vultron/ns`)
-- Implementations MUST use the Vultron AS2 vocabulary for message structure;
-  full ActivityPub server semantics (inbox/outbox HTTP delivery, WebFinger
-  discovery, HTTP Signatures) are not currently required by this specification
-
-!!! note "Informative: ActivityPub roadmap"
-    A future version of this specification is expected to raise the conformance
-    floor to ActivityPub for all participants. Implementations built against the
-    current AS2-only baseline should anticipate that re-evaluation against a
-    future ActivityPub-baseline version will be required. The AS2-only profile
-    may become a compatibility profile at that point. (See issue #2068.)
-
-- *Source: `specs/vultron-as2-mapping.yaml` (VAM-01 through VAM-09)*
-
-### 4.2 Object Types
-
-- `VulnerabilityCase` — the shared coordination object
-- `VulnerabilityReport` — the initial report artifact
-- `CaseParticipant` — actor-in-role within a case
-- `CaseParticipantRole` — a `CVDRole` being offered to an actor in a case
-  context; introduced to make role delegation structurally distinct from case
-  ownership transfer (both previously serialized as `Offer(VulnerabilityCase)`)
-- `EmbargoEvent` — embargo proposal/acceptance/revision/termination records.
-  This is an AS2 `Event` subtype; embargo activities therefore appear on the
-  wire as `Invite(Event)`, not as a distinct embargo verb
-- `CaseLedgerEntry` — an entry in the authoritative canonical case ledger; the
-  unit of state replication from the Case Actor to participants
-- `CaseProposal` — a proposed case, prior to case creation
-- `CaseStatus` / `ParticipantStatus` — status records. **These are not
-  interchangeable, and the distinction is load-bearing:**
-  - `ParticipantStatus` is a *claim* — one participant's assertion about its
-    own (or another participant's) state. Any participant may write one.
-  - `CaseStatus` is *canonical* — the Case Actor's authoritative record of
-    shared case state. Only the Case Actor may write it (§4.4).
-
-  The transition from claim to canonical is an explicit authorization step,
-  not an implementation detail; see §6.5.1.
-
-- *Source: `vultron/wire/as2/vocab/objects/`; `specs/vocabulary-model.yaml`;
-  ADR-0039 (`CaseParticipantRole`); ADR-0036 (status dimension objects)*
-
-### 4.3 Activity Types and Canonical Message Forms
-
-- Base AS2 verbs used by Vultron: `Create`, `Offer`, `Accept`, `Reject`,
-  `Announce`, `Update`, `Add`, `Remove`, `Invite`, `Read`, `Join`, `Ignore`,
-  `TentativeReject`
-- Vultron-specific nested-object patterns, e.g.
-  `Accept(Invite(Event)[context=VulnerabilityCase])` for embargo acceptance
-- Two distinct activities govern bringing an actor into a case, and they are
-  **not** the same message:
-  - `Invite[target=VulnerabilityCase]` — the Case Actor invites an actor to
-    join, on the Case Owner's behalf. Answered with `Accept(Invite)` or
-    `Reject(Invite)`.
-  - `Offer(CaseParticipant)` — the *suggest-actor* path: a participant
-    proposes that some actor be brought into the case. Answered by the Case
-    Owner, which may then cause an `Invite` to be emitted.
-
-  Both paths converge on `Accept(Invite)`, but they originate differently and
-  carry roles differently. Conflating them erases the suggest-actor round-trip.
-
-- Implementation semantic mappings are defined in
-  `vultron/core/models/events/base.py` (`MessageSemantics` enum); this is the
-  authoritative source for which AS2 patterns correspond to which protocol
-  operations. The protocol-shorthand → semantic → wire-form mapping table is
-  given in §5.7, after the shorthands themselves have been introduced.
-- *Source: `specs/vultron-as2-mapping.yaml` (VAM-01–VAM-09);
-  `specs/message-semantics-mapping.yaml` (MSM-01–MSM-03); ADR-0039*
-
-### 4.4 Addressing and Channels
-
-- Actor URIs as process identifiers (aligned with ActivityPub actor model)
-- Inbox/outbox as the delivery model: each actor exposes an inbox (receive)
-  and outbox (send/broadcast)
-
-#### 4.4.1 Single-Writer Authority
-
-The Case Actor is the **only** entity authorized to mutate shared case state —
-the CS `PXA` axis, the EM state, the embargo record, and the case ledger. No
-participant and no use-case handler may write shared case state directly; all
-such mutations MUST route through the Case Actor.
-
-The participant-specific axes (`RM`, `VFD`) are owned by each participant's own
-`CaseParticipant` record and are explicitly **not** subject to this restriction —
-a participant is the authority on its own RM and VFD state.
-
-This single-writer rule is the axiom from which the routing topology below
-follows. It exists to prevent concurrent-write races and to ensure every shared
-state change passes through the Case Actor's consistency checks.
-
-- *Source: `specs/vultron-protocol-spec.yaml` VP-17-001*
-
-#### 4.4.2 Routing Topology
-
-Once a case exists, all case-scoped participant messages MUST follow this path:
-
-```text
-Participant → Case Actor → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
-```
-
-- A participant MUST address case-scoped activities to the Case Actor only.
-- A participant **MUST NOT** deliver a case-scoped message directly to another
-  participant's inbox. Delivery MUST be mediated by the Case Actor and recorded
-  in the case ledger before fan-out.
-- `Announce(CaseLedgerEntry)` is the **only** mechanism by which participants
-  learn of accepted case-state changes.
-
-There are exactly **two** exceptions, both confined to case bootstrap, both
-occurring before the Case Actor is available as an intermediary:
-
-1. **Pre-case report submission** — the Reporter sends `Offer(VulnerabilityReport)`
-   directly to the Vendor. No case, and therefore no Case Actor, exists yet.
-2. **Case creation handshake** — the receiving party sends
-   `Create(VulnerabilityCase)` to the Reporter to introduce the Case Actor. This
-   is the trust-bootstrap exchange (§5.5).
-
-After case creation, no direct participant-to-participant messaging is
-permitted.
-
-!!! note "Informative: why centralize"
-    Routing through a single writer avoids the complexity of a distributed
-    ledger while preserving actor-local state: each participant still maintains
-    its own replica and its own view. The cost is that the Case Actor is a
-    single point of coordination authority, and its availability bounds case
-    progress. This is a deliberate trade-off, not an incidental property of the
-    current implementation — but note that the *requirements* above are
-    normative regardless of how one weighs the trade-off.
-
-- *Source: `specs/vultron-protocol-spec.yaml` VP-18-001, VP-17-001;
-  `specs/outbox.yaml` (OX-01–OX-12); `notes/case-communication-model.md`;
-  `notes/peer-broadcast-failure-semantics.md`*
-
-### 4.5 Serialization
-
-- JSON-LD as the normative serialization
-- Outbound Vultron messages MUST set `@context` to the Vultron JSON-LD context
-  document URI: `https://certcc.github.io/Vultron/ns/context.jsonld`. This
-  context document imports the ActivityStreams 2.0 namespace and declares all
-  Vultron-specific type names, so implementations need cite only the Vultron
-  URI.
-
-    ```json
-    {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
-      "type": "VulnerabilityCase",
-      ...
-    }
-    ```
-
-!!! note "Provisional namespace URI"
-    The namespace is currently hosted on GitHub Pages
-    (`certcc.github.io/Vultron`). A permanent namespace URI may be registered
-    in a future version of this specification. See ADR-0069.
-
-- *Source: AS2/ActivityPub standards; `specs/vocabulary-model.yaml`
-  (VM-10-001, VM-10-002); ADR-0069*
-
-### 4.6 Transport Layer [N/I]
-
-The transport layer defines how vultron-wire messages move between participants.
-The message schema (§4.1–§4.5) is transport-agnostic: the same JSON payload is
-deliverable over any conformant transport.
-
-This specification recognizes two transport profiles.
-
-#### REST (HTTP) profile [N]
-
-- Each actor exposes an inbox endpoint for receiving inbound Activities.
-- Outbound Activities are delivered by HTTP POST to the recipient's inbox.
-- Authentication and authorization requirements are described in §8.
-- *Source: `specs/vultron-protocol-spec.yaml` VP-18-001; `specs/outbox.yaml`*
-
-#### ActivityPub federation profile [I]
-
-Full ActivityPub conformance — inbox/outbox HTTP delivery, HTTP Signatures,
-WebFinger discovery — is not currently required by this specification.
-See the informative note in §4.1 and Annex E for the ActivityPub roadmap.
-
-#### Participant discovery [I]
-
-Before two actors can exchange messages, they must locate each other.
-WebFinger is the anticipated discovery mechanism, consistent with its use
-alongside ActivityPub in federated systems such as Mastodon.
-A participant discovery specification is not yet included in this document.
-
-!!! note "Transport vs. routing topology"
-    The routing topology rule in §4.4.2 — all case-scoped messages MUST route
-    through the Case Actor — is a vultron-core protocol rule. It applies
-    regardless of which transport carries the messages. The transport layer is
-    responsible for delivery. The protocol layer is responsible for routing
-    authority.
-
-- *Source: §4.1 informative note (ActivityPub roadmap, issue #2068); Annex E*
-
----
-
-## 5. Semantic Layer — Message Meanings [N]
+## 4. Semantic Layer — Message Meanings [N]
 
 Protocol messages are referred to by two-letter shorthands throughout this
-specification. The shorthand names a *protocol meaning*; §5.7 maps each
+specification. The shorthand names a *protocol meaning*; §4.7 maps each
 shorthand to its AS2 wire form.
 
-!!! note "Error and acknowledgement messages: read §5.6 first"
+!!! note "Error and acknowledgement messages: read §4.6 first"
     Several messages below are part of the formal protocol definition but have
-    **no wire representation** in the current semantic registry. §5.6 states
+    **no wire representation** in the current semantic registry. §4.6 states
     which, and why. Implementers should read that subsection before treating any
     `*E` or `*K` shorthand as dispatchable.
 
-### 5.1 Report Management Messages
+### 4.1 Report Management Messages
 
 $M^{rm} = \{RS, RI, RV, RD, RA, RC, RK, RE\}$
 
@@ -378,7 +200,7 @@ $M^{rm} = \{RS, RI, RV, RD, RA, RC, RK, RE\}$
 | `RA` | Report Accepted | Sender has accepted the report for further action |
 | `RC` | Report Closed | Sender has closed the report |
 | `RK` | Report Acknowledgement | Acknowledges receipt of any RM message above |
-| `RE` | Report Error | Sender received an unexpected RM message (see §5.6) |
+| `RE` | Report Error | Sender received an unexpected RM message (see §4.6) |
 
 All RM state changes are reported from the **sender's** perspective, not the
 recipient's. `RS` is the only RM message whose *receipt* directly drives an RM
@@ -391,7 +213,7 @@ it maps to `MessageSemantics.ACK_REPORT` with wire form
 - *Source: `docs/reference/formal_protocol/messages.md`;
   `specs/message-semantics-mapping.yaml` MSM-01; `specs/vultron-protocol-spec.yaml` VP-03*
 
-### 5.2 Embargo Management Messages
+### 4.2 Embargo Management Messages
 
 $M^{em} = \{EP, ER, EA, EV, EJ, EC, ET, EK, EE\}$
 
@@ -407,8 +229,8 @@ Nine messages, in three related groups. Note that the *initial-proposal* and
 | `EJ` | Embargo **Revision** Rejection | Sender rejected a proposed revision |
 | `EC` | Embargo **Revision** Acceptance | Sender accepted a proposed revision |
 | `ET` | Embargo Termination | Sender terminated the embargo; immediate effect |
-| `EK` | Embargo Acknowledgement | Acknowledges any EM message above (see §5.6) |
-| `EE` | Embargo Error | Sender received an unexpected EM message (see §5.6) |
+| `EK` | Embargo Acknowledgement | Acknowledges any EM message above (see §4.6) |
+| `EE` | Embargo Error | Sender received an unexpected EM message (see §4.6) |
 
 !!! warning "`EV`/`EJ`/`EC` are wire-identical to `EP`/`ER`/`EA`"
     The revision shorthands share their AS2 wire forms with their
@@ -427,14 +249,14 @@ If early termination is desired but the termination time is in the future, that
 SHOULD be expressed as an `EV` (revision proposal) rather than an `ET`, since
 `ET` takes immediate effect.
 
-Tacit acceptance semantics are specified in §6.2.2.
+Tacit acceptance semantics are specified in §7.2.
 
 - *Source: `docs/reference/formal_protocol/messages.md`;
   `specs/message-semantics-mapping.yaml` MSM-02 (esp. MSM-02-003/004/005);
   `specs/embargo-policy.yaml`; `notes/embargo-lifecycle.md`;
   `notes/embargo-default-semantics.md`*
 
-### 5.3 Case State Messages
+### 4.3 Case State Messages
 
 $M^{cs} = \{CV, CF, CD, CP, CX, CA, CK, CE\}$
 
@@ -446,8 +268,8 @@ $M^{cs} = \{CV, CF, CD, CP, CX, CA, CK, CE\}$
 | `CP` | Public Awareness | PXA (`p→P`) | The vulnerability is publicly known |
 | `CX` | Exploit Public | PXA (`x→X`) | An exploit has been published |
 | `CA` | Attacks Observed | PXA (`a→A`) | Attacks exploiting the vulnerability are observed |
-| `CK` | CS Acknowledgement | — | Acknowledges any CS message above (see §5.6) |
-| `CE` | CS Error | — | Sender received an unexpected CS message (see §5.6) |
+| `CK` | CS Acknowledgement | — | Acknowledges any CS message above (see §4.6) |
+| `CE` | CS Error | — | Sender received an unexpected CS message (see §4.6) |
 
 All six status shorthands (`CV`–`CA`) share a single wire form and semantic:
 `Add(CaseStatus)[target=VulnerabilityCase]` →
@@ -456,31 +278,31 @@ in the object payload, not in the activity type.** An implementation dispatching
 on activity type alone cannot distinguish `CF` from `CA`.
 
 Receiving a CS message updates the receiver's model of the **sender's** CS state;
-it does not change the receiver's own CS state. See §6.3.4.
+it does not change the receiver's own CS state. See §8.4.
 
 - *Source: `docs/reference/formal_protocol/messages.md`;
   `specs/message-semantics-mapping.yaml` MSM-03; `specs/cs-behavior.yaml` CSB-01–CSB-04*
 
-### 5.4 Case Coordination Messages
+### 4.4 Case Coordination Messages
 
 - `Create(VulnerabilityCase)` — case initiation
 - `Invite[target=VulnerabilityCase]` / `Accept(Invite)` / `Reject(Invite)` —
   invitation lifecycle (Case Actor invites on the Case Owner's behalf)
 - `Offer(CaseParticipant)` / `Accept(Offer(...))` / `Reject(Offer(...))` —
-  suggest-actor lifecycle (a participant proposes an actor; see §4.3)
+  suggest-actor lifecycle (a participant proposes an actor; see §5.3)
 - `Announce(CaseLedgerEntry)` — canonical state replication and broadcast
 - `Announce(VulnerabilityCase)` — full case snapshot delivery to a participant
 - `Update(VulnerabilityCase)` — case metadata change
 - *Source: `specs/case-management.yaml` CM-11, CM-17; `notes/case-communication-model.md`*
 
-### 5.5 Trust and Bootstrap Semantics
+### 4.5 Trust and Bootstrap Semantics
 
 - Creator-signed `Create(VulnerabilityCase)` as the trust root
 - Late-joiner invite path and trust establishment
 - Pre-bootstrap message queuing
 - *Source: `specs/case-bootstrap-trust.yaml` (CBT-01–CBT-05)*
 
-### 5.6 Error and Acknowledgement Messages
+### 4.6 Error and Acknowledgement Messages
 
 The formal protocol definition includes acknowledgement (`RK`, `EK`, `CK`) and
 error (`RE`, `EE`, `CE`) message types for each state model. Their status in this
@@ -515,7 +337,7 @@ Consequences for implementers:
 - *Source: ADR-0049; `specs/message-semantics-mapping.yaml` MSM-01-007,
   MSM-02-008, MSM-02-009, MSM-03-007; `vultron/core/behaviors/note/`*
 
-### 5.7 Shorthand → Wire Form Mapping
+### 4.7 Shorthand → Wire Form Mapping
 
 Normative mapping from protocol shorthand through dispatch semantic to AS2 wire
 form. Where a wire form is shared by several shorthands, disambiguation is by
@@ -535,17 +357,17 @@ local state or object payload as noted.
 | `ER`, `EJ` | `REJECT_INVITE_TO_EMBARGO_ON_CASE` | `Reject(Invite(Event)[context=VulnerabilityCase])` |
 | `ET` | `REMOVE_EMBARGO_EVENT_FROM_CASE` | `Remove(Event)` |
 | `CV`–`CA` | `ADD_CASE_STATUS_TO_CASE` | `Add(CaseStatus)[target=VulnerabilityCase]` |
-| `RE`, `EE`, `CE`, `EK`, `CK` | *(none — see §5.6)* | *(none)* |
+| `RE`, `EE`, `CE`, `EK`, `CK` | *(none — see §4.6)* | *(none)* |
 
 Note the two collision classes: embargo revision shorthands collide with their
-initial-proposal counterparts (resolve via local EM state, §5.2), and all six CS
-status shorthands collide (resolve via `CaseStatus` payload, §5.3).
+initial-proposal counterparts (resolve via local EM state, §4.2), and all six CS
+status shorthands collide (resolve via `CaseStatus` payload, §4.3).
 
 - *Source: `specs/message-semantics-mapping.yaml` (MSM-01–MSM-03);
   `specs/vultron-as2-mapping.yaml` (VAM-01–VAM-09);
   `vultron/core/models/events/base.py`*
 
-### 5.8 Knowledge Model and Actor Isolation
+### 4.8 Knowledge Model and Actor Isolation
 
 - Each actor maintains its own replica of case state
 - "Full inline object" rule — no cross-actor references
@@ -554,45 +376,247 @@ status shorthands collide (resolve via `CaseStatus` payload, §5.3).
 
 ---
 
-## 6. Behavioral Layer — State Machines [N]
+## 5. Syntactic Layer — Wire Format [N]
 
-This section specifies five state machines: **RM, EM, VFD, PXA, and PEC**. VFD
-and PXA together constitute the CS dimension (§3.2).
+### 5.1 Base Vocabulary
 
-!!! note "Note on scope"
-    The original Vultron protocol design specified four state machines: RM, EM,
-    VFD, and PXA. A fifth — the Participant Embargo Consent (PEC) machine —
-    emerged during implementation when it became clear that the case-level EM
-    state was insufficient to capture individual participant consent posture.
-    PEC is fully normative; implementations that predate this specification
-    should treat it as a required addition.
+- Vultron messages are ActivityStreams 2.0 Activities
+- Required fields: `type`, `actor`, `object`, `id`
+- Extended types defined by the Vultron vocabulary namespace
+  (`https://certcc.github.io/Vultron/ns`)
+- Implementations MUST use the Vultron AS2 vocabulary for message structure;
+  full ActivityPub server semantics (inbox/outbox HTTP delivery, WebFinger
+  discovery, HTTP Signatures) are not currently required by this specification
 
-Two conventions apply throughout:
+!!! note "Informative: ActivityPub roadmap"
+    A future version of this specification is expected to raise the conformance
+    floor to ActivityPub for all participants. Implementations built against the
+    current AS2-only baseline should anticipate that re-evaluation against a
+    future ActivityPub-baseline version will be required. The AS2-only profile
+    may become a compatibility profile at that point. (See issue #2068.)
 
-- A participant maintains its own state **and** a model of other participants'
-  states. Where a transition rule applies to one and not the other, this is
-  stated explicitly (§6.3.4).
-- Transitions listed without a named trigger are driven by the corresponding
-  protocol message from §5.
+- *Source: `specs/vultron-as2-mapping.yaml` (VAM-01 through VAM-09)*
 
-### 6.1 Report Management (RM) State Machine
+### 5.2 Object Types
 
-#### 6.1.1 States
+- `VulnerabilityCase` — the shared coordination object
+- `VulnerabilityReport` — the initial report artifact
+- `CaseParticipant` — actor-in-role within a case
+- `CaseParticipantRole` — a `CVDRole` being offered to an actor in a case
+  context; introduced to make role delegation structurally distinct from case
+  ownership transfer (both previously serialized as `Offer(VulnerabilityCase)`)
+- `EmbargoEvent` — embargo proposal/acceptance/revision/termination records.
+  This is an AS2 `Event` subtype; embargo activities therefore appear on the
+  wire as `Invite(Event)`, not as a distinct embargo verb
+- `CaseLedgerEntry` — an entry in the authoritative canonical case ledger; the
+  unit of state replication from the Case Actor to participants
+- `CaseProposal` — a proposed case, prior to case creation
+- `CaseStatus` / `ParticipantStatus` — status records. **These are not
+  interchangeable, and the distinction is load-bearing:**
+  - `ParticipantStatus` is a *claim* — one participant's assertion about its
+    own (or another participant's) state. Any participant may write one.
+  - `CaseStatus` is *canonical* — the Case Actor's authoritative record of
+    shared case state. Only the Case Actor may write it (§5.4).
+
+  The transition from claim to canonical is an explicit authorization step,
+  not an implementation detail; see §10.1.
+
+- *Source: `vultron/wire/as2/vocab/objects/`; `specs/vocabulary-model.yaml`;
+  ADR-0039 (`CaseParticipantRole`); ADR-0036 (status dimension objects)*
+
+### 5.3 Activity Types and Canonical Message Forms
+
+- Base AS2 verbs used by Vultron: `Create`, `Offer`, `Accept`, `Reject`,
+  `Announce`, `Update`, `Add`, `Remove`, `Invite`, `Read`, `Join`, `Ignore`,
+  `TentativeReject`
+- Vultron-specific nested-object patterns, e.g.
+  `Accept(Invite(Event)[context=VulnerabilityCase])` for embargo acceptance
+- Two distinct activities govern bringing an actor into a case, and they are
+  **not** the same message:
+  - `Invite[target=VulnerabilityCase]` — the Case Actor invites an actor to
+    join, on the Case Owner's behalf. Answered with `Accept(Invite)` or
+    `Reject(Invite)`.
+  - `Offer(CaseParticipant)` — the *suggest-actor* path: a participant
+    proposes that some actor be brought into the case. Answered by the Case
+    Owner, which may then cause an `Invite` to be emitted.
+
+  Both paths converge on `Accept(Invite)`, but they originate differently and
+  carry roles differently. Conflating them erases the suggest-actor round-trip.
+
+- Implementation semantic mappings are defined in
+  `vultron/core/models/events/base.py` (`MessageSemantics` enum); this is the
+  authoritative source for which AS2 patterns correspond to which protocol
+  operations. The protocol-shorthand → semantic → wire-form mapping table is
+  given in §4.7, after the shorthands themselves have been introduced.
+- *Source: `specs/vultron-as2-mapping.yaml` (VAM-01–VAM-09);
+  `specs/message-semantics-mapping.yaml` (MSM-01–MSM-03); ADR-0039*
+
+### 5.4 Addressing and Channels
+
+- Actor URIs as process identifiers (aligned with ActivityPub actor model)
+- Inbox/outbox as the delivery model: each actor exposes an inbox (receive)
+  and outbox (send/broadcast)
+
+#### 5.4.1 Single-Writer Authority
+
+The Case Actor is the **only** entity authorized to mutate shared case state —
+the CS `PXA` axis, the EM state, the embargo record, and the case ledger. No
+participant and no use-case handler may write shared case state directly; all
+such mutations MUST route through the Case Actor.
+
+The participant-specific axes (`RM`, `VFD`) are owned by each participant's own
+`CaseParticipant` record and are explicitly **not** subject to this restriction —
+a participant is the authority on its own RM and VFD state.
+
+This single-writer rule is the axiom from which the routing topology below
+follows. It exists to prevent concurrent-write races and to ensure every shared
+state change passes through the Case Actor's consistency checks.
+
+- *Source: `specs/vultron-protocol-spec.yaml` VP-17-001*
+
+#### 5.4.2 Routing Topology
+
+Once a case exists, all case-scoped participant messages MUST follow this path:
+
+```text
+Participant → Case Actor → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
+```
+
+- A participant MUST address case-scoped activities to the Case Actor only.
+- A participant **MUST NOT** deliver a case-scoped message directly to another
+  participant's inbox. Delivery MUST be mediated by the Case Actor and recorded
+  in the case ledger before fan-out.
+- `Announce(CaseLedgerEntry)` is the **only** mechanism by which participants
+  learn of accepted case-state changes.
+
+There are exactly **two** exceptions, both confined to case bootstrap, both
+occurring before the Case Actor is available as an intermediary:
+
+1. **Pre-case report submission** — the Reporter sends `Offer(VulnerabilityReport)`
+   directly to the Vendor. No case, and therefore no Case Actor, exists yet.
+2. **Case creation handshake** — the receiving party sends
+   `Create(VulnerabilityCase)` to the Reporter to introduce the Case Actor. This
+   is the trust-bootstrap exchange (§4.5).
+
+After case creation, no direct participant-to-participant messaging is
+permitted.
+
+!!! note "Informative: why centralize"
+    Routing through a single writer avoids the complexity of a distributed
+    ledger while preserving actor-local state: each participant still maintains
+    its own replica and its own view. The cost is that the Case Actor is a
+    single point of coordination authority, and its availability bounds case
+    progress. This is a deliberate trade-off, not an incidental property of the
+    current implementation — but note that the *requirements* above are
+    normative regardless of how one weighs the trade-off.
+
+- *Source: `specs/vultron-protocol-spec.yaml` VP-18-001, VP-17-001;
+  `specs/outbox.yaml` (OX-01–OX-12); `notes/case-communication-model.md`;
+  `notes/peer-broadcast-failure-semantics.md`*
+
+### 5.5 Serialization
+
+- JSON-LD as the normative serialization
+- Outbound Vultron messages MUST set `@context` to the Vultron JSON-LD context
+  document URI: `https://certcc.github.io/Vultron/ns/context.jsonld`. This
+  context document imports the ActivityStreams 2.0 namespace and declares all
+  Vultron-specific type names, so implementations need cite only the Vultron
+  URI.
+
+    ```json
+    {
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "type": "VulnerabilityCase",
+      ...
+    }
+    ```
+
+!!! note "Provisional namespace URI"
+    The namespace is currently hosted on GitHub Pages
+    (`certcc.github.io/Vultron`). A permanent namespace URI may be registered
+    in a future version of this specification. See ADR-0069.
+
+- *Source: AS2/ActivityPub standards; `specs/vocabulary-model.yaml`
+  (VM-10-001, VM-10-002); ADR-0069*
+
+### 5.6 Transport Layer [N/I]
+
+The transport layer defines how vultron-wire messages move between participants.
+The message schema (§5.1–§5.5) is transport-agnostic: the same JSON payload is
+deliverable over any conformant transport.
+
+This specification recognizes two transport profiles.
+
+#### REST (HTTP) profile [N]
+
+- Each actor exposes an inbox endpoint for receiving inbound Activities.
+- Outbound Activities are delivered by HTTP POST to the recipient's inbox.
+- Authentication and authorization requirements are described in §13.
+- *Source: `specs/vultron-protocol-spec.yaml` VP-18-001; `specs/outbox.yaml`*
+
+#### ActivityPub federation profile [I]
+
+Full ActivityPub conformance — inbox/outbox HTTP delivery, HTTP Signatures,
+WebFinger discovery — is not currently required by this specification.
+See the informative note in §5.1 and Annex E for the ActivityPub roadmap.
+
+#### Participant discovery [I]
+
+Before two actors can exchange messages, they must locate each other.
+WebFinger is the anticipated discovery mechanism, consistent with its use
+alongside ActivityPub in federated systems such as Mastodon.
+A participant discovery specification is not yet included in this document.
+
+!!! note "Transport vs. routing topology"
+    The routing topology rule in §5.4.2 — all case-scoped messages MUST route
+    through the Case Actor — is a vultron-core protocol rule. It applies
+    regardless of which transport carries the messages. The transport layer is
+    responsible for delivery. The protocol layer is responsible for routing
+    authority.
+
+- *Source: §5.1 informative note (ActivityPub roadmap, issue #2068); Annex E*
+
+---
+
+## 6. Report Management (RM) State Machine [N]
+
+!!! note "Behavioral Layer — §6 through §11"
+    §6–§11 together specify the five state machines of the Vultron protocol:
+    **RM** (§6), **EM** (§7), **VFD and PXA** (§8, together the CS dimension),
+    and **PEC** (§9). Model interactions and cascade rules are in §10; the
+    participant lifecycle is in §11.
+
+    **On scope: PEC.** The original Vultron protocol design specified four state
+    machines: RM, EM, VFD, and PXA. A fifth — the Participant Embargo Consent
+    (PEC) machine — emerged during implementation when it became clear that the
+    case-level EM state was insufficient to capture individual participant
+    consent posture. PEC is fully normative; implementations that predate this
+    specification should treat it as a required addition.
+
+    **Two conventions apply throughout §6–§11:**
+
+    - A participant maintains its own state **and** a model of other
+      participants' states. Where a transition rule applies to one and not the
+      other, this is stated explicitly (§8.4).
+    - Transitions listed without a named trigger are driven by the corresponding
+      protocol message from §4.
+
+### 6.1 States
 
 - `RM.START`, `RM.RECEIVED`, `RM.INVALID`, `RM.VALID`, `RM.DEFERRED`,
   `RM.ACCEPTED`, `RM.CLOSED`
 - *Source: `vultron/core/states/rm.py`; `docs/topics/process_models/rm/`*
 
-#### 6.1.2 Transitions and Guards
+### 6.2 Transitions and Guards
 
 - Full transition table with preconditions
 - Which messages trigger which transitions
 - *Source: `docs/reference/formal_protocol/transitions.md`*
 
-#### 6.1.3 Per-Participant RM Tracking
+### 6.3 Per-Participant RM Tracking
 
 Each participant tracks its own RM state independently; a participant is the
-authority on its own RM state (§4.4.1).
+authority on its own RM state (§5.4.1).
 
 `RM.RECEIVED` is the entry state for a participant joining a case, reached by
 several paths:
@@ -614,33 +638,35 @@ replica has been delivered to it.
     treat a participant as having committed to the case until it receives an RM
     status message from that participant confirming the transition.
 
-    See §6.4.7 for why this matters to case delivery.
+    See §9.7 for why this matters to case delivery.
 
 - *Source: `specs/case-management.yaml` CM-11-001, CM-11-002, CM-11-004,
   CM-17-004; ADR-0051*
 
-### 6.2 Embargo Management (EM) State Machine
+---
 
-#### 6.2.1 States
+## 7. Embargo Management (EM) State Machine [N]
+
+### 7.1 States
 
 - `EM.NONE`, `EM.PROPOSED`, `EM.ACTIVE`, `EM.REVISE`, `EM.EXITED`
 - This is the **case-level** collective embargo state, distinct from
-  per-participant consent (see §6.4)
+  per-participant consent (see §9)
 
 !!! warning "`NO_EMBARGO` names a state in two different machines"
     `EM.NO_EMBARGO` exists as an alias for `EM.NONE` — the case-level "no embargo
     is in effect". The PEC machine has a *separate* state also named
     `NO_EMBARGO`, meaning "no embargo is in scope **for this participant**"
-    (§6.4.1).
+    (§9.1).
 
     These are different states in different machines, and the machines are
-    orthogonal (§6.2.3). A case at `EM.ACTIVE` may hold a participant at
+    orthogonal (§7.3). A case at `EM.ACTIVE` may hold a participant at
     `PEC.NO_EMBARGO`. Implementations SHOULD prefer `EM.NONE` in code and
     documentation to reduce the collision surface.
 
 - *Source: `vultron/core/states/em.py`; `docs/topics/process_models/em/`*
 
-#### 6.2.2 Transitions and Guards
+### 7.2 Transitions and Guards
 
 Triggers are `PROPOSE`, `ACCEPT`, `REJECT`, `TERMINATE`:
 
@@ -679,7 +705,7 @@ SHOULD NOT otherwise be tacit.
   `specs/embargo-policy.yaml`; `specs/vultron-protocol-spec.yaml` VP-06, VP-07;
   `notes/embargo-default-semantics.md`; `notes/embargo-lifecycle.md`*
 
-#### 6.2.3 Relationship to PEC
+### 7.3 Relationship to PEC
 
 - EM tracks whether a case has an active embargo; PEC tracks whether each
   participant has consented to it — these are orthogonal questions
@@ -688,9 +714,11 @@ SHOULD NOT otherwise be tacit.
 - EM exiting (`EXITED`) triggers `RESET` on all participants' PEC machines
 - *Source: `notes/participant-embargo-consent.md`; ADR-0048*
 
-### 6.3 Case State (CS) Dimensions
+---
 
-#### 6.3.1 VFD — Participant-Specific Axis (Vendor/Fix/Deploy)
+## 8. Case State (CS) Dimensions [N]
+
+### 8.1 VFD — Participant-Specific Axis (Vendor/Fix/Deploy)
 
 VFD tracks what a **specific participant** has done. It is monotonic and
 strictly ordered: exactly four states, since a fix cannot be deployed before it
@@ -703,18 +731,18 @@ is ready, nor ready before the vendor is aware.
 | `VFd` | yes | yes | no |
 | `VFD` | yes | yes | yes |
 
-Transition drive authority is governed by §7.4.1.
+Transition drive authority is governed by §12.4.1.
 
 - *Source: `vultron/core/states/cs.py` (`CS_vfd`);
   `docs/topics/process_models/cs/`*
 
-#### 6.3.2 PXA — Participant-Agnostic Axis (Public/eXploit/Attacks)
+### 8.2 PXA — Participant-Agnostic Axis (Public/eXploit/Attacks)
 
 PXA tracks the state of the world, not of any participant. Unlike VFD, the three
 axes are independent, giving **eight** states: `pxa`, `Pxa`, `pXa`, `pxA`, `PXa`,
 `PxA`, `pXA`, `PXA`.
 
-Any participant MAY report PXA observations (§7.4.2).
+Any participant MAY report PXA observations (§12.4.2).
 
 !!! note "The `pX→PX` invariant: two PXA states are ephemeral"
     Publication of an exploit implies public awareness. `pXa` and `pXA` — exploit
@@ -723,17 +751,17 @@ Any participant MAY report PXA observations (§7.4.2).
 
     Implementations SHOULD treat `pX*` as a state that is passed through rather
     than rested in. Whether this invariant is normatively enforced, and where, is
-    currently underspecified (§6.3.3).
+    currently underspecified (§8.3).
 
 - *Source: `vultron/core/states/cs.py` (`CS_pxa`)*
 
-#### 6.3.3 Case State as a Compound Tuple
+### 8.3 Case State as a Compound Tuple
 
 Case State is the pair `CS = (VFD, PXA)` — 4 × 8 = 32 compound states.
 
 Not all orderings among these are reachable or meaningful, and some sequences
 carry normative weight (for example, `CP` must precede `ET` where public
-disclosure triggers embargo teardown, §6.5).
+disclosure triggers embargo teardown, §10).
 
 !!! warning "Ordering constraints are not yet normatively specified"
     CS ordering constraints are currently described in three non-normative
@@ -748,7 +776,7 @@ disclosure triggers embargo teardown, §6.5).
   `docs/reference/measuring_cvd/possible_histories.md`;
   `notes/behavioral-conformance-specs.md`*
 
-#### 6.3.4 Receiving CS Messages: Own State vs. Model of Others
+### 8.4 Receiving CS Messages: Own State vs. Model of Others
 
 A participant maintains its own CS state **and** a model of every other
 participant's CS state. These are updated by different events, and conflating
@@ -758,15 +786,17 @@ them is a common implementation error:
   sender's** VFD state. The receiver's own CS state is unchanged. The receiver
   emits `CK` to acknowledge.
 - Driving one's *own* VFD transition happens through the local trigger path and
-  is subject to the role gating in §7.4.1.
+  is subject to the role gating in §12.4.1.
 - PXA is shared world-state rather than participant-specific, so an adopted PXA
-  observation updates the canonical case status (§6.5.1), not a per-participant
+  observation updates the canonical case status (§10.1), not a per-participant
   model.
 
 - *Source: `specs/cs-behavior.yaml` CSB-01 through CSB-04;
   `docs/topics/process_models/model_interactions/_cs_global_local.md`*
 
-### 6.4 Participant Embargo Consent (PEC) State Machine [N]
+---
+
+## 9. Participant Embargo Consent (PEC) State Machine [N]
 
 !!! note "Provenance"
     PEC was not part of the original protocol design. It emerged during
@@ -775,7 +805,7 @@ them is a common implementation error:
     participant has not yet consented." It is treated as normative here because
     correct embargo semantics cannot be specified without it.
 
-#### 6.4.1 States
+### 9.1 States
 
 - `NO_EMBARGO` — no embargo in scope for this participant (initial state; also
   the reset destination when an embargo is terminated)
@@ -785,7 +815,7 @@ them is a common implementation error:
 - `DECLINED` — explicitly declined, or timed out without responding (pocket veto)
 - *Source: `vultron/core/states/participant_embargo_consent.py`; `notes/participant-embargo-consent.md`*
 
-#### 6.4.2 Transitions and Guards
+### 9.2 Transitions and Guards
 
 | From | Trigger | To |
 |---|---|---|
@@ -821,7 +851,7 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   `notes/participant-embargo-consent.md`; `specs/case-management.yaml` CM-18-003,
   CM-18-004; ADR-0048*
 
-#### 6.4.3 Semantics of `NO_EMBARGO`
+### 9.3 Semantics of `NO_EMBARGO`
 
 - `NO_EMBARGO` means **absence of an embargo context**, not "not yet consented"
 - Direct `ACCEPT` and `DECLINE` from `NO_EMBARGO` are valid (no invitation
@@ -830,7 +860,7 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   retroactively un-given by re-invitation)
 - *Source: ADR-0048; `notes/participant-embargo-consent.md`*
 
-#### 6.4.4 Pocket Veto and RSVP Deadlines (Timer-Based Transitions)
+### 9.4 Pocket Veto and RSVP Deadlines (Timer-Based Transitions)
 
 - `INVITED → DECLINED` and `LAPSED → DECLINED` are timer-based
 - An `Invite(EmbargoEvent)` MAY carry an activity-level `end_time` giving an
@@ -853,17 +883,17 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   §"RSVP Deadlines on Embargo Invites"; ADR-0065; CM-18-002, CM-28, EP-07,
   EMB-17*
 
-#### 6.4.5 Embargo Meta-Protocol Delivery to Non-Signatories
+### 9.5 Embargo Meta-Protocol Delivery to Non-Signatories
 
 - Embargo meta-protocol messages — `Invite(Event)`, `Accept`/`Reject` thereof,
   and `Remove(Event)` — MUST be delivered even to `DECLINED` and `LAPSED`
   participants. A participant cannot be re-invited to revised terms it never
   learns about.
 - Only case **content** (report details, fix status, sensitive notes) is gated on
-  `SIGNATORY` status (§6.4.7).
+  `SIGNATORY` status (§9.7).
 - *Source: `notes/participant-embargo-consent.md`*
 
-#### 6.4.6 Relationship to `embargo_adherence`
+### 9.6 Relationship to `embargo_adherence`
 
 `embargo_adherence` is the boolean projection of PEC state: `True` iff
 PEC = `SIGNATORY`, `False` otherwise.
@@ -876,7 +906,7 @@ transition path (ADR-0048, ADR-0056).
 
 - *Source: `specs/case-management.yaml` CM-18-008; ADR-0056*
 
-#### 6.4.7 Gating Full Case Delivery
+### 9.7 Gating Full Case Delivery
 
 Before the Case Actor delivers full case content
 (`Announce(VulnerabilityCase)` carrying report details, vulnerability
@@ -893,7 +923,7 @@ recipient:
     It is tempting to read condition 1 as `RM.ACCEPTED`. That reading is wrong
     and self-defeating: an invitee is recorded at `RM.RECEIVED` on
     `Accept(Invite)`, and reaches `ACCEPTED` only *after* receiving the full case
-    and running its triage cycle (§6.1.3). Requiring `ACCEPTED` before delivery
+    and running its triage cycle (§6.3). Requiring `ACCEPTED` before delivery
     would mean a participant could never obtain the case it needs in order to
     reach the state that gates it.
 
@@ -901,14 +931,16 @@ recipient:
     content.** The ordering is: admit the participant at `RM.RECEIVED`, resolve
     embargo consent, then deliver the full case.
 
-Note the consequence for §6.5's cascade ordering: `Accept(Invite)` implies consent
+Note the consequence for §10's cascade ordering: `Accept(Invite)` implies consent
 to any active embargo, which is what allows delivery to proceed immediately rather
 than waiting on a separate consent round-trip.
 
 - *Source: `specs/message-validation.yaml` MV-10-005, MV-10-006;
   `specs/case-management.yaml` CM-10-004, CM-11-001, CM-17-004, CM-18-005*
 
-### 6.5 Model Interactions and Cascade Rules
+---
+
+## 10. Model Interactions and Cascade Rules [N]
 
 State transitions in one dimension trigger obligations in others. Cascades are
 event-driven: a state change produces a domain event, which the Case Actor
@@ -922,18 +954,18 @@ Key cascades:
   (b) create the participant record at `RM.RECEIVED`, (c) sign embargo consent if
   an embargo is active, (d) send `Announce(VulnerabilityCase)` with the full
   snapshot, and (e) backfill prior ledger entries in log-index order. The
-  ordering of (b)–(d) is load-bearing (§6.4.7).
+  ordering of (b)–(d) is load-bearing (§9.7).
 - **EM enters `REVISE` → bulk PEC lapse**: all participants currently at PEC
   `SIGNATORY` MUST be transitioned to `LAPSED`.
 - **EM exits → PEC reset**: all participants' PEC machines MUST be reset to
   `NO_EMBARGO`.
 - **PXA observation adopted → embargo teardown**: canonical adoption of any
   status carrying `CS.P`, `CS.X`, or `CS.A` MUST trigger embargo teardown
-  evaluation (§6.5.1, EmbargoTeardownAuthorizationGate).
+  evaluation (§10.1, EmbargoTeardownAuthorizationGate).
 - **Embargo teardown → state replication**: termination of an active embargo
   SHOULD produce a fresh `Announce(CaseLedgerEntry)` to all participants.
 
-#### 6.5.1 Status Adoption: The Two-Seam Model
+### 10.1 Status Adoption: The Two-Seam Model
 
 A reported status becomes canonical case state through two independent
 authorization seams. This structure exists because "record what a participant
@@ -945,7 +977,7 @@ authority.
 decides whether to treat it as canonical:
 
 - A Case Owner's report MUST be adopted without requiring approval — requiring
-  the Case Owner to approve its own report would be circular (§7.4.4).
+  the Case Owner to approve its own report would be circular (§12.4.4).
 - All other senders pass through a configurable approval gate. The default
   policy is to auto-adopt.
 - On adoption, the Case Actor emits a self-addressed `Add(CaseStatus)` to itself
@@ -969,7 +1001,7 @@ what lets either be re-policied without touching the other.
 !!! note "Where the gate model applies"
     StatusAdoptionGate governs *any* reported status, but its authorization question is most
     consequential for participant-agnostic (PXA) observations, where any
-    participant may report (§7.4.2) — including reports about *other*
+    participant may report (§12.4.2) — including reports about *other*
     participants. The default auto-adopt policy means an unapproved third-party
     assertion becomes canonical unless an implementation configures otherwise.
 
@@ -977,9 +1009,11 @@ what lets either be re-policied without touching the other.
   ADR-0046; `notes/received-status-authorization.md`;
   `notes/protocol-event-cascades.md`; `specs/event-driven-control-flow.yaml`*
 
-### 6.6 Participant Lifecycle Within a Case
+---
 
-#### 6.6.1 Role Assignment [N]
+## 11. Participant Lifecycle Within a Case [N]
+
+### 11.1 Role Assignment [N]
 
 Roles are assigned through a defined authority chain. They are not self-declared.
 
@@ -994,18 +1028,18 @@ This rule prevents an actor from claiming authority (for example, Coordinator)
 on a case it is not ready to coordinate.
 
 An implementation MAY verify that an actor has the capability prerequisites
-for a role (§7.3.1) before completing a role assignment.
+for a role (§12.3.1) before completing a role assignment.
 
-#### 6.6.2 Invitation and Acceptance [N]
+### 11.2 Invitation and Acceptance [N]
 
 - An actor joins a case via `Invite(CaseStub)` from the Case Actor, answered with
   `Accept(Invite)` or `Reject(Invite)`.
 - `Accept(Invite)` places the actor at `RM.RECEIVED` and, where an embargo is
-  active, implies consent to that embargo (§6.4.7).
-- The suggest-actor path (§4.3, §5.4) allows a Participant to recommend an actor
+  active, implies consent to that embargo (§9.7).
+- The suggest-actor path (§5.3, §4.4) allows a Participant to recommend an actor
   to the Case Owner. The Case Owner decides whether to issue the invitation.
 
-#### 6.6.3 Case Ownership Transfer [N]
+### 11.3 Case Ownership Transfer [N]
 
 The Case Owner MAY transfer ownership to another actor via
 `Offer(VulnerabilityCase)` / `Accept` handshake routed through the Case Actor
@@ -1015,9 +1049,9 @@ the associated protocol responsibilities.
 !!! note "Open: Case Actor identity during ownership transfer"
     Because the Case Actor URI is the identity anchor for the canonical ledger,
     ownership transfer raises a re-keying question for future cryptographic
-    identity designs. See §7.3.2 and Open Questions.
+    identity designs. See §12.3.2 and Open Questions.
 
-#### 6.6.4 Participant Removal [I]
+### 11.4 Participant Removal [I]
 
 A Case Owner or Case Manager MAY remove a participant from a case.
 The protocol mechanics of removal and the effect on active embargo consent
@@ -1027,9 +1061,9 @@ are not yet fully specified.
 
 ---
 
-## 7. Conformance [N]
+## 12. Conformance [N]
 
-### 7.1 Conformance Model Overview
+### 12.1 Conformance Model Overview
 
 Conformance is two-dimensional: **capability sets** (what protocol machinery an
 implementation provides) and a **role profile** (which roles it claims). A
@@ -1043,14 +1077,14 @@ Examples: `Observer / Reporter`, `Observer / Vendor`, `Observer / Vendor + Deplo
 The Observer capability set is required for all participation.
 Role obligations are additive and orthogonal: no role subsumes another.
 
-Capability set names and role names come from §7.2 and §7.3 respectively.
+Capability set names and role names come from §12.2 and §12.3 respectively.
 
 **Roles and capability expectations.** The relationship between roles and
 capabilities is bidirectional. An implementation must have the capability
-prerequisites for a role before it can be assigned that role (§7.3.1).
+prerequisites for a role before it can be assigned that role (§12.3.1).
 Conversely, holding a role in a case creates an expectation that the
 implementation has those capabilities — other participants act on that
-assumption. See §6.6.1 for the role assignment gatekeeping rules.
+assumption. See §11.1 for the role assignment gatekeeping rules.
 
 !!! warning "Capability sets are not the same as conformance test layers"
     This project uses two distinct schemes, and they must not be conflated:
@@ -1065,7 +1099,7 @@ assumption. See §6.6.1 for the role assignment gatekeeping rules.
     Earlier drafts of this document used `T0`/`T1`/`T2` for capability tiers and
     `L0`/`L1`/`L2` before that. Both sets of labels are superseded.
 
-### 7.2 Capability Sets
+### 12.2 Capability Sets
 
 !!! note "What 'implement a state machine' means"
     Implementing a state machine has two components:
@@ -1097,7 +1131,7 @@ state and notify others of its own transitions.
   transitions
 - MUST participate in embargo negotiation: responding to `Invite(Event)`, and
   recording consent or refusal via PEC
-- MUST route all case-scoped messages through the Case Actor (§4.4.2)
+- MUST route all case-scoped messages through the Case Actor (§5.4.2)
 - MAY report PXA observations; no VFD drive obligations unless a role extension
   set adds them
 
@@ -1113,7 +1147,7 @@ state and notify others of its own transitions.
     All Observer participants **track** all five machines. Which transitions a
     participant **drives** depends on its role extension set: a Vendor drives its
     own VFD transitions; a Reporter drives RM; any participant may report PXA
-    observations. See §7.3 and §7.4.
+    observations. See §12.3 and §12.4.
 
 - *Source: `specs/vultron-protocol-spec.yaml`; `specs/state-machine.yaml`;
   `specs/embargo-policy.yaml`; `specs/case-management.yaml` CM-18*
@@ -1139,21 +1173,23 @@ It is separable from the Authority capability set.
 
 - Observer capability set, plus:
 - MUST act as or host a **Case Actor**, and therefore MUST implement the
-  single-writer authority rules of §4.4.1
+  single-writer authority rules of §5.4.1
 - MUST maintain the authoritative canonical case ledger and replicate it to
   participants via `Announce(CaseLedgerEntry)`
 - MUST implement multi-party case management: participant invitation,
   acceptance, role assignment, and case ownership operations
-- MUST implement the two-seam status adoption model (§6.5.1), including the
+- MUST implement the two-seam status adoption model (§10.1), including the
   canonical-write-before-side-effects ordering
-- MUST deliver full case content only when the §6.4.7 gate is satisfied
+- MUST deliver full case content only when the §9.7 gate is satisfied
 
 !!! note "Ledger replication scope"
-    Whether the full ledger replication protocol belongs in this specification or
-    in a companion document is unresolved (see Open Questions). The Hosting
-    requirement above is stable regardless: a Case Actor host must replicate the
-    ledger. What may move is the *detailed* replication mechanics — ordering,
-    hash-chaining, gap recovery — not the obligation.
+    The detailed replication mechanics (hash-chaining, gap detection, ordering
+    guarantees) are specified in a companion document,
+    `docs/reference/draft-vultron-replication-spec.md`, not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
+    replication architecture: one Case Actor holds exclusive write authority and
+    replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
+    Distributed consensus (multi-node CaseActor cluster) is a future extension
+    out of scope for this RFC.
 
 - *Source: `specs/sync-ledger-replication.yaml`; `specs/case-management.yaml`;
   `specs/received-status-handling.yaml`; `specs/vultron-protocol-spec.yaml` VP-17-001*
@@ -1174,9 +1210,9 @@ A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER`
 and `CASE_MANAGER` roles. It decides and executes without a separate human
 approval step for its own status updates.
 
-### 7.3 Role Taxonomy
+### 12.3 Role Taxonomy
 
-#### 7.3.1 Process Roles
+#### 12.3.1 Process Roles
 
 Process roles define what an actor *does* within a case and which protocol
 transitions it is authorized to drive. An actor may hold multiple process roles.
@@ -1188,22 +1224,15 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | Deployer | Drives its own VFD transition `d→D` (fix deployed, `CD`) |
 | Coordinator | Drives case participant management; coordinates multi-party disclosure |
 | CNA | May directly assign CVE IDs; a non-CNA delegates to an external CNA service. Orthogonal to other roles — typically co-held with Coordinator or Vendor |
-| Observer | Holds no drive obligations for VFD; may report PXA observations (§7.4.2) |
+| Observer | Holds no drive obligations for VFD; may report PXA observations (§12.4.2) |
 
 **Capability prerequisites.** Every case Participant — whatever its roles — MUST
-implement the Observer capability set (§7.2, §7.3.3). Role extension sets add
+implement the Observer capability set (§12.2, §12.3.3). Role extension sets add
 obligations on top of that floor; they do not substitute for it. An implementation
 SHOULD verify that an actor has the capability prerequisites for a role before
-completing a role assignment (§6.6.1). The full capability prerequisites per
+completing a role assignment (§11.1). The full capability prerequisites per
 role are under active specification; see `docs/reference/vultron-taxonomy.md`
 §"Open Ideas."
-
-!!! note "Finder role: still provisional"
-    **Finder** still requires an ADR before the removal can be treated as normative.
-    The formal protocol definition this document builds on (§3.1, §3.4) defines
-    the process count over Finders, Vendors, Coordinators, Deployers, and Others.
-    `CVDRole.FINDER` exists in the current implementation and is retained until
-    the ADR is written.
 
 !!! note "Note on Reporter"
     Reporters are most often also the discoverer of the vulnerability, but
@@ -1212,7 +1241,7 @@ role are under active specification; see `docs/reference/vultron-taxonomy.md`
     or in case Notes, but nothing in the technical protocol hinges on that
     distinction. Reporter is the protocol-salient role from first contact.
 
-#### 7.3.2 Protocol Coordination Roles (protocol authority)
+#### 12.3.2 Protocol Coordination Roles (protocol authority)
 
 These roles confer specific protocol-layer authority and are distinct from
 process roles. They describe what an actor *controls* within the protocol
@@ -1238,7 +1267,7 @@ the associated protocol responsibilities.
     The design for ownership transfer across cryptographic boundaries requires
     further work before this aspect can be normative.
 
-#### 7.3.3 Roles and Capability Sets Are Independent
+#### 12.3.3 Roles and Capability Sets Are Independent
 
 A role is a position within a case. A capability set is a property of software.
 Mixing them produces contradictions, so the relationship is stated explicitly:
@@ -1260,11 +1289,11 @@ Mixing them produces contradictions, so the relationship is stated explicitly:
     VFD drive obligations — not by being exempt from state tracking.
 
     Observer role admission follows the standard `Invite` / `Accept(Invite)` path.
-    Role semantics are normative per ADR-0057; see the note at §7.3.1.
+    Role semantics are normative per ADR-0057; see the note at §12.3.1.
 
-### 7.4 Role-Specific Normative Requirements
+### 12.4 Role-Specific Normative Requirements
 
-#### 7.4.1 Participant-Specific CS Transitions (VFD)
+#### 12.4.1 Participant-Specific CS Transitions (VFD)
 
 VFD records what a specific participant has done, so drive authority is scoped to
 the participant that did it.
@@ -1295,9 +1324,9 @@ the local trigger path):
     open. Tracked as a Concern; do not infer a rule from this document's silence.
 
 - *Source: `specs/cs-behavior.yaml` CSB-15-001, CSB-15-002, CSB-15-003;
-  receive-side counterparts CSB-01 through CSB-04 (§6.3.4)*
+  receive-side counterparts CSB-01 through CSB-04 (§8.4)*
 
-#### 7.4.2 Participant-Agnostic CS Transitions (PXA)
+#### 12.4.2 Participant-Agnostic CS Transitions (PXA)
 
 PXA records the state of the world rather than of any participant, so **any**
 participant MAY report a PXA observation. These transitions are role-ungated:
@@ -1310,14 +1339,14 @@ independently of anything a case participant does or causes.
 
 Reporting is not adoption. A reported observation is a claim; whether it becomes
 canonical case state, and whether it triggers embargo teardown, is decided by the
-two-seam model in **§6.5.1**. The role rule here — *who may report* — is
+two-seam model in **§10.1**. The role rule here — *who may report* — is
 deliberately separate from the authorization rules there — *what the Case Actor
 does with a report*.
 
 !!! note "Informative: the Sentinel capability shape"
     A participant that monitors external sources (threat feeds, public
     disclosures, vulnerability databases) and reports what it finds into a case is
-    an instance of the **Sentinel** capability shape (§7.6).
+    an instance of the **Sentinel** capability shape (§12.6).
 
     The Sentinel shape is defined as an optional, pluggable capability — not a
     mandatory protocol role. No spec group yet defines a Sentinel's trust
@@ -1325,13 +1354,13 @@ does with a report*.
     Sentinel's observations from any other participant's report.
     Given that StatusAdoptionGate's default policy is to auto-adopt non-owner
     reports, an unspecified external reporter is a trust-model question, not
-    merely a naming one. See §7.6 and Open Questions item 16. Treat this note
+    merely a naming one. See §12.6 and Open Questions item 16. Treat this note
     as informative.
 
 - *Source: `specs/cs-behavior.yaml`; ADR-0047 (sentinel pattern);
-  §6.5.1 for adoption authorization*
+  §10.1 for adoption authorization*
 
-#### 7.4.3 CVE ID Assignment
+#### 12.4.3 CVE ID Assignment
 
 An actor holding CNA MUST have the capability to assign CVE IDs, which
 requires evaluating vulnerability eligibility criteria before assignment. An
@@ -1355,7 +1384,7 @@ call-out point, not separate call-out points for each individual criterion
 - *Sources: `specs/behavior-tree-node-design.yaml` BTND-05-007, BTND-05-008;
   ADR-0071*
 
-#### 7.4.4 Case Owner Authority
+#### 12.4.4 Case Owner Authority
 
 A Case Owner's status updates MUST be accepted without requiring approval from
 a case management policy engine. Requiring a Case Owner to approve their own
@@ -1366,7 +1395,7 @@ policy gate before adopting a reported status update.
 
 - *Source: `notes/received-status-authorization.md`; `specs/case-management.yaml`*
 
-### 7.5 Conformance Testing Approach
+### 12.5 Conformance Testing Approach
 
 - Observable behavior is the test basis — not implementation internals
 - Test cases are expressed as message-sequence scenarios with expected state
@@ -1376,29 +1405,29 @@ policy gate before adopting a reported status update.
   through the protocol messages they produce, not the work behind them
 
 Conformance testing is organized in four **layers**, which describe what a test
-verifies. These are orthogonal to the capability tiers of §7.2 (see the warning
-in §7.1):
+verifies. These are orthogonal to the capability tiers of §12.2 (see the warning
+in §12.1):
 
 | Layer | Verifies |
 |---|---|
-| L1 — Syntax | Messages are well-formed against the wire format (§4) |
-| L2 — Semantics | Each message drives the correct state transition (§5, §6) |
+| L1 — Syntax | Messages are well-formed against the wire format (§5) |
+| L2 — Semantics | Each message drives the correct state transition (§4, §6–§11) |
 | L3 — Behavior | Correct observable outputs: right messages emitted and states reached, given input state plus received message |
 | L4 — Process | Correct internal decision structure (e.g. precondition before state write before side-effect) |
 
 L4 is only enforceable against a reference implementation and is therefore
 outside the scope of independent conformance claims. Some process ordering
 surfaces at L3 where the output sequence is itself observable — the
-canonical-write-before-side-effects rule of §6.5.1 being the clearest case.
+canonical-write-before-side-effects rule of §10.1 being the clearest case.
 
 - *Source: `notes/behavioral-conformance-specs.md`;
   `specs/rm-behavior.yaml`, `specs/em-behavior.yaml`, `specs/cs-behavior.yaml`*
 
-### 7.6 Capability Shapes [I]
+### 12.6 Capability Shapes [I]
 
 Capability shapes define optional, pluggable capabilities that connect to
 call-out points in the behavior engine. They are orthogonal to the capability
-sets of §7.2: an Observer implementation may have zero capability shapes
+sets of §12.2: an Observer implementation may have zero capability shapes
 implemented, and a capability that fits a given shape does not require anything
 beyond what the host behavior engine provides.
 
@@ -1413,7 +1442,7 @@ Vultron-compatible capability of that shape.
     always to describe capability contracts, not autonomous agents specifically.
     See ADR-0024 (original decision) and `docs/reference/vultron-taxonomy.md`.
 
-#### 7.6.1 The Five Capability Shapes
+#### 12.6.1 The Five Capability Shapes
 
 | Shape | Contract: accepts | Contract: returns | Notes |
 |---|---|---|---|
@@ -1428,7 +1457,7 @@ Vultron-compatible capability of that shape.
     artifact is written to the blackboard. If the only output is a SUCCESS/FAILURE
     confirming an external side effect, the shape is **Actuator**, not Composer.
 
-#### 7.6.2 Relationship to Conformance
+#### 12.6.2 Relationship to Conformance
 
 Capability shapes are not part of the Observer, Authority, or Hosting
 capability set requirements. An implementation at any capability set level
@@ -1439,7 +1468,7 @@ Where a capability shape is implemented, it MUST satisfy the contract defined
 above. The technology used to fulfill the contract is not specified: a shape
 may be fulfilled by a human, an automated script, an LLM, or any other mechanism.
 
-#### 7.6.3 Relationship to the Reference Implementation
+#### 12.6.3 Relationship to the Reference Implementation
 
 In the Python reference implementation, a capability shape maps to a Port
 (abstract Protocol interface) and a concrete capability maps to an Adapter.
@@ -1451,31 +1480,31 @@ implementation. Other implementations are not required to use this structure.
 
 ---
 
-## 8. Security Considerations [N/I]
+## 13. Security Considerations [N/I]
 
-### 8.1 Trust Model
+### 13.1 Trust Model
 
 - Actor identity and verification
 - Case bootstrap as the trust establishment mechanism
 
-### 8.2 Embargo Integrity
+### 13.2 Embargo Integrity
 
 - Preventing premature disclosure through protocol adherence
 - What happens when an actor defects from an active embargo
 
-### 8.3 Replay and Idempotency
+### 13.3 Replay and Idempotency
 
 - Message deduplication requirements
 - *Source: `specs/idempotency.yaml`*
 
-### 8.4 Confidentiality
+### 13.4 Confidentiality
 
 - What is normatively in-scope for encryption (deferred in prototype)
 - *Source: `specs/encryption.yaml`*
 
 ---
 
-## 9. IANA / Namespace Considerations [I]
+## 14. IANA / Namespace Considerations [I]
 
 - **Vultron vocabulary namespace**: `https://certcc.github.io/Vultron/ns`
   (initial, provisional — hosted on GitHub Pages). A permanent URI registration
@@ -1487,7 +1516,7 @@ implementation. Other implementations are not required to use this structure.
 
 ---
 
-## 10. Informative Annexes
+## 15. Informative Annexes
 
 ### Annex A — Worked Example: Single-Vendor CVD [I]
 
@@ -1508,7 +1537,7 @@ implementation. Other implementations are not required to use this structure.
 
 ### Annex D — Possible Case Histories [I]
 
-- Ordering constraints on CS state transitions (see §6.3.3 — these are not yet
+- Ordering constraints on CS state transitions (see §8.3 — these are not yet
   normatively specified)
 - *Source: `docs/reference/measuring_cvd/possible_histories.md`;
   `docs/topics/process_models/cs/transitions.md`*
@@ -1535,27 +1564,29 @@ implementation. Other implementations are not required to use this structure.
 
 1. ~~**Namespace URI**~~ — Resolved. The Vultron vocabulary namespace is
    `https://certcc.github.io/Vultron/ns`; the JSON-LD context document is at
-   `https://certcc.github.io/Vultron/ns/context.jsonld`. See §4.5 and ADR-0069.
+   `https://certcc.github.io/Vultron/ns/context.jsonld`. See §5.5 and ADR-0069.
    A permanent namespace URI may be registered in a future version.
-2. **Sync/replication** — Is the ledger replication protocol in scope for this
-   RFC, or a separate companion spec? The Hosting capability set obligation to
-   replicate is stable either way (§7.2); what may move is the detailed mechanics.
-3. ~~**ActivityPub vs. bare AS2**~~ — Resolved for this version. §4.1 states the
+2. ~~**Sync/replication**~~ — Resolved. Replication mechanics belong in a
+   companion document, not this RFC; the normative model (single-hub /
+   single-writer + fan-out) is stated in §12.2. See ADR-0077 and
+   `docs/reference/draft-vultron-replication-spec.md`.
+3. ~~**ActivityPub vs. bare AS2**~~ — Resolved for this version. §5.1 states the
    current normative floor as AS2 vocabulary only, with an informative note that
    a future version is expected to require full ActivityPub conformance for all
    participants. Tracked in issue #2068.
-4. **Background material depth** — How much CVD domain background belongs here
-   vs. a companion "CVD Concepts" document?
-5. **Finder removal ADR** — Decision to drop the Finder role needs an ADR before
-   the spec circulates. Rationale: Reporter is the protocol-salient role; Finder
-   identity may be recorded in the report or case Notes but has no protocol effect.
-   Note the reach: `docs/reference/formal_protocol/index.md` defines the process
-   count $N$ over Finders, Vendors, Coordinators, Deployers, and Others, and §3.1
-   and §3.4 build on that definition. Marked provisional in §7.3.1.
+4. ~~**Background material depth**~~ — Resolved. §1.1 uses informative
+   admonition blocks pointing to `docs/topics/background/` rather than
+   inlining prose or creating a separate companion document. Full §1.1 prose
+   before external circulation is tracked in #2698.
+5. ~~**Finder removal ADR**~~ — Resolved. ADR-0078
+   (`docs/adr/0078-retire-finder-role.md`) retires `CVDRole.FINDER`; Reporter is
+   the protocol-salient role. Finder identity is metadata, not a protocol role.
+   Formal protocol $N$ definition updated. Implementation (enum removal) tracked
+   separately.
 6. ~~**Observer rename ADR**~~ — Resolved. ADR-0057
    (`docs/adr/0057-observer-participant-role.md`) decided the rename and Observer
    semantics (CM-25, CM-26). Implementation (code rename) tracked separately.
-7. ~~**PXA adoption policy**~~ — Resolved. Two-gate model specified in §6.5.1:
+7. ~~**PXA adoption policy**~~ — Resolved. Two-gate model specified in §10.1:
    StatusAdoptionGate (adoption) and EmbargoTeardownAuthorizationGate (side-effects), with the
    canonical-write-before-side-effects ordering normative. Source:
    `specs/received-status-handling.yaml`, `notes/received-status-authorization.md`,
@@ -1582,22 +1613,22 @@ implementation. Other implementations are not required to use this structure.
     not exist: there is no such `MessageSemantics` value, and
     `Announce(CaseLedgerEntry)` is the only mechanism by which participants learn
     of accepted case-state changes. All references have been corrected.
-12. **CS ordering constraints are unspecified** — §6.3.3. Ordering rules
+12. **CS ordering constraints are unspecified** — §8.3. Ordering rules
     (including the `pX→PX` invariant and `CP`-before-`ET`) exist only in a code
     docstring, a measurement-oriented reference document, and a design note — no
     spec group. Conformance claims cannot cover CS ordering until this is closed.
-13. **`v→V` drive authority** — §7.4.1. The first VFD transition has no
+13. **`v→V` drive authority** — §12.4.1. The first VFD transition has no
     trigger-side specification and no implementation. Design intent is a
     third-party assertion ("I notified this Vendor"), which raises questions about
     who may assert, whether the subject may dispute, and whether transport-level
     delivery success suffices. Filed as a Concern.
-14. **`embargo_adherence` derived vs. stored** — §6.4.6. Resolved by ADR-0056:
+14. **`embargo_adherence` derived vs. stored** — §9.6. Resolved by ADR-0056:
     `embargo_adherence` is a computed property derived from PEC state.
     Implementation issue tracked separately.
-15. **Negative acknowledgement** — §5.6. Error message types are deliberately
+15. **Negative acknowledgement** — §4.6. Error message types are deliberately
     unmodelled (ADR-0049), and unprocessable inbound messages are dead-lettered
     with no sender notification. Whether the protocol needs an error-reply facet
     is open.
-16. **Sentinel as a specified role** — §7.4.2. Currently a design pattern with no
+16. **Sentinel as a specified role** — §12.4.2. Currently a design pattern with no
     spec group defining its trust relationship to a case. Given StatusAdoptionGate's
     auto-adopt default, this is a trust-model question.

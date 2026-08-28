@@ -38,7 +38,10 @@ class TestOwnershipTransferUseCases:
         """OfferCaseOwnershipTransferReceivedUseCase persists the offer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot1",
@@ -68,7 +71,10 @@ class TestOwnershipTransferUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         coordinator_id = "https://example.org/users/coordinator"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=coordinator_id,
+        )
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot2",
             name="OT Case 2",
@@ -127,7 +133,10 @@ class TestOwnershipTransferUseCases:
         transferee_id = "https://example.org/users/coordinator"
         forwarded_id = "https://example.org/activities/offer_ot4_fwd"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=case_actor_id,
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot4",
@@ -205,7 +214,10 @@ class TestOwnershipTransferUseCases:
         vendor_id = "https://example.org/users/vendor-w"
         transferee_id = "https://example.org/users/coordinator-w"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=case_actor_id,
+        )
 
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot5",
@@ -271,3 +283,91 @@ class TestOwnershipTransferUseCases:
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
+
+    def test_offer_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent the store owner processes the Offer.
+
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back
+        to dl.actor_id, so the offer is persisted rather than dropped.
+        """
+        import py_trees
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        actor_id = "https://example.org/actors/store-owner-ot"
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+            case = as_VulnerabilityCase(
+                id_="https://example.org/cases/case_ot_nostamp",
+                name="OT No-Stamp Test",
+            )
+            activity = offer_case_ownership_transfer_activity(
+                case,
+                target="https://example.org/users/transferee",
+                actor="https://example.org/users/vendor",
+            )
+            event = make_payload(activity, receiving_actor_id=None)
+
+            OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+
+            stored = dl.get(activity.type_.value, activity.id_)
+            assert stored is not None, (
+                "Offer must be persisted even when receiving_actor_id is absent"
+                " (store-owner fallback, CLP-10-005)"
+            )
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
+
+    def test_accept_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent the store owner runs the accept BT.
+
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back
+        to dl.actor_id (coordinator), so the ownership transfer is applied rather
+        than dropped.
+        """
+        import py_trees
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        coordinator_id = "https://example.org/users/coordinator-nostamp"
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
+
+            case = as_VulnerabilityCase(
+                id_="https://example.org/cases/case_ot_acc_nostamp",
+                name="OT Accept No-Stamp Test",
+                attributed_to="https://example.org/users/vendor-nostamp",
+            )
+            dl.create(case)
+
+            offer = offer_case_ownership_transfer_activity(
+                case,
+                target=coordinator_id,
+                actor="https://example.org/users/vendor-nostamp",
+                id_="https://example.org/activities/offer_ot_nostamp",
+            )
+            dl.create(offer)
+
+            activity = accept_case_ownership_transfer_activity(
+                offer, actor=coordinator_id
+            )
+            event = make_payload(activity, receiving_actor_id=None)
+
+            AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+
+            updated = dl.get(case.type_.value, case.id_)
+            assert updated is not None
+            from typing import cast, Any
+
+            data = cast(Any, updated).get("data_", updated)
+            assert data.get("attributed_to") == coordinator_id, (
+                "Store owner (coordinator) must become new owner when"
+                " receiving_actor_id is absent (CLP-10-005)"
+            )
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()

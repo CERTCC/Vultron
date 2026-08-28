@@ -33,6 +33,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -48,8 +49,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     reset_datalayer,
@@ -66,6 +69,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -77,12 +81,14 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
+    PARTICIPANT_JOIN_TIMEOUT,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -215,7 +221,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={finder.id_, coordinator.id_},
     )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
@@ -228,7 +234,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        coordinator_client.get(f"/datalayer/{case.id_}")
+        coordinator_client.get(coordinator_client.dl_path(case.id_))
     )
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
     return (
@@ -310,8 +316,12 @@ def _phase_invite_vendor(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_count=4,
-        timeout_seconds=20.0,
+        expected_actor_ids={
+            finder.id_,
+            coordinator_in_coordinator.id_,
+            vendor.id_,
+        },
+        timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
     )
     logger.info("✓ M2: Vendor joined case (4 participants)")
 
@@ -348,41 +358,42 @@ def _phase_sync_verification(
     finder: as_Actor,
     coordinator: as_Actor,
     case: as_VulnerabilityCase,
+    vendor: as_Actor,
 ) -> None:
     """Verify LedgerFanout replication for Finder and Vendor replicas."""
     logger.info("─" * 80)
     logger.info("Phase 3: Replica synchronization verification")
     logger.info("─" * 80)
 
-    coordinator_entries = _get_log_entries_for_case(
-        coordinator_client, case.id_
-    )
-    if coordinator_entries:
-        coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
-        coord_tail_index: int = coord_tail["log_index"]
-        coord_tail_hash: str = coord_tail["entry_hash"]
-        logger.info(
-            "Waiting for replicas to sync Coordinator tail (hash=%s… index=%d)",
-            coord_tail_hash[:16],
-            coord_tail_index,
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(client=finder_client, case_id=case.id_)
+        coordinator_entries = _get_log_entries_for_case(
+            coordinator_client, case.id_
         )
-        for replica_client, label in [
-            (finder_client, "Finder"),
-            (vendor_client, "Vendor"),
-        ]:
-            with demo_check(
-                f"{label} ledger coverage (sync-verification phase)"
-            ):
-                # Temporal (EDF-06-006): Vendor joins Phase 2 so needs extra
-                # ledger catch-up time; causal-gate migration in #2202.
-                timeout = 45.0 if label == "Vendor" else 15.0
-                wait_for_contiguous_ledger_coverage(
-                    client=replica_client,
-                    case_id=case.id_,
-                    expected_tail_index=coord_tail_index,
-                    timeout_seconds=timeout,
-                )
-            logger.info("  %s ledger synchronized", label)
+        if coordinator_entries:
+            coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
+            coord_tail_index: int = coord_tail["log_index"]
+            coord_tail_hash: str = coord_tail["entry_hash"]
+            logger.info(
+                "Waiting for replicas to sync Coordinator tail (hash=%s… index=%d)",
+                coord_tail_hash[:16],
+                coord_tail_index,
+            )
+            for replica_client, label in [
+                (finder_client, "Finder"),
+                (vendor_client, "Vendor"),
+            ]:
+                with demo_gate(
+                    f"{label} ledger coverage (sync-verification phase)"
+                ):
+                    timeout = 45.0 if label == "Vendor" else 15.0
+                    wait_for_contiguous_ledger_coverage(
+                        client=replica_client,
+                        case_id=case.id_,
+                        expected_tail_index=coord_tail_index,
+                        timeout_seconds=timeout,
+                    )
+                logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, vendor_client):
         # Temporal (EDF-06-006): Vendor is a late joiner — allow extra time
@@ -391,7 +402,11 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=4,
+            expected_actor_ids={
+                finder.id_,
+                coordinator.id_,
+                vendor.id_,
+            },
             timeout_seconds=p_timeout,
         )
 
@@ -451,7 +466,7 @@ def _phase_notes_exchange(
             "We have confirmed the issue and are developing a fix. "
             "Estimated patch availability: 14 days."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     participant_adds_note_to_case(
@@ -464,7 +479,7 @@ def _phase_notes_exchange(
             "All three parties engaged. Vendor fix expected in 14 days. "
             "Embargo holds until patch is deployed."
         ),
-        in_reply_to=vendor_reply.id_,
+        in_reply_to=vendor_reply.id_ if vendor_reply is not None else None,
     )
 
     logger.info(
@@ -487,51 +502,62 @@ def _phase_fix_lifecycle(
     )
     logger.info("─" * 80)
 
-    actor_notifies_fix_ready(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
+        )
+        actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor_in_vendor,
+            case_id=case.id_,
         )
 
-    with demo_check(
-        "M4: Coordinator replica shows Vendor CS includes F (fix ready)"
-    ):
-        wait_for_participant_vfd_state(
-            client=coordinator_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
-        )
-        verify_fix_ready(
-            receiver_client=coordinator_client,
-            reporter_client=vendor_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-        )
+        with demo_check(
+            "Vendor participant vfd_state transitions to VFd or VFD"
+        ):
+            wait_for_participant_vfd_state(
+                client=vendor_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
-    with demo_check(
-        "M5: Coordinator replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
-    ):
-        wait_for_participant_vfd_state(
-            client=coordinator_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
-        )
-        verify_fix_ready(
-            receiver_client=coordinator_client,
-            reporter_client=vendor_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-        )
+        with demo_check(
+            "M4: Coordinator replica shows Vendor CS includes F (fix ready)"
+        ):
+            wait_for_participant_vfd_state(
+                client=coordinator_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
+            verify_fix_ready(
+                receiver_client=coordinator_client,
+                reporter_client=vendor_client,
+                case_id=case.id_,
+                receiver_actor_id=vendor.id_,
+            )
+
+        with demo_check(
+            "M5: Coordinator replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
+        ):
+            wait_for_participant_vfd_state(
+                client=coordinator_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd},
+            )
+            verify_fix_ready(
+                receiver_client=coordinator_client,
+                reporter_client=vendor_client,
+                case_id=case.id_,
+                receiver_actor_id=vendor.id_,
+            )
 
 
 def _phase_publication(
@@ -703,10 +729,22 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FCV's participants and where each one's ledger lives.
     """
+    # Route keys come from each client's own actor id, not from its display
+    # name: the key selects the store (ADR-0073), so a literal only happens to
+    # be right while this scenario seeds deterministic named ids. See
+    # :func:`replica_route_key`.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("coordinator", coordinator_client, "coordinator"),
-        LedgerDumpTarget("vendor", vendor_client, "vendor"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "coordinator",
+            coordinator_client,
+            replica_route_key(coordinator_client, "coordinator"),
+        ),
+        LedgerDumpTarget(
+            "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+        ),
     ]
     # The case-actor is a sub-actor inside the coordinator container.
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -790,6 +828,7 @@ def run_fcv_demo(
             finder=finder,
             coordinator=coordinator,
             case=case,
+            vendor=vendor_obj,
         )
 
         _phase_notes_exchange(
@@ -872,7 +911,9 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(base_url=ca_url)
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

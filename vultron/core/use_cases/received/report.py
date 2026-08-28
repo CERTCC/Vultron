@@ -17,43 +17,62 @@ from vultron.core.models.events.report import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronValidationError
+from vultron.core.use_cases._helpers import (
+    resolve_receiving_actor_id,
+)
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
+    from vultron.core.models.protocols import PersistableModel
+    from vultron.core.ports.datalayer import StorableRecord
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
 
+def _store_dependency_idempotently(
+    dl: CasePersistence,
+    obj: "StorableRecord | PersistableModel",
+    obj_id: str | None,
+    label: str,
+) -> None:
+    """Store *obj* unless it is already present, distinguishing "already there".
+
+    ``create()`` raises ``ValueError`` for two unrelated reasons: the id is taken,
+    and the object cannot be converted to a storage record at all (no ``type_``,
+    or a wire-prefixed one). Catching both and logging "already exists" made a
+    malformed object indistinguishable from a benign duplicate — a silent drop of
+    the very object the use case exists to persist (ARCH-15-001).
+
+    So presence is checked first, and a ``create()`` failure on something we just
+    established was absent is re-raised.
+    """
+    if obj_id and dl.read(obj_id) is not None:
+        logger.debug("%s %s already present — skipping store", label, obj_id)
+        return
+    dl.create(obj)
+    logger.info("Stored %s with ID: %s", label, obj_id)
+
+
 def _store_submit_report_dependencies(
     dl: CasePersistence, request: SubmitReportReceivedEvent
 ) -> None:
     if request.report is not None:
-        try:
-            dl.create(request.report)
-            logger.info(
-                "Stored VulnerabilityReport with ID: %s", request.report_id
-            )
-        except ValueError as e:
-            logger.debug(
-                "VulnerabilityReport %s already exists (pre-stored by inbox endpoint): %s",
-                request.report_id,
-                e,
-            )
+        _store_dependency_idempotently(
+            dl, request.report, request.report_id, "VulnerabilityReport"
+        )
 
     if request.activity is None:
         return
 
     try:
-        dl.create(request.activity)
-        logger.info(
-            "Stored SubmitReport activity with ID: %s",
-            request.activity_id,
+        _store_dependency_idempotently(
+            dl, request.activity, request.activity_id, "SubmitReport activity"
         )
     except ValueError as e:
         logger.debug(
-            "SubmitReport activity %s already exists (pre-stored by inbox endpoint): %s",
+            "SubmitReport activity %s could not be stored: %s",
             request.activity_id,
             e,
         )
@@ -190,10 +209,11 @@ class CreateReportReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=(
-                request.receiving_actor_id
-                if request.receiving_actor_id is not None
-                else request.actor_id
+            # The *receiving* actor, not the sender (BT-17-005): an
+            # inbound activity is applied to the receiver's own replica,
+            # so the tree must execute in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             ),
             activity=request,
         )
@@ -231,14 +251,9 @@ class SubmitReportReceivedUseCase:
         if not request.report_id:
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.warning(
-                "SubmitReportReceivedUseCase: receiving_actor_id not set for "
-                "report '%s' — skipping case creation",
-                request.report_id,
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         if not _is_primary_submit_report_recipient(
             request, receiving_actor_id
@@ -299,13 +314,9 @@ class ValidateReportReceivedUseCase:
                 "ValidateReportReceivedEvent requires report_id and offer_id"
             )
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "ValidateReportReceivedUseCase: receiving_actor_id not set"
-                " — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s' (receiving='%s')",
@@ -375,10 +386,11 @@ class InvalidateReportReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=(
-                request.receiving_actor_id
-                if request.receiving_actor_id is not None
-                else request.actor_id
+            # The *receiving* actor, not the sender (BT-17-005): an
+            # inbound activity is applied to the receiver's own replica,
+            # so the tree must execute in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             ),
             activity=request,
         )
@@ -408,13 +420,9 @@ class AckReportReceivedUseCase:
     def execute(self) -> None:
         request = self._request
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "AckReportReceivedUseCase: receiving_actor_id not set"
-                " — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         # Resolve case_id for the guarded-commit subtree.
         report_id = request.report_id
@@ -467,10 +475,11 @@ class CloseReportReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=(
-                request.receiving_actor_id
-                if request.receiving_actor_id is not None
-                else request.actor_id
+            # The *receiving* actor, not the sender (BT-17-005): an
+            # inbound activity is applied to the receiver's own replica,
+            # so the tree must execute in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             ),
             activity=request,
         )

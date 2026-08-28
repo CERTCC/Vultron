@@ -117,8 +117,20 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             patch.object(
                 demo, "run_invite_path_rm_triage", side_effect=_triage
             ),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
             patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_gate",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
             patch.object(
                 demo,
                 "demo_check",
@@ -280,6 +292,7 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
                 offer=MagicMock(id_="urn:test:offer"),
                 report=MagicMock(),
                 finder=self._actor("urn:test:finder"),
+                v1=self._actor("urn:test:v1"),
             )
 
         assert (
@@ -363,8 +376,20 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(
+                demo,
+                "find_case_invite_for_actor",
+                return_value="urn:test:invite",
+            ),
             patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_gate",
+                # Patched: test verifies call parameters/ordering, not context-manager
+                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
             patch.object(
                 demo,
                 "demo_check",
@@ -415,3 +440,68 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
                 f"invite trigger (index {trigger_idx}). "
                 f"Call order: {call_order} — Bug #2120 (CLP-08-005)"
             )
+
+
+class TestFcvcvCausalGates(_Helpers):
+    """Verify causal demo_gate sites skip dependent steps on timeout.
+
+    Each test simulates an async-commit timeout at the precondition and
+    confirms the dependent step is never reached.
+    """
+
+    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
+        self,
+    ):
+        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
+        finder_client = self._client()
+        c1_client = self._client()
+        v1_client = self._client()
+        c2_client = self._client()
+        v2_client = self._client()
+        c1 = self._actor("urn:test:c1")
+        finder = self._actor("urn:test:finder")
+        v1 = self._actor("urn:test:v1")
+        c2_in_c2 = self._actor("urn:test:c2")
+        v2 = self._actor("urn:test:v2")
+        case = self._case()
+
+        coverage_wait_called = MagicMock()
+
+        with (
+            patch.object(
+                demo,
+                "_get_log_entries_for_case",
+                return_value=[
+                    {"log_index": 5, "entry_hash": "abc123def456789a"}
+                ],
+            ),
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=AssertionError(
+                    "timed out waiting for case on container"
+                ),
+            ),
+            patch.object(
+                demo,
+                "wait_for_contiguous_ledger_coverage",
+                side_effect=coverage_wait_called,
+            ),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "verify_replica_state"),
+        ):
+            demo._phase_sync_verification(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                v1_client=v1_client,
+                c2_client=c2_client,
+                v2_client=v2_client,
+                c1=c1,
+                finder=finder,
+                case=case,
+                v1=v1,
+                c2_in_c2=c2_in_c2,
+                v2=v2,
+            )
+
+        coverage_wait_called.assert_not_called()

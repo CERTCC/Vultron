@@ -29,6 +29,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -48,6 +49,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     assert_demo_success,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     reset_datalayer,
@@ -64,6 +66,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -81,6 +84,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_finder_case,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -195,7 +199,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={finder.id_, vendor.id_},
     )
 
     with demo_check(
@@ -250,7 +254,11 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            finder.id_,
+            vendor.id_,
+            vendor2.id_,
+        },
     )
 
     # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
@@ -287,7 +295,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        vendor_client.get(vendor_client.dl_path(case.id_))
     )
     return finder, vendor, vendor_in_vendor, vendor2, report, offer, case
 
@@ -306,43 +314,55 @@ def _phase_sync_verification(
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
 
-    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-    if vendor_entries:
-        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_index: int = vendor_tail["log_index"]
-        vendor_tail_hash: str = vendor_tail["entry_hash"]
-        logger.info(
-            "Waiting for Finder to replicate Vendor1 tail (hash=%s… index=%d)",
-            vendor_tail_hash[:16],
-            vendor_tail_index,
-        )
-        with demo_check("Finder ledger coverage (sync-verification phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=finder_client,
-                case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(client=finder_client, case_id=case.id_)
+        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+        if vendor_entries:
+            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+            vendor_tail_index: int = vendor_tail["log_index"]
+            vendor_tail_hash: str = vendor_tail["entry_hash"]
+            logger.info(
+                "Waiting for Finder to replicate Vendor1 tail (hash=%s… index=%d)",
+                vendor_tail_hash[:16],
+                vendor_tail_index,
             )
-        logger.info(
-            "Waiting for Vendor2 to replicate Vendor1 tail (hash=%s… index=%d)",
-            vendor_tail_hash[:16],
-            vendor_tail_index,
-        )
-        with demo_check("Vendor2 ledger coverage (sync-verification phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=vendor2_client,
-                case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
+            with demo_gate("Finder ledger coverage (sync-verification phase)"):
+                wait_for_contiguous_ledger_coverage(
+                    client=finder_client,
+                    case_id=case.id_,
+                    expected_tail_index=vendor_tail_index,
+                )
+            logger.info(
+                "Waiting for Vendor2 to replicate Vendor1 tail (hash=%s… index=%d)",
+                vendor_tail_hash[:16],
+                vendor_tail_index,
             )
+            with demo_gate(
+                "Vendor2 ledger coverage (sync-verification phase)"
+            ):
+                wait_for_contiguous_ledger_coverage(
+                    client=vendor2_client,
+                    case_id=case.id_,
+                    expected_tail_index=vendor_tail_index,
+                )
 
     wait_for_case_participants(
         vendor_client=finder_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            finder.id_,
+            vendor.id_,
+            vendor2.id_,
+        },
     )
     wait_for_case_participants(
         vendor_client=vendor2_client,
         case_id=case.id_,
-        expected_count=4,
+        expected_actor_ids={
+            finder.id_,
+            vendor.id_,
+            vendor2.id_,
+        },
     )
 
     with demo_check(
@@ -380,7 +400,7 @@ def _phase_notes_exchange(
     vendor_in_vendor: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note, as_Note, as_Note]:
+) -> tuple[as_Note | None, as_Note | None, as_Note | None]:
     """Run a three-way note exchange among Finder, Vendor1, and Vendor2."""
     logger.info("─" * 80)
     logger.info("Phase 3: Notes exchange")
@@ -408,7 +428,7 @@ def _phase_notes_exchange(
             "Yes, disabling the affected component is an effective workaround. "
             "A patched version is expected within 30 days."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     vendor2_note = participant_adds_note_to_case(
@@ -421,7 +441,7 @@ def _phase_notes_exchange(
             "Vendor2 can confirm the issue affects our component. "
             "We will coordinate our fix timeline with Vendor1."
         ),
-        in_reply_to=reply_note.id_,
+        in_reply_to=reply_note.id_ if reply_note is not None else None,
     )
 
     logger.info(
@@ -447,33 +467,53 @@ def _phase_fix_lifecycle(
     )
     logger.info("─" * 80)
 
-    actor_notifies_fix_ready(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor1 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor_in_vendor,
+            case_id=case.id_,
+        )
+        with demo_check(
+            "Vendor1 participant vfd_state transitions to VFd or VFD"
+        ):
+            wait_for_participant_vfd_state(
+                client=vendor_client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
-    actor_notifies_fix_ready(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor2 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "vendor2 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=vendor2_client,
             case_id=case.id_,
             actor_id=vendor2.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=vendor2_client,
+            actor=vendor2_in_vendor2,
+            case_id=case.id_,
+        )
+        with demo_check(
+            "Vendor2 participant vfd_state transitions to VFd or VFD"
+        ):
+            wait_for_participant_vfd_state(
+                client=vendor2_client,
+                case_id=case.id_,
+                actor_id=vendor2.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     with demo_check(
         "M4: Finder replica shows both vendors CS include F (fix ready)"
@@ -699,10 +739,21 @@ def _phase_dump_case_ledgers(
     per-actor export, the 404 handling, and the dump manifest. This function
     only names FVV's participants and where each one's ledger lives.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0073), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("vendor", vendor_client, "vendor"),
-        LedgerDumpTarget("vendor2", vendor2_client, "vendor2"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+        ),
+        LedgerDumpTarget(
+            "vendor2",
+            vendor2_client,
+            replica_route_key(vendor2_client, "vendor2"),
+        ),
     ]
     # The case-actor is a sub-actor inside the vendor1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)

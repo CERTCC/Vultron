@@ -27,6 +27,11 @@ individual modules for stable import paths::
     )
 """
 
+from vultron.demo.fuzzer.bundles.actor_discovery import (
+    ACTOR_DISCOVERY_DETERMINISTIC,
+    ACTOR_DISCOVERY_STOCHASTIC,
+    ActorDiscoveryCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     ACQUIRE_EXPLOIT_STOCHASTIC,
@@ -77,11 +82,6 @@ from vultron.demo.fuzzer.bundles.publication import (
     PUBLICATION_STOCHASTIC,
     PublicationCallOutBundle,
 )
-from vultron.demo.fuzzer.bundles.report_to_others import (
-    REPORT_TO_OTHERS_DETERMINISTIC,
-    REPORT_TO_OTHERS_STOCHASTIC,
-    ReportToOthersCallOutBundle,
-)
 from vultron.demo.fuzzer.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     STATUS_AUTHORIZATION_STOCHASTIC,
@@ -95,6 +95,7 @@ from vultron.demo.fuzzer.bundles.validation import (
 
 __all__ = [
     # Bundle classes
+    "ActorDiscoveryCallOutBundle",
     "AcquireExploitCallOutBundle",
     "AssignCveIdCallOutBundle",
     "DevelopFixCallOutBundle",
@@ -105,10 +106,10 @@ __all__ = [
     "EmbargoCallOutBundle",
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
-    "ReportToOthersCallOutBundle",
     "StatusAuthorizationCallOutBundle",
     "ValidationCallOutBundle",
     # Deterministic singletons
+    "ACTOR_DISCOVERY_DETERMINISTIC",
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
     "ASSIGN_CVE_ID_DETERMINISTIC",
     "DEVELOP_FIX_DETERMINISTIC",
@@ -118,10 +119,10 @@ __all__ = [
     "EMBARGO_DETERMINISTIC",
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
-    "REPORT_TO_OTHERS_DETERMINISTIC",
     "STATUS_AUTHORIZATION_DETERMINISTIC",
     "VALIDATION_DETERMINISTIC",
     # Stochastic singletons
+    "ACTOR_DISCOVERY_STOCHASTIC",
     "ACQUIRE_EXPLOIT_STOCHASTIC",
     "ASSIGN_CVE_ID_STOCHASTIC",
     "DEVELOP_FIX_STOCHASTIC",
@@ -133,7 +134,6 @@ __all__ = [
     "EMBARGO_STOCHASTIC",
     "PRIORITIZATION_STOCHASTIC",
     "PUBLICATION_STOCHASTIC",
-    "REPORT_TO_OTHERS_STOCHASTIC",
     "STATUS_AUTHORIZATION_STOCHASTIC",
     "VALIDATION_STOCHASTIC",
 ]

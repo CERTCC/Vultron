@@ -33,9 +33,8 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.config import get_config
-from vultron.core.behaviors.case.nodes.case_actor_setup import (
-    _derive_case_slug,
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -43,7 +42,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor as VultronCaseActor
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
@@ -356,11 +354,18 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
     so that ``_find_report_case_link`` can match the incoming
     ``Create(VulnerabilityCase)`` sender when the CaseActor responds.
 
-    The CaseActor ID is derived as
-    ``{case_actor_service_url}/actors/case-actor-{slug}``
-    where *slug* is ``_derive_case_slug(report_id)`` — the same formula used
-    by ``ResolveCaseActorUrlsNode`` (CP-08-002).  Returns ``FAILURE`` when
-    ``case_actor_service_url`` is not configured.
+    The CaseActor ID is the container's identity,
+    ``{case_actor_service_url}/actors/case-actor`` (CP-08-002).  Returns
+    ``FAILURE`` when ``case_actor_service_url`` is not configured.
+
+    It used to be ``.../actors/case-actor-{slug}``, derived from *report_id*.
+    That id was a phantom — computed here, hosted nowhere — so the proposal's
+    delivery 404'd and the round-trip never began (#1872).
+
+    Provisioning the CaseActor's own record is a *sibling* leaf,
+    :class:`~vultron.core.behaviors.case.nodes.case_setup.EnsureCaseActorHostedNode`,
+    which runs immediately before this node in ``ReceiveReportProposalFlow``.
+    This node only writes the link (BTND-02-001, "No God Nodes").
 
     Always returns ``SUCCESS`` so the enclosing ``Sequence`` continues to
     ``ProposeCaseToActorNode``.
@@ -377,22 +382,14 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        cfg = get_config().actor
-        if cfg.case_actor_service_url is None:
+        case_actor_id = case_actor_identity()
+        if case_actor_id is None:
             self.feedback_message = (
                 f"{self.name}: case_actor_service_url not configured"
-                " — cannot derive trusted_case_creator_id"
+                " — cannot resolve trusted_case_creator_id"
             )
             self.logger.error(self.feedback_message)
             return Status.FAILURE
-
-        base_url = str(cfg.case_actor_service_url).rstrip("/")
-        case_slug = _derive_case_slug(self.report_id)
-        case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
-
-        # Ensure the CaseActor service object exists so its inbox accepts
-        # Create(as_CaseProposal) delivery (ADR-0041, CP-04-002).
-        self._ensure_case_actor(case_actor_id)
 
         link_id = VultronReportCaseLink.build_id(self.report_id)
         existing = self.datalayer.read(link_id)
@@ -430,21 +427,3 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
             case_actor_id,
         )
         return Status.SUCCESS
-
-    def _ensure_case_actor(self, case_actor_id: str) -> None:
-        """Create the VultronCaseActor service object if it does not exist.
-
-        The actor must exist in the DataLayer before Create(as_CaseProposal) is
-        delivered, otherwise the inbox handler returns 404 (CP-04-002).
-        """
-        assert self.datalayer is not None
-        if self.datalayer.read(case_actor_id) is not None:
-            return
-        case_actor = VultronCaseActor(
-            id_=case_actor_id,
-            name=f"CaseActor for report {self.report_id}",
-        )
-        try:
-            self.datalayer.create(case_actor)
-        except ValueError:
-            pass  # already exists (race or duplicate); not an error

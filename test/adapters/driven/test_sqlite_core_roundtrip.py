@@ -74,7 +74,10 @@ def _make_instance(core_cls):
 
 @pytest.fixture
 def dl():
-    instance = SqliteDataLayer("sqlite:///:memory:")
+    instance = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield instance
     instance.clear_all()
     instance.close()
@@ -213,9 +216,9 @@ def _insert_raw_row(dl, id_, type_, data):
     normalisation (issue #2283).
     """
     with Session(dl._engine) as session:
-        session.add(
-            VultronObjectRecord(id_=id_, type_=type_, actor_id=None, data=data)
-        )
+        # No actor_id: the column went away with ADR-0073 — every row in this
+        # store belongs to the store's actor by construction.
+        session.add(VultronObjectRecord(id_=id_, type_=type_, data=data))
         session.commit()
 
 

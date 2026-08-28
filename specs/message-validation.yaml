@@ -19,12 +19,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: Incoming payloads MUST conform to ActivityStreams 2.0 structure
+    verification: >-
+      Integration tests in `test/demo/` confirm that the inbox handler rejects
+      payloads missing required AS2 fields (e.g., `type`) with an HTTP 4xx response
+      before dispatch.
+    stories:
+    - story_2022_012
+    - story_2022_038
   - id: MV-01-005
     priority: MUST
     kind: protocol
     statement: >-
       The activity-type dispatch implementation MUST handle missing or null fields
       without raising unhandled exceptions.
+    verification: >-
+      A unit test confirms that passing activities with `None` or absent `type`,
+      `actor`, and `object` fields to the dispatch router returns a dispatch result
+      rather than raising an unhandled exception.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-01-006
     priority: MUST
     kind: protocol
@@ -32,9 +45,14 @@ groups:
     rationale: >-
       Mapping unknown types to UNKNOWN rather than failing allows the system to log
       and route unrecognised activities without crashing the dispatch pipeline.
+    verification: >-
+      A unit test confirms that an activity whose `type` is not in the registered
+      dispatch map resolves to the `UNKNOWN` handler rather than raising an error.
     relationships:
     - rel_type: refines
       spec_id: MV-01-005
+    lint_suppress:
+    - missing_story_reference
   - id: MV-01-007
     priority: MUST_NOT
     kind: protocol
@@ -76,6 +94,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST validate required fields based on activity type
+    verification: >-
+      A unit test confirms that activity-type-specific validators raise
+      `ValidationError` when required per-type fields are absent from an otherwise
+      valid AS2 payload.
+    lint_suppress:
+    - missing_story_reference
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -83,6 +107,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST validate that object types are recognized Vultron types
+    verification: >-
+      A unit test confirms that an activity carrying an `object` whose `type` is not
+      in the Vultron vocabulary is rejected with a validation error before dispatch.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-04-002
     priority: SHOULD
     kind: protocol
@@ -97,13 +126,41 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST validate that ID and reference fields contain valid URIs
+    verification: >-
+      A unit test confirms that the activity validator rejects activities whose `id`,
+      `actor`, or `object` reference fields contain non-URI strings, and accepts
+      well-formed URIs.
+    stories:
+    - story_2022_034
+    - story_2022_030
   - id: MV-05-002
     priority: MUST
     kind: protocol
     statement: The system MUST treat ActivityStreams object IDs as opaque URIs
+    verification: >-
+      Inspection of `vultron/core/` confirms that no code parses or deconstructs
+      object IDs beyond URI validation; IDs are stored and compared as opaque
+      strings.
+    lint_suppress:
+    - missing_story_reference
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
+  - id: MV-09-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Outbound Vultron activities MUST carry a fully inline typed object in their
+      `object_` field; a bare URI reference or `as_Link` is not permitted because
+      the recipient has no access to the sender's DataLayer and cannot resolve the
+      reference to determine the activity's semantic type.
+    verification: >-
+      Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
+      `VultronValidationError` is raised when `object_` is a bare string URI rather
+      than a typed object.
+    stories:
+    - story_2022_039
+    - story_2022_106
   - id: MV-09-002
     priority: MUST
     kind: protocol
@@ -111,6 +168,11 @@ groups:
       The outbox handler MUST raise `VultronOutboxObjectIntegrityError` and abort delivery
       if an outbound activity's `object_` field is a bare string or `as_Link` after any DataLayer
       expansion attempt.
+    verification: >-
+      A unit test confirms that submitting an outbound activity with `object_` set to a
+      bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-09-003
     priority: MUST
     kind: protocol
@@ -120,6 +182,12 @@ groups:
       or `None` `object_` renders the activity semantically meaningless because `ActivityPattern._match_field`
       returns `False` for `None`, causing every pattern that inspects `object_.type` to fail,
       which forces dispatch to `UNKNOWN`.
+    verification: >-
+      Inspection of activity class definitions in `vultron/wire/` confirms that classes
+      whose dispatch logic inspects `object_.type` declare `object_` as a required field
+      with no `None` default.
+    lint_suppress:
+    - missing_story_reference
 - id: MV-10
   title: Stub Objects
   specs:
@@ -129,10 +197,22 @@ groups:
     statement: >-
       Stub objects MUST carry at minimum an `id` field (full URI) and a `type` field; they
       MAY carry a `summary` field for human-readable context
+    verification: >-
+      A unit test confirms that the stub-object validator rejects objects missing either
+      `id` or `type`, and accepts objects containing only those two required fields plus
+      an optional `summary`.
+    stories:
+    - story_2022_039
   - id: MV-10-002
     priority: MUST
     kind: protocol
     statement: 'Stub objects are ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
+    verification: >-
+      Inspection of the inbound message validator confirms that stub detection runs only
+      on `actor`, `object`, `target`, and `origin` fields; stubs in other field positions
+      are treated as full-object validation failures.
+    lint_suppress:
+    - missing_story_reference
   - id: MV-10-003
     priority: MUST_NOT
     kind: protocol
@@ -165,9 +245,17 @@ groups:
       The implementation follows this ordering: `accept_invite_tree` creates the invitee at
       `RM.RECEIVED`, auto-signs embargo consent when `EM.ACTIVE`, and only then emits
       `Announce(VulnerabilityCase)` with the full snapshot.
+    verification: >-
+      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the case
+      replica is delivered to a new participant only after their `rm_state` reaches
+      `RECEIVED` and embargo consent is auto-signed.
     relationships:
     - rel_type: depends_on
       spec_id: MV-10-006
+    stories:
+    - story_2022_088
+    - story_2022_023
+    - story_2022_045
   - id: MV-10-006
     priority: MUST
     kind: protocol
@@ -175,6 +263,14 @@ groups:
       When a participant `Accept`s an `Invite(case)` and the case has an active embargo (`CaseStatus.em_state
       == ACTIVE`), the acceptance MUST imply consent to the active embargo, transitioning
       that participant's consent state to `SIGNATORY`
+    verification: >-
+      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
+      `AcceptInviteToEmbargoOnCaseReceivedUseCase` transitions the accepting
+      participant's PEC state to `SIGNATORY` when `em_state == ACTIVE`.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
+    stories:
+    - story_2022_023
+    - story_2022_026
+    - story_2022_052

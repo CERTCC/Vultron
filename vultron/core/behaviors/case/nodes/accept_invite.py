@@ -215,9 +215,7 @@ class EmitAddCaseParticipantNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity_id
-        )
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
         self.logger.info(
             "%s: emitted Add(CaseParticipant '%s') for case '%s'"
             " and committed canonical ledger entry",

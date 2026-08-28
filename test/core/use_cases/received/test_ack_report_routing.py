@@ -67,13 +67,19 @@ def _clear_blackboard():
     py_trees.blackboard.Blackboard.storage.clear()
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
+    """*owner_id*'s replica of the case, with the CaseActor as CASE_MANAGER.
 
+    The owner is a parameter because these tests turn on *who executes*, and a
+    BT's store follows its executing actor (ADR-0073).  Seeding one fixed store
+    and executing as somebody else leaves the tree reading an empty one, so the
+    role gate fails for want of a case rather than for want of the role — and a
+    "does not commit" assertion then passes without the gate being exercised.
 
-def _make_case_actor_dl() -> SqliteDataLayer:
-    """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant."""
-    dl = _make_dl()
+    Every owner gets the same objects, including the case, so the gate always has
+    a case to resolve the CASE_MANAGER from.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
 
     ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
@@ -154,7 +160,7 @@ class TestAckReportLedgerRouting:
         Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry
         when it receives an AckReport activity.
         """
-        dl = _make_case_actor_dl()
+        dl = _make_case_store(CASE_ACTOR_ID)
         AckReportReceivedUseCase(
             dl=dl,
             request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
@@ -173,7 +179,7 @@ class TestAckReportLedgerRouting:
 
         Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
         """
-        dl = _make_case_actor_dl()
+        dl = _make_case_store(VENDOR_ID)
         AckReportReceivedUseCase(
             dl=dl,
             request=_make_ack_event(receiving_actor_id=VENDOR_ID),
@@ -187,9 +193,13 @@ class TestAckReportLedgerRouting:
             f" ledger entry; found: {event_types}"
         )
 
-    def test_no_receiving_actor_id_skips_commit(self):
-        """Guarded commit does NOT fire when receiving_actor_id is None."""
-        dl = _make_case_actor_dl()
+    def test_no_receiving_actor_id_uses_store_owner_for_commit(self):
+        """When receiving_actor_id is absent, the store owner processes the Ack.
+
+        The store is owned by the CaseActor, so the guarded commit fires and the
+        ``ack_report`` ledger entry IS written (store-owner fallback, CLP-10-005).
+        """
+        dl = _make_case_store(CASE_ACTOR_ID)
         AckReportReceivedUseCase(
             dl=dl,
             request=_make_ack_event(receiving_actor_id=None),
@@ -198,7 +208,7 @@ class TestAckReportLedgerRouting:
         ).execute()
 
         event_types = _ledger_event_types(dl)
-        assert "ack_report" not in event_types, (
-            "Missing receiving_actor_id must NOT write an ack_report"
-            f" ledger entry; found: {event_types}"
+        assert "ack_report" in event_types, (
+            "Store-owner fallback (CaseActor) MUST write an ack_report"
+            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
         )

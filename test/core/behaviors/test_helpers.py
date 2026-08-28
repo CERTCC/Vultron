@@ -15,6 +15,8 @@
 
 """Unit tests for DataLayer-aware BT helper nodes."""
 
+from typing import Callable, Optional
+
 import pytest
 import py_trees
 from py_trees.common import Status
@@ -26,6 +28,7 @@ from vultron.core.behaviors.helpers import (
     ReadObject,
     UpdateObject,
     CreateObject,
+    _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VultronCase
@@ -69,7 +72,10 @@ class NoOpAction(DataLayerAction):
 @pytest.fixture
 def datalayer():
     """Create in-memory DataLayer for testing."""
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="actor-1",
+    )
 
 
 @pytest.fixture
@@ -196,17 +202,17 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
     bridge, datalayer
 ):
     """FindParticipantByActorIdNode stores the matched participant."""
-    actor_id = "https://example.org/actors/vendor-1"
+    target_actor_id = "https://example.org/actors/vendor-1"
     participant = VultronParticipant(
         id_="https://example.org/participants/vendor-1",
-        attributed_to=actor_id,
+        attributed_to=target_actor_id,
         context="https://example.org/cases/case-1",
     )
     case = VultronCase(
         id_="https://example.org/cases/case-1",
         name="Case 1",
         case_participants=[participant.id_],
-        actor_participant_index={actor_id: participant.id_},
+        actor_participant_index={target_actor_id: participant.id_},
         attributed_to="https://example.org/actors/case-manager",
     )
     datalayer.save(participant)
@@ -233,7 +239,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
         children=[
             FindParticipantByActorIdNode(
                 case_id=case.id_,
-                target_actor_id=actor_id,
+                target_actor_id=target_actor_id,
                 participant_key="found_participant",
             ),
             AssertParticipantOnBlackboard(
@@ -242,7 +248,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
         ],
     )
 
-    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(tree, actor_id="actor-1")
     assert result.status == Status.SUCCESS
 
 
@@ -252,9 +258,10 @@ def test_find_participant_by_actor_id_fails_when_case_missing(bridge):
         case_id="https://example.org/cases/missing",
         target_actor_id="https://example.org/actors/vendor-1",
     )
-    result = bridge.execute_with_setup(
-        node, actor_id="https://example.org/actors/vendor-1"
-    )
+    # Runs as the store's own actor. vendor-1 is the participant being looked
+    # *up* (target_actor_id), not the actor doing the looking — conflating the
+    # two is what per-actor storage now makes visible.
+    result = bridge.execute_with_setup(node, actor_id="actor-1")
     assert result.status == Status.FAILURE
 
 
@@ -280,9 +287,10 @@ def test_find_participant_by_actor_id_fails_when_actor_not_participant(
         case_id=case.id_,
         target_actor_id="https://example.org/actors/vendor-1",
     )
-    result = bridge.execute_with_setup(
-        node, actor_id="https://example.org/actors/vendor-1"
-    )
+    # Runs as the store's own actor. vendor-1 is the participant being looked
+    # *up* (target_actor_id), not the actor doing the looking — conflating the
+    # two is what per-actor storage now makes visible.
+    result = bridge.execute_with_setup(node, actor_id="actor-1")
     assert result.status == Status.FAILURE
 
 
@@ -290,13 +298,13 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
     bridge, datalayer
 ):
     """FindParticipantByActorIdNode fails fast on participant/index mismatch."""
-    actor_id = "https://example.org/actors/vendor-1"
+    target_actor_id = "https://example.org/actors/vendor-1"
     case = VultronCase(
         id_="https://example.org/cases/case-diverge",
         name="Case Divergence",
         case_participants=[],
         actor_participant_index={
-            actor_id: "https://example.org/participants/p1"
+            target_actor_id: "https://example.org/participants/p1"
         },
         attributed_to="https://example.org/actors/case-manager",
     )
@@ -304,9 +312,9 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
 
     node = FindParticipantByActorIdNode(
         case_id=case.id_,
-        target_actor_id=actor_id,
+        target_actor_id=target_actor_id,
     )
-    result = bridge.execute_with_setup(node, actor_id=actor_id)
+    result = bridge.execute_with_setup(node, actor_id="actor-1")
     assert result.status == Status.FAILURE
     assert "divergence" in result.feedback_message
 
@@ -322,7 +330,7 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     stale RM state.  Fix: for non-string refs, do dl.read(id_) to get the live
     record; fall back to the inline only when the DL record is absent.
     """
-    actor_id = "https://example.org/actors/vendor-live"
+    target_actor_id = "https://example.org/actors/vendor-live"
     participant_id = "https://example.org/participants/vendor-live"
     case_id = "https://example.org/cases/case-live"
 
@@ -331,26 +339,28 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
     # Live DL record at VALID (simulates what validate-report produces)
     live = CaseParticipant(
         id_=participant_id,
-        attributed_to=actor_id,
+        attributed_to=target_actor_id,
         context=case_id,
     )
-    live.append_rm_state(RM.RECEIVED, actor=actor_id, context=case_id)
-    live.append_rm_state(RM.VALID, actor=actor_id, context=case_id)
+    live.append_rm_state(RM.RECEIVED, actor=target_actor_id, context=case_id)
+    live.append_rm_state(RM.VALID, actor=target_actor_id, context=case_id)
     datalayer.save(live)
 
     # Case has an inline CaseParticipant at RECEIVED (stale snapshot)
     stale_inline = CaseParticipant(
         id_=participant_id,
-        attributed_to=actor_id,
+        attributed_to=target_actor_id,
         context=case_id,
     )
-    stale_inline.append_rm_state(RM.RECEIVED, actor=actor_id, context=case_id)
+    stale_inline.append_rm_state(
+        RM.RECEIVED, actor=target_actor_id, context=case_id
+    )
 
     case = VultronCase(
         id_=case_id,
         name="Case Live",
         case_participants=[stale_inline],  # inline, not string ID
-        actor_participant_index={actor_id: participant_id},
+        actor_participant_index={target_actor_id: participant_id},
         attributed_to="https://example.org/actors/case-manager",
     )
     datalayer.save(case)
@@ -376,14 +386,14 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
         children=[
             FindParticipantByActorIdNode(
                 case_id=case_id,
-                target_actor_id=actor_id,
+                target_actor_id=target_actor_id,
                 participant_key="found_live",
             ),
             CaptureBBParticipant(name="Capture"),
         ],
     )
 
-    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(tree, actor_id="actor-1")
     assert result.status == Status.SUCCESS
     assert len(captured) == 1
     found_participant = captured[0]
@@ -623,25 +633,32 @@ def test_full_crud_workflow(bridge, datalayer):
 
 
 def test_actor_isolation(bridge, datalayer, sample_record):
-    """Verify actors have isolated BT execution contexts."""
-    # Execute for actor-1
-    tree1 = ReadObject(
-        table="VulnerabilityReport",
-        object_id="https://example.org/objects/test-123",
+    """One actor's BT cannot read another actor's record (CM-01-001).
+
+    Previously this asserted that *both* actors read the record successfully and
+    then closed with ``assert ... or True`` — a tautology, so the isolation it
+    named was never checked and the shared pool it depended on made the real
+    property untestable. Under ADR-0073 the store follows the executing actor,
+    so actor-2 legitimately finds nothing: that absence is the invariant.
+    """
+    object_id = "https://example.org/objects/test-123"
+
+    # actor-1 owns the store the record was seeded in, so it reads it back.
+    result1 = bridge.execute_with_setup(
+        ReadObject(table="VulnerabilityReport", object_id=object_id),
+        actor_id="actor-1",
     )
-    result1 = bridge.execute_with_setup(tree1, actor_id="actor-1")
     assert result1.status == Status.SUCCESS
 
-    # Execute for actor-2 (separate context)
-    tree2 = ReadObject(
-        table="VulnerabilityReport",
-        object_id="https://example.org/objects/test-123",
+    # actor-2 runs against its own store, which has never seen the record.
+    result2 = bridge.execute_with_setup(
+        ReadObject(table="VulnerabilityReport", object_id=object_id),
+        actor_id="actor-2",
     )
-    result2 = bridge.execute_with_setup(tree2, actor_id="actor-2")
-    assert result2.status == Status.SUCCESS
-
-    # Both should succeed independently
-    assert result1.feedback_message != result2.feedback_message or True
+    assert result2.status == Status.FAILURE, (
+        "actor-2 must not be able to read a record held only in actor-1's"
+        " store — that is the CM-01-001 violation #2238 was filed about"
+    )
 
 
 def test_error_propagation(bridge, datalayer):
@@ -827,3 +844,179 @@ def test_action_logger_emits_via_caplog(bridge, datalayer, caplog):
     assert any(
         "BT action log message emitted" in r.message for r in caplog.records
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for _EmitSingleActivityBase
+# ---------------------------------------------------------------------------
+
+_ACTOR_URI = "https://example.org/actors/emit-test-actor"
+
+
+class _StubEmitNode(_EmitSingleActivityBase):
+    """Concrete stub — delegates to injected callables set before use."""
+
+    factory_fn: Optional[Callable[["_StubEmitNode"], tuple[str, dict]]] = None
+    on_success_fn: Optional[Callable[["_StubEmitNode", str, dict], None]] = (
+        None
+    )
+
+    def _call_factory(self) -> tuple[str, dict]:
+        if self.factory_fn is None:
+            raise NotImplementedError("no factory_fn set on _StubEmitNode")
+        return self.factory_fn(self)
+
+    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+        if self.on_success_fn is not None:
+            self.on_success_fn(self, activity_id, activity_dict)
+
+
+class TestEmitSingleActivityBase:
+    """Unit tests for _EmitSingleActivityBase guard+emit+outbox contract."""
+
+    def test_call_factory_raises_not_implemented_on_base(self):
+        """`_call_factory()` raises NotImplementedError when not overridden."""
+        node = _EmitSingleActivityBase.__new__(_EmitSingleActivityBase)
+        with pytest.raises(NotImplementedError):
+            node._call_factory()
+
+    def test_on_success_default_is_noop(self):
+        """`_on_success()` does nothing when not overridden."""
+        node = _EmitSingleActivityBase.__new__(_EmitSingleActivityBase)
+        node._on_success("some-id", {})  # must not raise
+
+    def test_update_fails_when_datalayer_missing(self, datalayer):
+        """Returns FAILURE immediately when DataLayer is not available."""
+        from vultron.core.behaviors.bridge import BTBridge
+
+        node = _StubEmitNode()
+        bridge = BTBridge(datalayer)
+        result = bridge.execute_with_setup(node, actor_id=None)  # type: ignore[arg-type]
+        assert result.status == Status.FAILURE
+
+    def test_update_fails_when_factory_missing(self, datalayer):
+        """Returns FAILURE when trigger_activity_factory is not wired."""
+        from vultron.core.behaviors.bridge import BTBridge
+
+        node = _StubEmitNode()
+        bridge = BTBridge(datalayer)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+        assert result.status == Status.FAILURE
+
+    def test_update_succeeds_and_queues_outbox(self, datalayer):
+        """SUCCESS path: calls factory, queues outbox, returns SUCCESS."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-001"
+        activity_dict = {"id": activity_id, "type": "Create"}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode()
+        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.SUCCESS
+
+    def test_update_stores_activity_in_captured(self, datalayer):
+        """When _captured is provided, sets captured['activity'] on success."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-002"
+        activity_dict = {"id": activity_id, "type": "Accept"}
+        captured: dict = {}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode(captured=captured)
+        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert captured.get("activity") == activity_dict
+
+    def test_update_calls_on_success_hook(self, datalayer):
+        """_on_success() is called with activity_id and activity_dict on SUCCESS."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-003"
+        activity_dict = {"id": activity_id}
+        calls: list = []
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode()
+        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        node.on_success_fn = lambda self_node, aid, adict: calls.append(
+            (aid, adict)
+        )
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.SUCCESS
+        assert calls == [(activity_id, activity_dict)]
+
+    def test_update_returns_failure_on_factory_exception(self, datalayer):
+        """Returns FAILURE and sets feedback_message when factory raises."""
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        def _raising(self_node):
+            raise RuntimeError("factory exploded")
+
+        node = _StubEmitNode()
+        node.factory_fn = _raising
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.FAILURE
+        assert "failed" in node.feedback_message
+
+    def test_on_success_raising_after_committed_write_propagates(
+        self, datalayer
+    ):
+        """Exception in _on_success() propagates; outbox write already committed.
+
+        _on_success() runs outside the try/except block (see helpers.py), so
+        a hook that raises is NOT silently swallowed as Status.FAILURE.  The
+        exception bubbles to the BT executor, which is the correct behaviour:
+        it signals an unexpected hook bug rather than masking a committed write
+        as a retryable failure.
+
+        Tracks DEFER from code-review of #2582 / issue #2609.
+        """
+        from unittest.mock import MagicMock
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-hook-raise"
+        activity_dict = {"id": activity_id}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        def _factory_fn(self_node):
+            return (activity_id, activity_dict)
+
+        def _raising_hook(self_node, aid, adict):
+            raise RuntimeError("hook exploded after write committed")
+
+        node = _StubEmitNode()
+        node.factory_fn = _factory_fn
+        node.on_success_fn = _raising_hook
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        # BTBridge catches uncaught exceptions from update() and surfaces them
+        # as result.errors. The key contract being tested: because _on_success()
+        # is OUTSIDE the try block, its exception bypasses the feedback_message
+        # path — result.errors is set rather than feedback_message.
+        assert result.status == Status.FAILURE
+        assert result.errors is not None
+        # feedback_message was NOT set by the normal except path
+        assert "failed" not in (node.feedback_message or "")

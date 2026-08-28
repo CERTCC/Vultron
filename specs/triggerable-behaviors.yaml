@@ -131,6 +131,8 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Trigger endpoint implementations SHOULD reuse existing BT trees rather than duplicating behavior logic
+    stories:
+    - story_2022_086
   - id: TRIG-05-002
     priority: SHOULD
     kind: project
@@ -146,17 +148,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: Trigger endpoints MUST resolve the correct per-actor DataLayer instance using the `actor_id` path parameter
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that each trigger
+      endpoint resolves its DataLayer instance keyed on the `actor_id` path
+      parameter.
     relationships:
     - rel_type: depends_on
       spec_id: CM-01-001
+    stories:
+    - story_2022_088
+    - story_2022_106
   - id: TRIG-06-002
     priority: MUST
     kind: protocol
     statement: Trigger endpoint implementations MUST accept the DataLayer instance via dependency injection to allow per-actor
       isolation to be retrofitted without changing endpoint contracts
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that the DataLayer
+      instance is injected via a FastAPI dependency rather than constructed inside
+      the endpoint handler.
     relationships:
     - rel_type: depends_on
       spec_id: CM-01-001
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-07
   title: Outbox Activity
   specs:
@@ -164,9 +179,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: A successfully executed trigger MUST produce an outgoing ActivityStreams activity added to the actor's outbox
+    verification: >-
+      Integration tests in `test/demo/` confirm that each successfully executed
+      trigger adds a new activity to the actor's outbox.
     relationships:
     - rel_type: depends_on
       spec_id: OX-02-001
+    stories:
+    - story_2022_039
+    - story_2022_081
 - id: TRIG-08
   title: Trigger Classification
   specs:
@@ -181,22 +202,46 @@ groups:
       a report) or an intentional actor decision that a human operator or agentic client might initiate (e.g., validating
       a report, proposing an embargo). A trigger is **demo-only** if the only reason it exists is to let a demo script puppeteer
       an actor through a step the actor's own BT would handle autonomously in a real deployment.
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that triggers for
+      external-stimulus or operator-decision use cases are registered under
+      `/trigger/` and that triggers existing solely to puppeteer demo flows are
+      registered under `/demo/`.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-08-003
     priority: MUST
     kind: protocol
     statement: General-purpose triggers MUST be exposed under the path prefix `/actors/{actor_id}/trigger/{behavior-name}`
       (TRIG-01-001)
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that all
+      general-purpose trigger handlers are mounted under the
+      `/actors/{actor_id}/trigger/` path prefix.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-08-004
     priority: MUST
     kind: protocol
     statement: Demo-only triggers MUST be exposed under the path prefix `/actors/{actor_id}/demo/{behavior-name}` (see TRIG-09-001)
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that all
+      demo-only trigger handlers are mounted under the
+      `/actors/{actor_id}/demo/` path prefix.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-08-005
     priority: MUST
     kind: protocol
     statement: '`RunMode` MUST be stored as `ServerConfig.run_mode` within `AppConfig` (CFG-04-001) with a default of `RunMode.PROTOTYPE`'
+    verification: >-
+      Inspection of `vultron/core/` confirms that `ServerConfig.run_mode` is typed
+      as `RunMode` within `AppConfig` and defaults to `RunMode.PROTOTYPE`.
     relationships:
     - rel_type: depends_on
       spec_id: CFG-04-001
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-09
   title: Demo Trigger Endpoints
   specs:
@@ -204,6 +249,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: Demo-only trigger endpoints MUST use the URL path pattern `POST /actors/{actor_id}/demo/{behavior-name}`
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that the demo
+      router registers all demo-only endpoints under the
+      `POST /actors/{actor_id}/demo/{behavior-name}` path pattern.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-09-002
     priority: MUST
     kind: project
@@ -214,19 +265,36 @@ groups:
     kind: protocol
     statement: When `run_mode == RunMode.PROD`, any request to a path under `/demo/` MUST return HTTP 404 (the routes are
       not mounted; no custom error message is required)
+    verification: >-
+      Integration tests in `test/demo/` confirm that, when `run_mode` is set to
+      `RunMode.PROD`, any request to a path under `/demo/` returns HTTP 404.
     relationships:
     - rel_type: depends_on
       spec_id: TRIG-09-002
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-09-004
     priority: MUST
     kind: protocol
     statement: Demo trigger endpoints MUST share the same per-actor DataLayer injection pattern as general-purpose trigger
       endpoints (TRIG-06-001, TRIG-06-002)
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that demo trigger
+      endpoint handlers receive their DataLayer instance via the same FastAPI
+      dependency as general-purpose triggers.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-09-005
     priority: MUST
     kind: protocol
     statement: Demo trigger endpoints MUST use an OpenAPI tag that visually distinguishes them from general-purpose triggers
       in the Swagger UI (e.g., `tags=["Demo Triggers"]` vs `tags=["Triggers"]`)
+    verification: >-
+      Inspection of the FastAPI application's OpenAPI schema confirms that demo
+      trigger endpoints carry a distinct tag (e.g., "Demo Triggers") separate
+      from the tag used by general-purpose endpoints.
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-10
   title: Generalized Object Triggers and Type-Specific Wrappers
   specs:
@@ -237,11 +305,24 @@ groups:
       that accepts any valid AS2 object type as the `object` in its request body
     rationale: Adding content to a case is a legitimate operator action regardless of object type; a Note is the most common
       use but not the only one
+    verification: >-
+      Integration tests in `test/demo/` confirm that a POST to
+      `/actors/{actor_id}/trigger/add-object-to-case` with a non-Note AS2 object
+      type succeeds and produces an outgoing activity.
+    stories:
+    - story_2022_074
+    - story_2022_102
   - id: TRIG-10-002
     priority: MUST
     kind: protocol
     statement: Type-specific convenience triggers (e.g., `add-report-to-case`) MUST delegate to the corresponding general
       trigger after performing type-specific validation
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that type-specific
+      trigger handlers call the `add-object-to-case` general trigger after
+      performing type-specific input validation.
+    lint_suppress:
+    - missing_story_reference
   - id: TRIG-10-003
     priority: MUST_NOT
     kind: protocol
@@ -273,11 +354,17 @@ groups:
     rationale: Without this trigger, demo scripts must inject ownership-transfer offers directly into the transferee's inbox,
       which bypasses the offering actor's BT execution and violates DEMOMA-05-001. A trigger endpoint ensures the full hexagonal
       stack is exercised for both sides of the handshake.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a POST to
+      `/actors/{actor_id}/trigger/offer-case-ownership-transfer` with a valid
+      `case_id` and `transferee_id` emits an `Offer(VulnerabilityCase)` activity.
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
     - rel_type: refines
       spec_id: TRIG-02-004
+    stories:
+    - story_2022_050
   - id: TRIG-11-002
     priority: MUST
     kind: protocol
@@ -286,11 +373,18 @@ groups:
       from the requesting actor back to the offering actor.
     rationale: 'Symmetry with TRIG-11-001: the accepting actor must also be puppeteered through a trigger so that its BT execution
       is exercised, consistent with DEMOMA-05-001.'
+    verification: >-
+      Integration tests in `test/demo/` confirm that a POST to
+      `/actors/{actor_id}/trigger/accept-case-ownership-transfer` with a valid
+      `offer_id` emits an `Accept(Offer(VulnerabilityCase))` activity.
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
     - rel_type: refines
       spec_id: TRIG-02-004
+    stories:
+    - story_2022_048
+    - story_2022_050
   - id: TRIG-11-003
     priority: SHOULD
     kind: protocol
@@ -304,8 +398,14 @@ groups:
     kind: protocol
     statement: Both ownership-transfer triggers MUST return an `activity` field in their response body containing the emitted
       ActivityStreams object, consistent with the response contract for all other trigger endpoints (TRIG-05-001).
+    verification: >-
+      Integration tests in `test/demo/` confirm that both ownership-transfer
+      trigger responses include an `activity` field containing the emitted
+      ActivityStreams object.
     relationships:
     - rel_type: refines
       spec_id: TRIG-11-001
     - rel_type: refines
       spec_id: TRIG-11-002
+    lint_suppress:
+    - missing_story_reference

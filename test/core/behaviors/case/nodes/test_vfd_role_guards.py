@@ -120,6 +120,7 @@ def test_vendor_guard_success_for_vendor_actor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_vendor_guard_failure_for_deployer_only_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -135,6 +136,7 @@ def test_vendor_guard_failure_for_deployer_only_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_vendor_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -187,6 +189,7 @@ def test_vendor_guard_failure_when_actor_not_in_case(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_guard_success_for_deployer_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -217,6 +220,7 @@ def test_deployer_guard_failure_for_vendor_only_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_deployer_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
@@ -232,6 +236,7 @@ def test_deployer_guard_failure_for_coordinator_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_guard_failure_when_case_missing(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -340,6 +345,7 @@ def test_not_sole_observer_failure_for_sole_observer_actor(
 
 
 @pytest.mark.spec("CM-25-005")
+@pytest.mark.executes_as(OBSERVER_VENDOR_ACTOR_ID)
 def test_not_sole_observer_success_for_observer_plus_vendor(
     bt_scenario: BTTestScenario,
     case_with_observer_actors: VultronCase,
@@ -370,6 +376,7 @@ def test_not_sole_observer_success_for_vendor_only_actor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_not_sole_observer_success_for_coordinator_actor(
     bt_scenario: BTTestScenario,
     case_with_observer_actors: VultronCase,
@@ -394,6 +401,47 @@ def test_not_sole_observer_failure_when_case_missing(
             case_id=CASE_ID, actor_id=OBSERVER_ACTOR_ID
         ),
         actor_id=OBSERVER_ACTOR_ID,
+    )
+    assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# CSB-15-004: DEPLOYER-only d→D causal gate (not yet implemented)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CSB-15-004: CheckDeployerRoleNode does not yet enforce the VFd causal gate. "
+        "A DEPLOYER-only actor MUST be blocked (FAILURE) when no VENDOR participant "
+        "in the case has reached VFd. Tracked by #2593."
+    ),
+)
+@pytest.mark.spec("CSB-15-004")
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
+def test_deployer_only_blocked_when_no_vendor_at_vfd(
+    bt_scenario: BTTestScenario,
+    case_with_vendor_and_deployer: VultronCase,
+) -> None:
+    """DEPLOYER-only d→D MUST be FAILURE when no VENDOR has reached VFd (CSB-15-004).
+
+    The fixture seeds a VENDOR participant at default vfd state (not VFd).
+    The causal gate MUST return FAILURE. Currently xfails: CheckDeployerRoleNode
+    returns SUCCESS for any DEPLOYER without checking the VENDOR's VFd state.
+
+    `executes_as` matters here even though the assertion is on FAILURE: without
+    it the scenario store belongs to the default actor, the deployer's own store
+    holds no case (ADR-0073), and the node returns FAILURE for "case not found"
+    — which would satisfy a strict xfail for entirely the wrong reason and hide
+    #2593 the moment someone read the result as green.
+    """
+    result = bt_scenario.run(
+        CheckDeployerRoleNode(
+            case_id=case_with_vendor_and_deployer.id_,
+            actor_id=DEPLOYER_ACTOR_ID,
+        ),
+        actor_id=DEPLOYER_ACTOR_ID,
     )
     assert result.status == Status.FAILURE
 

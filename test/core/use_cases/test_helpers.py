@@ -50,6 +50,7 @@ from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _resolve_case_manager_id,
     resolve_case_participant_id_for_actor,
+    resolve_receiving_actor_id,
 )
 from vultron.errors import VultronValidationError
 
@@ -61,7 +62,10 @@ _ALT_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-alt"
 
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture()
@@ -240,7 +244,10 @@ _VENDOR_PARTICIPANT_ID = f"{_CM_CASE_ID}/participants/vendor-002"
 
 @pytest.fixture()
 def cm_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
 
 
 @pytest.fixture()
@@ -488,6 +495,69 @@ class TestFindCaseActorId:
 
         assert _find_case_actor_id(cm_dl, _CM_CASE_ID) == service_id
 
+    def test_case_manager_at_a_case_actor_identity_resolves(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """#1872 AC-4: a CASE_MANAGER *at a CaseActor identity* needs no Service.
+
+        The CaseActor is a participant wearing the CASE_MANAGER hat, so the role
+        plus the container-identity shape is the evidence — not the existence of a
+        per-case ``Service`` object. This is the path that lets AC-3 delete that
+        object without the invite/accept resolution (PCR-08-007/008) going blind.
+        """
+        case_actor_id = "https://case-actor.test/api/v2/actors/case-actor"
+        participant = CaseParticipant(
+            id_=f"{_CM_CASE_ID}/participants/case-actor",
+            attributed_to=case_actor_id,
+            context=_CM_CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        cm_dl.create(participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Role Is The Marker")
+        case.add_participant(participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) == case_actor_id
+
+    def test_case_manager_that_is_not_a_case_actor_still_resolves_none(
+        self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
+    ) -> None:
+        """The narrowness ADR-0021 requires survives AC-4.
+
+        ``_CM_ACTOR_ID`` holds CASE_MANAGER but is an ordinary participant, not a
+        CaseActor container. Such a case has no CaseActor and MUST resolve
+        ``None`` — repointing the Service scan at the role alone would have
+        started answering here, which is why the shape test exists.
+        """
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Ordinary Manager")
+        case.add_participant(cm_participant)
+        cm_dl.create(cm_participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
+    def test_a_slugged_case_actor_identity_is_not_accepted(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """The retired per-case form must not resolve (#1872).
+
+        A ``case-actor-<slug>`` id is unhostable by construction, so treating one
+        as a CaseActor would hand callers an address that 404s on delivery.
+        """
+        slugged = "https://case-actor.test/api/v2/actors/case-actor-abc123"
+        participant = CaseParticipant(
+            id_=f"{_CM_CASE_ID}/participants/slugged",
+            attributed_to=slugged,
+            context=_CM_CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        cm_dl.create(participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Slugged")
+        case.add_participant(participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
     def test_returns_none_when_unresolvable(
         self, cm_dl: SqliteDataLayer, vendor_participant: CaseParticipant
     ) -> None:
@@ -504,3 +574,109 @@ class TestFindCaseActorId:
     ) -> None:
         """A missing case must not raise — the participant path just skips."""
         assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
+
+class TestResolveReceivingActorId:
+    """``resolve_receiving_actor_id`` — whose replica is this message applied to?
+
+    Under ADR-0073 ``actor_id`` *selects the store*, so this is not a labelling
+    question. The ``or "unknown"`` fabrication it replaced would now route every
+    read and write into an empty scratch store named ``unknown``, losing the work
+    with no error raised anywhere (ARCH-15-001). That is why the no-answer case
+    raises rather than defaulting.
+    """
+
+    _INBOX_ACTOR = "https://example.org/api/v2/actors/vendor"
+
+    def test_the_inbox_supplied_id_is_authoritative(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """The inbox adapter knows which actor's inbox was POSTed to (BT-17-005)."""
+        assert (
+            resolve_receiving_actor_id(cm_dl, self._INBOX_ACTOR)
+            == self._INBOX_ACTOR
+        )
+
+    def test_the_inbox_id_wins_over_the_stores_own_actor(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """Both are present and disagree; the request is the more specific fact."""
+        assert cm_dl.actor_id != self._INBOX_ACTOR
+        assert (
+            resolve_receiving_actor_id(cm_dl, self._INBOX_ACTOR)
+            == self._INBOX_ACTOR
+        )
+
+    def test_falls_back_to_the_actor_whose_store_we_hold(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """CLI dispatch, replay and tests carry no receiving_actor_id.
+
+        The fallback is not a guess: a received-side use case is by construction
+        invoked with the receiving actor's own store (CM-01-001), and under
+        ADR-0073 a DataLayer is always some specific actor's.
+        """
+        assert (
+            resolve_receiving_actor_id(cm_dl, None)
+            == "https://test.example/api/v2/actors/test-actor"
+        )
+
+    @pytest.mark.parametrize("empty", [None, ""])
+    def test_an_empty_inbox_id_is_treated_as_absent(
+        self, cm_dl: SqliteDataLayer, empty: str | None
+    ) -> None:
+        """``""`` must not become the actor id — it names no store."""
+        assert (
+            resolve_receiving_actor_id(cm_dl, empty)
+            == "https://test.example/api/v2/actors/test-actor"
+        )
+
+    @pytest.mark.parametrize("own", [None, "", 42])
+    def test_raises_when_neither_source_yields_an_identity(
+        self, own: object
+    ) -> None:
+        """No defensible answer to "whose replica is this?" — so refuse.
+
+        ``42`` covers the non-string branch: a store reporting a non-string
+        ``actor_id`` is as unusable as one reporting nothing, and silently
+        stringifying it would mint a store named ``"42"``.
+        """
+
+        class _StoreWithoutAnActor:
+            actor_id = own
+
+        with pytest.raises(VultronValidationError, match="CM-01-001"):
+            resolve_receiving_actor_id(
+                cast(SqliteDataLayer, _StoreWithoutAnActor()), None
+            )
+
+    def test_raises_when_the_store_reports_no_actor_attribute_at_all(
+        self,
+    ) -> None:
+        """``getattr`` default path: a stub port with no ``actor_id``."""
+        with pytest.raises(VultronValidationError):
+            resolve_receiving_actor_id(cast(SqliteDataLayer, object()), None)
+
+    def test_propagates_not_implemented_from_actor_id_property(
+        self,
+    ) -> None:
+        """A stub whose ``actor_id`` raises ``NotImplementedError`` propagates it.
+
+        ``NotImplementedError`` from a property getter is a programming error
+        (the adapter is incomplete), not a data-availability problem.  It must
+        not be silently converted to ``VultronValidationError`` — callers need
+        the unambiguous signal that the adapter is broken, not a misleading
+        "no receiving actor" diagnosis (CM-01-001 port contract).
+        """
+
+        class _StubWithRaisingActorId:
+            @property
+            def actor_id(self) -> str:
+                raise NotImplementedError(
+                    "actor_id not implemented on this stub"
+                )
+
+        with pytest.raises(NotImplementedError):
+            resolve_receiving_actor_id(
+                cast(SqliteDataLayer, _StubWithRaisingActorId()), None
+            )

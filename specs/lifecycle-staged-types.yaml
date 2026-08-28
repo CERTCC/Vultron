@@ -21,16 +21,24 @@ groups:
       (required, non-None) fields on the domain object.
     rationale: A subtype whose field set is identical to its parent's adds type ceremony without a type-checker payoff and
       invites combinatorial proliferation. See ADR-0033.
+    verification: Inspection of `vultron/core/models/` confirms that each staged type introduces at least one new non-None
+      field relative to its parent type.
     adr:
     - ADR-0033
+    lint_suppress:
+    - missing_story_reference
   - id: LST-01-002
     priority: MUST
     kind: protocol
     statement: A milestone that only changes which actions are permitted, without changing which fields are present, MUST
       be modeled in the transition model and precondition specs, not as a distinct type.
     rationale: Action-gating is a precondition on transitions, not a change in data shape. See ADR-0033 and LST-05.
+    verification: Inspection of `vultron/core/models/` confirms that no staged type exists whose field set is identical
+      to its parent's; action-gating milestones appear only in transition logic.
     adr:
     - ADR-0033
+    lint_suppress:
+    - missing_story_reference
 - id: LST-02
   title: VulnerabilityCase Staged Types
   specs:
@@ -42,8 +50,14 @@ groups:
       guaranteed-field set.'
     rationale: Case existence and embargo-active each add a guaranteed field; no other case-universal milestone does. See
       ADR-0033.
+    verification: 'Inspection of `vultron/core/models/` confirms exactly three VulnerabilityCase staged types exist:
+      `IncomingReport`, `Case`, and `EmbargoedCase`.'
     adr:
     - ADR-0033
+    stories:
+    - story_2022_012
+    - story_2022_014
+    - story_2022_023
   - id: LST-02-002
     priority: MUST
     kind: protocol
@@ -51,17 +65,28 @@ groups:
       two parties), and a seeded `case_statuses` list.
     rationale: ADR-0041 (superseding ADR-0015) requires the CaseActor to author all initialization entries when accepting a
       CaseProposal, so these structural minimums are guaranteed for any case that exists.
+    verification: A unit test confirms that constructing a `Case` without a vulnerability report or without at least two
+      participants raises a validation error.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-10-001
     adr:
     - ADR-0041
+    stories:
+    - story_2022_012
+    - story_2022_013
+    - story_2022_038
   - id: LST-02-003
     priority: MUST
     kind: protocol
     statement: An `EmbargoedCase` MUST guarantee `active_embargo` is non-None and `em_state` is in {ACTIVE, REVISE}.
     rationale: The EM machine never returns to NONE/PROPOSED once ACTIVE, so this is a monotonic milestone with a genuine
       type-level non-None guarantee.
+    verification: A unit test confirms that `EmbargoedCase.model_validate(...)` raises a validation error when
+      `active_embargo` is None or `em_state` is outside `{ACTIVE, REVISE}`.
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: LST-02-004
     priority: MUST_NOT
     kind: protocol
@@ -121,16 +146,26 @@ groups:
     statement: >-
       The staged type MUST always be re-derived from the base case data at read time; the base case
       data is the single source of truth for stage determination.
+    verification: Inspection of `vultron/core/models/` confirms no staged type stores its stage as a persisted field;
+      stage is always derived by re-validating base case data at read time.
     relationships:
     - rel_type: refines
       spec_id: LST-05-002
     adr:
     - ADR-0033
+    stories:
+    - story_2022_088
+    - story_2022_045
   - id: LST-05-003
     priority: MUST
     kind: protocol
     statement: 'Staged types MUST remain round-trippable through the DataLayer: a persisted staged object rehydrates to the
       base type and re-validates to its staged type without loss.'
     rationale: Rehydration always yields a valid object; the staged-type guarantee must survive persistence. See ADR-0033.
+    verification: Integration tests in `test/demo/` confirm that a persisted `EmbargoedCase` rehydrates to `Case` and
+      re-validates to `EmbargoedCase` without field loss.
     adr:
     - ADR-0033
+    stories:
+    - story_2022_045
+    - story_2022_088

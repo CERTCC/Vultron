@@ -25,7 +25,7 @@ direction for future work.
 
 Two separate concerns arise from the requirement that outbound Vultron wire
 messages carry **full inline typed objects** (see `specs/message-validation.yaml`
-MV-09-001):
+AKM-03-001):
 
 1. **Verbosity / performance**: Full inline objects can be large. Sending a
    complete `VulnerabilityCase` or `VulnerabilityReport` in every activity that
@@ -96,7 +96,7 @@ Without the `type` field, the stub would cause the activity to route to
 
 | Situation | Use |
 |---|---|
-| Normal protocol operation (Create, Offer, Invite, Announce) | Full inline typed object (MV-09-001) |
+| Normal protocol operation (Create, Offer, Invite, Announce) | Full inline typed object (AKM-03-001) |
 | Inviting a participant before embargo acceptance | Stub object (type + id + summary only) |
 | Large object already known to recipient | Stub with `id` for DataLayer lookup |
 | Privacy-sensitive fields must be withheld | Stub or redacted object (see below) |
@@ -149,7 +149,7 @@ field as `None`.
 
 ## Relationship to Inline Object Requirement
 
-The current requirement (MV-09-001) is that **outbound initiating activities
+The current requirement (AKM-03-001) is that **outbound initiating activities
 MUST carry fully inline typed domain objects**. Stub objects are a controlled
 exception to this rule for the selective-disclosure use case.
 

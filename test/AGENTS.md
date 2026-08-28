@@ -190,6 +190,43 @@ This is the same reason `AGENTS.md` requires the full suite
 
 ---
 
+## One Actor Id Is One Database
+
+An `actor_id` is a **store name**, not a label on a store (DL-07-004). Two
+`SqliteDataLayer`s built with the same `actor_id` are the *same* in-memory
+database, because the URL is named and the engine cache is keyed by it.
+
+Two consequences, in opposite directions, and both have bitten:
+
+- **Two logical actors sharing one store** hides a *missing* write: the reader
+  finds the writer's row and the test passes for the wrong reason. This is the
+  defect class ISSUE-2238 was about, and it is why several tests were found
+  asserting nothing at all.
+- **One actor id reused for two independent scenarios** collides: the second seed
+  raises `ValueError: record with id_=... already exists`.
+
+Only the loud one was noticeable before per-actor storage, which is why the silent
+one accumulated. Give two scenarios that must not see each other's rows two actor
+ids — deriving one per test (`f"{ACTOR_ID}/{slug}"`) is enough and
+self-documenting. Do **not** give one logical actor two ids merely to get a fresh
+database; that reintroduces the masking.
+
+`test/conftest.py`'s autouse `_dispose_actor_stores_between_tests` handles the
+*between-test* case — **do not remove it.** Neither hazard above is a between-test
+problem: both occur within a single test, where no fixture can help.
+
+Store scoping also has to match *who executes*: a BT's store follows its executing
+actor (BT-05-005), so a test that seeds one actor's store and runs
+`execute_with_setup(actor_id=<other>)` reads an empty one. Declare the executor
+with `@pytest.mark.executes_as(ACTOR)` — `bt_scenario` honours it — or build the
+scenario per actor with `bt_scenario_factory`. Derive a test's executing actor by
+looking at `execute_with_setup(actor_id=…)` and `receiving_actor_id`, never from
+fixture or test names.
+
+Source: ISSUE-2238.
+
+---
+
 ## Demo Integration Test Isolation
 
 Each actor MUST use a **distinct `DataLayer` instance**; mark tests
@@ -287,8 +324,7 @@ def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
 ```
 
 Structure tests and FAILURE-path tests are unaffected.
-See `notes/bt-pitfalls.md` § "Integration Tests Must Use Deterministic
-Factories When BT Default Is Probabilistic".
+See "BT Factory Determinism" above.
 
 ---
 
@@ -392,3 +428,37 @@ assert result is True
 
 "No case stored → trivially fresh" tests must be clearly labeled and MUST NOT
 be the sole coverage for the genesis-hash path.
+
+---
+
+## Tests Verifying a Protocol-Kind Requirement MUST Carry `@pytest.mark.spec` (SR-05-004, ISSUE-2117)
+
+Protocol-kind requirements are conformance-critical. Without a marker the CI
+uncovered-count ratchet (SR-05-005,
+`test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage and
+the requirement becomes unverifiable.
+
+Add `@pytest.mark.spec("<ID>")` to every test that exercises a `kind: protocol`
+spec entry. Run `spec-coverage` to discover which protocol IDs have no markers
+yet.
+
+See SR-05-004, SR-05-005.
+
+---
+
+## Dual-Path Consolidation Test Gap
+
+(ISSUE-1378, 2026-07-14)
+
+When consolidating two helpers with different lookup paths into one unified
+function, the new test suite MUST exercise each distinct path in isolation.
+
+In ISSUE-1378, `_resolve_case_manager_id` was consolidated from two helpers:
+a primary `actor_participant_index` path and a fallback `case_participants`
+path. All 6 initial tests only populated `case_participants`, leaving the
+primary index path entirely untested.
+
+**Pattern**: For a helper with N distinct lookup paths, write at least one
+test per path where that path is the *sole* source of truth — all other paths
+are left empty or unpopulated. "One test exercises both paths" means neither
+path is verified independently.

@@ -26,6 +26,7 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
         "statement": f"{spec_id} MUST do the thing",
         "rationale": "Because testing",
         "tags": ["testing"],
+        "stories": ["story_2022_001"],
     }
     if extra:
         spec.update(extra)
@@ -1071,6 +1072,7 @@ def _minimal_behavioral_spec_data(
         "statement": "TST-01-001 MUST execute the workflow",
         "rationale": "ECA required",
         "tags": ["testing"],
+        "stories": ["story_2022_001"],
         "preconditions": [{"description": precondition_desc}],
         "steps": [{"order": 1, "actor": "finder", "action": step_action}],
         "postconditions": [{"description": postcondition_desc}],
@@ -1162,6 +1164,7 @@ def test_lint_phantom_path_behavioral_step_suppress(tmp_path):
         "statement": "TST-01-001 MUST execute",
         "rationale": "Required",
         "tags": ["testing"],
+        "stories": ["story_2022_001"],
         "preconditions": [{"description": "System ready"}],
         "steps": [
             {
@@ -1183,3 +1186,201 @@ def test_lint_phantom_path_behavioral_step_suppress(tmp_path):
     }
     _write_yaml(spec_dir, data)
     assert lint(spec_dir) == 0
+
+
+# ---------------------------------------------------------------------------
+# _check_phantom_spec_id_citations (SR-04-008)
+# ---------------------------------------------------------------------------
+
+
+def test_phantom_spec_id_unknown_in_vultron_is_hard_error(tmp_path, capsys):
+    """A .py file under vultron/ citing an unknown spec ID is a hard error."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    vultron_dir = tmp_path / "vultron"
+    vultron_dir.mkdir()
+    (vultron_dir / "module.py").write_text('"""Spec: XX-99-001."""\n')
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "XX-99-001" in captured.err
+
+
+def test_phantom_spec_id_known_id_no_error(tmp_path, capsys):
+    """A .py file under vultron/ citing a known spec ID returns 0."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    vultron_dir = tmp_path / "vultron"
+    vultron_dir.mkdir()
+    (vultron_dir / "module.py").write_text(
+        '"""Spec: TST-01-001 MUST do the thing."""\n'
+    )
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[ERROR]" not in captured.err
+
+
+def test_phantom_spec_id_allowlisted_dir_no_error(tmp_path, capsys):
+    """Files under test/metadata/specs/ citing synthetic IDs are not flagged."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    allowlist_dir = tmp_path / "test" / "metadata" / "specs"
+    allowlist_dir.mkdir(parents=True)
+    (allowlist_dir / "test_fixture.py").write_text(
+        '"""Uses synthetic IDs like XX-99-001."""\n'
+    )
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[ERROR]" not in captured.err
+
+
+def test_phantom_spec_id_no_ids_in_file_no_error(tmp_path):
+    """A .py file with no spec ID tokens returns 0."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    vultron_dir = tmp_path / "vultron"
+    vultron_dir.mkdir()
+    (vultron_dir / "module.py").write_text("def hello():\n    return 42\n")
+
+    assert lint(spec_dir) == 0
+
+
+def test_phantom_spec_id_unknown_in_test_dir_is_hard_error(tmp_path, capsys):
+    """A .py file under a non-allowlisted test/ subdir citing an unknown spec ID is a hard error."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_yaml(spec_dir, _minimal_spec())
+    test_core_dir = tmp_path / "test" / "core"
+    test_core_dir.mkdir(parents=True)
+    (test_core_dir / "test_something.py").write_text(
+        '"""Spec: XX-99-001."""\n'
+    )
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "XX-99-001" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# SR-11: missing_story_reference — hard error (MUST) and advisory (SHOULD/MAY)
+# ---------------------------------------------------------------------------
+
+
+def _minimal_spec_no_stories(priority="MUST", kind="protocol"):
+    """Return a minimal spec file with NO stories: field."""
+    spec = {
+        "id": "TST-01-001",
+        "priority": priority,
+        "kind": kind,
+        "statement": "TST-01-001 MUST do the thing",
+        "rationale": "Because testing",
+        "tags": ["testing"],
+    }
+    return {
+        "id": "TST",
+        "title": "Test File",
+        "description": "Test spec file",
+        "version": "0.1",
+        "scope": ["production"],
+        "groups": [{"id": "TST-01", "title": "Group", "specs": [spec]}],
+    }
+
+
+def test_protocol_must_no_stories_is_hard_error(tmp_path, capsys):
+    """kind=protocol + priority=MUST + no stories: is a hard error (SR-11-003)."""
+    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="MUST"))
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "SR-11-003" in captured.err
+    assert "missing_story_reference" in captured.err
+
+
+def test_protocol_must_with_stories_passes(tmp_path, capsys):
+    """kind=protocol + priority=MUST with a stories: entry does not hard-error."""
+    data = _minimal_spec_no_stories(priority="MUST")
+    data["groups"][0]["specs"][0]["stories"] = ["story_2022_001"]
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "SR-11-003" not in captured.err
+
+
+def test_protocol_must_suppress_missing_story_reference(tmp_path, capsys):
+    """lint_suppress: [missing_story_reference] silences the SR-11-003 hard error."""
+    data = _minimal_spec_no_stories(priority="MUST")
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference"
+    ]
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "SR-11-003" not in captured.err
+
+
+def test_non_protocol_must_no_stories_no_hard_error(tmp_path, capsys):
+    """kind=architecture + priority=MUST with no stories does NOT hard-error."""
+    _write_yaml(
+        tmp_path,
+        _minimal_spec_no_stories(priority="MUST", kind="architecture"),
+    )
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "SR-11-003" not in captured.err
+
+
+def test_protocol_should_no_stories_is_advisory(tmp_path, capsys):
+    """kind=protocol + priority=SHOULD + no stories emits advisory [WARN] (SR-11-004)."""
+    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="SHOULD"))
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[WARN]" in captured.out
+    assert "missing_story_reference" in captured.out
+
+
+def test_protocol_may_no_stories_is_advisory(tmp_path, capsys):
+    """kind=protocol + priority=MAY + no stories emits advisory [WARN] (SR-11-004)."""
+    _write_yaml(tmp_path, _minimal_spec_no_stories(priority="MAY"))
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[WARN]" in captured.out
+    assert "missing_story_reference" in captured.out
+
+
+def test_protocol_should_with_stories_no_story_warn(tmp_path, capsys):
+    """kind=protocol + priority=SHOULD with stories: does not emit advisory."""
+    data = _minimal_spec_no_stories(priority="SHOULD")
+    data["groups"][0]["specs"][0]["stories"] = ["story_2022_042"]
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "missing_story_reference" not in captured.out
+
+
+def test_protocol_should_suppress_advisory_story_warn(tmp_path, capsys):
+    """lint_suppress: [missing_story_reference] silences the SHOULD advisory."""
+    data = _minimal_spec_no_stories(priority="SHOULD")
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference"
+    ]
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "missing_story_reference" not in captured.out

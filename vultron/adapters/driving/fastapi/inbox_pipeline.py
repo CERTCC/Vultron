@@ -30,8 +30,9 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 )
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -91,7 +92,7 @@ class InboxPipeline:
             return None
 
         queue_dl = cast(
-            ActorScopedDataLayer, self._dl.clone_for_actor(receiving_actor_id)
+            DataLayer, self._dl.clone_for_actor(receiving_actor_id)
         )
         try:
             event = prepare_for_dispatch(activity=obj)
@@ -129,6 +130,14 @@ class InboxPipeline:
                     actor_id=receiving_actor_id,
                 )
             return event
+        except VultronValidationError:
+            logger.error(
+                "Validation error processing inbox item '%s'"
+                " — not re-queuing (permanent failure)",
+                activity_id,
+                exc_info=True,
+            )
+            return None
         except Exception:
             queue_dl.inbox_append(activity_id)
             logger.error(

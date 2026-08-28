@@ -31,6 +31,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.demo.helpers.ledger_dump import (
@@ -833,4 +834,121 @@ def check_per_actor_replica_divergence(
                 actor_dict, check_fix_ready=check_fix_ready
             ):
                 violations.append(f"{prefix}: {msg}")
+    return violations
+
+
+# ---------------------------------------------------------------------------
+# Narrative causal-edge helpers (DEMOMA-22-004, DEMOMA-22-005)
+# ---------------------------------------------------------------------------
+
+#: Regex that matches the YAML front-matter block at the top of a Markdown file.
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+#: Repo root, used to resolve relative narrative paths from the test runner.
+_REPO_ROOT: Path = Path(__file__).parent.parent.parent.parent
+
+
+def load_narrative_edges(narrative_path: str | Path) -> list[dict]:
+    """Parse causal edges from the YAML front-matter of a scenario narrative page.
+
+    Returns a list of edge dicts, each with at least ``antecedent`` and
+    ``consequent`` keys and an optional ``observable`` key (defaults to
+    ``True``).  Edges with ``observable: false`` are returned but the caller
+    should skip them in ordering checks.
+
+    Calls ``pytest.skip`` when the narrative file is absent (the documentation
+    hasn't been written yet) or when the front-matter contains no
+    ``causal_edges`` key (e.g. an index page).
+    """
+    path = (
+        _REPO_ROOT / narrative_path
+        if not Path(narrative_path).is_absolute()
+        else Path(narrative_path)
+    )
+    if not path.is_file():
+        pytest.skip(
+            f"Narrative page {path} not found — write the scenario narrative first"
+        )
+    text = path.read_text(encoding="utf-8")
+    m = _FRONTMATTER_RE.match(text)
+    if not m:
+        pytest.skip(
+            f"{path} has no YAML front-matter — add causal_edges: block"
+        )
+    raw = yaml.safe_load(m.group(1))
+    data: dict = raw if isinstance(raw, dict) else {}
+    raw_edges = data.get("causal_edges", [])
+    edges: list[dict] = [e for e in raw_edges if isinstance(e, dict)]
+    if not edges:
+        pytest.skip(f"{path} front-matter has no causal_edges list")
+    return edges
+
+
+def check_causal_edges(
+    replicas: dict[str, list[dict]],
+    edges: list[dict],
+) -> list[str]:
+    """Assert that each declared observable causal edge appears in log-index order.
+
+    For each edge with ``observable`` not ``False``, finds all log entries
+    whose ``eventType`` matches the ``antecedent`` and ``consequent`` fields
+    and verifies that at least one antecedent entry appears before at least
+    one consequent entry (i.e. ``min(antecedent_indices) < max(consequent_indices)``).
+
+    Returns a list of violation strings (empty = all edges satisfied).
+    Diagnostic output names the unsatisfied edge and the indices that were
+    observed, so failures are self-explanatory (DEMOMA-22-006-AC-6).
+    """
+    auth = auth_entries(replicas)
+    if not auth:
+        return [
+            "No authoritative log entries found; cannot check causal edges"
+        ]
+
+    violations: list[str] = []
+
+    for edge in edges:
+        if not edge.get("observable", True):
+            continue
+        antecedent = edge.get("antecedent", "")
+        consequent = edge.get("consequent", "")
+        consequent_actor = edge.get("consequent_actor", "")
+
+        ant_indices = [
+            log_index(e) for e in auth if event_type(e) == antecedent
+        ]
+        con_indices = [
+            log_index(e) for e in auth if event_type(e) == consequent
+        ]
+
+        if not ant_indices:
+            violations.append(
+                f"Edge [{antecedent!r} → {consequent!r}]: "
+                f"no {antecedent!r} entry found in authoritative log"
+            )
+            continue
+        if not con_indices:
+            violations.append(
+                f"Edge [{antecedent!r} → {consequent!r}]: "
+                f"no {consequent!r} entry found in authoritative log"
+                + (
+                    f" (expected actor: {consequent_actor!r})"
+                    if consequent_actor
+                    else ""
+                )
+            )
+            continue
+        if min(ant_indices) >= max(con_indices):
+            violations.append(
+                f"Edge [{antecedent!r} → {consequent!r}]: "
+                f"no valid ordering found — "
+                f"antecedent indices {sorted(ant_indices)}, "
+                f"consequent indices {sorted(con_indices)}"
+                + (
+                    f" (consequent_actor: {consequent_actor!r})"
+                    if consequent_actor
+                    else ""
+                )
+            )
+
     return violations

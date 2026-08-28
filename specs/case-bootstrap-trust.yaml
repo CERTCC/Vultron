@@ -3,7 +3,7 @@ title: Case Bootstrap Trust
 description: Requirements for establishing trust in a VulnerabilityCase and its CaseActor at non-owner sites. Governs the
   bootstrap process by which a non-owner participant verifies that an incoming case and its managing actor are legitimate
   before accepting case state updates.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -19,52 +19,109 @@ groups:
     kind: protocol
     statement: When an actor creates a case in response to an inbound `Offer(VulnerabilityReport)`, that case creator MUST
       establish trust at the original report submitter by sending a one-time `Create(VulnerabilityCase)` activity.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that when a case is created
+      in response to an `Offer(VulnerabilityReport)`, a `Create(VulnerabilityCase)` is dispatched to the original report
+      submitter's inbox.
     relationships:
     - rel_type: refines
       spec_id: CM-12-001
     - rel_type: refines
       spec_id: PCR-02-005
+    stories:
+    - story_2022_012
+    - story_2022_090
   - id: CBT-01-002
     priority: MUST
     kind: protocol
     statement: The bootstrap `Create(VulnerabilityCase)` activity MUST carry a full inline `VulnerabilityCase` snapshot rather
       than a minimal stub or partial trust-only payload.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that the bootstrap
+      `Create(VulnerabilityCase)` carries a fully materialized `VulnerabilityCase` object rather than a stub or bare URI
+      reference in its payload.
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
+    stories:
+    - story_2022_088
+    - story_2022_090
   - id: CBT-01-003
     priority: MUST
     kind: protocol
-    statement: The bootstrap case snapshot MUST identify the case creator/owner as a participant with `CASE_OWNER` role and
-      MUST identify the CaseActor as a participant with `COORDINATOR` role.
+    statement: >-
+      The bootstrap case snapshot MUST distinguish the actor that *asked for* the case from the actor
+      that *created* it. The actor whose `CaseProposal` caused the case to exist — the report
+      receiver, whatever other roles it also holds — MUST be a participant with `CVDRole.CASE_OWNER`.
+      The CaseActor that created the case MUST be a participant with `CVDRole.CASE_MANAGER`, and
+      SHOULD also carry `CVDRole.COORDINATOR`. `CVDRole.CASE_OWNER` MUST NOT be delegated to the
+      CaseActor.
+    rationale: >-
+      Under ADR-0041 the CaseActor creates the case, so "creator/owner" names two different actors
+      and the earlier wording invited code to collapse them. They confer different authority:
+      CASE_OWNER is the standing of the party whose disclosure decision the case exists to serve,
+      and it is never delegated; CASE_MANAGER is the privilege of writing the canonical case ledger,
+      which the CaseActor holds precisely because it created the case in its own store (ADR-0073).
+      Keeping them distinct is what makes "the CaseActor owns write privileges" true without making
+      "the CaseActor owns the case" true.
+    verification: >-
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts both halves of the
+      distinction on the bootstrap snapshot: `TestADR0041VendorParticipant` that the proposing report
+      receiver is a participant carrying `CVDRole.CASE_OWNER`, and the CaseActor-participant assertions
+      that the creating CaseActor carries `CVDRole.CASE_MANAGER` alongside `CVDRole.COORDINATOR` and
+      never `CVDRole.CASE_OWNER`.
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
     - rel_type: refines
       spec_id: CM-02-010
+    - rel_type: refines
+      spec_id: PCR-01-002
+    adr:
+    - ADR-0073
+    stories:
+    - story_2022_046
+    - story_2022_092
   - id: CBT-01-004
     priority: MUST
     kind: protocol
     statement: When the original report submitter is intended to receive ongoing case updates immediately, the bootstrap case
       snapshot MUST include that actor as a participant from the start.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that the original report
+      submitter appears as an inline participant in `case_participants` of the bootstrap `Create(VulnerabilityCase)` when
+      ongoing case updates are expected from the start.
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: CBT-01-005
     priority: MUST
     kind: protocol
     statement: A report submitter MUST NOT trust a newly introduced CaseActor unless the bootstrap `Create(VulnerabilityCase)`
       both comes from the same actor that received the report and references the previously submitted report.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
+      `Create(VulnerabilityCase)` from an unexpected sender or without a matching report reference is rejected and does
+      not establish CaseActor trust.
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
     - rel_type: refines
       spec_id: AKM-02-001
+    stories:
+    - story_2022_035
+    - story_2022_089
+    - story_2022_090
   - id: CBT-01-006
     priority: MUST
     kind: protocol
     statement: After validating the bootstrap `Create(VulnerabilityCase)`, the receiving actor MUST persist the report-to-case
       link, the trusted case-creator identity, and the trusted CaseActor identity for that relationship.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that after a valid bootstrap
+      `Create(VulnerabilityCase)`, the receiver's DataLayer contains the report-to-case link, the trusted case-creator
+      identity, and the trusted CaseActor identity for that relationship.
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
+    stories:
+    - story_2022_096
+    - story_2022_088
   - id: CBT-01-007
     priority: MUST
     kind: protocol
@@ -76,9 +133,74 @@ groups:
       handlers only persist non-string entries (materialized objects). Bare URI strings are silently skipped; the receiver
       cannot seed CaseParticipant records from string-only refs, causing downstream BT failures (e.g., `CheckParticipantExists`
       returns FAILURE for a participant the receiver was never told about).
+    verification: Inspection of `vultron/wire/as2/vocab/` confirms that `ActivityStreamRef` fields accept bare URI strings
+      without error; integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that `CaseParticipant`
+      objects are serialized as full inline objects in the bootstrap payload so the receiver can persist each participant
+      record.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-002
+    stories:
+    - story_2022_088
+    - story_2022_092
+  - id: CBT-01-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The bootstrap case snapshot MUST include the original report submitter's
+      participant record with an RM state of `RM.ACCEPTED`. The CaseActor MUST
+      set this state directly rather than inserting intermediate transitions
+      (`RM.START`, `RM.RECEIVED`, `RM.VALID`) that the CaseActor never
+      observed for the reporter.
+    rationale: >-
+      A report submitter can only be in `RM.ACCEPTED` at the time of submission:
+      reporting is the act of accepting that the vulnerability warrants
+      coordinated disclosure. A submitter who considered the item invalid would
+      not have filed a report, and one who had deferred or closed their
+      involvement would not be reporting at all. Because the CaseActor cannot
+      observe the reporter's internal state progression, inserting intermediate
+      RM records on the reporter's behalf would place unobserved events into the
+      canonical case ledger. The CaseActor MUST instead reflect the only state
+      the reporter could actually be in: `RM.ACCEPTED`.
+    verification: >-
+      Integration tests in `test/demo/test_case_proposal_round_trip.py`
+      confirm that after a valid bootstrap exchange the reporter's participant
+      record carries `RM.ACCEPTED` in the CaseActor's DataLayer, and that no
+      intermediate RM records (`RM.START`, `RM.RECEIVED`, `RM.VALID`) appear
+      for the reporter in that DataLayer.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-004
+    - rel_type: refines
+      spec_id: SM-04-001
+    stories:
+    - story_2022_013
+    - story_2022_038
+  - id: CBT-01-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST generate the bootstrap `Create(VulnerabilityCase)`
+      activity only after the `VulnerabilityCase` domain object has been fully
+      initialized — all participants set to their correct initial RM states,
+      all roles assigned. The activity MUST be a faithful record of a completed
+      initialization, not an intent message constructed before initialization
+      is finished.
+    rationale: >-
+      ActivityStreams 2.0 activities represent completed events, not intentions.
+      A `Create(VulnerabilityCase)` sent before the case is fully initialized
+      would misrepresent the state that existed at creation time. Receivers
+      replay the bootstrap snapshot as authoritative ledger content; if that
+      snapshot is incomplete, every replica is permanently wrong. Sequencing
+      the activity after initialization is the structural guarantee that the
+      bootstrap snapshot is always accurate.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-002
+    - rel_type: refines
+      spec_id: CBT-01-007
+    lint_suppress:
+    - missing_story_reference
 - id: CBT-02
   title: Post-Bootstrap Update Authority
   specs:
@@ -87,11 +209,17 @@ groups:
     kind: protocol
     statement: For the original report-submission path, `Create(VulnerabilityCase)` is a one-time bootstrap message only;
       subsequent full-case synchronization MUST use `Announce(VulnerabilityCase)` from the trusted CaseActor.
+    verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that after the initial bootstrap
+      exchange, full-case synchronization uses `Announce(VulnerabilityCase)` from the trusted CaseActor and that a second
+      `Create(VulnerabilityCase)` is not issued.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
     - rel_type: refines
       spec_id: PCR-03-001
+    stories:
+    - story_2022_088
+    - story_2022_045
   - id: CBT-02-002
     priority: MUST_NOT
     kind: protocol
@@ -105,9 +233,15 @@ groups:
     kind: protocol
     statement: Once a CaseActor has been trusted for a case, that identity MUST NOT be replaced implicitly by ordinary case-update
       traffic; CaseActor rotation or transfer MUST use an explicit transfer workflow.
+    verification: Inspection of `vultron/wire/as2/` confirms that CaseActor identity is stored at bootstrap time and is
+      not overwritten by ordinary `Announce(VulnerabilityCase)` traffic; only an explicit transfer workflow may replace
+      the trusted CaseActor.
     relationships:
     - rel_type: refines
       spec_id: CM-02-010
+    stories:
+    - story_2022_050
+    - story_2022_035
 - id: CBT-03
   title: Out-of-Order Handling and Replay Requests
   specs:
@@ -133,6 +267,11 @@ groups:
     kind: protocol
     statement: 'When the bounded pre-bootstrap queue expires (default: 300 seconds, configurable via `AppConfig.pre_bootstrap_queue_timeout_seconds`),
       the receiver MUST drop the queued message, log a warning, and require a resend after bootstrap.'
+    verification: A unit test confirms that when the pre-bootstrap queue timeout (`AppConfig.pre_bootstrap_queue_timeout_seconds`)
+      elapses, the queued message is discarded, a warning is logged, and the activity is not applied to local case state.
+    stories:
+    - story_2022_090
+    - story_2022_088
   - id: CBT-03-004
     priority: SHOULD
     kind: project
@@ -148,22 +287,39 @@ groups:
     kind: protocol
     statement: For a participant added after case creation, the trust-establishing message MUST be `InviteActorToCase` from
       the case creator/owner rather than `Create(VulnerabilityCase)`.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that a participant added after case
+      creation receives an `InviteActorToCase` message rather than a `Create(VulnerabilityCase)` to establish trust.
     relationships:
     - rel_type: refines
       spec_id: CM-11-001
+    stories:
+    - story_2022_013
+    - story_2022_090
   - id: CBT-04-002
     priority: MUST
     kind: protocol
     statement: The trust-establishing invite for a late joiner MUST identify both the case and the CaseActor that will send
       subsequent `Announce(VulnerabilityCase)` updates.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the `InviteActorToCase` payload
+      includes both the case identifier and the CaseActor that will subsequently send `Announce(VulnerabilityCase)`
+      updates.
+    stories:
+    - story_2022_090
+    - story_2022_092
   - id: CBT-04-003
     priority: MUST
     kind: protocol
     statement: After the late joiner has validated and accepted that invitation, the CaseActor MAY send `Announce(VulnerabilityCase)`
       without a separate `Create(VulnerabilityCase)` bootstrap.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that after a late joiner accepts
+      `InviteActorToCase`, it correctly processes `Announce(VulnerabilityCase)` from the CaseActor without an intermediate
+      `Create(VulnerabilityCase)` bootstrap.
     relationships:
     - rel_type: refines
       spec_id: PCR-07-007
+    stories:
+    - story_2022_054
+    - story_2022_088
 - id: CBT-05
   title: Verification
   specs:
@@ -172,18 +328,110 @@ groups:
     kind: protocol
     statement: Tests MUST verify that the original report submitter accepts CaseActor-originated `Announce(VulnerabilityCase)`
       updates only after a valid creator-signed bootstrap `Create(VulnerabilityCase)` has established trust.
+    verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that an `Announce(VulnerabilityCase)`
+      from the CaseActor is accepted by the report submitter only after a valid `Create(VulnerabilityCase)` bootstrap has
+      established trust.
+    stories:
+    - story_2022_090
+    - story_2022_088
   - id: CBT-05-002
     priority: MUST
     kind: protocol
     statement: Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is rejected when the sender does not match the
       actor that received the report or when the case does not reference the known submitted report.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
+      `Create(VulnerabilityCase)` is rejected when its sender mismatches the actor that received the report or when it
+      does not reference the known submitted report.
+    stories:
+    - story_2022_089
+    - story_2022_090
   - id: CBT-05-003
     priority: MUST
     kind: protocol
     statement: Tests MUST verify that pre-bootstrap CaseActor messages remain unapplied, expire safely, and lead to a replay
       request to the case creator.
+    verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that pre-bootstrap CaseActor messages
+      remain unapplied, that the pre-bootstrap queue expiry is handled safely, and that expiry triggers a replay request
+      to the case creator.
+    stories:
+    - story_2022_090
+    - story_2022_088
   - id: CBT-05-004
     priority: MUST
     kind: protocol
     statement: Tests MUST verify that late joiners establish trust through `InviteActorToCase` and may then accept CaseActor-originated
       `Announce(VulnerabilityCase)` updates without an intermediate `Create(VulnerabilityCase)` bootstrap.
+    verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that late joiners establish trust
+      through `InviteActorToCase` and subsequently accept `Announce(VulnerabilityCase)` updates without a
+      `Create(VulnerabilityCase)` bootstrap.
+    stories:
+    - story_2022_054
+    - story_2022_090
+  - id: CBT-05-005
+    priority: MUST
+    kind: protocol
+    stories:
+    - story_2022_013
+    - story_2022_063
+    lint_suppress:
+    - must_without_verification
+    statement: >-
+      Tests MUST verify that a valid bootstrap `Create(VulnerabilityCase)` causes the
+      reporter's participant status record to be stored as an embedded participant in the
+      new case, making the reporter addressable without a separate `InviteActorToCase`.
+  - id: CBT-05-006
+    priority: MUST
+    kind: protocol
+    stories:
+    - story_2022_092
+    - story_2022_093
+    lint_suppress:
+    - must_without_verification
+    statement: >-
+      Tests MUST verify that `AddParticipantStatusBT` executes successfully on the
+      reporter's replica after bootstrap, confirming the reporter appears in the
+      CaseActor's participant index.
+  - id: CBT-05-007
+    priority: MUST
+    kind: protocol
+    stories:
+    - story_2022_088
+    - story_2022_038
+    lint_suppress:
+    - must_without_verification
+    statement: >-
+      Tests MUST verify that the reporter's RM state is advanced from `RM.START` to
+      `RM.ACCEPTED` as part of the bootstrap sequence, confirming full case-management
+      relationship establishment.
+  - id: CBT-05-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a receiver processes a bootstrap `Create(VulnerabilityCase)` and
+      finds that required participant data is absent or arrives as a bare URI
+      reference (in violation of CBT-01-007), the receiver MUST raise a
+      protocol error and reject the bootstrap. The receiver MUST NOT silently
+      skip the missing participant, infer participant state from domain
+      knowledge, or synthesize a participant record from information not
+      present in the bootstrap payload.
+    rationale: >-
+      Silent reconstruction of missing protocol data masks protocol bugs.
+      This system exists to demonstrate that the CVD protocol works correctly
+      end-to-end; when the protocol fails to deliver required data, that
+      failure MUST be visible so it can be diagnosed and fixed. A fallback
+      that fills in missing data "from domain knowledge" creates a false
+      impression that the protocol is functioning when it is not. Replicas
+      MUST be built exclusively from ledger content; if data is not in the
+      ledger, it did not happen.
+    verification: >-
+      Tests confirm that when a bootstrap `Create(VulnerabilityCase)` arrives
+      with a participant listed as a bare URI string rather than an inline
+      typed object, the receiver raises a protocol error and does not accept
+      the bootstrap.
+    relationships:
+    - rel_type: implements
+      spec_id: CBT-01-007
+    - rel_type: implements
+      spec_id: CBT-01-008
+    lint_suppress:
+    - missing_story_reference

@@ -80,7 +80,10 @@ class TestSubmitReportLogMessages:
             receiving_actor_id="https://example.org/actors/vendor",
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/actors/vendor",
+        )
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
 
@@ -135,7 +138,10 @@ class TestSubmitReportCreatesCase:
             activity=activity,
             receiving_actor_id=vendor_id,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
+        )
         dl.save(report)
         vendor_actor = VultronCaseActor(id_=vendor_id)
         dl.save(vendor_actor)
@@ -223,6 +229,59 @@ class TestSubmitReportCreatesCase:
             len(links) == 1
         ), "Expected exactly one VultronReportCaseLink after idempotent calls"
 
+    def test_submit_report_uses_store_owner_when_no_receiving_actor(self):
+        """When receiving_actor_id is absent the store owner processes the submission.
+
+        Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
+        dl.actor_id (VENDOR_ID). The store owner is in activity.to so the report
+        is persisted and a pending VultronReportCaseLink is written rather than
+        the submission being dropped.
+        """
+        import py_trees
+
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            report = VultronReport(
+                id_="https://example.org/reports/r-nostamp-1"
+            )
+            activity = VultronActivity(
+                id_="https://example.org/activities/offer-nostamp-1",
+                type_="Offer",
+                actor=self.FINDER_ID,
+                to=[self.VENDOR_ID],
+            )
+            event = SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id="https://example.org/activities/offer-nostamp-1",
+                actor_id=self.FINDER_ID,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=None,
+            )
+            from vultron.core.models.case_actor import VultronCaseActor
+
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+            dl.save(report)
+            dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+            stored = dl.read(report.id_)
+            assert stored is not None, (
+                "Report must be persisted even when receiving_actor_id is absent"
+                " (store-owner fallback, CLP-10-005)"
+            )
+            link_id = VultronReportCaseLink.build_id(report.id_)
+            link = dl.read(link_id)
+            assert isinstance(link, VultronReportCaseLink), (
+                "VultronReportCaseLink must be created when store owner is in"
+                " activity.to and receiving_actor_id is absent (CLP-10-005)"
+            )
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
+
     def test_submit_report_skips_case_creation_when_not_in_to(self):
         """SubmitReportReceivedUseCase skips BT when receiving actor not in to.
 
@@ -243,7 +302,10 @@ class TestSubmitReportCreatesCase:
             activity=activity,
             receiving_actor_id=self.VENDOR_ID,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.VENDOR_ID,
+        )
 
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
@@ -281,7 +343,10 @@ class TestSubmitReportAutoCreateCasePolicy:
             activity=activity,
             receiving_actor_id=self.VENDOR_ID,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
+        )
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return event, dl
 
@@ -383,7 +448,10 @@ class TestOfferAddressingSemantics:
     def _make_dl(self) -> SqliteDataLayer:
         from vultron.core.models.case_actor import VultronCaseActor
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
+        )
         dl.save(VultronReport(id_=self.REPORT_ID))
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return dl
@@ -533,7 +601,10 @@ class TestSubmitReportStoresOfferRecord:
             activity=activity,
             receiving_actor_id=self.VENDOR_ID,
         )
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.VENDOR_ID,  # the receiving vendor's own store
+        )
         dl.save(VultronCaseActor(id_=self.VENDOR_ID))
         return event, dl
 

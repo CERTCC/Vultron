@@ -73,6 +73,7 @@ export-demo-states="vultron.scripts.export_states:main"
 spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
 spec-lint="vultron.metadata.specs.lint:main"
+spec-coverage="vultron.metadata.specs.coverage:main"
 adr-index="vultron.metadata.adr.index_gen:main"
 append-history="vultron.metadata.history.cli:main"
 show-history="vultron.metadata.history.show_history_cli:main"
@@ -159,6 +160,7 @@ markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
     "spec(spec_id): mark test as verifying a specific spec requirement ID",
     "case_ledger_invariants: marks tests as case-ledger invariant harness tests (require devlogs/ JSONL artifacts; skip when absent)",
+    "executes_as(actor_id): the actor whose identity the test's behavior tree runs under; store fixtures open that actor's store (ADR-0073)",
 ]
 
 [tool.uv.workspace]

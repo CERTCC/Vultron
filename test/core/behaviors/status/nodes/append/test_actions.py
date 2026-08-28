@@ -71,17 +71,52 @@ class TestResolveAndPersistStatusObjectNode:
 
     def test_uses_fallback_when_missing_from_dl(self, bridge):
         """Fallback object is persisted and resolved when ID absent from DL."""
-        from vultron.wire.as2.vocab.objects.case_status import (
-            as_ParticipantStatus,
-        )
+        from vultron.core.models.participant_status import ParticipantStatus
         from .conftest import CASE_ID
 
-        fallback = as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+        fallback = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
         node = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID, status_obj_fallback=fallback
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
+
+    def test_resolves_from_filtered_status(self, bridge):
+        """Filtered status from dimension filter is persisted and used directly without DL read-back."""
+        import py_trees
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.behaviors.status.nodes.dimension_filter import (
+            BB_DIMENSION_FILTER,
+        )
+        from .conftest import CASE_ID, PARTICIPANT_ID
+
+        filtered = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+        writer = py_trees.blackboard.Client(name="test-setup-filter")
+        writer.register_key(
+            key=BB_DIMENSION_FILTER, access=py_trees.common.Access.WRITE
+        )
+        writer.set(
+            BB_DIMENSION_FILTER,
+            {
+                "status_id": STATUS_ID,
+                "participant_id": PARTICIPANT_ID,
+                "refused": ("vfd",),
+                "filtered_status": filtered,
+            },
+            overwrite=True,
+        )
+
+        node = ResolveAndPersistStatusObjectNode(
+            status_id=STATUS_ID, status_obj_fallback=None
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        reader = py_trees.blackboard.Client(name="test-verify-filter")
+        reader.register_key(
+            key="append_status_status_obj", access=py_trees.common.Access.READ
+        )
+        assert reader.get("append_status_status_obj") is filtered
 
 
 # ---------------------------------------------------------------------------

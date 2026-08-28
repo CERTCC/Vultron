@@ -67,18 +67,14 @@ def _marker_factory(label):
 
 
 def test_review_decision_defaults():
-    """Defaults encode the auto-approve path: approved, no revision needed."""
+    """Defaults encode the auto-approve path: no revision needed."""
     d = AdvisoryReviewDecision()
-    assert d.approved is True
     assert d.needs_revision is False
     assert d.feedback == ""
 
 
 def test_review_decision_needs_revision():
-    d = AdvisoryReviewDecision(
-        approved=False, needs_revision=True, feedback="Fix title."
-    )
-    assert d.approved is False
+    d = AdvisoryReviewDecision(needs_revision=True, feedback="Fix title.")
     assert d.needs_revision is True
     assert d.feedback == "Fix title."
 

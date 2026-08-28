@@ -158,7 +158,7 @@ def test_trigger_propose_embargo_ignores_unknown_fields(
 
 
 def test_trigger_propose_embargo_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/propose-embargo",
         json={"case_id": "urn:uuid:any-case", "end_time": FUTURE_END_TIME},
@@ -171,7 +171,7 @@ def test_trigger_propose_embargo_unknown_actor_returns_404(client_triggers):
 def test_trigger_propose_embargo_unknown_case_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
         json={
@@ -285,4 +285,8 @@ def test_propose_embargo_schedules_outbox_handler(
     mock_outbox.assert_called_once()
     assert mock_outbox.call_args.args[0] == actor.id_
     assert mock_outbox.call_args.args[1] is dl
-    assert mock_outbox.call_args.args[2] is dl
+    # No third positional: that slot is `emitter` now, and a store
+    # passed there silently becomes the emitter (see the ratchet in
+    # test/architecture/test_outbox_handler_emitter_keyword.py).
+    assert len(mock_outbox.call_args.args) == 2
+    assert "emitter" not in mock_outbox.call_args.kwargs

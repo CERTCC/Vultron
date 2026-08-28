@@ -551,4 +551,4 @@ simulation — it is a live protocol run.
   — tutorial for running all three demo scenarios
 - [Formal Protocol Reference](formal_protocol/index.md) — state
   machine definitions and message types
-- [Ubiquitous Language](glossary.md) — domain terminology
+- [Glossary](glossary.md) — domain terminology

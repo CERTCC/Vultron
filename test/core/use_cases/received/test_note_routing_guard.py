@@ -25,7 +25,6 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
@@ -60,8 +59,13 @@ def _clear_blackboard():
     py_trees.blackboard.Blackboard.storage.clear()
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
+    """The store of *actor_id*, defaulting to the case actor.
+
+    The canonical ledger these tests assert on belongs to the case actor, and the
+    commit is gated on its CASE_MANAGER role, so that is the store the tree runs in.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
 def _make_case_actor_dl() -> SqliteDataLayer:
@@ -172,26 +176,26 @@ class TestAddNoteToCaseLedgerRouting:
             f" ledger entry; found: {event_types}"
         )
 
-    def test_no_receiving_actor_id_skips_commit(self, make_payload):
-        """Guarded commit does NOT fire when receiving_actor_id is None.
+    def test_no_receiving_actor_id_uses_store_owner_for_commit(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the Add(Note).
 
-        This was the bug: previously, None fell back to _find_case_actor_id,
-        causing the commit to run even when no receiving actor was set.
-        Per CLP-10-003 the guard must be strict.
+        The store owner here is the CaseActor, so the guarded commit fires and
+        the ``add_note_to_case`` ledger entry IS written.
         """
         dl = _make_case_actor_dl()
 
-        case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
+        case_ref = as_VulnerabilityCase(id_=CASE_ID)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
-            target=case.id_,
+            target=case_ref,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
         )
         event = make_payload(activity)
-        # Explicitly clear receiving_actor_id (make_payload may not set it).
+        # Explicitly clear receiving_actor_id to exercise the fallback path.
         event = event.model_copy(update={"receiving_actor_id": None})
 
         AddNoteToCaseReceivedUseCase(
@@ -201,7 +205,7 @@ class TestAddNoteToCaseLedgerRouting:
         ).execute()
 
         event_types = _ledger_event_types(dl)
-        assert "add_note_to_case" not in event_types, (
-            "Missing receiving_actor_id must NOT write an add_note_to_case"
-            f" ledger entry; found: {event_types}"
+        assert "add_note_to_case" in event_types, (
+            "Store-owner fallback (CaseActor) MUST write an add_note_to_case"
+            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
         )

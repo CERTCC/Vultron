@@ -20,8 +20,15 @@ groups:
       public interface for iterating a participant''s current roles without directly accessing the `case_roles` field.'
     rationale: 'A named property decouples callers from the internal storage field, enabling future changes to how roles are
       stored without updating every call site.'
+    verification: >-
+      Inspection of `vultron/core/models/participant.py` confirms a `roles` property
+      returning `list[CVDRole]`; the architecture test in
+      `test/architecture/test_participant_case_roles.py` confirms no direct `case_roles`
+      reads appear outside the class.
     tags:
     - protocol
+    stories:
+    - story_2022_063
   - id: PRM-01-002
     priority: MUST
     kind: protocol
@@ -29,8 +36,13 @@ groups:
       holds the given role, False otherwise.'
     rationale: 'Provides a clear, named predicate for role-presence checks rather than requiring callers to write `role in
       participant.case_roles`.'
+    verification: >-
+      A unit test confirms that `has_role()` returns `True` when the role is in the
+      participant's role set and `False` when it is absent.
     tags:
     - protocol
+    stories:
+    - story_2022_063
   - id: PRM-01-003
     priority: MUST
     kind: project
@@ -52,8 +64,14 @@ groups:
       that adds a role to the participant''s role set.'
     rationale: 'A named method provides a single place to enforce invariants (e.g. deduplication, logging) whenever a role
       is added.'
+    verification: >-
+      Inspection of `vultron/core/models/participant.py` confirms `add_role()` is defined
+      with the correct signature; a unit test confirms the role appears in
+      `participant.roles` after the call.
     tags:
     - protocol
+    stories:
+    - story_2022_063
   - id: PRM-02-002
     priority: MUST
     kind: protocol
@@ -61,8 +79,14 @@ groups:
       an error unless `raise_when_present=True`; it SHOULD log an INFO-level message when the duplicate add is silently ignored.'
     rationale: 'Idempotent add is safe for concurrent or repeated processing. Logging the skip makes duplicate adds visible
       for debugging.'
+    verification: >-
+      A unit test confirms that calling `add_role()` twice with the same role raises no
+      exception on the second call and emits an INFO-level log message.
     tags:
     - protocol
+    stories:
+    - story_2022_013
+    - story_2022_063
   - id: PRM-02-003
     priority: MUST
     kind: protocol
@@ -70,32 +94,55 @@ groups:
       the participant''s role set.'
     rationale: 'Callers that require strict single-assignment semantics (e.g. role initialization guards) need a fail-fast
       path.'
+    verification: >-
+      A unit test confirms that `add_role(role, raise_when_present=True)` raises
+      `KeyError` when the participant already holds that role.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-02-004
     priority: MUST
     kind: protocol
     statement: 'VultronParticipant MUST expose a `remove_role(role: CVDRole, raise_when_missing: bool = False) -> None` method
       that removes a role from the participant''s role set.'
     rationale: 'A named method provides a single place to enforce invariants whenever a role is removed.'
+    verification: >-
+      Inspection of `vultron/core/models/participant.py` confirms `remove_role()` is
+      defined with the correct signature; a unit test confirms the role is absent from
+      `participant.roles` after the call.
     tags:
     - protocol
+    stories:
+    - story_2022_063
+    - story_2022_066
   - id: PRM-02-005
     priority: MUST
     kind: protocol
     statement: '`remove_role()` MUST be idempotent: calling it with a role that the participant does not hold MUST NOT raise
       an error unless `raise_when_missing=True`; it SHOULD log an INFO-level message when the missing remove is silently ignored.'
     rationale: 'Idempotent remove is safe for repeated processing. Logging the skip makes spurious removes visible for debugging.'
+    verification: >-
+      A unit test confirms that calling `remove_role()` for an absent role raises no
+      exception and emits an INFO-level log message.
     tags:
     - protocol
+    stories:
+    - story_2022_063
+    - story_2022_066
   - id: PRM-02-006
     priority: MUST
     kind: protocol
     statement: '`remove_role()` MUST raise `KeyError` when `raise_when_missing=True` and the given role is not present in
       the participant''s role set.'
     rationale: 'Callers that rely on strict presence checks before removal need a fail-fast path.'
+    verification: >-
+      A unit test confirms that `remove_role(role, raise_when_missing=True)` raises
+      `KeyError` when the participant does not hold that role.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
 - id: PRM-03
   title: Core Layer Rules
   specs:
@@ -117,8 +164,13 @@ groups:
       and does not violate PRM-03-001; the prohibition applies only to post-construction attribute mutation.'
     rationale: 'Constructor arguments are the canonical way to initialise an immutable value-object. This clarification prevents
       over-application of the rule.'
+    verification: >-
+      A unit test confirms that `VultronParticipant(case_roles=[CVDRole.FINDER])`
+      constructs successfully and `participant.roles` returns the initial role list.
     tags:
     - protocol
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-03-003
     priority: MUST_NOT
     kind: protocol
@@ -173,24 +225,40 @@ groups:
     statement: 'Unit tests for `VultronParticipant.add_role()` MUST cover: (a) adding a new role, (b) idempotent re-add (no
       exception, INFO log), and (c) `raise_when_present=True` raising `KeyError`.'
     rationale: 'Each distinct branch of the method must be independently verified.'
+    verification: >-
+      Inspection of `test/core/` confirms test cases covering add-new-role, idempotent
+      re-add with INFO-log assertion, and `raise_when_present=True` raising `KeyError`.
     tags:
     - testing
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-05-002
     priority: MUST
     kind: protocol
     statement: 'Unit tests for `VultronParticipant.remove_role()` MUST cover: (a) removing a present role, (b) idempotent
       remove-when-missing (no exception, INFO log), and (c) `raise_when_missing=True` raising `KeyError`.'
     rationale: 'Each distinct branch of the method must be independently verified.'
+    verification: >-
+      Inspection of `test/core/` confirms test cases covering remove-present-role,
+      idempotent missing-remove with INFO-log assertion, and `raise_when_missing=True`
+      raising `KeyError`.
     tags:
     - testing
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-05-003
     priority: MUST
     kind: protocol
     statement: 'Unit tests for `VultronParticipant.has_role()` MUST cover both the case where the role is present (returns
       True) and the case where it is absent (returns False).'
     rationale: 'Both branches of the boolean predicate must be verified.'
+    verification: >-
+      Inspection of `test/core/` confirms two test cases for `has_role()`: one where the
+      role is present (returns `True`) and one where it is absent (returns `False`).
     tags:
     - testing
+    lint_suppress:
+    - missing_story_reference
   - id: PRM-05-004
     priority: SHOULD
     kind: project

@@ -131,10 +131,9 @@ phase function, by nested block, or by an explicit sentinel" — is answered:
 failure; dependent steps follow the precondition assertion inside the same
 block. No sentinel variable, no return value, no modified calling convention.
 
-The causal-edge schema for scenario narratives (`docs/topics/scenarios/`) is
-still converging as scenarios are migrated (#2203, #2204). That work does not
-change this decision — it refines the oracle artifact — so the status is
-promoted to `accepted`.
+The causal-edge schema for scenario narratives (`docs/topics/scenarios/`) was
+finalised in PR #2204. The schema and its update-together rule are documented
+in `docs/topics/scenarios/index.md`, which is the authoritative source.
 
 ### Consequences
 
@@ -227,7 +226,7 @@ causal gap exists in the protocol layer: #2169's fan-out race is server-side and
 a client-side demo wait cannot prevent it, #2186 was consequently fixed in the
 protocol (the pre-genesis buffering ADR on `fix/demo-ci`), and #2194 — a
 bare-string `Accept.object_` that trips the
-MV-09-001 outbox gate so the activity is never delivered — is squarely an actor
+AKM-03-001 outbox gate so the activity is never delivered — is squarely an actor
 logic bug. The pattern this ADR addresses is real and well-attested, but it is
 not exclusively a harness problem, and this decision does not green Epic #2136 on
 its own: #2194 and #2195 are delivery and serialization defects that causal

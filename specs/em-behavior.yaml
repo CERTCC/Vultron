@@ -32,6 +32,9 @@ groups:
       EP is the EM message that initiates embargo negotiation. When no embargo
       exists and the case is still pre-public, the receiver transitions to
       Proposed to signal they are evaluating the proposal.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EP when EM is NONE
+      and CS matches ...pxa transitions EM to PROPOSED and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -57,6 +60,9 @@ groups:
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-01-002
     priority: MUST_NOT
     kind: protocol
@@ -112,6 +118,10 @@ groups:
       Multiple EP messages can arrive during negotiation. When already in
       Proposed, no additional state transition is needed. The receiver evaluates
       the counter-proposal and may accept, counter, or reject via EA, EV, or ER.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving a counter EP while
+      already in EM PROPOSED keeps the state at PROPOSED and emits EK without
+      triggering an additional N→P transition.
     testable: true
     preconditions:
     - em_state:
@@ -135,6 +145,8 @@ groups:
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
   - id: EMB-01-004
     priority: SHOULD_NOT
     kind: protocol
@@ -205,6 +217,9 @@ groups:
     rationale: >-
       EA is the message that moves a negotiated embargo from Proposed to Active.
       The receiver records that the embargo is now in effect.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
+      with CS matching ...pxa transitions EM to ACTIVE and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -233,6 +248,9 @@ groups:
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-02-002
     priority: MUST_NOT
     kind: protocol
@@ -317,6 +335,9 @@ groups:
       EV signals a proposal to revise an active embargo's terms. The receiver
       enters Revise state to indicate a pending revision. The original embargo
       remains in force during revision per VP-04-005.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE
+      with CS matching ...pxa transitions EM to REVISE and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -347,6 +368,8 @@ groups:
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
   - id: EMB-03-002
     priority: MUST
     kind: protocol
@@ -359,6 +382,10 @@ groups:
       Multiple revision proposals can arrive. When already in Revise, no further
       state transition is needed; the receiver evaluates the counter-revision
       and responds with EJ or EC.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving a counter EV while
+      already in EM REVISE keeps the state at REVISE and emits EK without
+      triggering an additional state transition.
     testable: true
     preconditions:
     - em_state:
@@ -380,6 +407,8 @@ groups:
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
   - id: EMB-03-003
     priority: MUST
     kind: protocol
@@ -392,6 +421,10 @@ groups:
       VP-11-001 and VP-11-002 require termination in these states; receiving a
       revision proposal while in a terminal CS state triggers immediate embargo
       exit.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE or
+      REVISE with a public/exploit/attack CS causes ET to be emitted and EM to
+      transition to EXITED.
     testable: true
     preconditions:
     - em_state:
@@ -424,6 +457,9 @@ groups:
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
 
+    stories:
+    - story_2022_023
+    - story_2022_080
 - id: EMB-04
   title: Receive EJ (Embargo Revision Rejected)
   description: Behaviors triggered when a participant receives an EJ (Embargo Revision Rejected) message, reverting EM state from Revise to Active and acknowledging receipt.
@@ -442,6 +478,10 @@ groups:
       EJ signals that a revision proposal has been rejected and the embargo
       reverts to its previous Active terms. The receiver restores the
       pre-revision state.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
+      with CS matching ...pxa transitions EM back to ACTIVE and queues EK to the
+      sender.
     testable: true
     preconditions:
     - em_state:
@@ -467,6 +507,8 @@ groups:
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
   - id: EMB-04-002
     priority: MUST
     kind: protocol
@@ -478,6 +520,10 @@ groups:
       Reverting to Active is not viable once public disclosure has occurred.
       VP-11-002 requires termination in these states. Embargo termination takes
       precedence over the revision rejection.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
+      with a public/exploit/attack CS causes ET to be emitted and EM to transition
+      to EXITED rather than reverting to ACTIVE.
     testable: true
     preconditions:
     - em_state:
@@ -507,6 +553,9 @@ groups:
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
 
+    stories:
+    - story_2022_023
+    - story_2022_080
 - id: EMB-05
   title: Receive EC (Embargo Revision Accepted)
   description: Behaviors triggered when a participant receives an EC (Embargo Revision Accepted) message, advancing EM state from Revise back to Active with updated terms and acknowledging receipt.
@@ -524,6 +573,10 @@ groups:
     rationale: >-
       EC signals that a revision proposal has been accepted. The embargo returns
       to Active state under the new terms agreed by the revision.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
+      with CS matching ...pxa transitions EM back to ACTIVE with revised terms and
+      queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -552,6 +605,8 @@ groups:
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
   - id: EMB-05-002
     priority: MUST
     kind: protocol
@@ -562,6 +617,10 @@ groups:
     rationale: >-
       Accepting a revision is not viable once public disclosure has occurred.
       VP-11-002 requires termination in these states.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
+      with a public/exploit/attack CS causes ET to be emitted and EM to transition
+      to EXITED rather than accepting the revision.
     testable: true
     preconditions:
     - em_state:
@@ -591,6 +650,9 @@ groups:
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
 
+    stories:
+    - story_2022_023
+    - story_2022_080
 - id: EMB-06
   title: Receive ER (Embargo Rejected)
   description: Behaviors triggered when a participant receives an ER (Embargo Rejected) message, transitioning EM state from Proposed to None and acknowledging receipt.
@@ -607,6 +669,9 @@ groups:
     rationale: >-
       ER signals that a proposed embargo has been rejected. The embargo returns
       to None state (no embargo in effect). The EK acknowledges the rejection.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
+      transitions EM to NONE and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -634,6 +699,8 @@ groups:
       spec_id: MSM-02-006
       note: 'ER shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
 - id: EMB-07
   title: Receive ET (Embargo Terminated)
   description: Behaviors triggered when a participant receives an ET (Embargo Terminated) message, transitioning EM state to Terminated and acknowledging receipt.
@@ -651,6 +718,9 @@ groups:
       ET is the message that terminates an active embargo. The receiver records
       that the embargo has ended. ET has immediate effect regardless of other
       pending messages.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET in EM ACTIVE
+      transitions EM to EXITED and queues EK to the sender.
     testable: true
     preconditions:
     - em_state:
@@ -675,6 +745,9 @@ groups:
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-07-002
     priority: MUST
     kind: protocol
@@ -684,6 +757,10 @@ groups:
     rationale: >-
       ET terminates the embargo regardless of whether a revision is pending.
       The revision proposal is abandoned upon termination.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET in EM REVISE
+      transitions EM to EXITED, abandons any pending revision, and queues EK to
+      the sender.
     testable: true
     preconditions:
     - em_state:
@@ -709,6 +786,9 @@ groups:
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
 
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: EMB-07-003
     priority: MUST
     kind: protocol
@@ -718,6 +798,9 @@ groups:
     rationale: >-
       Exited is already the terminal state. The EK acknowledges the duplicate
       termination message; no additional transition is needed.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET while already in
+      EM EXITED emits EK to the sender without changing EM state.
     testable: true
     preconditions:
     - em_state:
@@ -738,6 +821,8 @@ groups:
       spec_id: MSM-02-007
       note: 'ET shorthand wire-type mapping'
 
+    stories:
+    - story_2022_088
 - id: EMB-08
   title: Receive EE (Embargo Error)
   description: Behaviors triggered when a participant receives an EE (Embargo Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
@@ -1172,6 +1257,11 @@ groups:
       selection as a Selector of Evaluator call-out points gives actors a
       clear interface (three buttons) while preserving the audit trail and
       allowing policy-rule backends to be injected per ADR-0025.
+    verification: >-
+      Inspection of `vultron/core/` confirms that `create_terminate_active_embargo_tree`
+      uses a Selector of Evaluator call-out points (ExitEmbargoWhenDeployed,
+      ExitEmbargoWhenFixReady, ExitEmbargoForOtherReason) before delegating to
+      `terminate_embargo_bt`.
     testable: true
     preconditions:
     - em_state:
@@ -1203,6 +1293,9 @@ groups:
       spec_id: EMB-07-001
       note: Voluntary actor termination is a sub-case of active-embargo termination
 
+    stories:
+    - story_2022_080
+    - story_2022_014
   - id: EMB-14-002
     priority: MUST
     kind: protocol
@@ -1217,6 +1310,10 @@ groups:
       on grounds orthogonal to the stated reason (e.g., active revision
       negotiation, pending approvals) without coupling the guard logic to the
       reason semantics.
+    verification: >-
+      Inspection of `vultron/core/` confirms that `create_terminate_active_embargo_tree`
+      places `EmbargoExitPolicyGuard` as a child node after the reason Selector and
+      before the `OnEmbargoExit` actuator.
     testable: true
     preconditions:
     - em_state:
@@ -1236,6 +1333,8 @@ groups:
     - rel_type: refines
       spec_id: EMB-14-001
 
+    lint_suppress:
+    - missing_story_reference
   - id: EMB-14-003
     priority: SHOULD
     kind: protocol
@@ -1309,6 +1408,11 @@ groups:
       the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
       acceptance as an Evaluator call-out point preserves the seam for later
       owner/agent adjudication without changing the tree.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an inbound EP or
+      InviteToEmbargoOnCase is accepted by default under the DETERMINISTIC bundle,
+      with EvaluateEmbargoProposal returning SUCCESS and delegating to the
+      appropriate acceptance BT.
     testable: true
     preconditions:
     - description: >-
@@ -1340,6 +1444,9 @@ groups:
     - rel_type: refines
       spec_id: CM-18-003
       note: Flow B acceptance advances the PEC state machine (INVITED → SIGNATORY)
+    stories:
+    - story_2022_014
+    - story_2022_006
   - id: EMB-15-005
     priority: MUST
     kind: protocol
@@ -1351,10 +1458,17 @@ groups:
     rationale: >-
       A deterministic accept-by-default keeps actors runnable without a human in
       the loop; the DETERMINISTIC call-out bundle (BT-23) supplies the default.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the DETERMINISTIC call-out bundle
+      resolves `EvaluateEmbargoProposal` to a node that unconditionally returns
+      SUCCESS when no external backend is injected.
     relationships:
     - rel_type: refines
       spec_id: EMB-15-001
 
+    stories:
+    - story_2022_014
+    - story_2022_006
   - id: EMB-15-002
     priority: MUST
     kind: protocol
@@ -1368,6 +1482,11 @@ groups:
       adjudication seam that a UI or LLM agent can later fulfil. The distinction
       matters because a CaseActor may process an overture routed to it without
       being the party whose consent is being recorded.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the inbound embargo-response
+      decision tree includes a `CheckIsCaseOwner` Condition node as the leading
+      arm of the Selector, positioned before the `CaseOwnerApprovesEmbargoResponse`
+      call-out point.
     testable: true
     preconditions:
     - description: Inbound EP or InviteToEmbargoOnCase received by the deciding actor
@@ -1392,6 +1511,9 @@ groups:
       spec_id: BT-18-004
     - rel_type: refines
       spec_id: EMB-15-001
+    stories:
+    - story_2022_046
+    - story_2022_006
   - id: EMB-15-006
     priority: MUST_NOT
     kind: protocol
@@ -1414,10 +1536,17 @@ groups:
     rationale: >-
       Non-owner actors need an adjudication seam that a UI or LLM agent can later
       fulfil; defaulting to SUCCESS keeps them runnable without an external backend.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the non-owner path in the decision
+      tree routes through `CaseOwnerApprovesEmbargoResponse`, which is resolved to a
+      SUCCESS-returning node under the DETERMINISTIC bundle.
     relationships:
     - rel_type: refines
       spec_id: EMB-15-002
 
+    stories:
+    - story_2022_046
+    - story_2022_006
   - id: EMB-15-003
     priority: SHOULD
     kind: protocol
@@ -1481,6 +1610,11 @@ groups:
       semantics. The decision layer selects among them; it must not re-implement
       the transition. The pre-public constraint (EMB-01-002) is a hard protocol
       rule that overrides the default-accept policy.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a rejection decision delegates
+      to `reject_embargo_trigger_bt` for Flow A (emitting ER and returning EM to
+      NONE) or `reject_invite_to_embargo_tree` for Flow B (advancing PEC to
+      DECLINED) without duplicating transition logic.
     testable: true
     preconditions:
     - description: >-
@@ -1505,6 +1639,9 @@ groups:
       spec_id: EMB-01-002
       note: Mandatory rejection when public/exploit/attacks overrides default-accept
 
+    stories:
+    - story_2022_014
+    - story_2022_027
 - id: EMB-16
   title: CS Public/Exploit/Attacks Detected While EM Proposed
   description: >-
@@ -1535,6 +1672,10 @@ groups:
       would be misleading to other Participants and counter to the purpose of
       coordinated disclosure. The existing reject path (EM P → N + ER) is the
       correct mechanism; no new transition is introduced.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a P/X/A CS transition detected
+      while EM is PROPOSED triggers `reject_embargo_trigger_bt` via
+      `PublicDisclosureBranchNode`, transitioning EM to NO_EMBARGO and queuing ER.
     testable: true
     preconditions:
     - em_state:
@@ -1569,6 +1710,9 @@ groups:
     - rel_type: refines
       spec_id: EMB-06-001
       note: ER emission semantics apply; EM returns to NONE
+    stories:
+    - story_2022_080
+    - story_2022_023
 - id: EMB-17
   title: Late Accept of an Expired Embargo Invitation
   description: >-
@@ -1594,6 +1738,11 @@ groups:
       volunteering to coordinate; refusing them converts a missed deadline into
       a lost participant, which is worse for the case than a late consent.
       See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an `Accept(Invite(EmbargoEvent))`
+      received after the RSVP deadline is not rejected on timeliness grounds and is
+      evaluated against current embargo state per EMB-17-002, EMB-17-003, or
+      EMB-17-004.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -1606,6 +1755,9 @@ groups:
       spec_id: CM-28-003
     adr:
     - ADR-0065
+    stories:
+    - story_2022_013
+    - story_2022_014
   - id: EMB-17-002
     priority: MUST
     kind: protocol
@@ -1617,6 +1769,10 @@ groups:
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
       *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept whose embargo ID
+      matches the case's current active embargo records the participant's PEC
+      transition to SIGNATORY with `embargo_adherence` set to true.
     testable: true
     preconditions:
     - em_state:
@@ -1636,6 +1792,9 @@ groups:
       spec_id: EMB-17-001
     adr:
     - ADR-0065
+    stories:
+    - story_2022_014
+    - story_2022_013
   - id: EMB-17-003
     priority: MUST
     kind: protocol
@@ -1649,6 +1808,11 @@ groups:
       signatory to terms they never saw. Rejecting them would discard a
       willing participant. Re-inviting resolves both: the actor stays in the
       case and is asked to consent to the terms actually in force. See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept referencing a
+      superseded embargo causes a fresh `Invite(EmbargoEvent)` to be emitted
+      carrying the case's current embargo, without recording the stale Accept as
+      consent.
     testable: true
     preconditions:
     - description: >-
@@ -1672,6 +1836,9 @@ groups:
       spec_id: EMB-17-001
     adr:
     - ADR-0065
+    stories:
+    - story_2022_013
+    - story_2022_014
   - id: EMB-17-005
     priority: MUST_NOT
     kind: protocol
@@ -1718,6 +1885,10 @@ groups:
       invitation would manufacture a negotiation nobody requested — but the
       actor's case participation is independent of embargo consent and MUST
       survive. See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept arriving when EM
+      is EXITED or NONE is acknowledged without applying any PEC transition, leaving
+      the participant's PEC state at NO_EMBARGO.
     testable: true
     preconditions:
     - em_state:
@@ -1744,6 +1915,9 @@ groups:
         after EM EXITED when CS is not yet P/X/A
     adr:
     - ADR-0065
+    stories:
+    - story_2022_013
+    - story_2022_088
   - id: EMB-17-007
     priority: MUST_NOT
     kind: protocol
@@ -1821,3 +1995,69 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-18-001
+
+- id: EMB-19
+  title: Embargo Teardown Announcement
+  description: >-
+    Who authors the `Announce(EmbargoEvent)` that follows an embargo teardown, and
+    who receives it. Added by ISSUE-2238 after the recipients were found to be
+    unspecified, which is how they came to disagree with the tree's role gate.
+  specs:
+  - id: EMB-19-001
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by the actor
+      holding `CVDRole.CASE_MANAGER` for the case, and MUST be addressed to the case's other
+      participants — every participant except the announcing actor. It MUST NOT be addressed to the
+      Case Manager.
+    rationale: >-
+      The teardown is canonical case state, so the role holder announces it and the participants are the
+      audience. Addressing the Case Manager was correct while the tree ran as an ordinary participant
+      telling the manager; once the tree's ledger commit became gated on `CVDRole.CASE_MANAGER` the
+      executing actor *is* the manager, so the announce was addressed to itself and the teardown reached
+      nobody. Nothing in this corpus governed the recipients, which is why only one half of the pair was
+      updated when the gate was added — the gap is the reason this entry exists.
+    note: >-
+      This does not conflict with CLP-10-001's self-`cc:` rule. That rule exists so the CaseActor's
+      *inbox* receives an activity it would otherwise never see, and so the canonical ledger entry gets
+      authored by the loopback delivery (OX-12-004). Here the entry is authored by the emitting tree
+      itself: `remove_embargo_from_case_tree` wraps the announce in `create_receive_activity_tree` with
+      a `case_id`, whose guarded commit is gated on `CVDRole.CASE_MANAGER` (CLP-10-013). The ledger
+      entry therefore already exists, and a self-addressed copy would loop an activity back to the actor
+      that just emitted it for no additional record. Where the emitting tree does *not* commit its own
+      entry, CLP-10-001 continues to bind.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-05-006
+    - rel_type: refines
+      spec_id: CLP-10-001
+    verification: >-
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce is authored by
+      the CASE_MANAGER and addressed to the case's other participants.
+    stories:
+    - story_2022_045
+    - story_2022_046
+    tags:
+    - protocol
+    - messaging
+  - id: EMB-19-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a case has no participants besides the Case Manager, the teardown announcement MUST be
+      skipped rather than emitted with an empty recipient list.
+    rationale: >-
+      An activity addressed to nobody is undeliverable, and delivery discards it anyway; constructing one
+      only adds a queue entry that can never be resolved. Skipping keeps the teardown itself unaffected,
+      consistent with the announcement being best-effort — a notification gap MUST NOT block a teardown.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-19-001
+    stories:
+    - story_2022_045
+    tags:
+    - protocol
+    - messaging

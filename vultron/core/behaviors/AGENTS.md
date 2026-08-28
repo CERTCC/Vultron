@@ -132,6 +132,68 @@ not sufficient without the persist. See `notes/participant-embargo-consent.md`
 
 ---
 
+## Compose Before Create: Node Discovery Gate
+
+Before writing any new BT emit, send, or state-transition node in this
+package, run the BT Domain section of
+`.agents/skills/shared/compose-before-create.md` (node inventory grep,
+then return here), then apply these BT-specific checks
+(BTND-07-005, BTND-07-009, BTND-07-010):
+
+1. **Use the domain base class**: for emit/send nodes, subclass the
+   appropriate base from the table below and override only `_call_factory()`
+   and the hook methods. Do not write a new `update()` from scratch.
+
+   | Domain | Base class | File |
+   |--------|-----------|------|
+   | Report | `_EmitCaseActorReportActivityBase` | `report/nodes/emit.py` |
+   | Embargo | `_SendEmbargoActivityBase` | `embargo/nodes/emit.py` |
+   | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` |
+   | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` |
+
+   **If no base exists for your domain: create it first, then write the
+   concrete node.** Do not implement `update()` inline in a concrete node
+   class unless you have confirmed no existing base covers your
+   guard+emit+outbox pattern.
+
+2. **AC-1 compliance**: any node reading EM/RM/CS state MUST go through
+   `Read*StateNode`; any node writing it MUST go through `Write*StateNode`.
+   Inline reads/writes are AC-1 violations.
+
+Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
+
+---
+
+## EM State Reads and Writes Must Use Canonical Nodes
+
+**Never read or write `case.current_status.em` inline inside a BT node.**
+All EM state reads MUST go through `ReadEmStateNode`; all writes through
+`WriteEmStateNode`. Both live in
+`vultron/core/behaviors/embargo/nodes/em_state.py`.
+
+Direct field access (`case.current_status.em.state`) bypasses the canonical
+channel: the read or write is invisible to the BT audit trail and creates
+paths where state can diverge from what the canonical nodes report.
+`ReadEmStateNode` was introduced specifically to centralize this read (AC-1,
+issue #1474).
+
+**Pattern for reading EM state in an action node:**
+
+```python
+result_out: dict[str, object] = {}
+read_node = ReadEmStateNode(case_id=case_id, result_out=result_out)
+read_node.datalayer = self.datalayer
+if read_node.update() != Status.SUCCESS:
+    self.feedback_message = read_node.feedback_message
+    return Status.FAILURE
+current_em = result_out["em_before"]
+assert isinstance(current_em, EM)
+```
+
+Source: CONCERN-2559
+
+---
+
 ## See Also
 
 - `notes/bt-integration.md` — architecture decisions, actor isolation,

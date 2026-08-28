@@ -51,8 +51,11 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     RMinStateDeferred,
     TransitionCStoFixDeployed,
 )
-from vultron.core.behaviors.report.nodes.develop_fix import (
+from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
+)
+from vultron.core.behaviors.report.nodes.develop_fix import (
+    _EmitParticipantStatusActivityBase,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfdDimension
@@ -66,6 +69,16 @@ CASE_ID = "https://example.org/cases/test-deploy-001"
 DEPLOYER_ACTOR_ID = "https://example.org/actors/deployer-001"
 VENDOR_ACTOR_ID = "https://example.org/actors/vendor-001"
 CASE_MANAGER_ACTOR_ID = "https://example.org/actors/case-manager-001"
+
+
+@pytest.fixture
+def bt_scenario():
+    """Scenario scoped to DEPLOYER_ACTOR_ID — the deployer, who deploys the fix.
+
+    Shadows the harness default so the store belongs to the actor these trees
+    execute as: a BT's store follows its executing actor (ADR-0073).
+    """
+    return BTTestScenario(DEPLOYER_ACTOR_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +168,15 @@ def _seed_status(
         if isinstance(participant, CaseParticipant):
             participant.participant_statuses.append(status)
             bt_scenario.dl.save(participant)
+
+
+# ---------------------------------------------------------------------------
+# _EmitParticipantStatusActivityBase hierarchy (BTND-07-005)
+# ---------------------------------------------------------------------------
+
+
+def test_emit_cd_activity_subclasses_base():
+    assert issubclass(EmitCDActivity, _EmitParticipantStatusActivityBase)
 
 
 # ---------------------------------------------------------------------------
@@ -737,7 +759,7 @@ def test_stay_deferred_short_circuits(
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
     assert len(participant.participant_statuses) == before
-    assert bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID) == []
+    assert bt_scenario.dl.outbox_list() == []
 
 
 @pytest.mark.spec("BT-03-004")
@@ -781,7 +803,7 @@ def test_full_deploy_arm_completes_and_emits_cd(
     assert participant.participant_statuses[-1].vfd.state == CS_vfd.VFD
 
     # EmitCDActivity queued a CD activity to the deployer's outbox.
-    outbox = bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID)
+    outbox = bt_scenario.dl.outbox_list()
     assert len(outbox) == 1
 
 
@@ -811,4 +833,4 @@ def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
     assert len(participant.participant_statuses) == before
-    assert bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID) == []
+    assert bt_scenario.dl.outbox_list() == []

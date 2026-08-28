@@ -19,24 +19,50 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST match activities using activity type and object type patterns
+    verification: >-
+      Inspection of `vultron/wire/` confirms that `find_matching_semantics()` tests
+      each registered `ActivityPattern` against both the activity type and object
+      type of the incoming activity.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-01-002
     priority: MUST
     kind: protocol
     statement: >-
       The semantic extraction algorithm MUST handle both fully expanded objects and URI string
       references defensively
+    verification: >-
+      Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
+      attempts to rehydrate bare URI string `object_` values before pattern matching,
+      handling both expanded objects and unresolved URI strings defensively.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-01-003
     priority: MUST
     kind: protocol
     statement: 'If rehydration fails for any nested object, the system MUST: (1) log a WARNING identifying the unresolvable URI, (2) return MessageSemantics.UNKNOWN for the containing activity, and (3) store the activity in a dead-letter record per SE-04-003.'
+    verification: >-
+      A unit test confirms that when `object_` rehydration fails,
+      `find_matching_semantics()` logs a WARNING, returns
+      `MessageSemantics.UNKNOWN`, and stores the activity in a dead-letter record
+      without raising an exception.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-01-004
     priority: MUST
     kind: protocol
     statement: >-
       Pattern matching MUST support type/subclass matching semantics for actor/object classes
+    verification: >-
+      Inspection of `vultron/wire/` confirms that
+      `ActivityPattern._match_activity_field` uses subclass checks (e.g.
+      `issubclass`) so that actor and object types match both exact types and their
+      subclasses.
     relationships:
     - rel_type: depends_on
       spec_id: SE-01-002
+    lint_suppress:
+    - missing_story_reference
 - id: SE-02
   title: Semantic Type Assignment
   specs:
@@ -45,14 +71,32 @@ groups:
     kind: protocol
     statement: >-
       The system MUST assign MessageSemantics enum value via `find_matching_semantics()`
+    verification: >-
+      Inspection of `vultron/wire/` confirms that the inbox handler invokes
+      `find_matching_semantics()` as the sole code path for assigning a
+      `MessageSemantics` enum value to each received AS2 activity.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-02-002
     priority: MUST
     kind: protocol
     statement: The function MUST return the first matching semantic type
+    verification: >-
+      A unit test confirms that `find_matching_semantics()` returns the
+      `MessageSemantics` value of the first `ActivityPattern` whose constraints match
+      the supplied activity, ignoring any subsequent matching entries.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-02-003
     priority: MUST
     kind: protocol
     statement: The function MUST return MessageSemantics.UNKNOWN if no patterns match
+    verification: >-
+      A unit test confirms that `find_matching_semantics()` returns
+      `MessageSemantics.UNKNOWN` when no registered `ActivityPattern` in
+      `SEMANTICS_ACTIVITY_PATTERNS` matches the supplied activity.
+    lint_suppress:
+    - missing_story_reference
 - id: SE-03
   title: Pattern Registry
   specs:
@@ -62,10 +106,20 @@ groups:
     statement: >-
       SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics
       values except UNKNOWN
+    verification: >-
+      A unit test confirms that every `MessageSemantics` enum value except `UNKNOWN`
+      appears as a key in `SEMANTICS_ACTIVITY_PATTERNS` at least once.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-03-002
     priority: MUST
     kind: protocol
     statement: Pattern registry MUST be ordered from most specific to least specific
+    verification: >-
+      A unit test confirms that `_validate_registry_order()` completes without
+      raising `RegistryOrderError` on the current `SEMANTICS_ACTIVITY_PATTERNS`.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-03-003
     priority: MUST
     kind: protocol
@@ -76,6 +130,12 @@ groups:
       A pattern without an object-type constraint would match every activity of that verb
       type regardless of payload, causing misrouting when multiple semantics share an outer
       Activity type
+    verification: >-
+      A unit test confirms that every `ActivityPattern` entry in
+      `SEMANTICS_ACTIVITY_PATTERNS` has a non-`None` `activity_` field and a
+      non-`None` `object_` field.
+    lint_suppress:
+    - missing_story_reference
 - id: SE-04
   title: Unrecognized Activity Handling
   specs:
@@ -83,6 +143,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST log unrecognized activities at WARNING level
+    verification: >-
+      A unit test confirms that presenting an activity with no matching pattern to
+      `find_matching_semantics()` causes a WARNING-level log message to be emitted
+      before returning `MessageSemantics.UNKNOWN`.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-04-002
     priority: MUST
     kind: protocol
@@ -96,6 +162,13 @@ groups:
       An unresolvable `object_` URI is not a programming error; it is a data completeness
       issue that may resolve later. Treating it as a 5xx error would cause unnecessary noise
       and fail legitimate protocol flows.
+    verification: >-
+      A unit test confirms that `find_matching_semantics()` raises
+      `VultronApiHandlerMissingSemanticError` for a no-pattern-match and returns
+      silently (storing a dead-letter record) for an unresolvable `object_` URI,
+      distinguishing the two causes.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-04-003
     priority: MUST
     kind: protocol
@@ -103,6 +176,12 @@ groups:
       Dead-letter records for unresolvable-object_ activities MUST include: the full activity
       JSON, the unresolvable URI, the actor ID, and a timestamp. They MUST be stored in a
       DataLayer collection accessible for administrative review and retry.
+    verification: >-
+      A unit test confirms that the dead-letter record for an unresolvable-`object_`
+      activity contains the full activity JSON, the unresolvable URI, the actor ID,
+      and a timestamp, and is stored in the DataLayer collection.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-04-004
     priority: MUST
     kind: protocol
@@ -110,6 +189,12 @@ groups:
       For any future synchronous processing path (non-background), UNKNOWN due to unresolvable
       `object_` MUST return HTTP 422 with an explanatory error body identifying the unresolvable
       URI
+    verification: >-
+      A unit test confirms that the synchronous (non-background) processing path
+      returns HTTP 422 with an error body identifying the unresolvable URI when
+      `object_` cannot be resolved.
+    lint_suppress:
+    - missing_story_reference
 - id: SE-05
   title: Pattern Validation
   specs:
@@ -117,17 +202,33 @@ groups:
     priority: MUST
     kind: protocol
     statement: All patterns MUST have corresponding MessageSemantics enum value
+    verification: >-
+      A unit test confirms that every key in `SEMANTICS_ACTIVITY_PATTERNS` is a
+      valid member of the `MessageSemantics` enum.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-05-002
     priority: MUST
     kind: protocol
     statement: All patterns MUST have corresponding use-case class in USE_CASE_MAP
+    verification: >-
+      A unit test confirms that every `MessageSemantics` value present in
+      `SEMANTICS_ACTIVITY_PATTERNS` has a corresponding entry in `USE_CASE_MAP`.
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-002
+    lint_suppress:
+    - missing_story_reference
   - id: SE-05-003
     priority: MUST
     kind: protocol
     statement: All patterns MUST have unit test coverage
+    verification: >-
+      Inspection of `test/` confirms that each `ActivityPattern` in
+      `SEMANTICS_ACTIVITY_PATTERNS` has at least one test exercising
+      `find_matching_semantics()` for the corresponding semantic type.
+    lint_suppress:
+    - missing_story_reference
   - id: SE-05-004
     priority: SHOULD
     kind: protocol
@@ -288,9 +389,16 @@ groups:
       Without an additional discriminator, two patterns sharing the same verb and object
       type are indistinguishable; the first matching entry always wins.
       `_validate_registry_order()` enforces ordering at import time.
+    verification: >-
+      Inspection of `vultron/wire/` confirms that every `ActivityPattern` sharing
+      activity and object type with another entry adds a `target_` or `context_`
+      discriminator field, and `_validate_registry_order()` enforces that the
+      more-specific pattern precedes the less-specific one.
     relationships:
     - rel_type: refines
       spec_id: SE-03-002
+    lint_suppress:
+    - missing_story_reference
   - id: SE-08-002
     priority: MUST
     kind: protocol
@@ -302,9 +410,15 @@ groups:
       Declaring the discriminator field as required ensures that any attempt to construct
       the activity without it fails fast at the sending side rather than reaching the
       receiver's registry as an ambiguous shape.
+    verification: >-
+      Inspection of `vultron/wire/` confirms that wire activity classes relying on
+      a target-field discriminator declare that field as required, so constructing
+      the activity without it raises a validation error at the sender.
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
+    lint_suppress:
+    - missing_story_reference
   - id: SE-08-003
     priority: SHOULD
     kind: protocol
@@ -337,9 +451,16 @@ groups:
       target is the right type, making registry ordering the sole protection against
       misrouting and defeating the discriminator's purpose.
       See CONCERN-2322.
+    verification: >-
+      Inspection of `vultron/wire/` confirms that each `ActivityPattern` using
+      `target_` as its sole discriminator against a competing pattern has
+      `strict=True` set, preventing a bare URI string target from spuriously
+      matching the typed constraint.
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
+    lint_suppress:
+    - missing_story_reference
   - id: SE-08-005
     priority: MUST
     kind: protocol
@@ -355,6 +476,14 @@ groups:
       entry was removed by CONCERN-2322 since its wire format was never emitted by any
       supported actor implementation and its presence was a source of registry-ordering
       fragility documented in SE-08-004.
+    verification: >-
+      Inspection of `vultron/wire/` confirms that `OFFER_CASE_MANAGER_ROLE` is
+      absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`, and that
+      `OFFER_CASE_PARTICIPANT_ROLE` using
+      `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` is
+      present.
     relationships:
     - rel_type: refines
       spec_id: SE-08-003
+    lint_suppress:
+    - missing_story_reference

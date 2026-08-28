@@ -46,14 +46,22 @@ groups:
     priority: MUST
     kind: protocol
     statement: Log entries MUST include `activity_id` field when activity is available
+    verification: Integration tests confirm that log records produced during inbox activity processing include the
+      `activity_id` field set to the processed activity's `as_id`.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
   - id: SL-02-002
     priority: MUST
     kind: protocol
     statement: Log entries MUST include `actor_id` field when actor is available
+    verification: Integration tests confirm that log records produced during actor-scoped operations include the
+      `actor_id` field set to the actor's canonical URI.
     scope:
     - production
+    lint_suppress:
+    - missing_story_reference
 - id: SL-03
   title: Log Level Semantics
   specs:

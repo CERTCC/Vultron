@@ -35,7 +35,7 @@ needs_integration = any(
 
 ### Unit Tests Only (default)
 
-**Command**: `uv run pytest --tb=short 2>&1 | tail -5`
+**Command**: `uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5`
 
 **When**: Changes are localized (single module, no core/demo/adapter impact)
 
@@ -45,12 +45,14 @@ needs_integration = any(
 
 **Commands**:
 
-1. `uv run pytest --tb=short 2>&1 | tail -5` (all unit tests)
-2. `uv run pytest integration_tests/ -v` (integration test suite)
+1. `uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5` (all unit tests)
+2. `uv run pytest integration_tests/ -v 2>&1 | tee /tmp/pytest-integration.log` (integration test suite)
 
 **When**: Demo, adapters, behavior trees, or use-cases modified
 
 **Expected output**: Full test summary from both suites
+
+Full pytest output is written to `/tmp/pytest-unit.log` (and `/tmp/pytest-integration.log` for the integration suite). **Never re-run the test suite to get more output** — grep or read those files instead.
 
 ## Interpreting Test Results
 

@@ -18,6 +18,7 @@
 import pytest
 
 from vultron.core.behaviors.report.nodes.conditions import (
+    _CheckReportPhaseRMStateBase,
     CheckParticipantExists,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -35,6 +36,32 @@ from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
 from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
+
+# ---------------------------------------------------------------------------
+# AC-4: _CheckReportPhaseRMStateBase base-class contract
+# ---------------------------------------------------------------------------
+
+
+def test_check_rm_state_valid_is_subclass_of_base() -> None:
+    """CheckRMStateValid inherits _CheckReportPhaseRMStateBase."""
+    assert issubclass(CheckRMStateValid, _CheckReportPhaseRMStateBase)
+
+
+def test_check_rm_state_received_or_invalid_is_subclass_of_base() -> None:
+    """CheckRMStateReceivedOrInvalid inherits _CheckReportPhaseRMStateBase."""
+    assert issubclass(
+        CheckRMStateReceivedOrInvalid, _CheckReportPhaseRMStateBase
+    )
+
+
+def test_check_rm_state_valid_success_when_valid_flag() -> None:
+    """CheckRMStateValid._success_when_valid is True."""
+    assert CheckRMStateValid._success_when_valid is True
+
+
+def test_check_rm_state_received_or_invalid_success_when_valid_flag() -> None:
+    """CheckRMStateReceivedOrInvalid._success_when_valid is False."""
+    assert CheckRMStateReceivedOrInvalid._success_when_valid is False
 
 
 @pytest.mark.spec("BT-03-001")
@@ -189,16 +216,23 @@ def test_ensure_embargo_exists_when_case_has_active_embargo(
     result = bt_scenario.run(
         EnsureEmbargoExists(report_id=report.id_),
         actor_id=actor.id_,
+        case_id=case.id_,
     )
     bt_scenario.assert_success(result)
 
 
-def test_ensure_embargo_exists_fails_without_case(
+def test_ensure_embargo_exists_fails_without_case_id(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
 ) -> None:
-    """EnsureEmbargoExists returns FAILURE when no linked case exists."""
+    """EnsureEmbargoExists returns FAILURE with no ``/case_id`` published.
+
+    The node reads the case from the blackboard key that
+    ``RequireCaseForReport`` publishes rather than repeating the lookup
+    (ARCH-15-004), so an unresolved case shows up as a missing key rather than
+    as a second store miss (ARCH-15-001, ISSUE-2548).
+    """
     result = bt_scenario.run(
         EnsureEmbargoExists(report_id=report.id_),
         actor_id=actor.id_,
@@ -222,6 +256,7 @@ def test_ensure_embargo_exists_fails_without_active_embargo(
     result = bt_scenario.run(
         EnsureEmbargoExists(report_id=report.id_),
         actor_id=actor.id_,
+        case_id=case.id_,
     )
     bt_scenario.assert_failure(result)
 

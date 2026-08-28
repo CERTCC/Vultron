@@ -13,20 +13,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression tests for _SignEmbargoConsentLeafNode (ADR-0048, CM-10-001).
+"""Regression tests for accept-invite BT nodes (ADR-0048, CM-10-001, CM-17-003).
 
 AC-4: The invitee MUST reach PEC.SIGNATORY after signing embargo consent.
-This test MUST fail on main before the fix and pass after.
+CM-17-003: Roles MUST be read from the Accept's embedded Invite, not DataLayer.
 """
 
+import types
+
+import py_trees
 import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.accept_invite_tree import (
+    CreateInviteeParticipantAtReceivedNode,
     _SignEmbargoConsentLeafNode,
 )
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import VultronObject
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.actor import (
+    AcceptInviteActorToCaseReceivedEvent,
+)
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
 _ACTOR_ID = "https://example.org/actors/invitee"
@@ -172,3 +183,65 @@ class TestSignEmbargoConsentLeafNode:
             new_invite_participant=participant,
         )
         assert result.status == Status.FAILURE
+
+
+_CM17_CASE_ID = "https://example.org/cases/case-cm17"
+_CM17_INVITEE_ID = "https://example.org/actors/vendor-invitee"
+_CM17_CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+_CM17_INVITE_ID = "https://example.org/activities/invite-cm17"
+
+
+@pytest.mark.spec("CM-17-003")
+def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite_absent_from_datalayer(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """CM-17-003: roles come from event.activity.object_.roles, not DataLayer.
+
+    Reproduces the race condition where the Invite has not yet been stored in
+    the CaseActor's DataLayer when the Accept arrives (ISSUE-2719 Bug 1).
+    Before fix: _read_invite_roles() returned [] because datalayer.read()
+    returned None; the participant was persisted with case_roles=[].
+    After fix: roles are read from event.activity.object_.roles (the Invite
+    embedded in the Accept message), so DataLayer absence does not matter.
+    """
+    case = VulnerabilityCase(
+        id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
+    )
+    bt_scenario.seed(case)
+
+    # Build an Accept event whose activity.object_ carries roles.
+    # The Invite is intentionally NOT stored in the DataLayer to simulate
+    # the race condition (cc self-delivery not yet processed).
+    invite_wire = types.SimpleNamespace(roles=["vendor"])
+    accept_activity = VultronActivity(
+        id_="https://example.org/activities/accept-cm17",
+        type_="Accept",
+        actor=_CM17_INVITEE_ID,
+        object_=invite_wire,
+    )
+    event = AcceptInviteActorToCaseReceivedEvent(
+        activity_id="https://example.org/activities/accept-cm17",
+        actor_id=_CM17_INVITEE_ID,
+        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        activity=accept_activity,
+    )
+
+    node = CreateInviteeParticipantAtReceivedNode(
+        case_id=_CM17_CASE_ID,
+        invitee_id=_CM17_INVITEE_ID,
+    )
+
+    result = bt_scenario.run(
+        node,
+        actor_id=_CM17_CASE_ACTOR_ID,
+        activity=event,
+        invitee_case=case,
+        invitee_already_participant=False,
+    )
+
+    assert result.status == Status.SUCCESS
+    participant = py_trees.blackboard.Blackboard.storage.get(
+        "/new_invite_participant"
+    )
+    assert participant is not None
+    assert CVDRole.VENDOR in participant.case_roles

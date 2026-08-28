@@ -1,4 +1,4 @@
-# Ubiquitous Language — Vultron
+# Glossary — Vultron
 
 Domain terminology for Vultron's Coordinated Vulnerability Disclosure (CVD)
 protocol and hexagonal architecture. Extracted from codebase models, state
@@ -22,7 +22,7 @@ machines, and design notes.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Finder** | The person or organization that discovers a vulnerability | Researcher, discoverer |
+| **Finder** | The person or organization that discovers a vulnerability. Not a distinct protocol role per ADR-0078; an actor who discovers and reports holds the **Reporter** role. Discoverer identity is recorded in **Report** content or case **Note** entries. | Researcher, discoverer |
 | **Reporter** | The person or organization that submits a vulnerability report to affected parties (often the same as Finder) | Submitter, notifier |
 | **Vendor** | The organization that maintains or supplies the affected product or service | Developer, supplier, maintainer |
 | **Deployer** | An organization that deploys the Vendor's product and is responsible for applying patches in their own environment (distinct from Vendor) | Operator, customer |
@@ -225,7 +225,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **CVDRole** | A StrEnum representing individual, atomic CVD roles (FINDER, REPORTER, VENDOR, DEPLOYER, COORDINATOR, OBSERVER, CASE_OWNER, CASE_MANAGER, CVE_NUMBERING_AUTHORITY); participants hold zero or more roles represented as `list[CVDRole]`; preferred representation for new code (replaces legacy bitmask) | Role value, role enum |
+| **CVDRole** | A StrEnum representing individual, atomic CVD roles (FINDER *(deprecated — ADR-0078)*, REPORTER, VENDOR, DEPLOYER, COORDINATOR, OBSERVER, CASE_OWNER, CASE_MANAGER, CVE_NUMBERING_AUTHORITY); participants hold zero or more roles represented as `list[CVDRole]`; preferred representation for new code (replaces legacy bitmask) | Role value, role enum |
 | **Observer** | A **CVDRole** value (`CVDRole.OBSERVER`) representing a case participant with no vendor-fix-deployment obligations; the base role — lowest non-null privilege set — admitted via standard Invite/Accept (CM-25). Formerly `CVDRole.OTHER`; renamed in ADR-0057. A participant holding OBSERVER alongside VENDOR or DEPLOYER retains VFD obligations from those roles (CM-26). | Watcher, monitor, OTHER (deprecated) |
 | **Dimension Object** | A small immutable `BaseModel` capturing the state of exactly one state machine (RM, EM, VFD, or PXA) at a point in time; replaces flat fields in `CaseStatus`/`ParticipantStatus` per ADR-0036 | Status sub-object, state fragment |
 | **Advisory** | A public disclosure document summarizing a vulnerability's details, remediation, and affected parties; produced by the publication pipeline via a Draft → Review → Submit sequence | Security advisory, disclosure document, bulletin |
@@ -667,7 +667,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 ## Metadata
 
 - **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
-- **Last Updated:** 2026-08-21
+- **Last Updated:** 2026-08-27
 - **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, case actor federation, participant case replicas, trust bootstrap and delegation
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)

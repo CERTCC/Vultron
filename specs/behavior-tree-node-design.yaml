@@ -285,6 +285,10 @@ groups:
       When a vendor or coordinator receives a report and creates a case, they are both the receiving CVD actor (VENDOR or
       COORDINATOR) and the case owner. Representing this explicitly avoids hardcoding the assumption that the case creator
       is always a vendor.
+    verification: Inspection of the `CVDRoles` enum definition confirms that a `CASE_OWNER` flag value is present.
+    stories:
+    - story_2022_046
+    - story_2022_013
   - id: BTND-05-002
     priority: MUST
     kind: project
@@ -303,6 +307,12 @@ groups:
     statement: The generic participant creation node is `CreateCaseParticipantNode`. Callers MUST pass an explicit `roles`
       parameter; no role-specific subclasses or alias names are permitted.
     rationale: Alias names carry the old "finder-specific" framing and mislead readers about the node's actual generality.
+    verification: Inspection of `vultron/core/behaviors/` confirms `CreateCaseParticipantNode` exists with a required
+      `roles` parameter, and that no role-specific subclasses or alias names (e.g., `CreateFinderParticipantNode`) are
+      present.
+    stories:
+    - story_2022_013
+    - story_2022_052
   - id: BTND-05-004
     priority: MUST
     kind: project
@@ -718,3 +728,6 @@ groups:
       Unit tests: (1) invalid backward/skip jump returns Status.FAILURE and sets
       feedback_message; (2) valid forward transition succeeds; (3) same-state write
       succeeds; (4) None target skips validation.
+    stories:
+    - story_2022_088
+    - story_2022_107

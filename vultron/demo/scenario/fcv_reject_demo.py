@@ -48,8 +48,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     post_to_trigger,
     reset_datalayer,
@@ -65,6 +67,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -75,8 +78,10 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
+    resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
+    wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
@@ -200,7 +205,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=coordinator_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={finder.id_, coordinator.id_},
     )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
@@ -213,7 +218,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        coordinator_client.get(f"/datalayer/{case.id_}")
+        coordinator_client.get(coordinator_client.dl_path(case.id_))
     )
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
     return (
@@ -231,7 +236,9 @@ def _phase_report_submission(
 def _phase_invite_vendor_reject(
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    finder: as_Actor,
     coordinator_in_coordinator: as_Actor,
+    coordinator: as_Actor,
     vendor: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
@@ -283,21 +290,74 @@ def _phase_invite_vendor_reject(
 
     # Participant count remains 3: Coordinator + Finder + CaseActor.
     # Vendor must NOT appear as a 4th participant.
-    with demo_check(
-        "Participant count stays at 3 (Vendor not added after rejection)"
+    #
+    # Gate on the rejection being committed before checking participant count.
+    # The rejection is self-contained on the CaseActor (CLP-10-006) — no
+    # participant-effect Announce is sent, so the entry is only visible in the
+    # CaseActor's own store.  Using demo_gate here ensures that the participant
+    # count check is skipped (rather than run against stale state) if the
+    # CaseActor has not yet committed the rejection entry.
+    with demo_gate(
+        "reject_invite_actor_to_case committed (causal gate before participant count check)"
     ):
-        # Give the CaseActor time to process the Reject then confirm stability.
         wait_for_event_type_in_ledger(
             client=coordinator_client,
             case_id=case.id_,
             event_type="reject_invite_actor_to_case",
+            dl_actor_id=resolve_case_actor_store_id(
+                coordinator_client, str(case.id_)
+            ),
         )
-        wait_for_case_participants(
-            vendor_client=coordinator_client,
-            case_id=case.id_,
-            expected_count=3,
-        )
+        with demo_check(
+            "Participant count stays at 3 (Vendor not added after rejection)"
+        ):
+            wait_for_case_participants(
+                vendor_client=coordinator_client,
+                case_id=case.id_,
+                expected_actor_ids={finder.id_, coordinator.id_},
+            )
     logger.info("✓ M2: Vendor rejected invite — participant count stable at 3")
+
+
+def _phase_sync_verification(
+    finder_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+) -> None:
+    """Wait for Finder to replicate all Phase 2 ledger entries before Phase 3.
+
+    Mirrors the sync-verification phase in ``fv_demo.py`` (SYNC-15-001).  The
+    Finder must hold the case and all coordinator-committed ledger entries
+    before the notes exchange begins; without this gate the
+    ``add-note-to-case`` trigger on the Finder container may fail because the
+    Finder's DataLayer has not yet received the case replica or the
+    post-rejection ledger tail from the CaseActor fan-out.
+    """
+    logger.info("─" * 80)
+    logger.info("Phase 2.5: Finder ledger sync verification")
+    logger.info("─" * 80)
+
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
+        coordinator_entries = _get_log_entries_for_case(
+            coordinator_client, case.id_
+        )
+        if coordinator_entries:
+            coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
+            coord_tail_index: int = coord_tail["log_index"]
+            logger.info(
+                "Waiting for Finder to replicate coordinator entries (0…%d)",
+                coord_tail_index,
+            )
+            with demo_gate("Finder ledger coverage (pre-notes sync)"):
+                wait_for_contiguous_ledger_coverage(
+                    client=finder_client,
+                    case_id=case.id_,
+                    expected_tail_index=coord_tail_index,
+                )
 
 
 def _phase_notes_exchange(
@@ -335,7 +395,7 @@ def _phase_notes_exchange(
             "We will proceed with Finder-only disclosure. "
             "Embargo will be terminated and we will publish."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     logger.info(
@@ -471,9 +531,18 @@ def _phase_dump_case_ledgers(
     :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
     per-actor export, the 404 handling, and the dump manifest.
     """
+    # Route keys come from each client's own actor id, not its display
+    # name: the key selects the store (ADR-0073), so a literal is right
+    # only while the scenario seeds deterministic named ids.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        LedgerDumpTarget("coordinator", coordinator_client, "coordinator"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        LedgerDumpTarget(
+            "coordinator",
+            coordinator_client,
+            replica_route_key(coordinator_client, "coordinator"),
+        ),
     ]
     # The case-actor is a sub-actor inside the coordinator container.
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -542,8 +611,16 @@ def run_fcv_reject_demo(
         _phase_invite_vendor_reject(
             coordinator_client=coordinator_client,
             vendor_client=vendor_client,
+            finder=_finder,
             coordinator_in_coordinator=coordinator_in_coordinator,
+            coordinator=_coordinator,
             vendor=vendor_obj,
+            case=case,
+        )
+
+        _phase_sync_verification(
+            finder_client=finder_client,
+            coordinator_client=coordinator_client,
             case=case,
         )
 
@@ -613,7 +690,9 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(base_url=ca_url)
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

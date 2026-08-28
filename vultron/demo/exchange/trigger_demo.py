@@ -47,6 +47,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 from vultron.demo.utils import (
+    seed_case_actor_for_report,
     DataLayerClient,
     demo_check,
     demo_step,
@@ -88,6 +89,10 @@ def _submit_report(
         content=content,
     )
     offer = rm_submit_report_activity(report, actor=finder.id_, to=vendor.id_)
+    # Provision the CaseActor this report's proposal will be
+    # addressed to; its id is derived from the report and this
+    # node hosts it in single-container demo mode (#2469).
+    seed_case_actor_for_report(client, report.id_)
     post_to_inbox_and_wait(client, vendor.id_, offer)
     with demo_check("Report and offer stored in DataLayer"):
         verify_object_stored(client, report.id_)

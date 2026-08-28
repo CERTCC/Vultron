@@ -21,7 +21,10 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 @pytest.fixture
 def dl():
     """In-memory SqliteDataLayer for unit tests."""
-    instance = SqliteDataLayer("sqlite:///:memory:")
+    instance = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
     yield instance
     instance.clear_all()
     instance.close()
@@ -37,7 +40,9 @@ def tmp_db_url(tmp_path):
 @pytest.fixture
 def file_dl(tmp_db_url):
     """File-backed SqliteDataLayer for integration tests."""
-    instance = SqliteDataLayer(tmp_db_url)
+    instance = SqliteDataLayer(
+        tmp_db_url, actor_id="https://test.example/api/v2/actors/test-actor"
+    )
     yield instance
     instance.clear_all()
     instance.close()

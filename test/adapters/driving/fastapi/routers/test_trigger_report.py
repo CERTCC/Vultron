@@ -161,6 +161,19 @@ def received_report(dl, actor, report):
         case_manager_participant.id_
     )
     case_obj.case_participants.append(case_manager_participant.id_)
+    # RM.VALID is case-scoped: this actor must be a participant of its own case
+    # replica, which is what Create(VulnerabilityCase) delivers (ADR-0041,
+    # CBT-01-002).  Without it the validate-report BT correctly refuses to act
+    # rather than latching a transition that never happened (ISSUE-2548).
+    self_participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    self_participant.append_rm_state(RM.RECEIVED, actor.id_, case_obj.id_)
+    dl.create(self_participant)
+    case_obj.actor_participant_index[actor.id_] = self_participant.id_
+    case_obj.case_participants.append(self_participant.id_)
     dl.save(case_obj)
     return report
 
@@ -296,7 +309,7 @@ def test_trigger_validate_report_ignores_unknown_fields(
 
 
 def test_trigger_validate_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/validate-report",
         json={"offer_id": "urn:uuid:any-offer"},
@@ -313,7 +326,7 @@ def test_trigger_validate_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_validate_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/validate-report",
         json={"offer_id": "urn:uuid:nonexistent-offer"},
@@ -452,7 +465,7 @@ def test_trigger_invalidate_report_ignores_unknown_fields(
 
 
 def test_trigger_invalidate_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent/trigger/invalidate-report",
         json={"offer_id": "urn:uuid:any"},
@@ -465,7 +478,7 @@ def test_trigger_invalidate_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_invalidate_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/invalidate-report",
         json={"offer_id": "urn:uuid:nonexistent"},
@@ -551,7 +564,7 @@ def test_trigger_reject_report_response_contains_activity_key(
 def test_trigger_reject_report_missing_note_returns_422(
     client_triggers, actor, offer, invalid_report
 ):
-    """TB-03-004: reject-report without note field returns HTTP 422."""
+    """TRIG-03-004: reject-report without note field returns HTTP 422."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-report",
         json={"offer_id": offer.id_},
@@ -562,7 +575,7 @@ def test_trigger_reject_report_missing_note_returns_422(
 def test_trigger_reject_report_empty_note_emits_warning(
     client_triggers, actor, offer, invalid_report, caplog
 ):
-    """TB-03-004: reject-report with empty note emits a WARNING."""
+    """TRIG-03-004: reject-report with empty note emits a WARNING."""
     import logging
 
     with caplog.at_level(logging.WARNING):
@@ -597,7 +610,7 @@ def test_trigger_reject_report_ignores_unknown_fields(
 
 
 def test_trigger_reject_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent/trigger/reject-report",
         json={"offer_id": "urn:uuid:any", "note": "Reason."},
@@ -610,7 +623,7 @@ def test_trigger_reject_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_reject_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-report",
         json={"offer_id": "urn:uuid:nonexistent", "note": "Reason."},
@@ -713,7 +726,7 @@ def test_trigger_close_report_with_note_returns_202(
 
 
 def test_trigger_close_report_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent/trigger/close-report",
         json={"offer_id": "urn:uuid:any"},
@@ -726,7 +739,7 @@ def test_trigger_close_report_unknown_actor_returns_404(client_triggers):
 def test_trigger_close_report_unknown_offer_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": "urn:uuid:nonexistent"},
@@ -903,7 +916,11 @@ class TestTriggerReportOutboxScheduling:
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
         assert mock_outbox.call_args.args[1] is dl
-        assert mock_outbox.call_args.args[2] is dl
+        # No third positional: that slot is `emitter` now, and a store
+        # passed there silently becomes the emitter (see the ratchet in
+        # test/architecture/test_outbox_handler_emitter_keyword.py).
+        assert len(mock_outbox.call_args.args) == 2
+        assert "emitter" not in mock_outbox.call_args.kwargs
 
     def test_invalidate_report_schedules_outbox_handler(
         self, client_triggers, dl, actor, offer
@@ -918,7 +935,11 @@ class TestTriggerReportOutboxScheduling:
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
         assert mock_outbox.call_args.args[1] is dl
-        assert mock_outbox.call_args.args[2] is dl
+        # No third positional: that slot is `emitter` now, and a store
+        # passed there silently becomes the emitter (see the ratchet in
+        # test/architecture/test_outbox_handler_emitter_keyword.py).
+        assert len(mock_outbox.call_args.args) == 2
+        assert "emitter" not in mock_outbox.call_args.kwargs
 
     def test_submit_report_schedules_outbox_handler(
         self, client_triggers, dl, actor
@@ -937,4 +958,8 @@ class TestTriggerReportOutboxScheduling:
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
         assert mock_outbox.call_args.args[1] is dl
-        assert mock_outbox.call_args.args[2] is dl
+        # No third positional: that slot is `emitter` now, and a store
+        # passed there silently becomes the emitter (see the ratchet in
+        # test/architecture/test_outbox_handler_emitter_keyword.py).
+        assert len(mock_outbox.call_args.args) == 2
+        assert "emitter" not in mock_outbox.call_args.kwargs

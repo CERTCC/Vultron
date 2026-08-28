@@ -86,7 +86,7 @@ def test_trigger_reject_embargo_missing_case_id_returns_422(
 
 
 def test_trigger_reject_embargo_unknown_actor_returns_404(client_triggers):
-    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
         "/actors/nonexistent-actor/trigger/reject-embargo",
         json={"case_id": "urn:uuid:any-case"},
@@ -99,7 +99,7 @@ def test_trigger_reject_embargo_unknown_actor_returns_404(client_triggers):
 def test_trigger_reject_embargo_unknown_case_returns_404(
     client_triggers, actor
 ):
-    """TB-01-003: Unknown case_id returns HTTP 404."""
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-embargo",
         json={"case_id": "urn:uuid:nonexistent-case"},

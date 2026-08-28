@@ -23,6 +23,7 @@ from sqlmodel import Session, select
 
 from vultron.adapters.driven.db_record import Record
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.datalayer import StorableRecord
@@ -51,12 +52,10 @@ def count_all(
         key with value ``0`` (SQLite has no default table concept).
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(
-                VultronObjectRecord.type_,
-                func.count(),  # type: ignore[call-overload]
-            ).group_by(VultronObjectRecord.type_)
-        )
+        stmt = select(
+            VultronObjectRecord.type_,
+            func.count(),  # type: ignore[call-overload]
+        ).group_by(VultronObjectRecord.type_)
         rows = session.exec(stmt).all()
     counts: dict[str, int] = {"_default": 0}
     for type_name, count in rows:
@@ -78,10 +77,8 @@ def by_type(
         Mapping of ``{id_: data_dict}`` for every record of that type.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == type_
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == type_
         )
         rows = session.exec(stmt).all()
     results: dict[str, dict[str, Any]] = {}
@@ -108,10 +105,8 @@ def all(
     """
     with Session(dl._engine) as session:
         if table is not None:
-            stmt = dl._scoped(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.type_ == table
-                )
+            stmt = select(VultronObjectRecord).where(
+                VultronObjectRecord.type_ == table
             )
             rows = session.exec(stmt).all()
             return [
@@ -119,7 +114,7 @@ def all(
                 for row in rows
             ]
 
-        stmt = dl._scoped(select(VultronObjectRecord))
+        stmt = select(VultronObjectRecord)
         rows = session.exec(stmt).all()
         results: dict[str, PersistableModel] = {}
         for row in rows:
@@ -145,11 +140,9 @@ def exists(
         ``True`` if found; ``False`` otherwise.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == table,
-                VultronObjectRecord.id_ == id_,
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == table,
+            VultronObjectRecord.id_ == id_,
         )
         row = session.exec(stmt).first()
         return row is not None
@@ -191,10 +184,8 @@ def list_objects(
         List of rehydrated domain objects of the requested type.
     """
     with Session(dl._engine) as session:
-        stmt = dl._scoped(
-            select(VultronObjectRecord).where(
-                VultronObjectRecord.type_ == type_key
-            )
+        stmt = select(VultronObjectRecord).where(
+            VultronObjectRecord.type_ == type_key
         )
         rows = session.exec(stmt).all()
     results: list[PersistableModel] = []
@@ -232,8 +223,6 @@ def find_actor_by_short_id(
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_.in_(list(_ACTOR_TYPES))  # type: ignore[attr-defined]
         )
-        if dl._actor_id:
-            stmt = stmt.where(VultronObjectRecord.actor_id == dl._actor_id)
         rows = session.exec(stmt).all()
 
     matches: list[PersistableModel] = []
@@ -270,8 +259,6 @@ def find_case_by_short_id(
         stmt = select(VultronObjectRecord).where(
             VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
         )
-        if dl._actor_id:
-            stmt = stmt.where(VultronObjectRecord.actor_id == dl._actor_id)
         rows = session.exec(stmt).all()
 
     matches: list[PersistableModel] = []
@@ -317,10 +304,8 @@ def find_case_by_report_id(
 
     with Session(dl._engine) as session:
         rows = session.exec(
-            dl._scoped(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
-                )
+            select(VultronObjectRecord).where(
+                VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
             )
         ).all()
 
@@ -332,3 +317,66 @@ def find_case_by_report_id(
             if isinstance(entry, dict) and entry.get("id_") == report_id:
                 return cast(PersistableModel | None, dl._from_row(row))
     return None
+
+
+def find_protocol_pair(
+    dl: "Any",  # SqliteDataLayer
+    case_id: str,
+    request_event_type: str,
+    object_id: str,
+    reply_event_types: frozenset[str],
+) -> ProtocolPair:
+    """Return the open/closed state of a request/reply protocol pair.
+
+    Two-pass scan of ``CaseLedgerEntry`` objects scoped to *case_id*:
+
+    1. Locate the request entry whose ``event_type == request_event_type``
+       **and** ``log_object_id == object_id``.
+    2. Search for a reply entry whose ``event_type`` is in
+       *reply_event_types*.
+
+    Returns a :class:`~vultron.core.models.protocol_pair.ProtocolPair`
+    with ``reply_object_id`` / ``reply_event_type`` populated when a reply
+    is found (``is_closed()``), or ``None`` fields when not (``is_open()``).
+    If no request entry is found, returns an open pair.
+
+    .. note::
+       ``CaseLedgerEntry`` has no structural field linking a reply to the
+       specific request that triggered it (``in_reply_to`` chain-following
+       is YAGNI per CLP-11-004).  This function is therefore most reliable
+       when at most one open offer of a given ``request_event_type`` exists
+       per case at a time, which is the expected protocol usage
+       (ADR-0026/CM-16).
+    """
+    case_entries = [
+        e
+        for e in dl.list_objects("CaseLedgerEntry")
+        if getattr(e, "case_id", None) == case_id
+    ]
+
+    request_found = any(
+        getattr(e, "event_type", None) == request_event_type
+        and getattr(e, "log_object_id", None) == object_id
+        for e in case_entries
+    )
+
+    reply_object_id: str | None = None
+    reply_event_type_found: str | None = None
+
+    if request_found:
+        for entry in case_entries:
+            entry_event_type = getattr(entry, "event_type", None)
+            if entry_event_type in reply_event_types:
+                reply_object_id = getattr(entry, "log_object_id", None)
+                reply_event_type_found = entry_event_type
+                break
+
+    return ProtocolPair(
+        case_id=case_id,
+        request_event_type=request_event_type,
+        object_id=object_id,
+        reply_event_types=reply_event_types,
+        reply_object_id=reply_object_id,
+        reply_event_type=reply_event_type_found,
+        request_found=request_found,
+    )

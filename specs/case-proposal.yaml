@@ -20,15 +20,27 @@ groups:
     statement: The wire layer MUST define an `as_CaseProposal` object type that extends `VultronAS2Object`.
     rationale: A dedicated object type enables pattern-discriminated routing in the semantic extractor and preserves AS2 semantics
       by separating the proposal object from the eventual `VulnerabilityCase`.
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `as_CaseProposal` is declared as
+      a class that extends `VultronAS2Object`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-01-002
     priority: MUST
     kind: protocol
     statement: '`as_CaseProposal` MUST include an `id_` field containing a full URI that uniquely identifies the proposal.'
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `id_` is inherited from
+      `VultronAS2Object` as a required URI field on every `as_CaseProposal` instance.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-01-003
     priority: MUST
     kind: protocol
     statement: '`as_CaseProposal` MUST include an `attributed_to` field identifying the vendor actor (proposer) that originated
       the proposal.'
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `attributed_to` is a required
+      `NonEmptyString` field on `as_CaseProposal`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-01-004
     priority: MUST
     kind: protocol
@@ -36,15 +48,56 @@ groups:
       which the case is to be created. URI references to the report are NOT permitted (see AKM-03-001).'
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
       because the receiver may not have the referenced object and no dereferencing mechanism is currently specified (AKM-03-001).
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
+      `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-01-005
     priority: MUST
     kind: protocol
     statement: '`as_CaseProposal` MUST include a `target` field containing the URI of the prospective case-actor service to
       which the proposal is addressed.'
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `target` is a required
+      `NonEmptyString` field on `as_CaseProposal`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-01-006
     priority: MAY
     kind: protocol
     statement: '`as_CaseProposal` MAY include an optional `summary` field with a human-readable description of the proposal.'
+  - id: CP-01-007
+    lint_suppress:
+    - rationale_too_long
+    # No story back-reference for the same reason as its parent CP-01-004:
+    # offer provenance is internal plumbing the 2022 story corpus never asked
+    # for. It exists because omitting it fails silently (ISSUE-2548), not
+    # because a Participant wanted it.
+    - missing_story_reference
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the proposing actor knows which `Offer(VulnerabilityReport)` brought it the report,
+      `as_CaseProposal` MUST carry that provenance as `offerId` and `offerActorId`, and the case-actor MUST
+      use it for the `offerId` of the canonical `add_report_to_case` ledger entry whenever its own store
+      holds no `OfferRecord` for the report.
+    rationale: >-
+      Invited actors rebuild their `VultronOfferRecord` from that entry's `offerId` (DL-06-002,
+      SYNC-02-002); it is their only path to one, since they never received the Offer. The case-actor
+      cannot supply it from storage: the `OfferRecord` belongs to the actor that received the Offer, and a
+      co-located case-actor has its own store with no read into a sibling's (PCR-01-003, DL-07-005). So it
+      travels on the proposal for the same reason and by the same rule as the report itself (CP-01-004).
+      Omitting it failed silently in the worst place — `ApplyOfferReportFromLedgerNode` is deliberately
+      lenient and skips a snapshot with no `offerId` as non-fatal, so the first visible symptom was the
+      invitee's `validate-report` answering `404 Offer not found` several messages later (ISSUE-2548).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-004
+    - rel_type: implements
+      spec_id: PCR-01-003
+    verification: >-
+      `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
+    adr:
+    - ADR-0073
 - id: CP-02
   title: MessageSemantics Values
   specs:
@@ -52,14 +105,26 @@ groups:
     priority: MUST
     kind: protocol
     statement: The `MessageSemantics` enum MUST include `CREATE_CASE_PROPOSAL` for the pattern `Create(as_CaseProposal)`.
+    verification: Inspection of `vultron/core/models/events/base.py` confirms `CREATE_CASE_PROPOSAL` is present in
+      `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly` validates it.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-02-002
     priority: MUST
     kind: protocol
     statement: The `MessageSemantics` enum MUST include `ACCEPT_CASE_PROPOSAL` for the pattern `Accept(as_CaseProposal)`.
+    verification: Inspection of `vultron/core/models/events/base.py` confirms `ACCEPT_CASE_PROPOSAL` is present in
+      `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly` validates it.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-02-003
     priority: MUST
     kind: protocol
     statement: The `MessageSemantics` enum MUST include `REJECT_CASE_PROPOSAL` for the pattern `Reject(as_CaseProposal)`.
+    verification: Inspection of `vultron/core/models/events/base.py` confirms `REJECT_CASE_PROPOSAL` is present in
+      `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly` validates it.
+    lint_suppress:
+    - missing_story_reference
 - id: CP-03
   title: Extractor Patterns
   specs:
@@ -67,22 +132,38 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for `(Create, as_CaseProposal) -> CREATE_CASE_PROPOSAL`.'
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly`
+      confirms `(Create, as_CaseProposal)` resolves to `CREATE_CASE_PROPOSAL` via `SEMANTICS_ACTIVITY_PATTERNS`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-03-002
     priority: MUST
     kind: protocol
     statement: '`SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for `(Accept, as_CaseProposal) -> ACCEPT_CASE_PROPOSAL`.'
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly`
+      confirms `(Accept, as_CaseProposal)` resolves to `ACCEPT_CASE_PROPOSAL` via `SEMANTICS_ACTIVITY_PATTERNS`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-03-003
     priority: MUST
     kind: protocol
     statement: '`SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for `(Reject, as_CaseProposal) -> REJECT_CASE_PROPOSAL`.'
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly`
+      confirms `(Reject, as_CaseProposal)` resolves to `REJECT_CASE_PROPOSAL` via `SEMANTICS_ACTIVITY_PATTERNS`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-03-004
     priority: MUST
     kind: protocol
     statement: All three `CaseProposal` extractor patterns MUST appear before any more-general patterns that could match the
       same activity types (e.g., generic `Accept` or `Reject` catch-all entries), to prevent misrouting (per SE-03-002).
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_non_overlapping_activity_patterns` confirms
+      all three CaseProposal patterns appear before generic Accept/Reject catch-all entries in `SEMANTICS_ACTIVITY_PATTERNS`.
     relationships:
     - rel_type: depends_on
       spec_id: SE-03-002
+    lint_suppress:
+    - missing_story_reference
 - id: CP-04
   title: Protocol Flow — Sending
   specs:
@@ -94,9 +175,14 @@ groups:
     rationale: Using `Create` with the vendor as `actor` accurately declares that the vendor created the proposal object,
       not the case itself. Sending `Create(VulnerabilityCase)` from the vendor would violate AS2 semantics because the vendor
       is not the authoritative creator of the case.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm a vendor actor sends
+      `Create(as_CaseProposal)` to the case-actor inbox with its own URI set as `actor`.
     relationships:
     - rel_type: implements
       spec_id: CP-01-001
+    stories:
+    - story_2022_012
+    - story_2022_046
   - id: CP-04-002
     priority: MUST
     kind: project
@@ -105,6 +191,52 @@ groups:
       resource; it MUST NOT send a `CaseProposal` activity.
     rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal
       to be sent before the case-actor service is ready. See `notes/case-proposal.md` for the pitfall.
+  - id: CP-04-003
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `Create(as_CaseProposal)` MUST be addressed to the case-actor *container's* identity —
+      `{case_actor_service_url}/actors/case-actor` — and MUST NOT be addressed to an identity derived
+      per case or per report.
+    rationale: >-
+      A derived identity is unhostable by construction: the sender computes it, so no container has
+      registered it, and delivery answers a permanent 404 (ISSUE-1872). It also cannot be provisioned in
+      advance, because it is not computable until the report exists — by which time the proposal has
+      already been sent. A container identity comes from configuration and can be provisioned once, at
+      seed time. Nothing is lost: which case the proposal concerns is recoverable from its `report_id`,
+      and every later case-scoped message carries `activity.context`.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-04-001
+    - rel_type: refines
+      spec_id: BT-10-002
+    verification: >-
+      `test/core/behaviors/case/test_case_actor_identity.py`; `test/demo/test_fv_demo.py` exercises the
+      full round-trip with no stand-in, which is what a 404 here would break.
+    stories:
+    - story_2022_012
+    - story_2022_046
+  - id: CP-04-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Whatever provisions the case-actor's record MUST write it into the *case-actor's own* store, since
+      the inbox route resolves an actor from the store its URI names. A copy in the sending actor's store
+      does not make the case-actor addressable.
+    rationale: >-
+      Under per-actor storage isolation (ADR-0073) the two writes mean different things: one publishes an
+      endpoint, the other records knowledge of a peer. Writing only the second left the inbox answering
+      `404 Actor not found` (ISSUE-1872). Under the pre-ADR-0073 shared store they were
+      indistinguishable, which is why one write used to suffice.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-04-003
+    - rel_type: refines
+      spec_id: DL-07-001
+    adr:
+    - ADR-0073
 - id: CP-05
   title: Protocol Flow — Receiving (Case-Actor Side)
   specs:
@@ -113,11 +245,22 @@ groups:
     kind: protocol
     statement: A `CreateCaseProposalReceivedUseCase` MUST be implemented on the case-actor side to handle incoming `Create(as_CaseProposal)`
       activities.
+    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms `CreateCaseProposalReceivedUseCase`
+      is implemented and tested in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
+    stories:
+    - story_2022_012
+    - story_2022_046
   - id: CP-05-002
     priority: MUST
     kind: protocol
     statement: '`CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and either accept or reject it, emitting an
       `Accept(CaseProposal)` or `Reject(CaseProposal)` activity accordingly.'
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm `CreateCaseProposalReceivedUseCase`
+      evaluates a proposal and emits either `Accept(CaseProposal)` or `Reject(CaseProposal)` in response.
+    stories:
+    - story_2022_006
+    - story_2022_012
+    - story_2022_101
   - id: CP-05-003
     priority: MUST
     kind: protocol
@@ -130,11 +273,21 @@ groups:
       `context` MUST be the case URI (consistent with all other case-scoped activities; required for inbox deferral routing).
       `in_reply_to` carries the causal antecedent (the Accept URI) in the AS2-correct field for responses.
       See ADR-0045.'
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::test_case_actor_sends_accept_and_create_case`
+      confirm the two-activity sequence with correct `actor`, `context`, and `in_reply_to` on `Create(VulnerabilityCase)`.
+    stories:
+    - story_2022_012
+    - story_2022_016
   - id: CP-05-004
     priority: MUST
     kind: protocol
     statement: When rejecting a proposal, the case-actor service MUST send `Reject(as_CaseProposal)` with the `as_CaseProposal`
       embedded inline as `object_`.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the reject path emits
+      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`.
+    stories:
+    - story_2022_006
+    - story_2022_016
   - id: CP-05-005
     priority: MUST
     kind: protocol
@@ -146,6 +299,10 @@ groups:
       stores the pre-constructed `Create(VulnerabilityCase)` payload verbatim. The corrected field assignment
       (`context=case_uri`, `in_reply_to=accept_uri` per CP-05-003 and ADR-0045) is baked into the payload so the retry
       runner can replay the exact activity without re-running the BT.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::test_marker_present_when_create_fails`
+      confirm the retry marker is stored when `Create(VulnerabilityCase)` fails, without resending `Accept(as_CaseProposal)`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-05-006
     priority: SHOULD
     kind: protocol
@@ -162,21 +319,41 @@ groups:
     kind: protocol
     statement: An `AcceptCaseProposalReceivedUseCase` MUST be implemented on the vendor side to handle incoming `Accept(as_CaseProposal)`
       activities.
+    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
+      `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    stories:
+    - story_2022_012
+    - story_2022_088
   - id: CP-06-002
     priority: MUST
     kind: protocol
     statement: A `RejectCaseProposalReceivedUseCase` MUST be implemented on the vendor side to handle incoming `Reject(as_CaseProposal)`
       activities.
+    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
+      `RejectCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    stories:
+    - story_2022_006
+    - story_2022_088
   - id: CP-06-003
     priority: MUST
     kind: protocol
     statement: '`AcceptCaseProposalReceivedUseCase` MUST update the vendor''s local state to reflect that the case-actor service
       has accepted the proposal (e.g., record the case-actor URI and await the subsequent `Create(VulnerabilityCase)`).'
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm
+      `AcceptCaseProposalReceivedUseCase` updates vendor local state to record the case-actor acceptance.
+    stories:
+    - story_2022_074
+    - story_2022_088
   - id: CP-06-004
     priority: MUST
     kind: protocol
     statement: '`RejectCaseProposalReceivedUseCase` MUST update the vendor''s local state to reflect the rejection (e.g.,
       mark the pending case as rejected and surface the rejection reason if present).'
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm
+      `RejectCaseProposalReceivedUseCase` updates vendor local state to reflect the rejection.
+    stories:
+    - story_2022_074
+    - story_2022_088
 - id: CP-07
   title: Testing
   specs:
@@ -185,16 +362,28 @@ groups:
     kind: protocol
     statement: Unit tests MUST cover pattern matching for all three `CaseProposal` extractor patterns (`CREATE_CASE_PROPOSAL`,
       `ACCEPT_CASE_PROPOSAL`, `REJECT_CASE_PROPOSAL`).
+    verification: Unit tests `test_create_case_proposal_dispatches_correctly`, `test_accept_case_proposal_dispatches_correctly`,
+      and `test_reject_case_proposal_dispatches_correctly` in `test/test_semantic_activity_patterns.py` cover all three patterns.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-07-002
     priority: MUST
     kind: protocol
     statement: Unit tests MUST cover `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`
       execute() paths.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` cover the `execute()` paths of
+      `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`.
+    lint_suppress:
+    - missing_story_reference
   - id: CP-07-003
     priority: MUST
     kind: protocol
     statement: Integration tests MUST cover the full `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)`
       round-trip between a vendor actor and a case-actor service.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::test_demo_round_trip` confirm the full
+      `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)` round-trip completes successfully.
+    lint_suppress:
+    - missing_story_reference
 - id: CP-08
   title: Case-Actor Service URL Configuration
   specs:
@@ -332,12 +521,17 @@ groups:
       AS2 `Create(X)` semantics mean "I (the actor) created X."  The CaseActor
       is the authoritative case creator; attributing the case to the vendor
       violates AS2 semantics and undermines the trust model (ADR-0023, ADR-0041).
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the created
+      `VulnerabilityCase` has `attributed_to` set to the CaseActor's own actor ID, not the vendor's URI.
     relationships:
     - rel_type: implements
       spec_id: CP-05-001
     adr:
     - ADR-0023
     - ADR-0041
+    stories:
+    - story_2022_012
+    - story_2022_046
   - id: CP-09-002
     priority: MUST
     kind: protocol
@@ -353,9 +547,14 @@ groups:
       that require them (e.g. embargo consent, role guards) fail.  Hard-coding
       `CVDRole.VENDOR` for the receiver additionally mislabels coordinators,
       which makes VFD fix-lifecycle checks demand a fix they never produce.
+    verification: Unit tests `test_vendor_participant_created` and `test_reporter_participant_created` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm both participants are seeded with correct RM states and roles.
     relationships:
     - rel_type: refines
       spec_id: CP-09-001
+    stories:
+    - story_2022_012
+    - story_2022_013
   - id: CP-09-006
     priority: MUST
     kind: protocol
@@ -367,9 +566,14 @@ groups:
       The receiver's replica is seeded from participant objects embedded in
       `Create(VulnerabilityCase)`; participants absent at emission time leave the
       replica without the records required for role guards and embargo consent.
+    verification: Unit tests `test_vendor_participant_created` and `test_reporter_participant_created` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm participants exist before `Create(VulnerabilityCase)` is emitted.
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
+    stories:
+    - story_2022_013
+    - story_2022_088
   - id: CP-09-007
     priority: MUST
     kind: protocol
@@ -379,9 +583,14 @@ groups:
     rationale: >-
       Explicit role configuration is the only reliable source; a report receiver
       may be a coordinator rather than a vendor, so role inference is unsound.
+    verification: Unit tests `test_vendor_config_yields_vendor_role` and `test_coordinator_config_does_not_yield_vendor_role` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm roles come from `ActorConfig.default_case_roles`.
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
+    stories:
+    - story_2022_063
+    - story_2022_093
   - id: CP-09-008
     priority: MUST_NOT
     kind: protocol
@@ -402,11 +611,16 @@ groups:
       Embargo state is protocol-significant.  Deferring initialization to the
       vendor or to a later message would produce a window in which
       embargo-gated operations are undefined (ADR-0041).
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::test_active_embargo_set`
+      confirm the default embargo is initialized before `Create(VulnerabilityCase)` is emitted.
     relationships:
     - rel_type: refines
       spec_id: CP-09-001
     adr:
     - ADR-0041
+    stories:
+    - story_2022_014
+    - story_2022_023
   - id: CP-09-004
     priority: MUST
     kind: protocol
@@ -420,9 +634,14 @@ groups:
       parse embedded participant objects.  Bare IDs produce empty participant
       records on the vendor's replica, causing role-guard failures for
       operations that require `CASE_OWNER` or `CASE_MANAGER` checks.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
+      embeds participant objects inline; `test_vendor_participant_created` verifies the vendor `CaseParticipant` is present.
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
+    stories:
+    - story_2022_013
+    - story_2022_045
   - id: CP-09-005
     priority: MUST_NOT
     kind: protocol

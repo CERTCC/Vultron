@@ -32,6 +32,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
+    _ReportPhaseRMTransition,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
@@ -54,11 +55,17 @@ def test_transition_rm_to_valid(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
-    """TransitionRMtoValid updates report status to VALID."""
+    """TransitionRMtoValid updates report status to VALID.
+
+    ``RM.VALID`` is case-scoped, so the case replica must be in this actor's own
+    store and ``/case_id`` must be published for it (ISSUE-2548).
+    """
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
+        case_id=case_with_participant.id_,
     )
     bt_scenario.assert_success(result)
     bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
@@ -88,6 +95,7 @@ def test_full_validation_workflow(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
     """Test full validation workflow using all nodes in sequence."""
     bt_scenario.assert_failure(
@@ -122,6 +130,7 @@ def test_full_validation_workflow(
         bt_scenario.run(
             TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
             actor_id=actor.id_,
+            case_id=case_with_participant.id_,
         )
     )
 
@@ -169,12 +178,14 @@ def test_transition_rm_to_valid_context_is_case_uri(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
-    case: VulnerabilityCase,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
     """TransitionRMtoValid sets ParticipantStatus.context to the case URI."""
+    case = case_with_participant
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
+        case_id=case.id_,
     )
     bt_scenario.assert_success(result)
 
@@ -247,22 +258,103 @@ def test_transition_rm_to_closed_context_is_case_uri(
     )
 
 
+# ---------------------------------------------------------------------------
+# AC-1: _ReportPhaseRMTransition base-class contract
+# ---------------------------------------------------------------------------
+
+
+def test_transition_rm_to_invalid_is_subclass_of_base() -> None:
+    """TransitionRMtoInvalid inherits _ReportPhaseRMTransition."""
+    assert issubclass(TransitionRMtoInvalid, _ReportPhaseRMTransition)
+
+
+def test_transition_rm_to_closed_is_subclass_of_base() -> None:
+    """TransitionRMtoClosed inherits _ReportPhaseRMTransition."""
+    assert issubclass(TransitionRMtoClosed, _ReportPhaseRMTransition)
+
+
+def test_transition_rm_to_valid_is_subclass_of_base() -> None:
+    """TransitionRMtoValid inherits _ReportPhaseRMTransition too.
+
+    The base started out covering only the Invalid/Closed pair. ISSUE-2548
+    widened it to carry the shared latch write, so `TransitionRMtoValid` — the
+    one transition that also writes case-scoped state — must sit under the same
+    base rather than reimplementing the report-phase half.
+    """
+    assert issubclass(TransitionRMtoValid, _ReportPhaseRMTransition)
+
+
+def test_transition_rm_to_invalid_target_rm() -> None:
+    """TransitionRMtoInvalid._target_rm is RM.INVALID."""
+    from vultron.core.states.rm import RM
+
+    assert TransitionRMtoInvalid._target_rm is RM.INVALID
+
+
+def test_transition_rm_to_closed_target_rm() -> None:
+    """TransitionRMtoClosed._target_rm is RM.CLOSED."""
+    from vultron.core.states.rm import RM
+
+    assert TransitionRMtoClosed._target_rm is RM.CLOSED
+
+
 @pytest.mark.spec("BT-03-004")
-def test_transition_rm_to_valid_fallback_uses_report_id_when_no_case(
+def test_transition_rm_to_valid_without_case_fails_without_writing_status(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
 ) -> None:
-    """TransitionRMtoValid falls back to report_id context when no case exists."""
+    """No case in this actor's store ⇒ FAILURE, and no RM.VALID record written.
+
+    ISSUE-2548.  RM.VALID is a *case-scoped* transition: DUR-07-004 requires an
+    established embargo, and the participant's RM state lives on the case.  When
+    the case has not been delivered to this actor's store yet (ADR-0073 gives
+    every actor its own store; co-located actors still exchange state only by
+    protocol message, PCR-01-003), neither half can be performed — so the node
+    MUST return FAILURE (ARCH-15-001) and MUST NOT write the report-phase
+    RM.VALID record, because that record is the idempotency latch that
+    ``CheckRMStateValid`` reads (ID-04-005).  Writing it for a transition that
+    did not happen latches the actor out of ever retrying.
+    """
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
     )
-    bt_scenario.assert_success(result)
+    bt_scenario.assert_failure(result)
 
-    status = _read_status(bt_scenario, actor, report, RM.VALID)
-    ctx = getattr(status, "context", None)
-    assert (
-        ctx == report.id_
-    ), f"Expected fallback context={report.id_!r}, got {ctx!r}"
+    status_id = _report_phase_status_id(actor.id_, report.id_, RM.VALID.value)
+    assert bt_scenario.dl.read(status_id) is None, (
+        "TransitionRMtoValid wrote the report-phase RM.VALID latch even though"
+        " the case-participant half of the transition never ran (ISSUE-2548)"
+    )
+
+
+def test_transition_rm_to_valid_without_participant_fails_without_writing_status(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    case: VulnerabilityCase,
+) -> None:
+    """Case present but actor not a participant ⇒ FAILURE, no latch written.
+
+    ISSUE-2548, second half.  ``update_participant_rm_state`` returns ``False``
+    when the acting actor is absent from the case's ``actor_participant_index``
+    — the case replica arrived dehydrated.  The report-phase latch must not be
+    written on that path either.
+    """
+    # The bare ``case`` fixture has no participants, so the participant half
+    # cannot run.
+    result = bt_scenario.run(
+        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+        case_id=case.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+    status_id = _report_phase_status_id(actor.id_, report.id_, RM.VALID.value)
+    assert bt_scenario.dl.read(status_id) is None, (
+        "TransitionRMtoValid wrote the report-phase RM.VALID latch even though"
+        " the case-participant RM update was blocked (ISSUE-2548)"
+    )

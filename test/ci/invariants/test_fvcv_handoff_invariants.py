@@ -90,6 +90,7 @@ globals().update(
         replicas_fixture="fvcv_handoff_replicas",
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_FVCV_HANDOFF_EXPECTED_EVENT_TYPES,
+        narrative_path="docs/topics/scenarios/fvcv-handoff.md",
     )
 )
 

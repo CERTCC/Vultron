@@ -48,6 +48,7 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import ValidateReportReceivedEvent
 from vultron.core.models.report import VultronReport
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.report import (
@@ -70,8 +71,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 # ---------------------------------------------------------------------------
 
 
-def _make_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+def _make_dl(actor_id: str) -> SqliteDataLayer:
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=actor_id,
+    )
 
 
 def _make_case_at_received(
@@ -130,6 +134,20 @@ def _make_case_at_received(
     dl.create(case_manager_participant)
     case.actor_participant_index[case_actor.id_] = case_manager_participant.id_
     case.case_participants.append(case_manager_participant.id_)
+
+    # RM.VALID is case-scoped, so the vendor must be a participant of its own
+    # case replica — what Create(VulnerabilityCase) delivers (ADR-0041,
+    # CBT-01-002).  Absent that, the validate-report BT refuses to act instead
+    # of latching a transition that never happened (ISSUE-2548).
+    vendor_participant = as_CaseParticipant(
+        attributed_to=vendor_id,
+        context=case_id,
+        case_roles=[CVDRole.VENDOR],
+    )
+    vendor_participant.append_rm_state(RM.RECEIVED, vendor_id, case_id)
+    dl.create(vendor_participant)
+    case.actor_participant_index[vendor_id] = vendor_participant.id_
+    case.case_participants.append(vendor_participant.id_)
     dl.save(case)
 
     return case, offer
@@ -197,7 +215,7 @@ class TestTriggerEmitsToCaseActorOutbox:
         self,
     ) -> tuple[SqliteDataLayer, VulnerabilityCase, as_Offer, str]:
         """Return (dl, case, offer, case_actor_id) after BT receive-report."""
-        dl = _make_dl()
+        dl = _make_dl(self.VENDOR_ID)
         vendor = as_Service(id_=self.VENDOR_ID, name="Vendor")
         finder = as_Service(id_=self.FINDER_ID, name="Finder")
         dl.save(vendor)
@@ -300,7 +318,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link."""
         from vultron.core.models.case_actor import VultronCaseActor
 
-        dl = _make_dl()
+        dl = _make_dl(self.CASE_ACTOR_ID)
 
         # The CaseActor Service must have context=case_id so that
         # _find_case_actor_id resolves it via the Service scan.
@@ -310,10 +328,17 @@ class TestCaseActorReceivedWritesLedgerEntry:
         )
         dl.save(case_actor_svc)
 
+        # An embargo is part of what a delivered Create(VulnerabilityCase)
+        # replica carries, alongside the participant index (ADR-0041,
+        # CBT-01-002).  ValidateReportBT now resolves the case *before* it
+        # writes anything, so a replica missing the embargo blocks the
+        # RM.VALID transition outright rather than latching a phantom
+        # report-phase record (DUR-07-004, ISSUE-2548).
         case = as_VulnerabilityCase(
             id_=self.CASE_ID,
             name="Ledger Routing Test Case",
             attributed_to=self.CASE_ACTOR_ID,
+            active_embargo=f"{self.CASE_ID}/embargoes/ledger-test",
         )
         case.vulnerability_reports.append(self.REPORT_ID)
 
@@ -448,6 +473,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
             context=self.CASE_ID,
             case_roles=[CVDRole.COORDINATOR],
         )
+        # RM.RECEIVED is the state the sender holds before validate-report;
+        # RECEIVED -> VALID is a legal move, START -> VALID is not (ISSUE-2548).
+        vendor_p.append_rm_state(RM.RECEIVED, self.VENDOR_ID, self.CASE_ID)
         dl.create(vendor_p)
         case.case_participants.append(vendor_p.id_)
         case.actor_participant_index[self.VENDOR_ID] = vendor_p.id_
@@ -494,7 +522,7 @@ class TestFullValidateReportLedgerChain:
         from vultron.core.use_cases._helpers import outbox_ids
 
         # ── Step 1: vendor_dl — case at RM.RECEIVED ──────────────────────────
-        vendor_dl = _make_dl()
+        vendor_dl = _make_dl(self.VENDOR_ID)
         vendor = as_Service(id_=self.VENDOR_ID, name="Vendor Co")
         finder = as_Service(id_=self.FINDER_ID, name="Finder Co")
         vendor_dl.save(vendor)
@@ -533,7 +561,14 @@ class TestFullValidateReportLedgerChain:
         )
 
         # ── Step 4: build case_actor_dl with same case identifiers ────────────
-        case_actor_dl = _make_dl()
+        # Keyed by the CaseActor, not the vendor. Two things were wrong with
+        # `_make_dl(self.VENDOR_ID)` here: the use case receives as the CaseActor,
+        # so the tree runs in the CaseActor's store and found no case there; and
+        # an actor id *is* a store name, so passing the vendor's id handed back
+        # the very same in-memory database as `vendor_dl` above. The two halves of
+        # this "vendor triggers, CaseActor receives" chain were one store, which
+        # is exactly the sharing that hides a missing cross-store write.
+        case_actor_dl = _make_dl(case_actor_id)
 
         # The CaseActor Service needs context=case.id_ for _find_case_actor_id.
         ca_svc = VultronCaseActor(id_=case_actor_id, context=case.id_)

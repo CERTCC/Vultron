@@ -346,8 +346,8 @@ class EmitAddCaseStatusToSelfNode(DataLayerActionWithPorts):
                     to=[self.actor_id],
                 )
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "EmitAddCaseStatusToSelf: queued Add(CaseStatus) '%s'"
@@ -438,8 +438,8 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
                 actor=self.actor_id or "",
                 to=[case_manager_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id or "", activity_id
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
             )
             self.logger.info(
                 "EmitCloseCase: queued Leave(VulnerabilityCase) '%s'"

@@ -15,7 +15,10 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.core.use_cases._helpers import _idempotent_create
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    resolve_receiving_actor_id,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -79,10 +82,11 @@ class AddCaseStatusToCaseReceivedUseCase:
         )
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=(
-                request.receiving_actor_id
-                if request.receiving_actor_id is not None
-                else request.actor_id
+            # The *receiving* actor, not the sender (BT-17-005): this applies an
+            # inbound CaseStatus to the receiver's own replica, so the tree must
+            # execute — and therefore read and write — in the receiver's store.
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
             ),
             activity=request,
         )
@@ -169,13 +173,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
             return
 
-        receiving_actor_id = request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.debug(
-                "AddParticipantStatusToParticipantReceivedUseCase:"
-                " receiving_actor_id not set — skipping (CLP-10-005)"
-            )
-            return
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.status.add_participant_status_tree import (

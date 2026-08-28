@@ -37,9 +37,13 @@ groups:
     kind: protocol
     statement: If a corresponding simulator class does NOT exist for the behavior being implemented, the developer MUST document
       the divergence with a brief rationale comment before proceeding.
+    verification: Inspection of BT behavior implementations in `vultron/core/behaviors/` confirms that any node without
+      a counterpart in `notes/vultron-bt.txt` includes a comment explaining the divergence.
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
+    lint_suppress:
+    - missing_story_reference
 - id: BTC-02
   title: BT Structure Pre-Definition
   specs:

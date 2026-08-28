@@ -15,8 +15,10 @@ nav:
     - 'topics/index.md'
     - Background:
       - 'topics/background/index.md'
+      - What Is Vultron?: 'topics/background/what-is-vultron.md'
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
+    - The Case Model: 'topics/case_model.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
@@ -84,6 +86,17 @@ nav:
       - Reward Functions: 'topics/future_work/reward_functions.md'
       - Ontology: 'topics/future_work/ontology.md'
       - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+    - Demo Scenarios:
+      - 'topics/scenarios/index.md'
+      - FV: 'topics/scenarios/fv.md'
+      - FVV: 'topics/scenarios/fvv.md'
+      - FCV: 'topics/scenarios/fcv.md'
+      - FCV-reject: 'topics/scenarios/fcv-reject.md'
+      - FCVCV: 'topics/scenarios/fcvcv.md'
+      - FVCV-extension: 'topics/scenarios/fvcv-extension.md'
+      - FVCV-handoff: 'topics/scenarios/fvcv-handoff.md'
+      - FCCV-extension: 'topics/scenarios/fccv-extension.md'
+      - FCCV-handoff: 'topics/scenarios/fccv-handoff.md'
   - How-to Guides:
       - 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
@@ -113,7 +126,7 @@ nav:
     - 'reference/index.md'
     - Protocol Architecture:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
-      - Ubiquitous Language: 'reference/glossary.md'
+      - Glossary: 'reference/glossary.md'
       - Draft Protocol Specification: 'reference/draft-vultron-spec.md'
     - Terms and Definitions: 'reference/terms.md'
     - Notation: 'reference/notation.md'
@@ -292,6 +305,14 @@ nav:
       - 'Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host': 'adr/0069-vultron-namespace-uri.md'
       - 'Reuse validate-report for Invited Actors; Derive VultronOfferRecord from Ledger Backfill': 'adr/0070-invited-actor-rm-triage-via-ledger-backfill.md'
       - 'CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined': 'adr/0071-cna-eligibility-reference-baseline.md'
+      - 'Use a Dedicated stories: Field for Spec-to-Story Traceability': 'adr/0072-stories-field-for-spec-to-story-traceability.md'
+      - Give Each Actor Its Own Store; Delete the Unscoped DataLayer: 'adr/0073-per-actor-storage-isolation.md'
+      - 'Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal': 'adr/0074-wire-activity-artifact-immutability.md'
+      - 'Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines': 'adr/0075-split-vfd-state-machine.md'
+      - Security-Significant Call-Out Gates Default to RequireCaseOwnerApproval: 'adr/0076-security-significant-gates-default-require-case-owner-approval.md'
+      - 'Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative': 'adr/0077-ledger-replication-companion-spec.md'
+      - "Retire CVDRole.FINDER — Reporter Is the Protocol-Salient Role": 'adr/0078-retire-finder-role.md'
+      - 'CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order': 'adr/0079-case-ledger-causal-ordering.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -299,6 +320,8 @@ nav:
     - License: 'about/license.md'
 not_in_nav: |
   _*.md
+  # Published at the namespace URI and reached by that URI, not by browsing.
+  ns/index.md
   adr/archived/*.md
   _*/**/*.md
   includes/*

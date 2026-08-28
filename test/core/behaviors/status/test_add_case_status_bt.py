@@ -49,6 +49,7 @@ from vultron.core.behaviors.status.nodes import (
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
@@ -86,7 +87,10 @@ def clear_blackboard():
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    # The node-level tests below run as ACTOR_ID, so this is ACTOR_ID's store.
+    # The use-case and authorization-gate tests further down run as the case
+    # manager and build their own CASE_MANAGER_ID store for that reason.
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
 
 @pytest.fixture
@@ -353,6 +357,7 @@ class TestAddCaseStatusTree:
         assert result.status == Status.FAILURE
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
+    @pytest.mark.spec("RSH-05-017")
     def test_invalid_em_transition_fails(self, dl, make_payload):
         """Invalid EM transition → BT FAILURE; status not appended."""
         case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard")
@@ -383,6 +388,56 @@ class TestAddCaseStatusTree:
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID not in status_ids
 
+    @pytest.mark.spec("RSH-05-015")
+    @pytest.mark.spec("RSH-05-016")
+    def test_valid_em_advance_with_pxa_regression_applies_em_and_refuses_pxa(
+        self, dl, make_payload
+    ):
+        """EM advances (NONE→PROPOSED) with stale PXA regression → BT SUCCEEDS.
+
+        Bug #2256: ValidateCaseStatusTransitionNode returned FAILURE when PXA
+        regressed, discarding the valid EM advance and aborting the Sequence
+        before ThreatTerminationBranchNode.  Per-dimension adjudication must
+        accept the EM advance and carry the current PXA forward.
+        """
+        case = as_VulnerabilityCase(id_=CASE_ID, name="EM PXA Split")
+        # The case auto-seeds an initial CaseStatus (pxa=pxa by default).
+        # Set PXA=Pxa so the asserted pxa=pxa is a real regression.
+        cast(as_CaseStatus, case.case_statuses[0]).pxa_state = CS_pxa.Pxa
+        dl.create(case)
+
+        # Sender asserts EM NONE→PROPOSED (valid) + PXA Pxa→pxa (stale regression)
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em_state=EM.PROPOSED,
+            pxa_state=CS_pxa.pxa,  # regression: P was True, sender claims False
+        )
+        dl.create(asserted)
+
+        activity = add_status_to_case_activity(
+            asserted, target=case, actor=ACTOR_ID
+        )
+        event = make_payload(activity)
+
+        tree = add_case_status_tree(request=event)
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
+        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
+        assert STATUS_ID in status_ids
+
+        # EM advance accepted, PXA carried forward (not regressed).
+        # Assert on the saved domain CaseStatus at STATUS_ID, not
+        # current_status: current_status uses max-by-ID and the auto-seeded
+        # UUID-ID status sorts lexically higher than STATUS_ID.
+        saved_status = cast(CaseStatus, dl.read(STATUS_ID))
+        assert saved_status.em.state == EM.PROPOSED
+        assert saved_status.pxa.state == CS_pxa.Pxa
+
 
 # ---------------------------------------------------------------------------
 # Use-case level (integration with BT)
@@ -392,7 +447,10 @@ class TestAddCaseStatusTree:
 class TestAddCaseStatusToCaseReceivedUseCase:
     def test_use_case_appends_status(self, make_payload):
         """Use case succeeds: status is appended to case."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_MANAGER_ID,
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="UC Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         dl.create(case)
@@ -413,7 +471,10 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """Duplicate status → no append; use case ledgers at INFO not WARNING."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_MANAGER_ID,
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         case.case_statuses.append(status_obj)
@@ -446,7 +507,10 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """Invalid EM transition → no append; use case ledgers at WARNING."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_MANAGER_ID,
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard Case")
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
@@ -487,7 +551,10 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """Missing status_id in event → WARNING; no BT executed."""
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_MANAGER_ID,
+        )
         case = as_VulnerabilityCase(id_=CASE_ID, name="Missing ID Case")
         dl.create(case)
 
@@ -643,14 +710,16 @@ class TestThreatTerminationBranchNode:
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
 
-        # Use a non-CASE_OWNER actor — teardown must still fire
-        non_owner_actor = "https://example.org/actors/non-owner"
+        # ACTOR_ID holds no role at all in the seeded case — the only
+        # participant is CASE_MANAGER_ID — so executing as ACTOR_ID *is* the
+        # non-CASE_OWNER condition this test asserts.  A separate stand-in id
+        # would only name an actor whose store is empty, which tests nothing.
         status_obj = self._setup_dl_with_embargo(dl, CS_pxa.Pxa)
         bridge = BTBridge(datalayer=dl)
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=non_owner_actor)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         # FAILURE because no broadcast factory, but state was applied
         assert result.status == Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
@@ -693,7 +762,10 @@ class TestAddCaseStatusTreeSeam2:
         from vultron.enums.roles import CVDRole
         from vultron.semantic_registry import extract_event
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=CASE_MANAGER_ID,
+        )
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
@@ -782,15 +854,22 @@ class TestRegressionCSPTeardownPath:
     AC #8 from issue #1844.
     """
 
-    def _build_dl_with_active_embargo(self):
-        """Return a fresh DataLayer with a case in ACTIVE embargo."""
+    def _build_dl_with_active_embargo(self, manager_id: str = CASE_MANAGER_ID):
+        """Return a fresh DataLayer with a case in ACTIVE embargo.
+
+        *manager_id* names both the case manager and the store, so the two
+        halves of the regression comparison below must pass **different** ids:
+        in-memory stores are keyed by ``(db_url, actor_id)``, so two calls with
+        the same id would hand back the *same* database and the second seed
+        would collide on ``CASE_ID``.
+        """
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=manager_id)
         cm_participant = as_CaseParticipant(
             id_=f"{CASE_ID}/participants/cm",
             context=CASE_ID,
-            attributed_to=CASE_MANAGER_ID,
+            attributed_to=manager_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         embargo = as_EmbargoEvent(
@@ -840,9 +919,12 @@ class TestRegressionCSPTeardownPath:
             status_obj=new_status_obj, case_id=CASE_ID
         )
         new_bridge = BTBridge(datalayer=dl_new)
-        # No broadcast factory → FAILURE (BT-14-001), but EM state committed
+        # Runs as the case manager, matching the legacy half below: the seeded
+        # case names CASE_MANAGER_ID as its only participant, and teardown
+        # authority is the manager's.  ACTOR_ID here would execute against an
+        # empty store and hold no authority either.
         new_result = new_bridge.execute_with_setup(
-            tree=new_node, actor_id=ACTOR_ID
+            tree=new_node, actor_id=CASE_MANAGER_ID
         )
         assert new_result.status == Status.FAILURE
 
@@ -851,7 +933,10 @@ class TestRegressionCSPTeardownPath:
         new_embargo = new_case.active_embargo
 
         # — Legacy path: PublicDisclosureBranchNode (CASE_OWNER + CS.P) —
-        dl_old = self._build_dl_with_active_embargo()
+        # A distinct manager id, so this half gets its own store rather than
+        # the one the new-pipeline half above already seeded.
+        legacy_manager_id = f"{CASE_MANAGER_ID}-legacy"
+        dl_old = self._build_dl_with_active_embargo(legacy_manager_id)
         owner_participant = as_CaseParticipant(
             id_=f"{CASE_ID}/participants/vendor",
             context=CASE_ID,
@@ -879,7 +964,7 @@ class TestRegressionCSPTeardownPath:
         old_bridge = BTBridge(datalayer=dl_old)
         # No factory → FAILURE from broadcast (BT-14-001)
         old_result = old_bridge.execute_with_setup(
-            tree=old_node, actor_id=CASE_MANAGER_ID
+            tree=old_node, actor_id=legacy_manager_id
         )
         assert old_result.status == Status.FAILURE
 
@@ -918,7 +1003,11 @@ class TestCaseLedgerEntryCreation:
     def _build_dl_with_case_manager(self):
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The tree runs as the case manager, so this is the case manager's own
+        # store (BT-05-005, ADR-0073).
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2254
+        )
         cm_participant = as_CaseParticipant(
             id_=CM_PARTICIPANT_ID_2254,
             context=CASE_ID,

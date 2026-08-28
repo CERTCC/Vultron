@@ -19,6 +19,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import PortInformation
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case import case_addressees
 
 
 class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
@@ -55,6 +57,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         super().initialise()
         self.embargo_id: str = self.get_input("embargo_id")
         self.case_manager_id: str = self.get_input("case_manager_id")
+        self._to: list[str] = []
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
@@ -65,17 +68,65 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         return Status.FAILURE
 
     def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
+        """Resolve the factory arguments, or skip when there is no audience.
+
+        The recipients are computed here rather than at the factory call so an
+        empty audience can take the base class's graceful-skip path (EMB-19-002).
+        An activity addressed to nobody is undeliverable and delivery discards it
+        anyway, so building one only adds an outbox entry that can never resolve.
+        SUCCESS, not FAILURE: the teardown itself has already happened, and there
+        is simply nobody to tell.
+        """
+        assert self.actor_id is not None
+        self._to = self._recipients(self.actor_id, self.case_manager_id)
+        if not self._to:
+            self.feedback_message = (
+                f"case '{self._case_id}' has no participants besides the"
+                " manager — nothing to tell (EMB-19-002)"
+            )
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
         return self.embargo_id, self.case_manager_id
 
+    def _recipients(self, actor_id: str, case_manager_id: str) -> list[str]:
+        """Return whom this teardown is addressed to (EMB-19-001).
+
+        Two callers share this node, and they are asking different things:
+
+        - An ordinary participant is *requesting* that the manager tear the
+          embargo down, so the manager is the addressee.
+        - The manager itself is *reporting* a teardown it has already applied
+          (the cascade from ``PublicDisclosureBranchNode``, which runs as the
+          CASE_MANAGER because that is who the received tree's ledger commit is
+          gated on). Its audience is every other participant.
+
+        Addressing ``case_manager_id`` unconditionally collapsed the second case
+        into a message from the manager to itself. Delivery discarded it, so
+        every other replica kept an embargo the manager had already removed —
+        EM stayed ACTIVE for everyone but the manager and nothing raised. This is
+        the third site with this defect; ``SendAnnounceEmbargoEventNode`` and the
+        teardown announce tree were the first two, which is why EMB-19-001 exists.
+        """
+        if actor_id != case_manager_id:
+            return [case_manager_id]
+
+        assert self.datalayer is not None
+        case = self.datalayer.read(self._case_id)
+        if not isinstance(case, VulnerabilityCase):
+            # Nothing better to say than the old answer; a missing case is
+            # reported by the nodes that precede this one in the sequence.
+            return [case_manager_id]
+        return case_addressees(case, actor_id)
+
     def _call_factory(
-        self, actor_id: str, embargo_id: str, case_manager_id: str
+        self, actor_id: str, embargo_id: str, _case_manager_id: str
     ) -> tuple[str, object]:
         assert self.trigger_activity_factory is not None
         return self.trigger_activity_factory.terminate_embargo(
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            to=[case_manager_id],
+            to=self._to,
         )
 
     def _on_outbox_write_failure(

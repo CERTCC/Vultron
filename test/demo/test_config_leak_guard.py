@@ -37,12 +37,18 @@ These tests pin both halves of the fix:
   repair a leak if any fixture gets the order wrong again (defense in depth).
 """
 
+import anyio
+import logging
+
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from vultron.config.app import reload_config
+from vultron.core.models.activity import VultronActivity
 from test.demo.conftest import (
     _CASE_ACTOR_SERVICE_URL,
+    _KNOWN_FICTIONAL_HOSTS,
+    _TestClientRouter,
     config_leak_ledger,
     config_snapshot,
     config_url_snapshot,
@@ -232,3 +238,45 @@ class TestDemoSessionBaseline:
         assert case_actor_url.rstrip("/") == _CASE_ACTOR_SERVICE_URL.rstrip(
             "/"
         )
+
+
+def _make_mock_activity() -> VultronActivity:
+    return VultronActivity(
+        id_="urn:test:act1",
+        type_="Create",
+        actor="urn:test:actor",
+    )
+
+
+class TestTestClientRouterDropLogging:
+    """_TestClientRouter.emit logs WARNING for unexpected drops, DEBUG for allowlisted ones."""
+
+    def test_warning_for_unregistered_non_allowlisted_host(self, caplog):
+        """emit() logs WARNING when dropping to a host not in _KNOWN_FICTIONAL_HOSTS."""
+        router = _TestClientRouter()
+        activity = _make_mock_activity()
+        with caplog.at_level(logging.DEBUG):
+            anyio.run(
+                router.emit, activity, ["http://stale-config.test/actors/a1"]
+            )
+        router_records = [
+            r for r in caplog.records if r.name == "test.demo.conftest"
+        ]
+        assert any(r.levelname == "WARNING" for r in router_records)
+
+    def test_debug_for_allowlisted_host_drop(self, caplog):
+        """emit() logs DEBUG (not WARNING) when dropping to a known-fictional host."""
+        assert "vultron.example" in _KNOWN_FICTIONAL_HOSTS
+        router = _TestClientRouter()
+        activity = _make_mock_activity()
+        with caplog.at_level(logging.DEBUG):
+            anyio.run(
+                router.emit,
+                activity,
+                ["https://vultron.example/users/finder"],
+            )
+        router_records = [
+            r for r in caplog.records if r.name == "test.demo.conftest"
+        ]
+        assert not any(r.levelname == "WARNING" for r in router_records)
+        assert any(r.levelname == "DEBUG" for r in router_records)

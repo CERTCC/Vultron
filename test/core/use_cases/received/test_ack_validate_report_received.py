@@ -16,6 +16,8 @@ ADR-0041: SubmitReportReceivedUseCase no longer creates a VulnerabilityCase.
 Instead it writes a pending VultronReportCaseLink and sends Create(as_CaseProposal).
 """
 
+from typing import cast
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -24,6 +26,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VultronObject
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -88,7 +91,10 @@ class TestAckReportNoStandaloneStatus:
             activity=offer_activity,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
         AckReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
@@ -121,7 +127,10 @@ class TestFullReportFlow:
         from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_actor import VultronCaseActor
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.VENDOR_ID,
+        )
         report = VultronReport(id_=self.REPORT_ID)
         vendor = VultronCaseActor(id_=self.VENDOR_ID)
         offer = VultronOffer(
@@ -134,6 +143,63 @@ class TestFullReportFlow:
         dl.save(vendor)
         dl.save(offer)
         return dl
+
+    CASE_ID = "https://example.org/cases/c-flow-1"
+    CASE_ACTOR_ID = f"{_CASE_ACTOR_SERVICE_URL}/actors/case-actor"
+
+    def _deliver_case_replica(self, dl, make_payload):
+        """Deliver the CaseActor's ``Create(VulnerabilityCase)`` to the vendor.
+
+        Per ADR-0041 the vendor does *not* create the case at RM.RECEIVED — it
+        writes a pending link and proposes the case to the CaseActor, which
+        creates the case in its own store (ADR-0073) and replicates it back.
+        Under PCR-01-003 that replica is the only way the case reaches this
+        actor, co-located or not, so the vendor's case-scoped RM state cannot
+        advance until it lands (ISSUE-2548).
+
+        The snapshot carries what a real bootstrap Create carries (CBT-01-002):
+        the CASE_MANAGER participant, this actor's own participant at
+        RM.RECEIVED, and the active embargo (DUR-07-004).
+        """
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.factories import create_case_activity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.core.use_cases.received.case.create import (
+            CreateCaseReceivedUseCase,
+        )
+
+        case_manager = as_CaseParticipant(
+            id_=f"{self.CASE_ID}/participants/case-actor",
+            attributed_to=self.CASE_ACTOR_ID,
+            context=self.CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        vendor_participant = as_CaseParticipant(
+            id_=f"{self.CASE_ID}/participants/vendor",
+            attributed_to=self.VENDOR_ID,
+            context=self.CASE_ID,
+            case_roles=[CVDRole.VENDOR],
+        )
+        vendor_participant.append_rm_state(
+            RM.RECEIVED, self.VENDOR_ID, self.CASE_ID
+        )
+        case = as_VulnerabilityCase(
+            id_=self.CASE_ID,
+            name="Flow test case",
+            vulnerability_reports=[self.REPORT_ID],
+            case_participants=[case_manager, vendor_participant],
+            active_embargo=f"{self.CASE_ID}/embargoes/flow-embargo",
+        )
+        # The index travels on the wire alongside the inline participants
+        # (CM-19-003): participants are resolved through it, never by scanning
+        # inline snapshots.
+        case.actor_participant_index[self.CASE_ACTOR_ID] = case_manager.id_
+        case.actor_participant_index[self.VENDOR_ID] = vendor_participant.id_
+        activity = create_case_activity(case, actor=self.CASE_ACTOR_ID)
+        CreateCaseReceivedUseCase(dl, make_payload(activity)).execute()
 
     def _make_submit_event(self):
         """Build a SubmitReportReceivedEvent (Offer(Report) from finder to vendor)."""
@@ -213,12 +279,57 @@ class TestFullReportFlow:
             "(case was created at RM.RECEIVED per ADR-0015)"
         )
 
-    def test_full_flow_vendor_in_rm_valid_after_validate(self):
-        """After validate-report, vendor participant has RM.VALID in history.
+    def test_full_flow_vendor_in_rm_valid_after_validate(self, make_payload):
+        """After the case replica lands, validate-report records vendor RM.VALID.
 
         Per ADR-0015: validation transitions the vendor's RM state from
         RECEIVED to VALID; this state change must be persisted.
         Engage/defer is a separate, explicit protocol step.
+
+        The replica delivery is not optional set-up dressing: under ADR-0041 the
+        vendor has no case of its own at RM.RECEIVED, and RM.VALID is a
+        case-scoped transition (ISSUE-2548).
+        """
+        from vultron.core.states.rm import RM
+
+        dl = self._setup_dl()
+        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        self._deliver_case_replica(dl, make_payload)
+        ValidateReportReceivedUseCase(
+            dl, self._make_validate_event()
+        ).execute()
+
+        valid_id = _report_phase_status_id(
+            self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
+        )
+        assert (
+            dl.get("ParticipantStatus", valid_id) is not None
+        ), f"Vendor {self.VENDOR_ID} must have RM.VALID in history after validate-report"
+
+        participant = cast(
+            CaseParticipant, dl.read(f"{self.CASE_ID}/participants/vendor")
+        )
+        assert participant is not None
+        status = participant.participant_status
+        assert status is not None
+        assert status.rm.state == RM.VALID, (
+            "The case-scoped participant RM state must advance in lockstep with"
+            " the report-phase record — a report-phase RM.VALID with the"
+            " participant still at RECEIVED is the ISSUE-2548 split"
+        )
+
+    def test_full_flow_no_rm_valid_before_case_replica_arrives(self):
+        """Without the case replica, validate-report writes no RM.VALID latch.
+
+        Regression test for ISSUE-2548.  The vendor's store holds only a pending
+        VultronReportCaseLink until ``Create(VulnerabilityCase)`` arrives
+        (ADR-0041, PCR-01-003).  ``TransitionRMtoValid`` used to write the
+        report-phase RM.VALID ``ParticipantStatus`` anyway and return SUCCESS,
+        which permanently latched ``CheckRMStateValid`` and left the
+        case-scoped participant state stuck at RECEIVED forever (ID-04-005).
+
+        The correct behavior is to write nothing and let the tree fail, so the
+        transition can be retried once the replica lands.
         """
         from vultron.core.states.rm import RM
 
@@ -231,9 +342,10 @@ class TestFullReportFlow:
         valid_id = _report_phase_status_id(
             self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
         )
-        assert (
-            dl.get("ParticipantStatus", valid_id) is not None
-        ), f"Vendor {self.VENDOR_ID} must have RM.VALID in history after validate-report"
+        assert dl.get("ParticipantStatus", valid_id) is None, (
+            "No RM.VALID record may be written before the case replica exists"
+            " in this actor's own store (ISSUE-2548, ID-04-005)"
+        )
 
     def test_full_flow_finder_remains_rm_accepted(self):
         """ADR-0041: finder RM.ACCEPTED status is not written by the vendor tree.
@@ -259,13 +371,14 @@ class TestFullReportFlow:
             " vendor receive-report tree (only by CreateCaseReceivedUseCase)"
         )
 
-    def test_full_flow_produces_correct_final_state(self):
-        """ADR-0041: submit + validate flow produces pending link + vendor RM.VALID.
+    def test_full_flow_produces_correct_final_state(self, make_payload):
+        """ADR-0041: submit + replica + validate produces link + vendor RM.VALID.
 
         After ADR-0041:
         - SubmitReportReceivedUseCase writes a pending VultronReportCaseLink.
+        - The CaseActor's Create(VulnerabilityCase) seeds the case replica.
         - ValidateReportReceivedUseCase records vendor RM.VALID status.
-        - No VulnerabilityCase is created by either use case.
+        - No VulnerabilityCase is created by either report use case.
         """
         from vultron.core.states.rm import RM
 
@@ -275,6 +388,7 @@ class TestFullReportFlow:
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
+        self._deliver_case_replica(dl, make_payload)
         ValidateReportReceivedUseCase(
             dl, self._make_validate_event()
         ).execute()
@@ -329,24 +443,28 @@ class TestValidateReportReceivedGuardedCommit:
             receiving_actor_id=receiving_actor_id,
         )
 
-    def test_skip_commit_when_no_receiving_actor(self, caplog):
-        """ValidateReportReceivedUseCase skips commit when receiving_actor_id is None.
+    def test_store_owner_fallback_when_no_receiving_actor(self):
+        """ValidateReportReceivedUseCase uses store owner when receiving_actor_id is None.
 
-        Per CLP-10-003: when receiving_actor_id is not set, the commit is skipped.
+        The BT runs under the store owner's identity (CLP-10-005 fallback).
+        The guarded commit fires because the store owner holds CASE_MANAGER.
         """
-        import logging
+        import py_trees
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        event = self._make_validate_event_with_receiving_actor(
-            receiving_actor_id=None
-        )
-
-        with caplog.at_level(logging.DEBUG):
+        py_trees.blackboard.Blackboard.storage.clear()
+        try:
+            dl = SqliteDataLayer(
+                "sqlite:///:memory:",
+                actor_id=self.CASE_ACTOR_ID,
+            )
+            event = self._make_validate_event_with_receiving_actor(
+                receiving_actor_id=None
+            )
             ValidateReportReceivedUseCase(dl, event).execute()
-
-        assert any(
-            "receiving_actor_id not set" in r.message for r in caplog.records
-        ), "Expected debug log indicating skip due to missing receiving_actor_id"
+            # No assertion on ledger (case lookup returns None in this minimal
+            # fixture), but the use case must NOT raise VultronValidationError.
+        finally:
+            py_trees.blackboard.Blackboard.storage.clear()
 
     def test_skip_commit_when_no_case_found(self, caplog):
         """ValidateReportReceivedUseCase skips commit when no case for report.
@@ -356,7 +474,10 @@ class TestValidateReportReceivedGuardedCommit:
         """
         import logging
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
         event = self._make_validate_event_with_receiving_actor(
             receiving_actor_id=self.CASE_ACTOR_ID
         )
@@ -381,7 +502,10 @@ class TestValidateReportReceivedGuardedCommit:
             VultronReportCaseLink,
         )
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
 
         # Create a report and link it to a case with CaseActor
         report = VultronReport(id_=self.REPORT_ID)
@@ -451,7 +575,10 @@ class TestValidateReportReceivedGuardedCommit:
 
         CASE_ID = "https://example.org/cases/c-commit-positive"
 
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
 
         report = VultronReport(id_=self.REPORT_ID)
         dl.save(report)

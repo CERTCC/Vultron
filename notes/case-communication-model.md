@@ -226,23 +226,39 @@ Case Actor's AcceptInviteActorToCaseReceivedUseCase:
   `Accept(Invite)` is semantically equivalent to engaging, so the
   separate engage step is redundant.
 
-### Implementation Pattern: Owner Triggers, Case Actor Executes
+### Implementation Pattern: Role-Gated Emit, Case Actor Executes
 
-`SvcInviteActorToCaseUseCase` resolves the Case Actor ID, constructs the
-Invite with `actor=case_actor_id`, and places it in the **Case Actor's
-outbox** — not the case owner's outbox:
+**Updated by ADR-0073 / CM-24-004.** The emit must sit inside a composite gated
+on the executing actor holding `CVDRole.CASE_MANAGER` for the case
+(`create_case_manager_gated_tree`). Code MUST NOT instead resolve a
+`case_actor_id` and compare it against `actor_id`: the authority is a *role* held
+in the case, its holder may be any Actor type, and ungated the same helper is
+identity spoofing — any actor reaching it could emit as the CaseActor.
+
+Once the emit is role-gated the executing actor *is* the case manager, so
+`dl` already belongs to it and the activity and its outbox entry land in one store
+by construction (BT-05-006). That is also why `add_activity_to_outbox`'s first
+argument is now only a log label: **`dl` determines the queue**, and
+`record_outbox_item` — which enqueued against an explicit `actor_id`, bypassing
+`dl`'s scope — is gone, because there is no unscoped `dl` for it to compensate
+for.
 
 ```python
-case_actor_id = _find_case_actor_id(dl, case_id)
+# Inside a CASE_MANAGER-gated composite, so `actor_id` is the case manager
+# and `dl` is its own store.
 activity_id = trigger_activity.invite_actor_to_case(
     invitee_id=invitee_id,
     case_id=case_id,
-    actor=case_actor_id,           # ← Case Actor sends
-    attributed_to=actor_id,        # ← Case Owner attribution
+    actor=actor_id,                # ← the role holder sends (CM-24-001)
+    attributed_to=requester_id,    # ← originating participant (CM-24-002)
     to=[invitee_id],
 )
-add_activity_to_outbox(case_actor_id, activity_id, dl)   # ← Case Actor outbox
+add_activity_to_outbox(actor_id, activity_id, dl)   # ← dl *is* the manager's store
 ```
+
+When a case has no `CVDRole.CASE_MANAGER` participant the delegation channel does
+not exist: the Activity is sent directly by the requesting participant, with
+`actor` set to it and `attributed_to` set to `None` (CM-24-003).
 
 ---
 
@@ -269,23 +285,28 @@ Recipient receives Activity:
 
 ### Reference Implementation
 
-`SvcInviteActorToCaseUseCase._prepare()` (`triggers/actor.py:146–166`) is the
-canonical reference:
+Use `_prepare_delegated_context()` (`triggers/_helpers.py`) as the canonical
+implementation.  All delegated-emit trigger use cases MUST call this helper
+(CM-24-005).  When the BT tree also needs `case_actor_id` separately (e.g.
+for the `cc:` routing in the invite flow), resolve it with a second
+`_find_case_actor_id()` call after the helper:
 
 ```python
-case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
-self._actor_id = case_actor_id if case_actor_id else owner_id   # CM-24-001/003
-self._case_actor_id = case_actor_id
-self._attributed_to = owner_id if case_actor_id else None        # CM-24-002/003
+# Delegated-message contract (CM-24-001..003)
+self._actor_id, self._attributed_to = _prepare_delegated_context(
+    self._dl, self._case.id_, requesting_actor_id
+)
+# case_actor_id needed separately when BT tree requires it (e.g. invite cc:)
+self._case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
 ```
 
 ### Delegated Flows (Exhaustive)
 
 | Trigger use case | Notes |
 |---|---|
-| `SvcInviteActorToCaseUseCase` | ✅ reference — correct |
-| `SvcOfferCaseOwnershipTransferUseCase` | ❌ as of CONCERN-2170 — tracked in #2173 |
-| Other delegated-emit trigger use cases | audit scope of the CM-24 impl issue |
+| `SvcInviteActorToCaseUseCase` | ✅ uses `_prepare_delegated_context()` |
+| `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
+| Other trigger use cases | audit complete — no other delegated-emit callsites |
 
 ### Shared-Helper Requirement (CM-24-005)
 

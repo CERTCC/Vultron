@@ -59,7 +59,10 @@ OFFER_ID = "https://example.org/activities/offer-123"
 
 
 def _fresh_dl() -> SqliteDataLayer:
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=ACTOR_ID,
+    )
 
 
 def _write_btbridge_keys(
@@ -276,6 +279,9 @@ class TestEnsureEmbargoExistsPorts:
         ports = EnsureEmbargoExists.input_ports()
         assert "datalayer" in ports
         assert "actor_id" in ports
+        # Published upstream by RequireCaseForReport; optional so a tree may omit
+        # the publisher, but absence is FAILURE (ARCH-15-001, ISSUE-2548).
+        assert "case_id" in ports
 
     def test_missing_datalayer_raises_no_data_available(self) -> None:
         py_trees.blackboard.Blackboard.storage.clear()
@@ -284,7 +290,9 @@ class TestEnsureEmbargoExistsPorts:
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
 
-    def test_failure_when_no_case(self, bt_scenario: BTTestScenario) -> None:
+    def test_failure_when_no_case_id_published(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
         bt_scenario.seed(actor, report)
@@ -307,7 +315,9 @@ class TestEnsureEmbargoExistsPorts:
         case.active_embargo = "https://example.org/embargos/em-001"
         bt_scenario.seed(actor, report, case)
         result = bt_scenario.run(
-            EnsureEmbargoExists(report_id=REPORT_ID), actor_id=ACTOR_ID
+            EnsureEmbargoExists(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=case.id_,
         )
         bt_scenario.assert_success(result)
 
@@ -324,7 +334,9 @@ class TestEnsureEmbargoExistsPorts:
         # active_embargo defaults to None — no explicit assignment needed
         bt_scenario.seed(actor, report, case)
         result = bt_scenario.run(
-            EnsureEmbargoExists(report_id=REPORT_ID), actor_id=ACTOR_ID
+            EnsureEmbargoExists(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=case.id_,
         )
         bt_scenario.assert_failure(result)
 
@@ -355,6 +367,8 @@ class TestTransitionRMtoValidPorts:
         self, bt_scenario: BTTestScenario
     ) -> None:
         from vultron.core.models.activity import VultronOffer
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
 
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
@@ -366,10 +380,21 @@ class TestTransitionRMtoValidPorts:
             vulnerability_reports=[REPORT_ID],
             attributed_to=ACTOR_ID,
         )
-        bt_scenario.seed(actor, report, offer, case)
+        # RM.VALID is case-scoped: the actor must be a participant of the case
+        # replica in its own store (ISSUE-2548).
+        participant = CaseParticipant(
+            id_=f"{case.id_}/participants/vendor",
+            attributed_to=ACTOR_ID,
+            context=case.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        participant.append_rm_state(RM.RECEIVED, ACTOR_ID, case.id_)
+        case.add_participant(participant)
+        bt_scenario.seed(actor, report, offer, participant, case)
         result = bt_scenario.run(
             TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID),
             actor_id=ACTOR_ID,
+            case_id=case.id_,
         )
         bt_scenario.assert_success(result)
         bt_scenario.assert_rm_state(REPORT_ID, RM.VALID, actor_id=ACTOR_ID)

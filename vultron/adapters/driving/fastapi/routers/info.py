@@ -3,8 +3,9 @@
 Info endpoint for the Vultron API (D5-1-G1).
 
 Returns the configured ``VULTRON_SERVER__BASE_URL`` and the list of actor IDs
-registered in the shared DataLayer so that demo scripts and operators
-can confirm container identity at startup.
+this node hosts so that demo scripts and operators can confirm container
+identity at startup.  The list comes from ``hosted_actor_ids()``, not from
+scanning a shared DataLayer — there is no unscoped store to scan (ADR-0073).
 
 References: specs/multi-actor-demo.yaml DEMOMA-02-001,
 notes/multi-actor-architecture.md §4 G1.
@@ -23,38 +24,24 @@ notes/multi-actor-architecture.md §4 G1.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driven import actor_hosts
 from vultron.adapters.utils import BASE_URL
-from vultron.core.ports.datalayer import DataLayer
 
 router = APIRouter(tags=["Info"])
 
-_ACTOR_TABLE_NAMES = [
-    "Actor",
-    "Application",
-    "Group",
-    "Organization",
-    "Person",
-    "Service",
-]
-
 
 @router.get("/info", operation_id="info_get")
-def get_info(dl: DataLayer = Depends(get_shared_dl)) -> dict:
+def get_info() -> dict:
     """Returns server identity information (D5-1-G1).
 
-    Response includes the configured ``VULTRON_SERVER__BASE_URL`` and the list of
-    actor IDs registered in this container's shared DataLayer.  Useful
-    for demo scripts and operators to confirm which container they are
-    talking to at startup.
-    """
-    actor_ids: list[str] = []
-    for table in _ACTOR_TABLE_NAMES:
-        for rec in dl.get_all(table):
-            actor_id = rec.get("id_")
-            if actor_id:
-                actor_ids.append(actor_id)
+    Response includes the configured ``VULTRON_SERVER__BASE_URL`` and the actors
+    this node **hosts**.  Useful for demo scripts and operators to confirm which
+    container they are talking to at startup.
 
-    return {"base_url": BASE_URL, "actors": actor_ids}
+    Before ADR-0073 this scanned the shared DataLayer for every actor-typed row,
+    which also returned the container's *peers* — actors it merely knew an
+    address for.  Peers are not hosted here, so they are no longer listed.
+    """
+    return {"base_url": BASE_URL, "actors": actor_hosts.hosted_actor_ids()}

@@ -92,7 +92,10 @@ class TestInviteToEmbargoRecordsIndex:
     def test_invite_populates_pending_embargo_proposal_index(self):
         """After receiving EP, case.pending_embargo_proposal_index maps embargo → invite."""
         actor_id = "https://example.org/actors/vendor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=actor_id,
+        )
 
         actor = as_Service(id_=actor_id, name="Vendor")
         dl.create(actor)
@@ -130,7 +133,10 @@ class TestInviteToEmbargoRecordsIndex:
     def test_invite_index_idempotent(self):
         """Receiving the same EP twice does not duplicate the index entry."""
         actor_id = "https://example.org/actors/vendor-idem"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=actor_id,
+        )
 
         actor = as_Service(id_=actor_id, name="Vendor")
         dl.create(actor)
@@ -175,7 +181,8 @@ class TestProposeTriggerRecordsIndex:
         )
 
         actor_id = "https://example.org/actors/coordinator"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The store belongs to the actor these trees execute as.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
         actor = as_Service(id_=actor_id, name="Coordinator")
         dl.create(actor)
@@ -231,7 +238,8 @@ class TestAcceptRejectFromCoreState:
     def test_accept_uses_core_state_index(self):
         """SvcAcceptEmbargoUseCase activates embargo using core state (no Invite DL read)."""
         actor_id = "https://example.org/actors/accept-actor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="AcceptActor")
         dl.create(actor)
 
@@ -254,7 +262,8 @@ class TestAcceptRejectFromCoreState:
     def test_accept_without_proposal_id_uses_first_pending(self):
         """SvcAcceptEmbargoUseCase finds first pending proposal from index when no proposal_id given."""
         actor_id = "https://example.org/actors/accept-auto"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="AcceptAutoActor")
         dl.create(actor)
 
@@ -278,7 +287,8 @@ class TestAcceptRejectFromCoreState:
     def test_reject_uses_core_state_index(self):
         """SvcRejectEmbargoUseCase resolves embargo from core state (no Invite DL read)."""
         actor_id = "https://example.org/actors/reject-actor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="RejectActor")
         dl.create(actor)
 
@@ -304,7 +314,8 @@ class TestAcceptRejectFromCoreState:
     def test_accept_raises_notfound_when_index_empty(self):
         """SvcAcceptEmbargoUseCase raises VultronNotFoundError when no pending proposal in index."""
         actor_id = "https://example.org/actors/accept-noproposal"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="AcceptNoProposalActor")
         dl.create(actor)
 
@@ -324,7 +335,8 @@ class TestAcceptRejectFromCoreState:
     def test_reject_raises_notfound_when_index_empty(self):
         """SvcRejectEmbargoUseCase raises VultronNotFoundError when no pending proposal in index."""
         actor_id = "https://example.org/actors/reject-noproposal"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        # The trigger runs as actor_id, so this is its store.
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="RejectNoProposalActor")
         dl.create(actor)
 
@@ -380,7 +392,10 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         from vultron.wire.as2.factories import em_reject_embargo_activity
 
         actor_id = "https://example.org/actors/rej-actor"
-        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=actor_id,
+        )
 
         actor = as_Service(id_=actor_id, name="RejActor")
         dl.create(actor)

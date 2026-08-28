@@ -19,8 +19,7 @@ These are the sole public construction API for activities involving
 ``as_VulnerabilityReport`` objects.  Internal activity subclasses are
 imported here and MUST NOT be imported by callers.
 
-Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001
-through AF-03-006.
+Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001.
 """
 
 from pydantic import ValidationError

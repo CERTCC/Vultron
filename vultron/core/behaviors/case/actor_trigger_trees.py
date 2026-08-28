@@ -220,17 +220,19 @@ def offer_case_ownership_transfer_trigger_bt(
     case_id: str,
     transferee_id: str,
     content: str | None = None,
+    attributed_to: str | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
 
     Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    offering actor to ``transferee_id`` (TRIG-11-001).
+    CaseActor's identity on behalf of the offering actor (CM-24-001, TRIG-11-001).
 
     Args:
         case_id: ID of the VulnerabilityCase whose ownership is being offered.
         transferee_id: Actor URI of the intended new owner.
         content: Optional human-readable message included in the offer.
+        attributed_to: Offering actor URI for delegated-message attribution (CM-24-002).
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
     Returns:
@@ -244,6 +246,7 @@ def offer_case_ownership_transfer_trigger_bt(
                 case_id=case_id,
                 transferee_id=transferee_id,
                 content=content,
+                attributed_to=attributed_to,
                 captured=captured,
             ),
         ],

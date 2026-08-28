@@ -41,6 +41,7 @@ import os
 import sys
 
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -78,6 +79,7 @@ from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
+    replica_route_key,
     resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
@@ -92,12 +94,14 @@ from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
+    LATE_JOINER_TIMEOUT,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -116,6 +120,11 @@ from vultron.demo.helpers.workflow import (
 )
 
 logger = logging.getLogger(__name__)
+
+# AC-6 audit (#2203): wait_for_case_on_container calls in this module poll for
+# VulnerabilityCase object delivery (ADR-0041 seeding path). ADR-0037/ADR-0059
+# buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
+# all wait_for_case_on_container calls here remain necessary.
 
 # Default container base URLs — override via environment variables.
 # C1 uses the "coordinator" container, V1 uses "vendor", C2 uses "actor5",
@@ -239,7 +248,7 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_actor_ids={finder.id_, c1.id_},
     )
 
     with demo_check(
@@ -268,18 +277,21 @@ def _phase_report_submission(
     )
     logger.info("V1 invite created: %s", invite_v1.id_)
 
-    with demo_step("Delivering invite to V1's inbox"):
-        post_to_inbox_and_wait(v1_client, v1_in_v1.id_, invite_v1)
-
-    with demo_check("V1 invite stored in V1's DataLayer"):
-        verify_object_stored(v1_client, invite_v1.id_)
+    invite_v1_id = None
+    with demo_gate("CaseActor-routed Invite for V1 stored in V1's DataLayer"):
+        invite_v1_id = find_case_invite_for_actor(
+            client=v1_client,
+            case_id=case.id_,
+            invitee_id=v1.id_,
+        )
+    logger.info("CaseActor Invite for V1: %s", invite_v1_id)
 
     with demo_step("V1 accepts the case invitation"):
         post_to_trigger(
             client=v1_client,
             actor_id=v1_in_v1.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite_v1.id_},
+            body={"invite_id": invite_v1_id},
         )
 
     with demo_check("V1's DataLayer received case replica"):
@@ -325,18 +337,21 @@ def _phase_report_submission(
     )
     logger.info("C2 invite created: %s", invite_c2.id_)
 
-    with demo_step("Delivering invite to C2's inbox"):
-        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, invite_c2)
-
-    with demo_check("C2 invite stored in C2's DataLayer"):
-        verify_object_stored(c2_client, invite_c2.id_)
+    invite_c2_id = None
+    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
+        invite_c2_id = find_case_invite_for_actor(
+            client=c2_client,
+            case_id=case.id_,
+            invitee_id=c2.id_,
+        )
+    logger.info("CaseActor Invite for C2: %s", invite_c2_id)
 
     with demo_step("C2 accepts the case invitation"):
         post_to_trigger(
             client=c2_client,
             actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite_c2.id_},
+            body={"invite_id": invite_c2_id},
         )
 
     with demo_check("C2's DataLayer received case replica"):
@@ -349,7 +364,12 @@ def _phase_report_submission(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=5,
+        expected_actor_ids={
+            finder.id_,
+            c1_in_c1.id_,
+            v1.id_,
+            c2_in_c2.id_,
+        },
     )
 
     with demo_check(
@@ -364,7 +384,7 @@ def _phase_report_submission(
         )
 
     case = as_VulnerabilityCase.model_validate(
-        c1_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(c1_client.dl_path(case.id_))
     )
     return (
         finder,
@@ -392,6 +412,7 @@ def _phase_c2_suggests_v2(
     offer: as_Offer,
     report: as_VulnerabilityReport,
     finder: as_Actor,
+    v1: as_Actor,
 ) -> None:
     """C2 suggests V2 via ADR-0026; C1 approves; V2 joins (DEMOMA-19-009)."""
     logger.info("─" * 80)
@@ -480,8 +501,14 @@ def _phase_c2_suggests_v2(
     wait_for_case_participants(
         vendor_client=c1_client,
         case_id=case.id_,
-        expected_count=6,
-        timeout_seconds=40.0,
+        expected_actor_ids={
+            finder.id_,
+            c1_in_c1.id_,
+            v1.id_,
+            c2_in_c2.id_,
+            v2.id_,
+        },
+        timeout_seconds=LATE_JOINER_TIMEOUT,
     )
     logger.info("✓ V2 joined case (6 participants)")
 
@@ -516,42 +543,47 @@ def _phase_sync_verification(
     c1: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
+    v1: as_Actor,
+    c2_in_c2: as_Actor,
+    v2: as_Actor,
 ) -> None:
     """Verify LedgerFanout replication for all participant replicas."""
     logger.info("─" * 80)
     logger.info("Phase 3: Replica synchronization verification (M1)")
     logger.info("─" * 80)
 
-    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-    if c1_entries:
-        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-        c1_tail_index: int = c1_tail["log_index"]
-        c1_tail_hash: str = c1_tail["entry_hash"]
-        logger.info(
-            "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
-            c1_tail_hash[:16],
-            c1_tail_index,
-        )
-        for replica_client, label in [
-            (finder_client, "Finder"),
-            (v1_client, "V1"),
-            (c2_client, "C2"),
-            # V2 is a late joiner that must catch up from genesis; allow extra
-            # time for the full history to be delivered (LedgerFanout late-joiner).
-            (v2_client, "V2"),
-        ]:
-            # V2 joins after Phase 1 completes, so it has more entries to sync.
-            timeout = 45.0 if label == "V2" else 30.0
-            with demo_gate(
-                f"{label} ledger coverage (sync-verification phase)"
-            ):
-                wait_for_contiguous_ledger_coverage(
-                    client=replica_client,
-                    case_id=case.id_,
-                    expected_tail_index=c1_tail_index,
-                    timeout_seconds=timeout,
-                )
-            logger.info("  %s ledger synchronized", label)
+    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
+        wait_for_case_on_container(client=finder_client, case_id=case.id_)
+        c1_entries = _get_log_entries_for_case(c1_client, case.id_)
+        if c1_entries:
+            c1_tail = max(c1_entries, key=lambda e: e["log_index"])
+            c1_tail_index: int = c1_tail["log_index"]
+            c1_tail_hash: str = c1_tail["entry_hash"]
+            logger.info(
+                "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
+                c1_tail_hash[:16],
+                c1_tail_index,
+            )
+            for replica_client, label in [
+                (finder_client, "Finder"),
+                (v1_client, "V1"),
+                (c2_client, "C2"),
+                # V2 is a late joiner that must catch up from genesis; allow extra
+                # time for the full history to be delivered (LedgerFanout late-joiner).
+                (v2_client, "V2"),
+            ]:
+                # V2 joins after Phase 1 completes, so it has more entries to sync.
+                timeout = 45.0 if label == "V2" else 30.0
+                with demo_gate(
+                    f"{label} ledger coverage (sync-verification phase)"
+                ):
+                    wait_for_contiguous_ledger_coverage(
+                        client=replica_client,
+                        case_id=case.id_,
+                        expected_tail_index=c1_tail_index,
+                        timeout_seconds=timeout,
+                    )
+                logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, v1_client, c2_client, v2_client):
         # V2 is a late joiner — allow extra time for participant index propagation.
@@ -559,7 +591,13 @@ def _phase_sync_verification(
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
-            expected_count=6,
+            expected_actor_ids={
+                finder.id_,
+                c1.id_,
+                v1.id_,
+                c2_in_c2.id_,
+                v2.id_,
+            },
             timeout_seconds=p_timeout,
         )
 
@@ -596,7 +634,13 @@ def _phase_notes_exchange(
     c2_in_c2: as_Actor,
     v2_in_v2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note, as_Note, as_Note, as_Note, as_Note]:
+) -> tuple[
+    as_Note | None,
+    as_Note | None,
+    as_Note | None,
+    as_Note | None,
+    as_Note | None,
+]:
     """Run a five-way note exchange among all participants."""
     logger.info("─" * 80)
     logger.info("Phase 4: Notes exchange")
@@ -622,7 +666,7 @@ def _phase_notes_exchange(
         note_content=(
             "Yes, disabling the affected module is an effective interim workaround."
         ),
-        in_reply_to=question_note.id_,
+        in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
     v1_note = participant_adds_note_to_case(
@@ -634,7 +678,7 @@ def _phase_notes_exchange(
         note_content=(
             "V1 has reproduced the issue. We will have a fix ready within 14 days."
         ),
-        in_reply_to=c1_reply.id_,
+        in_reply_to=c1_reply.id_ if c1_reply is not None else None,
     )
 
     c2_note = participant_adds_note_to_case(
@@ -646,7 +690,7 @@ def _phase_notes_exchange(
         note_content=(
             "C2 confirms V2 is engaged. Target disclosure in 30 days."
         ),
-        in_reply_to=v1_note.id_,
+        in_reply_to=v1_note.id_ if v1_note is not None else None,
     )
 
     v2_note = participant_adds_note_to_case(
@@ -659,7 +703,7 @@ def _phase_notes_exchange(
             "V2 confirms the issue affects our component. "
             "We will align our fix and deployment timeline with the 30-day target."
         ),
-        in_reply_to=c2_note.id_,
+        in_reply_to=c2_note.id_ if c2_note is not None else None,
     )
 
     logger.info(
@@ -691,34 +735,50 @@ def _phase_fix_lifecycle(
     logger.info("─" * 80)
 
     # V1 advances to fix-ready (VFd).
-    actor_notifies_fix_ready(
-        client=v1_client,
-        actor=v1_in_v1,
-        case_id=case.id_,
-    )
-
-    with demo_check("V1 participant vfd_state transitions to VFd"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "v1 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=v1_client,
             case_id=case.id_,
             actor_id=v1.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=v1_client,
+            actor=v1_in_v1,
+            case_id=case.id_,
+        )
+        with demo_check("V1 participant vfd_state transitions to VFd"):
+            wait_for_participant_vfd_state(
+                client=v1_client,
+                case_id=case.id_,
+                actor_id=v1.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     # V2 advances to fix-ready (VFd).
-    actor_notifies_fix_ready(
-        client=v2_client,
-        actor=v2_in_v2,
-        case_id=case.id_,
-    )
-
-    with demo_check("V2 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
+    with demo_gate(
+        "v2 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
+    ):
+        wait_for_participant_rm_state(
             client=v2_client,
             case_id=case.id_,
             actor_id=v2.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
+        actor_notifies_fix_ready(
+            client=v2_client,
+            actor=v2_in_v2,
+            case_id=case.id_,
+        )
+        with demo_check("V2 participant vfd_state transitions to VFd or VFD"):
+            wait_for_participant_vfd_state(
+                client=v2_client,
+                case_id=case.id_,
+                actor_id=v2.id_,
+                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            )
 
     with demo_check("M5: C1 replica shows V1 and V2 CS include F (fix ready)"):
         wait_for_participant_vfd_state(
@@ -1007,17 +1067,31 @@ def _phase_dump_case_ledgers(
     """
     # Devlog directory names use scenario-role names (DEMOMA-19-007):
     # finder, c1, v1, c2, v2, case-actor.
-    # Container routing keys must match actual docker-compose service/actor paths.
+    # Route keys come from each client's own actor id, not its display name:
+    # the key selects the store (ADR-0073), so a literal is right only while
+    # the scenario seeds deterministic named ids. The literal passed to
+    # replica_route_key() is the docker-compose seed name, kept as the fallback
+    # for a client that was never bound.
     targets = [
-        LedgerDumpTarget("finder", finder_client, "finder"),
-        # C1 is on the coordinator container; route key is "coordinator".
-        LedgerDumpTarget("c1", c1_client, "coordinator"),
-        # V1 is on the vendor container; route key is "vendor".
-        LedgerDumpTarget("v1", v1_client, "vendor"),
-        # C2 is on actor5; route key is "vendor2" (actor5 seed).
-        LedgerDumpTarget("c2", c2_client, "vendor2"),
-        # V2 is on actor6; route key is "vendor-deployer".
-        LedgerDumpTarget("v2", v2_client, "vendor-deployer"),
+        LedgerDumpTarget(
+            "finder", finder_client, replica_route_key(finder_client, "finder")
+        ),
+        # C1 is on the coordinator container.
+        LedgerDumpTarget(
+            "c1", c1_client, replica_route_key(c1_client, "coordinator")
+        ),
+        # V1 is on the vendor container.
+        LedgerDumpTarget(
+            "v1", v1_client, replica_route_key(v1_client, "vendor")
+        ),
+        # C2 is on actor5 (seeded as "vendor2").
+        LedgerDumpTarget(
+            "c2", c2_client, replica_route_key(c2_client, "vendor2")
+        ),
+        # V2 is on actor6 (seeded as "vendor-deployer").
+        LedgerDumpTarget(
+            "v2", v2_client, replica_route_key(v2_client, "vendor-deployer")
+        ),
     ]
     # The case-actor is a sub-actor inside the C1 container.
     case_actor_route_key = resolve_case_actor_route_key(case)
@@ -1104,6 +1178,7 @@ def run_fcvcv_demo(
             offer=offer,
             report=report,
             finder=finder,
+            v1=v1,
         )
 
         v2_in_v2 = get_actor_by_id(v2_client, v2.id_)
@@ -1118,6 +1193,9 @@ def run_fcvcv_demo(
             c1,
             finder,
             case,
+            v1,
+            c2_in_c2,
+            v2,
         )
         _phase_notes_exchange(
             finder_client=finder_client,

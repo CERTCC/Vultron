@@ -22,6 +22,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
+import json
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -162,17 +163,17 @@ class TestResetContainersFccv:
 
         reset_mock.assert_has_calls(
             [
-                call(client=finder_client, init=False),
-                call(client=c1_client, init=False),
-                call(client=c2_client, init=False),
-                call(client=case_actor_client, init=False),
-                call(client=vendor_client, init=False),
+                call(client=finder_client),
+                call(client=c1_client),
+                call(client=c2_client),
+                call(client=case_actor_client),
+                call(client=vendor_client),
             ]
         )
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for _wait_for_case_attributed_to
+# Unit tests for wait_for_case_attributed_to
 # ---------------------------------------------------------------------------
 
 
@@ -184,7 +185,7 @@ class TestWaitForCaseAttributedTo:
         client.get.return_value = {
             "attributedTo": {"id": "http://c2/actors/c2"}
         }
-        demo._wait_for_case_attributed_to(
+        demo.wait_for_case_attributed_to(
             client=client,
             case_id="urn:uuid:case-1",
             expected_attributed_to="http://c2/actors/c2",
@@ -198,7 +199,7 @@ class TestWaitForCaseAttributedTo:
             "attributedTo": {"id": "http://c1/actors/c1"}
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._wait_for_case_attributed_to(
+            demo.wait_for_case_attributed_to(
                 client=client,
                 case_id="urn:uuid:case-1",
                 expected_attributed_to="http://c2/actors/c2",
@@ -209,7 +210,7 @@ class TestWaitForCaseAttributedTo:
     def test_accepts_bare_string_attributed_to(self):
         client = MagicMock()
         client.get.return_value = {"attributedTo": "http://c2/actors/c2"}
-        demo._wait_for_case_attributed_to(
+        demo.wait_for_case_attributed_to(
             client=client,
             case_id="urn:uuid:case-1",
             expected_attributed_to="http://c2/actors/c2",
@@ -233,12 +234,19 @@ class TestWaitForObjectStored:
 
         client = MagicMock()
         client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
+        client.dl_path.side_effect = (
+            lambda key="": f"/actors/an-actor/datalayer/{key}"
+        )
         wait_for_object_stored(
             client=client,
             obj_id=self.OBJ_ID,
             timeout_seconds=1.0,
         )
-        client.get.assert_called_with(f"/datalayer/{self.OBJ_ID}")
+        # The read must be actor-scoped, and must ask the client to build the
+        # path rather than hand-writing it (ADR-0073): a MagicMock would happily
+        # accept any string, so assert the delegation too.
+        client.dl_path.assert_called_with(self.OBJ_ID)
+        client.get.assert_called_with(client.dl_path(self.OBJ_ID))
 
     def test_raises_on_timeout_when_object_absent(self):
         from vultron.demo.helpers.polling import wait_for_object_stored
@@ -332,20 +340,32 @@ class TestFccvHandoffCliCommand:
 # ---------------------------------------------------------------------------
 
 
+def _bound_client(slug: str) -> MagicMock:
+    """A dump client stub bound to a *generated* actor id, as the real one is.
+
+    ``actor_id`` must be a real string: the dump derives its route key from it
+    (``replica_route_key``, ADR-0073) and writes the key into the manifest, so a
+    bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
+    deliberately *not* the docker-compose seed names — that is the whole point of
+    deriving the key, and a stub carrying ``actor_id="finder"`` would pass even if
+    the derivation were dropped.
+    """
+    client = MagicMock()
+    client.actor_id = f"https://example.org/actors/{slug}"
+    client.get_list.return_value = [{"logIndex": 0}]
+    return client
+
+
 class TestPhaseDumpCaseLedgersFccv:
     """Tests for the case-ledger dump phase in the FCCV-handoff demo."""
 
     def test_writes_jsonl_files_for_all_four_actors(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        c1_client = MagicMock()
-        c2_client = MagicMock()
-        vendor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        c1_client.get_list.return_value = [{"logIndex": 0}]
-        c2_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        c1_client = _bound_client("coordinator1-2b71")
+        c2_client = _bound_client("coordinator2-4c05")
+        vendor_client = _bound_client("vendor-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fccv-test-case"
@@ -386,17 +406,28 @@ class TestPhaseDumpCaseLedgersFccv:
             / f"{case_slug}-case-ledger.jsonl"
         ).exists()
 
+        # The route key selects the store (ADR-0073), so it must be the
+        # client's own actor id — not the seed name the directory is named
+        # after.  Note the FCCV handoff deliberately crosses the two: c1 is
+        # the actor written under "vendor".
+        manifest = json.loads(
+            (tmp_path / "fccv-handoff" / "dump-manifest.json").read_text()
+        )
+        keys = {r["actorName"]: r["routeKey"] for r in manifest["actors"]}
+        assert keys == {
+            "finder": "finder-9f3a",
+            "vendor": "coordinator1-2b71",
+            "coordinator": "coordinator2-4c05",
+            "vendor2": "vendor-8ade",
+        }
+
     def test_includes_case_actor_when_in_participant_index(
         self, tmp_path, monkeypatch
     ):
-        finder_client = MagicMock()
-        c1_client = MagicMock()
-        c2_client = MagicMock()
-        vendor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        c1_client.get_list.return_value = [{"logIndex": 0}]
-        c2_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        finder_client = _bound_client("finder-9f3a")
+        c1_client = _bound_client("coordinator1-2b71")
+        c2_client = _bound_client("coordinator2-4c05")
+        vendor_client = _bound_client("vendor-8ade")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fccv-with-ca",
@@ -591,6 +622,7 @@ class TestFccvHandoffMilestoneAssertions:
         case = self._case()
 
         with (
+            patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready"),
             patch.object(demo, "wait_for_participant_vfd_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
@@ -612,6 +644,57 @@ class TestFccvHandoffMilestoneAssertions:
                 case=case,
             )
         mock_m4.assert_called()
+
+    def test_phase_fix_lifecycle_gates_on_rm_accepted(self):
+        """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
+        from vultron.core.states.rm import RM
+
+        finder_client = self._client()
+        c1_client = self._client()
+        vendor_client = self._client()
+        c1 = self._actor("urn:test:c1")
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        case = self._case()
+
+        call_order = []
+        rm_calls = []
+
+        def _rm_wait(*a, **kw):
+            rm_calls.append(kw)
+            call_order.append("rm_wait")
+
+        with (
+            patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
+            patch.object(
+                demo,
+                "actor_notifies_fix_ready",
+                side_effect=lambda *a, **kw: call_order.append("fix_ready"),
+            ),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_fix_ready"),
+        ):
+            demo._phase_fix_lifecycle(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                vendor_client=vendor_client,
+                c1=c1,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+            )
+
+        assert (
+            rm_calls
+        ), "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
+        assert all(
+            c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
+            for c in rm_calls
+        ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
+        assert "rm_wait" in call_order and "fix_ready" in call_order
+        assert call_order.index("rm_wait") < call_order.index(
+            "fix_ready"
+        ), "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M6."""
@@ -827,8 +910,14 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
         offer = MagicMock()
         report = MagicMock()
         finder = self._actor("urn:test:finder")
+        c1 = self._actor("urn:test:c1")
         invite = MagicMock()
         invite.id_ = "urn:test:invite"
+        # Matches the case_actor_id passed below: the phase now asserts the
+        # Invite went out attributed to the CaseActor (PCR-08-008), which is the
+        # property that used to be pursued by posting the trigger to the
+        # CaseActor's container instead.
+        invite.actor = "urn:test:case-actor"
 
         call_order: list[str] = []
 
@@ -886,6 +975,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                 offer=offer,
                 report=report,
                 finder=finder,
+                c1=c1,
             )
 
         assert (
@@ -900,3 +990,79 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
             "Finder replica wait must precede run_invite_path_rm_triage; "
             f"got order: {call_order}"
         )
+
+
+class TestFccvHandoffCausalGates:
+    """Verify causal demo_gate sites skip dependent steps on timeout.
+
+    Each test simulates an async-commit timeout at the precondition and
+    confirms the dependent step is never reached.
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_sync_verification_skips_coverage_wait_when_finder_case_not_seeded(
+        self,
+    ):
+        """demo_gate skips ledger coverage wait when wait_for_case_on_container times out."""
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        c1 = self._actor("urn:test:c1")
+        finder = self._actor("urn:test:finder")
+        c2 = self._actor("urn:test:c2")
+        vendor = self._actor("urn:test:vendor")
+        case = self._case()
+
+        coverage_wait_called = MagicMock()
+
+        with (
+            patch.object(
+                demo,
+                "_get_log_entries_for_case",
+                return_value=[
+                    {"log_index": 5, "entry_hash": "abc123def456789a"}
+                ],
+            ),
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                side_effect=AssertionError(
+                    "timed out waiting for case on container"
+                ),
+            ),
+            patch.object(
+                demo,
+                "wait_for_contiguous_ledger_coverage",
+                side_effect=coverage_wait_called,
+            ),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "verify_replica_state"),
+        ):
+            demo._phase_sync_verification(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                c1=c1,
+                finder=finder,
+                c2=c2,
+                vendor=vendor,
+                case=case,
+            )
+
+        coverage_wait_called.assert_not_called()

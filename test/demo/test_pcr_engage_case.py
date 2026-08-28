@@ -44,6 +44,7 @@ from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -63,7 +64,7 @@ _REPORTER_BASE = "http://reporter-engage-case.test"
 
 
 @pytest.fixture
-def two_app_setup(monkeypatch):
+def two_app_setup():
     """Owner app + reporter app wired for end-to-end delivery.
 
     Uses two isolated FastAPI app instances each with their own in-memory
@@ -91,46 +92,44 @@ def two_app_setup(monkeypatch):
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import get_config, reload_config
+    from vultron.config import config_override
 
-    # Patch the server base URL so the CaseActor is created with the owner's
-    # routable base URL.  Without this, CreateCaseActorNode reads the default
-    # http://localhost:7999 which produces IDs like
-    # http://localhost:7999/actors/case-actor-... and the owner's app returns
-    # 404 for /actors/ paths (it expects /api/v2/actors/).
-    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_OWNER_BASE}/api/v2")
-    # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
-    # (CP-08-002); in this single-owner test setup the owner IS the case-actor
-    # service, so we point it at the same base URL.
-    monkeypatch.setenv(
-        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", f"{_OWNER_BASE}/api/v2"
-    )
-    reload_config()
+    # config_override atomically sets env vars, reloads the cache, and
+    # restores both on exit — the ordering footgun (#2086) is impossible
+    # by construction (CFG-06-006).
+    with config_override(
+        # Patch the server base URL so the CaseActor is created with the
+        # owner's routable base URL.  Without this, CreateCaseActorNode reads
+        # the default http://localhost:7999 which produces IDs like
+        # http://localhost:7999/actors/case-actor-... and the owner's app
+        # returns 404 for /actors/ paths (it expects /api/v2/actors/).
+        VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
+        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # (CP-08-002); in this single-owner test setup the owner IS the
+        # case-actor service, so we point it at the same base URL.
+        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
+    ) as cfg:
+        router = _TestClientRouter()
+        owner_iso = create_isolated_actor_app(
+            base_url=_OWNER_BASE, router=router
+        )
+        reporter_iso = create_isolated_actor_app(
+            base_url=_REPORTER_BASE, router=router
+        )
 
-    router = _TestClientRouter()
-    owner_iso = create_isolated_actor_app(base_url=_OWNER_BASE, router=router)
-    reporter_iso = create_isolated_actor_app(
-        base_url=_REPORTER_BASE, router=router
-    )
+        config_base_url = cfg.server.base_url.rstrip("/")
+        router.register(config_base_url, owner_iso.client)
 
-    config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.client)
+        previous_emitter = get_default_emitter()
+        configure_default_emitter(router)  # type: ignore[arg-type]
 
-    previous_emitter = get_default_emitter()
-    configure_default_emitter(router)  # type: ignore[arg-type]
+        with owner_iso.client as owner_tc:
+            with reporter_iso.client as reporter_tc:
+                yield (owner_iso, reporter_iso, owner_tc, reporter_tc)
 
-    with owner_iso.client as owner_tc:
-        with reporter_iso.client as reporter_tc:
-            yield (owner_iso, reporter_iso, owner_tc, reporter_tc)
-
-    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-    owner_iso.dl.close()
-    reporter_iso.dl.close()
-    # Undo the env patches BEFORE reloading: monkeypatch's own undo runs after
-    # this teardown, so reloading first would re-cache this fixture's URLs into
-    # the module-level config for the rest of the session (#2086).
-    monkeypatch.undo()
-    reload_config()
+        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+        owner_iso.dl.close()
+        reporter_iso.dl.close()
 
 
 # ---------------------------------------------------------------------------
@@ -177,11 +176,11 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
             outbox queue and the activity objects).
         case_actor_id: Full ID of the CaseActor.
     """
-    case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
-    try:
-        asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
-    finally:
-        case_actor_dl.close()
+    # The CaseActor's own store, and no close(): it is the app's live store,
+    # and an in-memory store is named, so disposing the engine destroys the
+    # database every other holder shares.
+    case_actor_dl = owner_iso.store_for(case_actor_id)
+    asyncio.run(outbox_handler(case_actor_id, case_actor_dl))
 
 
 def _bootstrap_and_engage(
@@ -191,7 +190,7 @@ def _bootstrap_and_engage(
     reporter_tc,
     owner_slug: str,
     reporter_slug: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Run the full bootstrap + engage-case sequence.
 
     Steps:
@@ -205,7 +204,9 @@ def _bootstrap_and_engage(
          (queued by ``EngageCaseBT → BroadcastCaseUpdateNode``) reaches reporter.
 
     Returns:
-        Tuple of (case_id, owner_actor_id).
+        Tuple of (case_id, owner_actor_id, reporter_actor_id).  The actor ids
+        are returned so callers can open each actor's own store rather than
+        rebuilding a per-test slug.
     """
     owner_base_api = owner_iso.base_url + "/api/v2"
     reporter_base_api = reporter_iso.base_url + "/api/v2"
@@ -234,6 +235,17 @@ def _bootstrap_and_engage(
         target=owner_actor_id,
         to=owner_actor_id,
     )
+    # Provision the CaseActor the case-creation flow will address.  Its id is
+    # *derived* from the report (ResolveCaseActorUrlsNode) and the owner is the
+    # case-actor service in this setup, so the owner's node must host it or the
+    # Announce/Invite deliveries to it answer 404.  Spawning one on demand for an
+    # as-yet-unknown case is #2469 / #1700.
+    _create_actor(
+        owner_tc,
+        owner_base_api,
+        _actor_slug(case_actor_id_for_report(str(report.id_))),
+        "Case Actor",
+    )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
     # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
@@ -256,12 +268,18 @@ def _bootstrap_and_engage(
     # Find the canonical case by report_id to avoid picking up the extra
     # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
     # also creates one via case_proposal_received_tree).
-    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    # The owner's own store, not `owner_iso.dl`: this test creates its actor
+    # under a per-test slug, while `dl` is the app's default-slug store, so
+    # reading `dl` reports an empty store and the assertion fails for the wrong
+    # reason (ADR-0073 — a store is exactly one actor's).
+    owner_dl = owner_iso.store_for(owner_actor_id)
+
+    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
     case_id: str
     if case_from_proposal is not None:
         case_id = str(case_from_proposal.id_)
     else:
-        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        all_cases = owner_dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, (
             "Expected at least one VulnerabilityCase in owner's DataLayer "
             "after trigger/create-case."
@@ -270,11 +288,11 @@ def _bootstrap_and_engage(
 
     # In this test the owner acts as the CaseActor.  Register that identity
     # in the VultronReportCaseLink so _find_case_actor_id resolves correctly.
-    for link in owner_iso.dl.list_objects("ReportCaseLink"):
+    for link in owner_dl.list_objects("ReportCaseLink"):
         if isinstance(link, VultronReportCaseLink):
             link.case_id = case_id
             link.trusted_case_actor_id = owner_actor_id
-            owner_iso.dl.save(link)
+            owner_dl.save(link)
             break
 
     # Validate the report → CaseActor queues Create(VulnerabilityCase).
@@ -287,14 +305,18 @@ def _bootstrap_and_engage(
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
     # Drain CaseActor's outbox so Create(VulnerabilityCase) reaches reporter.
-    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
+    case_actor_id = _find_case_actor_id(owner_dl, case_id)
     assert (
         case_actor_id is not None
     ), f"Could not find CaseActor for case '{case_id}' in owner's DataLayer."
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Reporter must have received the case replica before engage-case fires.
-    reporter_cases = reporter_iso.dl.get_all("VulnerabilityCase")
+    # The reporter's own store, not the app's default-slug `dl`: the actor was
+    # created under a per-test slug, and a store belongs to exactly one actor
+    # (ADR-0073), so `dl` is a different (empty) database.
+    reporter_dl = reporter_iso.store_for(reporter_actor_id)
+    reporter_cases = reporter_dl.get_all("VulnerabilityCase")
     assert any(c["id_"] == case_id for c in reporter_cases), (
         f"Reporter did not receive a case replica for '{case_id}' after "
         f"CaseActor outbox drain.  The Create(VulnerabilityCase) path may "
@@ -319,7 +341,7 @@ def _bootstrap_and_engage(
     # reporter's DataLayer (CBT-05-004, #572, #573).
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
-    return case_id, owner_actor_id
+    return case_id, owner_actor_id, reporter_actor_id
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +380,7 @@ class TestEngageCaseParticipantExpansion:
         """
         owner_iso, reporter_iso, owner_tc, reporter_tc = two_app_setup
 
-        case_id, owner_actor_id = _bootstrap_and_engage(
+        case_id, owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
             owner_iso,
             reporter_iso,
             owner_tc,
@@ -368,7 +390,9 @@ class TestEngageCaseParticipantExpansion:
         )
 
         participants_in_reporter_dl = list(
-            reporter_iso.dl.list_objects("CaseParticipant")
+            reporter_iso.store_for(reporter_actor_id).list_objects(
+                "CaseParticipant"
+            )
         )
         owner_participant_ids = [
             getattr(p, "attributed_to", None)
@@ -399,7 +423,7 @@ class TestEngageCaseParticipantExpansion:
         """
         owner_iso, reporter_iso, owner_tc, reporter_tc = two_app_setup
 
-        case_id, owner_actor_id = _bootstrap_and_engage(
+        case_id, owner_actor_id, reporter_actor_id = _bootstrap_and_engage(
             owner_iso,
             reporter_iso,
             owner_tc,
@@ -408,18 +432,13 @@ class TestEngageCaseParticipantExpansion:
             reporter_slug="reporter-pcr-572-ac2",
         )
 
-        # Locate the reporter actor's ID so we can inspect their inbox queue.
-        reporter_actors = list(reporter_iso.dl.list_objects("Organization"))
-        assert (
-            reporter_actors
-        ), "No Organization actors found in reporter's DataLayer."
-        reporter_actor_id = str(reporter_actors[0].id_)
-        reporter_actor_dl = reporter_iso.dl.clone_for_actor(reporter_actor_id)
-
-        try:
-            pending = reporter_actor_dl.inbox_list()
-        finally:
-            reporter_actor_dl.close()
+        # The reporter's id comes back from the bootstrap helper; scanning its
+        # store for "the first Organization" was a guess that also happened to
+        # read the wrong (default-slug) store.
+        reporter_actor_dl = reporter_iso.store_for(reporter_actor_id)
+        # No close(): this is the app's live store, and an in-memory store is
+        # named, so disposing the engine destroys the database the app shares.
+        pending = reporter_actor_dl.inbox_list()
         assert pending == [], (
             f"Reporter actor inbox queue is not empty after "
             f"Join(VulnerabilityCase) processing.  "

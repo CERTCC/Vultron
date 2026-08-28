@@ -217,6 +217,43 @@ def case_id_slug(case_id: str) -> str:
     )
 
 
+def replica_route_key(client: DataLayerClient, fallback: str) -> str:
+    """Return the route key naming *client*'s own actor, else *fallback*.
+
+    A route key now *selects the store* (ADR-0073) rather than decorating a path
+    into a store shared by everyone in the container.  A literal key therefore
+    reads whichever actor happens to be hosted under that slug — which is the
+    actor this run used only when the scenario seeded deterministic named ids.
+    The moment an id is generated, the literal names an actor with an empty
+    store and the dump reports "No case ledger entries" while the real store
+    holds the whole exchange.
+
+    The client already knows: :func:`vultron.demo.helpers.seeding._own_actor`
+    binds ``client.actor_id`` as each container's own actor is created, so by
+    ledger-dump time every scenario client is bound.  *fallback* covers the
+    ordering exception — a client built for the pre-seed health check and dumped
+    without ever being bound — and preserves today's behaviour there rather than
+    raising during teardown, when the ledger is the only evidence left.
+
+    Args:
+        client: The container client whose own actor the dump is about.
+        fallback: Literal route key to use when *client* carries no ``actor_id``.
+
+    Returns:
+        The route key to read the ledger under.
+    """
+    if not client.actor_id:
+        logger.debug(
+            "ledger dump: client for %s is unbound, falling back to the"
+            " literal route key '%s'; it names whichever actor is hosted under"
+            " that slug (ADR-0073)",
+            client.base_url,
+            fallback,
+        )
+        return fallback
+    return strip_id_prefix(client.actor_id)
+
+
 def resolve_case_actor_route_key(case: as_VulnerabilityCase) -> str | None:
     """Return the in-container route key of the case's case-actor, if any.
 

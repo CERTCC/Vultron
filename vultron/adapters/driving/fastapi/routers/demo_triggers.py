@@ -28,7 +28,7 @@ Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from fastapi import (
     APIRouter,
@@ -63,7 +63,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
-from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
@@ -103,14 +103,13 @@ def demo_add_note_to_case(
     body: AddNoteToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Create a Note and add it to a case (demo scaffold).
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-10-003,
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001,
+        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001,
         TB-03-001, TB-03-002, TB-04-001, TB-06-001, TB-06-002
     """
     with domain_error_translation():
@@ -121,7 +120,7 @@ def demo_add_note_to_case(
             note_content=body.note_content,
             in_reply_to=body.in_reply_to,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -143,8 +142,7 @@ def demo_notify_fix_ready(
     body: NotifyFixReadyRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the actor has a fix ready (demo scaffold).
 
@@ -166,7 +164,7 @@ def demo_notify_fix_ready(
             case_id=body.case_id,
             vfd_state=CS_vfd.VFd,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -188,8 +186,7 @@ def demo_notify_fix_deployed(
     body: NotifyFixDeployedRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the actor has deployed a fix (demo scaffold).
 
@@ -203,7 +200,7 @@ def demo_notify_fix_deployed(
             case_id=body.case_id,
             vfd_state=CS_vfd.VFD,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -225,8 +222,7 @@ def demo_notify_published(
     body: NotifyPublishedRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Report that the vulnerability is publicly disclosed (demo scaffold).
 
@@ -240,7 +236,7 @@ def demo_notify_published(
             case_id=body.case_id,
             pxa_state=CS_pxa.Pxa,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -262,8 +258,7 @@ def demo_close_case(
     body: CloseCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
     """Trigger Leave(VulnerabilityCase) for the given actor and case.
 
@@ -278,7 +273,7 @@ def demo_close_case(
             actor_id=actor_id,
             case_id=body.case_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
     return result
 
 
@@ -353,7 +348,7 @@ def demo_sync_log_entry(
     body: SyncLogEntryRequest,
     background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> JSONResponse:
     """Commit a case ledger entry and fan it out (demo scaffold, BT-06-006 compliant).
 
@@ -367,6 +362,7 @@ def demo_sync_log_entry(
     from vultron.core.behaviors.sync.commit_tree import (
         create_commit_log_entry_tree,
     )
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
     from vultron.core.sync_helpers import _find_equivalent_recorded_entry
     from vultron.core.use_cases._helpers import _find_case_actor_id
 
@@ -374,12 +370,20 @@ def demo_sync_log_entry(
     object_id = body.object_id
     event_type = body.event_type
 
+    # The dependency is typed as the narrow `DataLayer` port, but everything
+    # below wants case-aware reads and an outbox.  `SqliteDataLayer` satisfies
+    # both protocols structurally; a bare `DataLayer` does not, because
+    # `CasePersistence.clone_for_actor` is declared to return a
+    # `CasePersistence`.  Cast once here rather than at each use — the same
+    # pattern `deps.get_trigger_service` uses.
+    cop = cast(CaseOutboxPersistence, dl)
+
     # Resolve canonical actor URI (slug from path param → full ID).
     _actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
     canonical_actor_id = (
         _actor.id_ if _actor and hasattr(_actor, "id_") else actor_id
     )
-    case_actor_id = _find_case_actor_id(dl, case_id) or canonical_actor_id
+    case_actor_id = _find_case_actor_id(cop, case_id) or canonical_actor_id
     payload_snapshot = {
         "type": "Announce",
         "object": {"type": "VulnerabilityCase", "id": case_id},
@@ -388,16 +392,12 @@ def demo_sync_log_entry(
     }
 
     with domain_error_translation():
-        from typing import cast as _cast
-
         from vultron.adapters.driven.sync_activity_adapter import (
             SyncActivityAdapter,
         )
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
-        cop = _cast(CaseOutboxPersistence, dl)
         sync_port = SyncActivityAdapter(cop)
-        bridge = BTBridge(datalayer=dl)
+        bridge = BTBridge(datalayer=cop)
         bridge.execute_with_setup(
             tree=create_commit_log_entry_tree(
                 case_id=case_id,
@@ -409,15 +409,27 @@ def demo_sync_log_entry(
             sync_port=sync_port,
         )
 
+    # Read back from the store the commit ran *in*, not the requester's.  The
+    # tree executes as the case actor (only the CASE_MANAGER may append to the
+    # canonical log, CLP-09), and a BT's store follows its executing actor
+    # (BT-05-005) — so the entry was written to the case actor's store.  Looking
+    # for it in `cop` finds nothing whenever the requester is not itself the case
+    # actor, and the route then reports a successful commit as a 500.
+    commit_dl = cop
+    if case_actor_id and case_actor_id != getattr(cop, "actor_id", None):
+        commit_dl = cast(
+            CaseOutboxPersistence, cop.clone_for_actor(case_actor_id)
+        )
+
     entry = _find_equivalent_recorded_entry(
         case_id=case_id,
         object_id=object_id,
         event_type=event_type,
         payload_snapshot=payload_snapshot,
-        dl=dl,
+        dl=commit_dl,
     )
 
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
 
     if entry is None:
         return JSONResponse(

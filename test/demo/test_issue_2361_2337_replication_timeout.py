@@ -80,6 +80,9 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
     monkeypatch.setattr(
         fv_demo_module, "verify_fix_ready", lambda *a, **kw: None
     )
+    monkeypatch.setattr(
+        fv_demo_module, "wait_for_participant_rm_state", lambda *a, **kw: None
+    )
 
     def _vfd_poll(client, case_id, actor_id, expected_states, **kw):
         if client is finder_client:
@@ -114,6 +117,65 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
         f"Use demo_gate (not demo_check) for the causal finder precondition "
         f"(#2361, ADR-0058)."
     )
+
+
+def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
+    """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
+    from vultron.core.states.rm import RM
+
+    reset_demo_failures()
+
+    vendor_client = MagicMock()
+    vendor_client.base_url = "http://vendor:7999/api/v2"
+    finder_client = MagicMock()
+    finder_client.base_url = "http://finder:7999/api/v2"
+    vendor = MagicMock()
+    vendor.id_ = _VENDOR_ID
+    vendor_in_vendor = MagicMock()
+    case = MagicMock()
+    case.id_ = _CASE_ID
+
+    call_order = []
+    rm_calls = []
+
+    def _rm_wait(*a, **kw):
+        rm_calls.append(kw)
+        call_order.append("rm_wait")
+
+    monkeypatch.setattr(
+        fv_demo_module, "wait_for_participant_rm_state", _rm_wait
+    )
+    monkeypatch.setattr(
+        fv_demo_module,
+        "actor_notifies_fix_ready",
+        lambda *a, **kw: call_order.append("fix_ready"),
+    )
+    monkeypatch.setattr(
+        fv_demo_module, "verify_fix_ready", lambda *a, **kw: None
+    )
+    monkeypatch.setattr(
+        fv_demo_module, "wait_for_participant_vfd_state", lambda *a, **kw: None
+    )
+
+    _phase_fix_lifecycle(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+        vendor=vendor,
+        vendor_in_vendor=vendor_in_vendor,
+        case=case,
+    )
+
+    assert (
+        rm_calls
+    ), "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
+    assert all(
+        c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
+        for c in rm_calls
+    ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
+    assert "rm_wait" in call_order and "fix_ready" in call_order
+    assert call_order.index("rm_wait") < call_order.index(
+        "fix_ready"
+    ), "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
 
 
 # ===========================================================================
@@ -153,6 +215,11 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
 
     monkeypatch.setattr(
         fcvcv_demo_module,
+        "wait_for_case_on_container",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        fcvcv_demo_module,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -186,6 +253,9 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
         c1=c1,
         finder=finder,
         case=case,
+        v1=MagicMock(),
+        c2_in_c2=MagicMock(),
+        v2=MagicMock(),
     )
 
     failures = demo_utils._demo_failures
@@ -235,6 +305,11 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
 
     monkeypatch.setattr(
         fcvcv_demo_module,
+        "wait_for_case_on_container",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        fcvcv_demo_module,
         "_get_log_entries_for_case",
         lambda *a, **kw: [{"log_index": 5, "entry_hash": "abc123deadbeef0a"}],
     )
@@ -267,6 +342,9 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         c1=c1,
         finder=finder,
         case=case,
+        v1=MagicMock(),
+        c2_in_c2=MagicMock(),
+        v2=MagicMock(),
     )
 
     finder_timeout = timeouts_by_client_id.get(id(finder_client))

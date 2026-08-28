@@ -109,8 +109,8 @@ Chosen option: **Rename CVDRole.OTHER → CVDRole.OBSERVER**, because:
 - `test/core/models/test_case_participant.py` will be updated to use
   `CVDRole.OBSERVER` (replacing `CVDRole.OTHER`) and `ObserverParticipant`
   (replacing `OtherParticipant`) as part of the code rename in #2192.
-- `test/core/behaviors/report/test_report_to_others_tree.py` will be updated
-  accordingly in #2192.
+- `test/core/behaviors/report/test_report_to_others_tree.py` was deleted by
+  issue #1848 (ADR-0047 removal); no update in #2192 is needed.
 
 ## More Information
 

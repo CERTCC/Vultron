@@ -25,7 +25,8 @@ Submodules:
 - ``rm_transitions``: Report-management transition action nodes
 - ``case_creation``: Case creation and Create(Case) activity nodes
 - ``participant``: Case participant RM transition action nodes
-- ``develop_fix``: Fix-development guard/action nodes (DevelopFixBT)
+- ``develop_fix_conditions``: Fix-development guard/condition nodes
+- ``develop_fix``: Fix-development action nodes and emit base (DevelopFixBT)
 - ``deploy_fix``: Fix-deployment guard/action nodes (DeployFixBT)
 - ``emit``: Outbound report activity emission nodes
 - ``storage``: Idempotent storage nodes for inbound report objects
@@ -37,8 +38,11 @@ from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseNode,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
+    _CheckParticipantRMStateBase,
+    _CheckReportPhaseRMStateBase,
     CheckParticipantExists,
     CheckReportNotClosed,
+    CheckRMStateAccepted,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     EnsureEmbargoExists,
@@ -55,11 +59,13 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     TransitionCStoFixDeployed,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
-    CheckCSFixNotYetReady,
-    CheckIsVendorRoleNode,
-    CheckRMStateAccepted,
+    _EmitParticipantStatusActivityBase,
     EmitCFActivity,
     TransitionCStoFixReady,
+)
+from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
+    CheckCSFixNotYetReady,
+    CheckIsVendorRoleNode,
 )
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
@@ -70,6 +76,8 @@ from vultron.core.behaviors.report.nodes.participant import (
     TransitionParticipantRMtoDeferred,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
+    _CaseParticipantRMTransition,
+    _ReportPhaseRMTransition,
     TransitionCaseParticipantRMtoClosed,
     TransitionCaseParticipantRMtoInvalid,
     TransitionRMtoClosed,
@@ -83,6 +91,9 @@ from vultron.core.behaviors.report.nodes.storage import (
 
 __all__ = [
     # conditions
+    "_CheckParticipantRMStateBase",
+    "_CheckReportPhaseRMStateBase",
+    "CheckRMStateAccepted",
     "CheckRMStateValid",
     "CheckRMStateReceivedOrInvalid",
     "CheckReportNotClosed",
@@ -92,6 +103,8 @@ __all__ = [
     "EvaluateCasePriority",
     "CheckParticipantExists",
     # rm_transitions
+    "_CaseParticipantRMTransition",
+    "_ReportPhaseRMTransition",
     "TransitionRMtoValid",
     "TransitionRMtoInvalid",
     "TransitionRMtoClosed",
@@ -103,10 +116,11 @@ __all__ = [
     # participant
     "TransitionParticipantRMtoAccepted",
     "TransitionParticipantRMtoDeferred",
-    # develop_fix
+    # develop_fix_conditions
     "CheckIsVendorRoleNode",
     "CheckCSFixNotYetReady",
-    "CheckRMStateAccepted",
+    # develop_fix
+    "_EmitParticipantStatusActivityBase",
     "TransitionCStoFixReady",
     "EmitCFActivity",
     # deploy_fix

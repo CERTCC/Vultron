@@ -26,7 +26,7 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None`; routing via
   `USE_CASE_MAP` key lookup.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
-- Tests: `uv run pytest --tb=short 2>&1 | tail -5` — run once. See
+- Tests: `uv run pytest --tb=short 2>&1 | tee /tmp/last-test-run.log | tail -5` — run once. See
   `.agents/skills/run-tests/SKILL.md`.
 
 Quick gotchas: specific patterns before general; always `rehydrate()` before
@@ -322,10 +322,6 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `__init__.py` MUST re-export all public names. See BTND-07-001, BTND-07-003.
 - **Splits Must Not Produce New God Modules** — submodules ≤500 lines; split
   recursively when they re-accumulate. See CS-18-001 through CS-18-004.
-- **BT Emit Nodes: Inherit Base Classes, Never Reimplement Guard Boilerplate**
-  — use `_EmitCaseActorReportActivityBase` (report domain) or
-  `_SendEmbargoActivityBase` (embargo domain); override only `_call_factory()`
-  and the three hook methods. See BTND-07-005.
 - **Peer Broadcast Nodes Must Not Mask Delivery Failure with SUCCESS** —
   see [notes/peer-broadcast-failure-semantics.md](notes/peer-broadcast-failure-semantics.md) BT-14-001.
 - **Negative-Guard Condition Nodes Are a Readability Anti-Pattern** — use
@@ -371,8 +367,8 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   pass `TriggerActivityAdapter(dl)` to every use case in chained integration tests.
 - **Routing Prerequisites Must Be Resolved Before State Mutation** — resolve Case
   Manager ID in a read-only guard node BEFORE state-mutation node. See BT-19-001,
-  BT-19-002. [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Routing-Gated
-  State Mutation".
+  BT-19-002. See
+  `vultron/core/behaviors/embargo/AGENTS.md` § "Routing-Gated State Mutation".
 - **Superseded Notes Sections Are Archived via `append-history note`** — stale
   sections (or whole files) go to `plan/history/YYMM/note/` with source ID
   `NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
@@ -457,13 +453,37 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   instead of the editable install. Always prefix with `PYTHONPATH=` to clear
   it: `PYTHONPATH= uv run spec-dump`. Same applies to any `uv run <entrypoint>`
   that touches `vultron.*` modules.
+- **`uv run` Pre-Commit Hooks Fail With "Permission Denied" — Use `UV_NO_SYNC=1`** —
+  when `/app/.venv/bin/adr-index` (or any devcontainer venv binary) is owned by
+  root, `uv run` tries to sync the venv before executing and fails immediately
+  with `Permission denied`. Prefix with `UV_NO_SYNC=1` to skip the sync step:
+  `UV_NO_SYNC=1 uv run spec-dump`. This is safe inside the devcontainer because
+  the venv is already built; it bypasses only the sync, not the execution. Apply
+  to any `uv run` command that fails at the sync step rather than the tool itself.
+  *Source: CONCERN-2321*
 - **Walrus Operator for Single-Assignment Guard Blocks** —
   `if (f := self._require_factory()) is not None: return f`.
 - **Silent `None` Returns and Fake `SUCCESS` Are the Same Bug** — raise
   `VultronValidationError` (helpers) or return `Status.FAILURE` (BT nodes).
   See [notes/domain-validation.md](notes/domain-validation.md) ARCH-15-001–15-004.
-- **`outbox_list()` Requires `clone_for_actor` in Tests** —
-  see [notes/datalayer-design.md](notes/datalayer-design.md).
+- **An Actor Id *Is* a Store Name** — two `DataLayer`s built for the same
+  `actor_id` are the *same* database, so two scenarios that must not see each
+  other's rows need two actor ids (deriving one per test, `f"{ACTOR_ID}/{slug}"`,
+  is enough). Conversely, do not give one logical actor two ids just to get a
+  fresh database — sharing a store between two logical actors hides a *missing*
+  write, because the reader finds the writer's row and the test passes for the
+  wrong reason. `test/conftest.py`'s autouse `_dispose_actor_stores_between_tests`
+  covers the between-test case only; both hazards occur *within* a single test.
+  Replaces the retired "`outbox_list()` requires `clone_for_actor`" pitfall.
+  See DL-07-004 and [notes/datalayer-design.md](notes/datalayer-design.md).
+  *Source: ISSUE-2238*
+- **A BT's Store Follows Its Executing Actor** — the blackboard `datalayer` is the
+  store of the blackboard `actor_id`, reconciled in `BTBridge._store_for_actor`
+  (BT-05-005). So seeding one actor's store and executing as another leaves the
+  tree reading an empty one: the symptom is a role gate that skips, or a "case not
+  found" warning, not an error. Where a tree is role-gated, the role holder, the
+  receiving actor and the store owner must be **one** actor (BT-05-006); letting
+  any two drift is a silent skip. *Source: ISSUE-2238*
 - **Happy-Path DL Seed Must Include `origin` Activities for `dl.read()` Calls** —
   assert `len(outbox) >= N` (expected count, not just ≥1).
   See [notes/datalayer-design.md](notes/datalayer-design.md).
@@ -475,9 +495,11 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `if bridge.execute_with_setup(...) == Status.FAILURE: raise VultronBTError(...)`.
   See [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Ledger Commit Must Precede Outbox Write** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  see [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md)
+  § "Ledger Commit Must Precede Outbox Write".
 - **`disposition="rejected"` for Local-Only Correlation Markers** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  see [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md)
+  § "Use `disposition=\"rejected\"` for Local-Only Ledger Correlation Markers".
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **`ActivityPattern.target_` Is Always Permissive Unless `strict=True`** —
@@ -497,8 +519,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Pre-Build Dedup Sets Before Fallback Loops** — `seen = set(d.values())`
   before the loop; O(n×m) → O(n+m).
 - **Consolidated Helper Needs One Test Per Distinct Lookup Path** —
-  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Dual-Path
-  Consolidation Test Gap".
+  see `test/AGENTS.md` § "Dual-Path Consolidation Test Gap".
 - **Domain Sweep Audit: Catalog → Code, Then Factory Injection, Then
   `register_key`** — see
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).
@@ -513,8 +534,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   and record a Sentinel stub. See
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).
 - **BT Integration Tests Must Use Deterministic Factories When the Default Is
-  Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism" and
-  [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+  Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism".
 - **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor** —
   FAILURE/exception when no routable CaseActor. See PCR-08-011.
 - **Module Split: Re-Import Moved Names for `monkeypatch` Compatibility** —
@@ -529,11 +549,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   ID (e.g. `request.receiving_actor_id`), NOT the sender's (`request.actor_id`).
   This applies to production received-side use cases and to tests alike. In tests,
   use `actor_id=case_manager_actor_id`; in received-side use cases, use
-  `actor_id=request.receiving_actor_id if request.receiving_actor_id is not None
-  else request.actor_id`. BT nodes that also need the *sender* ID must store it as
+  `resolve_receiving_actor_id(self._dl, request.receiving_actor_id)`, which falls
+  back to the **store's own actor** when the field is absent and raises when
+  neither source yields one. Do **not** fall back to `request.actor_id`: that is
+  the sender, and since `actor_id` now selects the store, using it routes every
+  read and write into an actor other than the one whose replica is being updated.
+  BT nodes that also need the *sender* ID must store it as
   a private attribute (e.g. `self._target_actor_id`); `DataLayerAction.setup()` will
   overwrite the blackboard `actor_id` and a stored attribute is the only safe way to
-  keep it. See BT-17-005, BT-17-006. *Source: ISSUE-2300*
+  keep it. See BT-17-005, BT-17-006, BT-05-006. *Source: ISSUE-2300, ISSUE-2238*
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
 - **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —
@@ -587,8 +611,10 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   *Source: CONCERN-2413*
 - **Verify Issue ACs Against Current Code Before Starting** — an issue may already
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
-  Check current `main` against all ACs before writing any code; if satisfied, close
-  the issue with a reference comment instead. *Sources: ISSUE-1510, ISSUE-1484*
+  The build and bugfix skills each enforce a pre-claim gate for this; see the
+  "Pre-claim AC verification gate" step in `.agents/skills/build/SKILL.md` Phase 2
+  and the "Pre-claim defect verification" step in `.agents/skills/bugfix/SKILL.md`
+  Phase 1. *Sources: ISSUE-1510, ISSUE-1484*
 - **Docs/Learn PRs That Fix a Bug Must Include `Closes #N`** — when a docs PR
   fixes a bug as a side effect, the closing footer is the only thing that
   closes the issue automatically. Without it the issue stays OPEN after merge.
@@ -649,9 +675,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Delegated-Emit Trigger Use Cases MUST Set `actor=case_actor_id`,
   `attributed_to=requesting_actor_id`** — trigger use cases that emit an
   Activity on behalf of the CaseActor (invite, ownership transfer, and any
-  future delegated flows) MUST set `self._actor_id = case_actor_id` and
-  `self._attributed_to = requesting_actor_id` in `_prepare()`, then queue
-  the Activity in the CaseActor's outbox (CM-24-001 through CM-24-004).
+  future delegated flows) MUST set `self._attributed_to = requesting_actor_id`
+  in `_prepare()` and sit inside a composite gated on the executing actor holding
+  `CVDRole.CASE_MANAGER`, then queue the Activity in the CaseActor's outbox
+  (CM-24-001 through CM-24-004). Gate on the **role**, never on an
+  `actor_id == case_actor_id` comparison: the authority is a role held in the case
+  and its holder may be any Actor type. The former `self._actor_id =
+  case_actor_id` convention is retired — it spelled wire authorship and "whose
+  store this is" with one variable, which made a local write look foreign; once
+  gated, the executing actor *is* the case manager and both the activity and its
+  outbox entry land in one store by construction (BT-05-006).
   Setting `actor` to the requesting actor directly causes receivers to reject
   the message (ISSUE-2142).  Use the shared `_prepare_delegated_context()`
   helper (or equivalent) — never reconstruct the pattern inline (CM-24-005).
@@ -710,6 +743,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   reset on every tick; tests must also prevent cross-test contamination.
   See CONCERNS.md § "BT blackboard is process-global across BT runs".
   *Source: ISSUE-2232*
+- **`py_trees` BT Subclasses in Tests MUST Be Defined at Module Level** —
+  py_trees maintains a global class registry keyed by class name. A BT
+  subclass defined inside a test function is registered globally; if two test
+  functions define local classes with the same name (e.g. `class MyBT`), the
+  second registration clobbers the first. Trees built from the first definition
+  then silently resolve to the wrong class. Define all test-only BT subclasses
+  at module level, prefixed with `_` to mark them as non-public:
+  `class _MyBT(py_trees.behaviours.Behaviour): ...`. Never define them inside
+  test functions or fixtures. See also `notes/bt-pitfalls.md`.
+  *Source: CONCERN-2321*
 - **`caplog` Captures Fixture-Setup-Phase Records** — `caplog.set_level()` set
   in a fixture captures log records emitted during other fixtures' setup, not just
   the test body. Set it inside the test function to scope capture to the test
@@ -770,6 +813,33 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   ADR is `adr:`, which `spec-lint` validates against known ADR filenames. After
   adding any new key to a spec YAML, verify it appears in `PYTHONPATH= uv run
   spec-dump` output before treating it as persisted. *Source: ISSUE-2237*
+- **A Conflict-Free Merge Is Not a Working Merge — Run Tests After Every Catch-Up** —
+  git merges text; it cannot detect semantic breakage. When a branch retires an API,
+  `main`'s new callers merge cleanly and fail at runtime. Always run the full unit
+  tier after resolving conflicts — "0 conflicts" is no signal at all. Additionally:
+  when a conflict is in a file that was **split or renamed** on `main`, also check
+  the new location for changes your branch added to the old location; file splits do
+  not show up in conflict markers. For long-lived branches, sweep for each retired
+  API name in `vultron/` and `test/` via `grep` rather than waiting for failures.
+  *Source: ISSUE-2238*
+- **Re-Check ADR Number Immediately Before Merge — `adr-index` Enforces Uniqueness** —
+  ADR numbers are claimed from `docs/adr/index.md` at authoring time and must be
+  unique. A parallel PR can claim the same number between when you check and when
+  you merge. `adr-index` now has a uniqueness check that fails at commit/CI time if
+  two ADRs share a number. To avoid a blocked merge: re-read `docs/adr/index.md`
+  immediately before creating the commit that adds a new ADR; if the number is
+  already taken, increment and update the ADR filename and `index.md` entry.
+  *Source: CONCERN-2321*
+- **"CaseActor MUST …" Is Often a Specification Error — CaseActor Is a Role, Not a Component** —
+  `CaseActor` names a *role* (the participant holding `CVDRole.CASE_MANAGER`), not a
+  dedicated component. Anything per-case in a CaseActor's *identity* (e.g., a per-case
+  service URL derived from the case slug) is a category error: no container has registered
+  that identity, so any call to it answers 404. When a spec says "CaseActor MUST create X"
+  or "CaseActor MUST send Y", verify the requirement is using CaseActor as a role (whichever
+  actor holds CASE_MANAGER for this case) rather than as a singleton object. A spec that
+  mints an object to satisfy a role requirement will be faithfully implemented and
+  faithfully wrong. Grep the spec corpus for MUST requirements whose subject is a role name
+  to catch these before they hide defects. *Source: ISSUE-1872*
 - **A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug** —
   a test whose docstring says "falls back to X" or "defaults to X" for
   *malformed* (not absent) input is asserting the ARCH-15 violation as intended
@@ -857,11 +927,12 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   convert the field to a `>-` block scalar and use apostrophes freely.
   *Source: ISSUE-2393*
 - **Always Verify Every Acceptance Criterion Against `origin/main` Before
-  Implementing** — check each stated defect and AC in the issue body against
-  current `origin/main` HEAD before writing any code. A prior PR may have
-  partially fixed the issue without a `Closes #N` footer, leaving the issue
-  open but the code already changed. Implement only what is still broken.
-  *Source: ISSUE-1467, ISSUE-2290*
+  Implementing** — a prior PR may have partially satisfied an issue without a
+  `Closes #N` footer. Implement only what is still unmet. The pre-claim gates
+  in the build and bugfix skills enforce this check before branching; see
+  `.agents/skills/build/SKILL.md` Phase 2 § "Pre-claim AC verification gate"
+  and `.agents/skills/bugfix/SKILL.md` Phase 1 § "Pre-claim defect
+  verification". *Source: ISSUE-1467, ISSUE-2290*
 - **Sub-Agent Spec Splits: Re-Run the Violation Detection Script After the
   Parallel Pass** — after parallel sub-agents split compound spec requirements,
   re-run the compound-statement detection script. Agents frequently add new
@@ -892,6 +963,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `notes/datalayer-design.md`
   § "Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional".
   *Source: CONCERN-2219*
+- **PyYAML Parses Bare `on:` Mapping Key as Python `True`** — PyYAML (YAML 1.1)
+  resolves the bare token `on` as boolean `True` when it appears as a mapping key.
+  A GitHub Actions workflow file starting with `on:` is loaded by `yaml.safe_load()`
+  as `{True: {...}, 'name': '...', 'jobs': {...}}` — NOT `{'on': {...}}`. Any test
+  or tool that reads workflow YAML and queries the trigger block must use
+  `wf_data.get(True, wf_data.get("on", {}))`. If you use only `wf_data.get("on", {})`
+  the result is always `{}` and any `pytest.mark.parametrize` fixture over it
+  silently produces zero cases — all parametrized tests SKIP instead of FAIL.
+  *Source: ISSUE-2184*
 - **GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`**
   — two distinct failure modes when a boolean field from the matrix (e.g.
   `full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:
@@ -924,6 +1004,18 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   new rules edition require N separate factory changes instead of one.
   See BTND-05-007, ADR-0071.
   *Source: CONCERN-2108*
+- **Adding a `kind: protocol` Spec Without Coverage Raises the Ratchet — Never Raise the Ceiling** —
+  the protocol-spec coverage ratchet (`test_protocol_spec_coverage_floor` in
+  `test/architecture/test_spec_coverage_ratchet.py`, ceiling = `MAX_UNCOVERED_PROTOCOL_SPECS`)
+  counts uncovered `kind: protocol` specs immediately. If no test carries
+  `@pytest.mark.spec("SPEC-ID")`, the uncovered count rises above the ceiling and CI fails.
+  The ceiling comment says "never raise it." Pattern for a spec whose implementation does not yet
+  exist: write a test asserting the not-yet-implemented behavior → mark it
+  `@pytest.mark.xfail(strict=True, reason="SPEC-ID: <short description>. Tracked by Bug #N.")`
+  and `@pytest.mark.spec("SPEC-ID")`. Do NOT add a stub class — use an existing node or
+  assertion that fails for the right reason. The xfail auto-promotes to passing once the feature
+  lands and the `reason=` links the test back to the implementation issue.
+  *Source: ISSUE-2606*
 
 ---
 

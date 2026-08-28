@@ -18,10 +18,19 @@ groups:
     kind: protocol
     statement: Handlers MUST interpret received activities as assertions about the sender's state, not as commands to perform
       work
+    verification: Inspection of all handler `execute()` methods confirms they update local state machine records from
+      the received `VultronEvent` payload and issue no imperative outbound commands in direct response to receipt.
+    stories:
+    - story_2022_002
   - id: HP-00-002
     priority: MUST
     kind: protocol
     statement: Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by the received activity
+    verification: Integration tests in `test/demo/` confirm that each inbound activity type results in the expected
+      RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
+    stories:
+    - story_2022_074
+    - story_2022_088
 - id: HP-01
   title: Handler Signature
   specs:
@@ -175,6 +184,12 @@ groups:
     kind: protocol
     statement: Handlers processing an inbound `Offer` activity MUST determine case-creation eligibility from the `to` field
       only
+    verification: Inspect the `SubmitReportReceivedUseCase` (or equivalent Offer handler) to confirm eligibility logic
+      branches only on the `to` field; `cc` and `target` fields are not consulted for eligibility determination.
+    stories:
+    - story_2022_002
+    - story_2022_012
+    - story_2022_038
   - id: HP-09-002
     priority: MUST_NOT
     kind: protocol
@@ -190,9 +205,14 @@ groups:
     kind: protocol
     statement: When a receiving actor finds itself in the `cc` field of an inbound `Offer(Report)` activity, the handler MUST
       log a WARNING and discard the activity without creating a case
+    verification: A unit or integration test confirms that an `Offer(Report)` addressed to the receiver via `cc`
+      produces a WARNING log entry and neither creates a case nor enqueues any outbound activities.
     rationale: '`cc` addressing has no defined handler semantics in the current protocol version. Implementing an "informational
       receive" use case for `cc` recipients would require defining what "informational only" means, which is deferred. Deliberate
       simplification.'
     relationships:
     - rel_type: refines
       spec_id: HP-09-001
+    stories:
+    - story_2022_002
+    - story_2022_012

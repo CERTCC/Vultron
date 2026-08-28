@@ -89,7 +89,10 @@ def _build_link(
 
 @pytest.fixture()
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=_CASE_ACTOR_ID,
+    )
 
 
 @pytest.fixture()
@@ -129,6 +132,7 @@ def create_event(make_payload, case_with_two_participants):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-05-005")
 class TestBootstrapParticipantStorage:
     """CBT-05-005 — bootstrap Create stores embedded participants in DataLayer.
 
@@ -231,6 +235,7 @@ class TestBootstrapParticipantStorage:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-05-006")
 class TestM4AddParticipantStatusAfterBootstrap:
     """CBT-05-006 — AddParticipantStatusBT succeeds on reporter's replica.
 
