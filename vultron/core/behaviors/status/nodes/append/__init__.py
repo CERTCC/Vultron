@@ -30,7 +30,6 @@ from vultron.core.behaviors.status.nodes.append.actions import (
     ResolveAndPersistStatusObjectNode,
 )
 from vultron.core.behaviors.status.nodes.append.conditions import (
-    CheckParticipantRMNotClosedNode,
     CheckStatusNotAlreadyAppendedNode,
     SkipIfIdempotentNode,
     ValidateRMTransitionNode,
@@ -41,7 +40,6 @@ __all__ = [
     "SkipIfIdempotentNode",
     "CheckStatusNotAlreadyAppendedNode",
     "ValidateRMTransitionNode",
-    "CheckParticipantRMNotClosedNode",
     # actions
     "LoadParticipantNode",
     "ResolveAndPersistStatusObjectNode",

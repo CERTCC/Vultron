@@ -15,14 +15,13 @@
 
 """Tests for AddCaseStatus BT nodes and tree factory.
 
-Covers all three steps of the AddCaseStatusToCaseBT sequence:
+Covers steps of the AddCaseStatusToCaseBT sequence:
   1. CheckCaseStatusIdempotencyNode  — duplicate skipped, new status passes
-  2. ValidateCaseStatusTransitionNode — invalid EM/PXA rejected, valid passes
-  3. AppendCaseStatusToCaseNode      — status appended and persisted
+  2. AppendCaseStatusToCaseNode      — status appended and persisted
 
 Also covers the full tree factory and use-case-level integration.
 
-Per issue #758 AC-1, AC-2, AC-3.
+Per issue #758 AC-1, AC-3.
 """
 
 from typing import cast
@@ -44,7 +43,6 @@ from vultron.core.behaviors.status.nodes import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
-    ValidateCaseStatusTransitionNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
@@ -161,106 +159,6 @@ class TestCheckCaseStatusIdempotencyNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert node.feedback_message != CASE_STATUS_ALREADY_PRESENT
-
-
-# ---------------------------------------------------------------------------
-# ValidateCaseStatusTransitionNode
-# ---------------------------------------------------------------------------
-
-
-class TestValidateCaseStatusTransitionNode:
-    def test_first_status_always_valid(self, populated_bridge):
-        """No current_status → transition always allowed (first status)."""
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=None,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_valid_em_transition_succeeds(self, dl):
-        """NONE → PROPOSED is a valid EM transition → SUCCESS."""
-        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Valid")
-        initial = as_CaseStatus(
-            id_=f"{CASE_ID}/statuses/init",
-            context=CASE_ID,
-            em_state=EM.NONE,
-        )
-        case.case_statuses.append(initial)
-        dl.create(case)
-
-        good_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em_state=EM.PROPOSED
-        )
-        dl.create(good_status)
-
-        bridge = BTBridge(datalayer=dl)
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=good_status,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_invalid_em_transition_fails(self, dl):
-        """NONE → ACTIVE skips PROPOSED — invalid EM transition → FAILURE."""
-        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Invalid")
-        initial = as_CaseStatus(
-            id_=f"{CASE_ID}/statuses/init",
-            context=CASE_ID,
-            em_state=EM.NONE,
-        )
-        case.case_statuses.append(initial)
-        dl.create(case)
-
-        bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
-        )
-        dl.create(bad_status)
-
-        bridge = BTBridge(datalayer=dl)
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=bad_status,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    def test_invalid_pxa_transition_fails(self, dl):
-        """pxa → PXA skips intermediate steps — invalid PXA transition → FAILURE."""
-        # The default seed as_CaseStatus already has pxa_state=CS_pxa.pxa.
-        # A direct jump from pxa to PXA (all bits set at once) is invalid.
-        case = as_VulnerabilityCase(id_=CASE_ID, name="PXA Invalid")
-        dl.create(case)
-
-        bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXA
-        )
-        dl.create(bad_status)
-
-        bridge = BTBridge(datalayer=dl)
-        node = ValidateCaseStatusTransitionNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=bad_status,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    def test_case_not_found_fails(self, bridge):
-        """Case not in DataLayer → FAILURE."""
-        node = ValidateCaseStatusTransitionNode(
-            case_id="https://example.org/cases/nonexistent",
-            status_id=STATUS_ID,
-            status_obj_fallback=None,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
@@ -395,10 +293,10 @@ class TestAddCaseStatusTree:
     ):
         """EM advances (NONE→PROPOSED) with stale PXA regression → BT SUCCEEDS.
 
-        Bug #2256: ValidateCaseStatusTransitionNode returned FAILURE when PXA
-        regressed, discarding the valid EM advance and aborting the Sequence
-        before ThreatTerminationBranchNode.  Per-dimension adjudication must
-        accept the EM advance and carry the current PXA forward.
+        Bug #2256: all-or-nothing CS validation discarded the valid EM advance
+        when PXA regressed and aborted the Sequence before
+        ThreatTerminationBranchNode.  Per-dimension adjudication must accept
+        the EM advance and carry the current PXA forward.
         """
         case = as_VulnerabilityCase(id_=CASE_ID, name="EM PXA Split")
         # The case auto-seeds an initial CaseStatus (pxa=pxa by default).
@@ -848,8 +746,7 @@ class TestRegressionCSPTeardownPath:
     committed before broadcast in both paths).
 
     The new pipeline uses ThreatTerminationBranchNode directly (EmbargoTeardownAuthorizationGate).
-    ValidateCaseStatusTransitionNode is tested separately; this regression
-    focuses on teardown outcome parity.
+    This regression focuses on teardown outcome parity.
 
     AC #8 from issue #1844.
     """

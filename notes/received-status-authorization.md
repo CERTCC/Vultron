@@ -79,7 +79,7 @@ AddParticipantStatusBT (Sequence)
 ### Per-dimension partial accept (RSH-05, ADR-0061)
 
 `FilterParticipantStatusDimensionsNode` replaced the former
-`CheckParticipantRMNotClosedNode` guard. The old guard — and
+`CheckParticipantRMNotClosedNode` guard (now removed). The old guard — and
 `ValidateRMTransitionNode` inside the append subtree — refused a whole
 `ParticipantStatus` snapshot when its `rm` dimension was unacceptable, which
 discarded the accepted `vfd`/`pxa` values *and* aborted this Sequence before
@@ -217,8 +217,8 @@ AddCaseStatusToCaseBT (Sequence)
 └─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
-`ValidateCaseStatusTransitionNode` (the former all-or-nothing guard) is
-retained in the module and tested but is no longer wired into this tree.
+`ValidateCaseStatusTransitionNode` (the former all-or-nothing guard) has been
+removed; per-dimension filter nodes are its replacement.
 
 ### Three-node design
 

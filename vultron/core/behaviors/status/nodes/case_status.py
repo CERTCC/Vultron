@@ -15,15 +15,14 @@
 
 """Case status workflow nodes for AddCaseStatusToCase.
 
-Contains the idempotency guard, all-or-nothing transition validator, and
-append node implementing the AddCaseStatusToCase BT sequence (issue #758).
+Contains the idempotency guard and append node implementing the
+AddCaseStatusToCase BT sequence (issue #758).
 
 Per-dimension adjudication nodes (RSH-05, ADR-0061, ISSUE-2256) live in
 :mod:`cs_dimension_filter` to keep this module under the 500-line limit.
 """
 
 import logging
-from typing import Any
 
 from py_trees.common import Status
 
@@ -40,8 +39,6 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.states.cs import is_valid_pxa_transition
-from vultron.core.states.em import is_valid_em_transition
 
 logger = logging.getLogger(__name__)
 
@@ -101,107 +98,6 @@ class CheckCaseStatusIdempotencyNode(
                 self.status_id,
                 self.case_id,
             )
-
-        return Status.SUCCESS
-
-
-class ValidateCaseStatusTransitionNode(DataLayerConditionWithPorts):
-    """AC-2: Validate that the new CaseStatus represents a legal state transition.
-
-    Uses ``case.current_status`` as the reference point.  When the case has no
-    current status (first status ever), the transition is unconditionally
-    allowed.  Otherwise both the EM state and PXA state transitions are
-    validated independently.
-
-    Returns SUCCESS when the transition is valid (or there is no prior status).
-    Returns FAILURE when an invalid EM or PXA transition is detected.
-
-    Per issue #758 AC-2.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        status_id: str,
-        status_obj_fallback: PersistableModel | None,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.status_id = status_id
-        self.status_obj_fallback = status_obj_fallback
-
-    def _resolve_status(self) -> object | None:
-        assert self.datalayer is not None
-        status_obj = self.datalayer.read(self.status_id)
-        if hasattr(status_obj, "id_"):
-            return status_obj
-        return self.status_obj_fallback
-
-    def _check_transition(
-        self,
-        label: str,
-        current: object,
-        new: object,
-        validator: Any,
-    ) -> bool:
-        if new is None or current == new:
-            return True
-        if validator(current, new):
-            return True
-        self.feedback_message = (
-            f"Invalid {label} transition {current} → {new}"
-            f" for case '{self.case_id}'"
-        )
-        self.logger.warning(
-            "ValidateCaseStatusTransition: %s — rejecting",
-            self.feedback_message,
-        )
-        return False
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning(
-                "ValidateCaseStatusTransition: %s", self.feedback_message
-            )
-            return Status.FAILURE
-
-        try:
-            current_status = case.current_status
-        except ValueError:
-            return Status.SUCCESS
-
-        status_obj = self._resolve_status()
-        if status_obj is None:
-            self.feedback_message = f"Status '{self.status_id}' not found"
-            self.logger.warning(
-                "ValidateCaseStatusTransition: %s", self.feedback_message
-            )
-            return Status.FAILURE
-
-        em_dim = getattr(status_obj, "em", None)
-        pxa_dim = getattr(status_obj, "pxa", None)
-        if not self._check_transition(
-            "EM",
-            current_status.em.state,
-            em_dim.state if em_dim is not None else None,
-            is_valid_em_transition,
-        ):
-            return Status.FAILURE
-
-        if not self._check_transition(
-            "PXA",
-            current_status.pxa.state,
-            pxa_dim.state if pxa_dim is not None else None,
-            is_valid_pxa_transition,
-        ):
-            return Status.FAILURE
 
         return Status.SUCCESS
 

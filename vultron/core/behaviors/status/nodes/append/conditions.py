@@ -24,7 +24,7 @@ Contains the two idempotency-guard nodes used directly in the append sequence:
 
 RM-transition guards live in
 :mod:`vultron.core.behaviors.status.nodes.rm_validation` (BTND-07-004) and are
-re-exported here for backward-compatibility.
+re-exported here for convenience.
 """
 
 import logging
@@ -36,7 +36,6 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models._helpers import _as_id
 from vultron.core.behaviors.status.nodes.rm_validation import (
-    CheckParticipantRMNotClosedNode,
     ValidateRMTransitionNode,
 )
 
@@ -46,7 +45,6 @@ __all__ = [
     "SkipIfIdempotentNode",
     "CheckStatusNotAlreadyAppendedNode",
     "ValidateRMTransitionNode",
-    "CheckParticipantRMNotClosedNode",
 ]
 
 
