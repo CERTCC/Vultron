@@ -72,6 +72,7 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+    - Capability Model: 'topics/capability_model/index.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
       - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
