@@ -41,7 +41,6 @@ from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import (
-    _as_id,
     _report_phase_status_id,
     report_phase_context,
 )
