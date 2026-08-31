@@ -78,6 +78,7 @@ Load additional files only when the task touches the relevant area. See the
 | Status dimension objects (per-machine EM/PXA/RM/VFD/PEC decomposition) | `status-dimension-objects.yaml`, `notes/status-dimension-objects.md` |
 | Received-side status authorization (StatusAdoptionGate, EmbargoTeardownAuthorizationGate, ThreatTerminationBranchNode) | `received-status-handling.yaml`, `notes/received-status-authorization.md` |
 | CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
+| Protocol asks (ask-and-terminate, outstanding-ask registers, expiry, processing faults) | `protocol-asks.yaml`, `notes/protocol-asks.md` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
 | Activity factory functions | `activity-factories.yaml` |
@@ -442,6 +443,7 @@ is reserved for `testability.yaml`).
 | `ARCH` | `architecture.yaml` |
 | `AKM` | `actor-knowledge-model.yaml` |
 | `AR` | `agentic-readiness.yaml` |
+| `ASK` | `protocol-asks.yaml` |
 | `BT` | `behavior-tree-integration.yaml` |
 | `BTC` | `bt-composability.yaml` |
 | `BTND` | `behavior-tree-node-design.yaml` |
