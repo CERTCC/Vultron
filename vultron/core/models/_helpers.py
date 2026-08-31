@@ -17,7 +17,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 
 def _now_utc() -> datetime:
@@ -86,5 +86,5 @@ def report_phase_context(dl: Any, report_id: str) -> str:
     """
     case = dl.find_case_by_report_id(report_id)
     if case is not None:
-        return case.id_
+        return cast(str, case.id_)
     return report_id
