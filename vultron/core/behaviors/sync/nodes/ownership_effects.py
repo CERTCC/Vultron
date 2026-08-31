@@ -30,7 +30,6 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +94,8 @@ class ApplyOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.debug(
                 "%s: case '%s' not found in local DataLayer"
                 " — skipping (non-fatal, partial case view)",

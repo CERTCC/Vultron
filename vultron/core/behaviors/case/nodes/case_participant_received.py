@@ -27,7 +27,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 
 
@@ -56,9 +55,9 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         participant = self.datalayer.read(self.participant_id)
-        case = self.datalayer.read(self.case_id)
+        case = self.datalayer.read_case(self.case_id)
 
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found",
@@ -116,9 +115,9 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
+        case = self.datalayer.read_case(self.case_id)
 
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found",

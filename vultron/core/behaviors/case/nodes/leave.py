@@ -38,7 +38,6 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
@@ -79,8 +78,8 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found or wrong type",
                 self.name,
@@ -183,8 +182,8 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found or wrong type",
                 self.name,

@@ -25,14 +25,8 @@ def _get_case_genesis_hash(case_id: str, dl: CasePersistence) -> str:
     Returns:
         64-character hex SHA-256 genesis hash, or ``""`` if unavailable.
     """
-    from vultron.core.models.case import VulnerabilityCase
-
-    case_obj = dl.read(case_id)
-    if isinstance(case_obj, VulnerabilityCase):
-        if case_obj.genesis_hash:
-            return case_obj.genesis_hash
-    # Duck-type fallback: wire-layer VulnerabilityCase also has genesis_hash
-    genesis = getattr(case_obj, "genesis_hash", "")
+    case_obj = dl.read_case(case_id)
+    genesis = case_obj.genesis_hash if case_obj is not None else ""
     if genesis and isinstance(genesis, str):
         return genesis
     return ""

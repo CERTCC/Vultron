@@ -23,7 +23,6 @@ EM state writes are owned by ``EmbargoLifecycle`` (EMB-18-001).
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import VultronValidationError
 
 
@@ -63,8 +62,8 @@ class ReadEmStateNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             err = VultronValidationError(
                 f"Case '{self._case_id}' not found or invalid."
             )

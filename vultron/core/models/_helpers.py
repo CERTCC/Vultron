@@ -84,9 +84,7 @@ def report_phase_context(dl: Any, report_id: str) -> str:
         The case URI when a case for *report_id* is in this store, else
         *report_id*.
     """
-    from vultron.core.models.case import VulnerabilityCase
-
     case = dl.find_case_by_report_id(report_id)
-    if isinstance(case, VulnerabilityCase):
+    if case is not None:
         return case.id_
     return report_id

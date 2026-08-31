@@ -35,7 +35,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCase
 
 
@@ -146,8 +145,8 @@ class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
             self.logger.error(f"{self.name}: case_id not found in blackboard")
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.error(
                 f"{self.name}: Case {case_id} not found in DataLayer"
             )
@@ -197,7 +196,7 @@ class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         case = self.case_for_creation_events_bb
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.logger.error(
                 f"{self.name}: case_for_creation_events missing or invalid"
             )

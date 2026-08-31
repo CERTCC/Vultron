@@ -55,7 +55,6 @@ from vultron.core.behaviors.report.nodes.develop_fix_conditions import (  # noqa
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vf
 
@@ -109,8 +108,8 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
     def _ensure_vendor_aware(self) -> Status:
         """Advance actor to VF=Vf if still at initial state (CSB-16-001 strict adjacency)."""
         assert self.datalayer is not None
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             return Status.SUCCESS
         participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:
@@ -207,8 +206,8 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found", self.name, self._case_id
             )

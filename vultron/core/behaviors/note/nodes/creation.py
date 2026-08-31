@@ -22,7 +22,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 
 
 class CreateNoteNode(DataLayerActionWithPorts):
@@ -102,7 +101,7 @@ class AttachNoteFromResultNode(DataLayerActionWithPorts):
             return f
 
         case: Any = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(f"{self.name}: {self.feedback_message}")
             return Status.FAILURE

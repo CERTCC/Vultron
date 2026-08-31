@@ -30,7 +30,6 @@ from vultron.core.behaviors.helpers import (
 from vultron.config.actor import ActorConfig
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import PEC
@@ -340,7 +339,7 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         stored_case = self._stored_case
-        if not isinstance(stored_case, VulnerabilityCase):
+        if stored_case is None:
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
@@ -404,7 +403,7 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerActionWithPorts):
         if case_id is None:
             case_id = (
                 self._stored_case.id_
-                if isinstance(self._stored_case, VulnerabilityCase)
+                if self._stored_case is not None
                 else None
             )
         if case_id is None:
@@ -475,7 +474,7 @@ class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant = self._participant
-        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
+        if stored_case is None or not isinstance(
             participant, VultronParticipant
         ):
             self.logger.error(

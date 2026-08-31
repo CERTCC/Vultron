@@ -476,8 +476,8 @@ class _AddCaseActorParticipantNode(DataLayerActionWithPorts):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
-        stored_case = self.datalayer.read(case_id)
-        if isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id)
+        if stored_case is not None:
             if self.actor_id in stored_case.actor_participant_index:
                 return Status.SUCCESS
 
@@ -542,8 +542,8 @@ class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         # Skip if vendor already has a participant in this case.
-        stored_case = self.datalayer.read(case_id)
-        if isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id)
+        if stored_case is not None:
             if self._vendor_uri in stored_case.actor_participant_index:
                 logger.debug(
                     "%s: vendor '%s' already in actor_participant_index"
@@ -676,8 +676,8 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
 
     def _already_has_participant(self, case_id: str, actor_uri: str) -> bool:
         assert self.datalayer is not None
-        stored_case = self.datalayer.read(case_id)
-        if not isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id)
+        if stored_case is None:
             return False
         if actor_uri in stored_case.actor_participant_index:
             logger.debug(
@@ -1003,8 +1003,8 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
-        raw_case = self.datalayer.read(case_id)
-        if not isinstance(raw_case, VulnerabilityCase):
+        raw_case = self.datalayer.read_case(case_id)
+        if raw_case is None:
             logger.warning(
                 "%s: case '%s' not found — skipping ledger entries"
                 " (best-effort)",
@@ -1154,8 +1154,8 @@ class _SeedVendorOwnerSignatoryNode(DataLayerActionWithPorts):
             return Status.FAILURE
             return Status.FAILURE
 
-        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
+        if stored_case is None:
             logger.warning(
                 "%s: case '%s' not found — cannot seed vendor SIGNATORY"
                 " (best-effort)",
@@ -1296,8 +1296,8 @@ class _SeedReporterSignatoryNode(DataLayerActionWithPorts):
     ) -> tuple[VulnerabilityCase | None, CaseParticipant | None]:
         """Return (case, participant) for *reporter_uri*, or (None, None) on miss."""
         assert self.datalayer is not None
-        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
+        if stored_case is None:
             logger.warning(
                 "%s: case '%s' not found — cannot seed reporter SIGNATORY"
                 " (best-effort)",
@@ -1647,8 +1647,8 @@ class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
         """
         assert self.datalayer is not None
-        raw_case = self.datalayer.read(case_id)
-        if not isinstance(raw_case, VulnerabilityCase):
+        raw_case = self.datalayer.read_case(case_id)
+        if raw_case is None:
             return []
         uris: list[str] = []
         for p_id in raw_case.actor_participant_index.values():
@@ -1667,8 +1667,8 @@ class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
 
     def _build_case_object(self, case_id: str) -> "dict[str, Any] | None":
         assert self.datalayer is not None
-        raw_case = self.datalayer.read(case_id)
-        if not isinstance(raw_case, VulnerabilityCase):
+        raw_case = self.datalayer.read_case(case_id)
+        if raw_case is None:
             return None
         # Materialise each participant ref so _store_embedded_participants
         # on the vendor side receives full objects, not bare ID strings (AC-5).

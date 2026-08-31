@@ -36,7 +36,6 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
@@ -55,11 +54,9 @@ def _resolve_actor_roles(
     Returns ``None`` when the case or participant record cannot be resolved;
     the calling node should return ``Status.FAILURE`` in that case.
     """
-    case = datalayer.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
-        logger.warning(
-            "%s: case '%s' not found or wrong type", node_name, case_id
-        )
+    case = datalayer.read_case(case_id)
+    if case is None:
+        logger.warning("%s: case '%s' not found", node_name, case_id)
         return None
 
     participant_id = case.actor_participant_index.get(actor_id)
@@ -304,8 +301,8 @@ class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.debug(
                 "%s: case '%s' not found or wrong type", self.name, case_id
             )

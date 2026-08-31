@@ -32,7 +32,6 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_receive_offer_case_participant_tree,
     create_reject_actor_recommendation_received_tree,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -125,8 +124,8 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         )
         recommender_id = None
         if recommendation_id and case_id:
-            case = self._dl.read(case_id)
-            if isinstance(case, VulnerabilityCase):
+            case = self._dl.read_case(case_id)
+            if case is not None:
                 recommender_id = case.recommendation_recommender_index.get(
                     recommendation_id
                 )
@@ -208,8 +207,8 @@ class RejectOfferCaseParticipantReceivedUseCase:
         )
         recommender_id = None
         if recommendation_id and case_id:
-            case = self._dl.read(case_id)
-            if isinstance(case, VulnerabilityCase):
+            case = self._dl.read_case(case_id)
+            if case is not None:
                 recommender_id = case.recommendation_recommender_index.get(
                     recommendation_id
                 )

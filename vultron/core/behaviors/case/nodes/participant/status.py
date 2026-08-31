@@ -31,7 +31,6 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     DDimension,
@@ -290,8 +289,8 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             self.feedback_message = "DataLayer not available"
             return Status.FAILURE
 
-        case = dl.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = dl.read_case(self._case_id)
+        if case is None:
             self.logger.error(
                 "%s: Case '%s' not found in DataLayer",
                 self.name,

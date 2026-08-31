@@ -30,7 +30,6 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
@@ -293,9 +292,7 @@ class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant_id = self._participant_id
-        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
-            participant_id, str
-        ):
+        if stored_case is None or not isinstance(participant_id, str):
             self.logger.error(
                 "%s: %s/%s missing in blackboard",
                 self.name,
@@ -335,7 +332,7 @@ class CaseHasActiveEmbargoNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         stored_case = self._stored_case
-        if not isinstance(stored_case, VulnerabilityCase):
+        if stored_case is None:
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
@@ -376,7 +373,7 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         stored_case = self._stored_case
-        if not isinstance(stored_case, VulnerabilityCase):
+        if stored_case is None:
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
@@ -434,7 +431,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant = self._participant
-        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
+        if stored_case is None or not isinstance(
             participant, VultronParticipant
         ):
             self.logger.error(
