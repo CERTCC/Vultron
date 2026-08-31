@@ -110,7 +110,7 @@ class TestVerifyFixReadyVendorGuard:
             "vultron.demo.helpers.milestones._fetch_participant",
             return_value=participant,
         ), patch(
-            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+            "vultron.demo.helpers.milestones._check_participant_vf_state_in"
         ), patch(
             "vultron.demo.helpers.milestones._check_participant_rm_state_in"
         ):
@@ -168,7 +168,7 @@ class TestVerifyFixReadyVendorGuard:
             "vultron.demo.helpers.milestones._fetch_participant",
             return_value=participant,
         ), patch(
-            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+            "vultron.demo.helpers.milestones._check_participant_vf_state_in"
         ), patch(
             "vultron.demo.helpers.milestones._check_participant_rm_state_in"
         ):
@@ -296,7 +296,7 @@ class TestVerifyFixDeployedDeployerGuard:
             "vultron.demo.helpers.milestones._fetch_participant",
             return_value=participant,
         ), patch(
-            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+            "vultron.demo.helpers.milestones._check_participant_d_state_in"
         ):
             verify_fix_deployed(
                 MagicMock(),
@@ -315,7 +315,7 @@ class TestVerifyFixDeployedDeployerGuard:
             "vultron.demo.helpers.milestones._fetch_participant",
             return_value=participant,
         ), patch(
-            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+            "vultron.demo.helpers.milestones._check_participant_d_state_in"
         ):
             verify_fix_deployed(
                 MagicMock(),

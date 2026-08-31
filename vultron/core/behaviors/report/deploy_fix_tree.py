@@ -73,6 +73,9 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     RMinStateDeferred,
     TransitionCStoFixDeployed,
 )
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckDeployerRoleNode,
+)
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
@@ -142,6 +145,7 @@ def create_deploy_fix_tree(
         name="_DeployFixIfReady",
         memory=False,
         children=[
+            CheckDeployerRoleNode(case_id=case_id, actor_id=actor_id),
             CheckRMStateAccepted(case_id=case_id, actor_id=actor_id),
             CheckCSFixNotYetDeployed(case_id=case_id, actor_id=actor_id),
             bundle.prioritize_deployment_factory("PrioritizeDeployment"),

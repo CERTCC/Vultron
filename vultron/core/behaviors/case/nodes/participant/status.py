@@ -127,16 +127,16 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
     ) -> None:
         """Write the status to the DataLayer and link it to the participant."""
         try:
-            dl.create(status)  # type: ignore[union-attr]
+            dl.create(status)  # type: ignore[attr-defined]
         except ValueError:
-            dl.save(status)  # type: ignore[union-attr]
-        participant_obj = dl.read(participant_id)  # type: ignore[union-attr]
-        wire_status = dl.read(status.id_)  # type: ignore[union-attr]
+            dl.save(status)  # type: ignore[attr-defined]
+        participant_obj = dl.read(participant_id)  # type: ignore[attr-defined]
+        wire_status = dl.read(status.id_)  # type: ignore[attr-defined]
         if isinstance(participant_obj, CaseParticipant) and isinstance(
             wire_status, ParticipantStatus
         ):
             participant_obj.add_participant_status(wire_status)
-            dl.save(participant_obj)  # type: ignore[union-attr]
+            dl.save(participant_obj)  # type: ignore[attr-defined]
 
     def _build_dimensions(
         self,

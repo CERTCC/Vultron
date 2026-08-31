@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.nodes.participant import (
     ValidateTriggerTransitionsNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckDeployerRoleNode,
     CheckNotSoleObserverVfdNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
@@ -61,10 +62,9 @@ def add_participant_status_trigger_bt(
 
     When ``vf_state`` is ``CS_vf.Vf`` the tree is preceded by
     :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckNotSoleObserverVfdNode`
-    (CM-25-005).  The ``CheckVendorRoleNode`` (CSB-15-001) and
-    ``CheckDeployerRoleNode`` (CSB-15-002) guards have been removed: role-dimension
-    invariant is now structural — vendor participants carry ``vf``, deployer
-    participants carry ``d``, so the role is implicit in which dimension is present.
+    (CM-25-005).  When ``d_state`` is non-``None`` the tree is also preceded by
+    :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckDeployerRoleNode`
+    (CSB-15-002): vendor-only actors may not advance the d→D dimension.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -99,6 +99,11 @@ def add_participant_status_trigger_bt(
     if vf_state == CS_vf.Vf:
         children.append(
             CheckNotSoleObserverVfdNode(case_id=case_id, actor_id=actor_id)
+        )
+
+    if d_state is not None:
+        children.append(
+            CheckDeployerRoleNode(case_id=case_id, actor_id=actor_id)
         )
 
     children.extend(

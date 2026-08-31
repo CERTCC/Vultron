@@ -290,7 +290,7 @@ def test_verify_fix_ready_fails_if_rm_not_engaged(monkeypatch):
     # Participant has fix-ready CS state (VF=VF) but has not yet engaged (RECEIVED)
     participant = _make_participant(vf=CS_vf.VF, rm=RM.RECEIVED)
 
-    # _check_participant_vfd_state_in and _check_participant_rm_state_in live
+    # _check_participant_vf_state_in and _check_participant_rm_state_in live
     # in verification.py and call _fetch_participant from that module's namespace.
     # _assert_vendor_role lives in milestones.py and calls it from milestones'
     # namespace.  Both must be patched so all callers return our participant.
