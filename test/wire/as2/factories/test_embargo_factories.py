@@ -172,6 +172,22 @@ def test_em_propose_embargo_custom_min_window_respected(sample_embargo):
         )
 
 
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_rsvp_deadline_overrides_caller_end_time(
+    sample_embargo,
+):
+    """rsvp_deadline is authoritative when both it and end_time are provided."""
+    rsvp = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    raw_end_time = datetime.now(tz=timezone.utc) + timedelta(days=10)
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        rsvp_deadline=rsvp,
+        end_time=raw_end_time,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time == rsvp
+
+
 # ---------------------------------------------------------------------------
 # em_accept_embargo_activity
 # ---------------------------------------------------------------------------

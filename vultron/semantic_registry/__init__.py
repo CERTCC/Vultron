@@ -282,6 +282,13 @@ def extract_event(
 
     Returns:
         A concrete ``VultronEvent`` subclass populated with domain fields.
+
+    Note:
+        This wrapper always uses the 72 h default ``min_rsvp_window`` when
+        clamping inbound ``Invite.end_time`` values (EP-07-003).  Callers
+        that need actor-configured floor enforcement must call
+        ``extract_intent()`` directly and pass
+        ``min_rsvp_window=actor_config.min_rsvp_window``.
     """
     semantics = find_matching_semantics(activity)
     entry = lookup_entry(semantics)
