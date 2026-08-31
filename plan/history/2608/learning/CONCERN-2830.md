@@ -6,8 +6,8 @@ type: learning
 ---
 
 Planning group **G02** of 19 (#2830), under the planning-group epic #2828.
-Members: #2262, #2403, #1895, #891. Domain epics: #2692, #890. Also rolled in
-# 2670 at maintainer request.
+Members: #2262, #2403, #1895, #891. Domain epics: #2692, #890. Also rolled
+in #2670 at maintainer request.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/2931>
 ADR: `docs/adr/0081-wire-core-boundary-pairing-registry.md` (supersedes ADR-0062;
@@ -81,8 +81,8 @@ situation from a large count spread across many.
 
 ## ARCH-22-003's goal state was unreachable
 
-# 2670's AC ("all 29 entries removed") and the `xfail(strict=True)` goal test both
-asserted `vultron/wire/` could reach zero `vultron.core.models` imports. Three
+The #2670 AC ("all 29 entries removed") and the `xfail(strict=True)` goal test
+both asserted `vultron/wire/` could reach zero `vultron.core.models` imports. Three
 MUST-level requirements each mandate one: ARCH-12-001 (shared-base inheritance),
 ARCH-12-005 (projection methods, before ADR-0081), ARCH-12-010 (core type-map
 fallback). An unreachable goal test invites an implementer to violate a MUST to
@@ -116,11 +116,11 @@ against the spec corpus before adding the xfail.**
 ## Outcome
 
 13 Tasks: #2932, #2933, #2934, #2935, #2936, #2937, #2938, #2939, #2940, #2941,
-# 2942, #2943, #2944 (7 under #2670, 6 under #2692). 28 of 29 ARCH-22 violations
+plus #2942, #2943 and #2944 (7 under #2670, 6 under #2692). 28 of 29 ARCH-22 violations
 clear; the remainder is the `find_in_core_type_map` import ARCH-12-010 mandates.
 
-3 Ideas under #890: #2945 (ontology direction, supersedes #1895), #2946 (PyLD),
-# 2947 (`activitypubdantic`).
+3 Ideas under #890: #2945 (ontology direction, supersedes #1895), #2946
+(PyLD), #2947 (`activitypubdantic`).
 
 Closed: #2830, #2262, #2403, #1895, #891. **AC-3 knowingly unmet** — the
 PyLD/`activitypubdantic` adopt-or-decline verdict was deferred to #2946/#2947 per
