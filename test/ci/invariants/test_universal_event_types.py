@@ -143,6 +143,7 @@ def test_all_ci_scenarios_have_a_harness_module() -> None:
     assert not missing, f"CI matrix names nonexistent harness files: {missing}"
 
 
+@pytest.mark.spec_corpus
 def test_demoma_16_001_enumerates_the_universal_types() -> None:
     """DEMOMA-16-001's statement names exactly the five universal types.
 

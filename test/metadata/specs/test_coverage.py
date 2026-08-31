@@ -226,6 +226,7 @@ def test_compute_uncovered_is_sorted(
     assert report.uncovered == sorted(report.uncovered)
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.spec("SR-05-005")
 def test_compute_real_registry_has_nonzero_coverage(real_registry):
     """Smoke test: real registry + real test suite have at least one covered spec."""

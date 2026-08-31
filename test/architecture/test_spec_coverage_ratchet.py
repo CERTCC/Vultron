@@ -63,6 +63,7 @@ def _collect_marked_ids() -> frozenset[str]:
     return frozenset(ids)
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.spec("SR-05-005")
 def test_protocol_spec_coverage_floor():
     """Uncovered protocol-kind specs must not exceed MAX_UNCOVERED_PROTOCOL_SPECS.
