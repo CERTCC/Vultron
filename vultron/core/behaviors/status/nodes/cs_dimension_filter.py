@@ -70,7 +70,37 @@ _BB_CS_FILTER_ACC = "cs_dim_filter_accumulator"
 _BB_CS_FILTER_ACC_WRITE = "cs_dim_filter_accumulator_write"
 
 
-class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
+class _CsStatusGuardBase(DataLayerConditionWithPorts):
+    """Shared init and _resolve_asserted for CS status guard nodes.
+
+    Subclasses accept ``(case_id, status_id, status_obj_fallback, name)`` and
+    can resolve the asserted :class:`~vultron.core.models.case_status.CaseStatus`
+    from the DataLayer, falling back to ``status_obj_fallback`` when not found.
+    Private; not part of the public API.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        status_id: str,
+        status_obj_fallback: PersistableModel | None = None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.status_id = status_id
+        self.status_obj_fallback = status_obj_fallback
+
+    def _resolve_asserted(self) -> CaseStatus | None:
+        assert self.datalayer is not None
+        obj = self.datalayer.read(self.status_id)
+        if isinstance(obj, CaseStatus):
+            return obj
+        obj = self.status_obj_fallback
+        return obj if isinstance(obj, CaseStatus) else None
+
+
+class FilterCsEmDimensionNode(_CsStatusGuardBase):
     """Adjudicates the EM dimension of a received CaseStatus (RSH-05, ISSUE-2256).
 
     Read-only precondition guard (CLP-10-006).  Initialises the per-tick
@@ -91,18 +121,6 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
     Must run before ``FilterCsPxaDimensionNode`` and ``FinalizeCsFilterNode``
     in the precondition_guards sequence.
     """
-
-    def __init__(
-        self,
-        case_id: str,
-        status_id: str,
-        status_obj_fallback: PersistableModel | None = None,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.status_id = status_id
-        self.status_obj_fallback = status_obj_fallback
 
     @classmethod
     def output_ports(cls) -> dict[str, PortInformation]:
@@ -130,14 +148,6 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
         self._set_output(_BB_CS_FILTER_ACC, None)
         self._set_output(BB_CASE_STATUS_DIM_FILTER, None)
         self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
-
-    def _resolve_asserted(self) -> CaseStatus | None:
-        assert self.datalayer is not None
-        obj = self.datalayer.read(self.status_id)
-        if isinstance(obj, CaseStatus):
-            return obj
-        obj = self.status_obj_fallback
-        return obj if isinstance(obj, CaseStatus) else None
 
     def update(self) -> Status:
         self._clear()  # BT-17-003

@@ -38,10 +38,10 @@ import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+    _CsStatusGuardBase,
+)
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import (
     CS_vfd,
     is_monotonic_pxa_forward,
@@ -58,7 +58,7 @@ from vultron.core.states.cs_invariants import (
 logger = logging.getLogger(__name__)
 
 
-class CheckCsEphemeralStateNode(DataLayerConditionWithPorts):
+class CheckCsEphemeralStateNode(_CsStatusGuardBase):
     """Guard: from a pX state the next CS event MUST be P (CSB-17-012).
 
     When the current compound CS state is pX (exploit public, public
@@ -86,26 +86,6 @@ class CheckCsEphemeralStateNode(DataLayerConditionWithPorts):
     Must run before :class:`FilterCsEmDimensionNode` in ``precondition_guards``.
     Per issue #2524 AC-1, CSB-17-012.
     """
-
-    def __init__(
-        self,
-        case_id: str,
-        status_id: str,
-        status_obj_fallback: PersistableModel | None = None,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.status_id = status_id
-        self.status_obj_fallback = status_obj_fallback
-
-    def _resolve_asserted(self) -> CaseStatus | None:
-        assert self.datalayer is not None
-        obj = self.datalayer.read(self.status_id)
-        if isinstance(obj, CaseStatus):
-            return obj
-        obj = self.status_obj_fallback
-        return obj if isinstance(obj, CaseStatus) else None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -150,7 +130,7 @@ class CheckCsEphemeralStateNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class CheckCsHistoryPrefixNode(DataLayerConditionWithPorts):
+class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
     """Guard: proposed single-event PXA transition must yield a valid CS history prefix (CSB-17-005).
 
     Derives the single CS event implied by the current-to-asserted PXA state
@@ -175,26 +155,6 @@ class CheckCsHistoryPrefixNode(DataLayerConditionWithPorts):
     Must run before :class:`FilterCsEmDimensionNode` in ``precondition_guards``.
     Per issue #2524 AC-2, CSB-17-005.
     """
-
-    def __init__(
-        self,
-        case_id: str,
-        status_id: str,
-        status_obj_fallback: PersistableModel | None = None,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.status_id = status_id
-        self.status_obj_fallback = status_obj_fallback
-
-    def _resolve_asserted(self) -> CaseStatus | None:
-        assert self.datalayer is not None
-        obj = self.datalayer.read(self.status_id)
-        if isinstance(obj, CaseStatus):
-            return obj
-        obj = self.status_obj_fallback
-        return obj if isinstance(obj, CaseStatus) else None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

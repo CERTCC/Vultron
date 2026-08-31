@@ -18,14 +18,14 @@
 Nodes enforce CVD protocol correctness for received-side status authorization
 (RSH-01-002):
 
+- :class:`CheckVendorRoleNode` — gates vf→VF (vf_state=Vf): actor MUST hold
+  ``CVDRole.VENDOR`` (CSB-15-001)
+- :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
+  ``CVDRole.DEPLOYER`` (CSB-15-002; causal-gate enforcement pending #2593)
 - :class:`CheckNotSoleObserverVfdNode` — gates v→V (vf_state=Vf): actor
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
 - :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
   sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
-
-Note: :class:`CheckVendorRoleNode` and :class:`CheckDeployerRoleNode` were
-removed in #2664; their role is now enforced structurally through the
-VF/D dimension split (ADR-0075).
 """
 
 import logging
