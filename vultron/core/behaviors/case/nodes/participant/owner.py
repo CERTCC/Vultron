@@ -15,7 +15,7 @@
 
 """Owner-participant creation leaf nodes (BTND-07-003)."""
 
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -30,6 +30,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.config.actor import ActorConfig
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import PEC
@@ -346,7 +347,7 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
                 self._participant_case_key,
             )
             return Status.FAILURE
-        self.datalayer.save(stored_case)
+        self.datalayer.save(cast(VulnerabilityCase, stored_case))
         return Status.SUCCESS
 
 
@@ -402,7 +403,7 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerActionWithPorts):
         case_id = self._case_id
         if case_id is None:
             case_id = (
-                self._stored_case.id_
+                cast(VulnerabilityCase, self._stored_case).id_
                 if self._stored_case is not None
                 else None
             )

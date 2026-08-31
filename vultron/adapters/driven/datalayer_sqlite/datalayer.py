@@ -213,13 +213,10 @@ class SqliteDataLayer:
         self, case_id: str, raise_on_missing: bool = False
     ) -> "VulnerabilityCase | None":
         """Read a VulnerabilityCase by ID; returns None when not found."""
-        from typing import cast as _cast
         from vultron.core.models.case import VulnerabilityCase as _VC
 
         result = self.read(case_id, raise_on_missing=raise_on_missing)
-        if result is None:
-            return None
-        return _cast(_VC, result)
+        return result if isinstance(result, _VC) else None
 
     def get(
         self, table: str | None = None, id_: str | None = None
@@ -305,21 +302,19 @@ class SqliteDataLayer:
         self, short_id: str
     ) -> "VulnerabilityCase | None":
         """Find a case by its URL-safe surrogate key."""
-        from typing import cast as _cast
         from vultron.core.models.case import VulnerabilityCase as _VC
 
         result = queries.find_case_by_short_id(self, short_id)
-        return _cast(_VC, result) if result is not None else None
+        return result if isinstance(result, _VC) else None
 
     def find_case_by_report_id(
         self, report_id: str
     ) -> "VulnerabilityCase | None":
         """Find a ``VulnerabilityCase`` referencing the given report ID."""
-        from typing import cast as _cast
         from vultron.core.models.case import VulnerabilityCase as _VC
 
         result = queries.find_case_by_report_id(self, report_id)
-        return _cast(_VC, result) if result is not None else None
+        return result if isinstance(result, _VC) else None
 
     # ------------------------------------------------------------------
     # Inbox / Outbox queue helpers - delegate to submodule

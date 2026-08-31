@@ -148,7 +148,7 @@ class TestReadEmStateNode:
             side_effect=ValueError("no materialized CaseStatus")
         )
         mock_dl = MagicMock()
-        mock_dl.read.return_value = mock_case
+        mock_dl.read_case.return_value = mock_case
 
         result_out: dict = {}
         node = ReadEmStateNode(

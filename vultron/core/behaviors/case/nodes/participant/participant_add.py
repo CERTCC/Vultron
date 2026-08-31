@@ -26,6 +26,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     _queue_participant_add_notification,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
@@ -300,6 +301,7 @@ class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
                 self._new_participant_id_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
 
         self.datalayer.save(stored_case)
         return Status.SUCCESS
@@ -339,6 +341,7 @@ class CaseHasActiveEmbargoNode(DataLayerActionWithPorts):
                 self._participant_case_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
         return (
             Status.SUCCESS
             if _as_id(stored_case.active_embargo) is not None
@@ -380,6 +383,7 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
                 self._participant_case_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
         return (
             Status.SUCCESS
             if _as_id(stored_case.active_embargo) is None
@@ -441,6 +445,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
                 self._new_case_participant_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
 
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
