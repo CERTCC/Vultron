@@ -5,6 +5,8 @@ Covers accept_invite_actor_to_case ledger event application.
 Per SYNC-02-002, ADR-0022, DEMOMA-07-003.
 """
 
+from unittest.mock import patch
+
 import pytest
 from py_trees.common import Status
 
@@ -152,3 +154,45 @@ def test_apply_invite_accept_from_ledger_preserves_roles(
     participant = datalayer.read(participant_id)
     assert participant is not None
     assert CVDRole.VENDOR in participant.case_roles
+
+
+@pytest.mark.spec("SYNC-12-001")
+def test_apply_invite_accept_handles_typeerror_in_roles(
+    bridge, datalayer, case_actor, case_with_actor
+):
+    """#2801: TypeError in validate_roles is caught; node returns SUCCESS.
+
+    If validate_roles raises TypeError (e.g. non-iterable roles payload),
+    the except clause MUST catch it rather than letting it propagate out of
+    update() and abort AnnounceLogEntryReceivedBT.
+    """
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=2,
+            object_id="https://example.org/activities/accept-invite-typeerror",
+            event_type="accept_invite_actor_to_case",
+            payload_snapshot={
+                "actor": {"id": INVITEE_ACTOR_ID},
+                "object": {
+                    "id": "https://example.org/activities/invite-typeerror",
+                    "type": "Invite",
+                    "roles": ["vendor"],
+                },
+            },
+            prev_log_hash="0" * 64,
+        )
+    )
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    with patch(
+        "vultron.core.behaviors.sync.nodes.invite_accept_effect.validate_roles",
+        side_effect=TypeError("not iterable"),
+    ):
+        result = bridge.execute_with_setup(
+            tree=ApplyInviteAcceptFromLedgerNode(name="ApplyInviteAccept"),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+        )
+
+    assert result.status == Status.SUCCESS

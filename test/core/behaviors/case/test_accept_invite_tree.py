@@ -19,6 +19,7 @@ AC-4: The invitee MUST reach PEC.SIGNATORY after signing embargo consent.
 CM-17-003: Roles MUST be read from the Accept's embedded Invite, not DataLayer.
 """
 
+import logging
 import types
 
 import py_trees
@@ -245,3 +246,104 @@ def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite
     )
     assert participant is not None
     assert CVDRole.VENDOR in participant.case_roles
+
+
+@pytest.mark.spec("CM-17-003")
+def test_read_invite_roles_warns_when_invite_object_missing(
+    bt_scenario: BTTestScenario,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """#2802: WARNING emitted when activity.object_ is None — protocol violation.
+
+    A missing embedded Invite object in the Accept activity is a protocol
+    violation (per datalayer-fallback-is-a-smell learning).  The node MUST
+    log a WARNING so operators can distinguish silent absence from graceful
+    empty-roles.
+    """
+    case = VulnerabilityCase(
+        id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
+    )
+    bt_scenario.seed(case)
+
+    accept_activity = VultronActivity(
+        id_="https://example.org/activities/accept-no-obj",
+        type_="Accept",
+        actor=_CM17_INVITEE_ID,
+        object_=None,
+    )
+    event = AcceptInviteActorToCaseReceivedEvent(
+        activity_id="https://example.org/activities/accept-no-obj",
+        actor_id=_CM17_INVITEE_ID,
+        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        activity=accept_activity,
+    )
+    node = CreateInviteeParticipantAtReceivedNode(
+        case_id=_CM17_CASE_ID,
+        invitee_id=_CM17_INVITEE_ID,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = bt_scenario.run(
+            node,
+            actor_id=_CM17_CASE_ACTOR_ID,
+            activity=event,
+            invitee_case=case,
+            invitee_already_participant=False,
+        )
+
+    assert result.status == Status.SUCCESS
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(
+        "object_" in r.message and "protocol violation" in r.message
+        for r in warnings
+    ), f"Expected WARNING about missing object_ / protocol violation, got: {[r.message for r in warnings]}"
+
+
+@pytest.mark.spec("CM-17-003")
+def test_read_invite_roles_warns_when_roles_field_absent(
+    bt_scenario: BTTestScenario,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """#2802: WARNING emitted when invite object_ is present but has no roles field.
+
+    A missing roles field on the embedded Invite is a protocol violation.
+    The node MUST log a WARNING rather than silently returning an empty list.
+    """
+    case = VulnerabilityCase(
+        id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
+    )
+    bt_scenario.seed(case)
+
+    invite_without_roles = types.SimpleNamespace()  # no .roles attribute
+    accept_activity = VultronActivity(
+        id_="https://example.org/activities/accept-no-roles",
+        type_="Accept",
+        actor=_CM17_INVITEE_ID,
+        object_=invite_without_roles,
+    )
+    event = AcceptInviteActorToCaseReceivedEvent(
+        activity_id="https://example.org/activities/accept-no-roles",
+        actor_id=_CM17_INVITEE_ID,
+        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        activity=accept_activity,
+    )
+    node = CreateInviteeParticipantAtReceivedNode(
+        case_id=_CM17_CASE_ID,
+        invitee_id=_CM17_INVITEE_ID,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = bt_scenario.run(
+            node,
+            actor_id=_CM17_CASE_ACTOR_ID,
+            activity=event,
+            invitee_case=case,
+            invitee_already_participant=False,
+        )
+
+    assert result.status == Status.SUCCESS
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(
+        "roles" in r.message and "protocol violation" in r.message
+        for r in warnings
+    ), f"Expected WARNING about missing roles / protocol violation, got: {[r.message for r in warnings]}"
