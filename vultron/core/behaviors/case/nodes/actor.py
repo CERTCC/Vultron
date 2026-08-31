@@ -56,7 +56,6 @@ from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 
@@ -152,7 +151,7 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
         assert self.datalayer is not None and self.actor_id is not None
-        case = self.datalayer.read(self.case_id)
+        case = self.datalayer.read_case(self.case_id)
         activity_id, activity_blob = factory.invite_actor_to_case(
             invitee_id=self.invitee_id,
             case_id=self.case_id,
@@ -161,7 +160,7 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
             cc=cc,
             attributed_to=self.attributed_to,
             roles=roles,
-            target=case if isinstance(case, VulnerabilityCase) else None,
+            target=case,
         )
         activity_dict: dict = (
             json.loads(activity_blob) if activity_blob else {}
@@ -298,8 +297,8 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
             self.feedback_message = "DataLayer not available"
             return None
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.feedback_message = f"Case '{case_id}' not found"
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return None

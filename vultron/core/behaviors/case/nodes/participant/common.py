@@ -77,8 +77,8 @@ def _create_and_attach_participant(
             participant.id_,
         )
 
-    stored_case = dl.read(case_id)
-    if not isinstance(stored_case, VulnerabilityCase):
+    stored_case = dl.read_case(case_id)
+    if stored_case is None:
         node_logger.error("Case %s not found in DataLayer", case_id)
         return None
 

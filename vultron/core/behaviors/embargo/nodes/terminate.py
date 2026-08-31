@@ -19,7 +19,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import PortInformation
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case import case_addressees
 
 
@@ -111,8 +110,8 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             return [case_manager_id]
 
         assert self.datalayer is not None
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             # Nothing better to say than the old answer; a missing case is
             # reported by the nodes that precede this one in the sequence.
             return [case_manager_id]

@@ -20,7 +20,6 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
@@ -142,9 +141,9 @@ class RemoveNoteFromCaseReceivedUseCase:
         if note_id is None or case_id is None:
             logger.warning("remove_note_from_case: missing note_id or case_id")
             return
-        case = self._dl.read(case_id)
+        case = self._dl.read_case(case_id)
 
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id
             )

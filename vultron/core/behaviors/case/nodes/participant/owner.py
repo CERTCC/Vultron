@@ -15,7 +15,7 @@
 
 """Owner-participant creation leaf nodes (BTND-07-003)."""
 
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -254,7 +254,7 @@ class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
     def output_ports(cls) -> dict[str, PortInformation]:
         return {
             "participant_case": PortInformation(
-                data_type=object, required=True
+                data_type=VulnerabilityCase, required=True
             )
         }
 
@@ -324,7 +324,7 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         return ports
 
@@ -340,14 +340,14 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         stored_case = self._stored_case
-        if not isinstance(stored_case, VulnerabilityCase):
+        if stored_case is None:
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
                 self._participant_case_key,
             )
             return Status.FAILURE
-        self.datalayer.save(stored_case)
+        self.datalayer.save(cast(VulnerabilityCase, stored_case))
         return Status.SUCCESS
 
 
@@ -403,8 +403,8 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerActionWithPorts):
         case_id = self._case_id
         if case_id is None:
             case_id = (
-                self._stored_case.id_
-                if isinstance(self._stored_case, VulnerabilityCase)
+                cast(VulnerabilityCase, self._stored_case).id_
+                if self._stored_case is not None
                 else None
             )
         if case_id is None:
@@ -475,7 +475,7 @@ class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant = self._participant
-        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
+        if stored_case is None or not isinstance(
             participant, VultronParticipant
         ):
             self.logger.error(

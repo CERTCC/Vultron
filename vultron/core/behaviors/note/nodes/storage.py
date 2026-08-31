@@ -15,13 +15,10 @@
 
 """Storage-oriented note BT nodes."""
 
-from typing import Any
-
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.note import VultronNote
 
 
@@ -72,8 +69,8 @@ class AttachNoteToCaseNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case: Any = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.logger.warning(
                 f"{self.name}: case '{self.case_id}' not found"
                 " — cannot attach note"

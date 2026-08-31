@@ -225,8 +225,8 @@ class CheckInviteeNotAlreadyParticipantNode(
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found",
                 self.name,
@@ -419,7 +419,7 @@ class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
 
         case = self._invitee_case_bb
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.logger.error(
                 "%s: invitee_case not found in blackboard", self.name
             )
@@ -550,7 +550,7 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         case = self._invitee_case_bb
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.logger.error("%s: invitee_case not available", self.name)
             # Initialize key so downstream nodes can safely read it.
             self._set_output("active_embargo_id", None)

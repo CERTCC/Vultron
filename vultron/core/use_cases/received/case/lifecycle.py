@@ -13,7 +13,6 @@ from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -41,9 +40,9 @@ class AddReportToCaseReceivedUseCase:
         if report_id is None or case_id is None:
             logger.warning("add_report_to_case: missing report_id or case_id")
             return
-        case = self._dl.read(case_id)
+        case = self._dl.read_case(case_id)
 
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             logger.warning("add_report_to_case: case '%s' not found", case_id)
             return
 

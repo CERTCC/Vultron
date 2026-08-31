@@ -29,7 +29,6 @@ from py_trees.common import Status
 from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.case import VulnerabilityCase
 
 
 class RequireCaseForReport(DataLayerActionWithPorts):
@@ -88,7 +87,7 @@ class RequireCaseForReport(DataLayerActionWithPorts):
             return Status.FAILURE
 
         case = self.datalayer.find_case_by_report_id(self._report_id)
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.feedback_message = (
                 f"no VulnerabilityCase for report '{self._report_id}' in this"
                 " actor's store"

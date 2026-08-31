@@ -43,7 +43,6 @@ from pydantic import BaseModel
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
@@ -717,8 +716,10 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case_obj = self.datalayer.read(self.case_id, raise_on_missing=False)
-        if not isinstance(case_obj, VulnerabilityCase):
+        case_obj = self.datalayer.read_case(
+            self.case_id, raise_on_missing=False
+        )
+        if case_obj is None:
             self.feedback_message = f"Case {self.case_id} not found"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

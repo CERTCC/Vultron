@@ -61,7 +61,9 @@ design endpoints.
 
 For new or refactored core code, prefer:
 
-- `read()` for single-object lookup
+- `read_case()` for `VulnerabilityCase` retrieval — returns the typed object
+  directly, no isinstance narrowing needed (ISSUE-2490)
+- `read()` for single-object lookup of other domain types
 - `list_objects()` for typed collection queries
 - dedicated typed helper methods when a generic query would otherwise
   expose raw persistence details
