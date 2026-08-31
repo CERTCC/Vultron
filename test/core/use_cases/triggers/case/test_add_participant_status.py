@@ -863,6 +863,24 @@ class TestCreateParticipantStatusNode:
         assert "status_id" not in result_out
         assert "CSB-15-002" in bt_result.feedback_message
 
+    def test_vendor_aware_vfd_requires_vendor_role_at_write_node(self):
+        """ADR-0075 / #2862: Vfd target is blocked when the actor has no VENDOR role.
+
+        The adjacent transition vfd → Vfd is structurally valid; the node must
+        still refuse it because the FINDER actor lacks the required VENDOR role.
+        This tests the write-boundary defense-in-depth check in
+        _check_vfd_preconditions, bypassing ValidateTriggerTransitionsNode.
+        """
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.Vfd, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+        assert "ADR-0075" in bt_result.feedback_message
+
 
 # ---------------------------------------------------------------------------
 # ValidateTriggerTransitionsNode — AC-1 through AC-6 (issues #2081, #1903)
@@ -1025,7 +1043,7 @@ class TestValidateTriggerTransitions:
         with pytest.raises(VultronValidationError, match="VFD"):
             self._execute(vfd_state=CS_vfd.VFD)
 
-    def test_valid_adjacent_vfd_step_succeeds(self):
+    def test_non_vendor_actor_blocked_for_vendor_aware_vfd(self):
         """Non-VENDOR actor (FINDER) submitting vfd_state=Vfd is blocked (ADR-0075)."""
         from vultron.errors import VultronValidationError
 
