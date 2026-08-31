@@ -19,14 +19,17 @@ Three composable precondition guards (RSH-05, ADR-0061, ISSUE-2256):
 
 1. ``FilterCsEmDimensionNode``  — adjudicates EM; initialises the tick
    accumulator; clears all per-tick BB keys (BT-17-003).
-2. ``FilterCsPxaDimensionNode`` — adjudicates PXA; reads+updates the
-   accumulator written by the EM node.
+2. ``FilterCsPxaDimensionNode`` — adjudicates PXA; reads and explicitly
+   writes back the accumulator via a dual-alias output port (#2706).
 3. ``FinalizeCsFilterNode``     — combines results, checks whole-refusal,
    and publishes ``BB_CASE_STATUS_DIM_FILTER`` /
    ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE``.
 
-Each dimension guard always returns SUCCESS; only ``FinalizeCsFilterNode``
-can return FAILURE (whole-refusal — nothing new accepted).
+``FilterCsEmDimensionNode`` returns FAILURE when the asserted status cannot
+be resolved (unresolvable → guard aborts before GuardedCommit, CLP-10-009).
+``FilterCsPxaDimensionNode`` always returns SUCCESS.  Only
+``FinalizeCsFilterNode`` can return FAILURE (whole-refusal — nothing new
+accepted).
 """
 
 import logging
@@ -59,6 +62,13 @@ BB_CASE_STATUS_DIM_FILTER = "append_case_status_dim_filter"
 #: within a single tick.  Not for external consumption.
 _BB_CS_FILTER_ACC = "cs_dim_filter_accumulator"
 
+#: Dual-alias write name for the accumulator.  py_trees forbids the same
+#: logical port name from appearing in both input_ports() and output_ports()
+#: of the same node, so FilterCsPxaDimensionNode uses this distinct logical
+#: name mapped to the same physical key ``/{_BB_CS_FILTER_ACC}`` for its
+#: output port (#2706).
+_BB_CS_FILTER_ACC_WRITE = "cs_dim_filter_accumulator_write"
+
 
 class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
     """Adjudicates the EM dimension of a received CaseStatus (RSH-05, ISSUE-2256).
@@ -71,8 +81,12 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
     ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` unconditionally at tick start so
     that no prior execution's values leak into this tick (BT-17-003).
 
-    Always returns SUCCESS — individual dimension refusal is not a tree failure;
-    ``FinalizeCsFilterNode`` decides whole-refusal.
+    Returns SUCCESS when the status can be resolved and EM adjudication runs.
+    Returns FAILURE when the asserted status cannot be resolved from the
+    DataLayer or the fallback — the tree must not commit a ledger entry for a
+    status that cannot be applied (CLP-10-009, #2704).  Individual EM
+    dimension refusal is not a tree failure; ``FinalizeCsFilterNode`` decides
+    whole-refusal.
 
     Must run before ``FilterCsPxaDimensionNode`` and ``FinalizeCsFilterNode``
     in the precondition_guards sequence.
@@ -145,7 +159,13 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
 
         asserted = self._resolve_asserted()
         if asserted is None:
-            return Status.SUCCESS
+            self.logger.warning(
+                "%s: status '%s' unresolvable (not in DataLayer, no fallback);"
+                " aborting before GuardedCommit (CLP-10-009)",
+                self.name,
+                self.status_id,
+            )
+            return Status.FAILURE
 
         acc: dict[str, Any] = {
             "status_id": self.status_id,
@@ -179,7 +199,14 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
 
     Read-only precondition guard (CLP-10-006).  Reads the per-tick accumulator
     written by :class:`FilterCsEmDimensionNode`, evaluates whether the asserted
-    PXA state is a monotone forward move, and updates the accumulator.
+    PXA state is a monotone forward move, and writes the updated accumulator
+    back via an explicit ``_set_output`` call.
+
+    The write-back uses a dual-alias output port (``_BB_CS_FILTER_ACC_WRITE``)
+    mapped to the same physical blackboard key as the input port
+    (``_BB_CS_FILTER_ACC``).  This satisfies the py_trees constraint that
+    forbids the same logical port name from appearing in both ``input_ports()``
+    and ``output_ports()`` of the same node (#2706).
 
     Always returns SUCCESS.  Must run after ``FilterCsEmDimensionNode`` and
     before ``FinalizeCsFilterNode`` in the precondition_guards sequence.
@@ -198,16 +225,22 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
         }
 
     @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            _BB_CS_FILTER_ACC_WRITE: PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             _BB_CS_FILTER_ACC: f"/{_BB_CS_FILTER_ACC}",
+            # Dual-alias: different logical name, same physical key (#2706).
+            _BB_CS_FILTER_ACC_WRITE: f"/{_BB_CS_FILTER_ACC}",
         }
 
     def update(self) -> Status:
-        # The accumulator is a mutable dict stored by reference on the
-        # blackboard.  Mutating it in-place propagates to FinalizeCsFilterNode
-        # without requiring a separate output port (which py_trees forbids from
-        # overlapping with input ports).
         acc = self._try_get_input(_BB_CS_FILTER_ACC)
         if not isinstance(acc, dict):
             return Status.SUCCESS
@@ -230,6 +263,7 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
                 acc.get("status_id", "?"),
             )
 
+        self._set_output(_BB_CS_FILTER_ACC_WRITE, acc)
         return Status.SUCCESS
 
 
