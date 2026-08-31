@@ -22,7 +22,7 @@ from vultron.core.behaviors.case.add_participant_status_trigger_tree import (
     add_participant_status_trigger_bt,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
-    """Self-report actor RM/VFD/PXA state to the Case Manager.
+    """Self-report actor RM/VF/D/PXA state to the Case Manager.
 
     Delegates ParticipantStatus record creation to
     :class:`~vultron.core.behaviors.case.nodes.participant\
@@ -46,11 +46,8 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
     to the Case Manager (DEMOMA-07-001).
 
     BT-15-001 audit: ``ParticipantStatus`` writes with explicit
-    ``rm_state``/``vfd_state`` are protocol-significant behavior and are
-    performed inside the BT, not directly in ``execute()``.  The
-    ``rm_state``/``vfd_state`` values represent the actor's current
-    (already-transitioned) state; no RM state-machine transition is
-    performed here.
+    ``rm_state``/``vf_state``/``d_state`` are protocol-significant behavior
+    and are performed inside the BT, not directly in ``execute()``.
     """
 
     def _prepare(self) -> None:
@@ -59,7 +56,8 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
         self._actor_id = actor.id_
         self._case_id = resolve_case(request.case_id, self._dl).id_
         self._rm_state = request.rm_state
-        self._vfd_state = request.vfd_state
+        self._vf_state = request.vf_state
+        self._d_state = request.d_state
         self._pxa_state = request.pxa_state
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
@@ -86,7 +84,8 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
             case_id=self._case_id,
             actor_id=self._actor_id,
             rm_state=self._rm_state,
-            vfd_state=self._vfd_state,
+            vf_state=self._vf_state,
+            d_state=self._d_state,
             pxa_state=self._pxa_state,
             result_out=self._result_out,
             activity_builder=_build_activities,
@@ -110,13 +109,8 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
         self,
         dl: CaseOutboxPersistence,
         participant_id: str,
-    ) -> tuple[RM, CS_vfd]:
-        """Return (current_rm, current_vfd) from the participant's latest status.
-
-        Preserved for backward compatibility; delegates to
-        :func:`~vultron.core.behaviors.case.nodes.participant\
-.resolve_participant_state_from_dl`.
-        """
+    ) -> tuple[RM, CS_vf | None, CS_d | None]:
+        """Return (current_rm, current_vf, current_d) from the participant's latest status."""
         from typing import cast as typing_cast
 
         from vultron.core.behaviors.case.nodes.participant import (

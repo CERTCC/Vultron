@@ -49,10 +49,10 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
     TransitionCStoFixReady,
 )
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension, VfdDimension
+from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -176,7 +176,6 @@ def _seed_rm_state(
         context=case_id,
         attributed_to=actor_id,
         rm=RmDimension(state=rm),
-        vfd=VfdDimension(state=CS_vfd.vfd),
     )
     bt_scenario.dl.create(status)
 
@@ -192,15 +191,15 @@ def _seed_rm_state(
             bt_scenario.dl.save(participant)
 
 
-def _seed_vfd_state(
-    bt_scenario: BTTestScenario, case_id: str, actor_id: str, vfd: CS_vfd
+def _seed_vf_state(
+    bt_scenario: BTTestScenario, case_id: str, actor_id: str, vf: CS_vf | None
 ) -> None:
-    """Seed a ParticipantStatus record for the given VFD state."""
+    """Seed a ParticipantStatus record for the given VF state."""
     status = ParticipantStatus(
         context=case_id,
         attributed_to=actor_id,
         rm=RmDimension(state=RM.ACCEPTED),
-        vfd=VfdDimension(state=vfd),
+        vf=VfDimension(state=vf) if vf is not None else None,
     )
     bt_scenario.dl.create(status)
 
@@ -432,8 +431,8 @@ class TestCheckCSFixNotYetReady:
         bt_scenario: BTTestScenario,
         case_with_vendor: VultronCase,
     ) -> None:
-        """FAILURE when VFD state is vfd (fix not yet developed)."""
-        _seed_vfd_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vfd.vfd)
+        """FAILURE when VF state is vf (fix not yet developed)."""
+        _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, None)
         result = bt_scenario.run(
             CheckCSFixNotYetReady(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
             actor_id=VENDOR_ACTOR_ID,
@@ -445,8 +444,8 @@ class TestCheckCSFixNotYetReady:
         bt_scenario: BTTestScenario,
         case_with_vendor: VultronCase,
     ) -> None:
-        """SUCCESS when VFD state is VFd (fix ready)."""
-        _seed_vfd_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vfd.VFd)
+        """SUCCESS when VF state is VF (fix ready)."""
+        _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vf.VF)
         result = bt_scenario.run(
             CheckCSFixNotYetReady(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
             actor_id=VENDOR_ACTOR_ID,
@@ -458,8 +457,8 @@ class TestCheckCSFixNotYetReady:
         bt_scenario: BTTestScenario,
         case_with_vendor: VultronCase,
     ) -> None:
-        """SUCCESS when VFD state is VFD (deployed; fix also ready)."""
-        _seed_vfd_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vfd.VFD)
+        """SUCCESS when VF state is VF and D=D (deployed; fix also ready)."""
+        _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vf.VF)
         result = bt_scenario.run(
             CheckCSFixNotYetReady(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
             actor_id=VENDOR_ACTOR_ID,
@@ -576,22 +575,20 @@ class TestTransitionCStoFixReady:
         ]
         assert narrative, "Expected a CS narrative line at INFO"
         messages = [r.getMessage() for r in narrative]
-        # The fixture participant starts at `vfd`.  TransitionCStoFixReady
-        # now advances through Vfd (vendor-aware) first, then VFd (fix-ready),
-        # so two narrative lines are emitted.
-        assert any(
-            "vfd → Vfd" in m for m in messages
-        ), "Expected vendor-aware milestone line"
+        # The fixture participant starts at vf=None.  TransitionCStoFixReady
+        # advances through Vf (vendor-aware) silently (no narrative when
+        # vf_before is None, per status.py:337), then VF (fix-ready).
+        # Only the Vf → VF transition emits a narrative INFO line.
         fix_ready = [m for m in messages if "fix ready" in m]
         assert fix_ready, "Expected a 'fix ready' CS narrative line at INFO"
         assert any(
-            f"Actor '{VENDOR_ACTOR_ID}' CS: Vfd → VFd" in m for m in fix_ready
+            f"Actor '{VENDOR_ACTOR_ID}' CS: Vf → VF" in m for m in fix_ready
         )
 
         detail = [
             r
             for r in caplog.records
-            if "VFD → VFd" in r.getMessage()
+            if "VF → VF" in r.getMessage()
             and r.name.endswith("TransitionCStoFixReady")
         ]
         assert detail, "Expected the node's own detail line"
@@ -752,8 +749,8 @@ def test_guard_short_circuits_when_fix_already_ready(
     bt_scenario: BTTestScenario,
     case_with_vendor: VultronCase,
 ) -> None:
-    """Vendor actor with VFd state: CheckCSFixNotYetReady → SUCCESS → Fallback succeeds."""
-    _seed_vfd_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vfd.VFd)
+    """Vendor actor with VF state: CheckCSFixNotYetReady → SUCCESS → Fallback succeeds."""
+    _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vf.VF)
     tree = create_develop_fix_tree(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID)
     result = bt_scenario.run(tree, actor_id=VENDOR_ACTOR_ID)
     assert result.status == Status.SUCCESS

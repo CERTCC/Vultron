@@ -124,10 +124,8 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckDeployerRoleNode,
     CheckIsCaseOwnerNode,
     CheckNotSoleObserverVfdNode,
-    CheckVendorRoleNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
@@ -200,8 +198,6 @@ __all__ = [
     # role_gates (gated composites)
     "create_case_manager_gated_tree",
     # vfd_role_guards (condition nodes)
-    "CheckVendorRoleNode",
-    "CheckDeployerRoleNode",
     "CheckNotSoleObserverVfdNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",

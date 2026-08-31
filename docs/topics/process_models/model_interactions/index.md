@@ -37,9 +37,12 @@ stateDiagram-v2
     PS: Participant-Specific
     state PS {
         RM
-        CS_vfd
-        RM --> CS_vfd
-        CS_vfd --> RM
+        CS_vf
+        CS_d
+        RM --> CS_vf
+        RM --> CS_d
+        CS_vf --> RM
+        CS_d --> RM
     }
     PA --> PS
     PS --> PA   

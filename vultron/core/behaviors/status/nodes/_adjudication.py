@@ -23,14 +23,16 @@ and should be imported from there, not from this module directly.
 from typing import Any
 
 from vultron.core.models.dimensions import (
+    DDimension,
     PxaDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import (
+    is_monotonic_d_forward,
     is_monotonic_pxa_forward,
-    is_monotonic_vfd_forward,
+    is_monotonic_vf_forward,
 )
 from vultron.core.states.rm import (
     RM,
@@ -60,7 +62,7 @@ def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
 def _adjudicate_dimensions(
     current: ParticipantStatus, asserted: ParticipantStatus
 ) -> tuple[list[str], dict[str, Any]]:
-    """Adjudicate ``rm``, ``vfd`` and ``pxa`` independently.
+    """Adjudicate ``rm``, ``vf``, ``d`` and ``pxa`` independently.
 
     Returns the names of the refused dimensions and the ``model_copy`` update
     that carries the current value forward for each of them.  ``em``,
@@ -83,18 +85,38 @@ def _adjudicate_dimensions(
         refused.append("rm")
         update_fields["rm"] = RmDimension(state=current.rm.state)
 
-    current_vfd = current.vfd.state
-    asserted_vfd = asserted.vfd.state
-    # Intentionally uses the weaker monotone check rather than strict adjacency
-    # (is_valid_vfd_transition): a remote peer may have advanced through multiple
-    # VFD steps between status messages (e.g. vfd→VFD in one update), which is
-    # legitimate on the received-wire path.  The strict adjacency guard belongs
-    # only at local write nodes (CSB-16-001, enforced by CreateParticipantStatusNode).
-    if asserted_vfd != current_vfd and not is_monotonic_vfd_forward(
-        current_vfd, asserted_vfd
+    # VF dimension (vendor-path: vendor awareness + fix readiness).
+    # Intentionally uses the weaker monotone check rather than strict adjacency:
+    # a remote peer may have advanced through multiple steps between messages.
+    # An omitted vf (None) carries forward the current value — absence is not
+    # an assertion that the dimension is unknown (RSH-05-002).
+    current_vf = current.vf.state if current.vf is not None else None
+    asserted_vf = asserted.vf.state if asserted.vf is not None else None
+    if asserted_vf is None and current_vf is not None:
+        update_fields["vf"] = VfDimension(state=current_vf)
+    elif (
+        current_vf is not None
+        and asserted_vf is not None
+        and asserted_vf != current_vf
+        and not is_monotonic_vf_forward(current_vf, asserted_vf)
     ):
-        refused.append("vfd")
-        update_fields["vfd"] = VfdDimension(state=current_vfd)
+        refused.append("vf")
+        update_fields["vf"] = VfDimension(state=current_vf)
+
+    # D dimension (deployer-path: fix deployment).
+    # Same omission semantics as vf (RSH-05-002).
+    current_d = current.d.state if current.d is not None else None
+    asserted_d = asserted.d.state if asserted.d is not None else None
+    if asserted_d is None and current_d is not None:
+        update_fields["d"] = DDimension(state=current_d)
+    elif (
+        current_d is not None
+        and asserted_d is not None
+        and asserted_d != current_d
+        and not is_monotonic_d_forward(current_d, asserted_d)
+    ):
+        refused.append("d")
+        update_fields["d"] = DDimension(state=current_d)
 
     asserted_cs = asserted.case_status
     current_cs = current.case_status

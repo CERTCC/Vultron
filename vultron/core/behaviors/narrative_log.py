@@ -30,7 +30,7 @@ inventory and ``specs/structured-logging.yaml`` SL-04-001, SL-04-006.
 
 import logging
 
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 
@@ -38,7 +38,7 @@ from vultron.core.states.rm import RM
 #:
 #: Each entry maps ``(field_name, new_value)`` to the CVD event name for the
 #: transition.  Values are the single-character state codes used by the
-#: ``CS_vfd`` / ``CS_pxa`` named tuples.
+#: ``CS_vf`` / ``CS_d`` / ``CS_pxa`` enums.
 _CS_EVENT_LABELS: dict[tuple[str, str], str] = {
     ("vendor_awareness", "V"): "vendor aware",
     ("fix_readiness", "F"): "fix ready",
@@ -47,6 +47,12 @@ _CS_EVENT_LABELS: dict[tuple[str, str], str] = {
     ("exploit_publication", "X"): "exploit public",
     ("attack_observation", "A"): "attacks observed",
 }
+
+# Field name sequences for StrEnum dimensions (CS_vf, CS_d).  The Nth entry
+# names the semantic dimension represented by the Nth character of the state
+# string value (e.g. "VF"[0] == 'V' → vendor_awareness).
+_VF_FIELD_NAMES: tuple[str, ...] = ("vendor_awareness", "fix_readiness")
+_D_FIELD_NAMES: tuple[str, ...] = ("fix_deployment",)
 
 
 #: Label used when a CS write moves *backward* (an event being un-done).
@@ -60,8 +66,8 @@ NO_CHANGE_LABEL = "no change"
 
 
 def cs_event_label(
-    before: CS_vfd | CS_pxa,
-    after: CS_vfd | CS_pxa,
+    before: CS_vf | CS_d | CS_pxa,
+    after: CS_vf | CS_d | CS_pxa,
 ) -> str:
     """Return the CVD event name(s) for a CS dimension transition.
 
@@ -76,7 +82,7 @@ def cs_event_label(
 
     Raises:
         TypeError: If *before* and *after* are different CS dimensions (e.g. a
-            ``CS_vfd`` compared against a ``CS_pxa``); their sub-dimension
+            ``CS_vf`` compared against a ``CS_pxa``); their sub-dimension
             fields are not comparable.
     """
     if type(before) is not type(after):
@@ -89,15 +95,31 @@ def cs_event_label(
         return NO_CHANGE_LABEL
 
     labels: list[str] = []
-    for field, new_value in zip(after.value._fields, after.value, strict=True):
-        if getattr(before.value, field) == new_value:
-            continue
-        label = _CS_EVENT_LABELS.get((field, str(new_value)))
-        if label is None:
-            # The field changed but the *new* value is not an event-triggering
-            # (uppercase) code — i.e. the dimension moved backward.
-            return REGRESSION_LABEL
-        labels.append(label)
+    if isinstance(after, (CS_pxa, CS_vfd)):
+        # CS_pxa / CS_vfd: Enum whose value is a NamedTuple with named fields
+        for field, new_value in zip(
+            after.value._fields, after.value, strict=True
+        ):
+            if getattr(before.value, field) == new_value:
+                continue
+            label = _CS_EVENT_LABELS.get((field, str(new_value)))
+            if label is None:
+                return REGRESSION_LABEL
+            labels.append(label)
+    else:
+        # CS_vf, CS_d: StrEnum whose value is the state string (e.g. "VF", "d")
+        field_names = (
+            _VF_FIELD_NAMES if isinstance(after, CS_vf) else _D_FIELD_NAMES
+        )
+        for field, b_char, a_char in zip(
+            field_names, before.value, after.value, strict=True
+        ):
+            if b_char == a_char:
+                continue
+            label = _CS_EVENT_LABELS.get((field, a_char))
+            if label is None:
+                return REGRESSION_LABEL
+            labels.append(label)
     return ", ".join(labels)
 
 
@@ -105,10 +127,10 @@ def log_cs_transition(
     logger: logging.Logger,
     actor_id: str,
     case_id: str,
-    before: CS_vfd | CS_pxa,
-    after: CS_vfd | CS_pxa,
+    before: CS_vf | CS_d | CS_pxa,
+    after: CS_vf | CS_d | CS_pxa,
 ) -> None:
-    """Log a CS (VFD or PXA) transition at INFO per SL-04-006.
+    """Log a CS (VF, D, or PXA) transition at INFO per SL-04-006.
 
     Emits nothing when *before* equals *after*: a no-op write is not a
     protocol event and would only add noise (SL-04-007).

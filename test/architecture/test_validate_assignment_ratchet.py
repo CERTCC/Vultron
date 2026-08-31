@@ -104,6 +104,7 @@ _SELF_ASSIGNING_AFTER_VALIDATORS: frozenset[str] = frozenset()
 # ---------------------------------------------------------------------------
 _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
     {
+        "DDimension",
         "DeadLetterRecord",
         "EmDimension",
         "HashChainLedgerRecord",
@@ -111,7 +112,7 @@ _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
         "PxaDimension",
         "RmDimension",
         "ValidatedAssignmentMixin",
-        "VfdDimension",
+        "VfDimension",
         "VultronEvent",
         "VultronObject",
         "VultronOutbox",

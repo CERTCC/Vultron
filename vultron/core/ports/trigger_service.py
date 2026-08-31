@@ -152,7 +152,8 @@ class TriggerServicePort(Protocol):
         actor_id: str,
         case_id: str,
         rm_state: Any = None,
-        vfd_state: Any = None,
+        vf_state: Any = None,
+        d_state: Any = None,
         pxa_state: Any = None,
     ) -> dict[str, Any]: ...
 

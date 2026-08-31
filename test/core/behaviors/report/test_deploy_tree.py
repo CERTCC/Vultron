@@ -45,10 +45,10 @@ from vultron.core.behaviors.report.deploy_mitigation_tree import (
 )
 from vultron.core.behaviors.report.deploy_tree import create_deploy_tree
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension, VfdDimension
+from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -290,14 +290,16 @@ def _seed_status(
     case_id: str,
     actor_id: str,
     rm: RM = RM.ACCEPTED,
-    vfd: CS_vfd = CS_vfd.VFd,
+    vf: CS_vf | None = CS_vf.VF,
+    d: CS_d | None = None,
 ) -> None:
-    """Seed a ParticipantStatus record with the given RM and VFD states."""
+    """Seed a ParticipantStatus record with the given RM, vf, and d states."""
     status = ParticipantStatus(
         context=case_id,
         attributed_to=actor_id,
         rm=RmDimension(state=rm),
-        vfd=VfdDimension(state=vfd),
+        vf=VfDimension(state=vf) if vf is not None else None,
+        d=DDimension(state=d) if d is not None else None,
     )
     bt_scenario.dl.create(status)
 
@@ -322,7 +324,9 @@ def test_fix_arm_success_skips_mitigation_arm(
     DeployFixBT) returns SUCCESS.  The Selector short-circuits: child[1]
     (DeployMitigationBT) is never ticked and its status remains INVALID.
     """
-    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFD)
+    _seed_status(
+        bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.D
+    )
     tree = create_deploy_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
@@ -345,7 +349,7 @@ def test_all_fix_arms_fail_mitigation_arm_rescues(
     The DETERMINISTIC mitigation bundle succeeds via _DeployMitigationIfAvailable.
     """
     _seed_status(
-        bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED, vfd=CS_vfd.VFd
+        bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED, vf=CS_vf.VF
     )
 
     fix_bundle = DeployFixCallOutBundle(

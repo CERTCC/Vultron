@@ -33,9 +33,6 @@ from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DeployMitigationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckDeployerRoleNode,
-)
 from vultron.core.behaviors.report.deploy_mitigation_tree import (
     create_deploy_mitigation_tree,
 )
@@ -165,18 +162,17 @@ def test_should_stay_deferred_arm_composition():
 
 
 def test_deploy_mitigation_if_available_arm_composition():
-    """_DeployMitigationIfAvailable arm: 2 guards + 3 call-outs (no CS nodes)."""
+    """_DeployMitigationIfAvailable arm: 1 guard + 3 call-outs (CheckDeployerRoleNode removed per #2664)."""
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID
     )
     arm = tree.children[2]
     assert isinstance(arm, py_trees.composites.Sequence)
-    assert len(arm.children) == 5
-    assert isinstance(arm.children[0], CheckDeployerRoleNode)
-    assert isinstance(arm.children[1], CheckRMStateAccepted)
-    assert arm.children[2].name == "MitigationAvailable"
-    assert arm.children[3].name == "PrioritizeDeployment"
-    assert arm.children[4].name == "DeployMitigation"
+    assert len(arm.children) == 4
+    assert isinstance(arm.children[0], CheckRMStateAccepted)
+    assert arm.children[1].name == "MitigationAvailable"
+    assert arm.children[2].name == "PrioritizeDeployment"
+    assert arm.children[3].name == "DeployMitigation"
 
 
 def test_monitor_arm_composition():
@@ -228,11 +224,11 @@ def test_default_call_out_children_are_deterministic():
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
     # mitigation_available p=0.70 → AlwaysSucceed
-    assert isinstance(deploy_arm.children[2], AlwaysSucceed)
+    assert isinstance(deploy_arm.children[1], AlwaysSucceed)
     # prioritize_deployment p=0.90 → AlwaysSucceed
-    assert isinstance(deploy_arm.children[3], AlwaysSucceed)
+    assert isinstance(deploy_arm.children[2], AlwaysSucceed)
     # deploy_mitigation p=0.75 → AlwaysSucceed
-    assert isinstance(deploy_arm.children[4], AlwaysSucceed)
+    assert isinstance(deploy_arm.children[3], AlwaysSucceed)
     # monitoring_requirement p=0.70 → AlwaysSucceed
     assert isinstance(monitor_arm.children[0], AlwaysSucceed)
     # monitor_deployment p=1.0 → AlwaysSucceed
@@ -273,9 +269,9 @@ def _marker_factory(label: str):
 # (field, label, arm_index, child_index within arm)
 _CALL_OUT_SEAMS = [
     ("mitigation_deployed_factory", "MD", 0, None),  # arm 0 is the node itself
-    ("mitigation_available_factory", "MA", 2, 2),
-    ("prioritize_deployment_factory", "PD", 2, 3),
-    ("deploy_mitigation_factory", "DM", 2, 4),
+    ("mitigation_available_factory", "MA", 2, 1),
+    ("prioritize_deployment_factory", "PD", 2, 2),
+    ("deploy_mitigation_factory", "DM", 2, 3),
     ("monitoring_requirement_factory", "MR", 3, 0),
     ("monitor_deployment_factory", "MON", 3, 1),
 ]
@@ -345,9 +341,9 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
     assert isinstance(tree.children[0], MitigationDeployed)
-    assert isinstance(deploy_arm.children[2], MitigationAvailable)
-    assert isinstance(deploy_arm.children[3], PrioritizeDeployment)
-    assert isinstance(deploy_arm.children[4], DeployMitigation)
+    assert isinstance(deploy_arm.children[1], MitigationAvailable)
+    assert isinstance(deploy_arm.children[2], PrioritizeDeployment)
+    assert isinstance(deploy_arm.children[3], DeployMitigation)
     assert isinstance(monitor_arm.children[0], MonitoringRequirement)
     assert isinstance(monitor_arm.children[1], MonitorDeployment)
 

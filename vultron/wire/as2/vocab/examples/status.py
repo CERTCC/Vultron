@@ -24,7 +24,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
@@ -74,7 +74,7 @@ def participant_status() -> as_ParticipantStatus:
         context="https://vultron.example/cases/1/participants/vendor",
         attributed_to="https://vultron.example/organizations/vendor",
         rm_state=RM.RECEIVED,
-        vfd_state=CS_vfd.Vfd,
+        vf_state=CS_vf.Vf,
         case_status=case_status(),
         published=_EXAMPLE_TIMESTAMP,
         updated=_EXAMPLE_TIMESTAMP,
