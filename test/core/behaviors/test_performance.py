@@ -120,6 +120,18 @@ def _mock_read_helper(
     return None
 
 
+def _mock_read_case_helper(
+    storage: dict, case_id: str, raise_on_missing: bool = False
+) -> "VulnerabilityCase | None":
+    """Pattern-based mock for DataLayer.read_case(), returning only VulnerabilityCase."""
+    obj = storage.get(case_id)
+    if isinstance(obj, VulnerabilityCase):
+        return obj
+    if raise_on_missing:
+        raise ValueError(f"Case not found: {case_id}")
+    return None
+
+
 def _mock_store(storage: dict, obj: object) -> None:
     """Persist *obj* to the in-memory store keyed by its ``id_``."""
     id_ = getattr(obj, "id_", None)
@@ -182,6 +194,7 @@ def mock_datalayer():
 
     dl.get.side_effect = _mock_get_helper
     dl.read.side_effect = partial(_mock_read_helper, storage)
+    dl.read_case.side_effect = partial(_mock_read_case_helper, storage)
     dl.create.side_effect = partial(_mock_store, storage)
     dl.save.side_effect = partial(_mock_store, storage)
     dl.update.return_value = None

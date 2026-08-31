@@ -241,7 +241,14 @@ class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
             return Status.FAILURE
 
         case = self.datalayer.read_case(case_id)
-        if getattr(case, "active_embargo", None) is None:
+        if case is None:
+            self.logger.warning(
+                "%s: Case not found for report %s — validation blocked",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+        if case.active_embargo is None:
             self.logger.warning(
                 "%s: Case for report %s has no active embargo — "
                 "validation blocked (DUR-07-004)",
