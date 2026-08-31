@@ -88,7 +88,7 @@ def extract_intent(
         if isinstance(raw_end_time, datetime) and raw_end_time.tzinfo is None:
             # CM-28-006: naive end_time MUST be rejected as malformed.
             logger.warning(
-                "extract_intent: inbound end_time %r on activity %s is"
+                "extract_intent: inbound end_time %s on activity %s is"
                 " naive (no timezone); rejected as malformed (CM-28-006)",
                 raw_end_time.isoformat(),
                 getattr(activity, "id_", "<unknown>"),
