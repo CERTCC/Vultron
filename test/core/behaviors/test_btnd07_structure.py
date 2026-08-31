@@ -41,6 +41,9 @@ _OVERSIZE_BACKLOG: frozenset[str] = frozenset(
         # (e.g., owner_create.py + owner_lifecycle.py).
         "vultron/core/behaviors/case/nodes/participant/owner.py",
         "vultron/core/behaviors/case/nodes/participant/participant_add.py",
+        # Pushed over 500 lines by AC-1/AC-3 compound-state enforcement (issue #2479).
+        # Candidate for decomposition into _compound_guards.py.
+        "vultron/core/behaviors/case/nodes/participant/status.py",
     ]
 )
 

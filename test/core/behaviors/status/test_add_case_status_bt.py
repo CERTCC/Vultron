@@ -223,6 +223,41 @@ class TestAppendCaseStatusToCaseNode:
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert STATUS_ID in status_ids
 
+    def test_ephemeral_pXa_promoted_before_append(self, dl):
+        """AC-1 / SM-09-001: pXa PXA is promoted to PXa before appending."""
+        from vultron.core.models.dimensions import PxaDimension
+
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Promotion Case")
+        dl.create(case)
+
+        # em defaults to EmDimension() via default_factory
+        ephemeral_status = CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            pxa=PxaDimension(state=CS_pxa.pXa),
+        )
+        dl.save(ephemeral_status)
+
+        bridge = BTBridge(datalayer=dl)
+        node = AppendCaseStatusToCaseNode(
+            case_id=CASE_ID,
+            status_id=STATUS_ID,
+            status_obj_fallback=None,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        reloaded_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
+        promoted = [
+            s
+            for s in reloaded_case.case_statuses
+            if isinstance(s, CaseStatus)
+            and getattr(s, "id_", None) == STATUS_ID
+        ]
+        assert promoted, "Promoted CaseStatus must be appended to case"
+        assert promoted[0].pxa.state is CS_pxa.PXa
+
 
 # ---------------------------------------------------------------------------
 # FilterCsEmDimensionNode — Bug #2704 (CLP-10-009)
@@ -1326,3 +1361,73 @@ class TestCaseLedgerEntryCreation:
             "An invalid Add(CaseStatus) rejected by a precondition guard must"
             " produce zero CaseLedgerEntries (CLP-10-009)"
         )
+
+
+# ---------------------------------------------------------------------------
+# EmitCaseStatusUpdateNode — AC-1 pX promotion (SM-09-001)
+# ---------------------------------------------------------------------------
+
+EMIT_ACTOR_ID = "https://example.org/actors/emit-node-actor"
+EMIT_PARTICIPANT_ID = f"{CASE_ID}/participants/emit-node-actor"
+
+
+class TestEmitCaseStatusUpdateNodePromotion:
+    """AC-1 / SM-09-001: EmitCaseStatusUpdateNode promotes pX states before write."""
+
+    def _build_dl(self):
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=EMIT_ACTOR_ID)
+        participant = CaseParticipant(
+            id_=EMIT_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=EMIT_ACTOR_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Emit Promotion Test",
+            attributed_to=EMIT_ACTOR_ID,
+        )
+        case.add_participant(participant)
+        dl.create(case)
+        dl.create(participant)
+        return dl
+
+    def test_pXa_promoted_to_PXa_by_emit_node(self):
+        """AC-1 / SM-09-001: pXa in case.current_status is promoted to PXa."""
+        from vultron.core.behaviors.status.nodes.case_status import (
+            EmitCaseStatusUpdateNode,
+        )
+        from vultron.core.models.dimensions import EmDimension, PxaDimension
+
+        dl = self._build_dl()
+
+        # Seed a pXa CaseStatus — simulating a pre-AC-1 state or in-flight
+        # transition where the exploit just became public (X fired).
+        case_obj = dl.read(CASE_ID)
+        assert isinstance(case_obj, VulnerabilityCase)
+        pxa_seed = CaseStatus(
+            context=CASE_ID,
+            attributed_to=EMIT_ACTOR_ID,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=CS_pxa.pXa),
+        )
+        dl.create(pxa_seed)
+        # Clear auto-seeded statuses so current_status resolves to the pXa seed
+        case_obj.case_statuses.clear()
+        case_obj.case_statuses.append(pxa_seed)
+        dl.save(case_obj)
+
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(tree=node, actor_id=EMIT_ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        updated_case = dl.read(CASE_ID)
+        assert isinstance(updated_case, VulnerabilityCase)
+        last = updated_case.case_statuses[-1]
+        if isinstance(last, str):
+            last = dl.read(last)
+        assert isinstance(last, CaseStatus)
+        assert last.pxa.state is CS_pxa.PXa

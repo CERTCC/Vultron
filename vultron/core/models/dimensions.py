@@ -109,7 +109,10 @@ def _coerce_vfd(v: object) -> CS_vfd:
     if isinstance(v, CS_vfd):
         return v
     if isinstance(v, str):
-        return CS_vfd[v]
+        try:
+            return CS_vfd[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_vfd value: {v!r}") from None
     if isinstance(v, (list, tuple)) and len(v) == 3:
         return CS_vfd(VfdState(*v))
     raise ValueError(f"Cannot coerce {v!r} to CS_vfd")
@@ -119,7 +122,10 @@ def _coerce_vf(v: object) -> CS_vf:
     if isinstance(v, CS_vf):
         return v
     if isinstance(v, str):
-        return CS_vf[v]
+        try:
+            return CS_vf[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_vf value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to CS_vf")
 
 
@@ -127,7 +133,10 @@ def _coerce_d(v: object) -> CS_d:
     if isinstance(v, CS_d):
         return v
     if isinstance(v, str):
-        return CS_d[v]
+        try:
+            return CS_d[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_d value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to CS_d")
 
 

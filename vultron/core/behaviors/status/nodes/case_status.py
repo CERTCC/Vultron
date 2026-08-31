@@ -40,6 +40,7 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.states.cs import CS_pxa
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
@@ -49,6 +50,15 @@ logger = logging.getLogger(__name__)
 # detected.  The use case imports this constant to distinguish idempotent
 # no-ops (log at INFO) from real failures (log at WARNING).
 CASE_STATUS_ALREADY_PRESENT = "case_status_already_present"
+
+
+def _promote_pxa(pxa: CS_pxa) -> CS_pxa:
+    """SM-09-001: promote ephemeral pX states at the persistence boundary."""
+    if pxa is CS_pxa.pXa:
+        return CS_pxa.PXa
+    if pxa is CS_pxa.pXA:
+        return CS_pxa.PXA
+    return pxa
 
 
 class CheckCaseStatusIdempotencyNode(
@@ -185,11 +195,12 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
 
         # Use the per-dimension-filtered status when available; otherwise fall
         # back to the raw asserted object (no filtering was needed or applied).
+        from_filter = False
         status_obj: CaseStatus | PersistableModel | None = (
             self._resolve_filtered()
         )
         if status_obj is not None:
-            self.datalayer.save(status_obj)
+            from_filter = True
         else:
             status_obj = self._resolve_status()
 
@@ -208,6 +219,19 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
                 "AppendCaseStatusToCase: %s", self.feedback_message
             )
             return Status.FAILURE
+
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
+        if status_obj.pxa is not None:
+            promoted = _promote_pxa(status_obj.pxa.state)
+            if promoted is not status_obj.pxa.state:
+                status_obj = status_obj.model_copy(
+                    update={"pxa": PxaDimension(state=promoted)}
+                )
+                from_filter = True
+
+        if from_filter:
+            self.datalayer.save(status_obj)
+
         case.add_case_status(status_obj)
         self.datalayer.save(case)
         self.logger.info(
@@ -273,11 +297,13 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
+        pxa_state = _promote_pxa(current.pxa.state)
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             em=EmDimension(state=current.em.state),
-            pxa=PxaDimension(state=current.pxa.state),
+            pxa=PxaDimension(state=pxa_state),
         )
 
         status_dict: dict[str, Any] = new_status.model_dump(

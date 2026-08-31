@@ -71,7 +71,8 @@ AddParticipantStatusBT (Sequence)
 ├─ AppendParticipantStatusNode          ← records the accepted portion
 ├─ StatusAdoptionGate (Fallback)         ← NEW
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
-│   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (RequireCaseOwnerApproval)
+│   └─ CaseOwnerApprovesStatusUpdate    ← authorization seam (as-built: RequireCaseOwnerApproval;
+│                                          RSH-07-004 replaces the shape — see below)
 ├─ EmitCaseStatusUpdateNode             ← direct ledger write (RSH-04-004, #2857)
 ├─ TeardownEffectsOrSkip (FailureIsSuccess)
 │   └─ TeardownEffects (Sequence)
@@ -178,12 +179,35 @@ updates would be circular. The BT Fallback structure makes this a hard
 structural skip: if `CheckIsCaseOwnerNode` succeeds, the approval call-out is
 never reached.
 
-For all other senders, the `CaseOwnerApprovesStatusUpdate` Evaluator call-out
-provides the hook. The default backend is `RequireCaseOwnerApproval` — an
-Evaluator that performs an Offer/Accept/Reject round-trip with the Case Owner
-before allowing the assertion to be adopted as canonical. A permissive backend
-(e.g., `AlwaysSucceed`) MAY be configured for trusted-participant or demo
-deployments but MUST be explicitly configured (RSH-07-003, ADR-0076).
+For all other senders, `CaseOwnerApprovesStatusUpdate` is the seam that requires
+explicit Case Owner authorization before the assertion is adopted as canonical.
+A permissive backend (e.g., `AlwaysSucceed`) MAY be configured for
+trusted-participant or demo deployments but MUST be explicitly configured
+(RSH-07-003, ADR-0076) — and MUST NOT be used to route around a gate that is
+blocking (RSH-07-005).
+
+> **Mechanism amended by ADR-0080 (2026-08-31).** The seam is **not** a
+> single-tick Evaluator that "performs an Offer/Accept/Reject round-trip and
+> waits", and `RequireCaseOwnerApproval` is **not** the default backend to
+> implement. RSH-07-004 requires each gate be composed as a
+> **conversation-state routing subtree**, and forbids the Evaluator shape: at the
+> moment authorization is first needed no answer exists, so an Evaluator asked
+> "is this approved?" can only ever answer *no*. That is precisely why
+> `RequireCaseOwnerApprovalNode` is a deny-always stub, and why the
+> ADR-0046/ADR-0076 model was unreachable by any pathway (CONCERN-2812,
+> CONCERN-2809). The node is **deleted rather than completed**.
+>
+> The gate instead routes on whether authorization has been *recorded*,
+> *refused*, *requested-and-outstanding*, or *never requested* — emitting
+> `Offer(Proposal)` to the Case Owner and terminating with `SUCCESS` in the last
+> case, where `SUCCESS` means *I asked* (ASK-01-002). Authorization is always
+> read from the case ledger, never from the outstanding-ask register
+> (ASK-02-004). The conservative default posture that ADR-0076 establishes is
+> **unchanged**; only its shape is.
+>
+> See [protocol-asks.md](protocol-asks.md), `specs/protocol-asks.yaml`
+> (ASK-01 through ASK-08), and RSH-07-004/RSH-07-005. The replacement work is
+> tracked by #2885.
 
 ### Direct-write canonicalization pattern (#2857)
 
@@ -230,7 +254,7 @@ AddCaseStatusToCaseBT (Sequence)
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
 ├─ AppendCaseStatusToCaseNode           ← records accepted portion
-├─ EmbargoTeardownAuthorizationGate     ← call-out (RequireCaseOwnerApproval)
+├─ EmbargoTeardownAuthorizationGate     ← authorization seam (as-built; RSH-07-004)
 └─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
@@ -285,17 +309,24 @@ in `_RECOGNIZED_OVERRIDE_PRODUCERS` per RSH-05-014.
 ```text
 AddCaseStatusToCaseBT (Sequence) — effect nodes only
 ├─ AppendCaseStatusToCaseNode           ← canonical write
-├─ EmbargoTeardownAuthorizationGate     ← Evaluator call-out (RequireCaseOwnerApproval)
+├─ EmbargoTeardownAuthorizationGate     ← authorization seam (as-built; RSH-07-004)
 └─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
 ### EmbargoTeardownAuthorizationGate
 
-An Evaluator call-out that gates the entire side-effects block. Default:
-`RequireCaseOwnerApproval` (conservative: blocks until Case Owner approves,
-RSH-07-002, ADR-0076). An implementation MAY configure a permissive backend
-(e.g., `AlwaysSucceed` via `STATUS_AUTHORIZATION_PERMISSIVE`) for trusted or
-demo deployments (RSH-07-003).
+Gates the entire side-effects block, requiring explicit Case Owner authorization
+before teardown runs (RSH-07-002, ADR-0076). An implementation MAY configure a
+permissive backend (e.g., `AlwaysSucceed` via
+`STATUS_AUTHORIZATION_PERMISSIVE`) for trusted or demo deployments (RSH-07-003),
+but MUST NOT do so to unblock a gate that is refusing (RSH-07-005).
+
+As built, the seam is an Evaluator call-out whose default backend is
+`RequireCaseOwnerApproval`, which returns `FAILURE` unconditionally. Per
+ADR-0080 / RSH-07-004 that shape is superseded: the gate becomes a
+conversation-state routing subtree, and `RequireCaseOwnerApprovalNode` is
+deleted rather than completed. See the amendment note under **StatusAdoptionGate**
+above and [protocol-asks.md](protocol-asks.md); tracked by #2885.
 
 Note: the self-addressed `Add(CaseStatus)` path arrives with the CaseActor as
 sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires
@@ -330,9 +361,13 @@ class StatusAuthorizationCallOutBundle:
     embargo_teardown_authorization_gate_factory: CallOutBackendFactory = ...  # RequireCaseOwnerApproval
 ```
 
-Both fields default to `RequireCaseOwnerApproval` (RSH-07-001, RSH-07-002,
-ADR-0076). Demo and trusted-participant deployments that need automated
-adoption MUST explicitly configure a permissive backend — e.g.:
+As built, both fields default to `RequireCaseOwnerApproval` (RSH-07-001,
+RSH-07-002, ADR-0076). Under ADR-0080 / RSH-07-004 that default is retired along
+with the node: no `CallOutBackendFactory` may return an unconditional `FAILURE`
+node as the conservative default, because the conservative posture is expressed
+by the routing subtree's branches, not by a backend that always refuses. Demo and
+trusted-participant deployments that need automated adoption MUST explicitly
+configure a permissive backend — e.g.:
 
 ```python
 STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(

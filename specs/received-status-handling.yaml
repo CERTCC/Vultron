@@ -737,46 +737,95 @@ groups:
   title: Conservative Default Authorization Policy for Status Gates
   description: >
     Both StatusAdoptionGate and EmbargoTeardownAuthorizationGate MUST default to
-    `RequireCaseOwnerApproval` — an Evaluator that performs an Offer/Accept/Reject
-    round-trip with the Case Owner before allowing PXA assertion adoption or
-    embargo teardown side-effects. Permissive backends are valid but MUST be
-    explicitly configured.
-    Derived from CONCERN-2092 and ADR-0076.
+    requiring explicit Case Owner authorization before allowing PXA assertion
+    adoption or embargo teardown side-effects. Permissive backends are valid but
+    MUST be explicitly configured.
+    Derived from CONCERN-2092 and ADR-0076; the mechanism is amended by ADR-0080
+    (CONCERN-2812, CONCERN-2809) — see RSH-07-004.
   specs:
   - id: RSH-07-001
     priority: MUST
     kind: protocol
     statement: >
-      The default backend for the `CaseOwnerApprovesStatusUpdate` Evaluator
-      call-out in `StatusAdoptionGate` MUST be `RequireCaseOwnerApproval` —
-      an Evaluator that sends an `Offer` to the Case Owner and waits for
-      `Accept` or `Reject` before allowing the PXA assertion to be adopted
-      as canonical case state.
+      `StatusAdoptionGate` MUST default to requiring explicit Case Owner
+      authorization before a non-owner participant's PXA assertion is adopted as
+      canonical case state.
     rationale: >
       A permissive default (e.g., `AlwaysSucceed`) means any admitted
       participant — including a hostile or malfunctioning Observer admitted
       as a sentinel — can force PXA adoption and thereby trigger embargo
       teardown without any Case Owner confirmation. The default posture must
       be conservative; permissive behavior requires explicit opt-in. See ADR-0076.
+      Amended by ADR-0080: the conservative default stands, but the mechanism is
+      no longer an Evaluator that "waits for" a reply — see RSH-07-004.
     verification: >
-      Inspection of `StatusAuthorizationCallOutBundle` confirms
-      `status_adoption_gate_factory` defaults to `RequireCaseOwnerApproval`,
-      not `AlwaysSucceed`.
+      With the default bundle and a non-owner sender, no `Add(CaseStatus)` is
+      emitted until Case Owner authorization is recorded in the case ledger.
+    adr:
+    - ADR-0076
+    - ADR-0080
     lint_suppress:
     - missing_story_reference
   - id: RSH-07-002
     priority: MUST
     kind: protocol
     statement: >
-      The default backend for `EmbargoTeardownAuthorizationGate` MUST be
-      `RequireCaseOwnerApproval`. See also RSH-02-002.
+      `EmbargoTeardownAuthorizationGate` MUST default to requiring explicit Case
+      Owner authorization before embargo teardown side-effects execute. See also
+      RSH-02-002.
     rationale: >
       Belt-and-suspenders: both gates default conservatively. See RSH-02-002
-      rationale and ADR-0076 for full justification.
+      rationale and ADR-0076 for full justification. Amended by ADR-0080 for the
+      mechanism only; the conservative default is unchanged.
     verification: >
-      Inspection of `StatusAuthorizationCallOutBundle` confirms
-      `embargo_teardown_authorization_gate_factory` defaults to
-      `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
+      With the default bundle, `ThreatTerminationBranchNode` does not execute until
+      Case Owner authorization is recorded in the case ledger.
+    adr:
+    - ADR-0076
+    - ADR-0080
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-004
+    priority: MUST
+    kind: protocol
+    statement: >
+      Each status authorization gate MUST be composed as a conversation-state
+      routing subtree per ASK-02-001, and MUST NOT be composed as a single-tick
+      Evaluator call-out that answers the authorization question inline.
+    rationale: >
+      At the moment authorization is first needed, no answer exists, so an
+      Evaluator asked "is this approved?" can only ever answer no. This is why
+      `RequireCaseOwnerApprovalNode` returns `FAILURE` unconditionally and why the
+      ADR-0046/ADR-0076 authorization model was unreachable by any pathway
+      (CONCERN-2812). The gate instead routes on whether authorization has been
+      recorded, refused, requested-and-outstanding, or never requested, emitting
+      the request and terminating in the last case.
+    verification: >
+      Inspection confirms each gate is a routing subtree whose branches cover
+      authorized, refused, outstanding, and not-yet-asked, and that no
+      `CallOutBackendFactory` returns an unconditional `FAILURE` node as the
+      conservative default.
+    adr:
+    - ADR-0080
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      A status authorization gate MUST NOT be satisfied by relaxing its default to a
+      permissive backend in order to make a blocked path proceed.
+    rationale: >
+      `STATUS_AUTHORIZATION_PERMISSIVE` exists for trusted-participant and demo
+      deployments (RSH-07-003). Using it to work around an unreachable gate
+      converts a protocol guarantee into a configuration posture, which is the
+      defect CONCERN-2092 filed in the first place.
+    verification: >
+      The production default bundle is the conservative one, and permissive
+      injection sites are enumerated and documented.
+    adr:
+    - ADR-0076
+    - ADR-0080
     lint_suppress:
     - missing_story_reference
   - id: RSH-07-003

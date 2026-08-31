@@ -387,7 +387,10 @@ def _coerce_vf(raw: object) -> CS_vf | None:
     if isinstance(raw, CS_vf):
         return raw
     if isinstance(raw, str):
-        return CS_vf[raw]
+        try:
+            return CS_vf[raw]
+        except KeyError:
+            raise ValueError(f"Unknown CS_vf value: {raw!r}") from None
     return None
 
 
@@ -397,7 +400,10 @@ def _coerce_d(raw: object) -> CS_d | None:
     if isinstance(raw, CS_d):
         return raw
     if isinstance(raw, str):
-        return CS_d[raw]
+        try:
+            return CS_d[raw]
+        except KeyError:
+            raise ValueError(f"Unknown CS_d value: {raw!r}") from None
     return None
 
 

@@ -146,6 +146,20 @@ Three distinct states must be distinguished when a second `Offer(Actor X)` arriv
 
 ### Trust Rule: Roles Come From the Offer, Not the Accept
 
+> **Generalized by ADR-0080 (2026-08-31).** This rule is not specific to
+> participant roles. ASK-01-004 states it for every ask: **the ask is
+> authoritative and the reply is only a yes.** Whatever action a reply
+> authorizes MUST be read from the stored ask, never from the reply's content —
+> otherwise the answerer can alter what it grants itself, in any exchange, not
+> just this one. ADR-0080 also adds the time dimension: an ask carries a deadline,
+> and for ask kinds whose expiry is *void*, a reply arriving after it does not
+> authorize the action (ASK-03-006). Trusting *when* a reply arrives is the same
+> class of mistake as trusting *what* it claims.
+>
+> The routing tree and stored-ask record described below are the reference
+> implementations the ADR-0080 primitive generalizes; see
+> `notes/protocol-asks.md`.
+
 When the CaseActor processes `Accept(Offer(CaseParticipant))` from the Case
 Owner, the roles assigned to the new participant MUST be taken from the
 **stored outgoing `Offer(CaseParticipant)`** that the CaseActor sent, not

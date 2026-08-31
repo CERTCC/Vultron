@@ -351,6 +351,21 @@ bundles. Derived from #1631 planning; implemented by #1152.
 demo scenarios or tests; designing the bundle/singleton layout in
 `vultron/demo/fuzzer/bundles/`; understanding the three-mode backend model.
 
+**`protocol-asks.md`**
+The protocol-ask primitive: why an actor asks and terminates rather than
+suspending (nothing in the codebase returns `RUNNING`, and the bridge cannot host
+it), the conversation-state routing tree shape, the outstanding-ask register and
+why it never authorizes anything, per-ask-kind expiry with a Sentinel reaping
+seam, and `Create(ProcessingFault)`. Names the two hand-built reference
+implementations to generalise (`suggest_actor_tree.py`, `VultronOfferRecord`) and
+the missing shared emit path that blocks all of it. Normative requirements:
+`specs/protocol-asks.yaml` (ASK-01 through ASK-08). ADR: ADR-0080.
+**Load when**: implementing or reviewing any gate that needs another actor's
+permission, working on `RequireCaseOwnerApprovalNode` or the status authorization
+gates, adding an ask/reply exchange, touching `find_protocol_pair` or
+`PendingAssertionStore`, or implementing processing-fault notification.
+Source: CONCERN-2829.
+
 **`received-status-authorization.md`**
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
 (in `add_participant_status_tree`) for status adoption authorization,

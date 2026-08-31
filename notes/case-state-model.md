@@ -158,8 +158,12 @@ deliberately deferred and gated on two migrations:
    `case_states.patterns.potential_actions` — which is also the live
    `actors_get_action_rules` endpoint's only source.
 
-Note that `cs_invariants.py` is a **library, not an enforcement point**. Wiring
-it into the emit / BT paths is issue #2236's scope.
+As of PR #2479, `cs_invariants.py` is wired into the BT write paths:
+`is_valid_cs_transition` (AC-3 / SM-09-002) is enforced in
+`CreateParticipantStatusNode`, and pX→PX / vP→VP promotion (AC-1 / SM-09-001)
+is enforced in `CreateParticipantStatusNode`, `AppendCaseStatusToCaseNode`, and
+`EmitCaseStatusUpdateNode`. Receive-path history validation
+(`is_valid_cs_history`) remains unwired — see #2524.
 
 ---
 
