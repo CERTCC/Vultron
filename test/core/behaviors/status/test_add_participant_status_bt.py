@@ -1547,7 +1547,7 @@ class TestRejectionValidatorBeforeCommit:
         been removed (demonstrating the latent divergence risk).
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-        from vultron.core.states.cs import CS_vfd
+        from vultron.core.states.cs import CS_vf
         from vultron.enums.roles import CVDRole
 
         # The tree runs as the case manager, so this is the case manager's
@@ -1569,7 +1569,6 @@ class TestRejectionValidatorBeforeCommit:
             id_=f"{STATUS_ID}/existing",
             context=CASE_ID,
             rm_state=RM.CLOSED,
-            vfd_state=CS_vfd.vfd,
         )
         vendor_participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
@@ -1590,7 +1589,7 @@ class TestRejectionValidatorBeforeCommit:
             id_=STATUS_ID,
             context=CASE_ID,
             rm_state=RM.VALID,
-            vfd_state=CS_vfd.Vfd,
+            vf_state=CS_vf.Vf,
         )
         dl.create(incoming_status)
 
@@ -1634,7 +1633,7 @@ class TestRejectionValidatorBeforeCommit:
         FAILURE before GuardedCommit → zero CaseLedgerEntries (CLP-10-009).
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-        from vultron.core.states.cs import CS_vfd
+        from vultron.core.states.cs import CS_vf
         from vultron.enums.roles import CVDRole
 
         # The tree runs as the case manager, so this is the case manager's
@@ -1656,7 +1655,7 @@ class TestRejectionValidatorBeforeCommit:
             id_=f"{STATUS_ID}/existing",
             context=CASE_ID,
             rm_state=RM.CLOSED,
-            vfd_state=CS_vfd.Vfd,
+            vf_state=CS_vf.Vf,
         )
         vendor_participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
@@ -1677,7 +1676,6 @@ class TestRejectionValidatorBeforeCommit:
             id_=STATUS_ID,
             context=CASE_ID,
             rm_state=RM.VALID,
-            vfd_state=CS_vfd.vfd,
         )
         dl.create(incoming_status)
 

@@ -52,9 +52,9 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.dimensions import VfdDimension
+from vultron.core.models.dimensions import DDimension
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
@@ -62,13 +62,13 @@ logger = logging.getLogger(__name__)
 NEW_DEPLOYMENT_INFO_KEY = "new_deployment_info"
 
 
-def _resolve_vfd_state(
+def _resolve_d_state(
     dl: CasePersistence,
     case: VulnerabilityCase,
     actor_id: str,
     node_name: str,
-) -> CS_vfd | None:
-    """Return the actor's current VFD state in *case*, or None on lookup error.
+) -> CS_d | None:
+    """Return the actor's current D state in *case*, or None on lookup error.
 
     Returns ``None`` (caller returns FAILURE) when the actor has no participant
     record in the case.
@@ -82,15 +82,15 @@ def _resolve_vfd_state(
             case.id_,
         )
         return None
-    _, vfd_state = resolve_participant_state_from_dl(dl, participant_id)
-    return vfd_state
+    _, _, d_state = resolve_participant_state_from_dl(dl, participant_id)
+    return d_state
 
 
 class CSinStateFixDeployed(DataLayerConditionWithPorts):
     """Short-circuit guard: fix already deployed means nothing to do.
 
-    Returns ``SUCCESS`` when the actor's VFD state is already fix-deployed
-    (``CS_vfd.VFD``) — the ``DeployFixBT`` Fallback short-circuits and reports
+    Returns ``SUCCESS`` when the actor's D state is already fix-deployed
+    (``d_state=D``) — the ``DeployFixBT`` Fallback short-circuits and reports
     SUCCESS to the parent.  Returns ``FAILURE`` when the fix is NOT yet
     deployed, allowing the deployment arms to proceed.
 
@@ -120,24 +120,24 @@ class CSinStateFixDeployed(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        vfd_state = _resolve_vfd_state(
+        d_state = _resolve_d_state(
             self.datalayer, case, self._actor_id, self.name
         )
-        if vfd_state is None:
+        if d_state is None:
             return Status.FAILURE
 
-        if VfdDimension(state=vfd_state).is_fix_deployed():
+        if DDimension(state=d_state).is_fix_deployed():
             self.logger.debug(
-                "%s: VFD state=%s is fix-deployed — short-circuit SUCCESS",
+                "%s: D state=%s is fix-deployed — short-circuit SUCCESS",
                 self.name,
-                vfd_state,
+                d_state,
             )
             return Status.SUCCESS
 
         self.logger.debug(
-            "%s: VFD state=%s is not fix-deployed — proceed to deployment",
+            "%s: D state=%s is not fix-deployed — proceed to deployment",
             self.name,
-            vfd_state,
+            d_state,
         )
         return Status.FAILURE
 
@@ -146,13 +146,12 @@ class CheckCSFixNotYetDeployed(DataLayerConditionWithPorts):
     """Guard: fix must be READY but NOT yet deployed (VFD state == ``VFd``).
 
     Returns ``SUCCESS`` only when the actor's VFD state is fix-ready and the
-    fix is not yet deployed — i.e. exactly ``CS_vfd.VFd``.  Returns ``FAILURE``
-    when the fix is not yet ready (``vfd``/``Vfd``) or already deployed
-    (``VFD``).
+    fix is not yet deployed — i.e. vf_state=VF and d_state is not D.  Returns ``FAILURE``
+    when vf_state is not VF (fix not ready) or d_state is already D
+    (fix deployed).
 
-    This enforces the VFD state-machine precondition for the d→D transition,
-    which is valid **only** from ``VFd`` (``_vfd_transitions`` in
-    ``vultron/core/states/cs.py``).  A weaker "D bit not set" check would let a
+    This enforces the D state-machine precondition for the d→D transition,
+    which is valid only when vf_state=VF (fix ready).  A weaker "D bit not set" check would let a
     deployer in ``vfd``/``Vfd`` jump straight to ``VFD`` via
     :class:`TransitionCStoFixDeployed`, producing an invalid status snapshot.
     Mirrors the legacy ``CSinStateVendorAwareFixReadyFixNotDeployed`` guard in
@@ -183,33 +182,41 @@ class CheckCSFixNotYetDeployed(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        vfd_state = _resolve_vfd_state(
-            self.datalayer, case, self._actor_id, self.name
-        )
-        if vfd_state is None:
+        participant_id = case.actor_participant_index.get(self._actor_id)
+        if participant_id is None:
+            self.logger.warning(
+                "%s: actor '%s' not in case '%s'",
+                self.name,
+                self._actor_id,
+                case.id_,
+            )
             return Status.FAILURE
 
-        dim = VfdDimension(state=vfd_state)
-        if not dim.is_fix_ready():
+        _, vf_state, d_state = resolve_participant_state_from_dl(
+            self.datalayer, participant_id
+        )
+
+        if vf_state != CS_vf.VF:
             self.feedback_message = (
-                f"Actor '{self._actor_id}' fix not yet ready"
-                f" (VFD state={vfd_state!r}) — d→D transition requires VFd"
+                f"Actor '{self._actor_id}' fix not ready"
+                f" (vf_state={vf_state!r}) — d→D transition blocked"
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if dim.is_fix_deployed():
+        if d_state is not None and DDimension(state=d_state).is_fix_deployed():
             self.feedback_message = (
                 f"Actor '{self._actor_id}' fix already deployed"
-                f" (VFD state={vfd_state!r}) — d→D transition blocked"
+                f" (D state={d_state!r}) — d→D transition blocked"
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         self.logger.debug(
-            "%s: VFD state=%s is fix-ready-not-deployed — proceed",
+            "%s: vf=%s d=%s — fix ready, not yet deployed — proceed",
             self.name,
-            vfd_state,
+            vf_state,
+            d_state,
         )
         return Status.SUCCESS
 
@@ -288,7 +295,7 @@ class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
 class TransitionCStoFixDeployed(DataLayerActionWithPorts):
     """Persist a VFD ParticipantStatus snapshot for the actor in this case.
 
-    Advances the actor's VFD dimension to ``CS_vfd.VFD`` (fix deployed) and
+    Advances the actor's D dimension to ``d_state=D`` (fix deployed) and
     persists the new ``ParticipantStatus`` record via the DataLayer, appending
     it to the ``CaseParticipant.participant_statuses`` list.
 
@@ -321,7 +328,8 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
             case_id=self._case_id,
             actor_id=self._actor_id,
             rm_state=None,
-            vfd_state=CS_vfd.VFD,
+            vf_state=None,
+            d_state=CS_d.D,
             pxa_state=None,
             result_out=self._result_out,
             name=f"{self.name}._Create",
@@ -334,7 +342,7 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
                 # The narrative INFO line (SL-04-006) is emitted by
                 # CreateParticipantStatusNode, which knows the before-state.
                 self.logger.debug(
-                    "%s: VFd → VFD (fix deployed) for actor '%s' in case '%s'",
+                    "%s: d → D (fix deployed) for actor '%s' in case '%s'",
                     self.name,
                     self._actor_id,
                     self._case_id,

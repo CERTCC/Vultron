@@ -22,7 +22,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
@@ -71,7 +71,7 @@ def dl():
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
             as_ParticipantStatus(
-                context=CASE_ID, rm_state=RM.ACCEPTED, vfd_state=CS_vfd.VFd
+                context=CASE_ID, rm_state=RM.ACCEPTED, vf_state=CS_vf.VF
             )
         ],
     )
@@ -102,7 +102,8 @@ class TestGetActionRulesUseCase:
             "role",
             "rm_state",
             "em_state",
-            "vfd_state",
+            "vf_state",
+            "d_state",
             "pxa_state",
             "cs_state",
             "actions",
@@ -115,9 +116,12 @@ class TestGetActionRulesUseCase:
 
         assert result["rm_state"] == RM.ACCEPTED
         assert result["em_state"] == EM.ACTIVE
-        assert result["vfd_state"] == CS_vfd.VFd.name
+        assert result["vf_state"] == CS_vf.VF.value
         assert result["pxa_state"] == CS_pxa.Pxa.name
-        assert result["cs_state"] == CS_vfd.VFd.name + CS_pxa.Pxa.name
+        assert (
+            result["cs_state"]
+            == CS_vf.VF.value + CS_d.d.value + CS_pxa.Pxa.name
+        )
 
     def test_happy_path_role(self, dl, request_):
         """Participant role is reflected in the response."""
@@ -196,7 +200,7 @@ class TestGetActionRulesUseCase:
                 as_ParticipantStatus(
                     context=CASE_ID,
                     rm_state=RM.RECEIVED,
-                    vfd_state=CS_vfd.Vfd,
+                    vf_state=CS_vf.Vf,
                 )
             ],
         )
@@ -244,7 +248,7 @@ class TestGetActionRulesUseCase:
         result = GetActionRulesUseCase(dl=layer, request=req).execute()
 
         assert result["rm_state"] == RM.START
-        assert result["vfd_state"] == CS_vfd.vfd.name
+        assert result["vf_state"] == CS_vf.vf.value
 
     def test_em_state_variations(self, dl):
         """Different EM states are correctly reflected."""

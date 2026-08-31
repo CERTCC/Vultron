@@ -90,7 +90,7 @@ def _snake_entry(**overrides):
                 "type": "ParticipantStatus",
                 "attributed_to": "http://finder:7999/api/v2/actors/finder",
                 "rm": {"state": "ACCEPTED"},
-                "vfd": {"state": "VFd"},
+                "vf": {"state": "VF"},
                 "case_status": {"pxa": {"state": "Pxa"}},
             },
         },
@@ -137,15 +137,15 @@ class TestCaseTimelineEventParsing:
         assert event.actor_uri == "http://finder:7999/api/v2/actors/finder"
 
     def test_dimension_states_from_nested_object(self):
-        """RM/VFD/PXA states extracted from a nested ParticipantStatus."""
+        """RM/VF/PXA states extracted from a nested ParticipantStatus."""
         event = CaseTimelineEvent.from_raw(_snake_entry())
         assert event.rm_state == "ACCEPTED"
-        assert event.vfd_state == "VFd"
+        assert event.vf_state == "VF"
         assert event.pxa_state == "Pxa"
-        assert event.cs_state == "VFd · Pxa"
+        assert event.cs_state == "VF · Pxa"
 
     def test_dimension_states_from_flat_wire_shape(self):
-        """Legacy flat ``rmState``/``vfdState`` spellings are tolerated."""
+        """Legacy flat ``rmState``/``vfState`` spellings are tolerated."""
         raw = _camel_entry(
             eventType="add_participant_status_to_participant",
             payloadSnapshot={
@@ -155,13 +155,15 @@ class TestCaseTimelineEventParsing:
                     "id": "urn:uuid:ps2",
                     "type": "ParticipantStatus",
                     "rmState": "CLOSED",
-                    "vfdState": "VFD",
+                    "vfState": "VF",
+                    "dState": "D",
                 },
             },
         )
         event = CaseTimelineEvent.from_raw(raw)
         assert event.rm_state == "CLOSED"
-        assert event.vfd_state == "VFD"
+        assert event.vf_state == "VF"
+        assert event.d_state == "D"
 
     def test_pec_state_from_consent_dimension_object(self):
         """PEC state extracted from ADR-0036 consent dimension object."""

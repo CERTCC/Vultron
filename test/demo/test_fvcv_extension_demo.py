@@ -326,7 +326,7 @@ class TestPhasePublicationEmWaitOrdering:
                 side_effect=track_notify_published,
             ),
             patch.object(demo, "verify_publicly_disclosed"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "demo_check"),
         ):
             demo._phase_publication(
@@ -506,7 +506,7 @@ class TestFvcvExtensionMilestoneAssertions:
         with (
             patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
             patch.object(
                 demo,
@@ -555,7 +555,7 @@ class TestFvcvExtensionMilestoneAssertions:
                 "actor_notifies_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready"),
         ):
             demo._phase_fix_lifecycle(
@@ -602,7 +602,7 @@ class TestFvcvExtensionMilestoneAssertions:
         with (
             patch.object(demo, "actor_notifies_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m6,
             patch.object(
                 demo,
