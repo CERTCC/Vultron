@@ -342,15 +342,17 @@ class TriggerService:
         actor_id: str,
         case_id: str,
         rm_state: Any = None,
-        vfd_state: Any = None,
+        vf_state: Any = None,
+        d_state: Any = None,
         pxa_state: Any = None,
     ) -> dict[str, Any]:
-        """Self-report actor RM/VFD/PXA state to the Case Manager (DEMOMA-07-001)."""
+        """Self-report actor RM/VF/D/PXA state to the Case Manager (DEMOMA-07-001)."""
         req = AddParticipantStatusTriggerRequest(
             actor_id=actor_id,
             case_id=case_id,
             rm_state=rm_state,
-            vfd_state=vfd_state,
+            vf_state=vf_state,
+            d_state=d_state,
             pxa_state=pxa_state,
         )
         return SvcAddParticipantStatusUseCase(

@@ -28,7 +28,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
@@ -296,7 +296,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         status = WireParticipantStatus(
             id_=_vfd_status_id,
             context=_CASE_ID,
-            vfd_state=CS_vfd.VFd,
+            vf_state=CS_vf.VF,
         )
         activity = add_status_to_participant_activity(
             status,

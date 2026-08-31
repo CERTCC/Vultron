@@ -32,7 +32,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 
@@ -79,7 +79,8 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertIsNotNone(obj.context)
 
         self.assertIn(obj.rm_state, RM)
-        self.assertIn(obj.vfd_state, CS_vfd)
+        if obj.vf_state is not None:
+            self.assertIn(obj.vf_state, CS_vf)
 
         if obj.case_status is not None:
             self.assertIsInstance(obj.case_status, as_CaseStatus)

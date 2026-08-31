@@ -733,7 +733,7 @@ is ready, nor ready before the vendor is aware.
 
 Transition drive authority is governed by §12.4.1.
 
-- *Source: `vultron/core/states/cs.py` (`CS_vfd`);
+- *Source: `vultron/core/states/cs.py` (`CS_vf`, `CS_d`);
   `docs/topics/process_models/cs/`*
 
 ### 8.2 PXA — Participant-Agnostic Axis (Public/eXploit/Attacks)

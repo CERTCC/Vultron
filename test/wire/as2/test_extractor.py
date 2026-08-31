@@ -278,17 +278,17 @@ def test_extract_intent_case_status_name():
 
 
 @pytest.mark.spec("VAM-08-003")
-def test_extract_intent_participant_status_vfd_state():
-    """as_ParticipantStatus.vfd_state is populated from the wire as_ParticipantStatus."""
+def test_extract_intent_participant_status_vf_state():
+    """vf_state is extracted and populated on the core ParticipantStatus (ADR-0075)."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-    from vultron.core.states.cs import CS_vfd
+    from vultron.core.states.cs import CS_vf
 
     ps = as_ParticipantStatus(
         context="https://example.org/cases/1",
-        vfd_state=CS_vfd.Vfd,
+        vf_state=CS_vf.Vf,
     )
     activity = as_Create(
         actor="https://example.org/alice",
@@ -298,7 +298,7 @@ def test_extract_intent_participant_status_vfd_state():
 
     s = cast(Any, event).status
     assert s is not None
-    assert s.vfd.state == CS_vfd.Vfd
+    assert s.vf.state == CS_vf.Vf
 
 
 # ---------------------------------------------------------------------------

@@ -47,15 +47,19 @@ from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cross_machine_invariants import (
-    violation_rm_vfd_entailment,
+    violation_rm_d_entailment,
+    violation_rm_vf_entailment,
 )
 from vultron.core.states.cs import (
+    CS_d,
     CS_pxa,
-    CS_vfd,
+    CS_vf,
+    is_valid_d_transition,
     is_valid_pxa_transition,
-    is_valid_vfd_transition,
+    is_valid_vf_transition,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +104,7 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
       → ``FAILURE`` (CSB-18-001, #2236).
 
     When the participant has no current status (first write) the initial states
-    ``RM.START``, ``CS_vfd.vfd``, ``CS_pxa.pxa`` are used as the baseline, so
+    ``RM.START``, initial VF/D state, ``CS_pxa.pxa`` are used as the baseline, so
     the first valid transition from each initial state always passes.
 
     Returns ``SUCCESS`` without validation when the participant or case cannot
@@ -113,7 +117,8 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         case_id: str,
         actor_id: str,
         rm_state: "RM | None",
-        vfd_state: "CS_vfd | None",
+        vf_state: "CS_vf | None",
+        d_state: "CS_d | None",
         pxa_state: "CS_pxa | None",
         name: str | None = None,
     ) -> None:
@@ -121,8 +126,32 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         self._case_id = case_id
         self._actor_id = actor_id
         self._rm_state = rm_state
-        self._vfd_state = vfd_state
+        self._vf_state = vf_state
+        self._d_state = d_state
         self._pxa_state = pxa_state
+
+    def _check_vf_role(self, participant_obj: object) -> "Status | None":
+        """Return FAILURE when the requested VF state requires VENDOR but actor lacks it.
+
+        Vendor-aware VF states (Vf, VF) are VENDOR-specific per ADR-0075.
+        Returns None when no VF state is requested, the state is CS_vf.vf
+        (vendor-unaware), or the actor holds CVDRole.VENDOR.  Closes #2862.
+        """
+        if self._vf_state is None or self._vf_state == CS_vf.vf:
+            return None
+        actor_roles = (
+            list(participant_obj.roles)  # type: ignore[attr-defined]
+            if isinstance(participant_obj, CaseParticipant)
+            else []
+        )
+        if CVDRole.VENDOR in actor_roles:
+            return None
+        self.feedback_message = (
+            f"CVDRole.VENDOR required for VF state"
+            f" {self._vf_state!r} (ADR-0075); actor roles: {actor_roles!r}"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -140,7 +169,7 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             # CreateParticipantStatusNode will report this; pass through.
             return Status.SUCCESS
 
-        current_rm, current_vfd = resolve_participant_state_from_dl(
+        current_rm, current_vf, current_d = resolve_participant_state_from_dl(
             dl, participant_id
         )
         participant_obj = dl.read(participant_id)
@@ -157,18 +186,36 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        # --- VFD dimension ---
+        # --- VF dimension ---
         if (
-            self._vfd_state is not None
-            and self._vfd_state != current_vfd
-            and not is_valid_vfd_transition(current_vfd, self._vfd_state)
+            self._vf_state is not None
+            and current_vf is not None
+            and self._vf_state != current_vf
+            and not is_valid_vf_transition(current_vf, self._vf_state)
         ):
             self.feedback_message = (
-                f"Invalid VFD transition"
-                f" {current_vfd!r} → {self._vfd_state!r}"
+                f"Invalid VF transition"
+                f" {current_vf!r} → {self._vf_state!r}"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+
+        # --- D dimension ---
+        if (
+            self._d_state is not None
+            and current_d is not None
+            and self._d_state != current_d
+            and not is_valid_d_transition(current_d, self._d_state)
+        ):
+            self.feedback_message = (
+                f"Invalid D transition" f" {current_d!r} → {self._d_state!r}"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        # --- VF role eligibility (ADR-0075, #2862) ---
+        if (failure := self._check_vf_role(participant_obj)) is not None:
+            return failure
 
         # --- PXA dimension ---
         if self._pxa_state is not None and isinstance(
@@ -185,21 +232,34 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
                 self.logger.info("%s: %s", self.name, self.feedback_message)
                 return Status.FAILURE
 
-        # --- Cross-machine: RM ↔ VFD entailment (CSB-18-001, #2236) ---
-        # Fix readiness (F bit) requires RM ∈ {ACCEPTED, DEFERRED, CLOSED}.
-        # Both RM and VFD are per-actor attributes, so a contradictory
-        # combination is an error at the emitter.
         effective_rm = (
             self._rm_state if self._rm_state is not None else current_rm
         )
-        effective_vfd = (
-            self._vfd_state if self._vfd_state is not None else current_vfd
+        effective_vf = (
+            self._vf_state if self._vf_state is not None else current_vf
         )
-        if (
-            msg := violation_rm_vfd_entailment(effective_rm, effective_vfd)
-        ) is not None:
-            self.feedback_message = msg
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        effective_d = self._d_state if self._d_state is not None else current_d
+        return self._validate_entailments(
+            effective_rm, effective_vf, effective_d
+        )
 
+    def _validate_entailments(
+        self,
+        rm: "RM",
+        vf: "CS_vf | None",
+        d: "CS_d | None",
+    ) -> Status:
+        """CSB-18-001: check RM↔VF and RM↔D cross-machine entailments."""
+        if vf is not None:
+            msg = violation_rm_vf_entailment(rm, vf)
+            if msg is not None:
+                self.feedback_message = msg
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+        if d is not None:
+            msg = violation_rm_d_entailment(rm, d)
+            if msg is not None:
+                self.feedback_message = msg
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
         return Status.SUCCESS
