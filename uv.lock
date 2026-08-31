@@ -3,10 +3,10 @@ revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.15' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version < '3.14' and sys_platform == 'win32'",
     "python_full_version < '3.14' and sys_platform == 'emscripten'",
@@ -338,7 +338,7 @@ wheels = [
 
 [[package]]
 name = "graphifyy"
-version = "0.9.48"
+version = "0.9.51"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "networkx" },
@@ -371,9 +371,9 @@ dependencies = [
     { name = "tree-sitter-verilog" },
     { name = "tree-sitter-zig" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/01/08fe1b0a840daf350599694c4927af7369af23daf0b22fdc00f4ef56ae7d/graphifyy-0.9.48.tar.gz", hash = "sha256:14eaac83804866940ccb34491ca69ab62b2b51e346f88356c5211a3d8cd5e41e", size = 1965537, upload-time = "2026-08-20T16:40:08.528Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/d2/fcf6318b4139162a6f8fafbc932ecc3bdb0f7c1adb5211b6e0ddc75efcd3/graphifyy-0.9.51.tar.gz", hash = "sha256:10d32c5569576b15125f5cf94f277f511151bdf57369ae2636c88e08b2bf0519", size = 2038757, upload-time = "2026-08-28T00:29:33.492Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/99/86/df9bdd8eb4eaa694b829690f0bdfe49d966cc242d8037f3a96b3cb1b1548/graphifyy-0.9.48-py3-none-any.whl", hash = "sha256:4f745d72d6c5165ef7132bf8b2819ef59707aa70cd99efd3a4fbc8c4ba43b4b9", size = 1332328, upload-time = "2026-08-20T16:40:06.68Z" },
+    { url = "https://files.pythonhosted.org/packages/55/e9/da3b57fe99a385c40a625c03721a776456984d945f91f07e5ab91b965596/graphifyy-0.9.51-py3-none-any.whl", hash = "sha256:70ec496e87d6d90e872dd850ed74f52a64e4f36c19011ce3844ea2f3036ac545", size = 1358514, upload-time = "2026-08-28T00:29:31.427Z" },
 ]
 
 [[package]]
