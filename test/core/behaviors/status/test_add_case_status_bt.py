@@ -21,6 +21,12 @@ Covers steps of the AddCaseStatusToCaseBT sequence:
 
 Also covers the full tree factory and use-case-level integration.
 
+Regression coverage:
+  - Bug #2704: FilterCsEmDimensionNode must return FAILURE (not SUCCESS) when
+    _resolve_asserted() returns None (CLP-10-009).
+  - Bug #2706: FilterCsPxaDimensionNode must write the updated accumulator back
+    via _set_output so PXA refusals survive a copy-returning blackboard.
+
 Per issue #758 AC-1, AC-3.
 """
 
@@ -44,6 +50,10 @@ from vultron.core.behaviors.status.nodes import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
+)
+from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+    FilterCsEmDimensionNode,
+    FilterCsPxaDimensionNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
@@ -212,6 +222,242 @@ class TestAppendCaseStatusToCaseNode:
         case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert STATUS_ID in status_ids
+
+
+# ---------------------------------------------------------------------------
+# FilterCsEmDimensionNode — Bug #2704 (CLP-10-009)
+# ---------------------------------------------------------------------------
+
+CASE_MANAGER_ID_2704 = "https://example.org/actors/case-mgr-2704"
+
+
+class TestFilterCsEmDimensionNodeBug2704:
+    """Guard must return FAILURE when status object is unresolvable (#2704).
+
+    Before the fix FilterCsEmDimensionNode returned SUCCESS when
+    _resolve_asserted() returned None, allowing GuardedCommit to fire and write
+    a ledger entry for a status that could never be applied (CLP-10-009).
+    """
+
+    def _build_dl(self):
+        """Return a DataLayer with a case that has one CaseStatus already present."""
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2704
+        )
+        cm_participant = CaseParticipant(
+            id_=f"{CASE_ID}/participants/cm-2704",
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID_2704,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="2704 Test Case",
+            attributed_to=CASE_MANAGER_ID_2704,
+        )
+        case.add_participant(cm_participant)
+        # VulnerabilityCase auto-seeds a core CaseStatus via _init_case_statuses
+        # when attributed_to is set and case_statuses is empty, so current_status
+        # resolves after the DL round-trip without any manual seeding.
+        dl.create(case)
+        dl.create(cm_participant)
+        return dl
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_guard_fails_when_status_unresolvable(self):
+        """Guard returns FAILURE when status not in DL and fallback is None (#2704).
+
+        This test FAILS on pre-fix code where the guard returned SUCCESS.
+        """
+        dl = self._build_dl()
+        bridge = BTBridge(datalayer=dl)
+        node = FilterCsEmDimensionNode(
+            case_id=CASE_ID,
+            status_id=STATUS_ID,
+            status_obj_fallback=None,
+        )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID_2704
+        )
+        assert result.status == Status.FAILURE, (
+            "FilterCsEmDimensionNode must return FAILURE when the status object"
+            " cannot be resolved (CLP-10-009, #2704)"
+        )
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_unresolvable_status_produces_no_ledger_entry(self, make_payload):
+        """Full tree: unresolvable status aborts before GuardedCommit → zero CaseLedgerEntries (#2704).
+
+        This test FAILS on pre-fix code where the guard returned SUCCESS,
+        allowing GuardedCommit to fire and leave an orphaned ledger entry.
+        """
+        from unittest.mock import PropertyMock, patch
+
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = self._build_dl()
+        # STATUS_ID intentionally NOT written to DL — _resolve_asserted() returns None.
+        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="2704 Case")
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        activity = add_status_to_case_activity(
+            status_obj, target=wire_case, actor=CASE_MANAGER_ID_2704
+        )
+        event = make_payload(activity).model_copy(
+            update={"activity": activity}
+        )
+
+        # Patch request.status to None so status_obj_fallback=None in the tree factory.
+        with patch.object(
+            type(event), "status", new_callable=PropertyMock, return_value=None
+        ):
+            tree = add_case_status_tree(
+                request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            )
+            bridge = BTBridge(datalayer=dl)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=CASE_MANAGER_ID_2704, activity=event
+            )
+
+        assert result.status == Status.FAILURE
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 0, (
+            "An unresolvable status must be rejected by FilterCsEmDimensionNode"
+            " before GuardedCommit fires — zero CaseLedgerEntries (CLP-10-009, #2704)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# FilterCsPxaDimensionNode — Bug #2706 (explicit _set_output write-back)
+# ---------------------------------------------------------------------------
+
+CASE_MANAGER_ID_2706 = "https://example.org/actors/case-mgr-2706"
+
+
+class TestFilterCsPxaDimensionNodeBug2706:
+    """PXA accumulator write-back must be explicit via _set_output (#2706).
+
+    Before the fix FilterCsPxaDimensionNode relied on in-place mutation of the
+    blackboard reference to propagate PXA refusals to FinalizeCsFilterNode.
+    If the blackboard ever returns a copy from get_input the mutation is
+    silently discarded — PXA refusals are lost and the tree incorrectly accepts
+    a refused assertion.
+    """
+
+    def _build_dl(self):
+        """Return a DataLayer with pxa=Pxa current state and a pxa=pxa regression asserted."""
+        from vultron.enums.roles import CVDRole
+        from vultron.core.states.em import EM
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2706
+        )
+        cm_participant = CaseParticipant(
+            id_=f"{CASE_ID}/participants/cm-2706",
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID_2706,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="2706 Test Case",
+            attributed_to=CASE_MANAGER_ID_2706,
+        )
+        case.add_participant(cm_participant)
+        case.append_case_status(pxa_state=CS_pxa.Pxa, em_state=EM.NONE)
+        dl.create(case)
+        dl.create(cm_participant)
+        # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
+        asserted = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pxa
+        )
+        dl.create(asserted)
+        return dl
+
+    def test_output_ports_include_acc_write_back(self):
+        """FilterCsPxaDimensionNode must declare an output port for accumulator write-back (#2706).
+
+        Before the fix the node had no output ports and relied on in-place mutation.
+        This test FAILS on pre-fix code.
+        """
+        output_ports = FilterCsPxaDimensionNode.output_ports()
+        assert output_ports, (
+            "FilterCsPxaDimensionNode must declare at least one output port for"
+            " the accumulator write-back (#2706)"
+        )
+
+    @pytest.mark.spec("CLP-10-009")
+    def test_pxa_refusal_survives_copy_returning_blackboard(
+        self, make_payload
+    ):
+        """PXA refusal propagates correctly even when get_input returns a copy (#2706).
+
+        Simulates a copy-returning blackboard: in-place dict mutation is lost,
+        so the only way to propagate the updated acc is via _set_output.
+        Without the fix the mutation is discarded, FinalizeCsFilterNode sees an
+        empty refused list and the tree incorrectly returns SUCCESS.
+
+        This test FAILS on pre-fix code and PASSES after the fix.
+        """
+        from unittest.mock import patch
+
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = self._build_dl()
+        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="2706 Case")
+        status_obj = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pxa
+        )
+        activity = add_status_to_case_activity(
+            status_obj, target=wire_case, actor=CASE_MANAGER_ID_2706
+        )
+        event = make_payload(activity).model_copy(
+            update={"activity": activity}
+        )
+
+        # Patch get_input on FilterCsPxaDimensionNode to return a DEEP COPY of any dict,
+        # simulating a blackboard that never returns mutable references.
+        # A shallow dict() copy shares nested lists, so deep copy is required to
+        # isolate the mutation from the stored object.
+        import copy as _copy
+
+        _real_get_input = FilterCsPxaDimensionNode.get_input
+
+        def _copy_returning(self_node, port_name, default=None):
+            val = _real_get_input(self_node, port_name, default)
+            return _copy.deepcopy(val) if isinstance(val, dict) else val
+
+        with patch.object(
+            FilterCsPxaDimensionNode, "get_input", new=_copy_returning
+        ):
+            tree = add_case_status_tree(
+                request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            )
+            bridge = BTBridge(datalayer=dl)
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=CASE_MANAGER_ID_2706, activity=event
+            )
+
+        # pxa regression with no EM change → whole refusal → FAILURE, zero ledger entries.
+        # Without fix: copy mutation discarded → Finalize sees refused=[] → SUCCESS → ledger written.
+        # With fix:    _set_output writes updated acc → Finalize sees refused=['pxa'] → FAILURE.
+        assert result.status == Status.FAILURE
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert len(entries) == 0, (
+            "A whole-refused PXA regression must produce zero CaseLedgerEntries."
+            " FilterCsPxaDimensionNode must write the updated acc back via _set_output (#2706)"
+        )
 
 
 # ---------------------------------------------------------------------------

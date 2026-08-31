@@ -244,10 +244,13 @@ and `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` unconditionally (RSH-05-010, BT-17-003),
 evaluates the EM transition, and writes a per-tick accumulator dict to the
 blackboard.
 
-`FilterCsPxaDimensionNode` runs second: it reads the accumulator by reference
-and mutates it in place to add any PXA refusal. This pattern is required because
-py_trees forbids a port key appearing in both `input_ports` and `output_ports` of
-the same node.
+`FilterCsPxaDimensionNode` runs second: it reads the accumulator via the
+`_BB_CS_FILTER_ACC` input port, evaluates the PXA transition, and writes the
+updated accumulator back via `_set_output(_BB_CS_FILTER_ACC_WRITE, acc)` — an
+explicit write-back using a dual-alias output port (`_BB_CS_FILTER_ACC_WRITE`)
+mapped to the same physical blackboard key (`/{_BB_CS_FILTER_ACC}`). This
+satisfies the py_trees constraint that forbids the same logical port name from
+appearing in both `input_ports()` and `output_ports()` of the same node (#2706).
 
 `FinalizeCsFilterNode` runs third: it reads the completed accumulator, builds the
 `model_copy`-filtered `CaseStatus` (refused dimensions carry current values
