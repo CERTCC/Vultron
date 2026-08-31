@@ -21,7 +21,6 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import (
@@ -222,7 +221,7 @@ def _compute_report_addressees(
         List of recipient URIs, or None when no recipients can be determined.
     """
     case = dl.find_case_by_report_id(report_id)
-    if isinstance(case, VulnerabilityCase):
+    if case is not None:
         # The case's own participant list is authoritative once bootstrap has
         # populated it.  Before that it is empty, so fall back to the trust
         # anchor recorded on the ``ReportCaseLink`` — the same resolution

@@ -36,7 +36,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
 
 logger = logging.getLogger(__name__)
@@ -89,8 +88,8 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        case_obj = self.datalayer.read(case_id)
-        if isinstance(case_obj, VulnerabilityCase):
+        case_obj = self.datalayer.read_case(case_id)
+        if case_obj is not None:
             addressees = [
                 actor_id
                 for actor_id in case_obj.actor_participant_index.keys()

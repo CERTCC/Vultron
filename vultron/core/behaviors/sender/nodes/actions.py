@@ -23,7 +23,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 
@@ -54,8 +53,8 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = (
                 f"Case '{self.case_id}' not found or wrong type"
             )

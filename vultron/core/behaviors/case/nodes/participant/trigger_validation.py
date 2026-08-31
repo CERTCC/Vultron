@@ -44,7 +44,6 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cross_machine_invariants import (
     violation_rm_d_entailment,
@@ -159,8 +158,8 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         assert self.datalayer is not None
         dl = self.datalayer
 
-        case = dl.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = dl.read_case(self._case_id)
+        if case is None:
             # CreateParticipantStatusNode will report this; pass through.
             return Status.SUCCESS
 

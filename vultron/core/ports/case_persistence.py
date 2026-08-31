@@ -40,6 +40,9 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.ports.datalayer import StorableRecord
 
+if TYPE_CHECKING:
+    from vultron.core.models.case import VulnerabilityCase
+
 
 class CasePersistence(Protocol):
     """Narrow outbound port for core domain use cases and BT nodes.
@@ -81,6 +84,10 @@ class CasePersistence(Protocol):
         self, object_id: str, raise_on_missing: bool = False
     ) -> PersistableModel | None: ...
 
+    def read_case(
+        self, case_id: str, raise_on_missing: bool = False
+    ) -> "VulnerabilityCase | None": ...
+
     def save(self, obj: PersistableModel) -> None: ...
 
     def save_many(self, objs: list[PersistableModel]) -> None: ...
@@ -89,7 +96,7 @@ class CasePersistence(Protocol):
 
     def find_case_by_report_id(
         self, report_id: str
-    ) -> PersistableModel | None: ...
+    ) -> "VulnerabilityCase | None": ...
 
     def find_actor_by_short_id(
         self, short_id: str
@@ -97,7 +104,7 @@ class CasePersistence(Protocol):
 
     def find_case_by_short_id(
         self, short_id: str
-    ) -> PersistableModel | None: ...
+    ) -> "VulnerabilityCase | None": ...
 
     def find_protocol_pair(
         self,

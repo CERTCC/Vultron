@@ -39,7 +39,6 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     _resolve_actor_roles,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import VfDimension
 from vultron.enums.roles import CVDRole
 
@@ -129,8 +128,8 @@ class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found", self.name, self._case_id
             )

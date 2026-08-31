@@ -102,11 +102,12 @@ groups:
     priority: MUST
     kind: project
     statement: The current required minimum `CasePersistence` surface is `actor_id`, `clone_for_actor`, `create`, `read`,
-      `save`, `save_many`, `list_objects`, `find_case_by_report_id`, `find_actor_by_short_id`, `find_case_by_short_id`,
-      `find_protocol_pair`, and `delete`; future additions MAY be made only when they preserve the same core-facing
-      persistence/query boundary and do not introduce queue, admin, health, or diagnostic responsibilities. `actor_id`
-      and `clone_for_actor` are part of the minimum because a store belongs to exactly one actor (DL-07-002) and
-      reaching another's is a named operation (DL-07-005).
+      `read_case`, `save`, `save_many`, `list_objects`, `find_case_by_report_id`, `find_actor_by_short_id`,
+      `find_case_by_short_id`, `find_protocol_pair`, and `delete`; future additions MAY be made only when they preserve
+      the same core-facing persistence/query boundary and do not introduce queue, admin, health, or diagnostic
+      responsibilities. `actor_id` and `clone_for_actor` are part of the minimum because a store belongs to exactly one
+      actor (DL-07-002) and reaching another's is a named operation (DL-07-005). `read_case` is the canonical typed
+      accessor for `VulnerabilityCase` retrieval — callers prefer it over `read()` + isinstance narrowing (ISSUE-2490).
     rationale: >-
       Makes the current narrow-port contract explicit without freezing the interface against future legitimate
       query helpers. The enumeration is the *declared* Protocol, so a drift between it and

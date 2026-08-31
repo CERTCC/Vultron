@@ -29,7 +29,6 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
     _extract_id_from_field,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import participant_status_rm_state
 
@@ -80,8 +79,8 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.debug(
                 "%s: case '%s' not found in local DataLayer"
                 " — skipping (non-fatal, partial case view)",

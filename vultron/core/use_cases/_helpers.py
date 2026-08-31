@@ -222,8 +222,8 @@ def _case_actor_by_role(dl: CasePersistence, case_id: str) -> str | None:
         is_case_actor_identity,
     )
 
-    case_obj = dl.read(case_id)
-    if not isinstance(case_obj, VulnerabilityCase):
+    case_obj = dl.read_case(case_id)
+    if case_obj is None:
         return None
     manager_id = _resolve_case_manager_id(case_obj, dl)
     return manager_id if is_case_actor_identity(manager_id) else None
@@ -282,8 +282,8 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
         return established
 
     if pending_creator_ids:
-        case = dl.read(case_id)
-        if isinstance(case, VulnerabilityCase):
+        case = dl.read_case(case_id)
+        if case is not None:
             manager_id = _resolve_case_manager_id(case, dl)
             if manager_id is not None and manager_id in pending_creator_ids:
                 return manager_id
@@ -401,13 +401,9 @@ def resolve_case(case_id: str, dl: CasePersistence):
     ``triggers`` package ``__init__`` (which would cause circular imports when
     called from the BT nodes layer).
     """
-    case_raw = dl.read(case_id)
+    case_raw = dl.read_case(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    if not isinstance(case_raw, VulnerabilityCase):
-        raise VultronValidationError(
-            f"Expected VulnerabilityCase, got {type(case_raw).__name__}."
-        )
     return case_raw
 
 
@@ -486,10 +482,10 @@ def update_participant_rm_state(
     ``triggers`` package ``__init__`` (which would cause circular imports when
     called from the BT nodes layer).
     """
-    case_obj = dl.read(case_id)
-    if not isinstance(case_obj, VulnerabilityCase):
+    case_obj = dl.read_case(case_id)
+    if case_obj is None:
         logger.warning(
-            "update_participant_rm_state: case '%s' not found or wrong type",
+            "update_participant_rm_state: case '%s' not found",
             case_id,
         )
         return False

@@ -38,7 +38,6 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     BB_CASE_STATUS_DIM_FILTER,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.states.cs import CS_pxa
@@ -94,8 +93,8 @@ class CheckCaseStatusIdempotencyNode(
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning(
                 "CheckCaseStatusIdempotency: %s", self.feedback_message
@@ -186,8 +185,8 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning(
                 "AppendCaseStatusToCase: %s", self.feedback_message
@@ -270,8 +269,8 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

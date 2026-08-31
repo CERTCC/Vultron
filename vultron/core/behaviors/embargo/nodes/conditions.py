@@ -21,7 +21,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case import VulnerabilityCase, has_case_statuses
+from vultron.core.models.case import has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.errors import VultronInvalidStateTransitionError
 
@@ -42,8 +42,8 @@ class ValidateCaseExistsNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = (
                 f"Case '{self.case_id}' not found or not a valid case model"
             )
@@ -73,8 +73,8 @@ class IsActiveEmbargoNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 
@@ -125,8 +125,8 @@ class LookupParticipantNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -210,8 +210,8 @@ class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
         if self.datalayer is None:
             return Status.SUCCESS
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found — skipping participant lookup"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
@@ -282,8 +282,8 @@ class HasActiveEmbargoNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 
@@ -322,8 +322,8 @@ class IsProposedEmbargoNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 
@@ -372,8 +372,8 @@ class HasCaseStatusesNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 

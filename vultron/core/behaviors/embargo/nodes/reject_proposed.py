@@ -32,7 +32,6 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -148,8 +147,8 @@ class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.feedback_message = f"Case '{self._case_id}' not found"
             return Status.FAILURE
 

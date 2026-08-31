@@ -113,8 +113,8 @@ class CSinStateFixDeployed(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found", self.name, self._case_id
             )
@@ -175,8 +175,8 @@ class CheckCSFixNotYetDeployed(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found", self.name, self._case_id
             )

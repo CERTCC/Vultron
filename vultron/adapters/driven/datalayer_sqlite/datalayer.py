@@ -25,7 +25,10 @@ submodules and tests call them by those names.
 """
 
 import logging
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from vultron.core.models.case import VulnerabilityCase
 
 from sqlmodel import SQLModel
 
@@ -206,6 +209,15 @@ class SqliteDataLayer:
         """Read an object by ID across all actor-scoped rows."""
         return crud.read(self, object_id, raise_on_missing)
 
+    def read_case(
+        self, case_id: str, raise_on_missing: bool = False
+    ) -> "VulnerabilityCase | None":
+        """Read a VulnerabilityCase by ID; returns None when not found."""
+        from vultron.core.models.case import VulnerabilityCase as _VC
+
+        result = self.read(case_id, raise_on_missing=raise_on_missing)
+        return result if isinstance(result, _VC) else None
+
     def get(
         self, table: str | None = None, id_: str | None = None
     ) -> PersistableModel | dict[str, Any] | None:
@@ -286,15 +298,23 @@ class SqliteDataLayer:
         """Find an actor by the last path segment of its URI."""
         return queries.find_actor_by_short_id(self, short_id)
 
-    def find_case_by_short_id(self, short_id: str) -> PersistableModel | None:
+    def find_case_by_short_id(
+        self, short_id: str
+    ) -> "VulnerabilityCase | None":
         """Find a case by its URL-safe surrogate key."""
-        return queries.find_case_by_short_id(self, short_id)
+        from vultron.core.models.case import VulnerabilityCase as _VC
+
+        result = queries.find_case_by_short_id(self, short_id)
+        return result if isinstance(result, _VC) else None
 
     def find_case_by_report_id(
         self, report_id: str
-    ) -> PersistableModel | None:
+    ) -> "VulnerabilityCase | None":
         """Find a ``VulnerabilityCase`` referencing the given report ID."""
-        return queries.find_case_by_report_id(self, report_id)
+        from vultron.core.models.case import VulnerabilityCase as _VC
+
+        result = queries.find_case_by_report_id(self, report_id)
+        return result if isinstance(result, _VC) else None
 
     # ------------------------------------------------------------------
     # Inbox / Outbox queue helpers - delegate to submodule
