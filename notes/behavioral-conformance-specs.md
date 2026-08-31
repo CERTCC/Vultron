@@ -178,9 +178,12 @@ Some ECA rules are not just "do A when B" but "do A *before* B." These use
   ThreatTerminationBranchNode).
 - **Ephemeral states: pX→PX invariant** (CSB-13-001, CSB-17-003, CSB-17-012):
   when the CS PXA state is pXa or pXA (exploit public without public awareness),
-  the next CS event MUST be P. This is normatively specified but **not yet
-  enforced in BT paths** — `cs_invariants.required_next_cs_events()` is not
-  wired into any receive path. See #2524.
+  the next CS event MUST be P. **Write-boundary enforcement is in place** (AC-1,
+  PR #2479): `_promote_pxa()` in `AppendCaseStatusToCaseNode` and
+  `EmitCaseStatusUpdateNode`, and `_apply_ac1_promotions()` in
+  `CreateParticipantStatusNode`, prevent pXa/pXA from being persisted. However,
+  **receive-path sequencing** (`cs_invariants.required_next_cs_events()`) is not
+  yet wired into any receive path — that is #2524's scope.
 - **CS history validity** (CSB-17-004, CSB-17-005): complete CS histories must
   be one of 70 valid histories; incomplete histories must be valid prefixes.
   Normatively specified but **not yet enforced** — `cs_invariants.is_valid_cs_history()`
