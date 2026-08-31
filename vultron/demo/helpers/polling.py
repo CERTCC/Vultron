@@ -1469,3 +1469,46 @@ def wait_for_pending_inbox_quiescent(
         f" on container {client.base_url}",
         swallow_exceptions=False,
     )
+
+
+def drain_phase1_ledger(
+    auth_client: DataLayerClient,
+    case_id: str,
+    replica_pairs: list[tuple[DataLayerClient, str]],
+    timeout_seconds: float = 30.0,
+) -> None:
+    """Wait for each replica to reach the authoritative ledger tail.
+
+    Drains the Phase 1 ``LedgerFanout`` outbox before Phase 2 steps begin.
+    Each replica is checked inside a ``demo_gate`` so that a lagging replica
+    skips dependent steps rather than triggering a spurious timeout
+    (ADR-0026, ADR-0058, issue #2819).
+
+    Args:
+        auth_client: DataLayerClient for the authoritative container whose
+            ledger tail defines "Phase 1 complete".
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        replica_pairs: ``(replica_client, label)`` pairs to check.  The label
+            appears in gate descriptions and log messages.
+        timeout_seconds: Per-replica timeout.  Defaults to 30 s.
+    """
+    from vultron.demo.helpers.sync import (  # noqa: PLC0415
+        _get_log_entries_for_case,
+    )
+    from vultron.demo.utils import demo_gate  # noqa: PLC0415
+
+    entries = _get_log_entries_for_case(auth_client, case_id)
+    if not entries:
+        return
+    tail_index: int = max(entries, key=lambda e: e["log_index"])["log_index"]
+    for replica_client, label in replica_pairs:
+        with demo_gate(
+            f"{label} ledger coverage (Phase 1 drain before Phase 2)"
+        ):
+            wait_for_contiguous_ledger_coverage(
+                client=replica_client,
+                case_id=case_id,
+                expected_tail_index=tail_index,
+                timeout_seconds=timeout_seconds,
+            )
+        logger.info("  %s Phase 1 ledger synchronized", label)

@@ -45,6 +45,15 @@ flowchart TB
     r -->|n| s
 ```
 
+!!! info "CaseActor routing (PCR-08-007, PCR-08-008)"
+
+    The `Invite` in this flow is sent by the **Case Actor** (not the Case Owner
+    directly). The Case Owner triggers the invite action, but the Case Actor MUST
+    be the ActivityStreams `actor` on the outbound `Invite` activity. The invited
+    actor MUST send their `Accept` or `Reject` reply to the **Case Actor**, not
+    directly to the Case Owner. See [Inviting an Actor to a Case](invite_actor.md)
+    for the full sequence diagram.
+
 !!! question "Create or Add?"
 
     There appears to be some logical interchangeability of `as:Create` 

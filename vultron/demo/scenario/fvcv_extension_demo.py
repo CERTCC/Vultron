@@ -76,6 +76,7 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    drain_phase1_ledger,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
@@ -286,6 +287,17 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
+    # Drain the CaseActor's outbox before Phase 2 starts (ADR-0026, ADR-0058,
+    # issue #2819).
+    drain_phase1_ledger(
+        auth_client=vendor_client,
+        case_id=case.id_,
+        replica_pairs=[
+            (finder_client, "Finder"),
+            (coordinator_client, "Coordinator"),
+        ],
+    )
+
     case = as_VulnerabilityCase.model_validate(
         vendor_client.get(vendor_client.dl_path(case.id_))
     )
@@ -349,6 +361,7 @@ def _phase_coordinator_suggests_vendor2(
         cp_offer_id = find_cp_offer_for_case(
             client=vendor_client,
             case_id=case.id_,
+            timeout_seconds=40.0,
         )
         logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 

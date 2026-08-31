@@ -24,7 +24,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Offer,
     as_Reject,
-    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -207,16 +206,11 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
         vendor = examples.vendor()
         case = examples.case()
 
-        self.assertIsInstance(activity, as_Undo)
-        self.assertEqual(activity.type_, "Undo")
+        self.assertIsInstance(activity, as_Join)
+        self.assertEqual(activity.type_, "Join")
 
         self.assertEqual(activity.actor, vendor.id_)
-        inner_activity = cast(as_Ignore, activity.object_)
-        self.assertEqual(inner_activity.type_, "Ignore")
-        self.assertEqual(inner_activity.actor, vendor.id_)
-        self.assertEqual(inner_activity.object_, case)
-
-        self.assertEqual(activity.context, case.id_)
+        self.assertEqual(activity.object_, case)
 
     def test_update_case(self):
         activity = examples.update_case()
