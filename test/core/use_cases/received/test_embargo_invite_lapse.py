@@ -40,7 +40,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 CoreCase = VulnerabilityCase
 
-_NOW = datetime(2026, 8, 28, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime.now(tz=timezone.utc).replace(microsecond=0)
 _PAST = _NOW - timedelta(days=1)
 _FUTURE = _NOW + timedelta(days=6)
 
