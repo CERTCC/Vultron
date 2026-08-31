@@ -590,6 +590,58 @@ class TestAddCaseStatusTree:
         assert saved_status.em.state == EM.PROPOSED
         assert saved_status.pxa.state == CS_pxa.Pxa
 
+    @pytest.mark.spec("RSH-05-012")
+    def test_finalize_cs_filter_node_emstate_uses_name_serialization(
+        self, dl, make_payload
+    ):
+        """emState in BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE equals EM member .name.
+
+        Regression guard for the FinalizeCsFilterNode serialization invariant:
+        ``emState`` must equal ``filtered.em.state.name`` so that
+        ``_coerce_em(emState)`` via ``EM[v]`` (name-based lookup) round-trips
+        correctly.  Using ``str()`` is fragile because it returns .value, which
+        equals .name only while no EM member has value ≠ name (RSH-05-012).
+        """
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
+        )
+        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        dl.create(case)
+
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em_state=EM.PROPOSED,
+            pxa_state=CS_pxa.pxa,
+        )
+        dl.create(asserted)
+
+        activity = add_status_to_case_activity(
+            asserted, target=case.id_, actor=ACTOR_ID
+        )
+        event = make_payload(activity)
+
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        override = py_trees.blackboard.Blackboard.storage.get(
+            "/ledger_payload_object_override"
+        )
+        assert override is not None, (
+            "FinalizeCsFilterNode must set BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE"
+            " during a partial-accept"
+        )
+        em_state_field = override["fields"]["emState"]
+        assert em_state_field == EM.PROPOSED.name, (
+            f"emState must be EM member .name ('{EM.PROPOSED.name}'),"
+            f" got {em_state_field!r}"
+        )
+        assert EM[em_state_field] == EM.PROPOSED
+
 
 # ---------------------------------------------------------------------------
 # Use-case level (integration with BT)
