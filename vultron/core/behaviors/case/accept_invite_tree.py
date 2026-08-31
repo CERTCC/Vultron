@@ -385,15 +385,20 @@ class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
         if invite_obj is None:
             self.logger.warning(
                 "%s: Accept activity has no embedded Invite (object_ is None)"
-                " — protocol violation",
+                " — protocol violation [activity_id=%s actor_id=%s]",
                 self.name,
+                event.activity_id,
+                event.actor_id,
             )
             return []
         raw_roles = getattr(invite_obj, "roles", None)
         if raw_roles is None:
             self.logger.warning(
-                "%s: embedded Invite has no roles field — protocol violation",
+                "%s: embedded Invite has no roles field"
+                " — protocol violation [activity_id=%s actor_id=%s]",
                 self.name,
+                event.activity_id,
+                event.actor_id,
             )
             return []
         if not raw_roles:

@@ -21,6 +21,7 @@ CM-17-003: Roles MUST be read from the Accept's embedded Invite, not DataLayer.
 
 import logging
 import types
+from unittest.mock import patch
 
 import py_trees
 import pytest
@@ -347,3 +348,51 @@ def test_read_invite_roles_warns_when_roles_field_absent(
         "roles" in r.message and "protocol violation" in r.message
         for r in warnings
     ), f"Expected WARNING about missing roles / protocol violation, got: {[r.message for r in warnings]}"
+
+
+@pytest.mark.spec("CM-17-003")
+def test_read_invite_roles_warns_and_recovers_on_typeerror(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """#2802: TypeError from validate_roles is caught; node returns SUCCESS.
+
+    If validate_roles raises TypeError (truthy but non-iterable roles payload),
+    the except clause in _read_invite_roles() MUST catch it rather than
+    propagating out of update() and aborting the BT sequence.
+    """
+    case = VulnerabilityCase(
+        id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
+    )
+    bt_scenario.seed(case)
+
+    invite_with_integer_roles = types.SimpleNamespace(roles=42)
+    accept_activity = VultronActivity(
+        id_="https://example.org/activities/accept-typeerror",
+        type_="Accept",
+        actor=_CM17_INVITEE_ID,
+        object_=invite_with_integer_roles,
+    )
+    event = AcceptInviteActorToCaseReceivedEvent(
+        activity_id="https://example.org/activities/accept-typeerror",
+        actor_id=_CM17_INVITEE_ID,
+        object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
+        activity=accept_activity,
+    )
+    node = CreateInviteeParticipantAtReceivedNode(
+        case_id=_CM17_CASE_ID,
+        invitee_id=_CM17_INVITEE_ID,
+    )
+
+    with patch(
+        "vultron.core.behaviors.case.accept_invite_tree.validate_roles",
+        side_effect=TypeError("not iterable"),
+    ):
+        result = bt_scenario.run(
+            node,
+            actor_id=_CM17_CASE_ACTOR_ID,
+            activity=event,
+            invitee_case=case,
+            invitee_already_participant=False,
+        )
+
+    assert result.status == Status.SUCCESS
