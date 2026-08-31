@@ -12,7 +12,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Undo,
     as_Accept,
     as_Add,
     as_Create,
@@ -111,16 +110,12 @@ def defer_case() -> as_Ignore:
     return activity
 
 
-def reengage_case() -> as_Undo:
+def reengage_case() -> as_Join:
     _vendor = vendor()
     _case = case()
-    _deferral = defer_case()
 
-    activity = as_Undo(
-        actor=_vendor.id_,
-        object_=_deferral,
-        content="We're reengaging this case.",
-        context=_case.id_,
+    activity = rm_engage_case_activity(
+        _case, actor=_vendor.id_, content="We're reengaging this case."
     )
     return activity
 

@@ -72,6 +72,7 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+    - Capability Model: 'topics/capability_model/index.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
       - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
@@ -105,6 +106,9 @@ nav:
             - Initializing a Case: 'howto/activitypub/activities/initialize_case.md'
             - Managing a Case: 'howto/activitypub/activities/manage_case.md'
             - Transferring a Case: 'howto/activitypub/activities/transfer_ownership.md'
+            - CaseProposal Flow: 'howto/activitypub/activities/case_proposal.md'
+            - Ledger Replication: 'howto/activitypub/activities/ledger_replication.md'
+            - Role Delegation: 'howto/activitypub/activities/role_delegation.md'
             - Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
             - Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
             - Initialize a Participant: 'howto/activitypub/activities/initialize_participant.md'
