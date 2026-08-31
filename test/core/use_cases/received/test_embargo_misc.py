@@ -150,7 +150,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
-        case.case_participants.append(participant)  # inline object, not str
+        case.case_participants.append(participant)  # type: ignore[arg-type]  # inline wire object (regression test for #609)
         case.actor_participant_index[actor_id] = participant_id
         dl.create(case)
 

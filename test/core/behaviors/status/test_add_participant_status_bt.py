@@ -31,6 +31,8 @@ Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
 
+from typing import cast
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -69,6 +71,7 @@ from vultron.core.behaviors.status.nodes import (
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -1536,7 +1539,7 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
@@ -1561,7 +1564,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_OWNER],
         )
         vendor_participant.participant_statuses.append(existing_status)
-        case.add_participant(vendor_participant)
+        case.add_participant(cast(CaseParticipant, vendor_participant))
 
         dl.create(case)
         dl.create(cm_participant)
@@ -1621,7 +1624,7 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
@@ -1646,7 +1649,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_OWNER],
         )
         vendor_participant.participant_statuses.append(existing_status)
-        case.add_participant(vendor_participant)
+        case.add_participant(cast(CaseParticipant, vendor_participant))
 
         dl.create(case)
         dl.create(cm_participant)

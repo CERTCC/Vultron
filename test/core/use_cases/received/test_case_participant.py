@@ -231,6 +231,7 @@ class TestCaseParticipantUseCases:
             as_Remove,
         )
         from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -250,7 +251,7 @@ class TestCaseParticipantUseCases:
             attributed_to=actor_id,
             context=case.id_,
         )
-        case.add_participant(participant)
+        case.add_participant(cast(CaseParticipant, participant))
         dl.create(case)
         dl.create(participant)
 

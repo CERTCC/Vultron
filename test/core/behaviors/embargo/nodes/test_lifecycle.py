@@ -46,7 +46,7 @@ CASE_MANAGER_ACTOR = "https://example.org/actors/case-manager"
 def _make_case_with_manager(
     suffix: str,
     em_state: EM = EM.ACTIVE,
-) -> tuple[as_VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
+) -> tuple[VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a populated DataLayer with a case + CASE_MANAGER participant."""
     dl = SqliteDataLayer(
         "sqlite:///:memory:",

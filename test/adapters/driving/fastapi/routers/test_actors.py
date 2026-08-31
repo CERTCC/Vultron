@@ -12,6 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 # python
+from typing import cast
+
 import pytest
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
@@ -32,6 +34,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
@@ -251,7 +254,7 @@ def _seed_action_rules_data(dl):
             )
         ],
     )
-    case.add_participant(participant)
+    case.add_participant(cast(CaseParticipant, participant))
     dl.create(case)
 
 

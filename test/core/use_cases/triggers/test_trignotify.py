@@ -71,14 +71,12 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
     FinderParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -114,8 +112,8 @@ def _make_case_with_case_manager(
     actor_id: str,
     finder_id: str,
     case_actor_id: str,
-) -> as_VulnerabilityCase:
-    """Create a as_VulnerabilityCase with a Finder participant and a Case Actor
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase with a Finder participant and a Case Actor
     (CVDRole.CASE_MANAGER).  Persists all objects in *dl*.
 
     The actor participant is pre-initialized to RM.VALID so that
@@ -181,13 +179,13 @@ def _make_two_actor_case(
     routing or an ``EngageCaseTriggerRequest``/``AddParticipantStatusTriggerRequest``.
     """
     case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
-    vendor_participant = as_CaseParticipant(
+    vendor_participant = CaseParticipant(
         id_=f"{case.id_}/participants/vendor",
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    finder_participant = as_CaseParticipant(
+    finder_participant = CaseParticipant(
         id_=f"{case.id_}/participants/finder",
         attributed_to=finder_id,
         context=case.id_,

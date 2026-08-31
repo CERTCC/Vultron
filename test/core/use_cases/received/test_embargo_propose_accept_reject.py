@@ -274,9 +274,7 @@ class TestEmbargoProposalLifecycle:
     ):
         """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
+        from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
@@ -296,7 +294,7 @@ class TestEmbargoProposalLifecycle:
             content="Embargo",
             context=case.id_,
         )
-        participant = as_CaseParticipant(
+        participant = CaseParticipant(
             id_="https://example.org/cases/case_em5/participants/coord",
             attributed_to=coordinator_id,
             context=case.id_,

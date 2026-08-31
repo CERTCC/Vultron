@@ -57,7 +57,7 @@ from vultron.core.use_cases.received.status import (
 )
 from vultron.wire.as2.factories import add_status_to_case_activity
 from vultron.core.models.case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -511,7 +511,7 @@ class TestThreatTerminationBranchNode:
         from vultron.enums.roles import CVDRole
 
         # ResolveCaseManagerNode requires a CASE_MANAGER participant in the case.
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
@@ -677,7 +677,7 @@ class TestAddCaseStatusTreeSeam2:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=f"{CASE_ID}/participants/cm",
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
@@ -775,7 +775,7 @@ class TestRegressionCSPTeardownPath:
         from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=manager_id)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=f"{CASE_ID}/participants/cm",
             context=CASE_ID,
             attributed_to=manager_id,
@@ -919,7 +919,7 @@ class TestCaseLedgerEntryCreation:
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2254
         )
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID_2254,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID_2254,

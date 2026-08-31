@@ -20,8 +20,8 @@ import py_trees
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
@@ -55,7 +55,7 @@ def bridge(dl):
 
 @pytest.fixture
 def participant():
-    return as_CaseParticipant(
+    return CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -70,7 +70,7 @@ def status_obj():
 
 @pytest.fixture
 def populated_dl(dl, participant, status_obj):
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,

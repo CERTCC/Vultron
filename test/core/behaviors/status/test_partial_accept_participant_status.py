@@ -305,8 +305,8 @@ def _seed_case(
         name="Issue 2235 Case",
         attributed_to=CASE_MANAGER_ID,
     )
-    case.add_participant(vendor)
-    case.add_participant(manager)
+    case.add_participant(cast(CaseParticipant, vendor))
+    case.add_participant(cast(CaseParticipant, manager))
 
     dl.create(case)
     dl.create(vendor)
