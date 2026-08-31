@@ -17,7 +17,6 @@
 
 | Debt item | Why it exists | Where | Risk if ignored | Suggested fix |
 |-----------|---------------|-------|-----------------|---------------|
-| `datalayer_sqlite.py` backward-compat shim | DataLayer was split into subpackage; shim keeps callers working | `vultron/adapters/driven/datalayer_sqlite.py` | Shim is low-risk but signals incomplete migration; shim should not accumulate more re-exports | Remove shim once all callers import from subpackage directly |
 | `transitions` state machine library in core | Core `vultron/core/states/` wraps `transitions`; third-party lib in domain layer | `vultron/core/states/em.py`, `rm.py`, `cs.py` | Library API changes affect core domain directly | Encapsulate behind a domain-owned state-machine port if transitions ever becomes a migration blocker |
 | `vultron/demo/` imports from adapters | Demo is intentionally a user of adapters, but boundary between demo and production code is fuzzy | `vultron/demo/` | Demo code mutating shared state could silently affect production code paths | Document or test which demo modules are safe to import in non-demo contexts |
 
@@ -35,7 +34,7 @@
 |---------|----------|-----------------|-------------|-----------------------|
 | SQLite serializes writes | SQLite architecture | Acceptable for prototype single-actor demo | Multi-actor or federated deployment cannot share one SQLite file | Plan data store migration for production (see risk #2 above) |
 | BT tree execution is synchronous | `vultron/bt/base/bt_node.py`, `py-trees` library | Acceptable for current use; no measured bottleneck | Long-running BT ticks block the event loop if called from async context | Ensure BT execution runs in `BackgroundTasks` (already used in FastAPI layer) |
-| High-churn files signal fragile areas | Scan: `plan/BUILD_LEARNINGS.md` (96), `AGENTS.md` (92), `plan/IMPLEMENTATION_PLAN.md` (88), `pyproject.toml` (71) | Frequent edits to planning files expected; `pyproject.toml` churn reflects active dependency management | Planning files are low-risk; `pyproject.toml` churn may indicate dependency pinning instability | Monitor `pyproject.toml` churn; pin critical deps once stabilized |
+| High-churn files signal fragile areas | Scan: `AGENTS.md` (92), `pyproject.toml` (71) | Frequent edits to agent-guidance and tooling config; `pyproject.toml` churn reflects active dependency management | Both are low-risk day-to-day; `pyproject.toml` churn may indicate dependency pinning instability | Monitor `pyproject.toml` churn; pin critical deps once stabilized |
 
 ### 5) Fragile/High-Churn Areas
 
@@ -48,7 +47,7 @@
 | `vultron/core/use_cases/triggers/actor.py` | Actor trigger use cases expand with new protocol transitions | 31 commits in 90 days | Check `USE_CASE_MAP` consistency after changes |
 | `vultron/adapters/driven/trigger_activity_adapter/actors.py` | Driven adapter mirrors trigger use-case growth | 28 commits in 90 days | Run integration tests after changes |
 | `vultron/core/behaviors/embargo/nodes/lifecycle.py` | Embargo lifecycle BT nodes track active embargo spec work | 25 commits in 90 days | Verify embargo spec IDs in tests after changes |
-| `vultron/core/behaviors/case/nodes/` | BT node refactoring ongoing — `case_setup.py` was split into `case_setup.py` + `case_actor_setup.py` in 2026-08 | High churn; active decomposition | Test BT execution before any node reorganization |
+| `vultron/core/behaviors/case/nodes/` | BT node refactoring ongoing in 2026-08 | High churn; active decomposition | Test BT execution before any node reorganization |
 | `vultron/core/ports/trigger_activity.py` | Trigger port evolves with use-case expansion | 27 commits in 90 days | Run integration tests after changes; check `USE_CASE_MAP` consistency |
 | `vultron/core/behaviors/sync/nodes/` | Sync nodes refactored — `conditions.py` split into `conditions.py` + `event_conditions.py` | Active decomposition in 2026-08 | Check both modules when touching sync BT conditions |
 

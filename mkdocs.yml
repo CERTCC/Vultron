@@ -332,7 +332,6 @@ not_in_nav: |
   *diagram*.md
   *table*.md
   *.ttl
-  codebase/**
   reference/codebase/**
   # Maintainer/agent-facing pages intentionally excluded from the published nav
   agents/*.md
