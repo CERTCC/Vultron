@@ -217,6 +217,10 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
 
         current_pxa = current.pxa.state
         asserted_pxa = asserted.pxa.state
+        # Received-side: intentionally uses the weaker monotone check (RSH-05).
+        # A remote peer may have skipped steps between messages; strict
+        # single-step adjacency (is_valid_pxa_transition) applies only to
+        # local write nodes (CSB-16-002).
         if asserted_pxa != current_pxa and not is_monotonic_pxa_forward(
             current_pxa, asserted_pxa
         ):
@@ -328,7 +332,7 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 "object_id": status_id,
                 "producer_type": self.__class__.__name__,
                 "fields": {
-                    "emState": str(filtered.em.state),
+                    "emState": filtered.em.state.name,
                     "pxaState": filtered.pxa.state.name,
                 },
             },
